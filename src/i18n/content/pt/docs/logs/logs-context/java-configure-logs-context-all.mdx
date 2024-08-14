@@ -1,0 +1,780 @@
+---
+title: Logs contextualizados do agente Java
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Configure logs in context
+metaDescription: 'For apps monitored by Java, learn how to link log data with related data across the rest of the New Relic platform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Com nosso <InlinePopover type="apm"/>agente Java, você pode obter o <DNT>**logs in context**</DNT>, que permite ver o registro do seu aplicativo no contexto de outros dados New Relic . Para informações gerais sobre este recurso, consulte [logs contextualizados APM](/docs/apm/new-relic-apm/getting-started/get-started-logs-context).
+
+<Callout variant="tip">
+  Tem muito log Java? Confira nosso [tutorial sobre como otimizá-los e gerenciá-los](/docs/tutorial-large-logs/get-started-managing-large-logs/).
+</Callout>
+
+## Opções de logs contextualizadosn automático [#automatic]
+
+Se você estiver usando um framework suportado, você tem duas opções para configurar o logs contextualizados APM para enviar o log do seu app e vincular os metadados automaticamente ao New Relic. Uma opção é configurar manualmente uma extensão log que irá decorar seu log e então você poderá encaminhá-la para você mesmo. A outra opção é fazer com que o agente Java cuide automaticamente da decoração e do encaminhamento do seu log. A estrutura suportada para logs contextualizados automático inclui:
+
+* Log4j1 1.2.17 ou superior
+* Log4j2 2.6 ou superior
+* Logback 1.1 ou superior
+* JUL (java.util.logging) JDK 8+
+* JBoss Logging 1.3.0.Final a 2.x
+* Registro do Dropwizard (capturado por meio da instrumentação Logback, consulte o problema abaixo)
+
+<Callout variant="important">
+  Registro JBoss
+
+  O JBoss Logging delega a funcionalidade de decoração local à instrumentação JUL e, portanto, pode ser completamente controlado pelos dois módulos de instrumentação a seguir:
+
+  ```yml
+  class_transformer:
+    com.newrelic.instrumentation.java.logging-jdk8:
+      enabled: true
+
+    com.newrelic.instrumentation.jboss.logging:
+      enabled: true
+  ```
+</Callout>
+
+<Callout variant="important">
+  Problema conhecido com registro do Dropwizard
+
+  Por padrão, o Dropwizard usa Logback para seu backend de registro. Ele também roteia todos os java.util.logging, Log4j e uso do Apache Commons Logging por meio do Logback. Esse comportamento de roteamento pode fazer com que o log duplicado seja relatado ao New Relic se o agente Java instrumento uma dessas outras bibliotecas de log, além do instrumentado Logback.
+
+  Para evitar reportar log duplicado ao usar o log do Dropwizard, é recomendado que você desabilite toda a instrumentação framework de log, exceto o Logback. Você pode fazer isso na seção `class_transformer` do arquivo de configuração do agente:
+
+  ```yml
+  class_transformer:
+    com.newrelic.instrumentation.logback-classic-1.2:
+      enabled: true
+
+    com.newrelic.instrumentation.apache-log4j-1:
+      enabled: false
+
+    com.newrelic.instrumentation.apache-log4j-2:
+     enabled: false
+
+    com.newrelic.instrumentation.java.logging-jdk8:
+     enabled: false
+
+    com.newrelic.instrumentation.jboss.logging:
+     enabled: false
+  ```
+</Callout>
+
+<Callout variant="important">
+  As versões 7.7.0 e superiores do agente têm esse recurso ativado no arquivo de configuração do agente por padrão.
+
+  Agente encaminhamento de logs causará um aumento no consumo de dados quando uma [frameworksuportada](/docs/logs/logs-context/java-configure-logs-context-all#automatic) for detectada. A quantidade depende do aplicativo e da quantidade de log que ele produz. Este recurso pode ser desativado. Consulte [Desativar o registro automático](/docs/logs/logs-context/disable-automatic-logging/) para obter mais informações sobre suas opções.
+
+  Se você já possui uma solução de encaminhamento de logs instalada, você deve desabilitar este recurso.
+</Callout>
+
+Se você preferir usar seu próprio direcionador de logs, em vez de ter o log de encaminhamento do agente Java, então nossa solução [de logs contextualizados manual](#enable-logs-java) seria a solução certa para decorar seu log com contexto do trace metadados.
+
+<CollapserGroup>
+  <Collapser
+    id="1-agent"
+    title="Opção 1 (recomendada): Deixe o agente encaminhar seu log."
+  >
+    Esta é a abordagem mais simples e é uma ótima opção para desenvolvedores que podem não ter acesso ou interesse em configurar um direcionador de logs ou para contas que desejam ver o poder do log e outros metadados de vinculação no contexto de seus aplicativos sem muita sobrecarga.
+
+    Usando esta opção, o agente adiciona `span.id`, `trace.id`, `hostname`, `entity.guid` e `entity.name`. [Saiba mais sobre as limitações de encaminhamento de logs.](/docs/logs/logs-context/get-started-logs-context#forwarding-details)
+
+    Esta funcionalidade está habilitada por padrão.
+
+    Tudo o que você precisa fazer é instalar uma versão do agente com recursos de encaminhamento de logs ([agente Java 7.6.0 ou superior](/docs/release-notes/agent-release-notes/java-release-notes/)). Se o encaminhamento estiver desabilitado, você poderá usar esta configuração:
+
+    Arquivo de configuração (`newrelic.yml`), recuado 2 espaços na seção comum:
+
+    ```yml
+    application_logging:
+      enabled: true
+      forwarding:
+        enabled: true
+        max_samples_stored: 10000 
+      local_decorating: 
+        enabled: false
+    ```
+
+    Variável de ambiente:
+
+    ```ini
+    NEW_RELIC_APPLICATION_LOGGING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED=10000
+    NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED=false
+    ```
+
+    Propriedade do sistema:
+
+    ```ini
+    -Dnewrelic.config.application_logging.enabled=true
+    -Dnewrelic.config.application_logging.forwarding.enabled=true
+    -Dnewrelic.config.application_logging.forwarding.max_samples_stored=10000
+    -Dnewrelic.config.application_logging.local_decorating.enabled=false
+    ```
+
+    <DNT>
+      **Optional adjustments (`max_samples_stored`):**
+    </DNT>
+
+    Depois que esse recurso estiver ativado, você também terá controle sobre o número máximo de linhas de log enviadas ao New Relic a cada minuto. O valor padrão é 10.000. Se mais de 10.000 linhas log forem visualizadas pelo agente em uma janela de 60 segundos, seu log começará a ser amostrado.
+
+    Defina-o para um número mais alto para receber mais log. Defina-o para um número menor para receber menos log. Qualquer número inteiro não negativo é válido.
+
+    <Callout variant="tip">
+      Refere-se ao número de logs enviados _por minuto_. Definir `max_samples_stored` com um valor menor que 12 fará com que nenhum registro seja enviado.
+    </Callout>
+
+    Arquivo de configuração (`newrelic.yml`):
+
+    ```yml
+    application_logging:
+      enabled: true
+      forwarding:
+        enabled: true
+        max_samples_stored: 10000
+      local_decorating: 
+        enabled: false
+    ```
+
+    Variável de ambiente:
+
+    ```ini
+    NEW_RELIC_APPLICATION_LOGGING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED=10000
+    NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED=false
+    ```
+
+    Propriedade do sistema:
+
+    ```ini
+    -Dnewrelic.config.application_logging.enabled=true
+    -Dnewrelic.config.application_logging.forwarding.enabled=true
+    -Dnewrelic.config.application_logging.forwarding.max_samples_stored=10000
+    -Dnewrelic.config.application_logging.local_decorating.enabled=false
+    ```
+
+    <Callout variant="important">
+      Se você tiver uma solução de encaminhamento de logs existente e estiver atualizando seu agente para usar o logs contextualizados automáticos, certifique-se de <DNT>**disable your manual log forwarder**</DNT>. Caso contrário, seu aplicativo enviará linhas de log duplas. Dependendo da sua conta, isso pode resultar em cobrança dupla. Para obter mais informações, siga os procedimentos para desabilitar seu [direcionador de logs específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="2-decorate"
+    title="Opção 2: Use seu próprio direcionador de logs."
+  >
+    Já tem um encaminhador de logs que você gosta? Estamos protegendo você! O agente Java pode decorar seu log com os metadados de link necessários para fornecer acesso ao recurso automático de log-in-context, e você pode enviá-los para New Relic usando seu manual de direcionamento de logs.
+
+    <Callout variant="tip">
+      Esta opção substitui nosso [logs contextualizados manual no decorador](#enable-logs-java) .
+    </Callout>
+
+    <Callout variant="important">
+      Esta opção não deve ser usada com encaminhamento no agente. Usar um [encaminhador de logs externo](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding) para enviar log para New Relic enquanto o encaminhamento no agente estiver habilitado fará com que seu log seja enviado duas vezes para New Relic. Dependendo da sua conta, isso pode resultar em cobrança dupla.
+    </Callout>
+
+    Atualize a configuração do seu agente para desabilitar o encaminhamento de logs e habilitar a decoração local, depois reinicie o agente para começar a decorar seu log.
+
+    Arquivo de configuração (`newrelic.yml`), recuado 2 espaços na seção comum:
+
+    ```yml
+    application_logging:
+      enabled: true
+      local_decorating: 
+        enabled: true
+      forwarding:
+        enabled: false
+    ```
+
+    Variável de ambiente:
+
+    ```ini
+    NEW_RELIC_APPLICATION_LOGGING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED=true
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=false
+    ```
+
+    Propriedade do sistema:
+
+    ```ini
+    -Dnewrelic.config.application_logging.enabled=true
+    -Dnewrelic.config.application_logging.local_decorating.enabled=true
+    -Dnewrelic.config.application_logging.forwarding.enabled=false
+    ```
+
+    Nosso decorador adiciona cinco atributos a cada mensagem do log no arquivo de log do aplicativo: `entity.guid`, `hostname`, `trace.id`, `span.id` e `entity.name`. Exemplo:
+
+    ```
+    This is my log message. NR-LINKING|{entity.guid}|{hostname}|{trace.id}|{span.id}|{entity.name}|
+    ```
+
+    Alguns atributos podem ficar vazios se o log ocorreu fora de uma transação ou se não forem aplicáveis ao contexto do seu aplicativo.
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## Proteja seus dados [#obfuscation]
+
+Seu registro pode incluir informações confidenciais protegidas pela HIPAA ou outros protocolos de conformidade. Por padrão, ofuscamos padrões numéricos que parecem ser de itens como cartões de crédito ou números de Seguro Social, mas pode ser necessário aplicar hash ou mascarar informações adicionais.
+
+Para mais informações, veja nossa documentação sobre [expressão de ofuscação e regras](/docs/logs/ui-data/obfuscation-ui/). Você pode aplicar hash ou mascarar seus dados log usando a interface New Relic ou NerdGraph, nossa API GraphQL.
+
+## Explore seus dados [#view-ui]
+
+Para aproveitar ao máximo seus dados de registro:
+
+* Na [página <DNT>**Summary**</DNT> doAPM ](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data), clique no gráfico <DNT>**Web transaction time**</DNT> para visualizar o registro associado a um momento específico.
+* Verifique [<DNT>**Errors inbox**</DNT>](/docs/errors-inbox/errors-inbox) do seu aplicativo para visualizar o registro associado aos seus erros.
+* Use [distributed tracing](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui) para ver o log associado ao rastreamento individual.
+* Explore mais dados de registro em sua plataforma com nossa [interface de registro](/docs/logs/log-management/ui-data/use-logs-ui/).
+* Configure [alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/) com base na saída e na gravidade do log.
+* [consulte seus dados](/docs/logs/ui-data/query-syntax-logs/) usando nossa interface especializada para dados de log e [crie um painel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) com os resultados.
+
+## Dicas de resolução de problemas [#troubleshooting]
+
+Normalmente, seu registro começará a aparecer menos de um minuto após você ativar o <InlinePopover type="apm"/>logs contextualizados. Verifique a seção <DNT>**Triage > Logs**</DNT> do seu aplicativo. Você também começará a ver [Padrões de log](/docs/logs/ui-data/find-unusual-logs-log-patterns) relacionados ao erro ali.
+
+Se você não vir nenhum log de erros ou rastreamento, talvez não haja nenhum para seu aplicativo. Tente atualizar a página da interface ou altere o [período selecionado](/docs/new-relic-one/ui-data/basic-ui-features/#data-analysis).
+
+## Desabilitar o registro automático [#disable-automatic]
+
+O logs contextualizados APM encaminha automaticamente <InlinePopover type="apm"/>dados log do agente e é ativado por padrão. Isso pode ter um impacto negativo na segurança, conformidade, faturamento ou desempenho do sistema. Para desativar o registro automático:
+
+1. No [menu do usuário](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings) na interface New Relic , clique em <DNT>**Manage your data > Log settings**</DNT>.
+2. Clique no menu de reticências <DNT>**...**</DNT> no lado direito da linha da conta.
+3. Clique no botão de confirmação para ativar ou desativar e bloquear ou desbloquear o registro automático (contas principais) ou ativar ou desativar apenas (contas infantis).
+
+Para obter mais informações ou se precisar ajustar a configuração padrão, siga os procedimentos para [desativar o registro automático](/docs/logs/logs-context/disable-automatic-logging).
+
+## Opção de logs contextualizados manual [#enable-logs-java]
+
+Antes que o agente de linguagem pudesse encaminhar e decorar log, você poderia usar nossas soluções manuais para enviar metadados de links.
+
+Esta opção ainda é suportada, mas não é mais incentivada. Além disso, este método requer que você instale um direcionador de logs antes de ativar o logs contextualizados. Se você não tiver um direcionador de logs, a interface do New Relic prompt que você use nosso [agente de infraestrutura](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/).
+
+Se você decidir usar sua solução de encaminhamento de logs existente e posteriormente decidir atualizar seu agente para usar o logs contextualizados automático, certifique-se de <DNT>**disable your manual log forwarder**</DNT>. Caso contrário, seu aplicativo enviará linhas de log duplas. Dependendo da sua conta, isso pode resultar em cobrança dupla. Para obter mais informações, siga os procedimentos para desabilitar seu [direcionador de logs específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+
+Se você precisar usar o processo manual para configurar o logs contextualizados para Java, siga estas etapas:
+
+1. Certifique-se de já ter [configurado o login no New Relic](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/enable-log-management-new-relic/). Isso inclui a configuração de um encaminhador de logs compatível que coleta seu log do aplicativo e estende os metadados que são encaminhados para New Relic.
+2. [Instale](/docs/agents/java-agent/installation/install-java-agent/) ou [atualize](/docs/agents/java-agent/installation/update-java-agent/) para a versão mais recente do agente Java. Use [o agente Java versão 5.6.0 ou superior](/docs/release-notes/agent-release-notes/java-release-notes/) para logs contextualizados.
+3. Ative o [argumentoJVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument) e [ative distributed tracing](/docs/distributed-tracing/enable-configure/quick-start/).
+4. Configure o logs contextualizados no Java para enriquecer seus dados log , usando qualquer uma das extensões a seguir, conforme aplicável. Se você usa Spring ou Spring Boot e não tem certeza de qual extensão precisa, consulte nossa documentação [do Spring](#spring) .
+
+<CollapserGroup>
+  <Collapser
+    id="java-dropwizard"
+    title="Dropwizard 1.3 ou superior"
+  >
+    Oferecemos uma extensão [Dropwizard](https://dropwizard.readthedocs.io/en/release-1.3.x/manual/core.html#logging) para logs contextualizados com o agente Java. Para começar, revise o [código](https://github.com/newrelic/java-log-extensions/tree/main/dropwizard) e um [exemplo de aplicativo](https://github.com/newrelic/java-log-extensions/tree/main/examples/dropwizard-app) no GitHub.
+
+    Para configurar o logs contextualizados para seu aplicativo Java com a extensão DropWizard:
+
+    1. Certifique-se de ter o pacote [Dropwizard 1.3 ou superior](https://dropwizard.readthedocs.io/en/release-1.3.x/manual/core.html#logging) instalado e funcionando em seu aplicativo. Use os anexadores originais do Dropwizard e o log de fábrica instalado e funcionando no aplicativo.
+
+    2. Certifique-se de ter o agente Java New Relic versão 5.6.0 ou superior instalado em seu aplicativo e de ter ativado o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument).
+
+    3. Atualize a dependência do seu projeto para incluir a extensão Dropwizard 1.3 conforme aplicável:
+
+       <DNT>**Gradle:**</DNT> Adicione o seguinte ao seu arquivo `build.gradle` :
+
+       ```groovy
+       dependencies {
+         implementation("com.newrelic.logging:dropwizard:2.0")
+       }
+       ```
+
+       <DNT>**Maven:**</DNT> Adicione o seguinte ao seu arquivo `pom.xml` :
+
+       ```xml
+       <dependencies>
+         <dependency>
+           <groupId>com.newrelic.logging</groupId>
+           <artifactId>dropwizard</artifactId>
+           <version>2.0</version>
+         </dependency>
+       </dependencies>
+       ```
+
+    4. Atualize seu arquivo de configuração `.yaml` do Dropwizard com um layout `newrelic-json` , substituindo o `type: console` ou `type: file` usado atualmente por `type: newrelic-console` ou `type: newrelic-file` conforme apropriado. Por exemplo:
+
+       ```yml
+       logging:
+         appenders:
+           - type: newrelic-console
+             # Add the two lines below if you don't have a layout specified on the appender.
+             # If you have a layout, remove all parameters to the layout and set the type.
+             layout:
+               type: newrelic-json
+       ```
+
+       A extensão New Relic Dropwizard também oferece suporte a um tipo de layout `log-format` que usa o registro padrão do Dropwizard. Para fins de teste, você pode alterar o tipo de layout com uma alteração de uma linha:
+
+       ```yml
+       logging:
+         appenders:
+           - type: newrelic-file
+             # This format will be ignored by the newrelic-json layout, but used by the log-format layout.
+             logFormat: "%date{ISO8601} %c %-5p: %m trace.id=%mdc{trace.id} span.id=%mdc{span.id}%n"
+             layout:
+               # type: newrelic-json
+               type: log-format
+       ```
+  </Collapser>
+
+  <Collapser
+    id="java-util-logging"
+    title="java.util.logging"
+  >
+    Oferecemos uma extensão [java.util.logging](https://docs.oracle.com/javase/7/docs/api/java/util/logging/package-summary.html) para logs contextualizados com o agente Java. Para começar, revise o [código](https://github.com/newrelic/java-log-extensions/tree/main/jul) e um [exemplo de aplicativo](https://github.com/newrelic/java-log-extensions/tree/main/examples/jul-app) no GitHub.
+
+    Para configurar o logs contextualizados para seu aplicativo Java com a extensão `java.util.logging` :
+
+    1. Certifique-se de ter o pacote [`java.util.logging`](https://docs.oracle.com/javase/7/docs/api/java/util/logging/package-summary.html) instalado e funcionando no aplicativo.
+
+    2. Certifique-se de ter o agente Java New Relic versão 5.6.0 ou superior instalado em seu aplicativo e de ter ativado o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument).
+
+    3. Atualize a dependência do seu projeto para incluir a extensão `java.util.logging` conforme aplicável. Se não for possível editar esses arquivos, você poderá [adicionar os jars diretamente ao aplicativo `classpath`](#java-adding-classpath).
+
+       <DNT>**Gradle:**</DNT> Adicione o seguinte ao seu arquivo `build.gradle` :
+
+       ```groovy
+       dependencies {
+         implementation("com.newrelic.logging:jul:2.0")
+       }
+       ```
+
+       <DNT>**Maven:**</DNT> Adicione o seguinte ao seu arquivo `pom.xml` :
+
+       ```xml
+       <dependencies>
+         <dependency>
+           <groupId>com.newrelic.logging</groupId>
+           <artifactId>jul</artifactId>
+           <version>2.0</version>
+         </dependency>
+       </dependencies>
+       ```
+
+    4. Verifique se a propriedade `handlers` do seu arquivo de registro está definida como algo diferente de `NewRelicMemoryHandler`. Procure uma linha listando os manipuladores do agente root, assim:
+
+       ```ini
+       handlers = java.util.logging.FileHandler
+       ```
+
+    5. Atualize seu arquivo de propriedades de registro para definir o manipulador do agente raiz como `NewRelicMemoryHandler` para que ele intercepte mensagens destinadas a outro manipulador:
+
+       ```ini
+       handlers = com.newrelic.logging.jul.NewRelicMemoryHandler
+       ```
+
+    6. Configure o `NewRelicMemoryHandler` definindo o destino para o manipulador que foi atribuído anteriormente ao agente root, para que ele capture os dados que New Relic precisa no thread de onde vem a mensagem do log:
+
+       ```ini
+       com.newrelic.logging.jul.NewRelicMemoryHandler.target = java.util.logging.FileHandler
+       ```
+
+    7. Use um `NewRelicFormatter` para o manipulador final. Atualize seu arquivo de propriedades de criação de log para configurar a propriedade `formatter` como no exemplo a seguir. Certifique-se de que o manipulador onde você definiu o formatador seja o manipulador `target` da etapa anterior (`java.util.logging.FileHandler` neste exemplo).
+
+       ```ini
+       java.util.logging.FileHandler.formatter = com.newrelic.logging.jul. NewRelicFormatter
+       ```
+
+       O formato New Relic Logs é JSON com metadados de telemetria que usamos para correlacionar transações e logs juntos. Atualmente não oferecemos suporte a nenhuma personalização desse formato.
+
+       Depois de concluído, JSON é log em vez de texto. O JSON deve ser formatado como objetos únicos, um por linha, e deve conter campos como `log.level` e `thread.name`. O `trace.id`, que é necessário para logs contextualizados, só deve ter valor para mensagem do log que ocorrer dentro de uma transação.
+  </Collapser>
+
+  <Collapser
+    id="java-adding-classpath"
+    title="adições de caminho de classe java.util.logging"
+  >
+    A maneira mais direta de obter as extensões de contexto de login é adicionar essas dependências ao `pom.xml` do Maven ou ao `build.gradle` do Gradle. Isso permite que as ferramentas de empacotamento selecionem a dependência correta.
+
+    Se não for possível editar esses arquivos, você poderá adicionar os jars diretamente ao aplicativo `classpath` para a configuração da sua framework de log.
+
+    Antes de modificar o caminho de classe:
+
+    1. Ative o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument/) no agente Java do seu aplicativo.
+    2. Verifique qual framework de log o aplicativo está usando.
+    3. Certifique-se de poder alterar a configuração da sua framework de log.
+    4. Adicione os três jars a seguir ao caminho de classe se eles ainda não estiverem presentes. Geralmente, recomendamos usar as versões mais recentes publicadas no Maven Central.
+
+    * ID do grupo `com.newrelic.logging` e ID do artefato: selecione o artefato com o nome [framework de registro do seu aplicativo no Maven](https://search.maven.org/search?q=g:com.newrelic.logging).
+    * ID do grupo `com.fasterxml.jackson.core` e ID do artefato: Use [`jackson-core`](https://search.maven.org/search?q=g:com.fasterxml.jackson.core%20a:jackson-core).
+    * ID do grupo `com.newrelic.agent.java` e ID do artefato: Use [`newrelic-api`](https://search.maven.org/search?q=g:com.newrelic.agent.java%20a:newrelic-api).
+  </Collapser>
+
+  <Collapser
+    id="java-log4j-1x"
+    title="Log4j 1.x"
+  >
+    <Callout variant="tip">
+      Aproveite nossa solução [de logs contextualizados automático](#automatic) para Java. Não há necessidade de usar este processo manual!
+    </Callout>
+
+    Oferecemos uma extensão [Log4j 1.x](https://logging.apache.org/log4j/1.2/) para logs contextualizados manual com o agente Java. Para começar, revise o [código](https://github.com/newrelic/java-log-extensions/tree/main/log4j1) e um [exemplo de aplicativo](https://github.com/newrelic/java-log-extensions/tree/main/examples/log4j1-app) no GitHub.
+
+    Para configurar o logs contextualizados manual para seu aplicativo Java com a extensão Log4j 1.x, você deve configurar a extensão Log4j em código ou via XML. Os arquivos de propriedades não são suportados porque a instância `AsyncAppender` só pode ser configurada automaticamente via XML.
+
+    1. Certifique-se de ter o pacote [Log4j 1.x](https://logging.apache.org/log4j/1.2/) instalado e funcionando no aplicativo.
+
+    2. Certifique-se de ter o agente Java New Relic versão 5.6.0 ou superior instalado em seu aplicativo e de ter ativado o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument).
+
+    3. Atualize a dependência do seu projeto para incluir a extensão Log4j 1.x conforme aplicável.
+
+       <DNT>**Gradle:**</DNT> Adicione o seguinte ao seu arquivo `build.gradle` :
+
+       ```groovy
+       dependencies {
+         implementation("com.newrelic.logging:log4j1:2.0")
+       }
+       ```
+
+       <DNT>**Maven:**</DNT> Adicione o seguinte ao seu arquivo `pom.xml` :
+
+       ```xml
+       <dependencies>
+         <dependency>
+           <groupId>com.newrelic.logging</groupId>
+           <artifactId>log4j1</artifactId>
+           <version>2.0</version>
+         </dependency>
+       </dependencies>
+       ```
+
+    4. No arquivo XML de configuração de registro, atualize seu elemento `<appender>` com um `NewRelicLayout`, adicionando `<layout class="com.newrelic.logging.log4j1.NewRelicLayout"/>`:
+
+       ```xml
+       <appender name="TypicalFile" class="org.apache.log4j.FileAppender">
+         <param name="file" value="logs/log4j1-app.log"/>
+         <param name="append" value="false"/>
+         <layout class="com.newrelic.logging.log4j1.NewRelicLayout"/> <!-- only this line needs to be added -->
+       </appender>
+       ```
+
+    5. Use `NewRelicAsyncAppender` para agrupar quaisquer anexadores que irão direcionar os logs do New Relic. Por exemplo:
+
+       ```xml
+       <appender name="NewRelicFile" 
+                 class="com.newrelic.logging.log4j1.NewRelicAsyncAppender">
+         <appender-ref ref="TypicalFile" />
+       </appender>
+       ```
+
+    6. Use o anexador assíncrono no agente raiz. Por exemplo:
+
+       ```xml
+       <root>
+         <appender-ref ref="NewRelicFile" />
+       </root>
+       ```
+
+       <DNT>
+         **Example configuration file for the Log4j 1.x extension:**
+       </DNT>
+
+       ```xml
+       <?xml version="1.0" encoding="UTF-8" ?>
+       <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+       <log4j:configuration debug="false">
+         <appender name="TypicalFile" class="org.apache.log4j.FileAppender">
+           <param name="file" value="logs/log4j1-app.log"/>
+           <param name="append" value="false"/>
+           <!-- layout has been replaced -->
+           <layout class="com.newrelic.logging.log4j1.NewRelicLayout"/>
+         </appender>
+
+           <!-- this appender was added -->
+         <appender name="NewRelicFile" 
+                   class="com.newrelic.logging.log4j1.NewRelicAsyncAppender">
+           <appender-ref ref="TypicalFile" />
+         </appender>
+
+         <appender name="TypicalConsole" class="org.apache.log4j.ConsoleAppender">
+           <layout class="org.apache.log4j.PatternLayout"> 
+             <param name="ConversionPattern" value="%-5p %c{1} - %m%n"/> 
+           </layout> 
+         </appender>
+
+         <root>        ​
+           <!-- the new appender was used here -->​​
+           <appender-ref ref="NewRelicFile" />
+           <appender-ref ref="TypicalConsole" />
+         </root>
+
+       </log4j:configuration>
+       ```
+  </Collapser>
+
+  <Collapser
+    id="java-log4j-2x"
+    title="Log4j 2.x"
+  >
+    <Callout variant="tip">
+      Aproveite nossa solução [de logs contextualizados automático](#automatic) para Java. Não há necessidade de usar este processo manual!
+    </Callout>
+
+    Oferecemos uma extensão [Log4j 2.x](https://logging.apache.org/log4j/2.x/log4j-slf4j-impl.html) para log em contexto com o agente Java. Para começar, revise o [código](https://github.com/newrelic/java-log-extensions/tree/main/log4j2) e um [exemplo de aplicativo](https://github.com/newrelic/java-log-extensions/tree/main/examples/log4j2-app) no GitHub.
+
+    Para configurar o logs contextualizados para seu aplicativo Java com a extensão Log4j 2.x:
+
+    1. Certifique-se de ter o pacote de ligação [Log4j 2.13.2 ou superior](https://logging.apache.org/log4j/2.x/index.html) ou [Logs4j 2](https://logging.apache.org/log4j/2.x/log4j-slf4j-impl/) instalado e funcionando em seu aplicativo.
+
+    2. Certifique-se de ter o agente Java New Relic versão 5.6.0 ou superior instalado em seu aplicativo e de ter ativado o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument).
+
+    3. Atualize a dependência do seu projeto para incluir a extensão Log4j 2.x conforme aplicável:
+
+       <DNT>**Gradle:**</DNT> Adicione a seção destacada ao seu arquivo `build.gradle` :
+
+       ```groovy
+       dependencies {
+         implementation("com.newrelic.logging:log4j2:2.0")
+       }
+       ```
+
+       <DNT>**Maven:**</DNT> Adicione a seção destacada ao seu arquivo `pom.xml` :
+
+       ```xml
+       <dependencies>
+         <dependency>
+           <groupId>com.newrelic.logging</groupId>
+           <artifactId>log4j2</artifactId>
+           <version>2.0</version>
+         </dependency>
+       </dependencies>
+       ```
+
+    4. No arquivo XML de configuração de geração de registros, atualize o elemento `<configuration>` adicionando a seção destacada:
+
+       ```xml
+       <Configuration xmlns="http://logging.apache.org/log4j/2.0/config"
+             packages="com.newrelic.logging.log4j2"
+       >
+       ```
+
+       Se você estiver usando um arquivo de propriedades, adicione `packages=com.newrelic.logging.log4j2`.
+
+    5. Adicione `<NewRelicLayout/>` para usar um elemento `NewRelicLayout` em um dos anexadores. Por exemplo:
+
+       ```xml
+       <File name="MyFile" fileName="logs/app-log-file.log">
+         <NewRelicLayout/>
+       </File>
+       ```
+
+       Se você estiver usando um arquivo de propriedades, altere apenas `layout.type`:
+
+       ```ini
+       appender.console.type = Console
+       appender.console.name = STDOUT
+       appender.console.layout.type = NewRelicLayout
+       ```
+
+    6. Se você modificou apenas um anexador existente, pule esta etapa. Se você adicionou um novo anexador, adicione `<AppenderRef/>` em `<Root>` para usar este anexador. Use o atributo `ref` para se referir ao anexador `name` que você criou na etapa anterior. Por exemplo:
+
+       ```xml
+       <Root level="info">
+         <AppenderRef ref="MyFile"/>
+       </Root>
+       ```
+
+       Se você estiver usando um arquivo de propriedades e adicionou um novo anexador, adicione:
+
+       ```ini
+       rootLogger.level = info
+       rootLogger.appenderRef.stdout.ref = STDOUT
+       ```
+  </Collapser>
+
+  <Collapser
+    id="java-logback"
+    title="Logback versão 1.2.0 ou superior"
+  >
+    <Callout variant="tip">
+      Aproveite nossa solução [de logs contextualizados automático](#automatic) para Java. Não há necessidade de usar este processo manual!
+    </Callout>
+
+    Oferecemos uma extensão [Logback](https://logback.qos.ch/documentation.html) para logs contextualizados com o agente Java. Para começar, revise o [código](https://github.com/newrelic/java-log-extensions/tree/main/logback) e um [exemplo de aplicativo](https://github.com/newrelic/java-log-extensions/tree/main/examples/logback-app) no GitHub.
+
+    Para configurar o logs contextualizados para seu aplicativo Java com Logback:
+
+    1. Certifique-se de ter [o Logback versão 1.2.0 ou superior](https://logback.qos.ch/documentation.html) e o agente Java New Relic versão 5.6.0 ou superior instalado e funcionando em seu aplicativo.
+
+    2. Certifique-se de ter o agente Java New Relic versão 5.6.0 ou superior instalado em seu aplicativo e de ter ativado o [argumento JVM `-javaagent`](/docs/agents/java-agent/installation/include-java-agent-jvm-argument).
+
+    3. Atualize a dependência do seu projeto para incluir a extensão Logback conforme aplicável:
+
+       <DNT>**Gradle:**</DNT> Adicione a seção destacada ao seu arquivo `build.gradle` :
+
+       ```groovy
+       dependencies {
+         implementation("com.newrelic.logging:logback:2.0")
+       }
+       ```
+
+       <DNT>**Maven:**</DNT> Adicione a seção destacada ao seu arquivo `pom.xml` :
+
+       ```xml
+       <dependencies>
+         <dependency>
+           <groupId>com.newrelic.logging</groupId>
+           <artifactId>logback</artifactId>
+           <version>2.0</version>
+         </dependency>
+       </dependencies>
+       ```
+
+    4. Atualize sua configuração de geração de registros `xml` para substituir qualquer elemento `<encoder>` existente.
+
+       Se você estiver efetuando login no console (`stdout/stderr`), procure por `ConsoleAppender` e substitua:
+
+       ```sml
+       <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+         <encoder class="com.newrelic.logging.logback.NewRelicEncoder"/>
+       </appender>
+       ```
+
+       Se você estiver registrando em um arquivo, procure `FileAppender` e substitua `<encoder>`:
+
+       ```xml
+       <appender name="LOG_FILE" class="ch.qos.logback.core.FileAppender">
+         <file>logs/app-log-file.log</file>
+         <encoder class="com.newrelic.logging.logback.NewRelicEncoder"/>
+       </appender>
+       ```
+
+    5. Atualize sua configuração de geração de registros `xml` com o `NewRelicAsyncAppender`. Para garantir que `NewRelicAsyncAppender` envolva todos os anexadores que irão direcionar os logs do New Relic, adicione a seção a seguir. Altere `"LOG_FILE"` para o nome do anexador que você atualizou na etapa anterior.
+
+       ```xml
+       <appender name="ASYNC" class="com.newrelic.logging.logback.NewRelicAsyncAppender">
+         <appender-ref ref="LOG_FILE" />
+       </appender>
+       ```
+
+    6. Certifique-se de que `NewRelicAsyncAppender` seja o primeiro anexador usado em seu agente. Substitua os anexadores do seu agente raiz pelo anexador `ASYNC` criado na etapa anterior. Em seguida, liste quaisquer outros anexadores após `NewRelicAsyncAppender` na lista `<root>`.
+
+       ```xml
+       <root>
+         <appender-ref ref="ASYNC" />
+       </root>
+       ```
+
+       Aqui estão exemplos de um arquivo de registro `.xml` atualizado para a extensão Logback. Você também pode ver um [exemplo prático no GitHub](https://github.com/newrelic/java-log-extensions/blob/master/examples/logback-app/src/main/resources/logback.xml).
+
+       <DNT>
+         **Single console appender example**
+       </DNT>
+
+       Exemplo de arquivo de configuração após adicionar as informações da extensão de registro:
+
+       ```xml
+       <configuration>
+         <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+
+           <!-- changed the encoder -->
+           <encoder class="com.newrelic.logging.logback.NewRelicEncoder"/>
+
+         </appender>
+
+         <!-- added the ASYNC appender -->
+         <appender name="ASYNC" class="com.newrelic.logging.logback.NewRelicAsyncAppender">
+           <appender-ref ref="STDOUT" />
+         </appender>
+
+         <root level="debug">
+
+           <!-- changed the root logger -->
+           <appender-ref ref="ASYNC" /> 
+
+         </root>
+       </configuration>
+       ```
+
+       <DNT>
+         **Two console appenders example**
+       </DNT>
+
+       Este exemplo envia o log do New Relic para um arquivo, mas ainda envia o log padrão para o console:
+
+       ```xml
+       <configuration>
+         <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+           <file>myApp.log</file>
+           <!-- encoder changed -->
+           <encoder class="com.newrelic.logging.logback.NewRelicEncoder"/>
+         </appender>
+
+         <!-- this appender does normal console logging -->
+         <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+           <encoder>
+             <pattern>%msg%n</pattern>
+           </encoder>
+         </appender>
+
+         <!-- The required New Relic ASYNC appender wraps the FILE appender -->
+         <appender name="ASYNC" class="com.newrelic.logging.logback.NewRelicAsyncAppender">
+           <appender-ref ref="FILE" /> 
+         </appender>
+
+         <root level="debug">
+           <!-- ASYNC is one of the main appenders -->
+           <appender-ref ref="ASYNC" /> 
+
+           <!-- Send every message to normal console logging, as well. -->
+           <appender-ref ref="STDOUT" />
+         </root>
+       </configuration>
+       ```
+  </Collapser>
+
+  <Collapser
+    id="spring"
+    title="Primavera e Springboot"
+  >
+    Oferecemos extensões para versões atuais do [Spring](https://spring.io/) e [Spring Boot](https://spring.io/projects/spring-boot). Se você já conhece a biblioteca de log, pode pular diretamente para essa documentação:
+
+    * [java.util.logging](#java-util-logging)
+
+    * [log4j 1](#java-log4j-1x)
+
+    * [log4j 2](#java-log4j-2x)
+
+    * [logback](#java-logback)
+
+      As extensões suportam configuração padrão apenas no Spring Boot 2.0 e superior.
+
+      <DNT>
+        **With Spring Boot:**
+      </DNT>
+
+      Aqui estão algumas dicas para determinar qual biblioteca de registro você possui:
+
+    * Se você tem `spring-boot-starter-log4j2` na sua dependência, você está usando <DNT>**log4j 2.x**</DNT>. Consulte a [documentação do Spring Boot log4j 2.x](https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto-configure-log4j-for-logging) para configuração básica e a [extensão New Relic log4j 2](#java-log4j-2x) para personalizar sua configuração.
+
+    * Se você estiver usando o Spring Boot, mas **não** o `starter-log4j2`, estará usando <DNT>**logback**</DNT> por padrão. Consulte a [documentação de logback do Spring Boot](https://docs.spring.io/spring-boot/docs/current/reference/html/howto.html#howto-configure-logback-for-logging) para configuração básica e a [extensão de logback do New Relic](#logback) para personalizar sua configuração.
+
+      <DNT>
+        **With Spring (but not Spring Boot):**
+      </DNT>
+
+      Primavera 5 ou superior:
+
+      Spring implementa uma [ponte](https://docs.spring.io/spring/docs/current/javadoc-api/org/apache/commons/logging/LogFactory.html) para outra biblioteca de log que os encontrará automaticamente. No entanto, essas bibliotecas individuais devem ser configuradas e incluídas explicitamente na dependência do seu projeto.
+
+      Para identificar sua dependência de log, consulte sua árvore de dependência [Gradle](https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html), [Maven](https://maven.apache.org/plugins/maven-dependency-plugin/examples/resolving-conflicts-using-the-dependency-tree.html) ou outra ferramenta de construção. Em seguida, siga os procedimentos para configurar o logs contextualizados para seu aplicativo Java com essa extensão.
+
+      Primavera 4 ou inferior:
+
+      Spring versão 4 e inferior usa [Apache Commons Logging](https://commons.apache.org/proper/commons-logging/guide.html) para sua ponte. Consulte a [documentação do Spring](https://docs.spring.io/spring/docs/4.3.12.RELEASE/spring-framework-reference/html/overview.html#overview-logging) para obter informações sobre como configurar sua ponte.
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,379 @@
+---
+title: 'Switch'
+metaDescription: 'Learn how to work the Switch component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Switches are used as toggles in content filters, or to provide a way for a user to select a binary preference.
+
+### Usage
+
+```js
+import { Switch } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Docs-prettify">
+  <Switch onChange={(e) => alert(`Toggle to: ${e.target.checked}`)} />
+  <Switch
+    defaultChecked
+    onChange={(e) => alert(`Toggle to: ${e.target.checked}`)}
+  />
+</div>
+```
+
+#### Disabled
+
+```js
+<div className="nr1-Docs-prettify">
+  <Switch disabled />
+  <Switch defaultChecked disabled />
+</div>
+```
+
+#### Loading state
+
+```js
+<div className="nr1-Docs-prettify">
+  <Switch loading />
+  <Switch defaultChecked loading />
+</div>
+```
+
+#### With Label
+
+```js
+<div className="nr1-Docs-prettify">
+  <Switch label="This is a label" />
+  <Switch disabled label="This is a label" />
+</div>
+```
+
+#### With label and info
+
+```js
+<Switch label="This is a label" info="Info value" />
+```
+
+#### With description
+
+```js
+<Switch label="This is a label" description="Description value" />
+```
+
+#### With invalid message
+
+```js
+<Switch label="This is a label" invalid="Invalid message value" />
+```
+
+#### Controlled component set to loading while performing a request
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      checked: false,
+      loading: false,
+    };
+
+
+    this._onChange = this._onChange.bind(this);
+  }
+
+
+  _requestMock() {
+    return new Promise((resolve, reject) => {
+      setTimeout(resolve, 1000);
+    });
+  }
+
+
+  _onChange() {
+    let initialChecked;
+
+
+    this.setState(({ checked }) => {
+      initialChecked = checked;
+
+
+      return {
+        checked: !checked,
+        loading: true,
+      };
+    });
+
+
+    this._requestMock()
+      .then(() => {
+        // do some stuff
+      })
+      .catch(() => {
+        this.setState({
+          checked: initialChecked,
+        });
+      })
+      .finally(() => {
+        this.setState({
+          loading: false,
+        });
+      });
+  }
+
+
+  render() {
+    const { checked, loading } = this.state;
+
+
+    return (
+      <Switch
+        checked={checked}
+        label="This is a label"
+        loading={loading}
+        onChange={this._onChange}
+      />
+    );
+  }
+}
+```
+
+#### Controlled component set to loading while performing a request that toggles back to unchecked if request fails
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      checked: false,
+      loading: false,
+    };
+
+
+    this._onChange = this._onChange.bind(this);
+  }
+
+
+  _requestMock() {
+    return new Promise((resolve, reject) => {
+      setTimeout(reject, 1000);
+    });
+  }
+
+
+  _onChange() {
+    let initialChecked;
+
+
+    this.setState(({ checked }) => {
+      initialChecked = checked;
+
+
+      return {
+        checked: !checked,
+        loading: true,
+      };
+    });
+
+
+    this._requestMock()
+      .then(() => {
+        // do some stuff
+      })
+      .catch(() => {
+        this.setState({
+          checked: initialChecked,
+        });
+      })
+      .finally(() => {
+        this.setState({
+          loading: false,
+        });
+      });
+  }
+
+
+  render() {
+    const { checked, loading } = this.state;
+
+
+    return (
+      <Switch
+        checked={checked}
+        label="This is a label"
+        loading={loading}
+        onChange={this._onChange}
+      />
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a descriptive label for this control, e.g. "Switch view".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `checked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Determines the checked state of the switch, where `true` corresponds to the switch appearing to be switched "on", and a `false` value to the switch appearing to be "off".When `checked` is defined, the Switch component will behave like a [controlled component](https://reactjs.org/docs/forms.html#controlled-components).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component. Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultChecked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Sets the default checked value for the switch when operating as an [uncontrolled component](https://reactjs.org/docs/uncontrolled-components.html). ie. Where the `checked` prop is not already stipulated.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Determines whether the user can interact with the switch, or if it should be rendered in a disabled state.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Associate a text label to provide users a brief title or explanation for the setting controlled by the switch. The label will be positioned on the left side of the switch.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `loading` <h5>boolean</h5>
+      </td>
+
+      <td>
+        To indicate whether an action is in progress, especially in the case that it takes more than 1 second to complete, you should display the loading state. The switch is not interactive while loading.If the action associated to the loading state fails, the checked property should be set back to its previous value.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user toggles the switch. The current checked state can be evaluated in the callback via `event.target.checked`.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Switch.SPACING_TYPE.EXTRA_LARGE,
+          Switch.SPACING_TYPE.LARGE,
+          Switch.SPACING_TYPE.MEDIUM,
+          Switch.SPACING_TYPE.NONE,
+          Switch.SPACING_TYPE.OMIT,
+          Switch.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling. Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

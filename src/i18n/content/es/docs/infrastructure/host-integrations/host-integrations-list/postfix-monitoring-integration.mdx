@@ -1,0 +1,430 @@
+---
+title: Integración Postfix
+tags:
+  - Postfix integration
+  - New Relic integrations
+metaDescription: Use New Relics infrastructure agent to get a dashboard with metrics from your Postfix application.
+freshnessValidatedDate: '2024-03-25T00:00:00.000Z'
+translationType: machine
+---
+
+Nuestra integración Postfix consolida los datos del servidor de correo en una sola vista, para que pueda realizar un seguimiento de cuántos correos electrónicos se envían, rebotan o se aplazan en un período de tiempo determinado. Nuestra integración Postfix utiliza nuestro agente de monitoreo de infraestructura y le brinda un dashboard prediseñado con sus métricas Postfix más importantes, como el proceso de entrega de correo electrónico, la cola de correo y la descripción general de mensajes.
+
+<img
+  title="Postfix dashboard"
+  alt="Postfix dashboard"
+  src="/images/infrastructure_screenshot-full_Postfix-dashboard.webp"
+/>
+
+<figcaption>
+  Después de configurar nuestra integración Postfix, te brindamos un dashboard para tu Postfix métrica.
+</figcaption>
+
+## Configurar la integración de Postfix
+
+Complete los siguientes pasos para configurar la integración de Postfix:
+
+<Steps>
+  <Step>
+    ## Instalar el agente de infraestructura [#infra-install]
+
+    Para utilizar la integración de Postfix, también debe [instalar el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) en el mismo host. El agente de infraestructura monitorea el host en sí, mientras que la integración que instalará en el siguiente paso amplía su monitoreo con datos específicos de Postfix.
+  </Step>
+
+  <Step>
+    ## Exportar datos de Postfix [#export]
+
+    Exporta tu Postfix métrica con `pflogsumm`. El agente Postfix utiliza`pflogsumm` como analizador log , lo que se traduce en datos métricos sobre su actividad Postfix. Esto le brinda suficiente detalle para anticipar posibles incidencias con la administración del correo electrónico.
+
+    Siga estos pasos para utilizar `pflogsumm`.
+
+    1. Ejecute los siguientes comandos para descargar y extraer `pflogsumm`:
+
+       ```shell
+       wget https://jimsun.linxnet.com/downloads/pflogsumm-1.1.3.tar.gz
+       ```
+
+       ```shell
+       tar xvf pflogsumm-1.1.3.tar.gz
+       ```
+
+    2. Vaya a la carpeta `pflogsumm` .
+
+       ```shell
+       cd pflogsumm-*.*.*
+       ```
+
+    3. Copie el archivo `pflogsumm.pl` en la ruta `/usr/local/bin/pflogsumm` :
+
+       ```shell
+       sudo cp pflogsumm.pl  /usr/local/bin/pflogsumm
+       ```
+
+    4. Ejecute los siguientes comandos `pflogsumm` para exportar la métrica de Postfix:
+
+       ```shell
+       cat /var/log/mail.log | pflogsumm
+       cat /var/log/mail.log | pflogsumm -d today
+       ```
+  </Step>
+
+  <Step>
+    ## Configurar NRI-Flex para Postfix
+
+    Flex, nuestra herramienta de monitoreo independiente de la aplicación, viene incluida con el agente New Relic Infrastructure . Siga estos pasos para crear un archivo de configuración flexible para sus datos de Postfix:
+
+    1. Cree un archivo llamado `postfix-flex-config.yml`:
+
+       ```shell
+       touch /etc/newrelic-infra/integrations.d/postfix-flex-config.yml
+       ```
+
+    2. Actualice el archivo `postfix-flex-config.yml`. Le recomendamos que trabaje con nuestro ejemplo de configuración a continuación:
+
+       ```yml
+         --- 
+         integrations:
+           - name: nri-flex
+             config:
+               name: postfixFlex
+               apis:
+                 #check if Postfix service is up.
+                 - event_type: PostfixUp
+                   commands:
+                     - run: echo "value:$(systemctl status postfix | grep 'Active':' active' | wc -l)"
+                       split_by: ':'
+
+                 #check if Postfix service is down.
+                 - event_type: PostfixDown
+                   commands:
+                     - run: echo "value:$(systemctl status postfix | grep 'Active':' active' | wc -l)"
+                       split_by: ':'
+
+                 #Read the grand totals messages by using the below script.
+                 - event_type: PostfixGrandTotals
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 21 'Grand Totals'
+                       split: horizontal
+                       set_header: [metricValue, message]
+                       regex_match: true
+                       split_by: \s+(\d+\w*)\s+(.*)
+
+                 #Read the number of messages delivered & received in bytes.
+                 - event_type: PostfixMessageBytes
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 1 'bytes received'
+                       split: horizontal
+                       set_header: [metricValue, messageBytes]
+                       regex_match: true
+                       split_by: \s+(\d+\w*)\s+(.*)
+
+                 #Read the number of messages held by the user.
+                 - event_type: PostfixHeldMessage
+                   commands:
+                     - run: echo "value:$(cat /var/mail/<USER> | grep -c 'Subject:')"
+                       split_by: ':'
+
+                 #Read the count of SASL authentication failure notifications.
+                 - event_type: PostfixSASLauthFailed
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'status=deferred (SASL authentication failed' | wc -l)"
+                       split_by: ':'
+
+                 #Read the count of bounced non-delivery notifications.
+                 - event_type: PostfixBounceNondeliveryNotification
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'postfix/bounce' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of messages passed through the email delivery process.
+                 - event_type: PostfixEmailDeliveryProcess
+                   commands:
+                     - run: echo "PICKUPvalue:$(cat /var/log/mail.log | grep 'pickup' | wc -l)"
+                       split_by: ':'
+                     - run: echo "CLEANUPvalue:$(cat /var/log/mail.log | grep 'cleanup' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of message inserted in mail queue.
+                 - event_type: PostfixMessageInsertedinMailQ
+                   commands:
+                     - run: echo "Ivalue:$(cat /var/log/mail.log | grep 'queue active'| wc -l)"
+                       split_by: ':'
+
+                 #Read the number of message handled by SMTP process.
+                 - event_type: PostfixMessageHandledBySMTP
+                   commands:
+                     - run: echo "SENTmsg:$(cat /var/log/mail.log | grep 'status=sent' | grep "postfix/smtp" | wc -l)"
+                       split_by: ':'
+                     - run: echo "BOUNCEDmsg:$(cat /var/log/mail.log | grep 'status=bounced' | grep "postfix/smtp" | wc -l)"
+                       split_by: ':'
+                     - run: echo "DEFERREDmsg:$(cat /var/log/mail.log | grep 'status=deferred' | grep "postfix/smtp" | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of message removed from mail queue.
+                 - event_type: PostfixMessageRemovedFromMailQ
+                   commands:
+                     - run: echo "Rvalue:$(cat /var/log/mail.log | grep 'removed'| wc -l)"
+                       split_by: ':'
+
+                 #Read the number of SMTPD connection.
+                 - event_type: PostfixSMTPDconnection
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep ' connect from' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of SMTPD disconnection.
+                 - event_type: PostfixSMTPDdisconnection
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'disconnect from' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of SMTP connection.
+                 - event_type: PostfixSMTPconnection
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep ' connect to' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of SMTP disconnection.
+                 - event_type: PostfixSMTPdisconnection
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'disconnect to' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of connection timed out.
+                 - event_type: PostfixSMTPDtimedOut
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'timeout after CONNECT' | wc -l)"
+                       split_by: ':'
+
+                 #Read the number of connection lost.
+                 - event_type: PostfixSMTPDconnectionLost
+                   commands:
+                     - run: echo "value:$(cat /var/log/mail.log | grep 'lost connection' | wc -l)"
+                       split_by: ':'
+
+                 #Read the per-hour traffic report.
+                 - event_type: PostfixMessagePerHourReport
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm -d today | grep -i 'Per-Hour Traffic Summary' -A 27
+                       split: horizontal
+                       header_split_by: \s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(.*)
+                       set_header:
+                         [
+                           time,
+                           received.perhour,
+                           delivered.perhour,
+                           deferred.perhour,
+                           bounced.perhour,
+                           rejected.perhour,
+                         ]
+                       regex_match: true
+                       split_by: \s+(\d+-\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)
+
+                 #Read the per-day traffic summary.
+                 - event_type: PostfixMessageTrafficPerDay
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm --zero_fill | grep -C 12 'Per-Day Traffic Summary' -B 0 -A 8 | sed '/Per-Hour Traffic Daily Average/q'
+                       split: horizontal
+                       header_split_by: \s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(.*)
+                       set_header:
+                         [date, received, delivered, deferred, bounced, rejected]
+                       regex_match: true
+                       split_by: \s+(\w+\s+\d+\s+\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)
+
+                 #Read the host/domain summary: message delivery & received.
+                 - event_type: PostfixHostSummary
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -i 'Host/Domain Summary':' Message Delivery' -A 8 | sed -n '2,9p'
+                       split: horizontal
+                       header_split_by: \s+(\w+\s+\w+)\s+(\w+)\s+(\w+)\s+(\w+\s+\w+)\s+(\w+\s+\w+)\s+(.*.)
+                       set_header:
+                         [sentCount, bytesDelivered, defers, avgDaily, maxDaily, host]
+                       regex_match: true
+                       split_by: \s+(\d+)\s+(\d+\w*)\s+(\d+)\s+(\d+.\d+\s+\w)\s+(\d+.\d+\s+\w)\s+(.*)
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 15 'Host/Domain Summary':' Messages Received' | sed '/Senders by message count/q'
+                       split: horizontal
+                       header_split_by: \s+(\w+\s+\w+)\s+(\w+)\s+(.*.)
+                       set_header: [msgCount, bytesReceived, hostDetail]
+                       regex_match: true
+                       split_by: \s+(\d+)\s+(\d+\w*)\s+(.*)
+
+                 #Read the senders & recipients with message count.
+                 - event_type: PostfixSenderRecipientMessageCount
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -C 11 'Senders by message count' -B 1 -A 9 | sed '/Recipients by message count/q'
+                       split: horizontal
+                       header_split_by: (.*.)
+                       set_header: [sender.msgCount, senders]
+                       regex_match: true
+                       split_by: \s+(\d+)\s+(.*)
+                     - run: cat /var/log/mail.log | pflogsumm | grep -C 11 'Recipients by message count' -B 1 -A 9 | sed '/Senders by message size/q'
+                       split: horizontal
+                       header_split_by: (.*.)
+                       set_header: [recipient.msgCount, recipients]
+                       regex_match: true
+                       split_by: \s+(\d+)\s+(.*)
+
+                 #Read the daemon message details.
+                 - event_type: PostfixDaemonMessage
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 10 'Master daemon messages'
+                       split: horizontal
+                       set_header: [daemon.msgCount, daemonMessage]
+                       regex_match: true
+                       split_by: \s*(\d+)\s+(\w+.*.)
+
+                 #Read the message deferral details.
+                 - event_type: PostfixDeferralMessage
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 15 'message deferral detail' | sed '/message bounce detail (by relay)/q'
+                       split: horizontal
+                       header_split_by: (\s+\w+\s+.*)
+                       set_header: [deferral.msgCount, deferralMessage]
+                       regex_match: true
+                       split_by: \s*(\d+)\s+(\w+.*.)
+
+                 #Read the warning message details.
+                 - event_type: PostfixWarningMessage
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -v 'mail_queue_enter' | grep -C 100 'Warnings' -B 1 -A 10 | sed '/Fatal Errors/q'
+                       split: horizontal
+                       header_split_by: \s+(\w+)\s+(.*)
+                       set_header: [Warning.msgCount, warningMessage]
+                       regex_match: true
+                       split_by: \s*(\d+)\s\s\s(.*.)
+
+                 #Read the error message details.
+                 - event_type: PostfixErrorMessage
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -C 15 'Fatal Errors' -B 1 -A 10 | sed '/Panics/q'
+                       split: horizontal
+                       header_split_by: \s+(\w+)\s+(.*)
+                       set_header: [Fatal.msgCount, fatalMessage]
+                       regex_match: true
+                       split_by: \s*(\d+)\s\s\s(.*.)
+
+                 #Read the message bounce details.
+                 - event_type: PostfixBounceMessage
+                   commands:
+                     - run: cat /var/log/mail.log | pflogsumm | grep -A 10 'message bounce detail (by relay)' | sed '/message reject detail/q'
+                       split: horizontal
+                       header_split_by: \s+(\w+)\s+(.*)
+                       set_header: [Bounce.msgCount, bounceMessage]
+                       regex_match: true
+                       split_by: \s*(\d+)\s\s\s(.*.)
+       ```
+
+       Si prefiere crear el suyo propio, asegúrese de que su archivo yaml siga el patrón anterior. Edite el siguiente atributo según sea necesario:
+
+    * `EVENT_TYPE`: Una tabla base de datos New Relic que puedes consultar usando NRQL.
+    * `COMMAND`: El comando utilizado para imprimir métrica en el terminal.
+  </Step>
+
+  <Step>
+    ## Reenvía tu registro de Postfix a New Relic
+
+    Siga estos pasos para reenviar el registro de Postfix a New Relic:
+
+    1. Cree un archivo llamado `logging.yml` en el directorio del agente de infraestructura:
+
+       ```shell
+       touch /etc/newrelic-infra/logging.d/logging.yml
+       ```
+
+    2. Agregue el siguiente fragmento al archivo `logging.yml` :
+
+       ```yml
+       logs:
+         - name: mail.log
+           file: /var/log/mail.log
+           attributes:
+             logtype: postfix_maillog
+       ```
+  </Step>
+
+  <Step>
+    ## Reiniciar el agente de infraestructura. [#restart-infra]
+
+    Utilice las instrucciones de nuestros [documentos del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) para reiniciar su agente de infraestructura. Este es un comando básico que debería funcionar para la mayoría de las personas:
+
+    ```shell
+    sudo systemctl restart newrelic-infra.service
+    ```
+  </Step>
+
+  <Step>
+    ## Buscar y utilizar datos
+
+    Siga estos pasos para utilizar nuestra plantilla dashboard prediseñadas para ver fácilmente sus datos de Postfix:
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com](https://one.newrelic.com/)**
+       </DNT>
+
+       y haga clic en
+
+       <DNT>
+         **+ Add data**
+       </DNT>
+
+       .
+
+    2. Haga clic en la pestaña
+
+       <DNT>
+         **Dashboards**
+       </DNT>
+
+       .
+
+    3. En el cuadro de búsqueda, escriba `Postfix`.
+
+    4. Cuando vea nuestro dashboard prediseñado, haga clic en él para instalarlo en su cuenta.
+
+       Su dashboard de Postfix es un panel personalizado. Accede a él desde la UI <DNT>**Dashboards**</DNT>. Para obtener documentos sobre el uso y edición del panel, consulte [nuestros documentos dashboard ](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+       Para obtener más información sobre cómo encontrar y utilizar sus datos, consulte [Comprender los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data). Aquí hay algunos ejemplos de consulta NRQL para datos de Postfix:
+
+       <CollapserGroup>
+         <Collapser
+           id="latest"
+           title="Ver el estado de su último registro de mensajes"
+         >
+           ```sql
+           SELECT * 
+           FROM PostfixGrandTotals
+           ```
+         </Collapser>
+
+         <Collapser
+           id="perhpur"
+           title="Ver el estado de su último registro de mensajes"
+         >
+           ```sql
+           SELECT * 
+           FROM PostfixMessagePerHourReport
+           ```
+
+           ```
+
+           ```
+         </Collapser>
+       </CollapserGroup>
+  </Step>
+</Steps>
+
+## ¿Que sigue?
+
+Para obtener más información sobre cómo crear una consulta NRQL y generar un panel, consulte estos documentos:
+
+* [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para crear consultas básicas y avanzadas.
+
+* [Introducción al panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) para personalizar tu dashboard y realizar diferentes acciones.
+
+* [Administre su dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) para ajustar su
+
+  <InlinePopover type="dashboards"/>
+
+  modo de visualización o para agregar más contenido a su dashboard.

@@ -79,13 +79,9 @@ module.exports = {
         background_color: '#663399',
         theme_color: '#663399',
         display: 'minimal-ui',
-        icon: 'src/images/favicon.png', // This path is relative to the root of the site.
+        icon: 'static/images/favicon.png', // This path is relative to the root of the site.
       },
     },
-    // this (optional) plugin enables Progressive Web App + Offline functionality
-    // To learn more, visit: https://gatsby.dev/offline
-    // `gatsby-plugin-offline`,
-    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -224,6 +220,9 @@ module.exports = {
               './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
+          {
+            resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
+          },
         ],
       },
     },
@@ -325,16 +324,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    {
-      resolve: 'gatsby-plugin-gatsby-cloud',
-      options: {
-        allPageHeaders: [
-          'Referrer-Policy: no-referrer-when-downgrade',
-          'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'Cache-Control: no-cache',
-        ],
-      },
-    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
@@ -374,7 +363,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '2.625rem 5rem',
+          contentPadding: '5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -382,7 +371,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp', 'kr'],
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
@@ -439,6 +428,7 @@ module.exports = {
             'md',
             'java',
             'razor',
+            'hcl',
           ],
         },
         newrelic: {

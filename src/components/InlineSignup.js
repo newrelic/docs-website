@@ -70,7 +70,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
     <Form onSubmit={onSubmit} className={className}>
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
-          {t('inlineSignup.nameLabel')}
+          {t('strings.inlineSignup.nameLabel')}
         </label>
         <Input
           className="first"
@@ -89,7 +89,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
           // i used `\p{Letter}` here instead of `[a-zA-Z]`
           // to allow Unicode characters in names, like Björk, or 준영.
           pattern=".*\p{Letter}+.*"
-          placeholder={t('inlineSignup.nameLabel')}
+          placeholder={t('strings.inlineSignup.nameLabel')}
           required
           type="text"
         />
@@ -105,7 +105,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
       </InputContainer>
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-email">
-          {t('inlineSignup.emailLabel')}
+          {t('strings.inlineSignup.emailLabel')}
         </label>
         <Input
           className="last"
@@ -120,15 +120,17 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
             onBlur('email', e);
           }}
           pattern=".+@.+\..+"
-          placeholder={t('inlineSignup.emailLabel')}
+          placeholder={t('strings.inlineSignup.emailLabel')}
           required
           type="email"
         />
-        <ValidationHint>{t('inlineSignup.emailValidationHint')}</ValidationHint>
+        <ValidationHint>
+          {t('strings.inlineSignup.emailValidationHint')}
+        </ValidationHint>
       </InputContainer>
 
       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
-        {t('inlineSignup.ctaButton')}
+        {t('strings.inlineSignup.ctaButton')}
       </CTAButton>
       <Terms>
         <Trans i18nKey="inlineSignup.terms">

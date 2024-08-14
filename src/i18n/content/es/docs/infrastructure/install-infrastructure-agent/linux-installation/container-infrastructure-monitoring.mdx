@@ -1,0 +1,375 @@
+---
+title: Contenedor para monitoreo de infraestructura
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Linux installation
+metaDescription: 'You can run a containerized version of our infrastructure agent, which can monitor metrics for the container itself, as well as the underlying host.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente de monitoreo de infraestructura para Linux [soporta entornos contenedores](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure) de forma predeterminada. Si está ejecutando un sistema operativo contenedor o tiene restricciones que requieren desplegar el agente como contenedor, puede ejecutar una versión en contenedor de nuestro agente de monitoreo de infraestructura. Esto puede monitor la métrica del contenedor en sí, así como del host subyacente.
+
+El uso de la [configuración personalizada (recomendada)](#custom-setup) o [básica](#simple-setup) permite que el agente de infraestructura se ejecute dentro de un entorno de contenedor. Un host solo puede ejecutar una instancia del agente a la vez, ya sea el agente en contenedor o la versión no en contenedor.
+
+¿Quiere probar nuestro agente de monitoreo de infraestructura para Linux? ¡Crea una cuenta New Relic gratis! No se requiere tarjeta de crédito.
+
+<InlineSignup/>
+
+## Que necesitas [#requirements]
+
+La versión en contenedores del agente de infraestructura requiere docker 1.12 o superior.
+
+A partir de la versión 1.42, el agente de infraestructura admite `containerd`, por lo que se puede utilizar en Kubernetes v1.24+, que eliminó la compatibilidad con Dockershim, o cualquier otra solución basada en `containerd` . Si los sockets de tiempo de ejecución `containerd` y `dockerd` están disponibles, el agente de infraestructura funcionará con el socket de tiempo de ejecución `containerd` . El contenedor debe ejecutarse en una [distribución de Linux y una versión](/docs/infrastructure/install-infrastructure-agent/get-started/compatibility-requirements-infrastructure-agent#operating-systems) compatible con el agente de infraestructura. La imagen del contenedor está disponible y es compatible con las arquitecturas AMD64 y ARM64.
+
+El reenviador de Logs no está incluido con el agente en contenedor. Recomendamos instalar el agente en el host subyacente que proporciona todas las capacidades.
+
+## Configuración personalizada (recomendada) [#custom-setup]
+
+Las siguientes son instrucciones básicas para crear una imagen docker personalizada en Linux. Esto le permite desplegar el agente de infraestructura como un contenedor que puede monitor su host subyacente.
+
+<DNT>**Recommendation:**</DNT> Amplíe la [imagen`newrelic/infrastructure` ](https://hub.docker.com/r/newrelic/infrastructure/)y utilice su propio [archivo de configuración](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) del agente `newrelic-infra.yml` . Una vez creada la imagen, puede activar fácilmente un contenedor sin tener que proporcionar más configuración de tiempo de lanzamiento. No proporcione secretos utilizando variables de entorno con docker.
+
+### CLI docker
+
+1. Cree el [archivo de configuración](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) del agente `newrelic-infra.yml` con su New Relic <InlinePopover type="licenseKey"/>. Para obtener explicaciones de las opciones de configuración, consulte [ajustes de configuración](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings).
+
+   ```yml
+   license_key: YOUR_LICENSE_KEY
+   ```
+
+2. Cree el `Dockerfile` extendiendo la imagen `newrelic/infrastructure` y agregue su configuración a `/etc/newrelic-infra.yml`:
+
+   ```dockerfile
+   FROM newrelic/infrastructure:latest
+   ADD newrelic-infra.yml /etc/newrelic-infra.yml
+   ```
+
+3. Crea y etiqueta tu imagen:
+
+   ```bash
+   docker build -t YOUR_IMAGE_NAME .
+   ```
+
+4. Ejecute el contenedor desde la imagen que creó con los [indicadores de ejecución](#required-privileges) requeridos:
+
+   ```bash
+   docker run \
+       -d \
+       --name newrelic-infra \
+       --network=host \
+       --cap-add=SYS_PTRACE \
+       --privileged \
+       --pid=host \
+       --cgroupns=host  # required on cgroup v2 \
+       -v "/:/host:ro" \
+       -v "/var/run/docker.sock:/var/run/docker.sock" \
+       YOUR_IMAGE_NAME
+   ```
+
+5. Para conocer los posibles próximos pasos, como cómo ver datos en la UI, consulte [¿Qué sigue?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+### Docker componer
+
+1. Cree una carpeta para almacenar los archivos de configuración:
+
+   ```bash
+   mkdir ~/newrelic-infra-setup
+   ```
+
+2. Cambie el directorio al que acaba de crear:
+
+   ```bash
+   cd ~/newrelic-infra-setup
+   ```
+
+3. Cree el [archivo de configuración](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) del agente `newrelic-infra.yml` con su New Relic <InlinePopover type="licenseKey"/>. Para obtener explicaciones de las opciones de configuración, consulte [ajustes de configuración](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings).
+
+   ```bash
+   echo "license_key: YOUR_LICENSE_KEY" > newrelic-infra.yml
+   ```
+
+4. Cree el `newrelic-infra.dockerfile` extendiendo la imagen `newrelic/infrastructure` y agregue su configuración a `/etc/newrelic-infra.yml`:
+
+   ```bash
+   touch newrelic-infra.dockerfile
+   ```
+
+   ```bash
+   vim newrelic-infra.dockerfile # you can use any text editor
+   ```
+
+5. Coloque el siguiente contenido en el archivo:
+
+   ```dockerfile
+   FROM newrelic/infrastructure:latest
+   ADD newrelic-infra.yml /etc/newrelic-infra.yml
+   ```
+
+6. Crear `docker-compose.yaml`:
+
+   ```bash
+   touch docker-compose.yaml
+   ```
+
+   ```bash
+   vim docker-compose.yaml # you can use any text editor
+   ```
+
+   Coloque el siguiente contenido en el archivo:
+
+   ```yml
+   version: '3'
+
+   services:
+     agent:
+       container_name: newrelic-infra
+       build:
+         context: .
+         dockerfile: newrelic-infra.dockerfile
+       cap_add:
+         - SYS_PTRACE
+       network_mode: host
+       pid: host
+       privileged: true
+       volumes:
+         - "/:/host:ro"
+         - "/var/run/docker.sock:/var/run/docker.sock"
+       restart: unless-stopped
+   ```
+
+7. Construya e inicie `docker-compose`:
+
+   ```bash
+   docker-compose -f docker-compose.yaml up -d
+   ```
+
+8. Para conocer los posibles próximos pasos, como cómo ver datos en la UI, consulte [¿Qué sigue?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## Configuración básica [#simple-setup]
+
+Para utilizar la configuración básica con una imagen base New Relic Infrastructure :
+
+### CLI docker [#basic-cli]
+
+1. Ejecute el contenedor con los [indicadores de ejecución requeridos](#required-privileges):
+
+   ```bash
+   docker run \
+      -d \
+      --name newrelic-infra \
+      --network=host \
+      --cap-add=SYS_PTRACE \
+      --privileged \
+      --pid=host \
+       --cgroupns=host  # required on cgroup v2 \
+      -v "/:/host:ro" \
+      -v "/var/run/docker.sock:/var/run/docker.sock" \
+      -e NRIA_LICENSE_KEY=YOUR_LICENSE_KEY \
+      newrelic/infrastructure:latest
+   ```
+
+2. Para conocer los posibles próximos pasos, como cómo ver datos en la UI, consulte [¿Qué sigue?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+### Docker componer [#basic-compose]
+
+1. Crear `docker-compose.yaml`:
+
+   ```bash
+   touch docker-compose.yaml
+   ```
+
+   ```bash
+   vim docker-compose.yaml # you can use any text editor
+   ```
+
+   Coloque el siguiente contenido en el archivo:
+
+   ```yml
+   version: '3'
+
+   services:
+     agent:
+       container_name: newrelic-infra
+       image: newrelic/infrastructure:latest
+       cap_add:
+         - SYS_PTRACE
+       network_mode: host
+       pid: host
+       privileged: true
+       volumes:
+         - "/:/host:ro"
+         - "/var/run/docker.sock:/var/run/docker.sock"
+       environment:
+         NRIA_LICENSE_KEY: "YOUR_LICENSE_KEY"
+       restart: unless-stopped
+   ```
+
+2. Construya e inicie `docker-compose`:
+
+   ```bash
+   docker-compose -f docker-compose.yaml up -d
+   ```
+
+3. Para conocer los posibles próximos pasos, como cómo ver datos en la UI, consulte [¿Qué sigue?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## Privilegios de contenedor requeridos [#required-privileges]
+
+Debido al aislamiento de recursos del host y otro contenedor a través del espacio de nombres de Linux, un contenedor tiene una vista y un control muy restringidos de los recursos de su host subyacente de forma predeterminada. Sin estos privilegios adicionales, el agente de infraestructura no puede monitor el host y su contenedor.
+
+El agente de infraestructura recopila datos sobre su host mediante archivos y llamadas al sistema. Para obtener más información sobre cómo el agente de infraestructura recopila datos, consulte nuestra documentación sobre [seguridad y monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/infrastructure-security). Los privilegios requeridos incluyen:
+
+Requerido cuando se usa docker en cgroup v2 ya que es privado de forma predeterminada. Esto permite al agente reunir el contenedor métrico. Está disponible [desde la API del motor Docker v1.41](https://docs.docker.com/engine/reference/commandline/container_create/).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "460px" }}>
+        Privilegio
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--network=host`
+      </td>
+
+      <td>
+        Establece el namespace de red del contenedor en el namespace de red del host. Esto permite al agente recopilar la métrica de la red sobre el host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-v "/:/host:ro"`
+      </td>
+
+      <td>
+        Bind monta el volumen raíz del host en el contenedor. Este acceso de solo lectura a la raíz del host permite al agente recopilar métricas de proceso y almacenamiento, así como datos de inventario del host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--cap-add=SYS_PTRACE`
+      </td>
+
+      <td>
+        Agrega la capacidad de Linux a los procesos del sistema traza. Esto permite al agente recopilar datos sobre los procesos que se ejecutan en el host. Leer más [aquí](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--privileged`
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `--pid=host`
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `--cgroupns=host`
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `-v "/var/run/docker.sock:/var/run/docker.sock"`
+      </td>
+
+      <td>
+        Bind monta el socket del host Docker daemon en el contenedor. Esto permite que el agente se conecte a la del motor API a través del Docker daemon socket para recopilar los datos del contenedor del host. Si interactúa con el tiempo de ejecución `containerd`, reemplace este montaje con `/run/containerd/containerd.sock:/run/containerd/containerd.sock`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<InstallFeedback/>
+
+## Siguientes pasos después de la instalación [#next-steps]
+
+Para conocer los próximos pasos una vez completada la instalación, consulte [¿Qué sigue?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## Inventario recopilado [#inventory]
+
+[El inventario](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure) é coletado desde el recolector de datos integrado del agente de infraestructura. El agente de infraestructura recopila estos datos para sistemas Linux que se ejecutan con contenedor.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        <DNT>
+          **Category**
+        </DNT>
+      </th>
+
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Source**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Data collected using**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td rowSpan={2}>
+        `metadata`
+      </td>
+
+      <td>
+        `agent_config`
+      </td>
+
+      <td>
+        Archivo de configuración completo del agente
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system`
+      </td>
+
+      <td>
+        `uptime -s, /etc/redhat-release, /proc/cpuinfo, /etc/os-release, /proc/sys/kernel/random/boot_id, /proc/sys/kernel/osrelease, /sys/class/dmi/id/product_uuid, /sys/devices/virtual/dmi/id/sys_vendor, /sys/devices/virtual/dmi/id/product_name`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Datos del contenedor [#view]
+
+Una vez que el agente de infraestructura se ejecuta en un contenedor Docker, puede recopilar los mismos [datos de cálculo de host](/docs/infrastructure/infrastructure-ui-pages/infra-hosts-ui-page) y [datos de eventos](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-events-page-live-feed-every-config-change) que el agente de infraestructura es capaz de recopilar cuando se ejecuta de forma nativa en un host. Para obtener más información, consulte nuestra documentación sobre cómo [ver los datos de su contenedor Docker](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure#find-data).
+
+## Imagen del agente en contenedores [#view]
+
+La imagen del agente en contenedor se crea a partir de una imagen base de Alpine.
+
+## Comprueba el código fuente [#source-code]
+
+Esta integración es software de código abierto. Puedes [explorar su código fuente](https://github.com/newrelic/infrastructure-bundle) y enviar mejoras, o crear tu propia bifurcación y compilarla.

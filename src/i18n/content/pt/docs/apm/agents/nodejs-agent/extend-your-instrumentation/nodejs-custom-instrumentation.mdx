@@ -1,0 +1,389 @@
+---
+title: Instrumentação personalizada do Node.js
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: 'Expand Node.js instrumentation in New Relic for non-web transactions (frameworks, databases, segments, etc.). Use custom tracers to track async work.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O New Relic para Node.js instrumenta automaticamente a maioria das solicitações padrão da web, mas às vezes você deseja instrumentação expandida. Com a API de instrumentação personalizada do agente, você pode criar instrumentação para [estruturas da Web](#web-framework), [armazenamentos de dados](#datastore) e [clientes de serviço de mensagens](#message-client) que de outra forma não seriam suportados.
+
+A API de instrumentação personalizada do agente Node.js também permite:
+
+* Create [transação da web](#web-txn) (útil para coisas como web sockets, onde a transação não pode ser criada automaticamente).
+* Crie [transações em segundo plano](#background-txn) que não sejam da Web (útil para registrar trabalhos em segundo plano).
+* [seções específicas do destino do seu código](#expanding-instrumentation) para uma análise mais profunda.
+
+## Requisitos de versão do agente [#version]
+
+Os métodos de instrumentação personalizada neste documento estão disponíveis a partir do [agente Node.js versão 2.0.0](/docs/release-notes/agent-release-notes/nodejs-release-notes). Para obter informações sobre instrumentação usando a API de instrumentação personalizada v1.x, consulte a documentação da [instrumentação personalizada herdada do Node.js.](/docs/agents/nodejs-agent/supported-features/nodejs-v1x-custom-instrumentation-legacy)
+
+## Framework web não suportado por instrumento [#web-framework]
+
+Começando com o agente Node.js versão 2.0.0, A New Relic fornece uma API para expandir a instrumentação para estruturas web adicionais. Para obter mais informações, incluindo um tutorial, consulte a documentação da [instrumentação da framework da web Node.js](http://newrelic.github.io/node-newrelic/tutorial-Webframework-Simple.html) no GitHub.
+
+## Clientes de serviço de mensagens não suportados por instrumento [#message-client]
+
+Começando com o agente Node.js versão 2.0.0, A New Relic fornece uma API para expandir a instrumentação para biblioteca adicional de serviços de mensagens. Para obter mais informações, incluindo um tutorial, consulte a documentação da [instrumentação do cliente do serviço de mensagens Node.js](http://newrelic.github.io/node-newrelic/tutorial-Messaging-Simple.html) no GitHub.
+
+## Armazenamentos de dados não suportados por instrumento [#datastore]
+
+Começando com o agente Node.js versão 2.0.0, A New Relic fornece uma API para expandir a instrumentação para bibliotecas adicionais de armazenamento de dados. Para obter mais informações, incluindo um tutorial, consulte a documentação da [instrumentação do armazenamento de dados Node.js](http://newrelic.github.io/node-newrelic/tutorial-Datastore-Simple.html) no GitHub.
+
+## Instrumento de transação da web [#web-txn]
+
+Para criar [uma transação personalizada da web](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm), chame `startWebTransaction` para iniciar a transação. Para encerrar a transação, use qualquer uma destas opções:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Ending the transaction**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Promessa
+      </td>
+
+      <td>
+        Se o manipulador passado para `startWebTransaction` retornar uma promessa, o agente encerrará a transação quando a promessa retornada for resolvida ou rejeitada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Manual
+      </td>
+
+      <td>
+        Se você chamar `getTransaction` no contexto da nova transação, isso notificará o agente de que a transação será processada manualmente.
+
+        Se `getTransaction` for chamado no manipulador, você <DNT>**must**</DNT> encerrará a transação chamando `transaction.end()`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Síncrono
+      </td>
+
+      <td>
+        Se nenhuma dessas opções for atendida, a transação será encerrada quando o manipulador retornar de forma síncrona.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id="example-webtx-socket-io"
+    title="Exemplo de transação personalizada da web: instrumento três transações em socket.io"
+  >
+    Este exemplo instrumento uma transação `/websocket/ping` , uma transação `/websocket/update` e uma transação `/websocket/new-message` dentro de `socket.io`. O exemplo `/ping` é síncrono, enquanto os exemplos `/new-message` e `/update` são assíncrono.
+
+    ```js
+    const nr = require('newrelic');
+    const app = require('http').createServer();
+    const io = require('socket.io')(app);
+
+    io.on('connection', function(socket) {
+      socket.on('ping', function(data) {
+        nr.startWebTransaction('/websocket/ping', function transactionHandler() {
+          // Ended automatically after synchronously returning
+          socket.emit('pong');
+        });
+      });
+      socket.on('update', function(data) {
+        nr.startWebTransaction('/websocket/update', function transactionHandler() {
+          // Using API getTransaction
+          const transaction = nr.getTransaction();
+          updateChatWindow(data, function transactionHandler() {
+            socket.emit('update-done');
+            transaction.end();
+          });
+        });
+      });
+      socket.on('new-message', function(data) {
+        nr.startWebTransaction('/websocket/new-message', function transactionHandler() {
+          // Returning a promise
+          return new Promise(function(resolve, reject) {
+            addMessageToChat(data, function() {
+              socket.emit('message-received');
+              resolve();
+            });
+          });
+        });
+      });
+    });
+    ```
+
+    Este método fornece apenas dados básicos de tempo para a transação criada. Para criar dados de temporização e nomenclatura de transação mais complexos para uma framework específica, consulte a [documentação da API Node.js](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#instrumentWebframework) e o [tutorial WebFramework relacionado](http://newrelic.github.io/node-newrelic/tutorial-Webframework-Simple.html) no GitHub.
+  </Collapser>
+</CollapserGroup>
+
+## Antecedentes do instrumento de transação [#background-txn]
+
+Você pode usar transação personalizada para instrumento [de transação fora da web](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions) (tarefas em segundo plano); por exemplo:
+
+* Trabalhos periódicos dentro do seu aplicativo
+* Trabalho que continua após a conclusão de uma solicitação
+
+Para instrumentar tarefas em segundo plano, chame [`startBackgroundTransaction`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#startBackgroundTransaction) em seu manipulador para iniciar uma transação em segundo plano. Para encerrar a transação, use qualquer uma destas opções:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Ending the transaction**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Promessa
+      </td>
+
+      <td>
+        Se o manipulador passado para `startBackgroundTransaction` retornar uma promessa, o agente encerrará a transação quando a promessa retornada for resolvida ou rejeitada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Manual
+      </td>
+
+      <td>
+        Se você chamar `getTransaction` no contexto da nova transação, isso notificará o agente de que a transação será processada manualmente.
+
+        Se `getTransaction` for chamado no manipulador, você <DNT>**must**</DNT> encerrará a transação chamando `transaction.end()`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Síncrono
+      </td>
+
+      <td>
+        Se nenhuma dessas opções for atendida, a transação será encerrada quando o manipulador retornar de forma síncrona.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id="example-instrument-update"
+    title="Exemplo de transação em segundo plano personalizada: instrumento dentro de setInterval"
+  >
+    Este exemplo de instrumento `update:cache` dentro de `setInterval`:
+
+    ```js
+    const nr = require('newrelic');
+    const redis = require('redis').createClient();
+
+    // Using API getTransaction to manage ending the transaction
+    setInterval(function() {
+      nr.startBackgroundTransaction('update:cache', function transactionHandler() {
+        const newValue = someDataGenerator();
+        const transaction = nr.getTransaction();
+
+        redis.set('some:cache:key', newValue, function() {
+          transaction.end();
+        });
+      });
+    }, 30000); // Every 30s
+
+    //Using a promise to manage ending the transaction
+    setInterval(function() {
+      nr.startBackgroundTransaction('flush:cache', function transactionHandler() {
+        return new Promise(function(resolve, reject) {
+          flushCache(redis, function afterFlush(err) {
+            if (err) {
+              return reject(err);
+            }
+            resolve();
+          });
+        });
+      });
+    }, 60 * 60 * 1000);
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Expanda a instrumentação dentro da transação [#expanding-instrumentation]
+
+Você pode criar instrumentação usando os [métodos de registro de instrumentação na API](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#custom-instrumentation-api). Escrever instrumentação usando a API de instrumentação permite especificar métricas e nomenclatura com mais detalhes por métodos de "monkey patching" (substituindo funções) em objetos relevantes. Outras opções podem oferecer visibilidade sobre transações da web que já estão instrumentadas, ou obter insights sobre banco de dados e outros trabalhos de transação que não são automaticamente instrumentados.
+
+Para fazer isso, envolva seu retorno de chamada no rastreador personalizado. O rastreador personalizado cria e coleta métricas específicas para um segmento adicional dentro de uma transação existente, como uma função específica ou uma chamada de banco de dados.
+
+* Para instrumentar retornos de chamada individuais, chame `startSegment()` dentro do retorno de chamada e mova a lógica principal de retorno de chamada para a função `handler` .
+* Para instrumentalizar uma função que é chamada dentro de uma função assíncrona, envolva a função alvo e sua função assíncrona pai com [`startSegment()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#startSegment).
+
+<Callout variant="important">
+  Esses exemplos devem ser colocados no código que está sendo executado em uma transação. A origem da transação, personalizada ou criada automaticamente, não importa.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="wrap-single-callback"
+    title="Exemplo: instrumento a callback"
+  >
+    Este exemplo rastreia um único retorno de chamada:
+
+    ```js
+    // Wrap the method in a segment.
+    nr.startSegment('db:createObject', true, function(cb) {
+      // This is recorded as the `db:createObject` segment.
+      db.createObject(cb);
+    }, function(err, result) {
+      // This is recorded as the callback to the `db:createObject` segment.
+      if (util.handleError(err, res)) {
+        return;
+      }
+      res.write(JSON.stringify(result.rows[0].id));
+      res.write('\n');
+      res.end();
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-two-callbacks"
+    title="Exemplo: funções do instrumento assíncrono utilizando retorno de chamada"
+  >
+    Este exemplo rastreia `pg.connect` e `client.query`. Isto ocorre porque `client.query` é chamado por uma função pai assíncrono (`pg.connect`). Caso contrário, você não obteria nenhum dado de `client.query`. Isto permite que `startSegment()` propague a transação ativa através desses limites assíncronos.
+
+    ```js
+    nr.startSegment('pg:connect', true, function(cb) {
+      pg.connect(config.db_string, cb);
+    }, function(err, client, done) {
+      if (util.handleError(err, '500', res)) {
+        return done();
+      }
+
+      nr.startSegment('pg:query', true, function(cb) {
+        client.query('SELECT count(*) FROM test_count', cb);
+      }, function(err, result) {
+        if (util.handleError(err, '500', res)) {
+          return done();
+        }
+
+        res.write(result.rows[0].count);
+        res.write('\n');
+      });
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-wrap-two-callbacks"
+    title="Exemplo: o instrumento assíncrono funciona usando promessas"
+  >
+    Este exemplo é igual ao de retorno de chamada, mas para interagir com uma API baseada em promessa. Para promessas, simplesmente retorne a promessa e chame `then` após `startSegment` para continuar a execução.
+
+    ```js
+    nr.startSegment('pg:connect', true, function() {
+      // This `pg:connect` segment will time until the returned promise
+      // either resolves or rejects.
+      return pg.connect(config.db_string);
+    }).then(function(client) {
+      // The transaction context is propagated into following promises.
+      return nr.startSegment('pg:query', true, function() {
+        return client.query('SELECT count(*) FROM test_count');
+      }).then(function(result) {
+        res.write(result.rows[0].count);
+        res.write('\n');
+        res.end();
+      }, function(err) {
+        // Error from querying.
+        util.handleError(err, '500', res);
+      }).finally(function() {
+        return client.release();
+      });
+    }, function(err) {
+      // Error from connecting.
+      util.handleError(err, '500', res);
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-async-functions"
+    title={<>Exemplo: funções do instrumento <InlineCode>async</InlineCode></>}
+  >
+    Este exemplo mostra como codificar o instrumento usando `async`/`await` para controlar o trabalho assíncrono. Isso requer o uso do Node.js 8 ou superior, bem como o agente New Relic for Node.js v2.3.0 ou superior.
+
+    ```js
+    try {
+      const client = await nr.startSegment('pg:connect', true, async () => {
+        // Async functions simply return promises, so this example is
+        // very similar to the promise one.
+        return await pg.connect(config.db_string);
+      });
+
+      // The transaction context is propagated into the code following `await`.
+      try {
+        const result = await nr.startSegment('pg:query', true, async () => {
+          return await client.query('SELECT count(*) FROM test_count');
+        });
+
+        res.write(result.rows[0].count);
+        res.write('\n');
+        res.end();
+      } catch (err) {
+        // Error from querying.
+        util.handleError(err, '500', res);
+      } finally {
+        await client.release();
+      }
+    } catch (err) {
+      // Error from connecting.
+      util.handleError(err, '500', res);
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-sync-function"
+    title="Exemplo: instrumento uma função síncrona"
+  >
+    Este exemplo mostra como `startSegment` pode ser usado para registrar uma função síncrona responsável por atribuir seu valor de retorno a uma variável.
+
+    ```js
+    const result = nr.startSegment('calculateTotal', true, function() {
+      return calculateTotal(outerVar1, outerVar2);
+    });
+    ```
+
+    <Callout variant="important">
+      A função `startSegment` está disponível no agente Node.js 3.3.0 liberar.
+    </Callout>
+  </Collapser>
+</CollapserGroup>

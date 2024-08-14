@@ -1,0 +1,137 @@
+---
+title: Solucionar problemas de ubicación privada
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Troubleshooting tips if you encounter problems with private locations or private minions or job managers with synthetic monitoring in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si tiene problemas al configurar [la ubicación privada](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) para el monitoreo sintético de New Relic, pruebe estos consejos de resolución de problemas para identificar problemas comunes de minion o administrador de trabajos.
+
+## Demanda y consumo de empleo [#job-demand]
+
+Identifique su rendimiento actual y evalúe si sus llamadas por minuto o su administrador de trabajos pueden mantenerse al día con la carga de trabajo.
+
+* Los trabajos exigen rendimiento por minuto:
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 days ago
+  ```
+
+* Trabajos por minuto a lo largo del tiempo:
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* Identificar el crecimiento de la cola:
+
+  ```
+  SELECT derivative(checksPending, 1 minute) as 'queue growth rate (per minute)' FROM SyntheticsPrivateLocationStatus where name = 'YOUR_PRIVATE_LOCATION' SINCE 2 days ago TIMESERIES
+  ```
+
+* Tasa de consumo:
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* Limpie el monitor defectuoso que consume recursos:
+
+  ```
+  SELECT 100*latest(minionJobsFailed)/latest(minionJobsReceived) as 'job failure rate (%)' from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## Resolución de problemas de uso de memoria [#memory]
+
+Asignación de memoria recomendada por llamadas por minuto:
+
+* Docker: 2,5 GiB por núcleo de CPU para llamadas docker por minuto
+
+* Llamadas de Kubernetes por minuto:
+
+  * 3 GiB por llamadas por minuto trabajador pesado
+  * 3 GiB por pod de control de estado
+  * 1,6 GiB para minion pod
+
+* Objetivo 60% de utilización máxima de memoria
+
+Asignación de memoria recomendada por administrador de trabajos de Sintético:
+
+* Docker: 3.256 GiB por núcleo de CPU para el administrador de trabajos docker Sintético
+
+* Gestor de trabajos de Kubernetes Sintético (los valores son configurables):
+
+  * 1,6 GiB para podde gestión de trabajos
+  * 1,0 GiB para podde tiempo de ejecución de ping
+  * 2 GiB por pod de tiempo de ejecución de API de Node.js
+  * 3 GiB por pod de tiempo de ejecución browser Node.js
+
+* Objetivo 60% de utilización máxima de memoria
+
+Consulta útil para identificar el uso actual:
+
+* Uso de memoria por ubicación:
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* Uso de memoria por nombre de host:
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## Resolución de problemas de uso de CPU [#cpu-usage]
+
+Identifique períodos potenciales de alta demanda de CPU:
+
+* Uso general de la CPU:
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* Uso de CPU para una ubicación específica:
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## Resolución de problemas de red [#network]
+
+<DNT>
+  **Network access is red:**
+</DNT>
+
+El minion privado realiza un check a New Relic para verificar el acceso a la red pública. Si el acceso a la red pública no está disponible, el ícono <DNT>**Network Access**</DNT> en la [página <DNT>**Overview**</DNT> del minion privado](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) se volverá rojo, pero el minion privado será completamente funcional. Si este es el comportamiento esperado, puede ignorar este error con seguridad.
+
+También puede ver entradas log como esta:
+
+```
+2016-01-21 21:47:09,401 [dw-22 - GET /private-location/status] c.n.s.m.util.PrivateMinionUtils WARN Unable to detect Public Network Access trying to fetch https://newrelic.com/synthetics: java.net.ConnectException: Connection refused
+```
+
+<DNT>
+  **New Relic access is red:**
+</DNT>
+
+El minion privado debe tener acceso a `https://synthetics-horde.nr-data.net` para poder recuperar la lista de trabajos para ejecutar y publicar resultados que puedes ver en tu interfaz de usuario de New Relic. Si las reglas de su firewall no permiten el acceso directo, debe [configurar el acceso proxy](/docs/synthetics/new-relic-synthetics/private-locations/install-configure-private-minions). Si es necesario, añade el extremo DNS a tu lista de 'permitidos'.
+
+<DNT>
+  **Network IOPS:**
+</DNT>
+
+La red IOPS también puede ser un buen lugar para solucionar problemas si utiliza un proveedor de nube para sus llamadas por minuto. Tanto docker como Kubernetes llamadas por minuto requieren una cantidad decente de rendimiento de escritura. Analice su IOPS promedio y determine el tamaño de volumen apropiado necesario para las operaciones de su disco por segundo.
+
+## Conflictos de puertos al ejecutar docker contenedor en el host [#port-conflicts-docker]
+
+Si está ejecutando más de un contenedor de ubicación privada Docker en el mismo host, tendrá conflictos de puertos. Para evitar esta contención de puertos, asegúrese de hacer lo siguiente cuando comience a configurar administradores de trabajos:
+
+* Ejecute administradores de trabajos y llamadas por minuto en diferentes hosts.
+* Ejecute cada administrador de trabajos en un host independiente.
+* Ejecute cada llamada por minuto en un host diferente.

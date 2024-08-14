@@ -1,0 +1,1516 @@
+---
+title: 意思決定で相関ロジックを構成する
+metaDescription: 'For New Relic''s alerts, how to configure the correlation logic using decisions.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+アラートの相関ロジックにより、関連する問題がグループ化され、煩わしいアラートや冗長なアラートが削減されます。 イベントがシステムに入力されると、相関ロジックの対象となります。 対象となる問題は、時間、集計コンテキスト、関係データに基づいて評価されます。 複数の問題が関連している場合、相関ロジックにより、関連する問題が 1 つの包括的な[問題](/docs/alerts-applied-intelligence/overview/#concepts-terms)にまとめられます。
+
+この相関ロジックを<DNT>**decisions**</DNT>と呼びます。 決定事項は組み込まれていますが、決定事項ページで独自の決定事項を作成してカスタマイズすることもできます。 決定ページを見つけるには、 <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>にアクセスしてください。 ニーズに最適な決定を構成するほど、New Relic はインシデントの相関関係をより正確に把握し、ノイズを減らし、オンコール チームに提供するコンテキストを強化できます。
+
+<img
+  title="NRAI_Decisions_Page.png"
+  alt="A screenshot that shows the alert decisions UI."
+  src="/images/alerts_screenshot-full_new-relic-decisions-page.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Incident intelligence > Decisions**</DNT>: UI では、各決定がインシデントとどのように相関しているかが表示されます。
+</figcaption>
+
+## 相関関係とは何ですか? また、どのように機能しますか? [#what-is-correlaton]
+
+最新のアクティブなインシデントは、相関ロジックで利用できます。たとえば、オーストラリアとロンドンで合成モニターが失敗しているという 2 つのアラートをシステムが受信したとします。これら 2 つのアラートは、独自のインシデントを作成します。これらのインシデントは、チームの既存の[インシデント作成ポリシー](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-target)に基づいて独自の問題を生成します。次に、New Relic の相関ロジックがこれらのインシデントを相互にテストして、類似点を見つけます。この場合、複数の場所で失敗しているのは同じモニターであるため、New Relic は両方のインシデントを、関連する各イベントを含む単一の問題にマージします。
+
+イベントを相互に関連付ける場合、組み合わせのすべてのペアを相互にチェックし、可能な限り組み合わせます。例えば：
+
+* 私たちのアルゴリズムは、インシデント A と B を関連付けます (「AB」と呼びます)。
+* 私たちのアルゴリズムはインシデント B と C を関連付けます (「BC」と呼びます)。
+* B は両方の問題に存在するため、アルゴリズムは 3 つのインシデントすべてを 1 つの問題に関連付けます。
+
+## 相関ポリシーを構成する [#configure-correlation]
+
+[アラート](/docs/alerts-applied-intelligence/overview/#concepts-terms)ベースの問題の相関関係を有効にするには、それぞれの[アラート ポリシー](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy/#alert-policy-name)の相関関係に接続する必要があります。
+
+<img
+  title="Decision - enable correlation for alert policy"
+  alt="A screenshot of how to enable correlation for an alert policy."
+  src="/images/alerts_screenshot-full_decision-policy-.webp"
+/>
+
+<figcaption>
+  アラートポリシーの相関関係を有効にするには、ボックス<DNT>**Correlate and suppress noise**</DNT>をチェックします。
+</figcaption>
+
+## 決定の種類 [#decision-types]
+
+意思決定は、インシデント インテリジェンスが問題を相互に関連付ける方法を決定します。New Relic の相関ロジックは、次の 3 つの異なる意思決定タイプでチームが利用できます。
+
+* <DNT>
+    **Global decision**
+  </DNT>
+
+  : アラートの使用を開始すると、一連のデフォルトの決定が自動的に有効になります。
+
+* <DNT>
+    **Suggested decision**
+  </DNT>
+
+  : New Relic の相関エンジンは、イベント データを継続的に評価し、相関パターンをキャプチャしてノイズを削減する決定を提案します。 提案された決定のシミュレーション結果をプレビューし、アクティブ化を選択できます。
+
+* <DNT>
+    **Custom decision**
+  </DNT>
+
+  : チームはユースケースに基づいて決定をカスタマイズし、相関関係の有効性を高めることができます。 New Relic の決定 UI を使用すると、決定内のすべてのディメンションを柔軟に構成できます。
+
+## 積極的な決定を確認する [#decisions]
+
+チームの既存の決定を確認するには:
+
+1. <DNT>
+     **[one.newrelic.com](https://one.newrelic.com/all-capabilities)> Alerts > Incident intelligence > Decisions**
+   </DNT>
+
+   に移動します。
+
+2. アクティブな決定のリストを確認します。問題間の相関関係を作成するルールロジックを表示するには、決定をクリックします。
+
+3. 決定が関連付けられたインシデントの例を表示するには、
+
+   <DNT>
+     **Recent correlations**
+   </DNT>
+
+   タブをクリックします。
+
+4. これらのグローバル決定を有効または無効にするオプションがあります。
+
+## ソースの構成 [#configure-sources]
+
+意思決定を構成する前に、関連付けるソースを決定することが重要です。ソースはデータ入力です。
+
+以下のいずれかのソースからデータを得ることができます。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="configure-source-nr-alerts"
+    title="アラート"
+  >
+    <InlinePopover type="alerts"/>ポリシーのインシデント インテリジェンスを有効にすると、監視対象からコンテキストと相関関係を取得できます。 アラートからデータを取得するには:
+
+    1. <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>から<DNT>**Alerts**</DNT>をクリックします。
+
+    2. 左側の<DNT>**incident intelligence**</DNT>の下で<DNT>**Sources**</DNT>をクリックし、次に<DNT>**Alerts**</DNT>をクリックします。
+
+    3. アラートに接続するポリシーを選択し、 <DNT>**Connect**</DNT>をクリックします。
+
+       アラートポリシーを追加したり、 <DNT>**Sources > Alerts**</DNT>ですでに接続しているポリシーを削除したりできます。
+
+       <Callout variant="tip">
+         アラートをソースとして追加しても、現在の設定や通知に影響はありません。
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="アポリア（MLOps）"
+  >
+    インシデントインテリジェンスをAporia機械学習モデルと統合することで、機械学習モデルのパフォーマンスを監視できます。 Aporia統合を構成するには、[ドキュメント](/docs/integrations/mlops-integrations/aporia-mlops-integration/)を参照してください。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="スーパーワイズ（MLOps）"
+  >
+    インシデントインテリジェンスをSuperwise機械学習モデルと統合することで、機械学習モデルのパフォーマンスを監視できます。 Superwise統合を構成するには、[ドキュメント](/docs/alerts-applied-intelligence/mlops/integrations/superwise-mlops-integration/)を参照してください。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-source-rest-api"
+    title="REST API"
+  >
+    インシデントインテリジェンスは、追加のシステムと統合できる専用のRESTAPIインターフェイスをサポートしています。このインターフェースにより、コードまたはその他の監視ソリューションをインストルメンテーションして、あらゆる種類のメトリックまたはイベントを報告できます。
+
+    * メトリクスには、CPU、メモリ、ディスク使用率などの生のデータポイントや、ビジネスKPIなどがあります。
+
+    * イベントは、監視アラート、展開イベント、インシデント、例外、または説明したいその他の状態の変化です。
+
+      また、独自のシステムまたはアプリケーションから直接、あらゆるタイプのデータをインシデントインテリジェンスに送信することもできます。 REST APIは、安全なトークンベースの認証をサポートし、入力としてJSONコンテンツを受け入れます。
+
+      認証の詳細と完全な API リファレンスについては、 [「New Relic アラートの REST API」](/docs/rest-api-new-relic-ai)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+### グローバルな決定 [#global-decisions]
+
+チームがアラートの使用を開始すると、グローバル決定が自動的に有効になります。 設定は不要で、チームですぐに利用できます。 グローバルな決定は、さまざまな相関シナリオをカバーします。
+
+次の表は、自動的に有効になるすべてのグローバル決定の説明を示しています。
+
+<table id="global-decision-descriptions">
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        決定名
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        同じ New Relic ターゲット名 (NRQL)
+      </td>
+
+      <td>
+        しきい値を超えたエンティティ名とNRQLクエリが同じ場合に相関が有効になります。同じ [NRQL アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) からの関連イベントが識別されます。この決定は、たとえば、同じトランザクション クエリ レイテンシーの偏差がある問題を関連付けるのに役立ちます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ New Relic ターゲット名 (非 NRQL)
+      </td>
+
+      <td>
+        New Relic の非 NRQL アラートしきい値が同じであるため、相関関係が有効になります。REST ソースには適用されません。非 NRQL エンティティは、 [エンティティ](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/)(通常は APPLICATION、HOST タイプ) を指します。 [エンティティ合成に関する New Relic GitHub リポジトリ](https://github.com/newrelic/entity-definitions#entity-definitions)を参照してください。この決定により、同じ事業体からの関連問題が特定されることになります。たとえば、ホストのメモリ使用量が多い問題とホストが報告しない問題は、同じ原因による可能性が高くなります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ New Relic ターゲット ID
+      </td>
+
+      <td>
+        New Relic の非 NRQL アラートしきい値が同じであるため、相関関係が有効になります。REST ソースには適用されません。エンティティ ID を使用してエンティティ インスタンスを一意に識別します [。entity.guid](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#reserved-attributes)について詳しく学習してください。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ New Relic の状態
+      </td>
+
+      <td>
+        New Relic [条件 ID が](/docs/new-relic-solutions/get-started/glossary/#condition_id) 同じであるため、相関関係が有効になります。たとえば、関連サービスによる CPU 使用率の増加は、同じ CPU 使用状況からインシデントをトリガーするため、特定されます。このロジックは、条件レベルの細分性と相関時間ウィンドウの定義における柔軟性により、条件ごとに 1 つの問題に対する [アラート ポリシーの問題作成設定オプション](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-options) を超える価値があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ New Relic 条件とディープ リンク URL
+      </td>
+
+      <td>
+        New Relic[条件 ID](/docs/new-relic-solutions/get-started/glossary/#condition_id)とディープリンク URL が同じであるため、相関関係がアクティブになります。 ディープリンク URL は、 [アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/)に加えて、時系列と時間範囲の情報を提供します。 これらの問題を相関させることで、時間範囲のメトリックを使用してインシデント対応フロー内の関連するインシデントを確認し、詳細な分析を実行することが容易になります。 インシデントが New Relic アラート条件によってトリガーされた場合、ディープ リンク URL は自動的に生成されますが、REST ソースの場合、 [deepLinkUrl は](/docs/data-apis/ingest-apis/event-api/incident-event-rest-api/#api-specs)ユーザーが定義する必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ New Relic の状態とタイトル
+      </td>
+
+      <td>
+        New Relic の [状態名とタイトルが](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes) 同じであるため、相関関係が有効になります。これは、同じ警告メッセージとのより緊密な関連性を明らかにするために、条件に加えてタイトルを比較することで洗練されたオプションです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ k8s デプロイメント
+      </td>
+
+      <td>
+        kubernetes デプロイメントが同じであるため、相関ロジックがアクティブ化されます。多くのインシデントは、単一の展開変更によるものです。この決定は、同じ厄介な Kubernetes エンティティの展開からの問題を軽減するためのものです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じアプリケーション名、ポリシー、ID
+      </td>
+
+      <td>
+        カスタム アプリケーション名、ポリシー、およびカスタム ID が同じであるため、相関ロジックがアクティブ化されます。アプリケーションの問題を軽減するために、これらの要素と問題を関連付けます。特に、カスタム タグのユーザーに対応します。[タグ](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/)の詳細については、こちらをご覧ください。カスタム タグ ID は、データ間の接続を識別するためのキーとして使用される条件ファミリ ID またはその他の ID 値によって定義できます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同様の警告メッセージ
+      </td>
+
+      <td>
+        インシデントのタイトルが類似しており、同じエンティティからのものであるため、相関関係がアクティブになります。これは、同様の[アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/)によって引き起こされる同じエンティティからの問題を減らすためです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同じ安全な資格情報、パブリックの場所、およびタイプ
+      </td>
+
+      <td>
+        安全な資格情報、公開の場所、カスタム タイプがそれぞれ同じであるため、相関関係がアクティブになります。これは、通常単一の根本原因 (合成モニターの障害など) によって引き起こされ、同じセキュリティ資格情報を持つ同じ地理的位置/地域からの問題を関連付けるためであり、同じソリューションで対処できる可能性が高くなります。この決定を活用するには[タグを追加してください](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags)。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        類似の問題構造
+      </td>
+
+      <td>
+        両方のインシデントが類似した属性構造とデータ内容を持っているため、相関関係がアクティブになります。これはクラスタリングのより単純なバージョンであり、行列計算に高度な類似性アルゴリズムを採用して、関連性の高い問題を軽減します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        トポロジ依存
+      </td>
+
+      <td>
+        インシデントは依存関係のあるインスタンスから生成されるため、相関関係がアクティブになります。[すぐに使用できるトポロジ相関](#topology-requirements)について詳しくは、こちらをご覧ください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 提案された決定を使用する [#suggested-decisions]
+
+選択したソースからのデータは、ノイズの削減に役立つパターンについて継続的に検査されます。データでパターンが観察されると、相関ロジックは、これらのタイプのイベントが将来相関することを可能にする独自の決定を提案します。
+
+開始するには、 <DNT>**Decisions**</DNT> UI ページのトピックの<DNT>**Suggested decisions**</DNT>タブをクリックします。 各提案された決定をクリックすると、提案された決定の背後にあるロジックと推定相関率を確認できます。
+
+<img
+  title="Suggested decision block"
+  alt="A screenshot of a suggested decision block"
+  src="/images/alerts_screenshot-full_suggested-decisions.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>: 決定 UI からの統計の例。
+</figcaption>
+
+提案された決定を有効にするには、 <DNT>**Add to your decisions**</DNT>をクリックします。 有効にすると、決定はチームのメインの決定表に表示されます。 すべての提案された決定では、作成者が New Relic AI (これは New Relic アラートを指します) として表示されます。
+
+提案された決定がニーズに合わない場合は、 <DNT>**Dismiss**</DNT>をクリックします。
+
+## カスタム決定を作成する [#customize]
+
+独自のカスタム決定を構築することで、ノイズを減らし、相関関係を改善できます。 意思決定を開始するには、 <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>に移動し、 <DNT>**Create new decision**</DNT>をクリックします。
+
+意思決定ビルダーには 2 つのバージョンがあります。
+
+* 基本意思決定ビルダー (プレビュー中)
+* 高度な意思決定者
+
+これらの意思決定ビルダーの使用方法の詳細については、読み続けてください。
+
+### 決定要素 [#decision-elements]
+
+決定は、次の要素で構成されます。
+
+* 属性による関連付け: 属性の類似点または相違点によってすべてのインシデントを関連付けます。
+* 特定の値でフィルター処理: インシデントを特定の値を持つものに絞り込みます。
+* 関連するエンティティでフィルター処理: 検索する共有接続または依存関係の種類を選択します。
+* 相関時間範囲: 2 つのインシデントの作成時間の最大許容時間差を設定して、それらが相関のために考慮されるようにします。
+
+インシデント間の接続が設定されると、 [アルゴリズムは](#what-is-correlaton) 関連するインシデントを 1 つの問題にグループ化します。
+
+### 基本的な意思決定者 [#basic-decision-builder]
+
+<DNT>**This feature is currently in preview and available for only some customers.**</DNT> アクセス権がない場合は、[高度な意思決定ビルダー](#advanced-decision-builder)の手順を参照してください。
+
+基本的な意思決定ビルダーの使用方法を示す短いビデオ (3 分 25 分) を次に示します。
+
+<Video
+  type="wistia"
+  id="xmbcv8rhuu"
+/>
+
+基本的なデシジョン ビルダーは、ユース ケースの大部分をカバーし、相関一致のフィルター条件を指定できる "属性による相関" に焦点を当てています。関連付けられている両方のインシデントに、特定の値に対して同じフィルター ロジックを適用することもできます。たとえば、両方のエンティティ名が `host 1` の場合、インシデントを関連付けることができます。
+
+基本意思決定ビルダーを使用して独自のカスタム意思決定を作成するには、次の手順を実行します。ステップ 1、2、および 3 はそれ自体はオプションですが、意思決定を作成するには、3 つのうち少なくとも 1 つを定義する必要があることに注意してください。
+
+#### ステップ 1: 属性による関連付け [#basic-correlate-attributes]
+
+ドロップダウン メニューから属性を選択します。最も一般的なオプションである `equal` 演算子が事前に選択されていますが、別の [演算子](#operators)を選択することもできます。
+
+通常、2 番目の属性は最初の属性と一致するため、自動入力されます。自動入力されたオプションをそのまま使用するか、別の演算子を選択できます。
+
+完了すると、 [シミュレーションが](#simulations) 自動的に実行されます。
+
+これらの手順を繰り返して、最大 8 つのロジック フィルターを追加できます。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-correlate-attributes-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder, correlating with attributes."
+      alt="A screenshot of the basic decision builder, correlating with attributes."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 2: 特定の値でフィルタリングする [#basic-filter-values]
+
+1. `Filter by specific values`セクションを開いて追加のフィルターを表示するには、
+
+   <DNT>
+     **See more options**
+   </DNT>
+
+   をクリックします。
+
+2. 属性を選択します。
+
+3. `equal` 演算子が事前に選択されていますが、別の [演算子](#operators)を選択することもできます。
+
+4. 選択した属性に期待される値を選択します。複数の選択がサポートされています。
+
+完了すると、 [シミュレーションが](#simulations) 自動的に実行されます。
+
+これらの手順を繰り返して、最大 8 つのロジック フィルターを追加できます。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-filer-values-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by values."
+      alt="A screenshot of the basic decision builder, filtering by values."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-values.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 3: 関連エンティティでフィルター処理する [#basic-filter-related-entities]
+
+<DNT>**Filter by related entities**</DNT>をクリックして、エンティティ クラスを選択します。
+
+データが [New Relic エージェント](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/)によって収集されると、自動トポロジ相関が得られます。[デフォルトのトポロジ相関の詳細については、こちらをご覧ください](#topology-requirements)。
+
+[NerdGraph API を使用してトポロジ設定を](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial)セットアップすることもできます。これにより、トポロジ関連の決定をトポロジ データと一致させることができます。[トポロジ相関の設定の詳細については、こちらをご覧ください](#topology)。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-related-entities-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by entities."
+      alt="A screenshot of the basic decision builder, filtering by entities."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 4: 相関時間範囲の設定 [#basic-set-time-range]
+
+これにより、2 つのインシデントの作成時間の最大許容時間差が設定され、2 つのインシデントが相関対象と見なされます。この範囲内のインシデントは、指定されたルールに基づいて評価されますが、範囲外のインシデントは関連付けられません。
+
+時間範囲はデフォルトで 20 分に設定されています。1 ～ 120 分の間で調整できます。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-time-range"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder, setting a correlation time range."
+      alt="A screenshot of the basic decision builder, setting a correlation time range."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-time-range.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 5: シミュレーションを使用して決定をテストする [#basic-test-with-simulation]
+
+フィルター ロジックを追加すると、システムは過去 7 日間のインシデント データを使用して [シミュレーションを](#simulations) 自動的に実行します。
+
+<DNT>**Simulate**</DNT>をクリックしてシミュレーションを手動でトリガーすることもできます。これは、決定に何か変更があった場合に実行できます。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-test-with-simulation-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder, testing with a simulation."
+      alt="A screenshot of the basic decision builder, testing with a simulation."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-run-simulation.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 6: 決定に名前を付けて保存する [#basic-name-save-decision]
+
+名前と説明パネルにアクセスするには、 <DNT>**Create decision**</DNT>クリックします。 システムはあなたの決定に基づいて名前を生成します。 必要に応じて名前と説明をカスタマイズします。
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-save-decision-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the basic decision builder: naming and saving the decision"
+      alt="A screenshot of the basic decision builder: naming and saving the decision"
+      src="/images/alerts_screenshot-crop_basic-decision-builder-name-describe.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+### 高度な意思決定者 [#advanced-decision-builder]
+
+高度な意思決定ビルダーを使用すると、相関関係にある 2 つのインシデントに異なるロジック フィルターを適用することで、より複雑な意思決定を作成できます。たとえば、一方のエンティティ名が `host 1` で、もう一方のエンティティ名が `host 2`の場合、インシデントを関連付けることができます。時間枠のみを構成できる以外に、より高度な設定もあります。
+
+高度な意思決定ビルダーを使用するには:
+
+1. <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**
+   </DNT>
+
+   に移動します。
+
+2. <DNT>
+     **Create new decision**
+   </DNT>
+
+   クリックし、次に
+
+   <DNT>
+     **Use advanced builder**
+   </DNT>
+
+   をクリックします。
+
+利用可能なオプションの詳細については、読み続けてください。
+
+重要な用語:
+
+* ロジック フィルター:[属性](#operators) の [演算子](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes) を使用して定義されたロジック条件。
+* セグメント: ロジック フィルターの組み合わせを満たすインシデントのグループ。
+
+独自のカスタム決定を作成するには、次の手順を実行します。ステップ 1、2、および 3 はそれ自体はオプションですが、意思決定を作成するには、3 つのうち少なくとも 1 つを定義する必要があることに注意してください。
+
+#### ステップ1：データをフィルタリングする [#filter-data]
+
+相関関係は、任意の 2 つのインシデント間に発生します。フィルターが定義されていない場合、すべての着信インシデントが決定によって考慮されます。ニーズに合わせて決定を構成すればするほど、インシデントをより適切に関連付け、ノイズを減らし、オンコール チームに提供するコンテキストを増やすことができます。
+
+チームは、インシデントの最初のセグメントとインシデントの 2 番目のセグメントのフィルターを定義できます。フィルター[演算子](#operators)は、部分文字列の一致から[正規表現](#regex)の一致までさまざまで、必要なインシデント イベントを対象にして、不要なイベントを除外するのに役立ちます。
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-filter-data-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: filter your data"
+      alt="A screenshot of the basic decision builder: filter your data"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-filter-data.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 2: 属性による関連付け [#correlate-context]
+
+データをフィルタリングしたら、インシデントのコンテキストを比較するときに使用するロジックを定義します。次の方法に基づいてイベントを相互に関連付けることができます。
+
+* 標準演算子との属性値の比較
+* [類似性アルゴリズム](#algorithms)を使用した属性値の類似性
+* [キャプチャグループを使用した属性値の正規表現](#regex)
+* 類似性またはクラスタリングアルゴリズムを使用したインシデント全体の比較
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-correlate-attributes-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by attributes"
+      alt="A screenshot of the basic decision builder: correlate by attributes"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 3: 関連エンティティによる関連付け [#topology-correlation]
+
+自動トポロジ相関の場合、テレメトリデータが[NewRelicエージェント](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/)によって収集されていることを確認してください。すぐに使用できる[トポロジ相関の](#topology-requirements)詳細をご覧ください。
+
+[NerdGraph API を使用してトポロジ設定を](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial)セットアップすることもできます。これにより、トポロジ関連の決定をトポロジ データと一致させることができます。[トポロジ相関の設定の詳細については、こちらをご覧ください](#topology)。
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-related-entities-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by related entities"
+      alt="A screenshot of the basic decision builder: correlate by related entities"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ4：名前を付けます [#name-your-decision]
+
+決定ロジックを構成したら、わかりやすい名前と説明を付けます。
+
+<Callout variant="tip">
+  これらのオープン テキスト フィールドに機密情報や個人情報を追加しないようにすることで、セキュリティ上の懸念を最小限に抑えます。
+</Callout>
+
+これは、通知や UI の他の領域で使用され、どの決定によって一対のインシデントが相互に関連付けられたかを示します。 次のステップでデフォルトの詳細設定を更新しない場合は、 <DNT>**Create decision**</DNT>をクリックして作成を終了します。
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-name-decision"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: name decision"
+      alt="A screenshot of the basic decision builder: name decision"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-name-decision.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### ステップ 5: 詳細設定を使用する [#advanced-settings]
+
+詳細設定領域を使用して、イベントを関連付けるときの決定の動作をさらにカスタマイズします。各設定にはデフォルト値があるため、カスタマイズはオプションです。
+
+* <DNT>
+    **Time window**
+  </DNT>
+
+  : 相関関係の対象となる 2 つのインシデントの作成時間間の最大時間を設定します。
+
+* <DNT>
+    **Issue priority**
+  </DNT>
+
+  : インシデントが相関している場合、デフォルトの優先度設定 ( `inherit priority` ) をオーバーライドして、より高い優先度またはより低い優先度を追加します。
+
+* <DNT>
+    **Frequency**
+  </DNT>
+
+  : 決定をトリガーするための決定ロジックを満たす必要があるインシデントの最小数を変更します。
+
+* <DNT>
+    **Similarity**
+  </DNT>
+
+  : 決定ロジックで`similar to`演算子を使用している場合は、アルゴリズムのリストから選択して、その感度を設定できます。 これは、決定に含まれるすべての`similar to`演算子に適用されます。
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-advanced-settings-ui"
+    title="UI スクリーンショットを見る"
+  >
+    <img
+      title="Decision - advanced settings"
+      alt="A screenshot of the decision builder showing how to configure advanced settings."
+      src="/images/alerts_screenshot-full_decision-builder-settings.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+## 論理演算子 [#operators]
+
+Decision では、ロジック フィルターでインシデントの属性値を評価する方法を柔軟に定義するのに役立つ一連の演算子が提供されます。 基本的なものは、 <DNT>**equals**</DNT> 、 <DNT>**contains**</DNT> 、 <DNT>**starts with**</DNT> 、 <DNT>**ends with**</DNT> 、 <DNT>**exists**</DNT>と、それに応じた否定演算子です。 たとえば、 <DNT>**does not equal**</DNT> 。
+
+類似度演算子<DNT>**is similar to**</DNT>があり、この演算子に対して基礎となる[類似度アルゴリズム](#algorithms)を指定できます。 デフォルトでは、レーベンシュタイン距離が使用されます。
+
+<DNT>**contains (regex)**</DNT>演算子を使用すると、[正規表現](#regex)条件を定義できます。 任意のデータ値に一致する強力な機能。
+
+### 類似性アルゴリズム [#algorithms]
+
+使用する類似性アルゴリズムの技術的な詳細は次のとおりです。
+
+<CollapserGroup>
+  <Collapser
+    id="levenshtein-distance"
+    title="レーベンシュタイン距離"
+  >
+    このメジャーは、ホスト名のように、静的スキーマと固定長の短い文字列を比較する場合に役立ちます。レーベンシュタイン距離は、編集距離とも呼ばれます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            2つの文字列間のレーベンシュタイン距離は、1つの文字列から別の文字列に移動するための1文字の編集の最小数です。許可される編集操作は、削除、挿入、および置換です。
+
+            集計決定のデフォルトの類似度閾値は編集距離 3 です。 これは、意思決定ビルダーの<DNT>**Advanced mode**</DNT>で変更できます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            この方法は、比較的短い文字列を静的スキーマおよび固定長と比較する場合に最も役立ちます。一般的なアプリケーションには、スペルチェッカー、計算生物学、音声認識などがあります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            例
+          </td>
+
+          <td>
+            `number/bumble: 3 (number → bumber → bumblr → bumble)`
+
+            `trying/lying: 2 (trying → rying → lying)`
+
+            `strong/through: 4 (strong → htrong → throng → throug → through)`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            レーベンシュタイン距離アルゴリズムは、デフォルトでは文字列の長さを考慮して正規化されていません。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-score"
+    title="ファジースコア"
+  >
+    このメトリックは、同じプレフィックスが相関の良い指標となる同じ長さの文字列を比較するのに役立ちます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            ファジースコアアルゴリズムは、文字列間の文字一致に「ポイント」を割り当てることで機能します。
+
+            * 一致する文字ごとに1ポイント
+
+            * 後続の試合のための2つのボーナスポイント
+
+              ファジースコアが高いほど、2つの文字列間の類似性が高くなります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            ファジースコアは、プレフィックスが同じで比較的短い（理想的には5文字未満）文字列に最も役立ちます。最小保証スコアは`(length(expected prefix) * 3) - 2`です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            例
+          </td>
+
+          <td>
+            例： `Decisions / dcsions`
+
+            `d: 1`
+
+            `c: 1`
+
+            `i 1`
+
+            `s: 2`
+
+            `o: 1`
+
+            `n: 1`
+
+            `si: 2`
+
+            `io: 2`
+
+            `on: 2`
+
+            `ns: 2`
+
+            `= 15 points`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            最初の文字列の最初の文字が2番目の文字列で見つからない場合、ポイントは付与されません。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-ratio"
+    title="ファジーワジー比"
+  >
+    このメトリックは、同じ長さの文字列を比較するのに役立ちます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            類似度測定の<DNT>**fuzzy wuzzy**</DNT>ファミリは、複数のプラットフォーム間で異なるラベルを持つ同じイベントのチケットを見つけるのに役立つように[SeatGeek によって開発されまし](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/)た。 2 つの文字列のファジー ワジー比率はパーセンテージで表され、数値が高いほど文字列の類似性が高いことを示します。 これは、Python の difflib の[SequenceMatcher アルゴリズム](https://docs.python.org/3/library/difflib.html)に基づいています。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            ファジーwuzzy比率は、非常に短い文字列（ホスト名など）または非常に長い文字列（イベントの説明など）、特に同じ長さの文字列を比較する場合に効果的です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            このアルゴリズムは感度が高すぎるため、3〜10語の文字列に効果的に使用できません。 fuzzy wuzzy（以下を参照）に対する他の変更の1つがより良い選択かもしれません。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzzy-wuzzy-partial"
+    title="ファジーワジー部分比率"
+  >
+    このメトリックは、異なる長さの文字列を比較する場合に役立ちます。ファジーwuzzyアルゴリズムに対するこの変更は、有効な長さの制限に対処するのに役立ちます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            ファジーワジー部分比では、短い文字列が長い文字列内の同じ長さの各サブ文字列と比較されます。 「最適な」部分文字列のスコアは、ファジーワジー部分比率を決定するために使用されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            ファジーwuzzy部分比率は、基本的なファジーwuzzyアルゴリズムが次の場合に失敗するタイプの比較に特に効果的です。3〜10語の文字列で、いくつかの重要な部分文字列が重複している可能性があります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            例
+          </td>
+
+          <td>
+            たとえば、次の文字列の間：
+
+            `DevOps and SRE teams`
+
+            `DevOps`
+
+            `DevOps` （短い文字列、長さ= 6）は、 `DevOps and SRE teams`内の長さ6の各サブ文字列と比較されます。これらのサブストリングの1つ（ `DevOps` ）は完全に一致するため、これら2つのストリングのファジーワジー部分比率は高くなります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            ファジーwuzzyがあまりにも保守的である可能性がある場合、ファジーwuzzy部分一致は、相関で予想されるよりもリベラルである可能性があります。必要に応じて、意思決定ビルダーでしきい値を調整できます。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-token"
+    title="ファジーワジートークンセット比率"
+  >
+    このメトリックは、情報が同じ順序ではなく、長さが異なる可能性がある文字列を比較する場合に役立ちます。メッセージや説明などの文章に最適です。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            トークンセット比率アルゴリズムは、文字列を比較するためにいくつかの手順に従います。
+
+            1. 各文字列をトークン化します（たとえば、「DevOpsおよびSREチーム」を「DevOps」「および」「SRE」「チーム」に、「SREチームおよびDevOpsエンジニア」を「SRE」「チーム」「および」「DevOps」「エンジニア」に） ）。
+            2. 交差するトークンを新しい文字列に結合し、残りのトークンを残します（たとえば、交差する： "DevOps"、 "and"、 "SRE"、remainder1： "teams"、remainder2： "team"、 "engineers"）
+            3. 各トークングループをアルファベット順に並べ替えます（例：「and、DevOps、SRE」、「teams」、engineers、team」）
+            4. 次の文字列のペアを比較します。
+            5. 交差点グループ
+            6. 交差点グループ+残り1
+            7. 交差点グループ+残り2
+
+               これらのペア（「ベストマッチ」）からの比較は、ファジーワジートークンセットの比率です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            このメトリックは、類似した文字列の単語が重複しているが構造が異なる場合に役立ちます。たとえば、同じリソースでのさまざまな問題のイベントの説明。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            ファジーwuzzyがあまりにも保守的である可能性がある場合、ファジーwuzzyトークンセットの一致は、相関で予想されるよりも自由である可能性があります。必要に応じて、意思決定ビルダーでしきい値を調整できます。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaro-winkler-distance"
+    title="ジャロ・ウィンクラー距離"
+  >
+    このメトリックは、同一のプレフィックスが相関関係を強く示している短い文字列に役立ちます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            このメトリックは、0-1のスケールを使用して、2つの文字列間の類似性を示します。ここで、0は類似性がなく（0は文字列間で一致する文字）、1は完全に一致します。ジャロ・ウィンクラー類似性は以下を考慮に入れます：
+
+            * `matching`：文字列内で同じ位置にある2つの文字。
+            * `transpositions`：文字列内で異なるシーケンス順序にある一致する文字。
+            * `prefix scale`：文字列が最初から一致する場合、ジャロ・ウィンクラー距離は適切に調整されます（プレフィックスは最大4文字です）。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            このメトリックは転置に対してかなり寛容ですが、文字列内でさらに離れた転置はあまり役に立ちません。
+
+            中程度から長い文字列のジャロ・ウィンクラー類似性に使用する一般的に安全な数値は0.9です。より寛大な場合（たとえば、決定に他のより具体的なロジックがある場合）、 `{~}0.85`を使用できます。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cosine-distance"
+    title="コサイン距離"
+  >
+    この測定値は、テキストの大きなブロック（インシデントの説明など）を比較するために最も一般的に使用され、類似性を簡単に視覚化できます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            比較しているテキストブロックごとに、ブロック内の一意の単語ごとの数を表すベクトルが計算されます。結果として得られるベクトルのコサイン距離は、それらの内積をそれらの大きさの積で割ったものです。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            この方法は、テキストの長いブロックを比較する場合に最も役立ちます。特に、比較がテキスト全体を考慮し、個々の単語の違いやスペルミスを考慮しない場合に役立ちます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            例
+          </td>
+
+          <td>
+            ```
+            It is not length of life, but depth of life.
+            Depth of life does not depend on length.
+            ```
+
+            これらの文の単語数は次のとおりです。
+
+            `it 1 0`
+
+            `is 0 1`
+
+            `not 1 1`
+
+            `length 1 1`
+
+            `of 2 1`
+
+            `life 2 1`
+
+            `but 1 0`
+
+            `depth 1 1`
+
+            `does 0 1`
+
+            `depend 0 1`
+
+            `on 0 1`
+
+            そして、ここにベクトルとして表されるそれらのカウントがあります：
+
+            ```
+            [1, 0, 1, 1, 2, 2, 1, 1, 0, 0, 0]
+            [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+            ```
+
+            これらのベクトルの余弦距離は約0.9です（1が最も高い類似性です）。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            コサイン距離は、単語の小さな文字の違いが重要でない状況ではあまり役に立ちません。また、余弦距離はテキストブロックの語順を無視します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    コサイン距離の実装の詳細については[、blog.christianperone.comの詳細なウォークスルーを](http://blog.christianperone.com/2013/09/machine-learning-cosine-similarity-for-vector-space-models-part-iii/)参照してください。
+  </Collapser>
+
+  <Collapser
+    id="hamming-distance"
+    title="ハミング距離"
+  >
+    このメジャーは、静的スキーマを使用する短いテキストに役立ちますが、同じ長さの文字列に対してのみ機能します。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            ハミング距離では、比較する文字列の長さが同じである必要があります。これは、2つの文字列の違いがタイプミスによる可能性がある場合、または既知の長さの2つの属性を比較する場合に役立つ類似度メトリックです。例えば：
+
+            ```
+            Low Disk Space in application myapp in data center us01
+            ```
+
+            データセンターの変更に対して耐性を持たせたい場合は、ハミング距離を 4 に設定する必要があります。ハミング距離の平均的な使用ケースは 2 ～ 3 程度です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            例
+          </td>
+
+          <td>
+            レーベンシュタイン距離のような「距離の編集」メトリックのより単純なバージョンである、2つの文字列間のハミング距離は、（同じ位置で）一致しない文字列内の文字数です。たとえば、以下の文字列では、ハミング距離は2です。
+
+            ```
+            flowers / florets
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            上記の例では、データセンターではなくアプリケーション名が変更された場合も、相関関係が作成されます。 距離が長くなるにつれて、ハミング距離の有用性は急激に低下します。 このため、1 ～ 2 文字の置換を許容するよりも少しでも複雑な場合 (または文字列の長さが一致しない場合) は、別の類似度測定を使用します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaccard-distance"
+    title="ジャッカード距離"
+  >
+    この測定値は、説明やインシデント全体など、テキストの大きなブロックを比較する場合に役立ちます。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            詳細
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            使い方
+          </td>
+
+          <td>
+            パーセンテージで表される距離（0は完全に類似、1は完全に非類似）は、次の式で計算されます。
+
+            ```
+            1 - [(# of characters in both sets) / (# of characters in either set) * 100]
+            ```
+
+            つまり、Jaccard距離は、共有文字の数を文字の総数（共有および非共有）で割ったものです。 0.1のジャッカード距離は、2つのインシデント間の10％以下の文字が異なることを意味します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            いつ使用するか
+          </td>
+
+          <td>
+            ジャッカード距離は非常に簡単に解釈でき、データセットが大きい場合に特に役立ちます。たとえば、（1つの属性ではなく）2つのインシデント全体の類似性を比較する場合です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            潜在的な欠点
+          </td>
+
+          <td>
+            小さなデータセットやデータが欠落している状況では効果が低くなります。また、文字セットのさまざまな順列はJaccardの距離に影響を与えないため、誤検知を防ぐように注意してください。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### 正規表現演算子 [#regex]
+
+[decision を構築する](#customize)場合、使用可能な演算子は次のとおりです。
+
+* `contains (regex)`：[ステップ1で使用：データをフィルタリングします](#customize)。
+* `regular expression match`：[ステップ2で使用：コンテキスト相関](#customize)。
+
+意思決定ビルダーは、[正規表現についてこれらのドキュメントで](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html)概説されている標準に従います。
+
+<CollapserGroup>
+  <Collapser
+    id="regex-step-1"
+    title="ステップ1の正規表現"
+  >
+    正規表現がtrueとしてテストされるためには、属性値全体（評価しているデータ）が、提供された正規表現と一致している必要があります。キャプチャされたグループは使用できますが、明示的に評価されません。
+
+    たとえば、属性値が`foobarbaz`の場合、これらの例は基準を満たし、trueとしてテストされます。
+
+    * `foo.*`
+    * `^.*baz`
+    * `\w+`
+  </Collapser>
+
+  <Collapser
+    id="regex-step-2"
+    title="ステップ2の正規表現"
+  >
+    正規表現がtrueとしてテストされるためには、インシデント1とインシデント2の属性値全体が一致に含まれている必要があります。また、キャプチャされた各グループ（ `( )`の括弧内の式）は両方の値（インシデント1とインシデント2の属性）に存在し、同じ値を持っている必要があります。
+
+    * キャプチャされたグループの数は、両方のインシデント属性で等しくなければなりません。
+
+    * 各グループは、属性値間の対応するグループと等しくなければなりません。インシデント1属性値の最初にキャプチャされたグループの値は、インシデント2属性の最初にキャプチャされたグループの値と等しくなります。
+
+      たとえば、属性値1が`abc-123-xyz`で、属性値2が`abc-777-xyz`の場合、 `(\w+)-(?:\w+)-(\w+)`は次の基準を満たします。
+
+    * 値全体が式と一致します。
+
+    * 1番目と3番目のキャプチャされたグループは、それぞれ同じ値を持ちます。
+
+    * 2番目のグループは`?:`を使用してキャプチャされません。これにより、値全体を一致させることができますが、キャプチャグループの比較には使用されません。
+  </Collapser>
+
+  <Collapser
+    id="flags"
+    title="フラグについて"
+  >
+    デフォルトではフラグは有効になっていません。意思決定ビルダーの正規表現に含めるのに役立つフラグは次のとおりです。
+
+    * CASE_INSENSITIVE：（？i）
+
+    * マルチライン：（？m）
+
+    * ドット：（？s）
+
+      これらの各フラグの機能と実装に関する詳細については、 [Oracleのフィールド詳細ドキュメント](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.detail)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## 相関アシスタント [#assistant]
+
+相関アシスタントを使用すると、より迅速に[インシデント](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents)を分析し、意思決定ロジックを作成し、シミュレーションでロジックをテストできます。相関アシスタントを使用するには:
+
+1. <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Issues & activity > Incidents**
+   </DNT>
+
+   タブに移動します。
+
+2. 相関関係を調べたいインシデントのボックスをチェックします。 次に、インシデント リストの下部にある
+
+   <DNT>
+     **Correlate incidents**
+   </DNT>
+
+   をクリックします。
+
+3. インシデントを相関させるための最良の結果を得るには、頻度の割合が低い共通の属性を選択してください。[周波数の使用についての詳細をご覧ください](#frequency-tips)。
+
+4. <DNT>
+     **Simulate**
+   </DNT>
+
+   をクリックすると、新しい決定がデータの最後の 1 週間に及ぼす可能性のある影響を確認できます。
+
+5. 相関ペアの例をクリックして、使用する相関を決定します。
+
+6. シミュレーション結果に満足したら、
+
+   <DNT>
+     **Next**
+   </DNT>
+
+   をクリックし、決定内容に名前を付けて説明してください。
+
+7. シミュレーション結果に潜在的なインシデントが多すぎることが示されている場合は、決定のために別の属性とインシデントのセットを選択し、別のシミュレーションを実行することをお勧めします。[シミュレーションの詳細をご覧ください](#simulations)。
+
+<CollapserGroup>
+  <Collapser
+    id="frequency-tips"
+    title="属性分析"
+  >
+    UIには次の2種類の属性分析が表示されます。
+
+    * <DNT>**Common attributes:**</DNT> この分析では、選択されたすべてのインシデント間でまったく同じ属性と値を強調表示します。
+
+    * <DNT>**Similar attributes:**</DNT> 類似性分析では、距離 3 の Levenshtein アルゴリズムを使用して、3 文字以下の変更が実行された場合に値が同じになる属性を検索します。 数値と単一文字の値は結果から除外されます。 類似属性には 2 つのインシデントの選択が必要であり、3 つ以上のインシデントを選択した場合は類似性分析は実行されません。
+
+      最良の決定を下すために、インシデントの頻度が低い共通の属性を選択することをお勧めします。低頻度または高頻度の属性の選択が決定にどのように影響するかを理解するためのヒントを次に示します。
+
+    * <DNT>**Low frequency:**</DNT> たとえば、頻度列が 0% の属性は、一意の識別子であるか、または先月データで最近報告されたばかりの属性である可能性があります。 低頻度の属性を選択すると、相関するイベントが少なくなる可能性があります。
+
+    * <DNT>**High frequency:**</DNT> 一方、頻度が 100% の属性は、すべてのデータに存在する属性になります。 これらの属性を選択すると、すべてのイベントが相互に関連付けられます。
+
+      デフォルトでは、属性は頻度の低い順にソートされます。先月にその属性について報告された値の分布に関する情報を取得するには、属性の頻度の割合をクリックします。
+  </Collapser>
+</CollapserGroup>
+
+### シミュレーションの使用 [#simulations]
+
+シミュレーションは、先週のデータに対してロジックをテストし、発生した相関の数を示します。シミュレーション時に表示される決定プレビュー情報の内訳は次のとおりです。
+
+* <DNT>
+    **Potential correlation rate:**
+  </DNT>
+
+  この決定によって影響を受けるテスト済みのインシデントの割合。
+
+* <DNT>
+    **Total created incidents:**
+  </DNT>
+
+  この決定によってテストされたインシデントの数。
+
+* <DNT>
+    **Total estimated correlated incidents:**
+  </DNT>
+
+  この決定によって相関関係にあると推定されるインシデントの数。
+
+* <DNT>
+    **Incident examples:**
+  </DNT>
+
+  決定によって相関するインシデント ペアのリスト。ルールの属性と値、および各ペアのその他の一般的な属性が含まれます。 詳細を表示するにはインシデントをクリックします。
+
+希望する結果が表示されるまで、さまざまな属性を使用してシミュレーションを必要な回数だけ実行します。準備ができたら、UIプロンプトに従って決定を保存します。
+
+## トポロジー相関 [#topology]
+
+New Relic アラートの場合、トポロジーはサービス マップ、つまりインフラストラクチャ内のサービスとリソースが相互にどのように関連しているかを表します。
+
+決定ユーザーの場合、[デフォルトのトポロジ決定](#global-decisions)が追加され、アカウントで有効になります。[カスタム決定を作成](#customize)するオプションもあります。
+
+当社のトポロジ相関は、インシデント ソース間の関係を見つけて、 [インシデント](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents)とそれぞれの問題が相関するかどうかを判断します。トポロジ相関は、相関の品質と検出速度を向上させるように設計されています。
+
+### 要件 [#topology-requirements]
+
+自動トポロジ相関（トポロジグラフを明示的に設定する必要なし）の場合、テレメトリデータが[NewRelicエージェント](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/)によって収集されていることを確認してください。サービスと環境にインストールされるNewRelicエージェントの種類が多いほど、インシデントを関連付けるためのトポロジ決定の機会が増えます。
+
+### トポロジー相関はどのように機能しますか？ [#topology-explained]
+
+<img
+  title="topology-4.png"
+  alt="A screenshot of New Relic topology explained"
+  src="/images/alerts_diagram_topology-4.webp"
+/>
+
+<figcaption>
+  このサービスマップでは、ホストとアプリが頂点であり、それらの関係を示す線がエッジです。
+</figcaption>
+
+[New Relicエージェント](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/)によって収集された[エンティティと関係](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/)に加えてトポロジを設定するには、 [NerdGraphAPI](#create-topology-graph)を使用します。
+
+カスタマイズされたトポロジ相関は、2つの主要な概念に依存しています。
+
+* <DNT>
+    **Vertex:**
+  </DNT>
+
+  頂点はモニター アプライアンスを表します。 これは、インシデント イベントの発生元、または問題となる症状を説明するソースです。 頂点には、アプライアンス GUID やその他の ID などの属性 (キー値のペア) が構成されており、これにより、着信インシデント イベントに関連付けることができます。
+
+* <DNT>
+    **Edges:**
+  </DNT>
+
+  エッジは 2 つの頂点間の接続です。 エッジは頂点間の関係を記述します。
+
+トポロジを使用してインシデントを関連付ける方法を理解すると役立つ場合があります。
+
+1. まず、NewRelicは関連するすべてのインシデントを収集します。これには、[決定ロジックのステップ1と2](#customize)が真であり、詳細設定で定義された時間枠内にあるインシデントが含まれます。
+
+   <img
+     title="topology-1.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-1.webp"
+   />
+
+2. 次に、頂点の定義属性とインシデントで使用可能な属性を使用して、各インシデントを[トポロジグラフ](#create-topology-graph)の頂点に関連付けようとします。
+
+   <img
+     title="topology-2.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-2.webp"
+   />
+
+   <figcaption>
+     インシデントをトポロジ グラフの情報に関連付ける手順の例。
+   </figcaption>
+
+3. 次に、インシデントに関連付けられた頂点のペアが、「トポロジー依存」演算子を使用してテストされ、これらの頂点が互いに接続されているかどうかが判断されます。
+
+   <img
+     title="topology-3.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-3.webp"
+   />
+
+   <figcaption>
+     この演算子は、2 つの頂点を 5 ホップ以内で接続するパスがグラフ内にあるかどうかを確認します。
+   </figcaption>
+
+   次に、インシデントが相互に関連付けられ、問題がマージされます。
+
+### インシデントイベントに属性を追加する [#add-attributes]
+
+インシデントは、頂点の定義属性を使用して頂点に接続されます。 ([トポロジの説明](#topology-explained)の下にあるトポロジの例では、各頂点に一意の値を持つ定義属性「CID」があります。) 次に、New Relic のアラート システムは、属性に一致する頂点を見つけます。
+
+頂点で使用する定義属性がまだインシデントイベントにない場合は、次のいずれかのオプションを使用して追加します。
+
+<CollapserGroup>
+  <Collapser
+    id="tag-entities"
+    title="New Relic でエンティティにタグを付ける"
+  >
+    [エンティティ](/docs/new-relic-one/use-new-relic-one/core-concepts/use-tags-help-organize-find-your-data)にタグを付けることで、これらのタグはアラートによって生成されたインシデント イベントを充実させます。たとえば、エンティティに`CID`とそれに対応する一意の値をタグ付けした場合、次のように頂点に属性を定義できます。 `'newrelic/tags/CID' : CID_VALUE`
+  </Collapser>
+
+  <Collapser
+    id="facet-data"
+    title="New Relic でエンティティにタグを付ける"
+  >
+    1 つ以上の[ファセット](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions#syntax)が定義された[NRQL アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions)を作成すると、データが属性別にグループ化されます。また、発行されたインシデント イベントは、それらの属性と値で強化されます。インシデントの場合、ファセット属性は同じ形式に従います。 `newrelic/tags/ATTRIBUTE_NAME`
+  </Collapser>
+</CollapserGroup>
+
+### トポロジを作成または表示する [#create-topology-graph]
+
+トポロジを設定したり、既存のトポロジを表示したりするには、 [NerdGraphトポロジのチュートリアル](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial)を参照してください。

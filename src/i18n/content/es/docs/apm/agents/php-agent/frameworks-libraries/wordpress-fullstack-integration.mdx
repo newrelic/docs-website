@@ -1,0 +1,218 @@
+---
+title: Integración completa stack WordPress
+tags:
+  - New Relic integrations
+  - WordPress full stack integration
+metaDescription: Use New Relic browser monitoring to get a dashboard with metrics from your Wordpress.
+freshnessValidatedDate: '2023-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+Nuestra integración de WordPress monitorea el rendimiento de su aplicación web de WordPress, ayudándolo a diagnosticar problemas en su aplicación y optimizar su código. Nuestra integración de WordPress hace uso de nuestras integraciones PHP, Apache y MySQL, y le brinda un dashboard prediseñado con sus métricas de WordPress más importantes, como transacciones, visitantes y duración de las llamadas.
+
+<img
+  title="WordPress dashboard"
+  alt="A screenshot depicting the wordpress dashboard"
+  src="/images/infrastructure_screenshot-full_wordpress-dashboard.webp"
+/>
+
+<figcaption>
+  Después de configurar nuestra integración de WordPress, le brindamos un dashboard para su métrica de WordPress.
+</figcaption>
+
+## Instalar [#install]
+
+<Steps>
+  <Step>
+    ### Instalar el agente de infraestructura [#infra-install]
+
+    Puede instalar el agente de infraestructura de dos maneras diferentes:
+
+    * Nuestra [instalación guiada](https://one.newrelic.com/nr1-core?state=4f81feab-35f7-e97e-9903-52510f8542bd) es una herramienta CLI que inspecciona su sistema e instala el agente de infraestructura junto con el agente de monitoreo de aplicaciones que mejor funcione para su sistema. Para obtener más información sobre cómo funciona nuestra instalación guiada, consulte nuestra [descripción general de la instalación guiada](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview).
+    * Si prefiere instalar nuestro agente de infraestructura manualmente, puede seguir un tutorial para la instalación manual para [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/) o [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/).
+  </Step>
+
+  <Step>
+    ### Instalar el agente PHP
+
+    1. Consulte nuestros [requisitos del agente PHP](/docs/apm/agents/php-agent/getting-started/monitor-your-php-app/) antes de instalar el agente.
+
+    2. Abra la [instalación de inicio rápido de PHP](https://newrelic.com/instant-observability/php).
+
+    3. Haga clic en
+
+       <DNT>
+         **Install now**
+       </DNT>
+
+       para iniciar la instalación del agente PHP.
+  </Step>
+
+  <Step>
+    ### Instale el inicio rápido de MySQL
+
+    1. Consulte nuestros [requisitos de MySQL](/docs/infrastructure/host-integrations/host-integrations-list/mysql-config//).
+
+    2. Abra [la instalación de inicio rápido de MySQL](https://newrelic.com/instant-observability/mysql).
+
+    3. Haga clic en
+
+       <DNT>
+         **Install now**
+       </DNT>
+
+       para iniciar la instalación del agente MySQL.
+  </Step>
+
+  <Step>
+    ### Instale el inicio rápido de Apache
+
+    1. Consulte nuestros [requisitos de Apache](/docs/infrastructure/host-integrations/host-integrations-list/apache-monitoring-integration/).
+
+    2. Abra la [instalación de inicio rápido de Apache](https://newrelic.com/instant-observability/apache).
+
+    3. Haga clic en
+
+       <DNT>
+         **Install now**
+       </DNT>
+
+       para iniciar la instalación del agente Apache.
+  </Step>
+
+  <Step>
+    ### Configurar NRI-Flex para WordPress
+
+    Flex viene incluido con el agente New Relic Infrastructure . Para crear un archivo de configuración flexible, siga estos pasos:
+
+    1. Cree un archivo llamado `read-wordpress-files-config.yml` en esta ruta:
+
+       ```shell
+       /etc/newrelic-infra/integrations.d
+       ```
+
+    2. Actualice el `read-wordpress-files-config.yml` con estos detalles:
+
+       * `INSERT_EVENT_TYPE`. Un `event_type` es una tabla de base de datos de New Relic que puedes consultar usando NRQL. Un ejemplo de `event_type` sería `WPDirectories`
+       * `INSERT_WORDPRESS_PATH`. Aquí, debe ingresar el directorio de su aplicación de WordPress, como: `/srv/www/wordpress/*`.
+
+    3. Utilice este archivo de configuración:
+
+       ```yml
+       integrations:
+         - name: nri-flex
+           interval: 180s
+           config:
+             name: linuxDirectorySize
+             apis:
+               - event_type: INSERT_EVENT_TYPE
+                 commands:
+                   - run: du INSERT_WORDPRESS_PATH
+                     split: horizontal
+                     set_header: [dirSizeKB, dirName]
+                     regex_match: true
+                     split_by: (\d+)\s+
+       ```
+  </Step>
+
+  <Step>
+    ### Configurar WordPress para exponer el log de depuración
+
+    1. Abra su aplicación de WordPress y luego abra el archivo `wp-config.php` .
+
+    2. Actualice el archivo con los valores que se enumeran a continuación:
+
+       ```
+       // Enable WP_DEBUG mode
+       define( 'WP_DEBUG', true );
+
+       // Enable Debug logging to the /wp-content/debug.log file
+       define( 'WP_DEBUG_LOG', true );
+       ```
+
+       Una vez que inicie su aplicación, verá un archivo `debug.log` en el directorio `wp-content` .
+  </Step>
+
+  <Step>
+    ### Reenviar el log de depuración de WordPress a New Relic
+
+    Puede utilizar nuestro [reenvío de logs](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) para reenviar el log de WordPress a New Relic.
+
+    En máquinas Linux, su archivo de log llamado `logging.yml` debe estar presente en esta ruta:
+
+    ```shell
+    /etc/newrelic-infra/logging.d/
+    ```
+
+    Después de crear el archivo de log, agregue el siguiente script al archivo `logging.yml`:
+
+    ```yml
+    logs:
+      - name: wordpress-debug.log
+        file: /src/www/wordpress/wp-content/debug.log
+        attributes:
+          logtype: wordpress_debug
+    ```
+  </Step>
+
+  <Step>
+    ### Reiniciar el agente de infraestructura.
+
+    Antes de que pueda comenzar a leer sus datos, utilice las instrucciones de nuestros [documentos del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) para reiniciar su agente de infraestructura.
+
+    ```shell
+    sudo systemctl restart newrelic-infra.service
+    ```
+
+    En un par de minutos, tu aplicación se enviará métrica a [one.newrelic.com](https://one.newrelic.com).
+  </Step>
+</Steps>
+
+## Encuentra tus datos [#find-data]
+
+Puede elegir nuestra plantilla dashboard prediseñadas llamada `WordPress Full Stack` para monitor métricamente su aplicación de WordPress. Siga estos pasos para utilizar nuestra plantilla dashboard prediseñadas:
+
+1. Desde [one.newrelic.com](https://one.newrelic.com), vaya a la página
+
+   <DNT>
+     **+ Integrations & Agents**
+   </DNT>
+
+   .
+
+2. Haga clic en
+
+   <DNT>
+     **Dashboards**
+   </DNT>
+
+   .
+
+3. En la barra de búsqueda, escriba `WordPress Full Stack`.
+
+4. Debería aparecer el dashboard de WordPress. Haga clic en él para instalarlo.
+
+Su dashboard de WordPress se considera un panel personalizado y se puede encontrar en la UI <DNT>**Dashboards**</DNT>. Para obtener documentos sobre el uso y edición del panel, consulte [nuestros documentos dashboard ](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+Aquí hay un ejemplo de consulta NRQL para verificar el retraso de la interacción con la siguiente pintura (INP):
+
+```sql
+SELECT percentage(count(*), 
+WHERE interactionToNextPaint < 200)
+AS 'Good (<100ms)', percentage(count(*), 
+WHERE interactionToNextPaint >= 200 and interactionToNextPaint < 500) 
+AS 'Needs improvement (>=100 <300ms)', percentage(count(*), 
+WHERE interactionToNextPaint >= 500) 
+AS 'Poor (> 300ms)' 
+FROM PageViewTiming 
+WHERE interactionToNextPaint IS NOT NULL 
+TIMESERIES AUTO
+```
+
+## ¿Que sigue? [#whats-next]
+
+Para obtener más información sobre cómo consultar sus datos y crear un panel personalizado, consulte estos documentos:
+
+* [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)
+* [Introducción al panel personalizado](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Administra tu dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard)

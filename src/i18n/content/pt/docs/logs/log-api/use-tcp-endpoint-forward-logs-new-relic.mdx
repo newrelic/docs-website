@@ -1,0 +1,317 @@
+---
+title: Use endpoint TCP para encaminhar o log para o New Relic
+tags:
+  - Logs
+  - Log management
+  - Log API
+metaDescription: How to forward your logs to New Relic using syslog clients such as rsyslog and syslog-ng for Debian or RHEL operating systems.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Oferecemos uma ampla gama de soluções para [transferir seus dados log para New Relic](/docs/logs/forward-logs/). Mas em outras situações em que você não possui um encaminhador de logs (como CDNs, dispositivos de hardware ou serviços gerenciados), você pode usar protocolos syslog por meio de um endpoint TCP. Você pode encaminhar seu registro para New Relic usando clientes syslog como [`rsyslog`](https://www.rsyslog.com/) e [`syslog-ng`](https://www.syslog-ng.com/).
+
+## Compatibilidade e requisitos [#compatibility-requirements]
+
+Para encaminhar o log para o New Relic usando um cliente syslog, você precisa:
+
+* Uma New Relic válida
+
+  <InlinePopover type="licenseKey"/>
+
+  para a conta para a qual você deseja enviar o registro
+
+* Algumas pequenas alterações na configuração do cliente syslog, conforme explicado neste documento
+
+## Configure o rsyslog versões 8 e superiores (Amazon Linux, RedHat, Centos) [#rsyslog]
+
+<Callout variant="important">
+  Se estiver usando uma conta da região da UE, você deverá usar `newrelic.syslog.eu.nr-data.net` como endpoint, em vez de `newrelic.syslog.nr-data.net`. Não se esqueça de substituí-lo nos arquivos de configuração, usar o endpoint dos EUA para a conta da UE não funcionará.
+</Callout>
+
+Para encaminhar o registro para New Relic com `rsyslog` para distribuições Amazon Linux, RedHat e Centos:
+
+1. Instale os pacotes necessários para permitir que `rsyslog` envie log usando criptografia TLS:
+
+   ```bash
+   sudo yum install rsyslog-gnutls ca-certificates
+   ```
+
+2. Opcional: Configure `rsyslog` para seguir o arquivo de log e encaminhar seu conteúdo para o New Relic. Adicione o seguinte ao arquivo `/etc/rsyslog.conf` para ativar seu módulo de entrada de arquivo de texto:
+
+   ```properties
+   module(load="imfile"
+          PollingInterval="10"
+   )
+   ```
+
+3. No diretório `/etc/rsyslog.d/` , crie um arquivo de texto denominado `newrelic.conf`.
+
+4. Verifique se as opções `$IncludeConfig` em `/etc/rsyslog.conf` já possuem um curinga correspondente que incluirá o arquivo `newrelic.conf` recém-criado no diretório `/etc/rsyslog.d` . Caso contrário, você precisará incluir explicitamente `/etc/rsyslog.d/newrelic.conf` em `/etc/rsyslog.conf` usando `$IncludeConfig /etc/rsyslog.d/newrelic.conf`
+
+5. Adicione o seguinte a `newrelic.conf`. Substitua os valores destacados. Para `YOUR_LICENSE_KEY`, use sua New Relic <InlinePopover type="licenseKey"/>:
+
+   ```properties
+   ## Specify each of the files to be tailed in case step 1 is done
+
+   input(type="imfile" Tag="YOUR_FILE_TAG" File="PATH_TO_FILE")
+
+   ## Template expected by the New Relic Syslog endpoint
+
+   template(name="newrelic-rfc5424"
+            type="string"
+            string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+   )
+
+   ## Configure TLS and log forwarding
+
+   global(DefaultNetstreamDriver="gtls"
+          ##Specify the full path to the system's CA certificate:
+          DefaultNetstreamDriverCAFile="<path to certificate>"
+          ## RHEL/CentOS/Amazon Linux:
+          ##/etc/pki/tls/certs/ca-bundle.crt
+          ## Ubuntu:
+          ##/etc/ssl/certs/ca-certificates.crt
+          ##Other systems:
+          ##Specify the full path to the system's generic CA certificate.
+   )
+
+   action(type="omfwd"
+          Target="newrelic.syslog.nr-data.net"
+          Port="6514"
+          Protocol="tcp"
+          Template="newrelic-rfc5424"
+          ResendLastMSGOnReconnect="on"
+          StreamDriver="gtls"
+          StreamDriverAuthMode="x509/name"
+          StreamDriverPermittedPeers="*.syslog.nr-data.net"
+          StreamDriverMode="1"
+   )
+   ```
+
+6. (Opcional): Adicione atributo personalizado aos seus dados `syslog` .
+
+   Para tornar seus dados `syslog` consistentes com o restante de seus dados de telemetria, você pode adicionar um atributo personalizado. Existem duas maneiras de fazer isso:
+
+   * <DNT>**Add custom attributes directly in the template string.**</DNT> Você precisará escapar das aspas duplas (`"`) para os valores da string. Por exemplo:
+
+     `[<STRUCTURED_DATA_ID> <ATTR_NAME_1>="<ATTR_VALUE_1>" <ATTR_NAME_2>="<ATTR_VALUE_2>" ...]`
+
+     ```properties
+     template(name="newrelic-rfc5424"
+              type="string"
+              string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% [someId environment=\"prod\" region=\"US\"] %msg%\n"
+     )
+     ```
+
+   * <DNT>**Add custom attributes using a custom property variable in the template string.**</DNT> Este método evita a necessidade de escapar de valores de string.
+
+     ```properties
+     template(name="newrelic-rfc5424"
+              type="string"
+              string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %!custom-structured-data% %msg%\n"
+     )
+
+     set $!custom-structured-data = '[someId1 environment="prod" region="US"][someId2 team="sre" cost-center="123"]';
+     ```
+
+Certifique-se de substituir a seção `%structured-data%` na string do modelo por tag/atributo personalizado.
+
+7. Reinicie o serviço `rsyslog` executando:
+
+   ```bash
+   sudo systemctl restart rsyslog
+   ```
+
+8. [Verifique se há registros em sua conta New Relic](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) .
+
+## Configure o rsyslog versões 8 e superiores com compactação (Amazon Linux, RedHat, Centos) [#rsyslog-compression]
+
+Para configurar `rsyslog` versões 8 e superiores para distribuições Amazon Linux, RedHat e Centos:
+
+1. Siga as etapas 1 a 4 descritas em [configurar rsyslog](#rsyslog).
+
+   <Callout variant="important">
+     Observe que o número da porta configurada é `6516` em vez de `6514`.
+   </Callout>
+
+2. Adicione o seguinte a `newrelic.conf`. Substitua todos os valores destacados. Para `YOUR_LICENSE_KEY`, use sua New Relic <InlinePopover type="licenseKey"/>:
+
+   ```properties
+   ## Specify each of the files to be tailed in case step 1 is done
+
+   input(type="imfile" Tag="YOUR_FILE_TAG" File="PATH_TO_FILE"
+
+   ## Template expected by the New Relic Syslog endpoint
+
+   template(name="newrelic-rfc5424"
+            type="string"
+            string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+   )
+
+   ## Configure TLS and log forwarding
+
+   global(DefaultNetstreamDriver="gtls"
+          ##Specify the full path to the system's CA certificate:
+          DefaultNetstreamDriverCAFile="<path to certificate>"
+          ## RHEL/CentOS/Amazon Linux:
+          ##/etc/pki/tls/certs/ca-bundle.crt
+          ## Ubuntu:
+          ##/etc/ssl/certs/ca-certificates.crt
+          ##Other systems:
+          ##Specify the full path to the system's generic CA certificate.          
+   )
+
+   action(type="omfwd"
+          Target="newrelic.syslog.nr-data.net"
+          Port="6516"
+          Protocol="tcp"
+          Template="newrelic-rfc5424"
+          ResendLastMSGOnReconnect="on"
+          StreamDriver="gtls"
+          StreamDriverAuthMode="x509/name"
+          StreamDriverPermittedPeers="*.syslog.nr-data.net"
+          StreamDriverMode="1"
+          compression.Mode="stream:always"
+   )
+   ```
+
+3. Reinicie o serviço `rsyslog` executando:
+
+   ```bash
+   sudo systemctl restart rsyslog
+   ```
+
+4. [Verifique se há registros em sua conta New Relic](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) .
+
+## Arquivo de configuração legado para rsyslog versões 7 ou inferiores (Amazon Linux, RedHat, Centos) [#legacy-rsyslog]
+
+Se você estiver usando o rsyslog versão 7 ou inferior, os arquivos de configuração precisarão ser adaptados ao formato legado obsoleto. Este formato é mantido apenas para fins de retrocompatibilidade. Recomendamos fortemente evitar usá-lo, conforme indicado na [documentação do rsyslog](https://www.rsyslog.com/doc/master/configuration/conf_formats.html). Para configurar o log para distribuições Amazon Linux, RedHat e Centos:
+
+1. Instale os pacotes necessários para permitir que `rsyslog` envie log usando criptografia TLS:
+
+   ```bash
+   sudo yum install rsyslog-gnutls ca-certificates
+   ```
+
+2. Opcional: Configure `rsyslog` para seguir o arquivo de log e encaminhar seu conteúdo para o New Relic. Adicione o seguinte ao arquivo `/etc/rsyslog.conf` para ativar seu módulo de entrada de arquivo de texto:
+
+   ```properties
+   $ModLoad imfile
+   $InputFilePollInterval 10
+   $PrivDropToGroup adm
+   $WorkDirectory /var/spool/rsyslog
+   ```
+
+3. No diretório `/etc/rsyslog.d/` , crie um arquivo de texto denominado `newrelic.conf`.
+
+4. Verifique se as opções `$IncludeConfig` em `/etc/rsyslog.conf` já possuem um curinga correspondente que incluirá o arquivo `newrelic.conf` recém-criado no diretório `/etc/rsyslog.d` . Caso contrário, você precisará incluir explicitamente `/etc/rsyslog.d/newrelic.conf` em `/etc/rsyslog.conf` usando `$IncludeConfig /etc/rsyslog.d/newrelic.conf`.
+
+5. Adicione o seguinte a `newrelic.conf`. Substitua os valores destacados. Para `YOUR_LICENSE_KEY`, use sua New Relic <InlinePopover type="licenseKey"/>:
+
+   ```properties
+   ## Template expected by the New Relic Syslog endpoint
+
+   $template NRLogFormat,"YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid%  %structured-data% %msg%\n"
+
+   ## Specify each of the files to be tailed in case step 1 is done
+
+   $InputFileName /path/to/file
+   $InputFileTag YOUR_FILE_TAG
+   $InputFileSeverity info
+   $InputRunFileMonitor
+
+   ## Configure TLS and log forwarding
+   ##Specify the full path to the system's CA certificate:
+   $DefaultNetstreamDriverCAFile <path to certificate> 
+   ## RHEL/CentOS/Amazon Linux:
+   ##/etc/pki/tls/certs/ca-bundle.crt
+   ## Ubuntu:
+   ##/etc/ssl/certs/ca-certificates.crt
+   ##Other systems:
+   ##Specify the full path to the system's generic CA certificate.  
+   $ActionSendStreamDriver gtls
+   $ActionSendStreamDriverMode 1
+   $ActionSendStreamDriverAuthMode x509/name
+   $ActionSendStreamDriverPermittedPeer *.syslog.nr-data.net
+
+   *.* @@newrelic.syslog.nr-data.net:6514;NRLogFormat
+   ```
+
+6. Reinicie o serviço `rsyslog` executando:
+
+   ```bash
+   sudo systemctl restart rsyslog
+   ```
+
+7. [Verifique o registro da sua conta New Relic ](/docs/logs/ui-data/use-logs-ui).
+
+## Configurar syslog-ng [#syslog-ng]
+
+Para encaminhar o registro para New Relic com `syslog-ng`:
+
+1. A instalação `ca-certificates` é necessária para permitir que `syslog-ng` envie log usando criptografia TLS:
+
+   ```bash
+   sudo yum install ca-certificates
+   ```
+
+2. Abra o arquivo de configuração `syslog-ng` (`/etc/syslog-ng/syslog-ng.conf`) em um editor de texto.
+
+3. Defina as fontes a serem monitoradas adicionando:
+
+   ```properties
+   source s_src {
+           internal();
+   };
+   ```
+
+4. Opcional: Configure `syslog-ng` para arquivos finais adicionando o seguinte ao bloco de configuração `Sources` :
+
+   ```properties
+   source s_files {
+           file("PATH_TO_FILE");
+   };
+   ```
+
+5. Defina o formato da New Relic `syslog`. Para `YOUR_LICENSE_KEY`, use sua New Relic <InlinePopover type="licenseKey"/>.
+
+   ```properties
+   template NRFormat { template("YOUR_LICENSE_KEY <${PRI}>1 ${ISODATE} ${HOST:--} ${PROGRAM:--} ${PID:--} ${MSGID:--} ${SDATA:--} $MSG\n");
+           template_escape(no);
+   };
+   ```
+
+6. Adicione o endpoint Syslog do New Relic:
+
+   ```properties
+   destination d_newrelic {
+         network("newrelic.syslog.nr-data.net" port(6514)
+                transport("tls")
+                tls(peer-verify(no))
+                template(NRFormat)
+         );
+   };
+   ```
+
+7. Adicione a seguinte saída ao bloco de configuração do caminho de log:
+
+   ```properties
+   log {
+          source(s_src);
+          source(s_files);  ## in case step 4 is implemented.
+          destination(d_newrelic);
+   };
+   ```
+
+8. Reinicie `syslog-ng` executando:
+
+   ```bash
+   sudo service syslog-ng restart
+   ```
+
+9. [Verifique o registro da sua conta New Relic ](/docs/logs/ui-data/use-logs-ui).
+
+<Callout variant="tip">
+  Se você estiver executando o syslog-ng a partir de um contêiner Docker e tiver problemas, verifique [a documentação da imagem balait/syslog](https://hub.docker.com/r/balabit/syslog-ng/).
+</Callout>

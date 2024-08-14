@@ -1,0 +1,426 @@
+---
+title: ホスト監視のためのノードエクスポーター統合
+tags:
+  - Integrations
+  - Node Exporter
+  - Prometheus
+  - host monitoring
+freshnessValidatedDate: '2024-04-10T00:00:00.000Z'
+translationType: machine
+---
+
+Linux サーバーのハードウェアとカーネルのメトリックを監視したいですか? これは、 New Relicリモート書き込みインテグレーションと Prometheus Node Exporter を使用して実行できます。 これら 2 つのプログラムを Prometheus 監視システムと組み合わせると、データを New Relic に送信してトラブルシューティングに使用できるようになります。
+
+ここでの手順は[、ノード エクスポーターを使用した Linux ホスト メトリクスの監視に関する](https://prometheus.io/docs/guides/node-exporter/)Prometheus ガイドに基づいています。 その情報の一部を繰り返し、New Relic にデータを送信するための手順を詳しく説明します。
+
+## 前提条件 [#prerequisites]
+
+始めるために必要なものは次のとおりです:
+
+* 計画する Linux ホストを決定します。 以下に、EC2、GCP、Azure インスタンス内の Linux サーバーの例を示します。
+* Prometheus 監視システムがインストールされていることを確認してください。 まだダウンロードしていない場合は、 [Prometheus サイト](https://prometheus.io/download/)からダウンロードできます。
+
+## Node Exporterをダウンロードして起動する [#download-node-exporter]
+
+次の項目を完了します。
+
+1. 以下のコマンドを使用して、Node Exporter をダウンロードして起動します。 必ず、 `wget` URL を Prometheus[ダウンロード](https://prometheus.io/download#node_exporter)ページの最新のものに置き換えてください。
+
+   ```bash
+   # Note that <VERSION>, <OS>, and <ARCH> are placeholders.
+   wget https://github.com/prometheus/node_exporter/releases/download/v<VERSION>/node_exporter-<VERSION>.<OS>-<ARCH>.tar.gz
+   tar xvfz node_exporter-*.*-amd64.tar.gz
+   cd node_exporter-*.*-amd64
+   ./node_exporter
+   ```
+
+2. キーボード コマンド`CONTROL + z`と`bg`を使用して、Node Exporter をバックグラウンドで実行するように設定します。 本番環境では、これをサービスとして設定する必要があります (たとえば、 `systemd`を使用)。
+
+## 設定 [#configs]
+
+Prometheus を起動する前に、メインの`prometheus.yml`設定 ファイルにいくつか変更を加える必要があります。 まず、以下の基本的な`prometheus.yml`の例から始め、残りのセクションで設定を追加します。 これらの例をコピーして設定ファイルに貼り付けることができます。
+
+`job_name`が`node`に設定されていることに注意してください。
+
+```yml lineHighlight=11
+# my global config 
+global:
+  scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+  - job_name: node
+```
+
+### PrometheusをNew Relicに接続する [#add-url-and-license]
+
+`prometheus.yml`に、以下の例の`remote_write`スニペットを挿入します。 次の点に留意してください。
+
+* これは Prometheus v2.26 以降のスニペットです。 古いバージョンを使用している場合は、メインの[リモート書き込み手順](/docs/infrastructure/prometheus-integrations/install-configure-remote-write/set-your-prometheus-remote-write-integration/#setup)を参照してください。
+* 必ず`YOUR_LICENSE_KEY`実際の値に置き換えてください。
+* これを設定ファイルの末尾の`global`セクションと同じインデント レベルに挿入できます。
+
+```yml lineHighlight=12-15
+# my global config 
+global:
+  scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+  - job_name: node
+
+remote_write:
+  - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+    authorization:
+      credentials: YOUR_LICENSE_KEY
+```
+
+### ターゲットを設定する [#set-up-targets]
+
+`static_configs`引数を介してターゲットを静的に構成することも、サポートされているサービス検出メカニズムの 1 つを使用して動的検出を使用することもできます。
+
+#### 静的ターゲット [#static-targets]
+
+新しいコメント`# Target setup`の下に静的構成を設定できます。
+
+<CollapserGroup>
+  <Collapser
+    id="ec2-static"
+    title="EC2"
+  >
+    必ず`<INSTANCE_ID>`を挿入してください:
+
+    ```yml lineHighlight=12-16
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        static_configs:
+        - targets: ['localhost:9100']
+          labels:
+            instanceid: <INSTANCE_ID> 
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="azure-static"
+    title="アズール"
+  >
+    必ず`<MACHINE_ID>`を挿入してください:
+
+    ```yml lineHighlight=12-16
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        static_configs:
+        - targets: ['localhost:9100']
+          labels:
+            instanceid: <MACHINE_ID>
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="gcp-static"
+    title="GCP"
+  >
+    必ず`<INSTANCE_ID>`を挿入してください:
+
+    ```yml lineHighlight=12-16
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        static_configs:
+        - targets: ['localhost:9100']
+          labels:
+            instanceid: <INSTANCE_ID>
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### ダイナミックターゲット [#dynamic-targets]
+
+静的ターゲットを構成する代わりに、サービス検出を構成できます。
+
+<CollapserGroup>
+  <Collapser
+    id="ec2-dynamic"
+    title="EC2"
+  >
+    `# Target setup` の下に `region`、`access_key`、`secret_key`、`port` を指定して、 AWS EC2 インスタンスのサービス検出を設定できます。
+
+    ```yml lineHighlight=12-22
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        ec2_sd_configs:
+          - region: <EC2_REGION>
+            # The AWS API keys. If blank, the environment variables `AWS_ACCESS_KEY_ID`
+            # and `AWS_SECRET_ACCESS_KEY` are used.
+            access_key: <ACCESS_KEY>
+            secret_key: <SECRET_KEY>
+            # The port to scrape metrics from. If using the public IP address, this must
+            # instead be specified in the relabeling rule.
+            # By default node_exporter will expose metrics on 9100
+            port: <PORT>
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="azure-dynamic"
+    title="アズール"
+  >
+    `# Target setup`の下に必ず`<SUBSCRIPTION_ID>`を挿入してください:
+
+    ```yml lineHighlight=12-15
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        azure_sd_config:
+          # The subscription ID. Always required.
+          subscription_id: <SUBSCRIPTION_ID>
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="gcp-dynamic"
+    title="GCP"
+  >
+    `# Target setup`の下に必ず`<PROJECT>`を挿入してください:
+
+    ```yml lineHighlight=12-15
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        gce_sd_config:
+          # The GCP Project
+          project: <PROJECT>
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### ホストとAPMの関係を設定する [#host-to-apm]
+
+この Linux サーバーで APM エージェントを使用してアプリケーションを監視する場合は、 New Relicでリレーションシップ機能を有効にするために追加の設定を行う必要があります。 これらの機能は、ホストとアプリの関係に依存します。
+
+関係には、Prometheus ではデフォルトで削除される属性が必要です。 これを回避するには、設定ファイルの`relabel_configs`スタンザを通じてそれらを含めることができます。
+
+<Callout variant="tip">
+  利用可能なすべてのメタ属性は、Prometheus[設定](https://prometheus.io/docs/prometheus/latest/configuration/configuration)ページの適切な`sd_config`の下で確認できます。
+</Callout>
+
+以下の例では、動的検出とラベルの組み合わせを示します。 静的ターゲットを使用している場合は、上記の[静的ターゲット](#static-targets)を挿入するだけです。
+
+<CollapserGroup>
+  <Collapser
+    id="ec2-labels"
+    title="EC2"
+  >
+    詳細については、Prometheus [EC2 の](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#ec2_sd_config)ドキュメントを参照してください。
+
+    ```yml lineHighlight=23-26
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        ec2_sd_configs:
+          - region: <EC2_REGION>
+            # The AWS API keys. If blank, the environment variables `AWS_ACCESS_KEY_ID`
+            # and `AWS_SECRET_ACCESS_KEY` are used.
+            access_key: <ACCESS_KEY>
+            secret_key: <SECRET_KEY>
+            # The port to scrape metrics from. If using the public IP address, this must
+            # instead be specified in the relabeling rule.
+            # By default node_exporter will expose metrics on 9100
+            port: <PORT>
+        # Relabel configs
+        relabel_configs:
+          - source_labels: [__meta_ec2_instance_id]
+            target_label: instanceid
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="azure-dynamic"
+    title="アズール"
+  >
+    詳細については、Prometheus[EC2 の](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#azure_sd_config)ドキュメントを参照してください。
+
+    ```yml lineHighlight=16-19
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        azure_sd_config:
+          # The subscription ID. Always required.
+          subscription_id: <SUBSCRIPTION_ID>
+        # Relabel configs
+        relabel_configs:
+          - source_labels: [__meta_azure_machine_id]
+            target_label: instanceid
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+
+  <Collapser
+    id="gcp-dynamic"
+    title="GCP"
+  >
+    詳細については、Prometheus [EC2 の](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#gce_sd_config)ドキュメントを参照してください。
+
+    ```yml lineHighlight=16-19
+    # my global config
+    global:
+      scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+      - job_name: node
+
+        # Target setup 
+        gce_sd_config:
+          # The GCP Project
+          project: <PROJECT>
+        # Relabel configs
+        relabel_configs:
+          - source_labels: [__meta_gce_instance_id]
+            target_label: instanceid
+
+    remote_write:
+      - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=NodeExporter
+        authorization:
+          credentials: YOUR_LICENSE_KEY
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## プロメテウスを起動する [#prometheus-startup]
+
+これで、Prometheus スクレーパーを起動できます。
+
+1. 以下を実行します。
+
+   ```
+   ./prometheus --config.file=./prometheus.yml
+   ```
+
+2. キーボード コマンド`CONTROL + z`と`bg`を使用して、スクレーパーをバックグラウンドで実行するように設定します。 本番環境では、これをサービスとして設定する必要があります (たとえば、 `systemd`を使用)。
+
+3. **<DNT>[one.newrelic.com](https://one.newrelic.com/)</DNT>> Infrastructure > Hosts** に移動して、New Relic UI でデータを確認します。

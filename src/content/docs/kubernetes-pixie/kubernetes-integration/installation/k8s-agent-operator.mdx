@@ -1,0 +1,308 @@
+---
+title: 'Kubernetes agent operator'
+tags:
+    - Integrations
+    - Kubernetes integration
+    - Agent Operator
+metaDescription: "Learn how to use the Kubernetes agent operator to automatically manage your APM agents."
+freshnessValidatedDate: 2024-06-28
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+The Kubernetes agent operator streamlines full-stack observability for Kubernetes environments by automating APM instrumentation alongside Kubernetes agent deployment. By enabling APM auto instrumentation, developers no longer need to manually manage [APM agents](/docs/apm/new-relic-apm/getting-started/introduction-apm/). The Kubernetes agent operator will automatically install, upgrade and remove APM agents.
+
+It currently [supports](#k8s-supported-versions) Java, .NET, Node.js, Python, and Ruby with additional languages (PHP and Go) on the way.
+It has been tested on EKS and on-premise clusters running AMD nodes.
+
+## Before you begin [#before-begin]
+
+Before installing the operator, check the following:
+
+* [Helm](https://helm.sh/): You must install it to use the charts. See the [Helm documentation](https://helm.sh/docs/) if you need help getting started.
+
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/): You have to configure it to communicate with your cluster.
+
+* [Certificate manager](https://cert-manager.io/): You have to install it in the cluster.
+
+### Installation of the `cert-manager` dependency [#install-cert-manager]
+
+To install the certificate manager dependency, run these commands:
+
+```shell
+helm repo add jetstack https://charts.jetstack.io
+helm install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --set crds.enabled=true
+```
+
+## Installation of the Kubernetes agent operator [#install-k8s-operator]
+
+Depending on what you need, you can choose to install the agent operator independently or together with our K8s integrations.
+
+We strongly recommend to install it together with the Kubernetes integration to take advantage of our entire [full stack observability](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) experience.
+
+### Bundle installation in addition to the Kubernetes integration (recommended) [#bundle-installation]
+
+The Kubernetes agent operator chart is integrated as part of the [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) chart, which manages the installation of all the components needed to enable a full Kubernetes observability.
+
+Add the `k8s-agents-operator.enabled=true` parameter to your helm command or include it in a [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) file.
+
+See the [Install the Kubernetes integration](/install/kubernetes/?dropdown1=helm) page for more information about using Helm or check out the [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) chart.
+
+See this sample of Helm command using parameters:
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=<NEW RELIC INGEST LICENSE KEY> \
+    --set global.cluster=<CLUSTER_NAME> \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### Standalone installation [#standalone-installation]
+
+To install the Kubernetes agent operator with the default configuration, run these commands:
+
+```shell
+helm repo add newrelic-k8s https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator newrelic-k8s/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+```
+
+For a complete list of configuration options, see the [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) chart.
+
+## Configuring a namespace to enable the operator [#configuring-namespace]
+
+Each namespace requires a two-step process to enable automatic instrumentation of applications deployed within it.
+
+1. Create a secret containing a valid [New Relic ingest license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for each namespace you want the operator to instrument.
+
+   ```shell
+       kubectl create secret generic newrelic-key-secret \
+           --namespace <NAMESPACE_TO_MONITOR> \
+           --from-literal=new_relic_license_key=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+   ```
+
+   Make sure to replace `<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>` with your valid New Relic license key.
+
+2. Apply the following CRD to each namespace you want to auto instrument. Run this command:
+
+   ```shell
+   kubectl apply -f <YOUR_YAML_FILE> -n <NAMESPACE_TO_MONITOR>
+   ```
+
+   YAML file to apply:
+
+   ```yaml
+   apiVersion: newrelic.com/v1alpha1
+   kind: Instrumentation
+   metadata:
+       labels:
+           app.kubernetes.io/name: instrumentation
+           app.kubernetes.io/created-by: k8s-agents-operator
+       name: newrelic-instrumentation
+   spec:
+       java:
+           image: newrelic/newrelic-java-init:latest
+           # env:
+           # Example New Relic agent supported environment variables
+           # - name: NEW_RELIC_LABELS
+           #   value: "environment:auto-injection"
+           # Example overriding the appName configuration
+           # - name: NEW_RELIC_POD_NAME
+           #   valueFrom:
+           #     fieldRef:
+           #       fieldPath: metadata.name
+           # - name: NEW_RELIC_APP_NAME
+           #   value: "$(NEW_RELIC_LABELS)-$(NEW_RELIC_POD_NAME)"
+       nodejs:
+           image: newrelic/newrelic-node-init:latest
+       python:
+           image: newrelic/newrelic-python-init:latest
+       dotnet:
+           image: newrelic/newrelic-dotnet-init:latest
+       ruby:
+           image: newrelic/newrelic-ruby-init:latest
+   ```
+
+## Enable automatic APM instrumentation in applications [#enable-apm-instrumentation]
+
+The Kubernetes agent operator looks for language-specific annotations when scheduling your pods to know which applications to monitor.
+
+See the currently supported annotations:
+
+```shell
+instrumentation.newrelic.com/inject-java: "true"
+instrumentation.newrelic.com/inject-nodejs: "true"
+instrumentation.newrelic.com/inject-python: "true"
+instrumentation.newrelic.com/inject-dotnet: "true"
+instrumentation.newrelic.com/inject-ruby: "true"
+```
+
+See this example of deployment with annotation to instrument the Java agent:
+
+```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+        name: spring-petclinic
+    spec:
+      selector:
+        matchLabels:
+          app: spring-petclinic
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: spring-petclinic
+          annotations:
+            instrumentation.newrelic.com/inject-java: "true"
+        spec:
+          containers:
+            - name: spring-petclinic
+              image: ghcr.io/pavolloffay/spring-petclinic:latest
+              ports:
+                - containerPort: 8080
+              env:
+              - name: NEW_RELIC_APP_NAME
+                value: spring-petclinic-demo
+```
+
+## Upgrade APM instrumentation in applications [#upgrade-apm-instrumention]
+
+By default, the Kubernetes agent operator automatically installs the latest available versions of the corresponding [APM agent](/docs/apm/new-relic-apm/getting-started/introduction-apm/).
+
+Once an application is monitored, it's not automatically upgraded to a newer version unless the user chooses to upgrade. You can seamlessly upgrade the application to a newer version by simply redeploying the pods or restarting your deployment.
+
+## Remove APM instrumentation in applications [#remove-apm-instrumentation]
+
+To remove the APM instrumentation in an application, you must remove the annotations used by the Kubernetes agent operator. In a few seconds, you will see that the APM agents have been automatically removed.
+
+## Updating the Kubernetes agent operator [#upgrading-k8s-operator]
+
+### Bundle installation
+
+Run a upgrade of the nri-bundle chart with the following parameter:
+
+```shell
+ k8s-agents-operator.enabled=true
+```
+
+### Standalone installation
+
+Run the `helm upgrade` command to update to a newer version of the Kubernetes agent operator.
+
+```shell
+    helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Uninstalling the Kubernetes agent operator [#uninstall-k8s-operator]
+
+### Bundle installation
+
+Uninstall the nri-bundle chart or if you only want to remove the operator, run a helm upgrade with the following parameter:
+
+```shell
+ k8s-agents-operator.enabled=false
+```
+
+### Standalone installation
+
+To uninstall and delete the Kubernetes agent operator, run this command:
+
+```shell
+    helm uninstall k8s-agents-operator -n newrelic
+```
+
+## Find and use data [#find-data]
+
+* Get insights of your applications and resolve incidents using the [APM summary](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/) page.
+
+* Check out the [Kubernetes summary](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) page. It provides Kubernetes insights in the context of your monitored applications.
+
+## Frequently Asked Questions [#faq]
+
+<CollapserGroup>
+  <Collapser
+    id="route-apps-telemetry"
+    title="Can I route my applications telemetry to different accounts?"
+  >
+    Yes, you just need to change your [license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) injected in the secret in the appropriate namespace.
+
+    <Callout variant="important">
+      The [K8s APM experience](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) is only available on the account where the data from the applications and the K8s cluster is available.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="setup-operator"
+    title="Can I setup the operator to inject an specific version of an APM agent?"
+  >
+    During preview, we only support the latest version of each [APM agent](/docs/apm/new-relic-apm/getting-started/introduction-apm/). After GA, we will allow users to change the version of APM agents.
+  </Collapser>
+
+  <Collapser
+    id="modify-conf-apm"
+    title="Can I install the K8s agent operator if my applications are already instrumented?"
+  >
+    Installing two APM agents in the same application can potentially lead to unexpected issues. Therefore, we strongly recommend removing any existing instrumentation before installing the operator.
+  </Collapser>
+</CollapserGroup>
+
+## Troubleshooting [#troubleshooting]
+
+If your applications are not instrumented, you should check the following:
+
+* Please be sure to redeploy or deploy new applications after the operator has been installed. Please be advised that the operator only auto-instruments new applications deployed in the cluster.
+
+* Check that the secret and the instrumentation CRD are installed in the app's namespace.
+
+  ```shell
+  kubectl get secrets -n <NAMESPACE>
+  kubectl get instrumentation -n <NAMESPACE>
+  ```
+
+* Check that the pod has the annotations that enable automatic instrumentation.
+
+  ```shell
+      kubectl get pod <POD> -n <NAMESPACE>  -o jsonpath='{.metadata.annotations}'
+  ```
+
+* Get logs from the agent operator pod.
+
+  ```shell
+      kubectl logs <AGENT_OPERATOR_POD> -n newrelic
+  ```
+
+* Ensure the `init` container has been injected and sucessfully executed inside the application's pod.
+
+  ```shell
+      kubectl describe pod <POD> -n <NAMESPACE>
+  ```
+
+## Support [#support]
+
+The Kubernetes agent operator currently supports the latest version of these  APM agents: Java, .NET, Node.js, Python, and Ruby.
+
+Once the operator is on general availability, the most recent 3 versions of each of the APM agents will be supported.
+
+For issues with the Kubernetes agent operator:
+
+* Review the [issues section on GitHub](https://github.com/newrelic/k8s-agents-operator/issues) for any similar problems or consider opening a new issue.
+
+* You can reach out to the [New Relic support](https://support.newrelic.com/) team for assistance.

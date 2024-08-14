@@ -2,9 +2,11 @@
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
+const glob = require('glob');
 const { validateYamlFields } = require('./validate-install/schema');
+const { verifyImages, verifyMDX } = require('./utils/verify-mdx-utils');
 
-const verifyInstall = () => {
+const verifyInstall = async () => {
   const installPage = process.argv.slice(2);
 
   if (installPage.length === 0) {
@@ -13,10 +15,20 @@ const verifyInstall = () => {
       '\x1b[31m%s\x1b[0m',
       '\n (!)',
       'Please provide the name of the agent/install page',
-      '\n eg. yarn verify-installpage java \n'
+      '\n eg. yarn verify-install-page java \n'
     );
     process.exit(1);
   }
+
+  // VERIFY MDX CONTENT
+
+  const filePaths = glob.sync(`${__dirname}/../${installPage}/**/*.mdx`);
+
+  verifyImages(filePaths);
+  await verifyMDX(filePaths);
+
+  // VERIFY INSTALL
+
   try {
     const file = fs.readFileSync(
       path.join(process.cwd(), `/src/install/config/${installPage}.yaml`),
@@ -49,7 +61,7 @@ const verifyInstall = () => {
     );
     process.exit(1);
   }
-  console.log(' ✅ no issues found');
+  console.log('\n🎉 No install issues found!');
 };
 
 verifyInstall();

@@ -1,0 +1,205 @@
+---
+title: UI paths
+tags:
+  - Basic style guide
+  - Style guide quick reference
+redirects:
+  - /docs/style-guide/quick-reference/ui-paths
+  - /docs/style-guide/formatting/ui-paths/
+---
+
+Explaining where to find UI pages and elements can be tricky. When done well, path descriptions can make navigating our UI easier for readers. We have different options for handling smaller UI paths and longer UI paths.
+
+## Guidelines for writing good UI paths
+
+Our goal for UI paths is to make them easy to understand and follow, preferably written in a conversational way. While we're not concerned with absolute consistency, we want the paths to follow general patterns so as to not introduce unnecessary ambiguity for users interacting with the UI.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Guideline
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Start most UI paths with `go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities)**`.
+      </td>
+
+      <td>
+        Almost any path within our primary UI should start with this stock phrase. Avoid other introductory words like `from` or `login to`. And remember, UI paths are always in **bold**. Avoid showing links that skip across multiple navigation nodes in the UI. For example, instead of this:
+
+        _[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Traces_
+
+        Write this:
+
+        _[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Traces_.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Use a concise, conversational format
+      </td>
+
+      <td>
+        A good UI path is short, conversational, and unambiguous. We often use `>` between the nodes in a path to aid in keeping things brief, but when the UI is confusing you can also use positional words like `left navigation` or `upper-right`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Avoid redundancy
+      </td>
+
+      <td>
+        If there’s an existing doc or doc section that explains how to get to a specific UI element, section, or page, link to it.
+
+        Here's an example that links to an existing doc:
+
+        From the [user menu](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings), select **Account settings**, and then select **Plan management**.
+
+        Here's one that links to an earlier section:
+
+        ...
+
+        1. From a span’s [details pane](http://details-pane-empty-link) \[link to doc section above], select **Attributes**.
+        2. Look for entity-related attributes, like _entityId_ and _entity.name_.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Orient the reader
+      </td>
+
+      <td>
+        If something's hard to locate, you can use terms like `top of the screen` or `left navigation`. For example:
+
+        From the top navigation, click **APM** and then choose your application.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Use natural verbs
+      </td>
+
+      <td>
+        Use natural, actionable verbs. Think about the user and the logic of the action and then read your steps out loud before deciding.
+
+        * Examples: `click`, `select`, `choose`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Use screenshots
+      </td>
+
+      <td>
+        Screenshots can help ground the reader. For instance, if the UI contains a dashboard with multiple options, a screenshot can orient the reader with a common set of procedures. Write out the UI path associated with the screenshot in a `<figcaption>`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Exclude log-in instructions
+      </td>
+
+      <td>
+        Assume our readers are logged in. In other words, don’t include `log in to New Relic`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Follow these UI pathing examples [#examples]
+
+The length of the path should influence your approach. A simple three-step navigation can be fully conversational, while a multiple-step procedure may be an ordered list. And for something buried more than three steps deep, consider using the `**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > y > z**` convention.
+
+Here are some pathing styles in practice, complete with the appropriate bold styling.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "400px" }}>
+        Pathing type
+      </th>
+
+      <th>
+        Example
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        You can describe shorter paths in sentence form.
+      </td>
+
+      <td>
+        Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities)** and click the **Query builder** icon to start querying your data.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        For multi-step procedures, use an ordered list with full sentences.
+      </td>
+
+      <td>
+        To see details for a specific span:
+
+        1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services**.
+
+        2. Click **Distributed tracing** and select a trace from the trace index.
+
+        3. Select a span to see its details.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        For lengthier paths, simplify by bracing the UI elements with `>`. Bold everything in the path.
+      </td>
+
+      <td>
+        Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Transactions > (select a transaction) > (select a transaction trace) > Trace details**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Lengthier paths may end with actions. Bold the part of the UI path braced in `>`, but unbold the final action. Only use parentheses for actions nested in a longer UI path.
+      </td>
+
+      <td>
+        Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Transactions**, then select a transaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        For image captions of any length, brace UI elements in `>`.
+      </td>
+
+      <td>
+        Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app)**.  
+
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Use your best judgment [#judgment]
+
+If you’re ever feeling stuck when writing a UI path, use your best judgment. The best way to format or word a UI path may depend on the path’s length and context.

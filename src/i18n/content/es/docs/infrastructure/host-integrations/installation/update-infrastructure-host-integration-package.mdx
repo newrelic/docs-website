@@ -1,0 +1,249 @@
+---
+title: Actualizar infraestructura integración en el host
+tags:
+  - Integrations
+  - On-host integrations
+  - Installation
+metaDescription: 'Update the New Relic infrastructure agent for your on-host integration on Amazon Linux, CentOS, Debian, Redhat, or Ubuntu.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra integración en el host no se actualiza automáticamente. Para actualizarlos, utiliza tu administrador de paquetes para actualizar los programas y sus dependencias a la última versión. Le recomendamos mantener actualizados tanto el [agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent) como los archivos de integración.
+
+## Encuentre versiones de integración en el host [#check-version]
+
+Utilice cualquiera de estas opciones para comprobar si su integración en el host está actualizada:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Option**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        New Relic UI
+      </td>
+
+      <td>
+        Para utilizar la UI de infraestructura para verificar la integración en las versiones del host:
+
+        1. Vaya a
+
+           <DNT>
+             **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure**
+           </DNT>
+
+           .
+
+        2. En la barra de búsqueda, escriba el nombre del archivo de integración que se instaló (por ejemplo, `nri-cassandra`).
+
+        3. Seleccione el menú desplegable correspondiente para ver las versiones del agente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Servidor
+      </td>
+
+      <td>
+        Para comprobar manualmente las versiones de integración en el host, conéctese a un servidor. Luego invoque el administrador de paquetes del sistema operativo y registre el nombre del archivo de integración (por ejemplo, `nri-cassandra`):
+
+        * <DNT>**Debian**</DNT> o <DNT>**Ubuntu**</DNT>:
+
+          ```
+          dpkg -l | grep INTEGRATION_FILE_NAME
+          ```
+
+        * <DNT>**Amazon Linux, CentOS, SLES, or RHEL**</DNT>:
+
+          ```
+          rpm -qa | grep INTEGRATION_FILE_NAME
+          ```
+
+        * <DNT>
+            **Windows Server**
+          </DNT>
+
+          En PowerShell:
+
+          ```
+          get-package -name "*INTEGRATION_FILE_NAME*" | select name, version
+          ```
+
+          Por ejemplo, si quisieras encontrar a Cassandra:
+
+          ```
+          get-package -name "*nri-mssql*" | select name, version
+          ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para encontrar el nombre del archivo para una integración específica, consulte los [documentos de integración](/docs/infrastructure/host-integrations).
+
+## Elija su método de actualización según su entorno [#install]
+
+Sus servicios pueden ejecutarse en un único host físico, en una máquina virtual (VM) o en un contenedor orquestado por Kubernetes o ECS. Cualquiera que sea la configuración, nuestra integración en el host puede adaptarse a su entorno y enviar datos a New Relic; todo lo que tienes que hacer es elegir el método de actualización apropiado.
+
+### Estás ejecutando servicios en entornos orquestados. [#orchestrated]
+
+Si ejecuta servicios en entornos orquestados y en contenedores, elija su escenario de actualización:
+
+* <img
+    style={{ width: '32px', height: '32px', verticalAlign: 'middle'}}
+    class="inline"
+    title="Kubernetes"
+    alt="Kubernetes"
+    src="/images/os_icon_k8.webp"
+  >
+    [Actualizar la integración en el host en Kubernetes](/docs/integrations/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes)
+  </img>
+* <img
+    style={{ width: '32px', height: '32px', verticalAlign: 'middle'}}
+    class="inline"
+    title="ECS"
+    alt="ECS"
+    src="/images/os_icon_ecs.webp"
+  >
+    [Actualización de integración en el host en Amazon ECS](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs) (tipo de lanzamiento EC2)
+  </img>
+
+### Está ejecutando servicios locales o servicios en una sola máquina virtual (VM) [#standard]
+
+Si ejecuta servicios sin orquestación o de forma local, elija su escenario:
+
+<CollapserGroup>
+  <Collapser
+    id="windows"
+    title={<>Actualizar usando archivos MSI (<img src="/images/os_icon_windows.webp" title="Windows Server" alt="Windows Server" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>Servidor de windows)</img></>}
+  >
+    Aquí hay dos enfoques, dependiendo de la integración que esté utilizando.
+
+    <DNT>
+      **On-host Microsoft Windows services integration**
+    </DNT>
+
+    La [integración de servicios de Microsoft Windows](/docs/infrastructure/host-integrations/host-integrations-list/windows-services-integration/) se incluye con el agente New Relic Infrastructure, por lo que para actualizar la integración, debe actualizar el agente de infraestructura. Consulte [Actualizar el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/update-or-uninstall/update-infrastructure-agent).
+
+    <DNT>
+      **All other on-host Microsoft Windows integrations**
+    </DNT>
+
+    Puede actualizar la integración para servicios que se ejecutan en Windows Server con nuestro instalador MSI o los archivos zip oficiales. Recomendamos la instalación MSI.
+
+    1. Descargue la última imagen del instalador MSI [de nuestro repositorio](https://download.newrelic.com/infrastructure_agent/windows/integrations/).
+
+    2. En una cuenta de administrador, ejecute el script de instalación utilizando una ruta absoluta.
+
+       ```
+       msiexec.exe /qn /i PATH\TO\YOUR_INTEGRATION_FILE_NAME.msi
+       ```
+
+    3. [Reinicie el agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status).
+  </Collapser>
+
+  <Collapser
+    id="apt"
+    title={<>Actualizar con apto (<img src="/images/os_icon_debian.webp" title="Debian icon" alt="Debian.webp" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>debian,<img src="/images/os_icon_ubuntu.webp" title="ubuntu icon" alt="ubuntu icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>ubuntu)</img></>}
+  >
+    <DNT>**Recommendation:**</DNT> [Actualice](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent) el agente de infraestructura ([versión 1.0.703 o superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes)).
+
+    Para actualizar la integración en el host usando `apt-get`:
+
+    1. Desde la línea de comando, ejecute:
+
+       ```
+       sudo apt-get update
+       ```
+
+    2. Ejecute este comando usando el nombre del archivo de integración (por ejemplo, `nri-cassandra`):
+
+       ```
+       sudo apt-get install --only-upgrade YOUR_INTEGRATION_FILE_NAME
+       ```
+
+    3. [Reinicie](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#linux) el agente de infraestructura.
+  </Collapser>
+
+  <Collapser
+    id="yum"
+    title={<>Actualizar con yum (<img src="/images/os_icon_amazon-linux.webp" title="amazon linux.webp" alt="amazon linux.webp" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>amazon linux,<img src="/images/os_icon_centos.webp" title="centos icon" alt="centos icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>CentOS,<img src="/images/os_icon_redhat.webp" title="redhat icon" alt="redhat icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>RHEL)</img></>}
+  >
+    <DNT>**Recommendation:**</DNT> [Actualice](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent) el agente de infraestructura ([versión 1.0.703 o superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes)).
+
+    Para actualizar la integración en el host usando `yum`:
+
+    1. Desde la línea de comando, ejecute este comando usando el nombre del archivo de integración (por ejemplo, `nri-cassandra`):
+
+       ```
+       sudo yum update YOUR_INTEGRATION_FILE_NAME -y
+       ```
+
+    2. [Reinicie](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#linux) el agente de infraestructura.
+  </Collapser>
+
+  <Collapser
+    id="zypper"
+    title={<>Actualizar con zypper (<img src="/images/os_icon_suse.webp" title="suse icon" alt="suse icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>SLES)</img></>}
+  >
+    <DNT>**Recommendation:**</DNT> [Actualice](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent) el agente de infraestructura ([versión 1.0.703 o superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes)).
+
+    Para actualizar la integración en el host usando Zypper:
+
+    1. Desde la línea de comando, ejecute este comando usando el nombre del archivo de integración (por ejemplo, `nri-cassandra`):
+
+       ```
+       sudo zypper update YOUR_INTEGRATION_FILE_NAME -y
+       ```
+
+    2. [Reinicie](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#linux) el agente de infraestructura.
+  </Collapser>
+
+  <Collapser
+    id="tarball"
+    title={<>Actualización desde tarball (<img src="/images/os_icon_linux.webp" title="Linux" alt="Linux icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>Otras distribuciones)</img></>}
+  >
+    <Callout variant="tip">
+      Le recomendamos que [utilice su administrador de paquetes de distribución para instalar el agente de infraestructura](/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/install-infrastructure-linux-using-package-manager). Si elige [instalar manualmente el agente](/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/tarball-manual-install-infrastructure-linux), es posible que también desee instalar la integración en el host desde los archivos comprimidos proporcionados.
+    </Callout>
+
+    El proceso de instalación manual no está automatizado. Si opta por la instalación manual, debe colocar los diferentes archivos en las carpetas correctas y asegurarse de que el agente tenga todos los permisos para ejecutar la integración.
+
+    Para instalar una integración desde un tarball:
+
+    1. Descargue el archivo de integración empaquetado desde el [repositorio tarball](https://download.newrelic.com/infrastructure_agent/binaries/linux/amd64/).
+    2. Desempaquete el archivo tarball de acuerdo con nuestra [estructura de archivos de integración y reglas de ubicación](/docs/integrations/integrations-sdk/getting-started/integration-file-structure-activation), para que el agente pueda encontrar las definiciones, configuración y ejecutables de la integración.
+    3. Coloque el binario que contiene el archivo de definición dentro de `newrelic-integrations` o `custom-integrations` en el [directorio del agente](/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/tarball-manual-install-infrastructure-linux#agent-directory).
+    4. Coloque el archivo de configuración de la integración en el [directorio del complemento](/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/tarball-manual-install-infrastructure-linux#configure-plugin).
+
+       Para integraciones que requieren nuestra herramienta `nrjmx`, siga estas instrucciones adicionales:
+
+       Algunas integraciones (como [JMX](/docs/integrations/host-integrations/host-integrations-list/jmx-monitoring-integration), [Cassandra](/docs/integrations/host-integrations/host-integrations-list/cassandra-monitoring-integration) y [Kafka](/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration)) requieren la herramienta `nrjmx` . Si tu integración lo necesita, descárgalo de [nuestro repositorio](https://download.newrelic.com/infrastructure_agent/binaries/linux/noarch/) y descomprímelo.
+
+       <Callout variant="important">
+         `nrjmx` requiere Java 8 o superior.
+       </Callout>
+
+       Para la versión 2.3.3 o superior de integración JMX y la versión 2.3.0 o superior de integración Cassandra, la herramienta `nrjmx` se incluye como dependencia. Por este motivo, cuando se utiliza un administrador de paquetes, no es necesario instalar la herramienta `nrjmx` manualmente.
+
+       Si ya tiene `nrjmx` instalado e instala `nri-jmx`, nuestra herramienta JMX conserva la versión ya instalada. Si aún no tiene `nrjmx` instalado, obtendrá la última versión de `nrjmx` .
+
+       De forma predeterminada, la ubicación `nrjmx` es `/usr/bin/nrjmx/*`. Para instalar en una ubicación diferente, establezca la nueva ruta en la variable de entorno `NR_JMX_TOOL` .
+  </Collapser>
+</CollapserGroup>

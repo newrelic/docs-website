@@ -1,0 +1,201 @@
+---
+title: Adaptador métrico New Relic
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: New Relic Metrics Adapter
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="visualização">
+  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
+
+  Atualmente, esse recurso é fornecido como parte de um programa de visualização de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Você pode usar a métrica da sua conta New Relic para dimensionar automaticamente aplicativos e serviços em seu cluster do Kubernetes implantando o [Adaptador métrica New Relic ](https://github.com/newrelic/newrelic-k8s-metrics-adapter). Este adaptador busca os valores de métrica do New Relic e os disponibiliza para os [escalonadores automáticos horizontais de pods](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/).
+
+O [newrelic-k8s-metrics-adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter) implementa a `external.metrics.k8s.io` API para dar suporte ao uso de New Relic NRQL resultados de consulta baseados em métricas externas. Uma vez implantado, o valor de cada métrica configurada é obtido através da [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) com base na consulta [NRQL](/docs/query-your-data/nrql-new-relic-query-language/) configurada.
+
+O adaptador métrico expõe a métrica em um endpoint seguro com TLS.
+
+<img
+  title="Diagram showing the newrelic metrics adapter in a cluster"
+  alt="Diagram showing the New Relic metrics adapter in a cluster"
+  src="/images/kubernetes_diagram_adapter-diagram.svg"
+/>
+
+<figcaption>
+  Adaptador métrico New Relic em cluster.
+</figcaption>
+
+## Requisitos [#requirements]
+
+* Um [cluster do Kubernetes executando uma versão suportada](/docs/kubernetes-pixie/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements).\* A [integração do New Relic Kubernetes](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure).
+* A [integração do New Relic Kubernetes](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure).
+* New Relic [Usuário chave de API da](/docs/apis/intro-apis/new-relic-api-keys/#user-api-key).
+* Nenhum outro adaptador métrico externo instalado no cluster.
+
+## instalação [#installation]
+
+Para instalar o New Relic adaptador métrico , fornecemos o `newrelic-k8s-metrics-adapter` gráfico Helm , que também está incluído no `nri-bundle` gráfico usado para implantar todos os New Relic Kubernetes componentes .
+
+1. Se ainda não estiver instalado, [instale nossa integração Kubernetes](/install/kubernetes).
+
+2. Atualize a instalação para incluir o Adaptador métrico New Relic com o seguinte comando:
+
+   ```
+   helm upgrade --install newrelic newrelic/nri-bundle \
+   --namespace newrelic --create-namespace --reuse-values \
+   --set metrics-adapter.enabled=true \
+   --set newrelic-k8s-metrics-adapter.personalAPIKey=YOUR_NEW_RELIC_PERSONAL_API_KEY \
+   --set newrelic-k8s-metrics-adapter.config.accountID=YOUR_NEW_RELIC_ACCOUNT_ID \
+   --set newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query=NRQL query
+   ```
+
+Observe e ajuste os seguintes sinalizadores:
+
+* `metrics-adapter.enabled`: Deve ser configurado como `true` para que o gráfico do adaptador métrico seja instalado.
+
+* `newrelic-k8s-metrics-adapter.personalAPIKey`: Deve ser definido como [uma chave de API pessoal](/docs/apis/intro-apis/new-relic-api-keys/#user-api-key) válida do New Relic.
+
+* `newrelic-k8s-metrics-adapter.config.accountID`: Deve ser definido para uma conta New Relic válida de onde as métricas serão obtidas.
+
+* `newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query`: adiciona uma nova métrica externa onde:
+
+  * `external_metric_name`: o nome da métrica.
+  * `query`: a consulta NRQL base usada para obter o valor da métrica.
+
+<Callout variant="tip">
+  Como alternativa, você pode usar um arquivo `values.yaml` que pode ser transmitido ao comando helm com a sinalização `--values` . Os arquivos de valores podem conter todos os parâmetros necessários para configurar a métrica explicada na seção [de configuração](#configuration) .
+</Callout>
+
+## Configuração [#configuration]
+
+Você pode configurar múltiplas métricas no adaptador métrica e alterar alguns parâmetros para modificar o comportamento do cache métrico e da filtragem. Para ver a lista completa e as descrições de todos os parâmetros que podem ser modificados, consulte os arquivos do gráfico [README.md](https://github.com/newrelic/newrelic-k8s-metrics-adapter/blob/main/charts/newrelic-k8s-metrics-adapter/README.md) e [values.yaml](https://github.com/newrelic/newrelic-k8s-metrics-adapter/blob/main/charts/newrelic-k8s-metrics-adapter/values.yaml) .
+
+## Como funciona [#how-it-works]
+
+O exemplo a seguir é um arquivo de valores do Helm que habilita o adaptador métrica na instalação do gráfico `nri-bundle` e configura a métrica `nginx_average_requests` :
+
+```yaml
+metrics-adapter:
+  enabled: true
+newrelic-k8s-metrics-adapter:
+  personalAPIKey: <Personal API Key>
+  config:
+    accountID: <Account ID>
+    externalMetrics:
+      nginx_average_requests:
+        query: "FROM Metric SELECT average(nginx.server.net.requestsPerSecond) SINCE 2 MINUTES AGO"
+```
+
+<Callout variant="caution">
+  O intervalo de tempo padrão para métrica é 1h. Portanto, você deve definir consulta com a cláusula `SINCE` para ajustar o intervalo de tempo de acordo com seu ambiente e necessidades.
+</Callout>
+
+Existe um HPA consumindo a métrica externa da seguinte forma:
+
+```yaml
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2beta2
+metadata:
+  name: nginx-scaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: nginx_average_requests
+          selector:
+            matchLabels:
+              k8s.namespaceName: nginx
+        target:
+          type: Value
+          value: 10000
+```
+
+Com base na definição do HPA, o gerenciador do controlador busca a métrica da API métrica externa que é atendida pelo adaptador métrica New Relic .
+
+O adaptador métrico New Relic recebe a consulta incluindo o nome da métrica `nginx_average_requests` e todos os seletores, e procura um nome de métrica correspondente na memória interna com base na métrica configurada. Em seguida, ele adiciona os seletores à consulta para formar uma consulta final que é executada usando o NerdGraph para buscar o valor do New Relic. O exemplo acima irá gerar uma consulta como a seguinte:
+
+```sql
+FROM Metric SELECT average(nginx.server.net.requestsPerSecond) WHERE clusterName=<clusterName> AND `k8s.namespaceName`='nginx' SINCE 2 MINUTES AGO
+```
+
+Observe que um filtro `clusterName` foi adicionado automaticamente à consulta para excluir métricas de outros clusters na mesma conta. Você pode removê-lo usando o parâmetro de configuração `removeClusterFilter` . Além disso, o valor é armazenado em cache por um período de tempo definido pelo parâmetro de configuração `cacheTTLSeconds` , cujo padrão é 30 segundos.
+
+## Resolução de problemas [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Obtenha um registro detalhado"
+  >
+    Os erros mais comuns são exibidos no log padrão (não detalhado). Se estiver fazendo uma investigação mais aprofundada por conta própria ou com o suporte da New Relic, você pode ativar o modo detalhado.
+
+    Para obter detalhes de registro detalhados para uma integração usando Helm:
+
+    1. Ative o registro detalhado:
+
+       ```shell
+       helm upgrade -n newrelic --reuse-values newrelic-bundle --set newrelic-k8s-metrics-adapter.verboseLog=true newrelic/nri-bundle
+       ```
+
+    2. Deixe no modo detalhado por alguns minutos ou até que ocorra atividade suficiente.
+
+    3. Quando você tiver as informações necessárias, desative o registro detalhado:
+
+       ```shell
+       helm upgrade --reuse-values newrelic-bundle --set newrelic-k8s-metrics-adapter.verboseLog=false newrelic/nri-bundle
+       ```
+
+       <Callout variant="caution">
+         O modo detalhado aumenta significativamente a quantidade de informações enviadas ao arquivo de log. Habilite este modo temporariamente, apenas para fins de resolução de problemas, e redefina o nível de log quando terminar.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Obtenha métricas brutas"
+  >
+    Às vezes é útil obter a lista de métricas disponíveis e também obter o valor atual de uma métrica específica.
+
+    Para obter a lista de métricas disponíveis, execute:
+
+    ```shell
+    kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/"
+    ```
+
+    Para obter o valor de uma métrica específica com um seletor, execute:
+
+    ```shell
+    kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/*/__METRIC_NAME__?labelSelector=_SELECTOR_KEY_=_SELECTOR_VALUE_"
+    ```
+
+    <Callout variant="tip">
+      Você deve substituir `<metric_name>`, `<selector_key>` e `<selector_value>` pelos seus valores.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Métrica não funciona"
+  >
+    Existem alguns erros comuns que podem fazer com que uma métrica não consiga recuperar o valor. Esses erros são mostrados no status da métrica quando você descreve o HPA ou são impressos quando você obtém a métrica bruta diretamente.
+
+    * `executing query: NRQL Syntax Error: Error at line...`: a consulta que está sendo executada apresenta erros de sintaxe. A mesma mensagem de erro fornece a consulta executada e a posição do erro. Você pode tentar esta consulta dentro do criador de consulta New Relic e corrigir a configuração do adaptador.
+    * `extracting return value: expected first value to be of type "float64", got %!q(<nil>)`: a consulta não retorna nenhum valor. A mesma mensagem de erro fornece a consulta executada para que você possa tentar esta consulta dentro do criador de consulta New Relic e corrigir a configuração do adaptador ou dos seletores de correspondência no HPA.
+  </Collapser>
+</CollapserGroup>

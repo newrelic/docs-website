@@ -1,0 +1,130 @@
+---
+title: New Relic manual installation
+tags:
+  - Installation
+  - Manual
+metaDescription: 'Network connections used by New Relic for sending and receiving data: IP addresses, domains, ports, endpoints.'
+freshnessValidatedDate: 2024-04-05
+---
+
+Once you've [signed up for a New Relic account](https://newrelic.com/signup), you're ready to add your data. You can do this in one of two ways: using our guided installation or choosing a manual approach. For the [guided install](https://one.newrelic.com/launcher/nr1-core.explorer?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGl2ZUNvbXBvbmVudCI6IlZUU09FbnZpcm9ubWVudCIsInBhdGgiOiJndWlkZWQifQ==), follow the step-by-step instructions provided. If you prefer a more manual approach, explore the options below. Take your time to choose the method that best suits your needs and preferences.
+
+## Install APM agent [#install-apm]
+
+Use our application performance monitoring (APM) monitoring to learn about your web or non-web application's performance. We support these apps for several programming languages:
+
+<TechTileGrid>
+  <TechTile
+    name="C agent"
+    icon="logo-c"
+    to="/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code/"
+  />
+
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="/docs/agents/go-agent/get-started/get-new-relic-go/"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="/docs/agents/java-agent/installation/install-java-agent/"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="/install/dotnet"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="/docs/agents/nodejs-agent/installation-configuration/install-maintain-nodejs"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="/docs/agents/php-agent/installation/php-agent-installation-overview"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="/docs/apm/agents/python-agent/installation"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="/docs/agents/ruby-agent/installation-configuration/ruby-agent-installation"
+  />
+</TechTileGrid>
+
+For Windows .NET applications on IIS, use our [guided install in New Relic](https://one.newrelic.com/launcher/nr1-core.home?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsInBhdGgiOiJhcG0iLCJsYW5ndWFnZSI6ICJkb3RuZXQiLCAicmVjaXBlTmFtZSI6ICJkb3RuZXQtYWdlbnQtaW5zdGFsbGVyIiwgImluaXRpYWxBY3Rpb25JbmRleCI6MiwiYWNjb3VudElkIjpudWxsfQ==) to get started with <InlinePopover type="apm"/>.
+
+If you're on an EU server, use our launcher for [EU accounts](https://one.eu.newrelic.com/launcher/nr1-core.home?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsInBhdGgiOiJhcG0iLCJsYW5ndWFnZSI6ICJkb3RuZXQiLCAicmVjaXBlTmFtZSI6ICJkb3RuZXQtYWdlbnQtaW5zdGFsbGVyIiwgImluaXRpYWxBY3Rpb25JbmRleCI6MiwiYWNjb3VudElkIjpudWxsfQ==) instead.
+
+## Install browser monitoring [#install-browser-monitoring]
+
+Our <InlinePopover type="browser"/> measures full page lifecycle and session data such as page popularity and user satisfaction ([Apdex](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/)), JavaScript error analysis, interaction events, AJAX requests, and more.
+
+See [browser monitoring install](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/).
+
+## Install infrastructure monitoring [#install-infa]
+
+We provide flexible, dynamic observability of your entire <InlinePopover type="infrastructure"/>, from a data center to thousands of Amazon, Google Cloud, or Azure instances, or containers running in orchestrated environments. Learn how your hosts are performing by monitoring their health and performance. This includes gathering information about their application context and logs.
+
+* [AWS cloud integrations](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/)
+* [Azure cloud integrations](/docs/infrastructure/microsoft-azure-integrations/get-started/activate-azure-integrations/)
+* [Google Cloud Platform](/docs/infrastructure/google-cloud-platform-integrations/get-started/connect-google-cloud-platform-services-new-relic/)
+* [Kubernetes](/install/kubernetes)
+* [Linux guided install for infrastructure monitoring](https://one.newrelic.com/launcher/nr1-core.explorer?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGl2ZUNvbXBvbmVudCI6IlZUU09FbnZpcm9ubWVudCIsInBhdGgiOiJndWlkZWQifQ==)
+* [Linux procedures for infrastructure monitoring](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux/#manual-install)
+* [On-host integrations](/docs/infrastructure/host-integrations/installation/install-infrastructure-host-integrations/) (for services like NGINX, StatsD, MySQL, etc.)
+* [Prometheus](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/)
+* [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/#install-manual)
+
+## Install logs [#install-logs]
+
+We offer a fast, scalable <InlinePopover type="logs"/> platform so you can connect your logs with the rest of your telemetry and infrastructure data in a single place.
+
+* Enable log management with [APM logs in context](/docs/logs/logs-context/get-started-logs-context/), our [infrastructure agent](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/), or other [log forwarding solutions](/docs/logs/forward-logs/enable-log-management-new-relic/).
+* Explore relevant [log data across your platform](/docs/logs/logs-context/get-started-logs-context/#response-time-example), including errors, distributed traces, hosts, and more.
+* Use our [logs UI](/docs/logs/ui-data/use-logs-ui/) to find meaninful patterns in your logs, attributes, patterns, live-tail logging, and queries. Not only that, you can add alerts conditions, query your log data, and create <InlinePopover type="dashboards"/> to share with your team.
+
+## Install mobile monitoring [#install-mobile]
+
+Analyze your Android and iOS application performance, and troubleshoot crashes:
+
+* [Android](/docs/mobile-monitoring/new-relic-mobile-android/get-started/introduction-new-relic-mobile-android/)
+* [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/get-started/introduction-new-relic-mobile-ios/)
+
+## Install network monitoring [#install-network]
+
+Understanding “Is it the network?” begins with collecting network telemetry and using the power of the New Relic platform to navigate and explore each unique telemetry type.
+
+Don't know where to start? Check out the [guided deployment wizard](https://one.newrelic.com/network-performance-monitoring).
+
+Already know what telemetry you want to add? Start [here](https://onenr.io/0VjYDqkZ3R0) with Instant Observability.
+
+## Install synthetic monitors [#synthetic-monitors]
+
+[Synthetic monitoring](/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/) allows you to proactively monitor your website or API endpoint to make sure your content is fully functional. Send scripted browser tests to your site from locations all around the world to verify your content is always up, everywhere.
+
+Synthetic monitoring doesn't require installation, except for its [containerized private minions](/docs/synthetics/synthetic-monitoring/private-locations/install-containerized-private-minions-cpms/) feature.
+
+## Use other open source telemetry tools [#telemetry-tool]
+
+If you want to send us telemetry data from other open source tools, check out these options:
+
+* [Dropwizard](/docs/more-integrations/open-source-telemetry-integrations/dropwizard/dropwizard-reporter/)
+* [Kamon](/docs/more-integrations/open-source-telemetry-integrations/kamon/kamon-reporter/)
+* [Micrometer](/docs/more-integrations/open-source-telemetry-integrations/micrometer/micrometer-metrics-registry)
+* [StatsD](/docs/more-integrations/open-source-telemetry-integrations/statsd/statsd-monitoring-integration)
+
+## Report custom data from any source [#custom-data]
+
+If our more curated agents and integrations don't provide what you need, we give you access to APIs and SDKs that let you report data from any source. See [Get custom data into New Relic from any source](/docs/data-apis/custom-data/get-custom-data-from-any-source/) page for more info.

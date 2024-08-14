@@ -164,6 +164,7 @@ const FeedbackModal = ({ onClose }) => {
             node.style.position = 'fixed';
             node.style.bottom = '2rem';
             node.style.right = '1.5rem';
+            node.style.zIndex = 10;
           }
         }}
       >
@@ -198,7 +199,7 @@ const NpsScore = ({ onSubmit }) => {
 
   return (
     <>
-      <Title>{t('surveyModal.npsIntro')}</Title>
+      <Title>{t('strings.surveyModal.npsIntro')}</Title>
       <NumberRater onSelect={onSubmit} />
     </>
   );
@@ -231,7 +232,7 @@ const SuprQ = ({ onSubmit }) => {
 
   return (
     <>
-      <Title>{t('surveyModal.suprQ.intro')}</Title>
+      <Title>{t('strings.surveyModal.suprQ.intro')}</Title>
       {currentQuestions.map((questionId) => (
         <Agreeance
           id={questionId}
@@ -242,7 +243,7 @@ const SuprQ = ({ onSubmit }) => {
               [questionId]: response,
             }))
           }
-          statement={t(`surveyModal.suprQ.${questionId}`)}
+          statement={t(`strings.surveyModal.suprQ.${questionId}`)}
         />
       ))}
       <Steps>

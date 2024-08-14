@@ -1,0 +1,116 @@
+---
+title: Ignorar o incluir Prometheus métrica
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: Avoid exceeding New Relic's platform limits and increasing your billing charges by using the Prometheus OpenMetrics integration's filtering capabilities.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Evite enviar datos de integración de Prometheus OpenMetrics que no sean relevantes para sus necesidades de monitoreo. En su lugar, utilice filtros para ignorar o incluir métricas específicas. Esto le ayudará a controlar la cantidad y los tipos de datos que envía a New Relic. Esto también le ayudará a evitar cargos de facturación adicionales, como se explica en este documento.
+
+## Evitar aumentos de facturación [#rate-limits]
+
+Usamos las anotaciones Prometheus `discovery` y `scrape` . Si configura la integración de Prometheus OpenMetrics para eliminar <DNT>**all**</DNT> el objetivo disponible y enviar todos los datos expuestos de esos objetivos, puede exceder los límites de la plataforma de New Relic y aumentar sus cargos de facturación. Para ayudar a evitar que esto suceda, utilice las capacidades de filtrado de la integración.
+
+Para obtener más información, consulte los requisitos de integración de Prometheus OpenMetrics para [docker](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#OpenMetrics). Consulte también los [procedimientos de resolución de problemas para `NrIntegrationError` evento](/docs/integrations/prometheus-integrations/troubleshooting/rate-limit-errors-prometheus-integration).
+
+## Identificar métricas para ignorar o incluir [#ignore-metrics]
+
+Para decidir qué datos incluir o excluir, utilice New Relic [métrica de API](/docs/data-ingest-apis/get-data-new-relic/metric-api/view-query-you-metric-data#explore-metric-data) para explorar sus datos métricos. Luego, refine sus filtros para eliminar solo el objetivo relevante y enviar métricas útiles.
+
+* Para filtrar métricas no deseadas de un objetivo, utilice la opción de configuración `ignore_metrics` .
+* Para filtrar objetivo en lugar de métrica, utilice la opción de configuración `scrape_enabled_label` .
+
+<Callout variant="caution">
+  El filtrado de tipo [histograma](https://prometheus.io/docs/concepts/metric_types/#histogram) y [resumen](https://prometheus.io/docs/concepts/metric_types/#summary) métrico se aplica al `base name`. No puede filtrar por las series temporales `_bucket`, `_sum` o `_count` para esa métrica.
+</Callout>
+
+El archivo de manifiesto [`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) incluye el mapa de configuración `nri-prometheus-cfg` que muestra una [configuración de ejemplo](/docs/integrations/prometheus-integrations/configure/configure-prometheus-openmetrics-integration). La integración ignorará o incluirá métrica antes de ejecutar las otras funciones para [agregar, renombrar o copiar atributo](/docs/integrations/prometheus-integrations/view-query-data/add-rename-copy-prometheus-attributes).
+
+<CollapserGroup>
+  <Collapser
+    id="example-ignore"
+    title="Filtrar métricas no deseadas (ignorar)"
+  >
+    Para ignorar métricas no deseadas, utilice la siguiente transformación.
+
+    Configuración de ejemplo
+
+    Para eliminar todas las métricas que comienzan con `go_` o `process_`:
+
+    ```
+    transformations:
+      - description: "General processing rules"
+        ignore_metrics:
+          - prefixes:
+            - "go_"
+            - "process_"
+    ```
+
+    Ejemplo de Prometheus métrica en bruto
+
+    ```
+    go_goroutines 13
+    process_virtual_memory_bytes 2.062336e+07
+    mysql_global_status_commands_total{command="ha_close"} 0
+    mysql_global_status_commands_total{command="ha_open"} 0
+    ```
+
+    Esto está tomado del exportador MySQL. Además de la métrica MySQL , también expone métricas sobre el exportador que pueden no ser de tu interés.
+
+    Salida de ejemplo
+
+    Después de aplicar el filtrado, las métricas `go_` y `process_` se descartan y las métricas `mysql_` se envían a New Relic.
+
+    ```
+    mysql_global_status_commands_total{command="ha_close"} 0 
+    mysql_global_status_commands_total{command="ha_open"} 0
+    ```
+  </Collapser>
+
+  <Collapser
+    id="include-metrics"
+    title="Incluir sólo métricas específicas (excepto)"
+  >
+    Si solo desea incluir métricas específicas, puede utilizar la lista `except` en la sección `ignore_metrics` . Como su nombre lo indica, esto ignorará todas las métricas excepto las que contengan con los prefijos dados.
+
+    Configuración de ejemplo:
+
+    Para eliminar todas las métricas excepto `kube_hpa_`:
+
+    ```
+    transformations:
+      - description: "General processing rules"
+        ignore_metrics:
+          - except:
+            - kube_hpa_
+    ```
+  </Collapser>
+
+  <Collapser
+    id="include-exclude"
+    title="Combinación de incluir y excluir (excepto e ignorar)"
+  >
+    Puede combinar `prefixes` y `except` en la sección `ignore_metrics` para un filtrado más complejo.
+
+    <DNT>
+      **Example configuration**
+    </DNT>
+
+    Para eliminar todas las `coredns_` métricas, excepto `coredns_dns_request_count_total` y `coredns_dns_responses_total`:
+
+    ```
+    transformations:
+      - description: "CoreDNS Example Metrics"
+        ignore_metrics:
+          - prefixes:
+            - coredns_
+            except:
+            - coredns_dns_request_count_total
+            - coredns_dns_responses_total
+    ```
+  </Collapser>
+</CollapserGroup>

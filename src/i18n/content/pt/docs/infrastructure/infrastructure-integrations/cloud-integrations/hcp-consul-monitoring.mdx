@@ -1,0 +1,205 @@
+---
+title: Monitoramento HCP Consul (via StatsD)
+tags:
+  - hcp
+  - hashicorp
+  - consul
+  - terraform
+metaDescription: Monitor your HCP Consul instance by sending metrics to New Relic via Statsd
+freshnessValidatedDate: never
+translationType: machine
+---
+
+HCP (plataforma Hashicorp Cloud) Consul é uma versão do Consul em que o plano de controle é gerenciado pela plataforma HashiCorp Cloud. HCP Consul é uma solução de malha de serviço e descoberta de serviço fornecida pela Hashicorp. Ele permite que os operadores de plataforma implantem rapidamente uma malha de serviço totalmente gerenciada e segura por padrão, ajudando os desenvolvedores a descobrir e conectar com segurança qualquer aplicativo em qualquer tempo de execução, incluindo Kubernetes, Nomad e Amazon ECS.
+
+Manter seu cluster Consul íntegro pode ajudar a otimizar os tempos de consulta SQL, resolução de problemas, tempo de resposta HTTP lento e alerta de tempo real sobre tempo de inatividade para seu cluster Hashicorp. O monitoramento da métrica do seu cluster Hashicorp é fundamental para manter seus serviços mesh Hashicorp operando em plena capacidade.
+
+<Callout variant="tip">
+  Também temos uma [integração HashiCorp Consul](/docs/infrastructure/host-integrations/host-integrations-list/hashicorp-consul-monitoring-integration) para instância Consul não no HCP.
+</Callout>
+
+### Monitor HCP Consul métrica com New Relic [#monitor-metrics]
+
+Existem diversas formas e ambientes em que o HCP Consul é instalado. Nos exemplos abaixo trabalharemos com o Quick Start do HCP instalado via Terraform.
+
+New Relic suporta monitoramento de métricas HCP Consul e Envoy através do plug-in integração StatsD. O plug-in StatsD agrega todas as métricas expostas pelo HCP Consul e as envia para o New Relic para visualização de dados e alertas.
+
+### Gere o arquivo de implantação do Terraform [#terraform-file]
+
+Gere o arquivo de implantação do Terraform na página <DNT>**Overview**</DNT> da sua conta do Portal HCP.
+
+<img
+  title="consul overview"
+  alt="consul overview"
+  src="/images/infrastructure_screenshot-crop_consul-overview.webp"
+/>
+
+### Implantar o cluster Cônsul [#deploy]
+
+Implantar o cluster Consul seguindo os passos para o ambiente apropriado na [visão geral ponta a ponta](https://learn.hashicorp.com/tutorials/cloud/consul-end-to-end-overview). <DNT>**Important:**</DNT> Certifique-se de seguir <DNT>**Consul CLI configuration**</DNT> na parte inferior da página <DNT>**Deploy**</DNT> .
+
+## instalação [gostatsd](https://github.com/atlassian/gostatsd) [#statsd-install]
+
+Copie [`deploy-gostatsd.yaml`](https://github.com/newrelic-experimental/hashicorp-quickstart-annex/blob/main/hcp-consul/deploy-gostatsd.yaml) e [`rbac-gostatsd.yaml`](https://github.com/newrelic-experimental/hashicorp-quickstart-annex/blob/main/hcp-consul/rbac-gostatsd.yaml) para seu cliente Kubernetes local.
+
+### Editar deploy-gstatsd.yaml [#edit-yaml]
+
+1. Substitua `YOUR_NEW_RELIC_ACCOUNT_ID` pelo ID da sua conta New Relic.
+
+2. Substitua `YOUR_NEW_RELIC_LICENSE_KEY` pela sua New Relic
+
+   <InlinePopover type="licenseKey"/>
+
+   .
+
+3. Ajuste URLs para contas da UE ou FedRAMP, se necessário (ver comentários no arquivo).
+
+### Implantar gostatsd [#deploy-statsd]
+
+Execute os seguintes comandos em seu cliente local do Kubernetes:
+
+```bash
+kubectl apply -f deploy-gostatsd.yaml
+kubectl apply -f rbac-gostatsd.yaml
+```
+
+## Configurar os clientes Consul para reportar métricas [#configure-consul-client]
+
+### Editar mapa consul-client-config
+
+Adicione [a configuração de telemetria Consul](https://www.consul.io/docs/agent/telemetry) editando o ConfigMap do Cliente Consul:
+
+```bash
+kubectl edit cm consul-client-config
+```
+
+Adicione o seguinte em `data`:
+
+```yaml
+telemetry-config.json: |-
+  {   
+    "telemetry": {
+      "disable_hostname": false,
+      "disable_compat_1.9": true,
+      "dogstatsd_addr": "gostatsd.default.svc.cluster.local:8125",
+      "dogstatsd_tags": ["consul.source.datacenter:YOUR_CONSUL_DATACENTER_NAME_HERE"]
+    }
+  }
+```
+
+O resultado deve ser algo assim:
+
+```yaml
+apiVersion: v1
+data:
+  central-config.json: |-
+    {   
+      "enable_central_service_config": true
+    }   
+  config.json: |-
+    {   
+      "check_update_interval": "0s"
+    }   
+  extra-from-values.json: '{}'
+  telemetry-config.json: |-
+    {   
+      "telemetry": {
+        "disable_hostname": false,
+        "disable_compat_1.9": true,
+        "dogstatsd_addr": "gostatsd.default.svc.cluster.local:8125",
+        "dogstatsd_tags": ["consul.source.datacenter:YOUR_CONSUL_DATACENTER_NAME_HERE"]
+      }   
+    }  
+```
+
+Notas:
+
+1. Usamos `dogstatsd_addr` aqui para poder adicionar a tag `consul.source.datacenter` a cada métrica. Isso permite filtrar seu painel por Consul Datacenter.
+2. Certifique-se de substituir `YOUR_CONSUL_DATACENTER_NAME_HERE` pelo nome do seu Consul Datacenter.
+3. Consulte [Opções de configuração de telemetria Consul](https://www.consul.io/docs/agent/config/config-files#telemetry).
+
+### Editar implantação do consul-connect-injector [#edit-consul-connect-injector-deployment]
+
+Habilite a Consul métrica na implantação editando a implantação:
+
+```bash
+kubectl edit deploy consul-connect-injector
+```
+
+Procure por `default-enable-metrics` e defina-o como `true`:
+
+```bash
+-default-enable-metrics=true \
+```
+
+<DNT>
+  **Restart Consul client pods**
+</DNT>
+
+Os clientes Consul podem ou não reiniciar após as alterações na configuração. Caso contrário, reinicie cada pod do cliente Consul:
+
+```bash
+kubectl delete pod consul-client-<POD_ID> -n <NAMESPACE>
+```
+
+## Procure Cônsul métrica em New Relic [#browse-metrics]
+
+Para ver os dados do seu HCP Consul no New Relic, navegue até [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/).
+
+<img
+  title="query builder"
+  alt="query builder"
+  src="/images/infrastructure_screenshot-crop_query-builder.webp"
+/>
+
+Então, utilize a consulta abaixo para ver as métricas do HCP Consul:
+
+```sql
+SELECT * FROM Metric WHERE metricName LIKE 'consul.%' SINCE 1 minute ago
+```
+
+<img
+  title="query metrics"
+  alt="query metrics"
+  src="/images/infrastructure_screenshot-full_query-metrics.webp"
+/>
+
+### Instale o dashboard [#install-dashboard]
+
+Comece em minutos com um dashboard pré-construído para ver as principais métricas do HCP Consul sobre seus clientes, redes, tempo de execução, servo e Envoy.
+
+Acesse o [HCP Consul início rápido](https://newrelic.com/instant-observability/hcp-consul) em New Relic Instant observabilidade e clique em <DNT>**+ Install now**</DNT>.
+
+<img
+  title="consul dashboard"
+  alt="consul dashboard"
+  src="/images/infrastructure_screenshot-full_consul-dashboard.webp"
+/>
+
+### Resolução de problemas [#troubleshoot]
+
+Para um pod que trava na inicialização:
+
+```bash
+kubectl logs PODNAME -c consul-connect-inject-init
+```
+
+Para um pod em execução:
+
+```bash
+kubectl logs PODNAME -c DEPLOYMENTNAME
+```
+
+### Trecho kubectl útil [#kubectl-snippets]
+
+Excluir todos os pods:
+
+```bash
+kubectl get pods | grep PODNAMEPREFIX | cut -f 1 -d ' ' | xargs kubectl delete pods
+```
+
+Exclua uma implantação e pod ela gera:
+
+```bash
+kubectl delete deployment DEPLOYMENTNAME -n default
+```

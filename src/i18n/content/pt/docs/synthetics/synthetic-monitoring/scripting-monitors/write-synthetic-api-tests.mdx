@@ -1,0 +1,319 @@
+---
+title: Escreva testes da API Sintético
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Scripting monitors
+metaDescription: Use API test scripts to ensure your API endpoint is functioning correctly.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O monitor de API com script verifica seus endpoints de API para garantir que estejam funcionando corretamente. Para criar um monitor de API com script, acesse <DNT>**[one.newrelic.com > Synthetic monitoring > Create a monitor](https://one.newrelic.com/synthetics-nerdlets/monitor-create)**</DNT> e selecione o bloco <DNT>**Endpoint availability**</DNT> .
+
+<Callout variant="tip">
+  Para visualizar e compartilhar outros exemplos de testes de API, visite a seção [de scripts Sintético](https://discuss.newrelic.com/tags/c/full-stack-observability/synthetic/81/script) no Fórum de Suporte ou a [biblioteca de Quickstarts de monitoramento sintético](https://newrelic.github.io/quickstarts-synthetics-library/#/).
+</Callout>
+
+## Use o módulo obtido da API [#overview]
+
+Os testes de API são desenvolvidos pelo [módulo obtido](https://github.com/sindresorhus/got), que está disponível por meio do objeto `$http` . O objeto `$http` fornece uma experiência personalizada semelhante a `request`com `got`, dando ao seu monitor compatibilidade com versões anteriores para casos de uso básicos. A experiência semelhante a `request`fornecida pelo objeto `$http` também será retornada para todos os clientes que tentarem usar `request` diretamente no Node.js 16 e em tempos de execução de API com script mais recentes.
+
+Os detalhes de tempo dos resultados serão fornecidos desde que você use o objeto `$http` . Para casos de uso de API com script não cobertos pelo objeto `$http` , você pode usar o objeto `$har` para [relatar detalhes de tempo personalizados](/docs/synthetics/synthetic-monitoring/scripting-monitors/custom-timing-details/).
+
+<Callout variant="important">
+  Após um tempo de execução máximo de três minutos, o New Relic interrompe manualmente o script.
+</Callout>
+
+<img
+  title="syntheticApiTestScript"
+  alt="syntheticApiTestScript"
+  src="/images/synthetic_screenshot-crop_api-test-script.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > Synthetic monitoring > Create monitor](https://one.newrelic.com/synthetics-nerdlets/monitor-create)**</DNT>: o editor script sugere funções, seletores e outros elementos para simplificar [comandos de script (disponíveis no GitHub)](https://github.com/request/request).
+</figcaption>
+
+## Configurar opções de solicitação [#request-options]
+
+Para iniciar seu script:
+
+* Declare uma variável (como `options`) para armazenar seu [objeto de opções obtidas](https://github.com/sindresorhus/got/blob/main/documentation/2-options.md).
+* Defina opções de solicitação, como endpoint de URL e cabeçalhos personalizados.
+
+<Callout variant="tip">
+  Para obter uma lista completa de opções compatíveis, consulte [as opções disponíveis](https://github.com/sindresorhus/got/blob/main/documentation/2-options.md) na documentação `got` no GitHub.
+</Callout>
+
+Aqui está um exemplo de metadados opcionais no objeto de opções:
+
+<CollapserGroup>
+  <Collapser
+    id="metadata-1"
+    title="Usando metadados opcionais"
+  >
+    ```
+    //Declare optional metadata
+    var options = {
+            //Specify the endpoint URL
+            url: 'https://api-endpoint.example.com',
+            //Specify optional headers
+            headers: {
+                    'Endpoint-Key': 'uqNTC57Phe72pnnB8JuJmwAr7b09nKSKSz',
+                    'Additional-Header': 'Additional-Header-Data'
+            }
+    };
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Envie uma solicitação GET [#get]
+
+Para fazer uma solicitação GET, use o método [`$http.get`](https://github.com/request/request#requestget) para enviar sua solicitação. Defina suas [opções de solicitação](#request-options), faça sua solicitação usando `$http.get` e [valide](#validating) a resposta para garantir que seu endpoint esteja retornando os resultados corretos.
+
+O exemplo a seguir demonstra como você pode:
+
+* Lidar com novas tentativas e tempos limite para uma solicitação GET
+* Analise o corpo da resposta json.
+* Afirme o status do aplicativo de saúde.
+* Armazene o resultado em um atributo personalizado.
+
+```js
+/**
+ * Script Name: Advanced Example - Node 16.10.0
+ * Author:      New Relic
+ * Version:     1.0
+ */
+
+const assert = require("assert")
+
+// Get secure credentials
+const applicationId = $secure.APP_ID
+const apiKey = $secure.API_KEY
+
+// The URL for the API endpoint to get information about a specific application
+const URL = `https://api.newrelic.com/v2/applications/${applicationId}.json`
+
+// Define headers, including the API key for authentication
+const headers = {
+  "X-Api-Key": apiKey,
+  "Custom-Header": "CustomValue", // Example of a custom header
+}
+
+// Define got options for retries and timeouts
+const options = {
+  headers: headers,
+  timeout: {
+    request: 10000, // Set a global timeout of 10000 milliseconds for the request
+  },
+  retry: {
+    limit: 3, // Retry a failed request up to 3 times
+    statusCodes: [408, 413, 429, 500, 502, 503, 504], // Common status codes to retry on
+    errorCodes: [
+      "ETIMEDOUT",
+      "ECONNRESET",
+      "EADDRINUSE",
+      "ECONNREFUSED",
+      "EPIPE",
+      "ENOTFOUND",
+      "ENETUNREACH",
+      "EAI_AGAIN",
+    ],
+    methods: ["GET"], // Only retry for GET requests
+  },
+  hooks: {
+    beforeRetry: [
+      (options, error, retryCount) => {
+        console.error(
+          `Retrying after error ${error.code}, retry #: ${retryCount}`
+        )
+      },
+    ],
+  },
+}
+
+// Make the GET request with a callback
+$http.get(URL, options, function (error, response, body) {
+  if (error) {
+    // Handle the error case
+    console.error(`Request failed: ${error.message}`)
+    return
+  }
+
+  // Assert the response status code is 200
+  assert.equal(response.statusCode, 200, "Expected HTTP status code 200")
+
+  // Log the status code to the console
+  console.log("Request Status Code:", response.statusCode)
+
+  // If further processing of the response body is needed, it can be done here
+  // For example, parsing JSON response (if response is in JSON format)
+  const jsonData = typeof body === "string" ? JSON.parse(body) : body
+
+  // Log the parsed JSON to the console
+  console.log("Parsed JSON data:", jsonData)
+
+  // Check the application's health status
+  const healthStatus = jsonData.application.health_status
+  assert.equal(healthStatus, "green", "Expected the application's health status to be 'green'")
+
+  // If the assertion passes, the script will continue; otherwise, it will fail the monitor
+
+  // This shows up in SyntheticCheck as `custom.healthStatus`
+  $util.insights.set("healthStatus", healthStatus)
+})
+```
+
+## Envie uma solicitação POST [#post]
+
+Para fazer uma solicitação POST, use o método [`$http.post`](https://github.com/request/request#requestpost) para enviar sua solicitação. Defina suas [opções de solicitação](#request-options), faça sua solicitação usando `$http.post` e [valide](#validating) a resposta para garantir que seu endpoint esteja retornando os resultados corretos.
+
+<CollapserGroup>
+  <Collapser
+    id="get-nerdgraph-example"
+    title="Exemplo NerdGraph"
+  >
+    Este exemplo consulta nossa [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph):
+
+    ```
+    // Define your authentication credentials
+    const myAccountId = '{YOUR_ACCOUNT_ID}';
+    const myAPIKey = '{YOUR_API_KEY}';
+
+    const options = {
+      // Define endpoint URI, https://api.eu.newrelic.com/graphql for EU accounts
+      uri: 'https://api.newrelic.com/graphql',
+      headers: {
+        'API-key': myAPIKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `
+          query getNrqlResults($accountId: Int!, $nrql: Nrql!) {
+            actor {
+              account(id: $accountId) {
+                nrql(query: $nrql) {
+                  results
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          accountId: Number(myAccountId),
+          nrql: 'SELECT average(duration) FROM Transaction',
+        },
+      }),
+    };
+
+    // Define expected results using callback function
+    function callback(err, response, body) {
+      // Log JSON results from endpoint to Synthetics console
+      console.log(body);
+      console.log('Script execution completed');
+    }
+
+    // Make POST request, passing in options and callback
+    $http.post(options, callback);
+    ```
+  </Collapser>
+
+  <Collapser
+    id="post-insights-example"
+    title="Exemplo de API de evento POST"
+  >
+    Este exemplo envia um evento personalizado contendo números inteiros estáticos para a [API do evento](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events):
+
+    ```
+    //Define your authentication credentials.
+    var myAccountID = '{YOUR_ACCOUNT_ID}';
+    var myAPIKey = '{YOUR_API_KEY}';
+    //Import the <a href="https://nodejs.org/docs/latest/api/assert.html">'assert' module</a> to validate results.
+    var assert = require('assert');
+
+    var options = {
+        //Define endpoint URL.
+        url: "https://insights-collector.newrelic.com/v1/accounts/"+myAccountID+"/events",
+        //Define body of POST request.
+        body: '[{"eventType":"SyntheticsEvent","integer1":1000,"integer2":2000}]',
+        //Define New Relic API key and expected data type.
+        headers: {
+            'Api-Key': myAPIKey,
+            'Content-Type': 'application/json'
+            }
+    };
+
+    //Define expected results using callback function.
+    function callback(error, response, body) {
+        //Log status code to Synthetics console.
+        console.log(response.statusCode + " status code")
+        //Verify endpoint returns 200 (OK) response code.
+        assert.ok(response.statusCode == 200, 'Expected 200 OK response');
+        //Verify that `body` contains element named `success` with a value of `true`.
+        assert.ok(body.success == true, 'Expected True results in Response Body, result was ' + body.success);
+        //Log end of script.
+        console.log("End reached");
+    }
+
+    //Make POST request, passing in options and callback.
+    $http.post(options, callback);
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  O ambiente de script contém diretórios protegidos contra gravação. Se o seu script exigir o armazenamento de arquivos, acrescente qualquer um dos seguintes caminhos ao nome do arquivo:
+
+  * `runtime/input-output/input/`
+  * `runtime/input-output/output/`
+</Callout>
+
+## Validar resultados [#validating]
+
+Para validar seus resultados, importe o módulo `assert` para definir seu caso de teste. Chame um método `assert` para validar a resposta do seu endpoint. Se alguma função `assert` falhar, todo o monitor será considerado uma verificação com falha. Isto pode acionar [a notificação de alerta](/docs/synthetics/new-relic-synthetics/using-monitors/alerting-synthetics#alerts) e afetar sua métrica.
+
+<Callout variant="important">
+  O monitoramento sintético não permite exceções lançadas. Exceções lançadas resultam em falha de script. Use o módulo `assert` para validar seus resultados e use `console.log()` para [log os resultados no console do Sintético](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-scripted-browsers#logging).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="validation-insights-example"
+    title="Exemplo de validação de API de evento"
+  >
+    Este exemplo faz POST para a API do evento e valida se a resposta é `{"success":true}`:
+
+    ```
+    //Define your authentication credentials.
+    var myAccountID = '{YOUR_ACCOUNT_ID}';
+    var myAPIKey = '{YOUR_API_KEY}';
+    //Import the `assert` module to validate results.
+    var assert = require('assert');
+
+    var options = {
+        //Define endpoint URL.
+        url: "https://insights-collector.newrelic.com/v1/accounts/"+myAccountID+"/events",
+        //Define body of POST request.
+        body: '[{"eventType":"SyntheticsEvent","integer1":1000,"integer2":2000}]',
+        //Define New Relic API key and expected data type.
+        headers: {
+            'Api-Key': myAPIKey,
+            'Content-Type': 'application/json'
+            }
+    };
+
+    $http.post(options, function(error, response, body) {
+        //Log status code to Synthetics console. The status code is logged before the `assert` function,
+        //because a failed assert function ends the script.
+        console.log(response.statusCode + " status code")
+        //Call `assert` method, expecting a `200` response code.
+        //If assertion fails, log `Expected 200 OK response` as error message to Synthetics console.
+        assert.ok(response.statusCode == 200, 'Expected 200 OK response');
+        //Call `assert` method, expecting body to return `{"success":true}`.
+        //If assertion fails, log `Expected True results in Response Body,` plus results as error message to Synthetics console.
+        assert.ok(body.success == true, 'Expected True results in Response Body, result was ' + body.success);
+    });
+    ```
+  </Collapser>
+</CollapserGroup>

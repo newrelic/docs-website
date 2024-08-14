@@ -1,0 +1,115 @@
+---
+title: Punctuation
+redirects:
+  - /docs/style-guide/ui-writing/punctuation
+---
+
+In writing, punctuation marks are used to imitate speech and play an important role in communicating meaning in language. Misplaced exclamation marks, for instance, can dramatically change the tone or intent in a message.
+
+## Ampersands (&)
+
+**UI-only**. Use ampersands in navigation items when space is tight, for example `AI & Alerts` in our main nav. Use them in sentences or headings only when they're part of a company or brand name.
+
+## Apostrophes
+
+* Don't use apostrophes to make acronyms plural.
+* Don't use apostrophes to abbreviate years; always write years in 4 digit form.
+* Use apostrophes when making contractions.
+
+| Do              | Don't           |
+| --------------- | --------------- |
+| SREs            | SRE's           |
+| 2017, the 1990s | \\'17, the '90s |
+| can't           | cant, cannot    |
+
+## Colons
+
+* Colons signal that what comes next is related directly to the previous word, phrase, or sentence.
+* Never use a colon after a sentence fragment.
+
+General guidelines for using colons:
+
+## 
+
+* In running text: Capitalize the first word after the colon if the word begins a complete sentence. Otherwise, do not capitalize the first word after a colon in running text.
+* In headings: Capitalize the first word after the colon, regardless of its part of speech, unless the word is a product name that begins with a lowercase letter or, in developer materials, is a computer literal that begins with a lowercase letter.
+* In bullet list items with lead-ins: Where there's an introductory word or phrase (often bolded), capitalize the first word in the text that follows—even if it's not a complete sentence.
+
+## Semicolons
+
+These usually support long, complicated sentences. Consider using an em-dash (`—`), simplifying your sentence, or simply starting a new sentence.
+
+## Commas
+
+When listing three or more things in a sentence, include a comma between the last item and the word “and.” This is also known as the Oxford comma and, although a much debated topic among some writers, it does more practical good than not.
+
+Consider the following responses to the question “What three things do you love most right now?”
+
+1. I love my siblings, Bob Ross, and Fun Dip.
+2. I love my siblings, Bob Ross and Fun Dip.
+
+The first sentence says that the speaker loves three separate things, whereas the second says the speaker's siblings are named Bob Ross and Fun Dip.
+
+## Dashes and hyphens
+
+* For ranges and number spans, use an en dash (`–`) without a space on either side.
+* For date spans, use spaces around the en dash.
+* Hyphenate compound words; for example, usage-based pricing and short-term data storage. In compound words that precede and modify a noun, don’t hyphenate an adverb ending in “ly”; for example, highly customized software.
+
+| Do                          | Don't                     |
+| --------------------------- | ------------------------- |
+| 2–30                        | 2 - 30                    |
+| Jul 12, 2019 – Jul 19, 2019 | Jul 12, 2019-Jul 19, 2019 |
+
+## Ellipses
+
+For space constraints in places where non-critical information can be abbreviated (table cells are a good example), show as much of the original text as possible, and append the trimmed version with an ellipsis. Make sure the customer has an easy, obvious way to get the full text. Frequently we display the full text in a tooltip on hover.
+
+## Exclamation points
+
+Exclamation points can add character to your writing, but use them sparingly and consider the customer’s anxiety level as you add them to your text. We want to cheer our customers on, not scream at them.
+
+* Consider using exclamations for success screens or messages.
+* Avoid exclamations in situations where users might be troubleshooting.
+* Never use exclamations in error messages.
+
+When in doubt, don't use an exclamation point.
+
+| Do                                            | Don't                      |
+| --------------------------------------------- | -------------------------- |
+| Congratulations on creating your first alert! | Oops! There was a problem. |
+
+## Periods
+
+* Use periods at the end of complete sentences.
+* Don't use periods in headers or subheaders. (Except when following brand guidelines on the .com site.)
+* Don't use periods at the end of each line in a list unless the text makes a full sentence.
+* When writing lists (bulleted, numbered, etc.) either make all items in a list fragments or make them complete sentences. Don't mix and match.
+
+## Question marks
+
+* Use question marks for complete question sentences, not for statements.
+* Don't use question marks as placeholders for an absence of data or explanation.
+
+## Quotation marks
+
+* When a statement sentence ends with quoted text, place the period inside the closing quotation mark.
+* For quotations inside quotations, use double quotes for the outter text and single quotes for inner quote.
+
+### Examples
+
+* Albert Einstein once said, "If you can't explain it simply, you don't know it well enough."
+* Lew Cirne said, "Hello, Relics! Just a reminder that Albert Einstein once said, 'If you can't explain it simply, you don't know it well enough.' I know I can count on you."
+
+## Slashes
+
+A forward slash (`/`) separates letters, words, or numbers. We use it most commonly to signify "per." No space precedes or follows a forward slash. For example:
+
+* $0.30/GB
+* 100 GB free/month
+* 1 million/month
+
+A forward slash is also used to separate directories in a file path on \*nix systems like Linux and macOS. For Windows systems, a backlash (`\`) is used instead. Be careful to use the correct character for the operating system you're describing. For example:
+
+* `/Users/LewCirne/Desktop`
+* `C:\Users\LewCirne\Desktop`

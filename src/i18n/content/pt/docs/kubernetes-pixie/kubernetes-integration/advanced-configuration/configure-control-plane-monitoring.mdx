@@ -1,0 +1,392 @@
+---
+title: Configurar o monitoramento do plano de controle
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to configure control plane monitoring for your Kubernetes integration with New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New Relic](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) fornece suporte [de plano de controle](https://kubernetes.io/docs/concepts/overview/components/#control-plane-components) para sua integração Kubernetes , permitindo monitor e coletar métricas dos componentes do plano de controle do seu cluster. Esses dados podem ser encontrados no New Relic e usados para [criar consultas e gráficos](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+<Callout variant="tip">
+  Esta página refere-se à [integração do Kubernetes v3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3). Se você estiver executando a v2, veja [como configurar o monitoramento do plano de controle para v2](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/overview/##monitoring-control-plane).
+</Callout>
+
+## Recurso [#control-plane-integration-features]
+
+monitor e coletamos [métricas](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) dos seguintes componentes do plano de controle:
+
+* <DNT>
+    **etcd**
+  </DNT>
+
+  : informações do líder, tamanho da memória residente, número de threads do sistema operacional, dados de propostas de consenso, etc. Para obter uma lista de métricas suportadas, consulte [dados do etcd](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#etcd-data).
+
+* <DNT>
+    **API server**
+  </DNT>
+
+  : taxa de `apiserver` solicitações, detalhamento de `apiserver` solicitações por método HTTP e código de resposta, etc. Para a lista completa de métricas suportadas, consulte [Dados do servidorAPI ](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#api-server-data).
+
+* <DNT>
+    **Scheduler**
+  </DNT>
+
+  : CPU/memória solicitada versus disponível no nó, tolerâncias a taints, qualquer afinidade ou antiafinidade definida, etc. Para a lista completa de métricas suportadas, consulte [Dados do Agendador](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#scheduler-data).
+
+* <DNT>
+    **Controller manager**
+  </DNT>
+
+  : tamanho da memória residente, número de threads do sistema operacional criados, goroutines existentes atualmente, etc. Para a lista completa de métricas suportadas, consulte [Dados do gerenciador do controlador](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#controller-manager-data).
+
+## Compatibilidade e requisitos [#compatibility]
+
+* A maioria dos clusters gerenciados, incluindo AKS, EKS e GKE, não permitem acesso externo aos componentes do plano de controle. É por isso que no cluster gerenciado, New Relic só pode obter métricas do plano de controle para o servidor API , e não para o etcd, o agendador ou o gerenciador do controlador.
+* Ao implantar a solução no [modo sem privilégios](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#unprivileged), a configuração do plano de controle exigirá [etapas extras](#hostnetwork-privileged) e algumas advertências poderão ser aplicadas.
+* [O OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x usa endpoint métrico do componente do plano de controle que é diferente do padrão.
+
+## Componente do plano de controle [#component]
+
+A tarefa de monitorar o plano de controle do Kubernetes é de responsabilidade do componente `nrk8s-controlplane`, que por padrão é implantado como um DaemonSet. Este componente é automaticamente implantado nos nós mestres, através do uso de uma lista padrão de `nodeSelectorTerms` que inclui rótulos comumente usados para identificar nós mestres, como `node-role.kubernetes.io/control-plane` ou `node-role.kubernetes.io/master`. Independentemente disso, esse seletor está exposto no arquivo `values.yml` e, portanto, pode ser reconfigurado para se adequar a outros ambientes.
+
+Cluster que não possui nenhum nó correspondente a esses seletores não terá nenhum pod agendado, não desperdiçando nenhum recurso e sendo funcionalmente equivalente a desabilitar completamente o monitoramento do plano de controle configurando `controlPlane.enabled` para `false` no Helm Chart.
+
+Cada componente do plano de controle possui uma seção dedicada, que permite individualmente:
+
+* Habilite ou desabilite o monitoramento desse componente
+* Defina seletores e namespace específicos para descobrir esse componente
+* Defina o endpoint e os caminhos que serão usados para buscar métricas para aquele componente
+* Defina os mecanismos de autenticação que precisam ser usados para obter métricas para esse componente
+* Especifique manualmente o endpoint que ignora completamente a descoberta automática
+
+<img
+  title="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token. The monitoring is a DaemonSet deployed on master nodes only."
+  src="/images/kubernetes_diagram_integration-cp.webp"
+/>
+
+Você pode verificar todas as opções de configuração disponíveis em [values.yaml](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml) do gráfico nri-kubernetes na chave `controlPlane`.
+
+Se estiver instalando a integração por meio do gráfico `nri-bundle` , você precisará [passar os valores para o subgráfico correspondente](https://helm.sh/docs/chart_template_guide/subcharts_and_globals/). Por exemplo, para desativar o monitoramento `etcd` no componente `controlPlane` , você pode fazer o seguinte:
+
+```yaml
+newrelic-infrastructure:
+  controlPlane:
+    config:
+      etcd:
+        enabled: false
+```
+
+### Descoberta automática e configuração padrão [#autodiscovery-default]
+
+Por padrão, nosso [Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) fornece uma configuração que deve funcionar imediatamente para alguns componentes do plano de controle para distribuições locais que executam o plano de controle dentro do cluster, como `Kubeadm` ou `minikube`.
+
+Observe que, como a descoberta automática depende de rótulos de pod como mecanismo de descoberta, ela não funciona em ambientes de nuvem ou sempre que os componentes do plano de controle não estão em execução dentro do cluster. No entanto, [endpointestático](#static-endpoints) pode ser aproveitado nestes cenários se os componentes do plano de controlo estiverem acessíveis.
+
+#### `hostNetwork` e `privileged` [#hostnetwork-privileged]
+
+Nas versões superiores a 3, a flag `privileged` afeta apenas os objetos `securityContext` , ou seja, se os contêineres são executados como root com acesso ao host métrico ou não. Todos os componentes de integração são padronizados agora para `hostNetwork: false`, exceto o pod que obtém métrica do plano de controle que possui `hostNetwork: true` pois é necessário para atingir o ponto final do plano de controle na maioria das distribuições. O valor `hostNetwork` para todos os componentes pode ser alterado, individualmente ou globalmente, usando [o botão de alternância `hostNetwork` em seu `values.yaml`](https://github.com/newrelic/helm-charts/tree/master/library/common-library#values-managed-globally).
+
+<Callout variant="tip">
+  Para obter configurações específicas relacionadas à versão 2, consulte [Descoberta automática e configuração padrão: `hostNetwork` e `privileged`](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/overview/#hostnetwork-privileged).
+</Callout>
+
+Se a execução do pod com `hostNetwork` não for aceitável, devido ao cluster ou outras políticas, o monitoramento do plano de controle não é possível e deve ser desabilitado configurando `controlPlane.enabled` para `false`.
+
+Se você tiver alguma configuração avançada que inclua [descoberta automática personalizada](#autodiscovery-default) ou [endpointestático](#static-endpoints) que possa ser usado para monitor o plano de controle sem `hostNetwork`, verifique [o README do projeto](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md) e procure por `controlPlane.hostNetwork` toogle no [`values.yaml`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml).
+
+#### Descoberta automática personalizada [#autodiscovery-default]
+
+Os seletores usados para descoberta automática são completamente expostos como entradas de configuração no arquivo `values.yaml` , o que significa que podem ser ajustados ou substituídos para se adequarem a praticamente qualquer ambiente onde o plano de controle é executado como parte do cluster.
+
+Uma seção de descoberta automática se parece com esta:
+
+```yaml
+autodiscover:
+  - selector: "tier=control-plane,component=etcd"
+    namespace: kube-system
+    # Set to true to consider only pods sharing the node with the scraper pod.
+    # This should be set to `true` if Kind is Daemonset, `false` otherwise.
+    matchNode: true
+    # Try to reach etcd using the following endpoints.
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+      - url: http://localhost:2381
+  - selector: "k8s-app=etcd-manager-main"
+    namespace: kube-system
+    matchNode: true
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+```
+
+A seção `autodiscover` contém uma lista de entradas de descoberta automática. Cada entrada tem:
+
+* `selector`: um seletor de rótulo codificado em string que será usado para procurar pod.
+* `matchNode`: Se definido como verdadeiro, limitará adicionalmente a descoberta ao pod em execução no mesmo nó que a instância específica do DaemonSet que executa a descoberta.
+* `endpoints`: uma lista de endpoints para tentar se um pod for encontrado para o seletor especificado.
+
+Além disso, cada `endpoint` tem:
+
+* `url`: URL para destino, incluindo esquema. Pode ser `http` ou `https`.
+* `insecureSkipVerify`: se definido como verdadeiro, o certificado não será verificado para `https` URLs.
+* `auth.type`: qual mecanismo usar para autenticar a solicitação. Atualmente, os seguintes métodos são suportados:
+* Nenhum: se `auth` não for especificado, a solicitação não conterá nenhuma autenticação.
+* `bearer`: o mesmo token de portador usado para autenticação na API do Kubernetes será enviado para esta solicitação.
+* `mtls`: mTLS será usado para realizar a solicitação.
+
+##### mTLS [#mtls]
+
+Para o tipo `mtls` , é necessário especificar o seguinte:
+
+```yaml
+endpoints:
+  - url: https://localhost:4001
+    auth:
+      type: mtls
+      mtls:
+        secretName: secret-name
+        secretNamespace: secret-namespace
+```
+
+Onde `secret-name` é o nome de um segredo TLS do Kubernetes, que reside em `secret-namespace` e contém o certificado, a chave e a CA necessários para se conectar a esse endpoint específico.
+
+A integração busca esse segredo em tempo de execução, em vez de montá-lo, o que significa que requer uma função RBAC que conceda acesso a ele. Nosso Helm Chart detecta automaticamente `auth.mtls` entradas no momento da renderização e criará automaticamente entradas para esses segredos e namespaces específicos para você, a menos que `rbac.create` esteja definido como falso.
+
+Nossa integração aceita um segredo com as seguintes chaves:
+
+* `cacert`: o certificado CA codificado em PEM usado para assinar o `cert`
+* `cert`: O certificado codificado em PEM que será apresentado ao etcd
+* `key`: A chave privada codificada em PEM correspondente ao certificado acima
+
+Esses certificados devem ser assinados pela mesma CA que o etcd está usando para operar.
+
+A forma de gerar esses certificados está fora do escopo desta documentação, pois pode variar muito entre as diferentes distribuições do Kubernetes. Consulte a documentação da sua distribuição para ver como obter os certificados de pares etcd necessários. No Kubeadm, por exemplo, eles podem ser encontrados em `/etc/kubernetes/pki/etcd/peer.{crt,key}` no nó mestre.
+
+Depois de localizar ou gerar os certificados de mesmo nível do etcd, você deve renomear os arquivos para corresponder às chaves que esperamos que estejam presentes no segredo e criar o segredo no cluster
+
+```shell
+mv peer.crt cert
+mv peer.key key
+mv ca.crt cacert
+
+kubectl -n newrelic create secret tls newrelic-etcd-tls-secret --cert=./cert --key=./key --certificate-authority=./cacert
+```
+
+Finalmente, você pode inserir o nome do segredo (`newrelic-etcd-tls-secret`) e namespace (`newrelic`) no trecho de configuração mostrado no início desta seção. Lembre-se de que o Helm Chart analisará automaticamente essa configuração e criará uma função RBAC para conceder acesso a esse segredo e namespace específicos para o componente `nrk8s-controlplane` , portanto, não há necessidade de ação manual nesse sentido.
+
+### Ponto de extremidade estático [#static-endpoints]
+
+Embora a descoberta automática deva cobrir casos em que o plano de controle reside dentro do cluster do Kubernetes, algumas distribuições ou ambientes sofisticados Kubernetes executam o plano de controle em outro lugar, por vários motivos, incluindo disponibilidade ou isolamento de recursos.
+
+Para esses casos, a integração pode ser configurada para extrair uma URL fixa e arbitrária, independentemente de um pod com um rótulo de plano de controle ser encontrado no nó. Isso é feito especificando uma entrada `staticEndpoint` . Por exemplo, um para uma instância externa do etcd seria assim:
+
+```yaml
+controlPlane:
+  etcd:
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+<img
+  title="Diagram showing a possible configuration scraping an external API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping an external API server with bearer Token. The monitoring is a Deployment with a single replica."
+  src="/images/kubernetes_diagram_integration-cp-external.webp"
+/>
+
+`staticEndpoint` é o mesmo tipo de entrada que `endpoints` na entrada `autodiscover` , cujos campos são descritos acima. Os mecanismos e esquemas de autenticação são suportados aqui.
+
+Tenha em mente que se `staticEndpoint` for definido, a seção `autodiscover` será totalmente ignorada.
+
+#### Limitações [#static-endpoints-limitations]
+
+<Callout variant="important">
+  Se você estiver usando `staticEndpoint` apontando para um endpoint fora do nó (por exemplo, não `localhost`), você deverá alterar `controlPlane.kind` de `DaemonSet` para `Deployment`.
+</Callout>
+
+Ao usar `staticEndpoint`, todos os pods `nrk8s-controlplane` tentarão alcançar e raspar o referido endpoint. Isso significa que, se `nrk8s-controlplane` for um DaemonSet (o padrão), todas as instâncias do DaemonSet irão raspar este endpoint. Embora isso seja bom se você os apontar para `localhost`, se o endpoint não for local para o nó, você poderá produzir duplicação de métricas e aumento do uso faturável. Se você estiver usando `staticEndpoint` e apontando para uma URL não local, certifique-se de alterar `controlPlane.kind` para implantação.
+
+Pela mesma razão acima, atualmente não é possível usar a descoberta automática para alguns componentes do plano de controle e um endpoint estático para outros. Esta é uma limitação conhecida que estamos trabalhando para resolver em versões futuras da integração.
+
+Por último, `staticEndpoint` permite definir apenas um único endpoint por componente. Isso significa que se você tiver vários fragmentos do plano de controle em hosts diferentes, atualmente não será possível apontá-los separadamente. Esta também é uma limitação conhecida que estamos trabalhando para resolver em versões futuras. Por enquanto, uma solução alternativa poderia ser agregar métrica para diferentes fragmentos em outros lugares e apontar o URL `staticEndpoint` para a saída agregada.
+
+#### Monitoramento de plano de controle para ambientes gerenciados e em nuvem [#cloud-control-plane]
+
+Alguns ambientes de nuvem, como EKS ou GKE, permitem recuperar métricas do Kubernetes API servidor . Isso pode ser facilmente configurado como um endpoint estático:
+
+```yaml
+controlPlane:
+  affinity: false  # https://github.com/helm/helm/issues/9136
+  kind: Deployment
+  # `hostNetwork` is not required for monitoring API Server on AKS, EKS
+  hostNetwork: false
+  config:
+    etcd:
+      enabled: false
+    scheduler:
+      enabled: false
+    controllerManager:
+      enabled: false
+    apiServer:
+     staticEndpoint:
+       url: "https://kubernetes.default:443"
+       insecureSkipVerify: true
+       auth:
+         type: bearer
+```
+
+Observe que isso se aplica apenas ao servidor API e que o etcd, o agendador e o gerenciador do controlador permanecem inacessíveis em ambientes de nuvem.
+
+Além disso, esteja ciente de que, dependendo do ambiente gerenciado ou de nuvem específico, o serviço Kubernetes pode fazer balanceamento de carga do tráfego entre diferentes instâncias do servidor API . Neste caso, as métricas que dependem da instância específica selecionada pelo balanceador de carga não são confiáveis.
+
+#### Monitoramento de plano de controle para Rancheiro RKE1 [#rancher]
+
+Implantar cluster aproveitando o Rancher Kubernetes Engine (RKE1) para executar componentes do plano de controle como Docker contêiner, e não como pod gerenciado pelo Kubelet. É por isso que a integração não pode descobrir automaticamente esses contêineres, e cada endpoint precisa ser especificado manualmente na seção `staticEndpoint` da configuração da integração.
+
+A integração precisa ser capaz de alcançar diferentes endpoints conectando-se diretamente, com os métodos de autenticação disponíveis ( token de conta de serviço, certificados mTLS personalizados ou nenhum) ou por meio de um proxy.
+
+Por exemplo, para tornar a métrica do Scheduler e do Controller Manager acessível, pode ser necessário adicionar o [sinalizador](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) `--authorization-always-allow-paths`, permitindo que `/metrics` ou `--authentication-kubeconfig` e `--authorization-kubeconfig` habilitem a autenticação token .
+
+Supondo que todos os componentes sejam acessíveis na porta especificada, a configuração a seguir monitor o API Server, o Scheduler e o Controller Manager:
+
+```yaml
+controlPlane:
+  kind: DaemonSet
+  config:
+    scheduler:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10259
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    controllerManager:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10257
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    apiServer:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:6443
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+```
+
+Neste exemplo, a integração precisa ser executada no mesmo nó de cada componente do plano de controle que tem a opção `hostNetwork` definida como verdadeira, pois está se conectando localmente a cada `staticEndpoint`. Portanto, `controlPlane.kind` deve ser mantido como `DaemonSet`. Além disso, o DaemonSet precisa de regras de afinidade, nodeSelector e tolerâncias configuradas para que todas as instâncias estejam em execução em todos os nós do plano de controle que você deseja monitor.
+
+Você pode reconhecer os nós do plano de controle verificando o rótulo `node-role.kubernetes.io/controlplane` . Este rótulo já é levado em consideração pelas regras de afinidade padrão de integração.
+
+Se você estiver utilizando a versão 2 da integração, consulte [plano de controle de monitoramento com integração versão 2](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/overview/#monitoring-control-plane).
+
+## Configuração do OpenShift [#openshift-4x-configuration]
+
+A versão 3 da integração do Kubernetes inclui configurações padrão que descobrirão automaticamente os componentes do plano de controle no cluster OpenShift, portanto, deve funcionar imediatamente para todos os componentes, exceto etcd.
+
+O Etcd não é compatível imediatamente, pois o endpoint métrico está configurado para exigir autenticação mTLS em ambientes OpenShift. Nossa integração suporta autenticação mTLS para buscar métricas etcd nesta configuração, porém você precisará criar o certificado mTLS necessário manualmente. Isto é necessário para evitar a concessão de amplas permissões à nossa integração sem a aprovação explícita do usuário.
+
+Para criar um segredo mTLS, siga as etapas [nesta seção abaixo](#mtls-how-to-openshift) e configure a integração para usar o segredo recém-criado conforme descrito [na seção mtls](#mtls).
+
+Se você estiver usando a versão 2 da integração, [OpenShift configuração na integração version 2](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/overview/#openshift-configuration).
+
+### Configure mTLS para etcd no OpenShift [#mtls-how-to-openshift]
+
+Siga estas instruções para configurar a autenticação TLS mútua para etcd no [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x:
+
+1. Exporte os certificados de cliente etcd do cluster para um segredo opaco. Em um cluster OpenShift gerenciado padrão, o segredo é denominado `kube-etcd-client-certs` e é armazenado no namespace `openshift-monitoring` .
+
+   ```shell
+   kubectl get secret etcd-client -n openshift-etcd -o yaml > etcd-secret.yaml
+   ```
+
+   O conteúdo do etcd-secret.yaml seria semelhante ao seguinte.
+
+   ```yaml
+    apiVersion: v1
+    data:
+      tls.crt: <CERT VALUE>
+      tls.key: <KEY VALUE>
+    kind: Secret
+    metadata:
+      creationTimestamp: "2023-03-23T23:19:17Z"
+      name: etcd-client
+      namespace: openshift-etcd
+      resourceVersion: 
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    type: kubernetes.io/tls   
+   ```
+
+2. Opcionalmente, altere o nome secreto e o namespace para algo significativo. As próximas etapas pressupõem que o nome do segredo e o namespace sejam alterados para `mysecret` e `newrelic` respectivamente.
+
+3. Remova essas chaves desnecessárias na seção de metadados:
+
+   * `creationTimestamp`
+   * `resourceVersion`
+   * `uid`
+
+4. Instale o manifesto com seu novo nome e namespace:
+
+   ```shell
+   kubectl apply -n newrelic -f etcd-secret.yaml
+   ```
+
+5. Configure a integração para usar o segredo recém-criado conforme descrito [na seção mtls](#mtls). Isso pode ser feito adicionando a configuração a seguir em `values.yaml` se você estiver instalando a integração por meio do gráfico `nri-bundle` .
+
+   ```yaml
+   newrelic-infrastructure:
+    controlPlane:
+      enabled: true
+      config:
+        etcd:
+          enabled: true
+          autodiscover:
+            - selector: "app=etcd,etcd=true,k8s-app=etcd"
+              namespace: openshift-etcd
+              matchNode: true
+              endpoints:
+                - url: https://<ETCD_ENDPOINT>:<PORT>
+                  insecureSkipVerify: true
+                  auth:
+                    type: mTLS
+                    mtls:
+                      secretName: mysecret
+                      secretNamespace: newrelic
+   ```
+
+## Veja seus dados [#check-integration-works]
+
+Se a integração tiver sido configurada corretamente, o [cluster do Kubernetes Explorer](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer) contém todos os componentes do plano de controle e seus status em uma seção dedicada, conforme mostrado abaixo.
+
+<img
+  title="new-relic-one-k8s-cluster-explorer-control-plane-parameters.png"
+  alt="New Relic - Kubernetes Cluster Explorer - Control Plane section"
+  src="/images/kubernetes_screenshot-full_cluster-explorer-control-plane.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Kubernetes Cluster Explorer**</DNT>: Use o cluster do Kubernetes Explorer para monitor e coletar métricas dos componentes do plano de controle do seu cluster.
+</figcaption>
+
+Você também pode verificar os dados do plano de controle com esta consulta [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) :
+
+```SQL
+SELECT latest(timestamp) FROM K8sApiServerSample, K8sEtcdSample, K8sSchedulerSample, K8sControllerManagerSample FACET entityName where clusterName = '_MY_CLUSTER_NAME_'
+```
+
+<Callout variant="tip">
+  Se você ainda não consegue ver os dados do Control Plane, tente a solução descrita em [Kubernetes integração resolução de problemas: Not see data](/docs/integrations/kubernetes-integration/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data).
+</Callout>

@@ -1,0 +1,211 @@
+---
+title: Integración del controlador de automatización Red Hat Ansible
+tags:
+  - Ansible controller integration
+  - Red Hat Ansible Automation Controller
+  - New Relic integrations
+metaDescription: Install our Ansible Automation Controller dashboards and see your Ansible data in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con nuestro panel de control de la plataforma de Red Hat Ansible Automation, puede rastrear y visualizar fácilmente el registro de su plataforma de Ansible Automation, controlar sus trabajos y monitor la memoria de instancia.
+
+Creada con nuestro agente de infraestructura y nuestra integración Prometheus OpenMetrics, la plataforma de integración Ansible Automation le brinda un conjunto de <InlinePopover type="dashboards"/>prediseñados que le permiten ver los datos de consulta más críticos, en su lugar completo.
+
+<img
+  title="Ansible Controller"
+  alt="A screenshot depicting the Ansible Controller dashboard"
+  src="/images/infrastructure_screenshot-full_ansible-controller-dashboard.webp"
+/>
+
+<figcaption>
+  Después de configurar la integración con New Relic, vea sus datos en un panel como este, listo para usar.
+</figcaption>
+
+## Instalar el agente de infraestructura [#infra]
+
+El agente New Relic Infrastructure es la base para introducir los datos de su plataforma Ansible Automation en New Relic. Si aún no lo ha hecho, instale el agente usando una de estas opciones:
+
+* Nuestra [instalación guiada](https://one.newrelic.com/marketplace?state=15321ec0-7cd8-0c04-52bf-7b65778f2e8c) es una herramienta CLI que inspecciona su sistema e instala el agente de infraestructura junto con el agente de monitoreo de aplicaciones que mejor funcione para su sistema. Para obtener más información sobre cómo funciona nuestra instalación guiada, consulte nuestra [descripción general de la instalación guiada](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview).
+* Si prefiere instalar nuestro agente de infraestructura manualmente, puede seguir un tutorial para la instalación manual para [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/) o [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/).
+
+## Integre la plataforma de automatización Red Hat Ansible con New Relic [#integrate]
+
+Una vez instalado, el agente de infraestructura puede ingerir datos de su aplicación y enviarlos a New Relic, pero aún necesita integrar (o establecer una línea de comunicación) entre el agente y su aplicación. Una vez integrado, puede comenzar con una solución de monitoreo lista para usar para su aplicación de plataforma Ansible Automation.
+
+<CollapserGroup>
+  <Collapser
+    id="step1"
+    title="Paso 1. Cree un token al portador en la plataforma Ansible Automation"
+  >
+    Una vez que inicie sesión en la plataforma Ansible Automation, navegue hasta la sección <DNT>**Users**</DNT>, seleccione <DNT>**admin**</DNT> y luego agregue un <DNT>**token**</DNT> al usuario. Copie el token y guárdelo en la ruta deseada.
+
+    Aquí hay un token de ejemplo:
+
+    Cree un archivo llamado "bearer_token_file" en la ruta deseada.
+
+    ```
+    touch /home/ansible-automation-patform/bearer_token_file
+    ```
+
+    Y pegue su token en el archivo creado.
+
+    ```
+    nano /home/ansible-automation-platform/bearer_token_file
+    <paste your token>
+    ```
+
+    Guarde y salga del nano editor.
+  </Collapser>
+
+  <Collapser
+    id="step2"
+    title="Paso 2. Configurar la integración de Prometheus OpenMetrics"
+  >
+    Primero, cree un archivo llamado "nri-prometheus-config.yml" en la siguiente ruta:
+
+    Camino: `/etc/newrelic-infra/integrations.d/nri-prometheus-config.yml`
+
+    Luego, use nuestra [plantilla de configuración](https://github.com/newrelic/nri-prometheus/blob/main/configs/nri-prometheus-config.yml.sample) para actualizar el archivo creado llamado "nri-prometheus-config.yml".
+
+    Ahora, actualice los campos que se enumeran a continuación:
+
+    1. `cluster_name: “YOUR_DESIRED_CLUSTER_NAME”`
+    2. `bearer_token_file: “BEARER_TOKEN_FILE_PATH`
+    3. `urls: [“https://YOUR_HOST_IP:443/api/v2/metrics/?format=txt”]`
+    4. `Insecure_skip_verify: true`
+
+       Su archivo `nri-prometheus-config.yml` debería verse así:
+
+       ```
+       integrations:
+       ```
+
+    * name: nri-prometheus
+      config:
+
+      # When standalone is set to false nri-prometheus requires an infrastructure agent to work and send data. Defaults to true
+
+      standalone: false
+
+      # When running with infrastructure agent emitters will have to include infra-sdk
+
+      emitters: infra-sdk
+
+      # The name of your cluster. It's important to match other New Relic products to relate the data.
+
+      cluster_name: "YOUR_DESIRED_CLUSTER_NAME"
+      bearer_token_file: "BEARER_TOKEN_FILE_PATH"
+
+      targets:
+
+      * description: Metrics of Ansible Automation Platform can be seen on the below url
+        urls: ["https://YOUR_HOST_IP:443/api/v2/metrics/?format=txt"]
+        use_bearer: true
+
+        # tls_config:
+
+        # ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+
+        # cert_file_path: "/etc/etcd/etcd-client.crt"
+
+        # key_file_path: "/etc/etcd/etcd-client.key"
+
+        # Whether the integration should run in verbose mode or not. Defaults to false.
+
+        verbose: false
+
+        # Whether the integration should run in audit mode or not. Defaults to false.
+
+        # Audit mode logs the uncompressed data sent to New Relic. Use this to log all data sent.
+
+        # It does not include verbose mode. This can lead to a high log volume, use with care.
+
+        audit: true
+
+        # The HTTP client timeout when fetching data from endpoints. Defaults to 30s.
+
+        # scrape_timeout: "30s"
+
+        # Length in time to distribute the scraping from the endpoints.
+
+        scrape_duration: "5s"
+
+        # Number of worker threads used for scraping targets.
+
+        # For large clusters with many (>400) endpoints, slowly increase until scrape
+
+        # time falls between the desired `scrape_duration`.
+
+        # Increasing this value too much will result in huge memory consumption if too
+
+        # many metrics are being scraped.
+
+        # Default: 4
+
+        # worker_threads: 4
+
+        # Whether the integration should skip TLS verification or not. Defaults to false.
+
+        insecure_skip_verify: true
+
+        timeout: 10s
+
+      ```
+
+      ```
+  </Collapser>
+
+  <Collapser
+    id="step3"
+    title="Paso 3. Reenviar el registro del controlador Ansible a New Relic"
+  >
+    Puede utilizar nuestro [reenvío de registros](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent) para reenviar el registro de la plataforma de Ansible Automation a New Relic.
+
+    En máquinas Linux, su archivo de registro llamado `logging.yml` debe estar presente en la siguiente ruta:
+
+    Camino: `/etc/newrelic-infra/logging.d/`
+
+    Si no ve su archivo de registro en la ruta anterior, deberá crear un archivo de registro siguiendo la documentación del reenvío de registros anterior.
+
+    Para crear el archivo de registro, agregue el siguiente script al archivo logging.yml:
+
+    ```
+    - name: ansible-tower.log
+        file: /var/log/tower/tower.log
+        attributes:
+          logtype: ansible_tower_log
+    ```
+  </Collapser>
+
+  <Collapser
+    id="step4"
+    title="Paso 4. Reinicie su agente de infraestructura"
+  >
+    Antes de que pueda comenzar a leer sus datos, utilice las instrucciones en nuestros [documentos del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) para reiniciar su agente de infraestructura.
+  </Collapser>
+
+  <Collapser
+    id="step5"
+    title="Paso 5. Utilice NRQL para ver sus datos"
+  >
+    Puede utilizar esta consulta NRQL para ver los datos de su plataforma Ansible Automation:
+
+    ```
+    FROM Metric SELECT latest(awx_pending_jobs_total) AS 'Pending Jobs', latest(awx_running_jobs_total) AS 'Running Jobs'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ver Ansible Automation Controller métrica en un dashboard [#dash]
+
+Con el agente de infraestructura instalado e instrumentado con su aplicación, puede ver sus datos sin procesar en nuestro <DNT>**Metrics & events**</DNT>. Nuestro dashboard predeterminado transforma esos datos sin procesar en tablas y gráficos, que brindan una vista panorámica del estado de su sistema. Para instalar nuestro panel predeterminado, vaya a nuestra [página de observabilidad instantánea](https://newrelic.com/instant-observability/ansible-automation-controller) de Ansible Automation Controller).
+
+## ¿Que sigue?
+
+Para obtener más información sobre cómo crear una consulta NRQL y generar un panel, consulte estos documentos:
+
+* [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para crear consultas básicas y avanzadas.
+* [Introducción al panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) para personalizar tu dashboard y realizar diferentes acciones.
+* [Administre su dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) para ajustar el modo de visualización de su panel o para agregar más contenido a su dashboard.

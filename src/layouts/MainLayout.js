@@ -184,6 +184,9 @@ const MainLayout = ({ children, pageContext }) => {
                   >
                     <Logo
                       css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
                         ${!sidebar &&
                         css`
                           display: none;
@@ -194,7 +197,7 @@ const MainLayout = ({ children, pageContext }) => {
                 </div>
                 {sidebar && (
                   <SearchInput
-                    placeholder={t('home.search.placeholder')}
+                    placeholder={t('strings.home.search.placeholder')}
                     value={searchTerm || ''}
                     iconName={SearchInput.ICONS.SEARCH}
                     isIconClickable
@@ -202,9 +205,10 @@ const MainLayout = ({ children, pageContext }) => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
                       addPageAction({
-                        eventName: 'nonHomepageSidebarSearch',
+                        eventName: 'swiftypeSearchInput',
                         category: 'SearchInput',
                         searchTerm,
+                        searchLocation: 'sidebar',
                       });
                       navigate(`?q=${searchTerm || ''}`);
                     }}
@@ -241,6 +245,11 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
+
+                  @media (min-width: 1241px) {
+                    padding-right: 1.5rem;
+                  }
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
@@ -276,7 +285,7 @@ const MainLayout = ({ children, pageContext }) => {
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
-                height: 60px;
+                height: 80px;
                 ${!sidebar &&
                 css`
                   grid-column: 1/3;

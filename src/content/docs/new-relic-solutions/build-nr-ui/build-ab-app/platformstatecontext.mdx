@@ -1,0 +1,259 @@
+---
+title: 'Add PlatformStateContext to your Nerdlet'
+metaDescription: 'Add PlatformStateContext to your Nerdlet'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. If you haven't already, check out the Overview.
+
+  Each lesson in the course builds upon the last, so make sure you've completed the last lesson, Fetch data from a third-party service, before starting this one.
+</Callout>
+
+In this course, you're building a New Relic application. This application shows telemetry data from a demo service that is running an A/B test so that it can reveal that data in charts, like a dashboard. Your New Relic application is different than a dashboard, however, because it does more than show New Relic data. It pulls external data, provides UI components and functionality, and even has its own small data stores. The purpose of this New Relic application is to present context so you can better understand the A/B test results and how those results tie in to your business objectives.
+
+So far, you've built all your charts, organized them for improved usability, provided them with real data, and more. There are some final improvements you can make, using Platform API components. In this lesson, you learn how to use values in the New Relic platform state.
+
+<Steps>
+  <Step>
+    Change to the _add-platform-state-context/ab-test_ directory of the [coursework repository](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-platform-state-context/ab-test
+    ```
+
+    This directory contains the code that we expect your application to have at this point in the course. By navigating to the correct directory at the start of each lesson, you leave your custom code behind, thereby protecting yourself from carrying incorrect code from one lesson to the next.
+  </Step>
+
+  <Step>
+    In `nerdlets/ab-test-nerdlet/newsletter-signups.js`, add a `PlatformStateContext.Consumer` to your `NewsletterSignups` component's `render()` method:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class NewsletterSignups extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Newsletter subscriptions per version
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query="SELECT count(*) FROM subscription FACET page_version SINCE 30 MINUTES AGO TIMESERIES"
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+
+    ```
+
+    <Callout variant="important">
+      Make sure you replace `<YOUR NEW RELIC ACCOUNT ID>` with your actual New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id).
+    </Callout>
+
+    Notice that `NrqlQuery` uses a constant called `ACCOUNT_ID`. Instead of hardcoding an account identifier in your Nerdlet, you can use `accountIds` from the platform URL state.
+  </Step>
+
+  <Step>
+    `PlatformStateContext.Consumer` provides access to the platform's URL state. This context contains an important value you'll use in your app, called `timeRange`.
+
+    Notice that your `NrqlQuery` uses a `SINCE` clause that identifies the historical timeframe your query should fetch data from. Right now, that `SINCE` clause is set to `30 MINUTES AGO`. With `timeRange`, you can use the platform's time picker to make this timeframe adjustable.
+  </Step>
+
+  <Step>
+    Utilize the platform state's `timeRange`:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class NewsletterSignups extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Newsletter subscriptions per version
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query="SELECT count(*) FROM subscription FACET page_version TIMESERIES"
+                                timeRange={platformState.timeRange}
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Make sure you replace `<YOUR NEW RELIC ACCOUNT ID>` with your actual New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id).
+    </Callout>
+
+    Now, `NewsletterSignups` uses `platformState.timeRange` instead of a hardcoded `SINCE` clause.
+
+    While `NrqlQuery` components accept a convenient `timeRange` prop, not every component does. You can still use `timeRange` in other contexts by accessing `duration`, `begin_time`, or `end_time`:
+
+    ```jsx
+    <PlatformStateContext.Consumer>
+        {
+            (platformState) => { console.log(platformState.timeRange.duration); }
+        }
+    </PlatformStateContext.Consumer>
+    ```
+  </Step>
+
+  <Step>
+    Navigate to the root of your Nerdpack at `nru-programmability-course/add-platform-state-context/ab-test`.
+  </Step>
+
+  <Step>
+    Generate a new UUID for your Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Because you cloned the coursework repository that contained an existing Nerdpack, you need to generate your own unique identifier. This UUID maps your Nerdpack to your New Relic account. It also allows your app to make Nerdgraph requests on behalf of your account.
+  </Step>
+
+  <Step>
+    Serve your application locally:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    [View your application](https://one.newrelic.com?nerdpacks=local).
+
+    Your `NrqlQuery` now uses the platform state's `timeRange`, but your chart probably still shows the last 30 minutes. Why? Where does the `timeRange` in platform state come from?
+
+    The time picker sits on the right side of your application's navigation bar.
+
+    Change this value and see your chart update.
+
+    <Callout variant="tip">
+      If something doesn't work, use your browser's debug tools to try to identify the problem.
+
+      **Make sure you:**
+
+      * Copied the code correctly from the lesson
+      * Generated a new UUID
+      * Replaced all instances of `<YOUR NEW RELIC ACCOUNT ID>` in your project with your actual New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+  </Step>
+
+  <Step>
+    Update `VersionPageViews`:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 1234567  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class VersionPageViews extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query={`SELECT count(*) FROM pageView WHERE page_version = '${this.props.version}' TIMESERIES`}
+                                timeRange={platformState.timeRange}
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Make sure you replace `<YOUR NEW RELIC ACCOUNT ID>` with your actual New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id).
+    </Callout>
+
+    Of all the charts in your New Relic application, these three charts are the ones that should update with the time picker. The others, **Total subscriptions per version**, **Total cancellations per version**, **Version A - Page views vs. subscriptions**, **Version B - Page views vs. subscriptions**, show total values over time. So, hardcoding their `SINCE` clauses to `7 DAYS AGO` makes sense, as this is a reasonable time period for the purposes of this course.
+  </Step>
+
+  <Step>
+    While still serving your Nerdpack locally, view your NR1 app to see your charts updating with the time range you choose.
+
+    <Callout variant="tip">
+      If something doesn't work, use your browser's debug tools to try to identify the problem.
+
+      **Make sure you:**
+
+      * Copied the code correctly from the lesson
+      * Generated a new UUID
+      * Replaced all instances of `<YOUR NEW RELIC ACCOUNT ID>` in your project with your actual New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+
+    When you're finished, stop serving your New Relic application by pressing `CTRL+C` in your local server's terminal window.
+  </Step>
+</Steps>
+
+Now that you're basing your queries off the platform state, some of your charts are dynamic in their time ranges. This is a great improvement because it allows you to adjust your charts to show data from any particular point in time, which is useful for tying data to business outcomes.
+
+The Platform API components offer a lot more functionality, too, including the ability to navigate the user to another place in New Relic. You'll learn how to do this in the next lesson.
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the next lesson: Add navigation to your nerdlet.
+</Callout>

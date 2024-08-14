@@ -1,0 +1,158 @@
+---
+title: Contribuya con su inicio rápido
+metaDescription: Create a PR and contribute your quickstart to New Relic I/O
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Si aún no lo hiciste, consulta la [introducción del curso](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  Como este procedimiento se basa en los últimos del laboratorio, cerciorar de crear componentes de inicio rápido y agregarlos a un [dashboard](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-dashboard), [alertas](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-alerts) y [fuente de datos](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-data-source) a su inicio rápido antes de continuar con este.
+</Callout>
+
+En los procedimientos anteriores, creó componentes de inicio rápido y los agregó a su directorio respectivo en la plantilla de inicio rápido. Es hora de crear el inicio rápido de flashdb y contribuirlo a GitHub para que esté disponible para que todos lo empleen.
+
+## Contribuir al inicio rápido de GitHub [#contribute-quickstart]
+
+<Steps>
+  <Step>
+    Si aún no lo hizo, bifurque el repositorio [de inicios rápidosNew Relic ](https://github.com/newrelic/newrelic-quickstarts)y clónelo en su máquina local.
+  </Step>
+
+  <Step>
+    Abra su proyecto en el IDE de su elección y navegue hasta el directorio `\_template`.
+  </Step>
+
+  <Step>
+    Aquí, copie el directorio `quickstarts/example-quickstart` y su contenido en el directorio `quickstarts` en el nivel raíz. Cambie el nombre del directorio a `flashdb`.
+
+    Este directorio contiene un archivo config.yml de muestra para crear un inicio rápido.
+  </Step>
+
+  <Step>
+    Navegue hasta el archivo `datasources/flashdb/config.yml` y agregue detalles de su fuente de datos. Para su referencia, la fuente de datos flashdb debería ser similar a la siguiente:
+
+    ```yml
+    # Sets the URL name of the quickstart on public I/O (required)
+    slug: flashdb
+
+    # Displayed in the UI (required)
+    title: FlashDB
+
+    # Long-form description of the quickstart (required)
+    description: |
+      FlashDB is the fastest and lightest database in the universe. First, it can handle a large number of concurrent users without slowing down. Second, it has a very low latency, so queries are processed quickly. And finally, it scales easily as your data grows.
+
+      This quickstart allows users to monitor their database to ensure peak performance. It also notifies you if there's any problem with the database. 
+
+      The flashdb quickstart includes: 
+      ## a dashboard 
+        where users can easily monitor:
+        - Database methods
+        - Average response time
+        - Errors
+        - Database size
+        - Cache hits
+        - Keys
+
+      ## alert conditions
+        where users are notified on:
+        - slow read responses
+        - low cache hit 
+
+    # Displayed in search results and recommendations. Summarizes a quickstarts functionality.
+    summary: |
+      This quickstart allows users to monitor their flashdb database to ensure peak performance. It also notifies you if there's any problem with the database. 
+
+    # Support level: New Relic | Verified | Community (required)
+    level: Community
+
+    # Authors of the quickstart (required)
+    authors:
+      - Mehreen Tahir
+
+    # Keywords for filtering / searching criteria in the UI
+    keywords:
+      - infrastructure
+      - database
+
+    alertPolicies:
+      - flashdb
+    dashboards:
+      - flashdb
+    # Documentation references
+    documentation:
+      - name: Quickstart course
+        url: https://developer.newrelic.com/contribute-to-quickstarts
+        description: This doc guides you through the process of creating a quickstart
+
+    # Content / Design
+    icon: logo.svg
+    website: https://developer.newrelic.com/contribute-to-quickstarts
+    ```
+
+    Aquí, agregó un slug, un título y una descripción para que las personas reconozcan y comprendan el propósito de su inicio rápido. También puedes consultar los dashboards asociados y las alertas para crear el inicio rápido.
+  </Step>
+
+  <Step>
+    A continuación, agregue un logotipo para su inicio rápido. Puede ser ".svg" o ".png". Su directorio de inicio rápido debería ser similar al siguiente.
+  </Step>
+
+  <Step>
+    Su inicio rápido ya está listo para ser publicado. Vas a enviar tus cambios nuevamente a GitHub, donde New Relic los revisará. Siga la [sintaxis de confirmación convencional](https://github.com/newrelic/developer-website/blob/main/CONTRIBUTING.md#using-conventional-commits) de New Relic para confirmar sus cambios.
+
+    ```bash
+    git add -A
+    git commit -m "feat(flashdb): Added a quickstart for flashdb"
+    ```
+
+    <Callout variant="important">
+      Siempre estamos felices de recibir contribuciones de la comunidad. Sin embargo, esperamos un serial de contribuciones para flashdb que sigan el mismo rumbo. Para ayudarnos a gestionar sus contribuciones de manera eficiente, le recomendamos que etiquete su contribución luego de este curso en individuo como **quickstart-course** usando el comando `git tag`.
+    </Callout>
+  </Step>
+
+  <Step>
+    Envíe sus cambios a GitHub:
+
+    ```bash
+    git tag quickstart-course
+    git push
+    ```
+  </Step>
+</Steps>
+
+### Crea un PR para contribuir con tu inicio rápido [#create-pr]
+
+Una vez que envió sus cambios a GitHub, puede [crear una solicitud de extracción \[la\]](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request).
+
+<Steps>
+  <Step>
+    Navegue hasta su repositorio de inicio rápido, haga clic en **Contribute** y luego en **Open pull request**.
+  </Step>
+
+  <Step>
+    Esto lo llevará a **Open a pull request page**. Aquí, agregue un resumen para su inicio rápido y haga clic en **Create pull request**.
+
+    <Callout variant="important">
+      Al contribuir con un inicio rápido, cerciorar de realizar comprobaciones previas.
+    </Callout>
+
+    Envíe el PR y espere la revisión. Una vez que su inicio rápido pase todas las comprobaciones, podrá obtener una vista previa de su inicio rápido en New Relic I/O.
+
+    Esto lo llevará al inicio rápido de New Relic I/O.
+
+    <Callout variant="important">
+      En esta etapa, su inicio rápido se validará automáticamente en GitHub. Si se tratara de un envío de la vida real, entonces sería aprobado e incorporado en New Relic I/O para que su usuario lo vea. Como se trata de un curso de demostración, en realidad no revisaremos este PR. Le agradecemos que plantee este PR como "borrador" para que no termine en la cola de nuestros revisores.
+    </Callout>
+  </Step>
+</Steps>
+
+## Tarea [#homework]
+
+Si aún no lo hizo, le recomendamos que lea algunos documentos relacionados como:
+
+* [Panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Alerta](/docs/alerts-applied-intelligence/overview/)
+
+Los documentos anteriores le brindan un beneficio en su viaje de observabilidad con New Relic. Siempre agradecemos las contribuciones de la comunidad, así que no dudes en ponerte en contacto.

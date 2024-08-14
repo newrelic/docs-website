@@ -1,0 +1,1380 @@
+---
+title: API do agente Node.js
+tags:
+  - Agents
+  - Nodejs agent
+  - API guides
+metaDescription: 'How to use the Node.js API to name, rename, and ignore requests, and to read router names with New Relic''s Node.js agent.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A New Relic oferece diversas ferramentas para ajudar a obter as informações necessárias para fornecer métricas úteis sobre sua aplicação Node.js. Esses incluem:
+
+* Lendo os nomes das rotas (se usados) dos roteadores Express e Restify
+* Usando a API para nomear a solicitação atual, seja com nomes simples ou grupos de controladores com ações
+* Regras de suporte armazenadas na configuração do seu agente que podem marcar solicitações para serem renomeadas ou ignoradas com base em expressões regulares correspondentes aos URLs brutos da solicitação (também disponíveis como chamada de API)
+
+O número de nomes que o New Relic rastreia precisa ser pequeno o suficiente para que a experiência do usuário seja robusta. Ele também precisa ser grande o suficiente para fornecer a quantidade certa de informações (sem sobrecarregar você com dados) para que você possa identificar pontos problemáticos em seu aplicativo com mais facilidade.
+
+Para obter mais informações, consulte a documentação [de configuração do agente Node.js](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration) e a [documentação da API do agente Node.js no Github](https://newrelic.github.io/node-newrelic/).
+
+## Solicitar nomes
+
+O agente Node.js captura o método HTTP junto com um caminho potencialmente parametrizado (como `/user/:id`) ou uma expressão regular (como `/^/user/([-0-9a-f]+)$/`). Essas informações passam a fazer parte do nome da solicitação.
+
+Se você tiver suporte para rastreamento lento da transação e tiver adicionado `'request.parameters.*'` a [`attributes.include`](/docs/agents/nodejs-agent/attributes/nodejs-agent-attributes#cfg-attributes-include) em seu arquivo de configuração, o rastreamento da transação também terá os parâmetros da solicitação e seus valores anexados. Se você não gostar dos nomes de solicitação que o agente Node.js usa, poderá usar a chamada de API para criar nomes mais descritivos.
+
+<Callout variant="tip">
+  Se agrupar suas solicitações sob o nome genérico, `/*` será suficiente e você não precisará personalizar seu arquivo de configuração ou chamada de API.
+</Callout>
+
+## Requisitos
+
+A New Relic usa nomes de solicitação para agrupar solicitações para muitos gráficos e tabelas. O valor dessas visualizações diminuirá à medida que o número de nomes de solicitações diferentes aumentar.
+
+Por exemplo, não inclua dados potencialmente dinâmicos, como GUIDs, IDs numéricos ou carimbo de data/hora nos nomes de solicitação que você criar. Se sua solicitação for lenta o suficiente para gerar um rastreamento da transação, esse trace conterá a URL original. Se você ativar a captura de parâmetro, o parâmetro também será anexado ao trace.
+
+<Callout variant="tip">
+  Evite ter mais de 50 nomes de transação diferentes. Por exemplo, se você tiver mais de algumas centenas de nomes de solicitações diferentes, repense sua estratégia de nomenclatura.
+</Callout>
+
+## Evite problemas de agrupamento métrico [#metric-grouping]
+
+A API de nomenclatura de solicitações ajuda a New Relic a evitar problemas ao tentar lidar com muitas métricas, o que às vezes é chamado de "explosão métrica". A New Relic possui diversas estratégias para lidar com essas questões; o mais grave é simplesmente adicionar o aplicativo ofensivo à sua lista de negações.
+
+O principal motivo para você ter cuidado ao usar essas ferramentas de nomenclatura de solicitações é evitar que isso aconteça com seu aplicativo. Para mais informações, veja [questões de agrupamento métrico](/docs/apm/other-features/metrics/metric-grouping-issues).
+
+## Diretrizes [#rules]
+
+Defina suas regras de configuração das mais específicas às mais gerais. As primeiras regras listadas em seu arquivo de configuração ou adicionadas com a [API de nomenclatura de transação do Node.js](/docs/nodejs/nodejs-transaction-naming-api) serão aplicadas primeiro e devem ser estritamente de destino. Regras "fall-through" mais gerais devem ser adicionadas no final da lista, porque serão avaliadas na ordem em que foram configuradas ou adicionadas usando a API de nomenclatura de transação do Node.js.
+
+<Collapser
+  id="retailer-example"
+  title="Correspondência de padrão de URL"
+>
+  Um varejista online tem um padrão de URL como este:
+
+  ```
+  /user/customers/all/prospects
+  /user/customers/all/current
+  /user/customers/all/returning
+  /user/customers/John
+  /user/customers/Jane
+  ```
+
+  O varejista poderia criar regras como esta:
+
+  ```js
+  // newrelic.js
+  exports.config={
+    //other configuration
+    rules:{
+      name:[
+        { pattern: "/user/customers/all/prospects/", name: "/user/customers/all/prospects" },
+        { pattern: "/user/customers/all/.*", name: "/user/customers/all" },
+        { pattern: "/user/customers/.*", name: "/user/customers/:customer" }
+      ]
+    }
+  };
+  ```
+
+  Com essas regras, o varejista criaria três nomes de transação:
+
+  * `/user/customers/:customer`
+
+  * `/user/customers/all`
+
+  * `/user/customers/all/prospects`
+
+    Se o varejista revertesse o pedido, as regras pegariam `all` transação em `:customer`, o que não seria tão útil.
+</Collapser>
+
+## Carregar a API de nomenclatura de solicitação [#loading]
+
+Certifique-se de que carregar o módulo New Relic seja a primeira coisa que seu aplicativo faz, pois ele precisa ser inicializado antes que o restante do seu aplicativo seja carregado:
+
+```js
+const newrelic = require('newrelic');
+```
+
+Isso retorna a API de nomenclatura da solicitação. Você pode exigir o módulo com segurança de vários módulos em seu aplicativo, pois ele se inicializa apenas uma vez.
+
+## Solicitar chamada de API [#request-api]
+
+Aqui está um resumo da chamada de API de solicitação para o agente Node.js da New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="transaction"
+    title={<InlineCode>newrelic.setTransactionName(name)</InlineCode>}
+  >
+    ```js
+    newrelic.setTransactionName(name)
+    ```
+
+    Nomeie a solicitação atual, seguindo os [requisitos de nomenclatura da solicitação](#requirements). Você pode chamar essa função em qualquer lugar dentro do contexto de um manipulador de solicitação HTTP, a qualquer momento após o início do processamento da solicitação, mas antes da conclusão da solicitação. Em geral, se os objetos de solicitação e resposta estiverem no escopo, você poderá definir o nome.
+
+    Chamar `newrelic.setTransactionName()` explicitamente substituirá quaisquer nomes definidos pelas rotas Express ou Restify. Além disso, as chamadas para `newrelic.setTransactionName()` e `newrelic.setControllerName()` substituirão uma à outra. O último a ser executado antes do término da solicitação vence.
+  </Collapser>
+
+  <Collapser
+    id="controller"
+    title={<InlineCode>newrelic.setControllerName(name, \[action])</InlineCode>}
+  >
+    ```js
+    newrelic.setControllerName(name, [action])
+    ```
+
+    Nomeie a solicitação atual usando um padrão estilo controlador, incluindo opcionalmente a ação atual do controlador. Se a ação for omitida, o New Relic incluirá o método HTTP (GET, POST, etc.) como a ação. As regras para quando você pode chamar `newrelic.setControllerName()` são as mesmas de `newrelic.setTransactionName()`, incluindo os [requisitos de nomenclatura da solicitação](#requirements).
+
+    Chamar `newrelic.setControllerName()` explicitamente substituirá quaisquer nomes definidos pelas rotas Express ou Restify. Além disso, as chamadas para `newrelic.setTransactionName()` e `newrelic.setControllerName()` substituirão uma à outra. O último a ser executado antes do término da solicitação vence.
+  </Collapser>
+</CollapserGroup>
+
+## Chamada de API de instrumentação personalizada [#custom-instrumentation-api]
+
+Use esta chamada de API para [expandir sua instrumentação com instrumentação personalizada](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation).
+
+<CollapserGroup>
+  <Collapser
+    id="instrument"
+    title={<InlineCode>newrelic.instrument(moduleName, onRequire \[, onError])</InlineCode>}
+  >
+    ```js
+    newrelic.instrument(moduleName, onRequire [, onError])
+    ```
+
+    Define um retorno de chamada de instrumentação para um módulo específico.
+
+    O retorno de chamada `onRequire` fornecido será acionado quando o módulo fornecido for carregado com `require`. O parâmetro `moduleName` deve ser a string que será passada para `require`; por exemplo, `'express'` ou `'amqplib/callback_api'`. O retorno de chamada `onError` opcional será chamado se o parâmetro `onRequire` gerar um erro. Isso é útil para depurar sua instrumentação.
+
+    Use este método para:
+
+    * Adicione instrumentação para módulos não instrumentados atualmente pela New Relic.
+    * Instrumento seu próprio código.
+    * Substitua a instrumentação integrada do agente Node.js pela sua própria.
+
+    Para obter mais informações, consulte [o tutorial de instrumentação Node.js da New Relic no Github](https://newrelic.github.io/node-newrelic/tutorial-Instrumentation-Basics.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentDatastore"
+    title={<InlineCode>newrelic.instrumentDatastore(moduleName, onRequire \[, onError])</InlineCode>}
+  >
+    ```js
+    newrelic.instrumentDatastore(moduleName, onRequire [, onError])
+    ```
+
+    Define um retorno de chamada de instrumentação para um módulo de armazenamento de dados.
+
+    Este método é semelhante a [`newrelic.instrument()`](#instrument), exceto que fornece um [shim especializado em armazenamento de dados](https://newrelic.github.io/node-newrelic/DatastoreShim.html). Para obter mais informações, consulte [o tutorial de instrumentação de armazenamento de dados Node.js da New Relic no Github](https://newrelic.github.io/node-newrelic/tutorial-Datastore-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentLoadedModule"
+    title={<InlineCode>newrelic.instrumentLoadedModule(moduleName, moduleInstance)</InlineCode>}
+  >
+    <Callout variant="important">
+      Este método não é suportado ou necessário no aplicativo do módulo ES, pois a inicialização do agente no aplicativo do módulo ES é diferente do aplicativo CommonJS. No aplicativo do módulo ES, o agente é capaz de compensar o problema que este método resolve para o aplicativo CommonJS.
+    </Callout>
+
+    ```js
+    newrelic.instrumentLoadedModule(moduleName, moduleInstance)
+    ```
+
+    O método `instrumentLoadedModule` permite adicionar instrumentação padrão a módulos específicos em situações em que é impossível ter `require('newrelic');` como a primeira linha do módulo principal do seu aplicativo.
+
+    ```js
+    // load the agent
+    const newrelic = require('newrelic');
+
+    // module loaded before newrelic
+    const expressModule = require('express');
+
+    // instrument express after the agent has been loaded
+    newrelic.instrumentLoadedModule(
+      'express',    // the module's name, as a string
+      expressModule // the module instance
+    );
+    ```
+
+    <Callout variant="important">
+      Este método não pode instrumentalizar nenhum módulo arbitrário. Seu objetivo é adicionar módulos que foram perdidos porque o agente não foi carregado como a primeira coisa em seu programa. O método `instrumentLoadedModule` só pode instrumentar módulos que o agente normalmente usaria. Você pode ver uma lista desses módulos no [módulo lib/instrumentação](https://github.com/newrelic/node-newrelic/blob/0113eb5f0e707dc662a17d262a841503bab88841/lib/instrumentations.js#L6#L6) do agente.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="instrumentMessages"
+    title={<InlineCode>newrelic.instrumentMessages(moduleName, onRequire \[, onError])</InlineCode>}
+  >
+    ```js
+    newrelic.instrumentMessages(moduleName, onRequire [, onError])
+    ```
+
+    Configura um retorno de chamada de instrumentação para um módulo cliente de serviço de mensagens.
+
+    Este método é semelhante a [`newrelic.instrument()`](#instrument), exceto que fornece um [shim especializado em serviço de mensagens](https://newrelic.github.io/node-newrelic/MessageShim.html). Para obter mais informações, consulte [o tutorial de instrumentação de serviço de mensagens Node.js da New Relic no Github](https://newrelic.github.io/node-newrelic/tutorial-Messaging-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentWebframework"
+    title={<InlineCode>newrelic.instrumentWebframework(moduleName, onRequire \[, onError])</InlineCode>}
+  >
+    ```js
+    newrelic.instrumentWebframework(moduleName, onRequire [, onError])
+    ```
+
+    Define um retorno de chamada de instrumentação para um módulo framework web.
+
+    Este método é exatamente como [`newrelic.instrument()`](#instrument), exceto que fornece um [shim web-framework-specialized](https://newrelic.github.io/node-newrelic/WebFrameworkShim.html). Para obter mais informações, consulte [o tutorial de instrumentação framework da web Node.js da New Relic no Github](https://newrelic.github.io/node-newrelic/tutorial-Webframework-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="startWebTransaction"
+    title={<InlineCode>newrelic.startWebTransaction(url, handle)</InlineCode>}
+  >
+    ```js
+    newrelic.startWebTransaction(url, handle)
+    ```
+
+    Instrumento a transação web especificada. Usando esta chamada de API, você pode usar instrumentos de transação que o New Relic [não detecta automaticamente](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#web-txn).
+
+    * O `url` define o nome da transação e precisa ser estático. Não inclua dados variáveis, como ID do usuário.
+    * O `handle` define a função que você deseja instrumento.
+
+    O New Relic capturará qualquer métrica que seria capturada por instrumentação automática, bem como instrumentação manual por meio de [`startSegment()`](#startSegment).
+
+    Você <DNT>**must**</DNT> processa transações personalizadas manualmente chamando `newrelic.getTransaction()` no início de sua transação e, em seguida, ligando para `transaction.end()` quando terminar. O New Relic começa a cronometrar a transação quando `newrelic.startWebTransaction()` é chamado e termina a transação quando `transaction.end()` é chamado.
+
+    Você também pode retornar uma promessa para indicar o fim da transação. Observe que se esta promessa for rejeitada, ela não será automaticamente vinculada ao monitoramento de erros da New Relic. Isso precisa ser feito manualmente com [`noticeError()`](#noticeError).
+
+    Exemplo:
+
+    ```js
+    var newrelic = require("newrelic");
+    newrelic.startWebTransaction("/some/url/path", function () {
+      var transaction = newrelic.getTransaction();
+      setTimeout(function () {
+        // do some work
+        transaction.end();
+      }, 100);
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="startBackgroundTransaction"
+    title={<InlineCode>newrelic.startBackgroundTransaction(name, \[group], handle)</InlineCode>}
+  >
+    ```js
+    newrelic.startBackgroundTransaction(name, [group], handle)
+    ```
+
+    Instrumento a transação em segundo plano especificada. Usando esta chamada de API, você pode expandir a instrumentação da New Relic para [capturar dados de transações em segundo plano](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#background-txn).
+
+    * O `name` define o nome da transação e precisa ser estático. Não inclua dados variáveis, como ID do usuário.
+
+    * O `group` é opcional e permite agrupar tarefas semelhantes por meio do
+
+      <DNT>
+        [**transaction type**](/docs/apm/applications-menu/monitoring/transactions-dashboard#txn-type-dropdown)
+      </DNT>
+
+      [na interface do usuário](/docs/apm/applications-menu/monitoring/transactions-dashboard#txn-type-dropdown). Assim como `name`, o `group` precisa ser estático.
+
+    * O `handle` define uma função que inclui todo o trabalho em segundo plano que você deseja instrumentar.
+
+    O New Relic capturará qualquer métrica que seria capturada por instrumentação automática, bem como instrumentação manual por meio de [`startSegment()`](#startSegment).
+
+    Você <DNT>**must**</DNT> processa transações personalizadas manualmente chamando `newrelic.getTransaction()` no início de sua transação e, em seguida, ligando para `transaction.end()` quando terminar. O New Relic começa a cronometrar a transação quando `newrelic.startBackgroundTransaction()` é chamado e termina a transação quando `transaction.end()` é chamado.
+
+    Você também pode retornar uma promessa para indicar o fim da transação. Observe que se esta promessa for rejeitada, ela não será automaticamente vinculada ao monitoramento de erros da New Relic. Isso precisa ser feito manualmente com [`noticeError()`](#noticeError).
+
+    Exemplo:
+
+    ```js
+    var newrelic = require("newrelic");
+    newrelic.startBackgroundTransaction("Red October", "Subs", function () {
+    var transaction = newrelic.getTransaction();
+    setTimeout(function () {
+      // do some work
+      transaction.end();
+    }, 100);
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="getTransaction"
+    title={<InlineCode>newrelic.getTransaction()</InlineCode>}
+  >
+    ```js
+    newrelic.getTransaction()
+    ```
+
+    Retorna um identificador da transação atualmente em execução. Esse identificador pode então ser usado para interagir com uma determinada transação com segurança em qualquer contexto. É melhor usado com `newrelic.startWebTransaction()` e `newrelic.startBackgroundTransaction()`.
+
+    [Consulte a seção de manuseio de transação para obter mais detalhes.](#transaction-handle-methods)
+  </Collapser>
+
+  <Collapser
+    id="endTransaction"
+    title={<InlineCode>newrelic.endTransaction()</InlineCode>}
+  >
+    ```js
+    newrelic.endTransaction()
+    ```
+
+    Encerre a transação personalizada atual [da web](#createWebTransaction) ou [em segundo plano](#createBackgroundTransaction) . Este método requer estar no contexto de transação correto quando chamado. Esta chamada de API não aceita argumentos.
+  </Collapser>
+
+  <Collapser
+    id="startSegment"
+    title={<InlineCode>newrelic.startSegment(name, record, handler, callback)</InlineCode>}
+  >
+    ```js
+    newrelic.startSegment(name, record, handler, callback)
+    ```
+
+    Instrumento um método específico para [melhorar a visibilidade de uma transação](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#expanding-instrumentation) ou, opcionalmente, transformá-la em uma métrica.
+
+    * O `name` define um nome para o segmento. Este nome ficará visível no trace da transação e como uma nova métrica na interface do New Relic.
+    * A sinalização `record` define se o segmento deve ser registrado como uma métrica.
+    * O `handler` é a função que você deseja acompanhar como um segmento.
+    * O opcional `callback` é uma função passada ao manipulador para ser acionada após a conclusão do trabalho.
+
+    O agente começa a cronometrar o segmento quando `startSegment` é chamado. O segmento termina quando `handler` termina a execução ou `callback` é acionado, se for fornecido.
+
+    Exemplo:
+
+    ```js
+    newrelic.startSegment('mySegment', false, function handler() {
+      // The returned promise here will signify the end of the segment.
+      return myAsyncTask().then(myNextTask)
+    })
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Métrica chamada personalizada de API [#custom-metric-api]
+
+Use esta chamada de API para [registrar métricas arbitrárias adicionais](/docs/agents/nodejs-agent/supported-features/nodejs-custom-metrics):
+
+<CollapserGroup>
+  <Collapser
+    id="record_metric"
+    title={<InlineCode>newrelic.recordMetric(name, value)</InlineCode>}
+  >
+    ```js
+    newrelic.recordMetric(name, value)
+    ```
+
+    Use `recordMetric` para registrar uma métrica baseada em evento, geralmente associada a uma duração específica. O `name` deve ser uma string seguindo regras de nomenclatura de métrica padrão. O `value` geralmente será um número, mas também pode ser um objeto.
+
+    * Quando `value` for um valor numérico, deverá representar a magnitude de uma medida associada a um evento; por exemplo, a duração de uma chamada de método específica.
+    * Quando `value` é um objeto, ele deve conter chaves `count`, `total`, `min`, `max` e `sumOfSquares` , todas com valores numéricos, quaisquer outras chaves serão ignoradas. Este formulário é útil para agregar métricas por conta própria e reportá-las periodicamente; por exemplo, de um `setInterval`. Esses valores serão agregados a quaisquer valores coletados anteriormente para a mesma métrica. Os nomes dessas chaves correspondem aos nomes das chaves usadas pela API da plataforma.
+  </Collapser>
+
+  <Collapser
+    id="increment_metric"
+    title={<InlineCode>newrelic.incrementMetric(name, \[amount])</InlineCode>}
+  >
+    ```js
+    newrelic.incrementMetric(name, [amount])
+    ```
+
+    Use `incrementMetric` para atualizar uma métrica que funciona como um contador simples. A contagem da métrica selecionada será incrementada no valor especificado, com valor padrão de 1.
+  </Collapser>
+</CollapserGroup>
+
+## Evento personalizado chamada de API [#custom-events-api]
+
+Use esta chamada de API para registrar eventos adicionais:
+
+<CollapserGroup>
+  <Collapser
+    id="record_custom_event"
+    title={<InlineCode>newrelic.recordCustomEvent(eventType, attributes)</InlineCode>}
+  >
+    ```js
+    newrelic.recordCustomEvent(eventType, attributes)
+    ```
+
+    Use `recordCustomEvent` para registrar uma métrica baseada em evento, geralmente associada a uma duração específica.
+
+    * O `eventType` deve ser uma sequência alfanumérica com menos de 255 caracteres.
+    * O `attributes` deve ser um objeto de pares de chave e valor. As chaves devem ter menos de 255 caracteres e os valores devem ser string, número ou booleano.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Gravando um evento personalizado"
+      >
+        O exemplo a seguir demonstra a gravação de um evento personalizado com vários atributos.
+
+        ```js
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 2
+        };
+
+        newrelic.recordCustomEvent('MessagingEvent', attributes);
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+</CollapserGroup>
+
+<CollapserGroup>
+  <Collapser
+    id="record_log_event"
+    title={<InlineCode>newrelic.recordLogEvent(logEvent)</InlineCode>}
+  >
+    ```js
+    newrelic.recordLogEvent({message, level})
+    ```
+
+    Use `recordLogEvent` para registrar um evento de log, caso a instrumentação de registro automático seja insuficiente para sua framework de registro. [Consulte a documentação gerada automaticamente](https://newrelic.github.io/node-newrelic/API.html#recordLogEvent) para obter detalhes dos tipos de parâmetros aceitos.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Gravando um evento de log com um objeto de erro"
+      >
+        O exemplo a seguir demonstra a gravação de um evento de log associado a um erro.
+
+        ```js
+        const error = new SystemError('invalid state');
+        const timestamp = Date.now();
+
+        newrelic.recordLogEvent({message: 'an error happened', level: 'error', timestamp, error});
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+</CollapserGroup>
+
+## Métodos de manipulação de transação
+
+Esta seção detalha os métodos fornecidos pela instância da classe `TransactionHandle` que pode ser obtida por meio de `newrelic.getTransaction()`.
+
+Use estes métodos para interagir diretamente com a transação atual:
+
+<CollapserGroup>
+  <Collapser
+    id="transaction-handle-end"
+    title={<InlineCode>transactionHandle.end(\[callback])</InlineCode>}
+  >
+    ```js
+    transactionHandle.end([callback])
+    ```
+
+    Use `transactionHandle.end` para encerrar a transação referenciada pela instância de identificador.
+
+    O `callback` é invocado quando a transação é totalmente encerrada. A transação concluída é passada para o retorno de chamada como primeiro argumento.
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-ignore"
+    title={<InlineCode>transactionHandle.ignore()</InlineCode>}
+  >
+    ```js
+    transactionHandle.ignore()
+    ```
+
+    Use `transactionHandle.ignore` para ignorar a transação referenciada pela instância de identificador.
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-insertDistributedTraceHeaders"
+    title={<InlineCode>transactionHandle.insertDistributedTraceHeaders(headers)</InlineCode>}
+  >
+    ```js
+    transactionHandle.insertDistributedTraceHeaders(headers)
+    ```
+
+    <Callout variant="important">
+      Esta API requer [quedistributed tracing esteja ativado](/docs/enable-distributed-tracing).
+    </Callout>
+
+    Para obter contexto sobre como usar esta chamada e sua chamada de parceiro `acceptDistributedTraceHeaders`, leia primeiro [Habilitar distributed tracing com API do agente](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.insertDistributedTraceHeaders` é usado para implementar distributed tracing. Ele modifica o mapa `headers` transmitido adicionando cabeçalhos W3C Trace Context e cabeçalhos distributed trace New Relic. Os cabeçalhos New Relic podem ser desabilitados com `distributed_tracing.exclude_newrelic_header: true` na configuração. Este método substitui o método [`createDistributedTracePayload`](#transaction-handle-createDistributedTracePayload) obsoleto, que cria apenas carga distributed trace da New Relic.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Gerando cabeçalhos distributed trace"
+      >
+        No exemplo a seguir, chamando insertDistributedTraceHeaders com um objeto vazio, os cabeçalhos distributed trace apropriados e os cabeçalhos W3C Trace Context serão gerados para a transação.
+
+        ```js
+        // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+        const transactionHandle = newrelic.getTransaction();
+
+        // This could be a header object from an incoming request as well
+        const headersObject = {};
+        newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+          const transaction = newrelic.getTransaction();
+          // generate the headers
+          transaction.insertDistributedTraceHeaders(headersObject);
+        });
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-acceptDistributedTraceHeaders"
+    title={<InlineCode>transactionHandle.acceptDistributedTraceHeaders(transportType, headers)</InlineCode>}
+  >
+    ```js
+    transactionHandle.acceptDistributedTraceHeaders(transportType, headers)
+    ```
+
+    <Callout variant="important">
+      Esta API requer [quedistributed tracing esteja ativado](/docs/enable-distributed-tracing).
+    </Callout>
+
+    Para obter contexto sobre como usar esta chamada e sua chamada de parceiro `insertDistributedTraceHeaders`, leia primeiro [Habilitar distributed tracing com API do agente](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.acceptDistributedTraceHeaders` É usado para instrumentalizar o serviço chamado para inclusão em um distributed trace. Ele vincula os intervalos em um trace aceitando uma carga gerada por ou gerada por algum [`insertDistributedTraceHeaders`](#transaction-handle-insertDistributedTraceHeaders) outro W3C Trace Context compatível com tracer. Este método aceita os cabeçalhos de uma solicitação recebida, procura cabeçalhos W3C Trace Context e, se não for encontrado, recorre aos cabeçalhos distributed trace da New Relic. Este método substitui o obsoleto (e agora removido a partir da versão 7.0.0) [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload) , que lida apenas com carga distributed trace do New Relic.
+
+    `transportType` deve ser uma das seguintes strings:
+
+    * `AMQP`
+    * `HTTP`
+    * `HTTPS`
+    * `IronMQ`
+    * `JMS`
+    * `Kafka`
+    * `Other`
+    * `Queue`
+    * `Unknown`
+
+    `headers` deve ser um objeto contendo todos os cabeçalhos da solicitação recebida. As chaves devem estar em minúsculas.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Aceitar cabeçalhos distributed trace recebidos"
+      >
+        O exemplo a seguir demonstra a adição de cabeçalhos distributed trace recuperados de uma mensagem Kafka. Neste exemplo, assumimos que a mensagem Kafka recebida possui cabeçalhos distributed trace inseridos.
+
+        ```js
+        // incoming Kafka message headers
+        const headersObject = message.headers;
+
+        // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+        const transactionHandle = newrelic.getTransaction();
+
+        newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+          const transaction = newrelic.getTransaction();
+
+          // accept the headers
+          transaction.acceptDistributedTraceHeaders('Kafka', headersObject);
+        });
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-createDistributedTracePayload"
+    title={<InlineCode>transactionHandle.createDistributedTracePayload()</InlineCode>}
+  >
+    ```js
+    transactionHandle.createDistributedTracePayload()
+    ```
+
+    <Callout variant="caution">
+      Este método está obsoleto e foi removido na versão 7.0.0! Por favor, use `insertDistributedTraceHeaders.`
+    </Callout>
+
+    <Callout variant="important">
+      Esta API requer [quedistributed tracing esteja ativado](/docs/enable-distributed-tracing).
+    </Callout>
+
+    Para obter instruções sobre como usar esta chamada, juntamente com sua chamada de parceiro [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload), consulte [Habilitar distributed tracing com API do agente](/docs/enable-distributed-tracing#agent-apis).
+
+    Esta chamada é usada para implementar distributed tracing. Ele gera uma carga útil que é lida pelo aplicativo receptor com [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload).
+
+    <Callout variant="important">
+      Observação: para manter a ordem adequada dos spans em um trace, você deve gerar a carga útil no contexto do span que a envia.
+    </Callout>
+
+    O objeto `DistributedTracePayload` possui dois métodos disponíveis para geração da carga em diferentes formatos:
+
+    * `DistributedTracePayload#text`: retorna uma representação JSON da carga útil.
+
+      <CollapserGroup>
+        <Collapser
+          id="example-link-bg-txn"
+          title="Vincular uma transação em segundo plano aninhada"
+        >
+          ```js
+          // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+          var transactionHandle = newrelic.getTransaction();
+          var payload = transactionHandle.createDistributedTracePayload();
+          var jsonPayload = payload.text();
+          newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+            var backgroundHandle = newrelic.getTransaction();
+            // Link the nested transaction by accepting the payload with the background transaction's handle
+            backgroundHandle.acceptDistributedTracePayload(jsonPayload);
+          });
+          ```
+        </Collapser>
+      </CollapserGroup>
+
+    * `DistributedTracePayload#httpSafe`: retorna uma representação JSON codificada em base64 da carga útil.
+
+      <CollapserGroup>
+        <Collapser
+          id="example-payload-outgoing-request"
+          title="Colocar carga útil em uma solicitação de saída"
+        >
+          ```js
+          // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+          var transactionHandle = newrelic.getTransaction();
+          var payload = transactionHandle.createDistributedTracePayload();
+          // Place the base64 encoded value on an outbound request header.
+          req.headers[myTracingHeader] = payload.httpSafe();
+          ```
+        </Collapser>
+      </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-acceptDistributedTracePayload"
+    title={<InlineCode>transactionHandle.acceptDistributedTracePayload(payload)</InlineCode>}
+  >
+    ```js
+    transactionHandle.acceptDistributedTracePayload(payload)
+    ```
+
+    <Callout variant="caution">
+      Este método está obsoleto e foi removido na versão 7.0.0! Por favor, use `acceptDistributedTraceHeaders.`
+    </Callout>
+
+    <Callout variant="important">
+      Esta API requer [quedistributed tracing esteja ativado](/docs/enable-distributed-tracing).
+    </Callout>
+
+    Para obter contexto sobre como usar esta chamada e sua chamada de parceiro `createDistributedTracePayload`, leia primeiro [Habilitar distributed tracing com API do agente](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.acceptDistributedTracePayload` É usado para instrumentalizar o serviço chamado para inclusão em um distributed trace. Ele vincula os períodos em um trace aceitando a carga gerada por [`createDistributedTracePayload`](#transaction-handle-createDistributedTracePayload).
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-isSampled"
+    title={<InlineCode>transactionHandle.isSampled()</InlineCode>}
+  >
+    ```js
+    transactionHandle.isSampled()
+    ```
+
+    Retorna se esse trace está sendo amostrado.
+  </Collapser>
+</CollapserGroup>
+
+## Outra chamada de API [#other-api]
+
+O agente Node.js da New Relic inclui chamada de API adicional.
+
+<CollapserGroup>
+  <Collapser
+    id="add-custom-attribute"
+    title={<InlineCode>newrelic.addCustomAttribute(name, value)</InlineCode>}
+  >
+    ```js
+    newrelic.addCustomAttribute(name, value)
+    ```
+
+    Defina um valor de atributo personalizado a ser exibido junto com o rastreamento da transação na interface do New Relic. Deve ser chamado dentro do contexto de uma transação para que tenha local para definir o atributo personalizado. o atributo personalizado aparecerá na visualização detalhada do trace da transação do APM e nos erros da transação.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Adicionar atributo personalizado"
+      >
+        ```js
+        newrelic.addCustomAttribute('attribute1', 'value1')
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="caution">
+      Caso queira utilizar seu atributo personalizado, evite utilizar algum dos [termos reservados utilizados pelo NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) na hora de nomeá-los.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="add-custom-attributes"
+    title={<InlineCode>newrelic.addCustomAttributes(attributes)</InlineCode>}
+  >
+    ```js
+    newrelic.addCustomAttributes(attributes)
+    ```
+
+    Defina vários valores de atributo personalizado para serem exibidos junto com o rastreamento da transação na interface do New Relic. O atributo deve ser passado como um objeto único. Deve ser chamado dentro do contexto de uma transação para que tenha local para definir o atributo personalizado. o atributo personalizado aparecerá na visualização detalhada do trace da transação e nos erros da transação.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Adicionando atributo personalizado"
+      >
+        ```js
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 2
+        };
+
+        newrelic.addCustomAttributes(attributes);
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="caution">
+      Caso queira utilizar seu atributo personalizado, evite utilizar algum dos [termos reservados utilizados pelo NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) na hora de nomeá-los.
+    </Callout>
+  </Collapser>
+
+  <Collapser title={<InlineCode>newrelic.addCustomSpanAttribute(name, value)</InlineCode>}>
+    ```js
+    newrelic.addCustomSpanAttribute(name, value)
+    ```
+
+    Defina um valor de atributo de span personalizado para ser exibido junto com um span de rastreamento de transação na interface do New Relic. Isso deve ser chamado dentro do contexto de um segmento/span ativo para que tenha um local para definir o atributo de span personalizado. O atributo de período personalizado aparecerá na seção atributo da visualização de detalhes do período.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Adicionar atributo span personalizado"
+      >
+        ```js
+        newrelic.addCustomSpanAttribute('attribute1', 'value')
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="important">
+      Esta API requer que [distributed tracing](/docs/enable-distributed-tracing) e [o evento span](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#span-events) sejam habilitados.
+    </Callout>
+
+    <Callout variant="caution">
+      Se você quiser usar seu atributo span personalizado, evite usar qualquer um dos [termos reservados usados pelo NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) ao nomeá-los.
+    </Callout>
+  </Collapser>
+
+  <Collapser title={<InlineCode>newrelic.addCustomSpanAttributes(attributes)</InlineCode>}>
+    ```js
+    newrelic.addCustomSpanAttributes(attributes)
+    ```
+
+    Defina vários valores de atributo de span personalizados para serem exibidos junto com os spans de rastreamento da transação na interface do New Relic. O atributo deve ser passado como um objeto único. Isso deve ser chamado dentro do contexto de um segmento/span ativo para que tenha um local para definir o atributo de span personalizado. O atributo de período personalizado aparecerá na seção atributo da visualização de detalhes do período.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Adicionar atributo de intervalo personalizado"
+      >
+        ```js
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 'value2'
+        };
+
+        newrelic.addCustomSpanAttributes(attributes);
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="important">
+      Esta API requer que [distributed tracing](/docs/enable-distributed-tracing) e [o evento span](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#span-events) sejam habilitados.
+    </Callout>
+
+    <Callout variant="caution">
+      Se você quiser usar seu atributo span personalizado, evite usar qualquer um dos [termos reservados usados pelo NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) ao nomeá-los.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="browserTimingHeader"
+    title={<InlineCode>newrelic.getBrowserTimingHeader()</InlineCode>}
+  >
+    ```js
+    newrelic.getBrowserTimingHeader()
+    ```
+
+    Retorna o trecho HTML a ser inserido no cabeçalho das páginas HTML para habilitar [<InlinePopover type="browser"/>](/docs/agents/nodejs-agent/supported-features/page-load-timing-nodejs). O HTML instruirá o browser a buscar um pequeno arquivo JavaScript e iniciar o cronômetro da página.
+  </Collapser>
+
+  <Collapser
+    id="noticeError"
+    title={<InlineCode>newrelic.noticeError(error, \[customAttributes], \[expected])</InlineCode>}
+  >
+    ```js
+    newrelic.noticeError(error, [customAttributes], [expected])
+    ```
+
+    Use esta chamada se seu aplicativo estiver fazendo seu próprio tratamento de erros com domínio ou cláusulas try/catch, mas você deseja que todas as informações sobre quantos erros estão saindo do aplicativo sejam gerenciadas centralmente. Ao contrário de outras chamadas do Node.js, isso pode ser usado fora dos manipuladores de rota, mas terá contexto adicional se for chamado dentro do escopo da transação.
+
+    `error` deve ser um `Error` ou um de seus subtipos, mas a API manipulará strings e objetos que tenham uma propriedade `.message` ou `.stack` anexada.
+
+    `customAttributes` é um objeto opcional de quaisquer atributos personalizados a serem exibidos na interface do New Relic.
+
+    `expected` é um booleano opcional para classificar o erro como um erro esperado. Se um erro coletado com `noticeError` for `expected`, ele será coletado e reportado, mas não afetará `Apdex` ou taxa de erros métricos. Por padrão, `expected` é `false`.
+
+    <Callout variant="important">
+      O parâmetro `expected` requer [o agente Node.js versão 9.12.1](/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-9-12-1) ou superior.
+    </Callout>
+
+    <DNT>
+      **Example:**
+    </DNT>
+
+    ```js
+    try {
+      performSomeTask();
+    } catch(err) {
+      newrelic.noticeError(
+        err,
+        { extraInformation: "error already handled in the application" },
+        true
+      );
+    }
+    ```
+
+    <Callout variant="caution">
+      Os erros registrados usando este método não obedecem ao valor de configuração [`ignore_status_codes`](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#error_ignore) .
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="setErrorGroupCallback"
+    title={<InlineCode>newrelic.setErrorGroupCallback(callback)</InlineCode>}
+  >
+    ```js
+    newrelic.setErrorGroupCallback(callback)
+    ```
+
+    Este método permite definir um retorno de chamada personalizado para gerar nomes de grupos de erros, que serão usados pela Errors Inbox para agrupar erros semelhantes por meio do atributo do agente `error.group.name`.
+
+    As funções fornecidas devem retornar uma string e receber um objeto como argumento. O objeto contém informações relacionadas ao erro ocorrido e possui o seguinte formato:
+
+    <Callout variant="important">
+      O uso de `setErrorGroupCallback` requer [o agente Node.js versão 9.14.0](/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-9-14-0/) ou superior.
+    </Callout>
+
+    ```js
+    {
+      "customAttributes": object,
+      "request.uri": string,
+      "http.statusCode": string,
+      "http.method": string,
+      "error": Error,
+      "error.expected": boolean
+    }
+    ```
+
+    Chamar esta função várias vezes substituirá as versões definidas anteriormente desta função de retorno de chamada. Exemplo:
+
+    ```js
+    function myCallback(metadata) {
+      if (metadata['http.statusCode'] === '400') {
+        return 'Bad User Input'
+      }
+    }
+
+    newrelic.setErrorGroupCallback(myCallback)
+    ```
+
+    Para saber mais sobre esta função, consulte nosso [aplicativo de exemplo](https://github.com/newrelic/newrelic-node-examples/tree/main/error-fingerprinting).
+  </Collapser>
+
+  <Collapser
+    id="ignore"
+    title={<InlineCode>newrelic.setIgnoreTransaction(ignored)</InlineCode>}
+  >
+    <Callout variant="caution">
+      Este método está obsoleto e foi removido na versão 7.0.0. Por favor use [transactionHandle.ignore()](#transaction-handle-ignore)
+    </Callout>
+
+    ```js
+    newrelic.setIgnoreTransaction(ignored)
+    ```
+
+    Diga ao módulo se deve ou não ignorar uma determinada solicitação. Isso permite que você filtre explicitamente rotas ou solicitações irrelevantes e de pesquisa longa que você sabe que consumirão muito tempo. Isso também permite coletar métricas para solicitações que de outra forma seriam ignoradas.
+
+    * Para ignorar a transação, defina o parâmetro como `true`: isso ignorará a transação.
+    * Para evitar que uma transação seja ignorada com esta função, passe o parâmetro `false`.
+    * Passar `null` ou `undefined` não alterará se a transação será ignorada.
+  </Collapser>
+
+  <Collapser
+    id="setUserID"
+    title={<InlineCode>newrelic.setUserID(string)</InlineCode>}
+  >
+    ```js
+    newrelic.setUserID(string)
+    ```
+
+    Este método oferece uma maneira de associar um identificador exclusivo a um evento de transação, rastrear a transação e erros na transação. Uma nova propriedade, `enduser.id`, será adicionada ao erro e reportada à Errors Inbox.
+
+    <Callout variant="important">
+      A API `setUserID` requer [o agente Node.js versão 9.13.0](/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-9-13-0/) ou superior.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="shutdown"
+    title={<InlineCode>newrelic.shutdown(\[options], callback)</InlineCode>}
+  >
+    ```js
+    newrelic.shutdown(options, callback)
+    ```
+
+    Use este método para desligar o agente normalmente, ambos os parâmetros são opcionais. Aqui está uma tabela de visão geral mostrando o parâmetro:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Parâmetro
+          </th>
+
+          <th style={{ width: "100px" }}>
+            Tipo
+          </th>
+
+          <th style={{ width: "100px" }}>
+            Atributo
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `options`
+          </td>
+
+          <td>
+            `object`
+          </td>
+
+          <td>
+            Opcional
+          </td>
+
+          <td>
+            Objeto com opções de desligamento
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `callback`
+          </td>
+
+          <td>
+            `function`
+          </td>
+
+          <td>
+            Opcional
+          </td>
+
+          <td>
+            Função de retorno de chamada executada quando o agente para
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Aqui está uma tabela detalhada mostrando as opções de desligamento do objeto:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Nome da opção
+          </th>
+
+          <th style={{ width: "100px" }}>
+            Tipo
+          </th>
+
+          <th style={{ width: "100px" }}>
+            Atributo
+          </th>
+
+          <th style={{ width: "50px" }}>
+            Padrão
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `collectPendingData`
+          </td>
+
+          <td>
+            `boolean`
+          </td>
+
+          <td>
+            Opcional
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            Informe ao agente se deve enviar quaisquer dados pendentes para o coletor New Relic antes de encerrar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timeout`
+          </td>
+
+          <td>
+            `number`
+          </td>
+
+          <td>
+            Opcional
+          </td>
+
+          <td>
+            `0`
+          </td>
+
+          <td>
+            O tempo padrão antes de forçar um desligamento. Quando `collectPendingData` for verdadeiro, o agente aguardará uma conexão antes de desligar. Esse tempo limite é útil para processos de curta duração, como AWS Lambda, para evitar que o processo permaneça aberto por muito tempo enquanto tenta se conectar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `waitForIdle`
+          </td>
+
+          <td>
+            `boolean`
+          </td>
+
+          <td>
+            Opcional
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            Se `true`, o agente não será encerrado até que não haja nenhuma transação ativa.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <DNT>
+      **Example:**
+    </DNT>
+
+    ```js
+    newrelic.shutdown({collectPendingData: true, timeout: 10000}, (error) => {
+      process.exit();
+    });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="getLinkingMetadata"
+    title={<InlineCode>newrelic.getLinkingMetadata()</InlineCode>}
+  >
+    ```js
+    newrelic.getLinkingMetadata()
+    ```
+
+    Retorna pares de valores principais que podem ser usados para vincular rastreamento ou entidade.
+
+    Ele conterá apenas itens com valores significativos. Por exemplo, se distributed tracing estiver desabilitado, `trace.id` não será incluído.
+  </Collapser>
+
+  <Collapser
+    id="getTraceMetadata"
+    title={<InlineCode>newrelic.getTraceMetadata()</InlineCode>}
+  >
+    ```js
+    newrelic.getTraceMetadata()
+    ```
+
+    Retorna e objeto contendo o ID trace e o ID de span atuais.
+
+    <Callout variant="important">
+      Esta API requer que [distributed tracing esteja habilitado](/docs/enable-distributed-tracing) ou um objeto vazio será retornado.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Regras para nomear e ignorar solicitações [#ignoring]
+
+Se não quiser colocar chamadas para o módulo New Relic diretamente no código do seu aplicativo, você poderá usar regras baseadas em padrões para nomear solicitações. Existem dois conjuntos de regras: um para renomear solicitações e outro para marcar solicitações para serem ignoradas pela instrumentação do New Relic.
+
+Aqui está a estrutura das regras no agente Node.js da New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="rules-name"
+    title={<InlineCode>rules.name</InlineCode>}
+  >
+    Uma lista de regras no formato `{pattern : "pattern", name : "name"}` para corresponder URLs de solicitação de entrada a `pattern` e nomear a transação New Relic correspondente `name`. Isso atua como uma substituição de regex, onde você pode definir o padrão como uma string ou como uma expressão regular JavaScript literal, e tanto o padrão quanto o nome são obrigatórios.
+
+    Ao passar uma regex como string, evite barras invertidas, pois o agente não as mantém quando fornecidas como string em um padrão. Defina suas regras de configuração das mais específicas às mais gerais, pois os padrões serão avaliados em ordem e são de natureza terminal. Para obter mais informações, consulte as [diretrizes de nomenclatura](/docs/agents/nodejs-agent/installation-configuration/configuring-nodejs#rules).
+
+    Isso também pode ser definido com a variável de ambiente `NEW_RELIC_NAMING_RULES`, com diversas regras passadas como uma lista de literais de objetos JSON delimitados por vírgulas:
+
+    ```js
+    NEW_RELIC_NAMING_RULES='{"pattern":"^t","name":"u"},{"pattern":"^u","name":"t"}'
+    ```
+
+    ### Atributo de regras opcionais
+
+    Atributos opcionais adicionais estão disponíveis:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            <DNT>
+              **Optional rules attributes**
+            </DNT>
+          </th>
+
+          <th>
+            <DNT>
+              **Description**
+            </DNT>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `terminate_chain`
+          </td>
+
+          <td>
+            Padrão: `true`
+
+            Quando definido como `true` (padrão), nenhuma outra regra será avaliada se esta regra corresponder. Definir isso como falso é útil quando várias regras devem ser usadas juntas. Por exemplo, uma regra poderia substituir um padrão comum em muitos URLs diferentes, enquanto as regras subsequentes seriam mais específicas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `replace_all`
+          </td>
+
+          <td>
+            Padrão: `false`
+
+            Quando definido como `true`, todas as correspondências do padrão serão substituídas. Caso contrário, apenas a primeira partida será substituída. Usar o sinalizador `g` com literal de expressão regular terá o mesmo efeito. Por exemplo:
+
+            ```
+            pattern: '[0-9]+',
+            replace_all: true
+            ```
+
+            Isso tem o mesmo efeito que `pattern: /[0-9]+/g`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `precedence`
+          </td>
+
+          <td>
+            Por padrão, as regras são avaliadas em ordem, da primeira à última. Se preferir ter controle total sobre o pedido, você pode atribuir a cada regra um atributo `precedence` . A precedência é um número inteiro e as regras são avaliadas em ordem crescente. Se `precedence` não for definido explicitamente, será definido como 500 por padrão.
+
+            Atributos adicionais são ignorados.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Testando suas regras de nomenclatura
+
+    O agente Node.js vem com uma ferramenta de linha de comando para testar regras de nomenclatura. Para obter mais informações, execute o seguinte comando na janela do terminal em um diretório onde seu aplicativo está instalado:
+
+    ```bash
+    node node_modules/.bin/newrelic-naming-rules
+    ```
+
+    ### Exemplos de regras de nomenclatura [#examples-rules]
+
+    Aqui estão alguns exemplos de regras de nomenclatura e os resultados.
+
+    <CollapserGroup>
+      <Collapser
+        id="naming-full-url"
+        title="Corresponder ao URL completo"
+      >
+        ```
+        pattern: "^/items/[0-9]+$",
+        name: "/items/:id"
+        ```
+
+        vai resultar em:
+
+        ```
+        /items/123   =>  /items/:id
+        /orders/123  =>  /orders/123   (not replaced since the rule is a full match)
+        ```
+      </Collapser>
+
+      <Collapser
+        id="first-match-url"
+        title="Substitua a primeira correspondência no URL"
+      >
+        ```
+        pattern: "[0-9]+",
+        name: ":id"
+        ```
+
+        vai resultar em:
+
+        ```
+        /orders/123            =>  /orders/:id
+        /items/123             =>  /items/:id
+        /orders/123/items/123  =>  /orders/:id/items/123
+        ```
+      </Collapser>
+
+      <Collapser
+        id="replace-urls"
+        title="Substitua todas as correspondências em qualquer URL"
+      >
+        ```
+        pattern: "[0-9]+",
+        name: ":id",
+        replace_all: true
+        ```
+
+        vai resultar em:
+
+        ```
+        /orders/123/items/123  =>  /orders/:id/items/:id
+        ```
+      </Collapser>
+
+      <Collapser
+        id="regular-match-group"
+        title="Referências de grupo de correspondência"
+      >
+        Usando referências de grupos de correspondência de expressões regulares:
+
+        ```
+        pattern: '^/(items|orders)/[0-9]+$',
+        name: '/\\1/:id'
+        ```
+
+        vai resultar em:
+
+        ```
+        /orders/123  =>  /orders/:id
+        /items/123   =>  /items/:id
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="rules-ignore"
+    title={<InlineCode>rules.ignore</InlineCode>}
+  >
+    Isso também pode ser definido por meio da variável de ambiente `NEW_RELIC_IGNORING_RULES`, com diversas regras passadas como uma lista de padrões delimitados por vírgulas. Atualmente não há como escapar das vírgulas nos padrões.
+
+    ```js
+    NEW_RELIC_IGNORING_RULES='^/socket\.io/\*/xhr-polling,ignore_me'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Aqui estão exemplos completos de como as regras são incluídas no arquivo de configuração:
+
+<CollapserGroup>
+  <Collapser
+    id="example-naming-rule"
+    title="Exemplo de regra de nomenclatura"
+  >
+    ```js
+    // newrelic.js
+    exports.config = {
+      // other configuration
+      rules : {
+        name : [
+          { pattern: "/tables/name-here", name: "/name-hererule1" }
+        ]
+      }
+    };
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-ignoring-rule"
+    title="Ignorando exemplo de regra"
+  >
+    Se você estiver usando <DNT>**socket.io**</DNT>, terá um caso de uso para ignorar regras imediatamente. Para evitar que o long polling do socket.io domine sua métrica de tempo de resposta e afete a métrica Apdex de seu aplicativo, adicione uma regra como:
+
+    ```js
+    // newrelic.js
+    exports.config = {
+      // other configuration
+      rules : {
+        ignore : [
+          '^\/socket\.io\/.*\/xhr-polling'
+        ]
+      }
+    };
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Chamada de API para regras [#api-calls-rules]
+
+Aqui estão as chamadas de API para nomear e ignorar regras com o agente Node.js da New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="addnamingrule"
+    title={<InlineCode>newrelic.addNamingRule(pattern, name)</InlineCode>}
+  >
+    Versão programática de <DNT>**rules.name**</DNT>. Depois que as regras de nomenclatura forem adicionadas, elas não poderão ser removidas até que o processo Node.js seja reiniciado. Eles também podem ser adicionados por meio da configuração do agente Node.js. Ambos os parâmetros são obrigatórios.
+  </Collapser>
+
+  <Collapser
+    id="addignoringrule"
+    title={<InlineCode>newrelic.addIgnoringRule(pattern)</InlineCode>}
+  >
+    Versão programática de <DNT>**rules.ignore**</DNT>. Depois que as regras de ignorar são adicionadas, elas não podem ser removidas até que o processo Node.js seja reiniciado. Eles também podem ser adicionados por meio da configuração do agente Node.js. Este parâmetro é obrigatório.
+  </Collapser>
+</CollapserGroup>

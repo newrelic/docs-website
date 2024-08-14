@@ -1,0 +1,233 @@
+---
+title: Descubra el valor de los datos log con patrones
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: 'Use log patterns in New Relic to discover trends in data over time, focus your energy on what matters, and exclude what''s irrelevant.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los patrones de registros son la forma más rápida de descubrir valor en los datos log sin necesidad de buscar.
+
+Los datos log son telemetría de gran volumen con un valor bajo por registro individual. La búsqueda puede conducir rápidamente a registros que proporcionen una explicación de la causa raíz, pero la mayoría de los datos son repetitivos y difíciles de contextualizar al navegar. Los patrones pueden hacer que los datos log sean detectables sin perder mucho tiempo leyendo datos de bajo valor.
+
+<img
+  title="Logs patterns UI"
+  alt="Screenshot of Log patterns UI"
+  src="/images/logs_screenshot-crop_log-patterns.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs > Patterns**</DNT>: los patrones de registros lo ayudan a detectar picos o caídas sospechosas en el mensaje de registro sin tener que dedicar más tiempo a buscar.
+</figcaption>
+
+## Resumen técnico [#overview]
+
+La funcionalidad de patrones de registros aplica el aprendizaje automático para normalizar y agrupar mensajes de registro que son consistentes en formato pero variables en contenido. Estos mensajes agrupados se pueden ordenar, lo que facilita encontrar los conjuntos de registros más frecuentes o raros en su entorno.
+
+Utilice patrones como base para alertas cuando cambie la frecuencia de datos importantes o para configurar reglas de eliminación para deshacerse de datos repetitivos innecesarios.
+
+Los patrones de logs utilizan algoritmos de clúster avanzados para agrupar mensajes de log similares automáticamente. Con patrones, puedes:
+
+* Oriente más rápidamente a través de millones de registros.
+* Reduzca el tiempo necesario para identificar comportamientos inusuales en su finca log .
+* Monitor la frecuencia de patrones conocidos a lo largo del tiempo para centrar su energía en lo que importa y excluir lo que es irrelevante.
+
+## Disponibilidad [#availability]
+
+Si ve <DNT>**Patterns are turned off**</DNT> en su UI de registro, haga clic en <DNT>**Configure patterns**</DNT> y habilítelo. Si no ve patrones dentro de los 30 minutos de habilitar la característica, es posible que falten datos con un atributo de mensaje para que el sistema cree un patrón a partir de ellos.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Patrones de logs
+      </th>
+
+      <th>
+        Limitaciones y consideraciones
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Precios
+      </td>
+
+      <td>
+        No hay precios separados para los patrones de logs. El único costo es por los datos adicionales generados y agregados a sus log .
+
+        Se agregará un atributo de patrón a todos los registros que coincidan con un patrón. También se puede agregar un atributo cuando se descubren valores comunes, como GUID, direcciones IP, URL o direcciones de correo electrónico. Estos atributos se extraen automáticamente del mensaje de registro como parte del proceso del patrón.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cuentas HITRUST
+      </td>
+
+      <td>
+        La característica patrones de registros no cumple con FedRAMP. FedRAMP u otras cuentas HITRUST no son elegibles para usar patrones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Límites de coincidencia de patrones de registros
+      </td>
+
+      <td>
+        Disponemos de un sistema de límites de seguridad en memoria y recursos de CPU a la hora de hacer coincidir log con patrones. Estos límites de coincidencia pueden tener un impacto en el porcentaje de logs que se pueden agrupar en patrones de logs. Sin embargo, la coincidencia de patrones de registros es un proceso de "mejor esfuerzo": no es un error si no todos sus registros tienen la oportunidad de agruparse por patrones. Aún obtendrá valor de la agrupación que se puede realizar dentro de los límites de recursos.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Empezar [#get-started]
+
+Para comenzar a examinar patrones:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+   </DNT>
+
+   y utilice el selector de cuentas desplegable para seleccionar la cuenta objetivo donde desea explorar patrones.
+
+2. En la navegación izquierda de la UI del registro, haga clic en
+
+   <DNT>
+     **Patterns**
+   </DNT>
+
+   .
+
+La log UI principal cambia para mostrar patrones que coinciden con la consulta en la barra de consulta. Para ver el registro de un período de tiempo específico, haga clic en ese punto (o haga clic y arrastre un área) en el gráfico, o use el selector de tiempo.
+
+## Explorar patrones de logs [#recents]
+
+De forma predeterminada, la UI de patrones de registros muestra primero la aparición más frecuente de patrones. Para ordenar y mostrar primero los patrones más raros, haga clic en la columna <DNT>**Count**</DNT> . También puede utilizar la barra de consulta o la barra de atributos para filtrar sus patrones de registros.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Comprender la tasa de cambio en los patrones.
+      </td>
+
+      <td>
+        Mira el gráfico de líneas. Los patrones codificados por colores corresponden a la columna <DNT>**plot**</DNT> de la tabla. Puede alternar <DNT>**plot**</DNT> patrones individuales para limitar su enfoque.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver el mensaje de registro individual que coincide con cada patrón.
+      </td>
+
+      <td>
+        Haga clic en <DNT>**pattern**</DNT> para expandir la fila y ver una tabla de log individuales.
+
+        * Para ver registros adicionales, desplácese hacia arriba o hacia abajo.
+        * Para explorar un log individual con más detalle, haga clic en él para abrir el panel de detalles.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agrupar y filtrar patrones por su atributo
+      </td>
+
+      <td>
+        Utilice la barra de consulta y selector de tiempo. A medida que aplicas diferentes filtros y ventanas de tiempo, los patrones de registros se ajustan a tus nuevos datos objetivo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Crear una alerta a partir de un patrón
+      </td>
+
+      <td>
+        Agregue el patrón a la barra de consulta y ejecute la consulta. Luego haga clic en <DNT>**Create alert condition**</DNT> en el navegador izquierdo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Solucionar problemas de mensajes de registro que no se han agrupado en un patrón
+      </td>
+
+      <td>
+        Utilice la [pestaña<DNT>**Logs with no pattern**</DNT> ](#logswithnopattern)en la UI <DNT>**Log patterns**</DNT>.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Al hacer clic en un mensaje de registro específico, se abrirá el panel de detalles del mensaje de registro con el que está familiarizado en la UI de registro.
+
+## Explorar registro sin patrón [#logswithnopattern]
+
+La pestaña <DNT>**Logs with no pattern**</DNT> agrupa todos los mensajes de inicio de sesión recientes en su cuenta que aún no estaban agrupados en un patrón conocido. Estos mensajes de log no representan ningún problema o falla en el sistema; no tienen patrón porque son demasiado nuevos para haber sido procesados por el sistema de aprendizaje automático. Esto los hace valiosos para explorar cuando desee comprender qué ha cambiado recientemente en su entorno.
+
+Por ejemplo:
+
+* ¿Alguno de estos registros está relacionado con un problema reciente? Esta es una forma rápida de descubrir datos log únicos que aparecen por primera vez en su entorno.
+* ¿Sus datos log tienen un nuevo formato? A veces, el registro no representa un problema, sino un nuevo formato de datos log que se desvía del modelo de datos que espera que siga su aplicación.
+
+Detectar estos registros con anticipación le brinda la oportunidad de pedir a los desarrolladores que corrijan cualquier desviación en la salida de sus log . Mientras más consistentes sean las personas en la forma en que se generan los datos log , más fácil será utilizar el registro en un conjunto diverso de equipos.
+
+## Atributo enmascarado y comodines [#masked]
+
+Partes de los patrones de mensaje de inicio de sesión se clasifican como variables y se sustituyen por atributos enmascarados. El proceso de enmascaramiento respalda y mejora la fase de clúster al permitir que el algoritmo ignore los detalles cambiantes y se centre en la estructura repetitiva.
+
+El atributo enmascarado incluye:
+
+* `date_time`
+* `ip`
+* `url`
+* `uuid`
+
+Los atributos enmascarados están resaltados y son fáciles de identificar, como se muestra en el siguiente ejemplo.
+
+Los patrones de logs extraen otras variables menos triviales que no pertenecen a ningún atributo enmascarado. Estas variables se indican como comodines `*`.
+
+## Resolución de problemas [#nodata]
+
+Aquí hay algunas razones por las que tiene patrones habilitados pero no ve ningún dato de patrón. Si está seguro de que ninguno de estos elementos es cierto, obtenga ayuda en [support.newrelic.com](https://support.newrelic.com).
+
+* No ha llegado ningún dato en el periodo de tiempo que estás observando. Intente ampliar el rango de tiempo que está viendo con el selector de tiempo.
+* Han pasado menos de 24 horas desde que se habilitaron patrones en la cuenta. Esto significa que es posible que el modelo ML aún no se haya generado para la cuenta.
+* Ninguno de los datos que ingresan tiene un campo `message` . Los patrones solo se generarán para los valores en el campo `message` de un log . Si su registro no contiene `message`, no habrá datos.
+
+## Pon la plataforma a trabajar con patrones [#platform]
+
+Los patrones son un valor que se enriquece en el mensaje de registro existente como un nuevo atributo llamado `newrelic.logPattern`. Todo lo que puedas hacer con log generalmente se puede hacer con patrones de logs, como por ejemplo:
+
+* Cree su propio [panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) con patrones para monitor un patrón específico o un grupo de patrones que le interesen.
+
+* Cree
+
+  <InlinePopover type="alerts"/>
+
+  para patrones agregando [alertas NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions).
+
+* Utilice [condición de alerta de anomalía](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/other-condition-types/create-anomaly-alert-conditions) para detectar anomalías en patrones de registros conocidos.

@@ -1,0 +1,394 @@
+---
+title: Query time parsing in logs
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How New Relic uses parsing and how to send customized log data.
+freshnessValidatedDate: 2024-05-15 
+---
+
+Are you looking for a quick way to visually extract attributes from your logs after they've been ingested into New Relic? Query time parsing lets you parse your logs directly in the UI without needing to write complex regular expressions or Grok patterns. You can use query time parsing to temporarily extract values from your logs and quickly perform a query on these variables. The results are shown instantly since parsing is performed at query time.
+
+To get started, watch this five-minute video or see the tips below:
+
+<iframe
+  width="560"
+  height="315"
+  src="https://www.youtube.com/embed/tvK6MlkvD6Y?si=Vj4zadiAH1OG_wMy"
+  title="YouTube video player"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  referrerpolicy="strict-origin-when-cross-origin"
+  allowfullscreen
+/>
+
+## How query time parsing differs from ingest parsing [#differences]
+
+While both types of parsing make it easier for you to query logs, they have some significant differences:
+
+* **Ingest parsing:** Parsing during [log ingestion](/docs/logs/ui-data/parsing/) is where you create parsing rules using Grok or regular expressions (or both). As log records are ingested at New Relic, your parsing rules are applied to create permanent attributes that are stored with your log data in NRDB. These attributes make it easier for you to query log data.
+
+* **Query time parsing:** In contrast to ingest parsing, query time parsing lets you create temporary attributes that will be used as query variables. You can then use these variables in NRQL queries to populate your log table. We automatically create the queries as you make selections in the UI.
+
+You may also choose to use a combination of both parsing approaches. Review the table below to decide if query time parsing is right for you:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Description
+      </th>
+
+      <th>
+        Ingest parsing
+      </th>
+
+      <th>
+        Query time parsing
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Recommended usage
+      </td>
+
+      <td>
+        Best for creating permanent attributes you can query in the future
+      </td>
+
+      <td>
+        Best for doing quick queries on attributes that aren't permanent
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Parsing language  
+
+      </td>
+
+      <td>
+        You create Grok patterns and regular expressions
+      </td>
+
+      <td>
+        New Relic creates queries for you using the NRQL [aparse](/docs/nrql/nrql-syntax-clauses-functions/#func-aparse) function
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Timing
+      </td>
+
+      <td>
+        Applied at ingest
+      </td>
+
+      <td>
+        Applied when you query
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Results
+      </td>
+
+      <td>
+        Makes permanent changes to stored log
+      </td>
+
+      <td>
+        Temporarily alters your logs in the UI
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Live tail logs
+      </td>
+
+      <td>
+        Live tail logs include any extracted values from ingest parsing
+      </td>
+
+      <td>
+        Live tail logs **don't** include any extracted values from query time parsing
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Exported logs
+      </td>
+
+      <td>
+        Exported logs include any extracted values from ingest parsing
+      </td>
+
+      <td>
+        Exported logs **don't** include any extracted values from query time parsing
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Number of attributes
+      </td>
+
+      <td>
+        A maximum of [255 attributes](/docs/logs/log-api/log-event-data/#events) is available at ingest (the actual number attributes you can parse at ingest depends on the nature of your logs)
+      </td>
+
+      <td>
+        You can parse a maximum of 32 temporary attributes across all rules for query time parsing
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## How to create a query time parsing rule [#how-to]
+
+Here's a guide to creating query time parsing rules. The example shows how to extract the log level and scripted message values from the `message` attribute.
+
+<Steps>
+  <Step>
+    #### Select attribute value to parse [#select-attribute]
+
+    You can start creating a query time parsing rule by selecting an attribute value to parse.
+
+    1. In the log table or in the **Log details** view, highlight an anchor string that contains the values you want to extract. In this case, you'd highlight `level=info msg="Running script"`. It looks like this in the logs table:
+       <img title="Screenshot showing a highlighted section of a log" alt="Screenshot showing a highlighted section of a log" src="/images/logs_screenshot-crop_example-log-record-to-highlight.webp"/>
+
+       Keep the following in mind:
+
+       * Your highlighted text should include the value(s) you want to extract and the surrounding string characters that will help identify the location of the extracted value(s).
+       * If your initial anchor string is anywhere in the middle of the original attribute value, include at least one character before and after the values you want to extract.
+       * If you're highlighting the entire attribute value, you don't need to worry about characters before and after the values you're extracting.
+       * You cannot highlight blob values to parse.
+
+    2. Click the **Create query time parsing rule** option.
+
+       **Log table:**
+       <img title="Screenshot showing how you can begin with the logs table UI" alt="Screenshot showing how you can begin with the logs table UI" src="/images/logs_screenshot-full_logs-table-entry-point.webp"/>
+
+       **Log details view**:
+       <img title="Screenshot showing how you can start creating rules in the logs detail view" alt="Screenshot showing how you can start creating rules in the logs detail view." src="/images/logs_screenshot-full_logs-detail-entry-point.webp"/>
+  </Step>
+
+  <Step>
+    #### Highlight and extract values [#highlight-extractl]
+
+    After you've clicked **Create query time parsing rule**, the editor displays the string you selected for parsing:
+
+    <img
+      title="Screenshot showing the opening screen of the query editor"
+      alt="Screenshot showing the opening screen of the query editor"
+      src="/images/logs_screenshot-full_open-query-time-parsing-editor.webp"
+    />
+
+    To extract values:
+
+    1. Within the string, highlight the value(s) you want to extract (see [Tips for extracting values](#extract-tips)).
+    2. Under **Parse as**, enter a name for this temporary attribute that will be used as a query variable.
+       <img title="Screenshot showing how to extract values in the parser rule" alt="Screenshot showing how to extract values in the parser rule" src="/images/logs_screenshot-crop_extract-values-in-parser-rule.webp"/>
+    3. Click **Save**, which replaces the value you highlighted with the variable you created.
+
+    <CollapserGroup>
+      <Collapser
+        id="extract-tips"
+        title="Tips for extracting values"
+      >
+        Keep the following in mind when you extract values:
+
+        * You can extract more than one value in a rule.
+        * You **can't** extract values that are directly next to each other. There should be at least one character (including space) between extracted values.
+        * If the anchor string **starts** anywhere in the middle of the original attribute value, you can't extract the first character.
+          * Using the example `level=info msg="Running script"`, you can't extract the full word `level`--only `evel`.
+          * To extract the word `level`, the character(s) before the word `level` would need to be included in the anchor string.
+        * If the anchor string **ends** anywhere in the middle of the original attribute value, you can't extract the last character.
+          * Using the example `level=info msg="Running script"`, you can't extract the final double quotation mark.
+          * To extract the last double quotation mark, the character(s) after the double quotation mark would need to be included in the anchor string.
+        * Be  careful not to use any of these reserved words as a variable name for query time parsing:
+          * `appId`
+          * `endTimestamp`
+          * `eventType`
+          * `logs.accountId`
+          * `logs.hashId`
+          * `messageId`
+          * `message_id`
+          * `metricName`
+          * `metricTimesliceName`
+          * `newrelic.timeslice.value`
+          * `timestamp`
+          * `timestampSeconds`
+          * `timestampMillis`
+          * Can't start with `nr.` or `newrelic`
+        * You can't name an extracted value with the same name of the attribute that is being parsed. For example, if you are creating a query time parsing rule for the message attribute, an extracted value cannot be named message.
+          * Extracted value names must be unique across all query time parsing rules.
+          * If an extracted value is given the same name as an existing attribute in your logs, the results in the log table for that column will show data from ingest and data from query time parsing rules.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    #### Finish creating your query time parsing rule [#finish-rule]
+
+    After you've selected values, complete the following:
+
+    1. In the editor, review the preview of the table showing how your rule will be applied to the log you selected.
+
+       <img
+         title="Screenshot showing how the editor shows a preview of the rule"
+         alt="Screenshot showing how the editor shows a preview of the rule"
+         src="/images/logs_screenshot-crop_editor-shows-parsed-data-preview.webp"
+       />
+
+    2. If you're interested in the NRQL function used in the query to get your logs, click on **Query**.
+
+       <img
+         title="Screenshot showing the query behind the parsing rule"
+         alt="Screenshot showng the query behind the parsing rule"
+         src="/images/logs_screenshot-crop_nrql-behind-query-rule.webp"
+       />
+
+       <figcaption>
+         The pattern string, which is used to find and extract value(s) from the selected attribute, is updated whenever a value is extracted.
+       </figcaption>
+
+    3. If you need to rename any variables before you create your rule, click on the name, provide a new name, and then click **Save**. You can also delete variables by clicking on the variable you wish to delete and clicking **Delete**.
+       <img title="Screenshot showing where you can delete values" alt="Screenshot showing where you can delete values" src="/images/logs_screenshot-crop_delete-query-time-rule.webp"/>
+       <figcaption>You can edit or delete variables by clicking on them.</figcaption>
+
+    4. After you've finished reviewing and editing your variable names, click **Create rule** to finish creating your rule.
+
+    If you started creating a query time parsing rule from the **Log details** view, you need to close that view to see your results in the log table.
+
+    **Log details**
+    <img title="Screenshot showing how you can see your newly extracted values in the log details view" alt="Screenshot showing how you can see your newly extracted values in the log details view" src="/images/logs_screenshot-full_view-results-in-log-details-view.webp"/>
+
+    <figcaption>
+      After you view your newly extracted values, close the **Log details** view.
+    </figcaption>
+
+    **Log table**
+    <img title="Screenshot showing the final results after you create the rules" alt="Screenshot showing the final results after you create the rules" src="/images/logs_screenshot-full_log-table-results.webp"/>
+
+    <figcaption>
+      The log table automatically refreshes and applies the generated query to parse your logs.
+    </figcaption>
+  </Step>
+</Steps>
+
+## Manage your rules [#manage-rules]
+
+While your rules are temporary and apply to your current user session, you can still perform a variety of tasks during your session.
+
+<CollapserGroup>
+  <Collapser
+    id="edit-and-delete-rules"
+    title="Edit and delete rules"
+  >
+    You can edit or delete your rules by clicking **Manage parsing rules** above the log table. These rules are stored in your current user session within the logs view.
+
+    <img
+      title="Screenshot showing the rules manager"
+      alt="Screenshot showing the rules manager"
+      src="/images/logs_screenshot-crop_rule-manager.webp"
+    />
+
+    <figcaption>
+      View, edit, and delete your query time parsing rules.
+    </figcaption>
+  </Collapser>
+
+  <Collapser
+    id="save-parsing-rules"
+    title="Save your parsing rules"
+  >
+    If you navigate outside of logs, you will lose your query time parsing rules. If you want to keep your rules, you can store them in [saved views](/docs/logs/ui-data/use-logs-ui/#saved-views). This allows you to load them in a future session.
+  </Collapser>
+
+  <Collapser
+    id="share-rules"
+    title="Share query time parsing rules"
+  >
+    If you want to share query time parsing rules with your colleagues, use the permalink button in the top right of the UI.
+
+    When you share a permalink with your colleagues, and they add some rules, their changes won't affect your set of initial rules.
+  </Collapser>
+
+  <Collapser
+    id="create-alerts-from-queries"
+    title="Create alerts from log queries"
+  >
+    After you create a query time parsing rule, you can use the variables from these rules in queries just like any other attribute in the search bar. Once you search on a variable from query time parsing, you can click the alerts button to create an alert on this variable.
+
+    <img
+      title="Screenshot showing an example of the query time search bar"
+      alt="Screenshot showing an example of the query time search bar"
+      src="/images/logs_screenshot-full_query-time-search-bar.webp"
+    />
+
+    <figcaption>
+      Query on your extracted values so you can create an alert on these values.  
+
+    </figcaption>
+
+    <img
+      title="Screenshot showing the alert query builder"
+      alt="Screenshot showing the alert query builder"
+      src="/images/logs_screenshot-crop_alert-query-builder.webp"
+    />
+
+    <figcaption>
+      Create an alert on values extracted from query time parsing.
+    </figcaption>
+  </Collapser>
+
+  <Collapser
+    id="remove-readd-columns"
+    title="Remove and re-add columns"
+  >
+    Variables from query time parsing are automatically added to the log table as columns. You can add and remove these query time parsing columns by clicking **Add column** above the log table. Once you have the columns you want to display, you can also include columns from query time parsing in your dashboards by clicking **Add to dashboard**.
+  </Collapser>
+
+  <Collapser
+    id="inspect-queries"
+    title="View the query behind the logs"
+  >
+    To see the full query we're running, click **NRQL** at the top of the page. You can see how the `aparse` function is used to parse your logs at query time.
+
+    <img
+      title="Screenshot showing the query behind the parsing rule"
+      alt="Screenshot showing the query behind the parsing rule"
+      src="/images/logs_screenshot-crop_query-behind-parsing-rule.webp"
+    />
+
+    <figcaption>
+      See the full NRQL query used to extract values in query time parsing.
+    </figcaption>
+  </Collapser>
+
+  <Collapser
+    id="view-query-attributes"
+    title="View query attributes"
+  >
+    You can use the **Attributes** view to see your variables from query time parsing and filter by specific values for these variables.
+
+    <img
+      title="Screenshot showing the parsing attributes view"
+      alt="Screenshot showing the parsing attributes view"
+      src="/images/logs_screenshot-crop_parsing-attributes-view.webp"
+    />
+
+    <figcaption>
+      In the **Attributes** view, search on extracted values from query time parsing.
+    </figcaption>
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,129 @@
+---
+title: Comportamento de criação de log do agente de infraestrutura
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot logs
+metaDescription: How New Relic generates and stores logs for the infrastructure agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O agente de infraestrutura da New Relic reúne seus próprios dados, bem como o log de integração e os consolida em uma única fonte. Por padrão, os log aparecem em `standard-output` e são adicionados a um [arquivo de log](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings#log-file). Para desativar a saída padrão de login, [consulte as opções de configuração do agente](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#stdout).
+
+## Configuração básica
+
+O exemplo a seguir mostra uma configuração típica para o log do agente em sistemas Linux (alterar o caminho do arquivo ao executar o Windows ou outra plataforma):
+
+```
+log:
+  level: info
+  file: '/var/log/newrelic-infra/newrelic-infra.log'
+  rotate:
+    max_size_mb: 100
+    max_files: 5
+    compression_enabled: true
+    file_pattern: YYYY-MM-DD_hh-mm-ss.log
+```
+
+## Registrando níveis de gravidade [#security-levels]
+
+A infraestrutura usa um subconjunto dos [níveis de severidade<DNT>Syslog</DNT> ](https://en.wikipedia.org/wiki/Syslog#Severity_level)padrão:
+
+* `ERROR`: Condições de erro atendidas
+* `WARN`: Condições de aviso atendidas
+* `INFO`: Mensagens informativas
+* `DEBUG`: Contém mensagens em nível de depuração (útil quando há resolução de problemas)
+
+## Formatação log
+
+Para [agente de infraestrutura v1.4.9 ou superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), as mensagens do log são alinhadas com valores de contexto. Isto oferece melhor agrupamento e filtragem; por exemplo:
+
+```
+containerized agent found in container
+     containerID: VALUE
+```
+
+Por padrão, os logs de infraestrutura são formatados como texto:
+
+* No modo de primeiro plano, a saída log é colorida, sem timestamp:
+
+  ```
+  DEBUG Sending deltas divided in blocks component=PatchSender mentityKey=ohaimaci mnumberOfBlocks=1
+  ```
+
+* No modo de segundo plano, o log é uma saída de carimbo de data/hora, usada ao executar como um serviço ou ao descarregar o log em um arquivo:
+
+  ```
+  time="2019-07-12T09:54:15+02:00" level=info msg="Agent service manager shutdown completed successfully." component=AgentService service=newrelic-infra
+  ```
+
+Alternativamente, o log pode ser formatado como um arquivo JSON:
+
+```
+{"context":{},"level":"info","msg":"upstart_interval_sec: 0","timestamp":"2019-07-11T18:24:03+02:00"}
+{"context":{},"level":"info","msg":"plugin_dir: ","timestamp":"2019-07-11T18:24:03+02:00"}
+```
+
+Para alterar o formato do log, consulte as [definições de configuração do agente](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#log-format).
+
+## Rotação de log integrada [#builtin-log-rotation]
+
+Para [o agente de infraestrutura v1.28.0 ou superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), um mecanismo integrado de rotação e compactação de log está disponível no agente.
+
+## Modo detalhado inteligente
+
+Para [o agente de infraestrutura versões 1.9.0 ou superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), você pode ativar o modo detalhado inteligente para log.
+
+O modo detalhado inteligente evita que mensagens de depuração sejam registradas até que uma mensagem de erro seja detectada. Quando um erro é detectado, as mensagens de depuração são gravadas no arquivo de log antes do erro. Observe que apenas o número mais recente de mensagens de depuração configuradas é registrado. Por exemplo, se você tiver um limite configurado de 10, quando um erro for detectado, as 10 mensagens de depuração mais recentes antes da detecção do erro serão registradas.
+
+Para obter mais informações sobre como ativar o modo detalhado inteligente e o limite de mensagens de depuração, consulte [Configurações de configuração de infraestrutura](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#logging-variables).
+
+## Integração gerenciamento de logs
+
+Integração grava a carga JSON em STDOUT e o texto simples (JSON estruturado no futuro) faz login em STDERR.
+
+O agente de infraestrutura manipula linhas STDERR de integração e encaminha essa saída para o log do agente.
+
+O agente trata cada linha STDERR da seguinte maneira:
+
+* <DNT>**when agent runs in verbose mode**</DNT>: apenas encaminha a linha STDERR completa como uma entrada de log do agente DEBUG, colocando contextos de linha de integração dentro do campo \`msg\`.
+* <DNT>**otherwise**</DNT>: analisa a linha em relação ao formato esperado (veja abaixo) e registra apenas como nível de agente ERROR, entradas produzidas pela integração com níveis de severidade \`fatal\` ou \`error\`. Nesse caso, os campos são extraídos e encaminhados de maneira estruturada (portanto, se a saída JSON estiver habilitada para o agente, os campos se tornarão consultáveis.
+
+Por padrão, o agente de infraestrutura filtra quaisquer erros de integração que não impeçam a execução da integração. Você só verá todos os erros de uma integração se o nível de log estiver definido como DEBUG ou se a integração estiver listada especificamente na configuração do log. Por exemplo, nesta configuração, todos os erros provenientes de `nri-mssql` serão mostrados, mesmo que o nível de log seja INFO:
+
+```YAML
+log:
+  include_filters:
+    integration_name:
+      - nri-mssql
+```
+
+### Formato esperado de integração STDERR
+
+Espera-se que uma linha seja uma lista de pares de valores principais separados por um caractere igual. As chaves podem conter qualquer caractere, enquanto os valores podem ter três formatos diferentes:
+
+1. string: &lt;quote>qualquer caractere incluindo aspas de escape \\"&lt;quote>
+2. mapa: &&#x7B;qualquer caractere}
+3. palavra: qualquer caractere, exceto espaços
+
+Internamente o agente usou este regex para extrair os campos:
+
+```
+([^\s]*?)=(".*?[^\\]"|&{.*?}|[^\s]*)
+```
+
+Por exemplo, esta linha:
+
+```
+time="2015-03-26T01:27:38-04:00" level=error msg="Foo bar baz" foo=bar
+```
+
+Irá gerar uma linha log do agente estruturada com estes campos:
+
+```
+- "time": "2015-03-26T01:27:38-04:00"
+- "level": "error"
+- "msg": "Foo bar baz"
+- "foo": "bar"
+```

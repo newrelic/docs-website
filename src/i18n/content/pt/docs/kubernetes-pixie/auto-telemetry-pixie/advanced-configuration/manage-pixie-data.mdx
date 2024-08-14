@@ -1,0 +1,123 @@
+---
+title: Gerencie sua telemetria automática com ingestão de dados Pixie
+tags:
+  - Pixie Auto-telemetry
+  - lowdatamode
+  - low data mode
+  - reduce ingest
+  - Kubernetes pods
+  - Kubernetes
+  - manage Pixie data
+metaDescription: Learn how to manage your auto-telemetry with Pixie data ingest
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Você tem opções para o tipo e a quantidade de dados que ingere ao instalar a telemetria automática com Pixie. Durante a instalação, use o Helm para reduzir, restringir ou excluir dados, excluindo namespace ou pod específico, coletando dados apenas para os nós desejados ou editando colunas que contêm informações confidenciais.
+
+<Callout variant="important">
+  As seções a seguir mostram como configurar a ingestão durante a instalação do Pixie. Você também pode configurar a ingestão após a instalação [ativando, desativando ou adicionando o script de exportação Pixie personalizado](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/overview/#pixie-configure-storage).
+</Callout>
+
+## Excluir namespace e pod [#reduce-ingest-helm]
+
+Se quiser reduzir a quantidade de dados Pixie que New Relic ingere, você pode excluir o namespace ou pod adicionando o seguinte parâmetro ao gráfico do Helm durante a instalação. Observe que os dados ainda existem no Pixie:
+
+* `excludeNamespacesRegex` - use para identificar o namespace que deseja excluir do envio de dados de observabilidade para o New Relic. Se estiver vazio, os dados de todo o namespace serão enviados para New Relic. Por exemplo:
+
+  ```
+  --set newrelic-pixie.excludeNamespacesRegex="examplenamespace-1|examplenamespace-2"
+  ```
+
+* `excludePodsRegex` - use para identificar o pod em todos os namespaces que você deseja excluir do envio de dados de observabilidade para New Relic. Se estiver vazio, os dados de todos os pods (exceto aqueles no namespace excluído) serão enviados para o New Relic. Por exemplo:
+
+  ```
+  --set newrelic-pixie.excludePodsRegex="examplepod-1|examplepod-2"
+  ```
+
+Essas duas opções de configuração fornecem controle adicional sobre os dados `Metric` e `Span` enviados do Pixie para o New Relic.
+
+Por exemplo, se você quiser configurar a integração `newrelic-pixie` para excluir todos os namespaces, exceto `px-sock-shop` e `kafka-demo`, anexe o seguinte parâmetro de configuração ao comando de instalação do Helm ou de atualização do Helm.
+
+```
+  --set newrelic-pixie.excludeNamespacesRegex="default|kube-node-lease|kube-public|kube-system|newrelic|newrelic-custom-metrics|olm|px-operator"
+```
+
+Ou, se você quiser excluir o pod em execução em um namespace não excluído, poderá adicionar outro parâmetro de configuração à instalação ou atualização do Helm. Em vez de combinar nomes exatos, você pode usar um regex simples para combinar nomes de pod relacionados ao teste de carga, apenas como exemplo.
+
+```
+
+--set newrelic-pixie.excludePodsRegex="load-test.*|loadgen.*"
+
+```
+
+Se estiver executando uma instalação totalmente nova, você precisará anexar `excludeNamespacesRegex` e `excludePodsRegex` ao comando `helm upgrade --install` fornecido pela instalação guiada do New Relic:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/pixie-labs/pixie/main/k8s/operator/crd/base/px.dev_viziers.yaml && \
+kubectl apply -f https://raw.githubusercontent.com/pixie-labs/pixie/main/k8s/operator/helm/crds/olm_crd.yaml && \
+helm repo add newrelic https://helm-charts.newrelic.com && helm repo update && \
+kubectl create namespace newrelic ; helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+ --set global.licenseKey=<NR LICENSE KEY> \
+ --set global.cluster=pixie-auto-telemetry \
+ --namespace=newrelic \
+ --set newrelic-infrastructure.privileged=true \
+ --set ksm.enabled=true \
+ --set prometheus.enabled=true \
+ --set kubeEvents.enabled=true \
+ --set logging.enabled=true \
+ --set newrelic-pixie.enabled=true \
+ --set newrelic-pixie.apiKey=<PIXIE API KEY> \
+ --set pixie-chart.enabled=true \
+ --set pixie-chart.deployKey=<PIXIE DEPLOY KEY> \
+ --set pixie-chart.clusterName=pixie-auto-telemetry \
+ --set newrelic-pixie.excludeNamespacesRegex="default|kube-node-lease|kube-public|kube-system|newrelic|newrelic-custom-metrics|olm|px-operator" \
+ --set newrelic-pixie.excludePodsRegex="load-test.*|loadgen.*"
+```
+
+Se você estiver apenas atualizando uma instalação existente, esta é uma abordagem muito mais simples:
+
+```
+helm upgrade newrelic-bundle newrelic/nri-bundle --reuse-values -n newrelic --set newrelic-pixie.excludeNamespacesRegex="default|kube-node-lease|kube-public|kube-system|newrelic|newrelic-custom-metrics|olm|px-operator"
+```
+
+Saiba mais sobre o parâmetro disponível para o gráfico do Helm `newrelic-pixie` [aqui](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-pixie#chart-details).
+
+## Use o recurso Kubernetes para coletar dados selecionados [#selected-data]
+
+Ao implantar a Autotelemetria com Pixie, você está, na verdade, habilitando o gráfico Autotelemetria com Pixie Helm, bem como outros componentes New Relic incluídos no pacote New Relic Infrastructure . O pod [Pixie Edge Module (PEM)](https://docs.pixielabs.ai/tutorials/custom-data/distributed-bpftrace-deployment#background) é implantado no cluster como um Kubernetes DaemonSet. Isso significa que por padrão, um pod é agendado para cada nó cluster e é responsável por coletar todas as métricas de observabilidade daquele nó.
+
+No Kubernetes, você pode atribuir pod a um subconjunto específico de nós cluster usando nodeSelectors, taints/tolerações e afinidade/antiafinidade de nó. Dessa forma, você coletará métricas apenas para os nós que escolher, em vez de para cada nó. Isso é útil se você quiser implantar a telemetria automática com Pixie apenas em cinco dos dez nós do cluster, por exemplo. Talvez os cinco nós designados sejam responsáveis pela carga de trabalho de alta prioridade ou talvez você esteja executando nós Linux e Windows em seu cluster e queira implantar apenas nos nós Linux, já que os nós Windows não são suportados atualmente.
+
+Agora você pode atribuir pod a um subconjunto de nós fornecendo uma opção adicional ao comando instalação guiada. Esta opção transmite uma string JSON com escape para o gráfico Auto-telemetria com Pixie, que ativa um `nodeSelector` que agenda apenas o PEM DaemonSet em nós com o rótulo `pixie=allowed`.
+
+```
+--set pixie-chart.patches.vizier-pem='\{\"spec\"\: \{\"template\"\: \{\"spec\"\: \{ \"nodeSelector\"\: \{\"pixie\"\: \"allowed\" \}\}\}\}\}'
+```
+
+Se você estiver usando um arquivo de valores, comum com Helm, então seria assim no `nri-bundle values.yaml`:
+
+```
+pixie-chart:
+ enabled: true
+ patches:
+    vizier-pem: '{"spec": {"template": {"spec": { "nodeSelector": {"pixie": "allowed" }}}}}'
+
+```
+
+Essa abordagem oferece diversas opções de configuração; você só precisa seguir as especificações padrão do Kubernetes.
+
+## Editar colunas que contenham informações confidenciais [#redact-columns]
+
+Você pode editar colunas de dados potencialmente confidenciais, como corpos e cabeçalhos de solicitação e resposta. Para fazer isso, ao implantar a telemetria automática com Pixie, use o seguinte comando do Helm:
+
+```
+--set pixie-chart.dataAccess=Restricted
+```
+
+Se você não definir `dataAccess` como `Restricted`, continuará obtendo acesso total aos dados, que é o estado padrão.
+
+Atualmente, `Full` e `Restricted` são as duas únicas opções.
+
+* `Full`: a opção padrão. Isto está implícito para todos os clusters que já foram implantados. Neste método você pode consultar livremente todas as tabelas e colunas e ver todos os dados.
+* `Restricted`: ao consultar dados, as colunas que podem conter dados confidenciais, como corpos de resposta/solicitação e cabeçalhos de solicitação, são substituídas pela string `REDACTED` . Outras colunas não confidenciais, como `error code`, ainda são mostradas normalmente. Observe que o modo de acesso restrito a dados não é inteligente. Ele não detecta se a linha realmente contém dados confidenciais. Em vez disso, identifica um tipo de conteúdo como potencialmente sensível e oculta-o.

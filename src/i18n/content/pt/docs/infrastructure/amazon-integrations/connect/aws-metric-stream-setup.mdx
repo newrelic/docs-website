@@ -1,0 +1,440 @@
+---
+title: Configurar a integração do Amazon CloudWatch Metric Streams
+tags:
+  - Integrations
+  - Amazon integrations
+  - AWS integrations list
+metaDescription: Learn how to gather all AWS metrics and custom namespaces to send them to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Com a integração do AWS Metric Streams , você só precisa de um <DNT>**single service**</DNT>, [AWS CloudWatch](https://aws.amazon.com/cloudwatch/), para reunir todas as métricas e namespaces personalizados AWS e enviá-los para o New Relic.
+
+Para transmitir métricas do CloudWatch para o New Relic:
+
+1. Verifique as [permissões mínimas e as instruções de mapeamento](#permissions).
+2. Crie o Kinesis Data Firehose e aponte-o para o New Relic.
+3. Em seguida, crie um CloudWatch Metric Streams para enviar métricas para o Firehose que você acabou de criar.
+4. Siga as instruções de configuração [guiada](#setup-cloudformation) ou [manual](#manual-setup) .
+5. Valide [a recepção de dados](#validate-data).
+
+Se aplicável, leia nossa documentação sobre [a migração da AWS polling integração](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream#migrating-from-poll-integrations).
+
+<Callout variant="tip">
+  Você pode usar o Terraform para automatizar o processo de habilitação da integração na nuvem. Leia como no [site de documentação oficial do Terraform](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/cloud_integrations_guide).
+</Callout>
+
+## Permissões mínimas e instruções de mapeamento [#permissions]
+
+Para enriquecer as métricas do CloudWatch com metadados de serviço adicionais e tags personalizadas, qualquer função AWS configurada no New Relic deve receber as seguintes permissões mínimas:
+
+```
+config:BatchGetResourceConfig
+config:ListDiscoveredResources
+elasticache:DescribeCacheClusters
+tag:GetResources
+```
+
+A interface do New Relic atualmente recomenda a política `ReadOnlyAccess` sobre esses itens individuais para que New Relic tenha permissões adequadas para coletar dados de serviço que não estão disponíveis no AWS CloudWatch Metric Streams.
+
+## Mapeamento de regiões e contas New Relic e AWS [#map-accounts-regions]
+
+* Se você gerencia várias contas da AWS, cada conta precisará estar conectada ao New Relic.
+* Se você gerencia várias regiões nessas contas, cada região precisará ser configurada com um Kinesis Data Firehose diferente apontando para o New Relic.
+* Normalmente, você mapeará uma ou mais contas da AWS para uma única conta New Relic.
+
+## Configuração guiada usando CloudFormation [#setup-cloudformation]
+
+Primeiro, você precisa vincular cada uma de suas contas AWS à sua conta New Relic. Para fazer isso, use uma destas opções:
+
+* Vá para
+
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > AWS**
+  </DNT>
+
+  , clique em
+
+  <DNT>
+    **Add an AWS account**
+  </DNT>
+
+  , depois em
+
+  <DNT>
+    **Use metric streams**
+  </DNT>
+
+  e siga as etapas.
+
+* [Automatize esta etapa com NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-cloud-integrations-api-tutorial/#link-aws-cloudwatch).
+
+A seguir, configure o fluxo métrico usando o [template CloudFormation](https://console.aws.amazon.com/cloudformation/home?#/stacks/quickcreate?templateURL=https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/MetricStreams_CloudFormation.yml&stackName=NewRelic-Metric-Stream&param_NewRelicDatacenter=US) que fornecemos na última etapa de nossa interface. Este modelo é fornecido como base para configurar a integração em uma única região. Você pode personalizá-lo e estendê-lo para atender às suas necessidades.
+
+### Parâmetro do modelo CloudFormation
+
+Esta tabela descreve os vários parâmetros necessários para o modelo CloudFormation. Como o modelo criará novos recursos em sua conta da AWS, não fornecemos aqui nomes de recursos existentes da AWS.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '200px' }}>
+        Nome
+      </th>
+
+      <th>
+        Descrição
+      </th>
+
+      <th>
+        Restrições
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        New Relic Ingest chave de licença
+      </td>
+
+      <td>
+        O <InlinePopover type="licenseKey"/>associado à conta para a qual você deseja exportar a métrica.
+      </td>
+
+      <td>
+        String hexadecimal de 40 caracteres
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Centro de dados New Relic
+      </td>
+
+      <td>
+        Identificação do para onde New Relic data center suas métricas são exportadas. (As contas data center da UE têm chave de licença prefixada com `eu0x`)
+      </td>
+
+      <td>
+        Valores permitidos: `US`, `EU`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nome dos fluxos de métricas do CloudWatch
+      </td>
+
+      <td>
+        Nome dos novos CloudWatch Metric Streams (deve ser exclusivo por conta AWS na mesma região AWS )
+      </td>
+
+      <td>
+        Deve conter apenas letras (maiúsculas e minúsculas), números e caracteres '\_' e '-' com comprimento máximo de 255 caracteres no total
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nome do Kinesis Data Firehose
+      </td>
+
+      <td>
+        Nome do novo Kinesis Firehose Delivery Stream (deve ser exclusivo por conta da AWS na mesma região da AWS)
+      </td>
+
+      <td>
+        Deve conter apenas letras (maiúsculas e minúsculas), números e caracteres '.', '\_' e '-' com comprimento máximo de 64 caracteres no total
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nome do intervalo de backup do Firehose S3
+      </td>
+
+      <td>
+        Nome do novo destino do bucket S3 para evento com falha (deve ser globalmente exclusivo em todas as contas AWS em todas as regiões AWS em uma partição)
+      </td>
+
+      <td>
+        Deve aderir às [regras de nomenclatura do bucket S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enriqueça métricas com metadados de recursos do AWS Config
+      </td>
+
+      <td>
+        Habilite e configure o AWS Config para rastrear alterações de recursos. Isso permite uma experiência completa de monitoramento da New Relic.
+      </td>
+
+      <td>
+        Valores permitidos: `true`, `false`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nome do bucket de backup do Config S3
+      </td>
+
+      <td>
+        Nome do novo destino do bucket S3 para configuração do canal de entrega (deve ser globalmente exclusivo em todas as contas da AWS em todas as regiões da AWS em uma partição)
+      </td>
+
+      <td>
+        Deve aderir às [regras de nomenclatura do bucket S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  O modelo CloudFormation fornecido não inclui nenhum filtro namespace de inclusão ou exclusão no CloudWatch Metric Streams. Considere adaptar o modelo base com base nos requisitos do seu negócio.
+</Callout>
+
+## Configuração manual usando Console AWS, API ou chamadas [#manual-setup]
+
+1. **Crie um Kinesis Data Firehose Delivery Stream** e configure o seguinte parâmetro de destino:
+
+   * Fonte: Direct PUT ou outras fontes
+
+   * Transformação de dados: Desativado
+
+   * Conversão de formato de registro: Desativado
+
+   * Destino: New Relic
+
+   * Certifique-se de que as seguintes configurações estejam definidas:
+
+     * Configuração New Relic (Configurações de Destino)
+
+       * URL do endpoint HTTP – Datacenter dos EUA: `https://aws-api.newrelic.com/cloudwatch-metrics/v1`
+
+       * URL endpoint HTTP – Datacenter da UE: `https://aws-api.eu01.nr-data.net/cloudwatch-metrics/v1`
+
+       * Chave de API: Digite sua
+
+         <InlinePopover type="licenseKey"/>
+
+       * Codificação de conteúdo: `GZIP`
+
+       * Duração da nova tentativa: `60`
+
+     * Modo de backup S3: somente dados com falha
+
+     * Bucket S3: selecione um bucket ou crie um novo para armazenar métricas que não foram enviadas.
+
+     * Condições de buffer New Relic
+
+       * Tamanho do buffer: `1 MB`
+       * Intervalo de buffer: `60 (seconds)`
+
+     * Função IAM de permissões:
+
+       * Criar ou atualizar função do IAM
+
+2. **Crie o fluxo de métrica**.
+
+   * Acesse <DNT>**CloudWatch service**</DNT> no console AWS e selecione a opção <DNT>**Streams**</DNT> no menu <DNT>**Metrics**</DNT> .
+
+   * Clique em <DNT>**Create metric stream**</DNT>.
+
+   * Determine a configuração correta com base nos seus casos de uso:
+
+     * Use filtros de inclusão e exclusão para selecionar quais serviços devem enviar métricas para New Relic.
+     * Selecione seu Kinesis Data Firehose.
+     * Defina um nome significativo para o stream (por exemplo, `newrelic-metric-stream)`.
+
+   * Altere o formato de saída padrão para `Open Telemetry 0.7`. (JSON não é compatível.)
+
+   * Confirme a criação do fluxo de métrica.
+
+     Como alternativa, você pode encontrar instruções na documentação AWS para criar CloudWatch Metric Streams usando um modelo CloudFormation, API ou CLI.
+
+3. **Adicione a nova conta AWS **no modo <DNT>**Metric streams**</DNT> na interface do New Relic . Vá para <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > AWS**</DNT>, clique em <DNT>**Add an AWS account**</DNT>, depois em <DNT>**Use metric streams**</DNT> e siga as etapas.
+
+## Valide se seus dados foram recebidos corretamente [#validate-data]
+
+Para confirmar que você está recebendo dados dos Streams métrica, siga estes passos:
+
+1. Vá para <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > AWS**</DNT> e pesquise as contas <DNT>**Stream**</DNT> .
+
+2. Verifique o seguinte:
+
+   * Dashboard de status da conta. Útil para confirmar se New Relic recebe os dados métricos (erros, número de namespace/métrica ingeridos, etc.)
+   * Explore seus dados. Utilize métrica e evento para encontrar um conjunto específico de métricas, acessar todas as dimensões disponíveis para uma determinada métrica e muito mais.
+
+Pode levar alguns minutos até que novos recursos sejam detectados e sintetizados como entidade. Consulte [limites do sistema de integrações em nuvem](/docs/data-apis/manage-data/view-system-limits) para obter mais informações.
+
+<Callout variant="tip">
+  As métricas da AWS do CloudWatch para serviços globais, como AWS Billing, estão disponíveis apenas na região <DNT>**us-east-1**</DNT>. Certifique-se de que haja um CloudWatch Metric Streams ativo configurado nessa região.
+</Callout>
+
+## Consulta, armazenamento métrico e mapeamento [#query-experience]
+
+As métricas provenientes do AWS CloudWatch são armazenadas como métricas dimensionais do tipo `summary`. Você pode [consultar](/docs/telemetry-data-platform/get-data/apis/query-metric-data-type/) usando [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/).
+
+Mapeamos a métrica da atual integração na nuvem para o novo mapeamento que virá do AWS Metric Streams. Você pode continuar usando a nomenclatura métrica atual, e a consulta continuará trabalhando e coletando dados do AWS Metric Streams e da atual integração na nuvem.
+
+Confira nossa documentação sobre como [a atual integração na nuvem métrica se mapeia para a nova nomenclatura métrica](/docs/integrations/amazon-integrations/get-started/aws-integrations-metrics/).
+
+Todas as métricas provenientes do fluxo métrica possuem estes atributos:
+
+* `aws.MetricStreamArn`
+* `collector.name = 'cloudwatch-metric-streams'`.
+
+## Entidade do namespace AWS na lista de entidades [#aws-entities]
+
+New Relic [Geramos entidade](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) para muitos AWS namespaces . Quando geramos entidade New Relic para um namespace , você pode esperar:
+
+* Navegue por essas entidades em nosso [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer).
+* Aceda a um dashboard de entidades criado automaticamente para essas entidades.
+* Obtenha métrica e entidade desse namespace decorado com tag AWS . A coleta da tag AWS requer que você tenha concedido à New Relic a permissão `tag:GetResources`, que faz parte do processo de configuração na interface. AWS Tag mostrada em métrica como `tag.AWSTagName`; por exemplo, se você definiu uma `Team` AWS tag no recurso, ela será exibida como `tag.Team`.
+* Aproveite todos os recursos incluídos no explorador de entidades.
+
+<Callout variant="important">
+  [O New Relic Lookout](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-lookout-monitor-your-estate-glance) não é compatível com a integração do AWS Metric Streams.
+</Callout>
+
+## Definir condição do alerta [#set-alerts]
+
+Você pode criar NRQL condição do alerta on métrica a partir de um fluxo métrico. Certifique-se de que seu filtro limite os dados apenas às métricas do CloudWatch Metric Streams. Para fazer isso, construa sua consulta assim:
+
+```
+SELECT sum(aws.s3.5xxErrors) FROM Metric WHERE collector.name = 'cloudwatch-metric-streams' FACET aws.accountId, aws.s3.BucketName
+```
+
+Em seguida, para garantir que <InlinePopover type="alerts"/>processe os dados corretamente, defina as configurações avançadas de sinal. Essas configurações são necessárias porque AWS CloudWatch recebe métricas dos serviços com certo atraso. (Por exemplo, a Amazon garante que 90% das métricas EC2 estão disponíveis no CloudWatch dentro de 7 minutos após serem geradas.) Além disso, o streaming de métrica da AWS para New Relic adiciona um atraso adicional de 1 minuto, principalmente devido ao buffer de dados no Firehose.
+
+Para definir as configurações de sinal, em <DNT>**Condition Settings**</DNT>, clique em <DNT>**Advanced Signal Settings**</DNT> e insira os seguintes valores:
+
+1. <DNT>
+     **Aggregation window**
+   </DNT>
+
+   . Recomendamos configurá-lo para 1 minuto. Se você estiver tendo problemas com alertas de oscilação ou se os alertas não dispararem, considere aumentar para 2 minutos.
+
+2. <DNT>
+     **Offset evaluation by**
+   </DNT>
+
+   . Dependendo do serviço, o CloudWatch poderá enviar métricas com certo atraso. O valor é definido no Windows. Com uma janela de agregação de 1 minuto, definir o deslocamento para 8 garante que a maioria das métricas seja avaliada corretamente. Você poderá usar um deslocamento menor se o atraso introduzido pela AWS e Firehose for menor.
+
+3. <DNT>
+     **Fill data gaps with**
+   </DNT>
+
+   . Deixe este vazio ou use Último valor conhecido se lacunas nos dados provenientes da AWS levarem a falso positivo ou negativo.
+
+Consulte nossa documentação sobre [como criar alertas NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/) para obter mais detalhes.
+
+## Coleção de tags [#tags-collection]
+
+New Relic fornece dimensões aprimoradas de métricas provenientes do AWS CloudWatch Metric Streams. O recurso e a tag personalizada são extraídos automaticamente da maioria dos serviços e usados para decorar métricas com dimensões adicionais. Use [métrica e evento](/docs/query-your-data/explore-query-data/explore-data/introduction-data-explorer/) para ver quais tags estão disponíveis em cada métrica AWS .
+
+A consulta a seguir mostra um exemplo de tag sendo coletada e consulta como dimensões em métrica:
+
+```
+SELECT average(`aws.rds.CPUUtilization`) FROM Metric FACET `tags.mycustomtag` SINCE 30 MINUTES AGO TIMESERIES
+```
+
+Nem todas as métricas possuem sua tag personalizada como dimensões. Apenas as métricas vinculadas à entidade listada no [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer) têm a sua tag personalizada associada. O AWS CloudWatch Metric Streams não inclui tag como parte da mensagem de stream; portanto, é necessário processamento adicional no lado da New Relic .
+
+## Coleta de metadados [#metadata-collection]
+
+Assim como acontece com a tag personalizada, New Relic também extrai informações de metadados de serviços relevantes da AWS para decorar as detalhes AWS do CloudWatch com metadados enriquecidos coletados de serviços da API da AWS. Esses metadados estão acessíveis no New Relic como dimensões adicionais na métrica fornecida pelo AWS CloudWatch.
+
+<Callout variant="important">
+  Esse recurso opcional é complementar à integração do CloudWatch Metric Streams. A descoberta e o monitoramento do serviço ficarão incompletos se você não habilitar esse recurso opcional.
+</Callout>
+
+A solução depende do [AWS Config](https://docs.aws.amazon.com/config/index.html), o que pode gerar custos adicionais na sua conta AWS. O AWS Config fornece [controles granulares](https://docs.aws.amazon.com/config/latest/developerguide/select-resources.html) para determinar quais serviços e recursos são registrados. A New Relic ingerirá apenas metadados dos recursos disponíveis em sua conta AWS.
+
+Os seguintes serviços e namespace são suportados:
+
+* ALB/NLB
+* Gateway de API (excluindo API v1)
+* DynamoDB
+* EBS
+* EC2
+* SEC
+* ELB
+* Lambda
+* RDS
+* S3
+
+### Agente de infraestrutura métrica e decoração de metadados EC2 [#infra-data-decoration]
+
+Assim como acontece com a integração de polling API do EC2, quando o agente de infraestrutura está instalado em um host e o namespace EC2 está ativo por meio da integração do AWS CloudWatch Metric Streams, todos os agentes de infraestrutura de evento e métrica são decorados com metadados adicionais.
+
+O atributo a seguir irá decorar amostras de infraestrutura. Alguns deles podem não ser aplicáveis em todos os ambientes: `awsAvailabilityZone`, `ec2InstanceId`, `ec2PublicDnsName`, `ec2State`, `ec2EbsOptimized`, `ec2PublicIpAddress`, `ec2PrivateIpAddress`, `ec2VpcId`, `ec2AmiId`, `ec2PrivateDnsName`, `ec2KeyName`, `ec2SubnetId`, `ec2InstanceType`, `ec2Hypervisor`, `ec2Architecture`, `ec2RootDeviceType`, `ec2RootDeviceName`, `ec2VirtualizationType`, `ec2PlacementGroupName`, `ec2PlacementGroupTenancy`.
+
+## Métrica personalizada e percentil [#custom-metrics-percentiles]
+
+A integração CloudWatch Metric Streams ingere automaticamente novas métricas configuradas no stream, incluindo métrica personalizada e percentil.
+
+### Métrica personalizada [#custom-metrics]
+
+Para ingerir métrica personalizada do CloudWatch, certifique-se de que seu namespace personalizado esteja visível na configuração do CloudWatch Metric Streams e não esteja sendo filtrado por regras de inclusão ou exclusão.
+
+### Percentil [#percentiles]
+
+AWS CloudWatch permite [definir estatísticas adicionais](https://aws.amazon.com/about-aws/whats-new/2022/04/amazon-cloudwatch-metric-streams-additional-statistics/), incluindo percentil.
+
+Siga estas etapas para adicionar percentil a qualquer métrica disponível no stream do CloudWatch:
+
+1. Na AWS, atualize a configuração do stream do CloudWatch (via API, CLI ou Console AWS ) com o percentil necessário na configuração `StatisticConfiguration`. Por exemplo, você pode adicionar os percentis p90, p95 e p99 ao `ELB latency metric (aws.elb.Latency)`.
+
+2. Após alguns minutos, a nova estatística deverá ser disponibilizada no stream e ingerida pela New Relic. percentil pode ser consultado usando esta convenção de nomenclatura:
+
+   ```sql
+     From Metric select max(aws.elb.Latency.p99) where collector.name = 'cloudwatch-metric-streams' timeseries
+   ```
+
+Embora AWS ofereça suporte a outras estatísticas no fluxo além do percentual, elas não são disponibilizadas no formato de exportação de telemetria Open (somente JSON) e atualmente não são suportadas pela New Relic.
+
+Saiba mais sobre preços, limitações e configuração avançada na [documentação AWS ](https://aws.amazon.com/about-aws/whats-new/2022/04/amazon-cloudwatch-metric-streams-additional-statistics/).
+
+## Gerencie seus dados [#manage-data]
+
+A interface New Relic fornece um [conjunto de ferramentas](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-your-data/) para monitorar os dados que estão sendo ingeridos em sua conta. Vá para <DNT>**Manage your data**</DNT> no menu de configurações para ver todos os detalhes. As métricas ingeridas do AWS Metric Streams integração são consideradas no bucket <DNT>**Metric**</DNT>.
+
+Se precisar de uma visualização mais granular dos dados, use a [função`bytecountestimate()` ](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts/#byte-count-estimate)em `Metric` para estimar os dados que estão sendo ingeridos. Por exemplo, a consulta a seguir representa dados ingeridos de todas as métricas processadas via AWS Metric Streams integração nos últimos 30 dias (em bytes):
+
+```
+FROM Metric SELECT bytecountestimate()/10e8 as 'GB Estimate' WHERE collector.name='cloudwatch-metric-streams' SINCE 30 day ago
+```
+
+Para ver os dados ingeridos pelos serviços da AWS/namespace:
+
+```
+FROM Metric SELECT bytecountestimate()/10e8 as 'GB Estimate' WHERE collector.name='cloudwatch-metric-streams' FACET aws.Namespace
+```
+
+Para ver o número de atualizações métricas brutas processadas pelos serviços da AWS/namespace:
+
+```
+FROM Metric SELECT dataPointCount() WHERE collector.name='cloudwatch-metric-streams' FACET aws.Namespace
+```
+
+Recomendamos as seguintes ações para controlar os dados que estão sendo ingeridos:
+
+* Certifique-se de que os fluxos métricos estejam habilitados apenas nas contas e regiões AWS que você deseja monitor com New Relic.
+
+* <DNT>
+    **Use the inclusion and exclusion filters**
+  </DNT>
+
+  no CloudWatch Metric Streams para selecionar quais serviços ou namespaces estão sendo monitorados pelo New Relic.
+
+* Considere usar [regras de eliminação de dados](/docs/telemetry-data-platform/manage-data/drop-data-using-nerdgraph/) para descartar métricas com base em filtros personalizados. (Por exemplo, elimine a métrica por namespace e tag, valor tag ou qualquer outro critério NRQL válido.)
+
+<Callout variant="important">
+  As métricas enviadas por meio AWS Metric Streams são contabilizadas nos limites API métrica para a conta New Relic onde os dados serão ingeridos.
+</Callout>

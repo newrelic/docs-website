@@ -1,144 +1,136 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { navigate } from '@reach/router';
+
 import { css } from '@emotion/react';
 import {
-  Button,
   Link,
+  SearchInput,
   useTranslation,
-  Trans,
+  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
-import bannerBackground from '../images/bannerBackground.svg';
-import bannerBackgroundDark from '../images/bannerBackgroundDark.svg';
+import bannerBackground from 'images/bannerBackground.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '250px';
   const mobileBreakpoint = '450px';
   const { t } = useTranslation();
+  const [searchTerm, setSearchTerm] = useState('');
 
   return (
     <section
       css={css`
         position: relative;
-        border-radius: 4px;
         background: var(--system-text-primary-light);
         background-image: url(${bannerBackground});
         background-repeat: no-repeat;
         background-size: cover;
+        background-position: center;
         display: flex;
+        flex-direction: column;
         align-items: center;
         min-height: ${bannerHeight};
 
-        .dark-mode & {
-          background-color: var(--system-background-floating-dark);
-          background-image: url(${bannerBackgroundDark});
+        @media screen and (max-width: 550px) {
+          justify-content: center;
+          background-size: 150%;
+          background-position: center 20px;
         }
         @media screen and (max-width: ${mobileBreakpoint}) {
-          flex-direction: column-reverse;
-          background-position: 0 150px;
+          min-height: 200px;
+          background-size: 200%;
+          background-position: center 8px;
         }
       `}
     >
-      <div
+      <h1
         css={css`
-          padding: 0 2rem;
+          font-size: 2.5rem;
+          font-weight: 500;
+          color: #1ce783;
+          padding-top: 3rem;
+          margin-bottom: 1.5rem;
+          text-align: center;
+
+          line-height: 1;
+          @media screen and (max-width: 550px) {
+            font-size: 2rem;
+            padding: 0 1rem 0;
+          }
           @media screen and (max-width: ${mobileBreakpoint}) {
-            max-width: 100%;
-            padding: 2rem 1.5rem;
+            font-size: 1.5rem;
           }
         `}
       >
-        <h1
-          css={css`
-            font-size: 3rem;
-            color: var(--system-text-primary-dark);
-            white-space: pre-line;
-            font-weight: 500;
-            @media screen and (max-width: 850px) {
-              font-size: 2.5rem;
+        {t('strings.home.pageTitle')}
+      </h1>
+      <SearchInput
+        placeholder={t('strings.home.search.placeholder')}
+        size={SearchInput.SIZE.MEDIUM}
+        value={searchTerm || ''}
+        iconName={SearchInput.ICONS.SEARCH}
+        isIconClickable
+        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onSubmit={() => {
+          addPageAction({
+            eventName: 'swiftypeSearchInput',
+            category: 'SearchInput',
+            searchTerm,
+            searchLocation: 'homepage',
+          });
+          navigate(`?q=${searchTerm || ''}`);
+        }}
+        css={css`
+          max-width: 880px;
+          width: 80%;
+          svg {
+            color: var(--primary-text-color);
+          }
+        `}
+      />
+      <div
+        css={css`
+          margin-top: 0.75rem;
+          width: 40%;
+          color: white;
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          width: 100%;
+          flex-wrap: wrap;
+          font-weight: 500;
+          font-size: 1rem;
+          a {
+            margin-left: 0.25rem;
+            &:hover {
+              color: var(--brand-button-primary-accent);
             }
-            @media screen and (max-width: ${mobileBreakpoint}) {
-              font-size: 2rem;
-            }
-          `}
-        >
-          {t('home.banner.title')}
-        </h1>
-        <p
-          css={css`
-            color: var(--system-text-primary-dark);
-            @media screen and (max-width: 850px) {
-              font-size: 0.85rem;
-            }
-            @media screen and (max-width: ${mobileBreakpoint}) {
-              font-size: 0.75rem;
-            }
-          `}
-        >
-          <Trans i18nKey="home.banner.intro.p1">
-            We're here to help you monitor, debug, and improve your entire
-            stack. If you're new to New Relic, read our{' '}
-            <Link
-              css={css`
-                color: var(--system-text-primary-dark);
-                &:hover {
-                  color: var(--system-text-primary-dark);
-                }
-              `}
-              to="/docs/using-new-relic/"
-            >
-              Introduction to New Relic doc
-            </Link>
-            . Or get started right now by creating an account and installing a
-            quickstart:
-          </Trans>
-        </p>
-        <div
-          css={css`
-            @media screen and (max-width: 850px) {
-              a {
-                font-size: 0.75rem;
-              }
-            }
-            @media screen and (max-width: ${mobileBreakpoint}) {
-              flex-direction: column;
-              width: 100%;
-              a {
-                width: 100%;
-              }
-            }
-          `}
-        >
-          <Button
-            variant={Button.VARIANT.PRIMARY}
-            as={Link}
-            to="https://newrelic.com/signup"
-            css={css`
-              height: 50px;
-            `}
-          >
-            {t('home.banner.button1')}
-          </Button>
-          <Button
-            variant={Button.VARIANT.OUTLINE}
-            as={Link}
-            to="https://one.newrelic.com/marketplace?state=7ca7c800-845d-8b31-4677-d21bcc061961"
-            css={css`
-              height: 50px;
-              margin-left: 1rem;
-              color: var(--system-text-primary-dark);
-              border-color: var(--system-text-primary-dark);
-              &:hover {
-                color: var(--system-text-primary-dark);
-              }
+          }
+          @media screen and (max-width: 550px) {
+            font-size: 0.75rem;
+          }
 
-              @media screen and (max-width: ${mobileBreakpoint}) {
-                margin-left: 0;
-                margin-top: 1rem;
-              }
-            `}
-          >
-            {t('home.banner.button2')}
-          </Button>
-        </div>
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            display: none;
+          }
+        `}
+      >
+        <p>{t('strings.home.search.popularSearches.title')}: </p>
+        <Link to="?q=nrql">
+          {t('strings.home.search.popularSearches.options.0')},
+        </Link>
+        <Link to="?q=logs">
+          {t('strings.home.search.popularSearches.options.1')},
+        </Link>
+        <Link to="?q=alert">
+          {t('strings.home.search.popularSearches.options.2')},
+        </Link>
+        <Link to="?q=best practices">
+          {t('strings.home.search.popularSearches.options.3')},
+        </Link>
+        <Link to="?q=kubernetes">
+          {t('strings.home.search.popularSearches.options.4')}
+        </Link>
       </div>
     </section>
   );
