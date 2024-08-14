@@ -321,7 +321,7 @@ module.exports = {
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-
+    'gatsby-plugin-eol-rss',
     'gatsby-source-nav',
     'gatsby-source-install-config',
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
