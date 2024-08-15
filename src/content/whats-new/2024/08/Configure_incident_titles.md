@@ -1,7 +1,9 @@
+---
 title: 'Configure titles templates for improved alert processing'
 Summary: 'Title templates of alert conditions can now be customized with incident variable tokens'
 releaseDate:'2024-08-15'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts/create-alert/condition-details/title-template/'
+---
 
 With the latest update to our alert creation experience, you now have the ability to use any of the variable tokens available for the Incident event to customize the title templates of alert conditions. Previously, titles for alert conditions were automatically generated based on the name of the entity and the metric when an entity is present, or the alert condition name with the facet tags appended to it. With this update, you can make your incident titles more concise, descriptive, and distinct for more effective alert notification processing and navigation.
 
