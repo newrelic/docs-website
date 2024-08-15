@@ -1,7 +1,7 @@
 ---
-title: Optimize AWS workloads faster, with one-step instrumentation and full stack observability 
-summary: 'simplified instrumentation, pre-built dashboards and automatic correlation across your AWS environment.'
-releaseDate: '2023-08-15'
+title: "Optimize AWS workloads faster, with one-step instrumentation and full stack observability" 
+summary: "Simplified instrumentation, pre-built dashboards and automatic correlation across your AWS environment."
+releaseDate: '2024-08-15'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations/' 
 ---
 
@@ -23,6 +23,6 @@ New Relic’s intelligent observability platform gives you one place to correlat
 
 [**Watch the Databyte to learn more**](https://youtu.be/54skgSenvHE)
 
-![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](.static/images/one-step AWS_PP.png "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
+![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](/images/whats-new-one-step-aws.webp "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
 
 <figcaption>A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.</figcaption>
