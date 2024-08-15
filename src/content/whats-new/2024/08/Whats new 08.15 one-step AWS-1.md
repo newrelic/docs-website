@@ -21,9 +21,8 @@ New Relic’s intelligent observability platform gives you one place to correlat
   
 - [**Automatic relationship discovery and mapping:**](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) Understand the dependencies across applications and AWS infrastructure.
 
-Watch the Databyte to learn more '.....'
+[**Watch the Databyte to learn more**](https://youtu.be/54skgSenvHE)
 
-
-![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](./images/one-step AWS_PP.png "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
+![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](.static/images/one-step AWS_PP.png "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
 
 <figcaption>A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.</figcaption>
