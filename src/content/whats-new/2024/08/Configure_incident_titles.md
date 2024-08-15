@@ -1,7 +1,7 @@
 ---
-title: 'Configure titles templates for improved alert processing'
-Summary: 'Title templates of alert conditions can now be customized with incident variable tokens'
-releaseDate: '2024-08-15'
+title: "Configure titles templates for improved alert processing"
+summary: "Title templates of alert conditions can now be customized with incident variable tokens"
+releaseDate: '2024-08-19'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts/create-alert/condition-details/title-template/'
 ---
 
