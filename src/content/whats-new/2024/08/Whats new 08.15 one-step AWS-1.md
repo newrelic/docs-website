@@ -24,6 +24,6 @@ New Relic’s intelligent observability platform gives you one place to correlat
 Watch the Databyte to learn more '.....'
 
 
-![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](./images/filename.png "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
+![A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.](./images/one-step AWS_PP.png "A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.")
 
 <figcaption>A screenshot showing the new onboarding option with cloudformation template and multi-cloud observability.</figcaption>
