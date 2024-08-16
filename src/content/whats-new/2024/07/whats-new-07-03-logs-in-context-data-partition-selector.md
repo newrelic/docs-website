@@ -5,7 +5,7 @@ releaseDate: '2024-07-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/data-partitions/'
 ---
 
-We're bringing you more functionality to the data partition selection menu by making at available in logs in context views. You can now filter and query your logs by data partitions in APM, hosts, traces, and transaction veiws, just like you do in the main logs view.
+We're bringing you more functionality to the data partition selection menu by making at available in logs in context views. You can now filter and query your logs by data partitions in APM, hosts, traces, and transaction views, just like you do in the main logs view.
 
 ## Data partitions in logs in context
 
