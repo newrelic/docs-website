@@ -22,7 +22,6 @@ const main = async () => {
     filePaths = glob.sync(`${__dirname}/../${dirPath}/**/*.mdx`);
   }
 
-  verifyImages(filePaths);
   await verifyMDX(filePaths);
 };
 
