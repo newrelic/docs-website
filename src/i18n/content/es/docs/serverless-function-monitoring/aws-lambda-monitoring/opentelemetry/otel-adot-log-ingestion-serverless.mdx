@@ -1,0 +1,141 @@
+---
+title: Reenvíe su registro de funciones Lambda con New Relic y OpenTelemetry
+metaDescription: How to instrument your serverless applications on AWS Lambda with ADOT solution in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede monitor AWS la aplicación sin servidor que envía OpenTelemetry log datos de de eventos desde AWS CloudWatch a la New Relic UI. Puede configurar el recolector de capa ADOT Lambda para reenviar con éxito su registro de aplicación OpenTelemetry con todo su contexto de servicio y aplicación. Esto incluye garantizar que el registro contenga metadatos como el nombre del servicio, el nombre del grupo de log , el ARN de la función y cualquier otro atributo relevante que pueda ayudar en la observabilidad y resolución de problemas.
+
+## Requisitos previos [#Prerequisite]
+
+* Asegúrate de tener un <InlinePopover type="licenseKey" />.
+* Una cuenta de AWS
+
+## Procedimiento [#procedure]
+
+La siguiente configuración muestra un enfoque para configurar variables de entorno para su aplicación AWS Lambda. También puede configurarlos en la página de funciones de AWS. Para obtener más información, [consulte el documento de variables de entorno de Amazon Lambda](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html).
+
+<Steps>
+  <Step>
+    Abra el [repositorio de aplicaciones AWS Serverless](https://serverlessrepo.aws.amazon.com/applications) en su browser y complete el siguiente procedimiento.
+
+    1. En <DNT>**Applications**</DNT>, escriba `newrelic` en la barra de búsqueda y haga clic en la casilla de verificación <DNT>**Show apps that create custom IAM roles or resource policies**</DNT> para encontrar `newrelic-aws-otel-log-ingestion`.
+    2. Abra los detalles `newrelic-aws-otel-log-ingestion` y haga clic en <DNT>**Deploy**</DNT>.
+    3. En el menú <DNT>**Configure**</DNT> de la función, vaya a <DNT>**Environment Variables**</DNT> y configure el reenvío de registros utilizando las siguientes variables de entorno:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Llave
+          </th>
+
+          <th>
+            Valor por defecto
+          </th>
+
+          <th>
+            Opciones
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NR_OTEL_LOGGING_ENABLED`
+          </td>
+
+          <td>
+            verdadero
+          </td>
+
+          <td>
+            `true`,`false`
+          </td>
+
+          <td>
+            Determina si los registros se reenvían a la New Relic UI
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `DEBUG_LOGGING_ENABLED`
+          </td>
+
+          <td>
+            false
+          </td>
+
+          <td>
+            `true`,`false`
+          </td>
+
+          <td>
+            Un valor booleano para determinar si desea generar mensajes de depuración en la consola de CloudWatch.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `LICENSE_KEY`
+          </td>
+
+          <td>
+            <InlinePopover type="licenseKey" />se utiliza para enviar datos a New Relic. **Requerido.**
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Step>
+
+  <Step>
+    Reconozca que la aplicación crea funciones de IAM personalizadas y luego haga clic en <DNT>**Deploy**</DNT>.
+  </Step>
+
+  <Step>
+    Una vez que se complete el proceso del paso anterior, cree un disparador Lambda para vincular su función Lambda al registro de CloudWatch. Para que su transmisión de registros se realice a New Relic UI, anexe un disparador a Lambda en la AWS UI:
+
+    1. En el menú del lado izquierdo, seleccione <DNT>**Functions**</DNT>.
+    2. Busque y seleccione la función `newrelic-aws-otel-log-ingestion` creada anteriormente.
+    3. En <DNT>**Triggers**</DNT>, haga clic en <DNT>**Add Triggers**</DNT> y seleccione <DNT>**CloudWatch Logs**</DNT> en el menú desplegable.
+    4. Seleccione el <DNT>**Log group**</DNT> apropiado para su aplicación.
+    5. Ingrese un nombre para su filtro.
+    6. Opcional: ingrese un [patrón de filtro](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).
+    7. Marque la casilla de verificación <DNT>**Enable trigger**</DNT> y luego haga clic en <DNT>**Add**</DNT> para crear el activador.
+
+    <Callout variant="caution">
+      En la función de ingestión, cerciorar de configurar un disparador, no una subscripción log . Configurar una subscripción en la consola Lambda puede generar una cascada de registros generados y reenviados a New Relic.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser id="config-endpoints" title="Opcional: configurar diferentes extremos de registro">
+        Puede configurar un extremo de registro personalizado si es necesario, esto le permitirá, por ejemplo, utilizar nuestro extremo compatible con FedRAMP.
+
+        Para eso, debes desplegar la aplicación explicada anteriormente y luego:
+
+        1. Vaya a la vista Lambda recientemente desplegar función en AWS.
+
+        2. Desplácese hacia abajo y haga clic en la pestaña <DNT>**Configuration**</DNT> .
+
+        3. En el menú de la izquierda dentro de la pestaña <DNT>**Configuration**</DNT> , haga clic en <DNT>**Environment Variables**</DNT>.
+
+        4. Aquí puede ver una lista de las variables de entorno ya existentes; simplemente haga clic en <DNT>**Edit**</DNT> en la parte superior derecha de la tabla <DNT>**Environment Variables**</DNT> .
+
+        5. Actualice el `NR_OTEL_LOGGING_ENDPOINT` con el extremo apropiado:
+
+           * US\_OTEL\_LOGGING\_ENDPOINT: `https://otlp.nr-data.net:4318/v1/logs`
+           * EU\_OTEL\_LOGGING\_ENDPOINT : `https://otlp.eu01.nr-data.net:4318/v1/logs`
+           * Para FedRAMP: `https://gov-log-api.newrelic.com/log/v1`
+
+        6. Haga clic en <DNT>**Save**</DNT>.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+</Steps>
