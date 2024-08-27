@@ -1,0 +1,141 @@
+---
+title: Monitor el flujo de aire de Apache con OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Airflow
+  - Quickstart
+metaDescription: Monitor Airflow data with New Relic using OpenTelemetry.
+freshnessValidatedDate: '2023-11-16T00:00:00.000Z'
+translationType: machine
+---
+
+monitor los datos de Apache Airflow configurando [OpenTelemetry](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#setup-opentelemetry) para enviar datos a New Relic, donde puede visualizar tareas, operadores y ejecuciones de DAG como métrica.
+
+<img title="Screenshot showing sample Airflow DAG runs in New Relic" alt="Screenshot showing sample Airflow DAG runs in New Relic" src="/images/opentelemetry_screenshot_airflow_01.webp" />
+
+## Requisitos previos [#prerequisites]
+
+Antes de habilitar OpenTelemetry en Apache Airflow, deberá instalar el paquete Airflow con el extra `otel` . El método de instalación depende de su enfoque de implementación de Airflow:
+
+### Opción 1: instalación desde PyPi [#install-pypi]
+
+1. Siga las instrucciones de instalación de [la documentación de Airflow](https://airflow.apache.org/docs/apache-airflow/stable/installation/installing-from-pypi.html).
+
+2. Al instalar con pip, agregue el `otel` adicional al comando. Por ejemplo:
+
+   ```sh
+   pip install "apache-airflow[otel]"
+   ```
+
+### Opción 2: instalación desde docker [#install-docker]
+
+1. Configure la imagen de Airflow Docker siguiendo las instrucciones de [la documentación de Airflow](https://airflow.apache.org/docs/docker-stack/index.html).
+
+2. Amplíe la imagen docker prediseñada utilizando un Dockerfile para instalar el extra `otel`. Puede reemplazar la última etiqueta con la versión que desee de la imagen.
+
+   ```dockerfile
+   FROM apache/airflow:latest
+   RUN pip install --no-cache-dir "apache-airflow[otel]==$AIRFLOW_VERSION"
+   ```
+
+<Callout variant="tip">
+  `$AIRFLOW_VERSION` ya está configurado por el contenedor apache/airflow, pero se puede reemplazar con un número de versión para otras imágenes base.
+</Callout>
+
+## Configuración [#configuration]
+
+Para enviar Airflow métrica a New Relic, configure la métrica OpenTelemetry para exportar datos a un [recolector OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-intro/), que luego reenviará los datos a un [extremo OTLP](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/#note-endpoints) de New Relic usando un <InlinePopover type="licenseKey" />.
+
+<Callout variant="important">
+  Debido a la actual falta de soporte de Airflow para enviar datos de OpenTelemetry con encabezados de autenticación, el recolector de OpenTelemetry es esencial para autenticarse con New Relic.
+</Callout>
+
+### Configurar el recolector OpenTelemetry [#configuration-collector]
+
+1. Siga el [ejemplo del recolector básico](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-basic/) para configurar su recolector OpenTelemetry.
+2. Configure el recolector con su extremo OTLP apropiado, como `https://otlp.nr-data.net:4317`.
+3. Para la autenticación, agregue su <InlinePopover type="licenseKey" />a la variable de entorno `NEW_RELIC_LICENSE_KEY` para que complete el encabezado `api-key` .
+4. Asegúrese de que se pueda acceder al puerto 4318 en el recolector desde la instancia de Airflow en ejecución. (Para docker, es posible que necesite utilizar una [reddocker ](https://docs.docker.com/network/)).
+5. Lanzamiento el recolector.
+
+### Configurar flujo de aire métrico [#configuration-airflow]
+
+Airflow envía métrica usando OTLP sobre HTTP, que usa el puerto `4318`. Airflow tiene múltiples métodos para [configurar las opciones de configuración](https://airflow.apache.org/docs/apache-airflow/stable/howto/set-config.html).
+
+<Callout variant="important">
+  Si su entorno tiene Airflow ejecutándose en un contenedor docker junto con el recolector OpenTelemetry, deberá cambiar la configuración `otel_host` de `localhost` a la dirección del contenedor del recolector.
+</Callout>
+
+Elija uno de los siguientes métodos para configurar las opciones requeridas para Airflow.
+
+1. Configure las opciones requeridas en el archivo `airflow.cfg` .
+
+   ```ini
+   [metrics]
+   otel_on = True
+   otel_host = localhost
+   otel_port = 4318
+   otel_ssl_active = False
+   ```
+
+2. O establezca las opciones requeridas como variables de entorno.
+
+   ```sh
+   export AIRFLOW__METRICS__OTEL_ON=True
+   export AIRFLOW__METRICS__OTEL_HOST=localhost
+   export AIRFLOW__METRICS__OTEL_PORT=4318
+   export AIRFLOW__METRICS__OTEL_SSL_ACTIVE=False
+   ```
+
+<Callout variant="tip">
+  Airflow tiene [configuraciones métricas adicionales](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#setup-opentelemetry) que pueden resultar útiles. Esto incluye la capacidad de [cambiar el nombre de las métricas](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#rename-metrics) antes de enviarlas, lo cual resulta útil si los nombres de las métricas exceden el límite de 63 bytes para OpenTelemetry.
+</Callout>
+
+## Los datos de validación se envían a New Relic [#validation]
+
+Para confirmar que New Relic está recopilando sus datos de Airflow, ejecute un DAG o una tubería:
+
+1. Inicie sesión en flujo de aire.
+2. Haga clic en el botón Ejecutar en uno de los DAG del tutorial existente, o en el suyo propio.
+3. Espere a que la canalización termine de ejecutarse.
+4. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; APM &amp;amp; services &amp;gt; Services - OpenTelemetry &amp;gt; Airflow**</DNT>.
+5. Haga clic en <DNT>**Metrics Explorer**</DNT> para visualizar métricas para ejecuciones de canalizaciones.
+
+## Panel de control del edificio [#building-dashboards]
+
+Con Airflow métrica, puede crear un panel sobre tuberías individuales, el rendimiento general o ver una comparación entre diferentes tuberías. Haga clic aquí para obtener más información sobre [cómo consultar su métrica](/docs/data-apis/understand-data/metric-data/query-metric-data-type/).
+
+Esta consulta recupera una lista de todas las métricas reportadas para Airflow:
+
+```sql
+SELECT uniques(metricName) FROM Metric WHERE entity.name = 'Airflow' 
+AND metricName LIKE 'airflow.%' SINCE 30 MINUTES AGO LIMIT 100
+```
+
+Asegúrate de cambiar el límite (`100`) si tus nombres métricos lo exceden.
+
+Esta consulta muestra una comparación de diferentes tiempos de finalización para ejecuciones exitosas de diferentes DAG:
+
+```sql
+SELECT latest(airflow.dagrun.duration.success) FROM Metric 
+FACET dag_id WHERE entity.name = 'Airflow' SINCE 30 minutes AGO TIMESERIES
+```
+
+<img title="Screenshot showing sample Airflow DAG runs in New Relic" alt="Screenshot showing sample Airflow DAG runs in New Relic" src="/images/opentelemetry_screenshot_airflow_01.webp" />
+
+Esta consulta muestra recuentos de ejecuciones DAG fallidas, que se pueden utilizar para crear <InlinePopover type="alerts" />para canalizaciones críticas:
+
+```sql
+SELECT count(airflow.dagrun.duration.failed) FROM Metric 
+FACET dag_id WHERE entity.name = 'Airflow' SINCE 30 minutes AGO TIMESERIES
+```
+
+<img title="Screenshot showing sample Airflow failures in New Relic" alt="Screenshot showing sample Airflow failures in New Relic" src="/images/opentelemetry_screenshot_airflow_02.webp" />
+
+<Callout variant="important">
+  New Relic no mantiene las métricas OpenTelemetry de Airflow, por lo que si tiene algún problema con la instrumentación, [cree un nuevo problema en el repositorio de GitHub de Airflow](https://github.com/apache/airflow/issues).
+</Callout>
+
+<InstallFeedback />
