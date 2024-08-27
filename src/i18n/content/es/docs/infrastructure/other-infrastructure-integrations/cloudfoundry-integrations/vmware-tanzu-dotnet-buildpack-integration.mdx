@@ -1,0 +1,136 @@
+---
+title: New Relic .NET para VMware Tanzu
+tags:
+  - Integrations
+  - Cloudfoundry
+  - Tanzu
+metaDescription: Use our integration to gain increased visibility into the performance of your VMware Tanzu environment.
+freshnessValidatedDate: '2024-07-31T00:00:00.000Z'
+translationType: machine
+---
+
+Esta documentación describe el paquete de compilación de la extensión New Relic .NET para VMware Tanzu y proporciona instrucciones sobre cómo instalar el mosaico. El mosaico puede vincular el agente New Relic a aplicaciones ..NET Core o .NET framework para que pueda monitor en un entorno VMware Tanzu.
+
+El paquete de compilación de extensión New Relic .NET para VMware Tanzu le permite vincular sus aplicaciones ..NET Core y framework) al agente New Relic .NET. Esto le permite monitor el estado y el rendimiento de estas aplicaciones, analizar los datos capturados por el agente y, además, correlacionar los datos capturados del agente con la infraestructura métrica de VMware Tanzu y el evento recopilado por [New Relic Firehose Mouth](https://network.pivotal.io/products/nr-firehose-nozzle/).
+
+## Requisitos previos [#prereqs]
+
+Este producto ha sido probado y es compatible con las versiones de VMware Tanzu OpsManager hasta v3.0 inclusive y Tanzu aplicación Service 5.0.
+
+New Relic .NET para VMware Tanzu requiere lo siguiente:
+
+* Una cuenta activa de New Relic con una clave de licencia. Esto se utiliza para vincular aplicaciones .NET al agente .NET New Relic.
+* Para utilizar paquetes de compilación múltiples en el manifiesto de la aplicación, necesita CLI v6.38 o posterior. Para obtener información general sobre cómo agregar paquetes de compilación a manifiestos, consulte [Envío de una aplicación con varios paquetes de compilación](https://docs.pivotal.io/application-service/buildpacks/use-multiple-buildpacks.html) en la documentación de Cloud Foundry.
+* Para utilizar la extensión .NET HWC, necesita HWC buildpack 3.0.3 o después.
+* Para utilizar la extensión .NET Core, necesita el paquete de compilación dotnet core 2.1.5 o después.
+
+La siguiente tabla proporciona información sobre la versión y la compatibilidad con la versión sobre el paquete de compilación de la extensión New Relic .NET para VMware Tanzu.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Elemento
+      </th>
+
+      <th>
+        Detalles
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Versión en mosaico
+      </td>
+
+      <td>
+        1.1.13
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Fecha de lanzamiento
+      </td>
+
+      <td>
+        25 de enero de 2024
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Versión del componente de software
+      </td>
+
+      <td>
+        Paquete de compilación de extensión New Relic .NET 1.1.13
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Versiones compatibles de Ops Manager
+      </td>
+
+      <td>
+        2.9.x, 2.10.x y 3.0.x
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Servicio de aplicación VMware Tanzu compatible para versiones de máquina virtual (VM)
+      </td>
+
+      <td>
+        2.10.x, 2.11.x, 2.12.x, 2.13.x, 3.0.x, 4.0.x y 5.0.x
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Versión de células madre BOSH
+      </td>
+
+      <td>
+        Ubuntu Jammy
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Soporte IaaS
+      </td>
+
+      <td>
+        AWS, GCP, Azure y vSphere
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Instalacion [#install]
+
+El paquete de compilación de la extensión New Relic .NET para VMware Tanzu se puede instalar a través del mosaico en Ops Manager. Alternativamente, puede extraer el archivo `.Pivotal` e instalar paquetes de extensión individuales usando el comando cf línea de comando Interface (CLI) `cf create-buildpack`.
+
+Después de comenzar a monitorear sus aplicaciones, puede configurar <InlinePopover type="alerts" />en función de cualquier métrica recopilada por el agente .NET mediante el subsistema de alertas de New Relic.
+
+El paquete de compilación de extensión New Relic .NET para VMware Tanzu instala uno o más de los siguientes paquetes de compilación según la configuración del mosaico (un total de 8 paquetes de compilación de extensión):
+
+* New Relic ..NET Core para la aplicación ..NET Core que se ejecuta en la pila Ubuntu Jammy 1.\*. Este paquete de compilación de extensión no está almacenado en caché.
+* New Relic ..NET Core para la aplicación ..NET Core que se ejecuta en Ubuntu Jammy 1.\* en VMware Tanzu desconectado (aislado). Esto es para soportar entornos con espacios abiertos donde no hay acceso al mundo exterior.
+* 3 paquetes de compilación de extensión New Relic HWC para la aplicación .NET framework que se ejecuta en la pila de Windows 2019. Este paquete de compilación de extensión no está almacenado en caché.
+* 3 paquetes de compilación almacenados en caché de la extensión New Relic HWC para la aplicación .NET framework que se ejecuta en la pila de Windows 2019 en VMware Tanzu desconectado (aislado). Esto es para soportar entornos con espacios abiertos donde no hay acceso al mundo exterior.
+
+Todos los paquetes de compilación utilizan el enfoque de paquetes de compilación múltiples de Cloud Foundry y requieren que se especifique el paquete de compilación estándar .NET Core o el paquete de compilación HWC como el último paquete de compilación en la cadena de paquetes de compilación, ya sea en el manifiesto de la aplicación o en la línea de comando `cf push` .
+
+<Callout variant="important">
+  La versión en caché de este paquete de extensión para .NET Core y .NET framework contiene la versión New Relic .NET agente `9.1.1`
+</Callout>
+
+## Déjanos tu opinión [#feedback]
+
+Si tiene una solicitud de característica, preguntas o información sobre un error, [envíe un problema de GitHub](https://github.com/newrelic/newrelic-dotnet-buildpack-tile/issues).
