@@ -9,7 +9,9 @@ learnMoreLink: 'https://docs.newrelic.com/docs/alerts/create-alert/create-alert-
 The loss of signal threshold capabilities have been extended and are now available as the sole threshold option for an alert configuration with any entity type. Previously, you could only configure a loss of signal threshold  as an additional threshold value to any static or anomaly condition. What if you want an alert condition that is only monitoring the presence of a signal or data flowing though?
 
 ## Create a stand-alone threshold
-Now, you can create an alert condition with a stand-alone loss of signal threshold and specify how long the signal must be lost before opening a violation. The additional anomaly or static threshold(s) are optional. The stand-alone loss of signal evaluation is similar to the way it works today in conjunction with static or anomaly conditions: There must be a signal that is detected first in order for the signal to meet the threshold of being “lost.” Entity status will function as it does today when a loss of signal occurs: An impacted entity will move into “critical” status when the signal is lost for the amount of time specified.
+Now, you can create an alert condition with a stand-alone loss of signal threshold and specify how long the signal must be lost before opening a violation. The additional anomaly or static threshold(s) are optional. 
+
+The stand-alone loss of signal evaluation is similar to the way it works today in conjunction with static or anomaly conditions: There must be a signal that is detected first in order for the signal to meet the threshold of being “lost.” Entity status will function as it does today when a loss of signal occurs: An impacted entity will move into “critical” status when the signal is lost for the amount of time specified.
 
 ![Condition builder UI showing only Loss of Signal threhold configured](/images/whats-new-signal-loss-standalone.webp "Condition builder UI showing only Loss of Signal threhold configured")
 
