@@ -1,0 +1,140 @@
+---
+title: New Relic .NET extension buildpack for VMware Tanzu
+tags:
+  - Integrations
+  - Cloudfoundry
+  - Tanzu
+metaDescription: Use our integration to gain increased visibility into the performance of your VMware Tanzu environment.
+freshnessValidatedDate: 2024-07-31
+redirects:
+  - /docs/more-integrations/cloudfoundry-integrations/vmware-tanzu-dotnet-buildpack-integration
+  - /docs/infrastructure/host-integrations/host-integrations-list/cloudfoundry-integrations/vmware-tanzu-dotnet-buildpack-integration
+---
+
+This documentation describes the New Relic .NET extension buildpack for VMware Tanzu and provides instructions on how to install the tile. The tile can bind New Relic agents to .NET Core or .NET Framework apps so you can monitor them in a VMware Tanzu environment.
+
+The New Relic .NET extension buildpack for VMware Tanzu enables you to bind your .NET (Core and Framework) apps to New Relic .NET agents. This allows you to monitor the health and performance of these apps, analyze the data captured by agents, and additionally correlate the captured agent data with
+VMware Tanzu infrastructure metrics and events collected by the [New Relic Firehose Nozzle](https://network.pivotal.io/products/nr-firehose-nozzle/).
+
+## Prerequisites [#prereqs]
+
+This product has been tested and is compatible with VMware Tanzu OpsManager versions up to and including v3.0 and Tanzu Application Service 5.0.
+
+New Relic .NET extension buildpack for VMware Tanzu requires the following:
+
+* An active New Relic account with a license key. This is used to bind .NET apps to New Relic .NET agents.
+* To use multi-buildpacks in the app manifest, you need cf CLI v6.38 or later.
+  For general information about adding buildpacks to manifests, see [Pushing an Application with Multiple Buildpacks](https://docs.pivotal.io/application-service/buildpacks/use-multiple-buildpacks.html) in the Cloud Foundry documentation.
+* To use the .NET HWC extension, you need HWC buildpack 3.0.3 or later.
+* To use the .NET Core extension, you need the dotnet core buildpack 2.1.5 or later.
+
+The following table provides version and version-support information about New Relic .NET extension buildpack for VMware Tanzu.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Element
+      </th>
+
+      <th>
+        Details
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Tile version
+      </td>
+
+      <td>
+        1.1.13
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Release date
+      </td>
+
+      <td>
+        January 25, 2024
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Software component version
+      </td>
+
+      <td>
+        New Relic .NET extension buildpack 1.1.13
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Compatible Ops Manager version(s)
+      </td>
+
+      <td>
+        2.9.x, 2.10.x, and 3.0.x
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Compatible VMware Tanzu Application Service for VMs versions
+      </td>
+
+      <td>
+        2.10.x, 2.11.x, 2.12.x, 2.13.x, 3.0.x, 4.0.x and 5.0.x
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        BOSH stemcell version
+      </td>
+
+      <td>
+        Ubuntu Jammy
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        IaaS support
+      </td>
+
+      <td>
+        AWS, GCP, Azure, and vSphere
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Installation  [#install]
+
+The New Relic .NET extension buildpack for VMware Tanzu can be installed via the tile in Ops Manager. Alternatively, you can extract the `.Pivotal` file and install individual extension buildpacks using the cf Command Line Interface (CLI) command `cf create-buildpack`.
+
+After you start monitoring your apps, you can set <InlinePopover type="alerts"/> based on any metrics that are collected by .NET agents using the New Relic alerting subsystem.
+
+The New Relic .NET extension buildpack for VMware Tanzu installs one or more of the following buildpacks depending on the tile configuration (total of 8 extension buildpacks):
+
+* New Relic .NET Core extension buildpack for .NET Core Applications running on Ubuntu Jammy 1.\* stacks. This extension buildpack is non-cached.
+* New Relic .NET Core extension cached buildpack for .NET Core Applications running on Ubuntu Jammy 1.\* in disconnected (isolated) VMware Tanzu deployments. This is for support of air-gapped environments where there is no access to the outside world.
+* 3 New Relic HWC extension buildpacks for .NET Framework Applications running on Windows 2019 stacks. This extension buildpack is non-cached.
+* 3 New Relic HWC extension cached buildpacks for .NET Framework applications running on Windows 2019 stacks in disconnected (isolated) VMware Tanzu deployments. This is for support of air-gapped environments where there is no access to the outside world.
+
+All buildpacks use the multi-buildpack approach of Cloud Foundry and require either the standard .NET Core buildpack or HWC buildpack to be specified as the last buildpack in the buildpack chain, either in the app manifest or in the `cf push` command line.
+
+<Callout variant="important">
+  The cached version of this extension buildpack for both .NET Core and .NET Framework contains New Relic .NET Agents version `9.1.1`
+</Callout>
+
+## Leave us feedback [#feedback]
+
+If you have a feature request, questions, or information about a bug, please [submit a GitHub issue](https://github.com/newrelic/newrelic-dotnet-buildpack-tile/issues).
