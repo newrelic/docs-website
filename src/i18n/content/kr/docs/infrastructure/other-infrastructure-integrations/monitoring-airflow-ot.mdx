@@ -1,0 +1,141 @@
+---
+title: OpenTelemetry로 Apache Airflow 모니터링
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Airflow
+  - Quickstart
+metaDescription: Monitor Airflow data with New Relic using OpenTelemetry.
+freshnessValidatedDate: '2023-11-16T00:00:00.000Z'
+translationType: machine
+---
+
+작업, 연산자 및 DAG 실행을 지표로 시각화할 수 있는 New Relic으로 데이터를 보내도록 [OpenTelemetry를](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#setup-opentelemetry) 구성하여 Apache Airflow 데이터를 모니터링합니다.
+
+<img title="Screenshot showing sample Airflow DAG runs in New Relic" alt="Screenshot showing sample Airflow DAG runs in New Relic" src="/images/opentelemetry_screenshot_airflow_01.webp" />
+
+## 전제 조건 [#prerequisites]
+
+Apache Airflow에서 OpenTelemetry를 활성화하기 전에 `otel` extra를 사용하여 Airflow 패키지를 설치해야 합니다. 설치 방법은 Airflow 배포 접근 방식에 따라 다릅니다.
+
+### 옵션 1: PyPi에서 설치 [#install-pypi]
+
+1. [Airflow 문서](https://airflow.apache.org/docs/apache-airflow/stable/installation/installing-from-pypi.html) 의 설치 지침을 따르세요.
+
+2. pip로 설치할 때 명령에 `otel` 추가를 추가합니다. 예를 들어:
+
+   ```sh
+   pip install "apache-airflow[otel]"
+   ```
+
+### 옵션 2: Docker에서 설치 [#install-docker]
+
+1. [Airflow 문서의](https://airflow.apache.org/docs/docker-stack/index.html) 지침을 사용하여 Airflow Docker 이미지를 설정합니다.
+
+2. Dockerfile을 사용하여 `otel` 추가 항목을 설치하여 사전 빌드된 Docker 이미지를 확장합니다. 최신 태그를 원하는 이미지 버전으로 바꿀 수 있습니다.
+
+   ```dockerfile
+   FROM apache/airflow:latest
+   RUN pip install --no-cache-dir "apache-airflow[otel]==$AIRFLOW_VERSION"
+   ```
+
+<Callout variant="tip">
+  `$AIRFLOW_VERSION` apache/airflow 컨테이너에 의해 이미 설정되어 있지만 다른 기본 이미지의 버전 번호로 대체될 수 있습니다.
+</Callout>
+
+## 구성 [#configuration]
+
+Airflow 지표를 뉴렐릭으로 보내려면 OpenTelemetry 데이터를 [OpenTelemetry 수집기](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-intro/) 로 내보내도록 지표를 구성합니다. 그런 다음 를 사용하여 데이터를 [뉴렐릭 OTLP 엔드포인트 로](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/#note-endpoints) <InlinePopover type="licenseKey" />전달합니다.
+
+<Callout variant="important">
+  현재 Airflow에서는 인증 헤더와 함께 OpenTelemetry 데이터 전송을 지원하지 않기 때문에 OpenTelemetry 수집기는 New Relic으로 인증하는 데 필수적입니다.
+</Callout>
+
+### OpenTelemetry 수집기 구성 [#configuration-collector]
+
+1. OpenTelemetry 수집기를 설정하려면 [기본 수집기 예제를](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-basic/) 따르세요.
+2. `https://otlp.nr-data.net:4317` 과 같은 적절한 OTLP 엔드포인트를 사용하여 수집기를 구성합니다.
+3. 인증을 위해 <InlinePopover type="licenseKey" />를 환경 변수 `NEW_RELIC_LICENSE_KEY` 에 추가하여 `api-key` 헤더를 채웁니다.
+4. 실행 중인 Airflow 인스턴스에서 수집기의 포트 4318에 연결할 수 있는지 확인하세요. (docker의 경우 [docker network 를](https://docs.docker.com/network/) 사용해야 할 수도 있습니다.)
+5. 수집기를 실행합니다.
+
+### Airflow 측정항목 구성 [#configuration-airflow]
+
+Airflow는 포트 `4318` 을 사용하는 HTTP를 통해 OTLP를 사용하여 측정항목을 보냅니다. Airflow에는 [구성 옵션을 설정하는](https://airflow.apache.org/docs/apache-airflow/stable/howto/set-config.html) 여러 가지 방법이 있습니다.
+
+<Callout variant="important">
+  환경에 OpenTelemetry Collector와 함께 Docker 컨테이너에서 실행되는 Airflow가 있는 경우 `otel_host` 설정을 `localhost` 에서 수집기의 컨테이너 주소로 변경해야 합니다.
+</Callout>
+
+Airflow에 필요한 옵션을 설정하려면 다음 방법 중 하나를 선택하세요.
+
+1. `airflow.cfg` 파일에서 필수 옵션을 설정합니다.
+
+   ```ini
+   [metrics]
+   otel_on = True
+   otel_host = localhost
+   otel_port = 4318
+   otel_ssl_active = False
+   ```
+
+2. 또는 필수 옵션을 환경 변수로 설정하세요.
+
+   ```sh
+   export AIRFLOW__METRICS__OTEL_ON=True
+   export AIRFLOW__METRICS__OTEL_HOST=localhost
+   export AIRFLOW__METRICS__OTEL_PORT=4318
+   export AIRFLOW__METRICS__OTEL_SSL_ACTIVE=False
+   ```
+
+<Callout variant="tip">
+  Airflow에는 유용할 수 있는 측정항목에 대한 [추가 설정이](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#setup-opentelemetry) 있습니다. 여기에는 [메트릭 이름을 보내기 전에 메트릭 이름을 바꾸는](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html#rename-metrics) 기능이 포함되어 있습니다. 이는 메트릭 이름이 OpenTelemetry의 63바이트 제한을 초과하는 경우 유용합니다.
+</Callout>
+
+## 데이터가 New Relic으로 전송되었는지 확인 [#validation]
+
+New Relic이 Airflow 데이터를 수집하고 있는지 확인하려면 DAG 또는 파이프라인을 실행하세요.
+
+1. 에어플로우에 로그인하세요.
+2. 기존 튜토리얼 DAG 중 하나 또는 자체의 실행 버튼을 클릭하세요.
+3. 파이프라인 실행이 완료될 때까지 기다립니다.
+4. <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; APM &amp;amp; services &amp;gt; Services - OpenTelemetry &amp;gt; Airflow**</DNT> 으)로 이동합니다.
+5. 파이프라인 실행에 대한 지표를 시각화하려면 <DNT>**Metrics Explorer**</DNT> 클릭하세요.
+
+## 대시보드 구축 [#building-dashboards]
+
+Airflow 측정항목을 사용하면 개별 파이프라인, 전체 성능을 중심으로 대시보드를 구축하거나 다양한 파이프라인 간의 비교를 볼 수 있습니다. [측정항목 쿼리](/docs/data-apis/understand-data/metric-data/query-metric-data-type/) 에 대해 자세히 알아보려면 여기를 클릭하세요.
+
+이 쿼리는 Airflow에 대해 보고된 모든 측정항목 목록을 검색합니다.
+
+```sql
+SELECT uniques(metricName) FROM Metric WHERE entity.name = 'Airflow' 
+AND metricName LIKE 'airflow.%' SINCE 30 MINUTES AGO LIMIT 100
+```
+
+측정항목 이름이 한도를 초과하는 경우 한도(`100`)를 변경하세요.
+
+이 쿼리는 다양한 DAG의 성공적인 실행에 대한 다양한 완료 시간의 비교를 보여줍니다.
+
+```sql
+SELECT latest(airflow.dagrun.duration.success) FROM Metric 
+FACET dag_id WHERE entity.name = 'Airflow' SINCE 30 minutes AGO TIMESERIES
+```
+
+<img title="Screenshot showing sample Airflow DAG runs in New Relic" alt="Screenshot showing sample Airflow DAG runs in New Relic" src="/images/opentelemetry_screenshot_airflow_01.webp" />
+
+이 쿼리는 중요한 파이프라인의 <InlinePopover type="alerts" />빌드하는 데 사용할 수 있는 실패한 DAG 실행 횟수를 표시합니다.
+
+```sql
+SELECT count(airflow.dagrun.duration.failed) FROM Metric 
+FACET dag_id WHERE entity.name = 'Airflow' SINCE 30 minutes AGO TIMESERIES
+```
+
+<img title="Screenshot showing sample Airflow failures in New Relic" alt="Screenshot showing sample Airflow failures in New Relic" src="/images/opentelemetry_screenshot_airflow_02.webp" />
+
+<Callout variant="important">
+  Airflow의 OpenTelemetry 측정항목은 New Relic에서 유지 관리되지 않으므로 계측에 문제가 있는 경우 [Airflow의 GitHub 저장소에서 새 문제를 생성하세요](https://github.com/apache/airflow/issues).
+</Callout>
+
+<InstallFeedback />

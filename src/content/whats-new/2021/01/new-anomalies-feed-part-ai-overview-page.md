@@ -7,7 +7,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-r
 
 With the new **Anomalies** tab in the consolidated Applied Intelligence **Overview**, you can now view all your anomalies in one place to quickly gain a sense of the state of your system. You’ll see **Anomalies** alongside **Issues** and **Incidents**.
 
-![AI Overview's Anomalies tab (GIF demo)](./images/AI-Overview_Anomalies-Tab_Small_20210120.gif "AI Overview's Anomalies tab (GIF demo)")
+![AI Overview's Anomalies tab (GIF demo)](/images/AI-Overview_Anomalies-Tab_Small_20210120.gif "AI Overview's Anomalies tab (GIF demo)")
 
 A demo of how to explore system anomalies from **Alerts & AI > Overview** in New Relic One.
 
