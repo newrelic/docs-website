@@ -1,0 +1,551 @@
+---
+title: Integración dbt Cloud con Airflow y Snowflake
+tags:
+  - New Relic integrations
+  - Dbt Cloud integrations
+metaDescription: Dbt Cloud with Airflow and Snowflake integration
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra <DNT>dbt Cloud</DNT> integración con <DNT>Airflow</DNT> monitorea el estado de sus <DNT>dbt Cloud</DNT> trabajos y recursos, ayudándolo a identificar problemas como cuando fallan ejecuciones, modelos o pruebas.
+
+Esta integración se ejecuta en <DNT>Apache Airflow</DNT> y consulta a <DNT>Snowflake</DNT> sobre cualquier prueba fallida si está configurada para hacerlo.
+
+## Requisitos previos [#prerequisites]
+
+* Cuenta de dbt Cloud con API habilitadas y usando <DNT>Snowflake</DNT> como base de datos.
+* Acceso a la cuenta <DNT>Snowflake</DNT> donde se ejecuta la cuenta <DNT>dbt Cloud</DNT> .
+* Entorno <DNT>Airflow</DNT> existente versión 2.8.1 o superior, o capacidad para ejecutar <DNT>Docker Compose</DNT>.
+
+## Instalar la integración [#install]
+
+Puedes instalar la integración de New Relic <DNT>dbt Cloud</DNT> con <DNT>Airflow</DNT> de la siguiente manera:
+
+* Instalación en su entorno Airflow existente. Esto se recomienda para entorno de producción.
+* Instalación con docker Compose. Esto es adecuado para pruebas de concepto rápidas.
+
+Seleccione la opción más adecuada a sus necesidades haciendo clic en su pestaña:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="1">
+      Instalar en un entorno Airflow existente
+    </TabsBarItem>
+
+    <TabsBarItem id="2">
+      Instalar con docker Compose
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="1">
+      <Steps>
+        <Step>
+          Cerciorar de tener el proveedor Snowflake y luego clone el repositorio `newrelic-dbt-cloud-integration` ejecutando estos comandos:
+
+          ```shell
+          pip install apache-airflow-providers-snowflake>=3.0.0
+          ```
+
+          ```shell
+          git clone https://github.com/newrelic-experimental/newrelic-dbt-cloud-integration.git
+          ```
+        </Step>
+
+        <Step>
+          Copie el contenido de `airflow/dags` a la raíz de su carpeta Airflow dags
+        </Step>
+
+        <Step>
+          Cree las cinco conexiones de flujo de aire necesarias para el DAG. La siguiente tabla proporciona el nombre de la conexión y la información para configurarla. Tenga en cuenta que para todos estos, el tipo es `http`:
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Nombre de la conexión
+                </th>
+
+                <th>
+                  Descripción
+                </th>
+
+                <th>
+                  Tipo
+                </th>
+
+                <th>
+                  Host y contraseña
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td class="children-nowrap">
+                  `dbt_cloud_admin_api`
+                </td>
+
+                <td>
+                  Le permite conectarse a la API de administración de dbt Cloud con <span class="children-nowrap">`SimpleHttpHook`</span>
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://cloud.getdbt.com/api/v2/accounts/ACCOUNT\_ID/ (Reemplace `ACCOUNT_ID` con el ID de su cuenta de dbt Cloud)
+
+                  **Contraseña:** Su [token de API de dbt Cloud (Configuración de perfil) o un token de cuenta de servicio](https://docs.getdbt.com/docs/dbt-cloud-apis/user-tokens#user-tokens)
+                </td>
+
+                <td />
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `dbt_cloud_discovery_api`
+                </td>
+
+                <td>
+                  Le permite conectarse a la API de descubrimiento de dbt
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://metadata.cloud.getdbt.com/graphql
+
+                  **Contraseña:** [token de cuenta de servicios en Dbt Cloud](https://docs.getdbt.com/docs/dbt-cloud-apis/user-tokens#user-tokens)
+                </td>
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `nr_insights_insert`
+                </td>
+
+                <td>
+                  Permite subir eventos personalizados a New Relic
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://insights-collector.newrelic.com/v1/accounts/ACCOUNT\_ID/events (Reemplace `ACCOUNT_ID` con el ID de su cuenta)
+
+                  **Contraseña:** Su [NR información valiosa insertar clave de API](https://one.newrelic.com/admin-portal/api-keys/insightkeys)
+                </td>
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `nr_insights_query`
+                </td>
+
+                <td>
+                  Te permite consultar el evento New Relic personalizado
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://insights-api.newrelic.com/v1/accounts/ACCOUNT\_ID/query (Reemplace `ACCOUNT_ID` con el ID de su cuenta)
+
+                  **Contraseña:** Su [NR información valiosa consulta clave de API](https://one.newrelic.com/admin-portal/api-keys/insightkeys)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          Una vez que configuró los cuatro anteriores, deberá configurar la conexión Snowflake. Snowflake le permite consultar filas de prueba fallidas. Hay [muchas formas](https://airflow.apache.org/docs/apache-airflow-providers-snowflake/stable/connections/snowflake.html) de configurar una conexión de copo de nieve. Para configurar usando un par de claves privadas, complete el siguiente atributo:
+
+          * `Type`: Copo de nieve
+          * `Login`: Su nombre de usuario de Snowflake
+          * `Account`: Su cuenta de Snowflake
+          * `Warehouse`: Su almacén de Snowflake
+          * `Role`: Tu papel de Copo de nieve. El rol debe tener acceso a todas las bases de datos empleadas en dbt Cloud para obtener todas las filas de prueba fallidas.
+          * `Private Key Text`: la clave privada completa empleada para esta conexión.
+          * `Password`: frase de contraseña para la clave privada si está cifrada. En blanco si no está cifrado.
+        </Step>
+
+        <Step>
+          Complete la configuración habilitando el `new_relic_data_pipeline_observability_get_dbt_run_metadata2` DAG.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+
+    <TabsPageItem id="2">
+      <Steps>
+        <Step>
+          Ejecute el siguiente comando para clonar el repositorio `newrelic-dbt-cloud-integration` :
+
+          ```shell
+          git clone https://github.com/newrelic-experimental/newrelic-dbt-cloud-integration.git
+          ```
+
+          Luego `cd` en el directorio Airflow:
+
+          ```shell
+          cd newrelic-dbt-cloud-integration/airflow
+          ```
+
+          Luego inicialice y ejecute docker Compose ejecutando los siguientes comandos:
+
+          ```shell
+          docker-compose up airflow-init
+          ```
+
+          ```shell
+          docker-compose up
+          ```
+        </Step>
+
+        <Step>
+          lanza la UI de Airflow: `http://localhost:8080`
+        </Step>
+
+        <Step>
+          Cree las cinco conexiones de flujo de aire necesarias para el DAG. La siguiente tabla proporciona el nombre de la conexión y la información para configurarla. Tenga en cuenta que para todos estos, el tipo es `http`:
+
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  Nombre de la conexión
+                </th>
+
+                <th>
+                  Descripción
+                </th>
+
+                <th>
+                  Tipo
+                </th>
+
+                <th>
+                  Host y contraseña
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td class="children-nowrap">
+                  `dbt_cloud_admin_api`
+                </td>
+
+                <td>
+                  Le permite conectarse a la API de administración de dbt Cloud con <span class="children-nowrap">`SimpleHttpHook`</span>
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://cloud.getdbt.com/api/v2/accounts/ACCOUNT\_ID/ (Reemplace `ACCOUNT_ID` con el ID de su cuenta de dbt Cloud)
+
+                  **Contraseña:** Su [token de API de dbt Cloud (Configuración de perfil) o un token de cuenta de servicio](https://docs.getdbt.com/docs/dbt-cloud-apis/user-tokens#user-tokens)
+                </td>
+
+                <td />
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `dbt_cloud_discovery_api`
+                </td>
+
+                <td>
+                  Le permite conectarse a la API de descubrimiento de dbt
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://metadata.cloud.getdbt.com/graphql
+
+                  **Contraseña:** [token de cuenta de servicios en Dbt Cloud](https://docs.getdbt.com/docs/dbt-cloud-apis/user-tokens#user-tokens)
+                </td>
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `nr_insights_insert`
+                </td>
+
+                <td>
+                  Permite subir eventos personalizados a New Relic
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://insights-collector.newrelic.com/v1/accounts/ACCOUNT\_ID/events (Reemplace `ACCOUNT_ID` con el ID de su cuenta)
+
+                  **Contraseña:** Su [NR información valiosa insertar clave de API](https://one.newrelic.com/admin-portal/api-keys/insightkeys)
+                </td>
+              </tr>
+
+              <tr>
+                <td class="children-nowrap">
+                  `nr_insights_query`
+                </td>
+
+                <td>
+                  Te permite consultar el evento New Relic personalizado
+                </td>
+
+                <td>
+                  <span class="children-nowrap">`http`</span>
+                </td>
+
+                <td>
+                  **Host:** https://insights-api.newrelic.com/v1/accounts/ACCOUNT\_ID/query (Reemplace `ACCOUNT_ID` con el ID de su cuenta)
+
+                  **Contraseña:** Su [NR información valiosa consulta clave de API](https://one.newrelic.com/admin-portal/api-keys/insightkeys)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          Una vez que configuró los cuatro anteriores, deberá configurar la conexión Snowflake. Snowflake le permite consultar filas de prueba fallidas. Hay [muchas formas](https://airflow.apache.org/docs/apache-airflow-providers-snowflake/stable/connections/snowflake.html) de configurar una conexión de copo de nieve. Para configurar usando un par de claves privadas, complete el siguiente atributo:
+
+          * `Type`: Copo de nieve
+          * `Login`: Su nombre de usuario de Snowflake
+          * `Account`: Su cuenta de Snowflake
+          * `Warehouse`: Su almacén de Snowflake
+          * `Role`: Tu papel de Copo de nieve. El rol debe tener acceso a todas las bases de datos empleadas en dbt Cloud para obtener todas las filas de prueba fallidas.
+          * `Private Key Text`: la clave privada completa empleada para esta conexión.
+          * `Password`: frase de contraseña para la clave privada si está cifrada. En blanco si no está cifrado.
+        </Step>
+
+        <Step>
+          Complete la configuración habilitando el `new_relic_data_pipeline_observability_get_dbt_run_metadata2` DAG.
+        </Step>
+      </Steps>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Encuentra tus datos [#find-data]
+
+Esta integración crea y reporta tres eventos personalizados a New Relic:
+
+<CollapserGroup>
+  <Collapser id="collapser-1-in-group-2" title="`dbt_job_run`">
+    `dbt_job_run`: proporciona metadatos y el estado de todas las ejecuciones completadas. Este evento no incluye ningún dato sobre modelos, instantáneas, semillas y pruebas. atributo incluyen:
+
+    * `project_name`
+    * `environment_name`
+    * `run_team`
+    * Todos los campos enumerados en la [API de dbt Cloud v2 para ejecuciones](https://docs.getdbt.com/dbt-cloud/api-v2#/operations/Retrieve%20Run).
+
+    Todos los atributos distintos de `project_name` y `environment_name` van precedidos de `run_`
+
+    Ejemplo de consulta:
+
+    ```sql
+    -- Get status of all job runs in the past seven days
+    select 
+        project_name,
+        environment_name,
+        job_name,
+        run_created_at,
+        run_run_duration_humanized,
+        run_status,
+        run_status_humanized,
+        run_status_message
+    from dbt_job_run
+    since 7 days ago
+    ```
+  </Collapser>
+
+  <Collapser id="collapser-1-in-group-2" title="`dbt_resource_run`">
+    `dbt_resource_run` Proporciona metadatos y estados para todos los recursos ejecutados en una ejecución de trabajo dbt. Los recursos incluyen modelos, instantáneas, semillas y pruebas. atributo incluyen:
+
+    * Todos los atributos en `dbt_job_run`
+    * `team` (Configurado en el meta del proyecto dbt)
+    * `alert_failed_test_rows`
+    * `failed_test_rows_limit`
+    * `slack_mentions`
+    * `message`
+    * `resource_type`
+    * `unique_id`
+    * `database_name`
+    * `schema_name`
+    * `test_column_name`
+    * `test_model_name`
+    * `test_namespace`
+    * `test_parameters`
+    * `test_short_name`
+    * `alias`
+    * `severity`
+    * `warn_if`
+    * `error_if`
+    * `tags`
+    * `path`
+    * `original_file_path`
+    * `meta`
+    * `meta_config`
+
+    Ejemplo de consulta:
+
+    ```sql
+    -- Get status of all resources run in the past day
+    -- Status = 'None' means the resource exists in the project but was not executed in a particular run
+    select 
+        project_name,
+        environment_name,
+        job_name,
+        run_created_at,
+        resource_type,
+        name,
+        status
+    from dbt_resource_run
+    where status != 'None'
+    since 1 day ago
+    limit 200
+    ```
+
+    ```sql
+    -- Get all resources types in the past day
+    select 
+        uniques(resource_type)
+    from dbt_resource_run 
+    since 1 day ago
+    ```
+
+    ```sql
+    -- Get the count of all statuses in the last day
+    -- Status = 'None' means the resource exists in the dbt project, but was not executed in a particular run
+    select 
+        count(*) as total_count
+    from dbt_resource_run
+    facet
+        status
+    since 1 day ago
+    ```
+  </Collapser>
+
+  <Collapser id="collapser-3-in-group-2" title="`dbt_failed_test_rows`">
+    `dbt_failed_test_rows`: proporciona metadatos y hasta las primeras diez columnas de los resultados de una consulta de prueba fallida. Este evento solo se crea cuando la metaconfiguración para una prueba dbt tiene `alert_failed_test_rows`: `true`. atributo incluyen:
+
+    * Todos los atributos en `dbt_resource_run`
+    * `field_1` - `field_10` representa las primeras diez columnas devueltas en una consulta de prueba
+
+    Ejemplo de consulta:
+
+    ```sql
+    select 
+        project_name,
+        environment_name,
+        job_name,
+        run_created_at,
+        name,
+        field_1,
+        field_2,
+        field_3,
+        field_4,
+        field_5,
+        field_6,
+        field_7,
+        field_8,
+        field_9,
+        field_10
+    from dbt_failed_test_row
+    since 7 days ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración DAG
+
+### Conexiones:
+
+Este DAG está diseñado para ejecutar tal como está sin configuración. Al mismo tiempo, sabemos que su compañía puede tener sus propias convenciones de nomenclatura para las conexiones. Como tal, tenemos una configuración simple dentro de `dag_config.yml` donde puedes establecer el nombre de las distintas conexiones.
+
+```yaml
+connections:
+  dbt_cloud_admin_api: dbt_cloud_admin_api
+  dbt_cloud_discovery_api: dbt_cloud_discovery_api 
+  nr_insights_query: nr_insights_query 
+  nr_insights_insert: nr_insights_insert
+  snowflake_api: SNOWFLAKE 
+```
+
+### Ejecutar equipo:
+
+Los trabajos de dbt pueden ser propiedad de diferentes equipos, pero no hay ningún lugar para configurarlos dentro de dbt Cloud. Podemos usar código Python para configurar dinámicamente el equipo. Para escribir su propio código, modifique `airflow/dags/nr_utils/nr_utils.py` y coloque la lógica necesaria en `get_team_from_run()`. Los datos de ejecución pasados a esa función tienen acceso al siguiente atributo.
+
+* nombre del proyecto
+* nombre\_entorno
+* Todos los campos enumerados en la [API de dbt Cloud v2 para ejecuciones](https://docs.getdbt.com/dbt-cloud/api-v2#/operations/Retrieve%20Run). Todos los atributos van precedidos de &amp;quot;run\_&amp;quot;
+
+Aquí hay una función de ejemplo:
+
+```python
+def get_team_from_run(run: dict) -> str:
+    team = 'Data Engineering' 
+    if run['project_id'] == '11111' and run['environment_id'] in ['55555', '33333']:
+        team = 'Platform'
+    if re.match(r'Catch-all', run['job_name']):
+        team = 'Project Catch All'
+    return team
+```
+
+## configuración del proyecto dbt
+
+Dentro del proyecto Dbt, podemos usar la metaconfiguración para establecer un equipo adicional y configuraciones específicas de prueba.
+
+* `Team`: Si bien `run_team determines` es el propietario de los trabajos, a veces necesitamos equipos ascendentes o descendentes para recibir alertas sobre recursos fallidos, como pruebas y modelos. Configurar el equipo nos ayuda a lograrlo.
+* `alert_failed_test_rows`: Configurar en `True` habilitará las filas de pruebas fallidas donde ejecutamos la consulta para pruebas fallidas y enviamos hasta las primeras 10 columnas a New Relic
+* `failed_test_rows_limit`: Número máximo de filas de prueba fallidas para enviar a New Relic. Tenemos un límite codificado de 100 filas para evitar situaciones en las que enviemos cantidades irrazonables a New Relic.
+* `slack_mentions`: si habilita las alertas de holgura, este campo le permite establecer quién debe mencionar en el mensaje.
+
+Configurar esto en `dbt_project.yml` configuraría el equipo en &amp;quot;Ingeniería de datos&amp;quot; y habilitaría filas de prueba fallidas.
+
+```yaml
+models:
+  dbt_fake_company:
+    +meta:
+      nr_config:
+        team: 'Data Engineering'
+        alert_failed_test_rows: False 
+        failed_test_rows_limit: 5
+        slack_mentions: '@channel, @business_users'
+```
+
+Podemos agregar otro atributo llamado mensaje a los recursos. En la siguiente configuración, un equipo empresarial asociado puede recibir alertas sobre pruebas fallidas específicas. Además, podemos configurar alertas en las propias filas de prueba fallidas.
+
+```yaml
+models:
+  - name: important_business_model
+    tests:
+      - some_custom_test:
+        config:
+          meta:
+            nr_config:
+              team: 'Upstream Business Team'
+              alert_failed_test_rows: true 
+              failed_test_rows_limit: 10 
+              slack_mentions: '@channel, @business_user1, @engineer1'
+              message: 'Important business process produced invalid data. Please check X tool' 
+```
+
+## Resolución de problemas [#troubleshooting]
+
+Diferentes versiones de Airflow combinadas con diferentes versiones de proveedores pueden inducir cambios importantes. En algunos casos, es posible que necesite modificar el código para que coincida con las versiones específicas de su entorno Airflow. Realizamos un seguimiento de los problemas conocidos en nuestro [repositorio de Github](https://github.com/newrelic-experimental/newrelic-dbt-cloud-integration/issues).
