@@ -1,0 +1,121 @@
+---
+title: Monitor de implementación (agente de Java)
+tags:
+  - Agents
+  - Java agent
+  - Instrumentation
+metaDescription: 'For your New Relic-monitored Java application: how to track and monitor deployment data.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic te permite enviar información sobre el despliegue de la aplicación desde la línea de comando. Luego, puede ver información detallada en la [página<DNT>**Deployments**</DNT> ](/docs/apm/applications-menu/events/deployments-page)en la UI: vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > Applications > (select an app) > Events > Deployments**</DNT>.
+
+## Instalacion [#Installation]
+
+Parte del proceso [de instalación](/docs/agents/java-agent/installation/java-agent-manual-installation) implica cambiar el [`app_name`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-app_name) en su archivo `newrelic.yml` por un nombre significativo. Cuando ejecute el script de carga desplegable, utilizará el nombre de la aplicación para asociar todas las instancias de la aplicación con el despliegue. Cada vez que ejecute el script, informará un nuevo despliegue a New Relic.
+
+Por ejemplo, si configuró el marcador de despliegue y ejecutó el script para enviar 100 instancias de la aplicación, la página <DNT>**Deployments**</DNT> mostrará un despliegue para las 100 instancias. Si ejecuta el script nuevamente, mostrará otro despliegue.
+
+Como parte del proceso de instalación, después de cambiar [`app_name`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-app_name), agregue esta entrada a `newrelic.yml` en la sección `common` :
+
+```yml
+api_host: rpm.newrelic.com
+```
+
+Los clientes que se conecten al centro de datos de la región de la UE deberán utilizar la siguiente entrada:
+
+```yml
+api_host: rpm.eu.newrelic.com
+```
+
+## Línea de comando [#Manual]
+
+Para enviar información de despliegue a New Relic desde el agente de Java `jar`, ejecute el siguiente comando desde la línea de comando:
+
+```bash
+java -jar newrelic.jar deployment DEPLOYMENT_OPTIONS
+```
+
+Puedes incluir estos valores opcionales con el comando desplegar:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "225px" }}>
+        Opción de implementación
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--appname=NAME`
+      </td>
+
+      <td>
+        Establezca el nombre de la aplicación. El valor predeterminado es la configuración [`app_name`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-app_name) de `newrelic.yml`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--environment=NAME`
+      </td>
+
+      <td>
+        Anule la propiedad del sistema [`NEW_RELIC_ENVIRONMENT`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#newrelic-environment) o `newrelic.environment` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--user=USER`
+      </td>
+
+      <td>
+        Especifica el usuario que va a implementar el cambio.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--revision=REV`
+      </td>
+
+      <td>
+        Especifique la revisión que se está implementando.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--changes`
+      </td>
+
+      <td>
+        Leer un log de cambios desde la entrada estándar. Por ejemplo, puedes canalizar el log de cambios:
+
+        ```bash
+        echo "get SHA-1 34837888734" | java -jar newrelic.jar deployment DEPLOYMENT_OPTIONS --changes
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Configuración de proxy [#proxy]
+
+El agente de Java no recoge la configuración de proxy del archivo `newrelic.yml` . <DNT>**Recommendation:**</DNT> Si usas un proxy en tu aplicación, usa cualquiera de estas opciones para registrar el despliegue:
+
+* Pase manualmente la configuración del proxy en el comando Java.
+* Utilice la [API REST de New Relic v2](/docs/apm/new-relic-apm/maintenance/recording-deployments).
+
+## API REST [#Other]
+
+Además de utilizar la línea de comando, puedes [grabar el despliegue con la API REST de New Relic v2](/docs/apm/new-relic-apm/maintenance/recording-deployments).

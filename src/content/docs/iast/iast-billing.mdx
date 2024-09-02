@@ -1,0 +1,121 @@
+---
+title: IAST billing 
+tags:
+    - New Relic IAST
+    - IAST
+    - Costs 
+metaDescription: Learn how to manage your costs associated with IAST.
+freshnessValidatedDate: 2024-02-21 
+---
+
+It's important for you to know how you'll be billed when you use interactive application security testing (IAST). You're billed for this capability through an optional add-on called [Compute Add On](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/add-on-billing). This is the third of the three billing factors at New Relic:
+
+* The amount of data you ingest
+* The number of billable users you have
+* The optional add-ons you've purchased
+
+Once you have this add-on, New Relic calculates your IAST costs based on the [Compute Capacity Units (CCUs)](/docs/licenses/license-information/product-definitions/new-relic-one-pricing-definitions/#compute-capacity-unit) you consume.
+
+## Learn about IAST costs [#iast-costs]
+
+CCUs are consumed when you use the IAST capability to analyze an application for exploitable vulnerabilities. In order to assess the potential vulnerability of your application, attack simulations are used to generate responses from the application.
+
+Each response is analyzed to determine the nature of the behavior. If the behavior is unsafe, the status for the test run will be set to <DNT>**Exploitable**</DNT>. This means that in a production environment, an attacker could use one of these vulnerabilities to exploit your applications, infrastructure, or data. It's important to consider these factors when using IAST to ensure optimal consumed CCUs: the complexity of your application, the efficiency of your testing, and the number of test runs.
+
+<img
+  title="Screenshot showing a table of run tests"
+  alt="Screenshot showing a table of run tests"
+  src="/images/iast_screenshot-crop_test-run.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > IAST**</DNT> and click <DNT>**Tests & Applications**</DNT> in the left navigation pane.
+</figcaption>
+
+## Learn how IAST generates CCUs [#generate-ccus]
+
+IAST analyzes applications for exploitable vulnerabilities. It observes the behavior of APIs, method calls, and traces exercised during testing as it analyzes the execution of real-world attack simulations. Each simulation generates a response based on the number of parameters tested. The more APIs and method calls exercised, the higher the number of parameters that will need testing for an accurate risk assessment. The more complex an application is and the higher the efficacy of your test coverage, the more compute capacity units will be consumed for each test run.
+
+## Understand your IAST usage and optimize your cost [#optimize-cost]
+
+IAST has governance controls built into the <InlinePopover type="apm"/> agent configuration to help ensure there is no accidental use of this capability. For example, an authorized user must explicitly enable this capability for each application.
+
+Once you've configured IAST, we provide visibility broken down by account, users, and APIs. As an administrator, you can work across your organization to optimize costs. You can control IAST costs if you check how often IAST runs during testing and what is tested.
+
+There are these 3 primary variables when optimizing cost for IAST:
+
+* Risk tolerance
+
+* Test efficiency
+
+* Test runs or builds
+
+### Risk tolerance [#risk-tolerance]
+
+We recommend running IAST on all important apps with each build to reduce risks. Full test coverage reduces the need for fixing issues after release. Risk tolerance differs by organization, affecting security testing methods. Here's an example of IAST results for an app build.
+
+<img
+  title="IAST results for an app build"
+  alt="IAST results for an app build"
+  src="/images/iast_screenshot-full_results-app-build.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > IAST**</DNT> and click <DNT>**Tests & Applications**</DNT> on the left navigation pane. Select an application to see its details.
+</figcaption>
+
+### Test efficiency [#test-efficiency]
+
+<DNT>**Test efficiency**</DNT> is an estimation of your test coverage and contributes to the CCUs consumed for analysis. You can view the APIs, methods, and traces executed and analyzed during each run based on your test cases.
+
+<img
+  title="IAST test efficiency"
+  alt="IAST test efficiency"
+  src="/images/iast_screenshot-full_tested-apis.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > IAST**</DNT> and click <DNT>**Tests & Applications**</DNT> on the left navigation pane. Select an application to see its details and select the <DNT>**APIs**</DNT> tab.
+</figcaption>
+
+The higher your testing efficiency, the more coverage you have which can result in higher CCU consumption. You can control cost by deciding what you test. If you have specific concerns, make sure that you run test cases either manually or automatically. Use the necessary APIs or method calls to allow IAST to analyze them. You can reduce the cost by choosing not to exercise a specific API or method call, but note this could introduce more risk.
+
+### Test runs or builds [#test-runs]
+
+You can think of <DNT>**test runs**</DNT> as deploying an application build to a staging, QA, integration testing, etc. environment. Each time an image restarts, a new unique IAST test run also starts.
+
+* With each run, you are able to review your coverage to better understand the amount of analysis IAST did to assess the application.
+
+* You can see the number of APIs, methods, and traces analyzed as well as the assessment for each.
+
+Each test run will consume CCUs depending on the analysis effort and application complexity. You can manage which applications use IAST and how often you run it by turning IAST on and off in the APM settings. This gives you control over your IAST usage.
+
+* IAST analysis is on when `security.enabled` and `security.agent.enabled` are set to true.
+
+* IAST analysis is off and will subsequently not consume CCU when `security.enabled` and `security.agent.enabled` are set to false.
+
+## See your IAST usage [#iast-usage]
+
+You can view costs broken out by feature and drill into IAST usage in account administration. We provide you the ability to see daily usage and 30-day rolling usage. Also, we break this down to attribute usage to specific accounts or users and APIs. You can check your IAST CCU consumption from <DNT>**[one.newrelic.com](https://one.newrelic.com/)**</DNT>.
+
+<img
+  title="IAST - Compute management"
+  alt="IAST - Compute management"
+  src="/images/iast_screenshot-full_compute-management.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/) > (user menu) > Administration**</DNT> and click <DNT>**Compute Management**</DNT> in the left navigation pane.
+</figcaption>
+
+When you select <DNT>**IAST**</DNT> and then facet by <DNT>**Accounts**</DNT> or <DNT>**Users/API Keys**</DNT> you can track usage more granularly.
+
+<img
+  title="IAST - Compute management"
+  alt="IAST - Compute management"
+  src="/images/iast_screenshot-full_compute-management-users.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/) > (user menu) > Administration**</DNT> and click <DNT>**Compute Management**</DNT> in the left navigation pane. Facet by <DNT>**Users/APIS Keys**</DNT>.
+</figcaption>

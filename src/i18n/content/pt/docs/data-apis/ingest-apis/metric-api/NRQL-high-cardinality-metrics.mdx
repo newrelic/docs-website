@@ -1,0 +1,154 @@
+---
+title: Entenda e consulte cardinalidade alta métrica
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'For New Relic Query Language (NRQL): how to understand high cardinality metrics and successfully query for them using NRQL.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Compreender como funciona a cardinalidade alta é importante, pois pode impactar a rapidez com que você atinge seus limites de dados.
+
+## O que é cardinalidade e por que isso importa? [#what-why]
+
+Cardinalidade é geralmente definida como o número de elementos únicos em um conjunto. Para métricas dimensionais, o conjunto em questão é a coleção de mapas únicos de atributo observados para uma determinada métrica no período de um dia. Você pode consultar a cardinalidade de uma métrica no New Relic com o seguinte formato NRQL:
+
+```sql
+FROM Metric SELECT cardinality(metric.name) SINCE today RAW
+```
+
+Por exemplo, para consultar a cardinalidade da métrica `memory.heap` e descobrir quantos pares de valores principais exclusivos existem para esta métrica, execute a seguinte consulta:
+
+```sql
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+<Callout variant="tip">
+  Recomendamos incluir a cláusula `RAW` nas consultas de cardinalidade que utilizam `FROM Metric`. Isso ocorre porque, caso sua cardinalidade tenha sido limitada, consultas como `SINCE today` consultarão rollups que não estão mais sendo reportados e, portanto, precisam examinar os pontos de dados brutos para realizar a análise necessária.
+
+  Observe que, como a consulta de pontos de dados brutos em longos intervalos de tempo pode ser lenta, `RAW` consultas que abrangem mais de dois dias de dados não são permitidas.
+</Callout>
+
+Embora os princípios básicos do significado da cardinalidade possam ser simples de definir, aprender como abordar e gerenciar a cardinalidade alta pode ser um pouco mais complicado.
+
+### Limites de cardinalidade e aplicação
+
+A New Relic impõe limites à sua cardinalidade métrica tanto no nível por métrica quanto no nível da conta. A cardinidade é avaliada ao longo de um dia UTC, começando às 00:00:00 UTC e terminando às 23:59:59 UTC.
+
+Para obter mais informações sobre limites de dados e políticas relacionadas, consulte [Limites e políticas de uso de dados da New Relic](/docs/licenses/license-information/general-usage-licenses/new-relic-data-usage-limits-policies/)
+
+## Cardinalidade e métrica dimensional [#dimensional-metrics]
+
+A cardinalidade de uma métrica é o tamanho do conjunto de mapas únicos de atributo observados para uma determinada métrica no período de um dia. Se as chaves ou os valores nesse mapa mudarem ao longo do tempo, eles adicionarão uma nova cardinalidade para essa métrica. Vejamos um exemplo.
+
+Imagine uma rede de 4 hosts, cada um com 2 containers rodando neles, e cada contêiner reporta periodicamente a métrica do medidor `memory.heap`, com o nome do host e o id do contêiner adicionados como atributo.
+
+<img
+  title="Multiple hosts with multiple containers"
+  alt="Host and containers combination resulting in high cardinality"
+  src="/images/queries-nrql_diagram_high-cardinality-metrics.webp"
+/>
+
+Quando submetida à API métrica, uma dessas métricas pode parecer algo assim:
+
+```json
+{
+  "metrics": [
+    {
+      "name": "memory.heap",
+      "type": "gauge",
+      "value": 5514,
+      "timestamp": 1234567890,
+      "attributes": {
+        "host": "W",
+        "container": "1"
+      }
+    }
+  ]
+}
+```
+
+Essa métrica teria então uma cardinalidade de 8, pois é quantos mapeamentos exclusivos de `host` e `container` são possíveis. Se uma nova medição para esta métrica for feita com atributo idêntico ao relatado anteriormente, nenhuma nova cardinalidade será contabilizada.
+
+## Influências da cardinalidade [#influences]
+
+Conforme mostrado acima, quaisquer alterações nas chaves ou valores representarão uma nova cardinalidade, mas prever como essas alterações afetarão sua cardinalidade total pode ser um pouco complicado. É tentador assumir que a cardinalidade de uma métrica é então o produto do número de todos os valores possíveis para cada chave possível, mas isso raramente é o caso na prática, já que os valores de uma determinada chave muitas vezes dependem ou determinam os valores de outras. chaves.
+
+Usando o exemplo anterior, uma vez que tivemos um valor `container` de `1`, o valor de `host` foi fixado em `W`, assumindo que esses IDs de contêiner sejam globalmente exclusivos. Portanto, embora existam 8 contêineres em 4 hosts, a cardinalidade ainda é 8, e não 4 \* 8 = 32, já que a maioria das combinações contadas pelo método de multiplicação simples não são possíveis e, portanto, não contribuem para a cardinalidade dessa métrica. Nunca veremos a combinação de `host = 'X', container = 1`, por exemplo.
+
+Isto também significa que adicionar mais chaves a um mapa de atributo não implica necessariamente um aumento na cardinalidade total. Se o valor da nova chave for determinado exclusivamente pelos valores das chaves existentes, isso não adicionará nova cardinalidade no longo prazo. Por exemplo, se você adicionar algo como `region` ao seu mapa no exemplo, é provável que o valor `container` também seja fixado em um valor de região específico e, portanto, mantenha sua cardinalidade em 8.
+
+Uma advertência importante aqui é que, embora a adição de `region` não aumente a cardinalidade daqui para frente, ela introduzirá uma nova cardinalidade quando for adicionada pela primeira vez. Isso ocorre porque a adição de chaves tornará esses mapas de atributo distintos de todos os anteriores, aumentando temporariamente a cardinalidade total daquele dia.
+
+## Exemplos e amostra de fluxo de trabalho [#examples-samples]
+
+Se você atingir um dos limites de cardinalidade, há algumas opções que você pode usar para remediar a situação. Uma resposta fácil é aumentar seus limites, mas se você preferir não fazer isso, uma boa alternativa é explorar quais dimensões estão contribuindo mais para sua cardinalidade e pensar em removê-las caso não agreguem valor. Isso pode economizar custos de armazenamento e largura de banda e potencialmente evitar que você precise aumentar seus limites.
+
+### Encontre contribuidores de cardinalidade: métrica [#metrics-contributors]
+
+Lembre-se de como obter a cardinalidade de uma métrica específica:
+
+```sql
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+Para a cardinalidade total da conta, você pode usar a mesma estrutura básica de consulta e simplesmente omitir o nome da métrica:
+
+```sql
+FROM Metric SELECT cardinality() SINCE today RAW
+```
+
+A cardinalidade da conta é essencialmente a soma da cardinalidade de cada métrica, portanto, adicionar uma consulta `FACET` simples pode ajudar a encontrar a métrica de cardinalidade alta:
+
+```sql
+FROM Metric SELECT cardinality() SINCE today RAW FACET metricName
+```
+
+Finalmente, se você acredita que atingiu um dos seus limites de cardinalidade, você pode confirmar isso verificando um `NrIntegrationError` relacionado:
+
+```sql
+FROM NrIntegrationError SELECT count(*) 
+WHERE name = 'CardinalityViolationException' AND newRelicFeature = 'Metrics' 
+FACET cardinalityLimitType, metricName, message SINCE today 
+```
+
+### Encontrando contribuidores de cardinalidade: dimensões [#dimensions-contributors]
+
+Depois de determinar a métrica que deseja explorar, a próxima etapa é determinar quais dimensões de uma determinada métrica contribuem mais para sua cardinalidade. Se você não estiver familiarizado com os valores de suas dimensões, poderá observá-los assim:
+
+```sql
+FROM Metric SELECT dimensions() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+A visualização dos resultados JSON provavelmente será aconselhável aqui. Analisá-los pode revelar algumas dimensões contendo um ID único ou outro valor altamente variável que pode valer a pena remover.
+
+Se você já está familiarizado com os valores que seu atributo pode assumir, os resultados `keySet()` podem ser mais fáceis de verificar:
+
+```sql
+FROM Metric SELECT keySet() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+Compreender as dimensões que têm mais influência na sua cardinalidade total se resume a compreender como os valores de cada chave se correlacionam entre si. Você pode experimentar qual seria sua cardinalidade sem uma dimensão simplesmente adicionando-a à lista de exclusão:
+
+```sql
+FROM Metric SELECT cardinality(memory.heap, exclude: {'container.id'}) SINCE today RAW
+```
+
+Da mesma forma, há uma lista de inclusão se for mais conveniente para o contexto da consulta:
+
+```sql
+FROM Metric SELECT cardinality(memory.heap, include: {'host.name', 'region'}) SINCE today RAW
+```
+
+Gerenciar a cardinalidade pode ser difícil de conceituar, mas os métodos acima ajudarão você a obter respostas para perguntas como "Qual métrica está contribuindo com mais cardinalidade?" e "Qual o impacto que um determinado atributo tem nessa cardinalidade total?".
+
+Muitas vezes acontece que a cardinalidade acompanha o valor mais exclusivo, pois esse valor pode definir os possíveis valores que outros atributo podem assumir. No entanto, há muitos casos em que a explosão de combinações possíveis de um punhado de atributo impulsiona a cardinalidade total. Coisas que parecem um identificador exclusivo geralmente são um bom lugar para começar, mas às vezes não é uma chave única, mas a combinação de duas ou mais chaves. Quanto mais familiarizado você estiver com seus dados e com os sistemas que os geram, mais fácil será saber qual atributo incluir ou excluir.
+
+<Callout variant="tip">
+  Se você quiser saber mais sobre limites e resolução de problemas da API métrica, aqui estão dois bons recursos:
+
+  * [Limites da API métrica e atributo restrito](/docs/telemetry-data-platform/ingest-apis/metric-api/metric-api-limits-restricted-attributes/)
+  * [Solucionar problemas da API métrica com o evento NRIntegrationError](/docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) são ótimos recursos para explorar.
+</Callout>

@@ -1,0 +1,88 @@
+---
+title: Enumerar el ID del host y el ID de la instancia de una aplicación
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: How to use the New Relic REST API to get a list of the instance and host IDs for an application.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A continuación se muestran ejemplos de cómo utilizar la API REST de New Relic (v2) para obtener la lista de [ID de la instancia](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_instance_id) y [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) de una aplicación. La lista muestra cualquiera que haya informado durante aproximadamente la última hora.
+
+## Enumere las identificaciones actuales por nombre de la aplicación [#list_current_ids]
+
+También puede utilizar [<DNT>**Applications > List**</DNT>del Explorador de API REST](/docs/apis/using-the-api-explorer) para enumerar los detalles de ID. Ingrese el nombre correcto de la aplicación.
+
+Para enumerar todos los ID [de instancia](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_instance_id) y [host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) que informan en la última hora con un nombre de aplicación que contiene `${APP_NAME}`, use el siguiente comando. Esto proporciona los [datos de resumen](/docs/apis/rest-api-v2/application-examples-v2/summary-data-examples-v2#app) actuales seguidos de las listas de ID para la instancia y los hosts de la aplicación con `${APP_NAME}` en su nombre, en la cuenta asociada con `${API_KEY}`.
+
+```bash
+curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+     -H "X-Api-Key:${API_KEY}" -i  \
+     -d "filter[name]=${APP_NAME}"
+```
+
+## Listar los ID actuales por ID de la aplicación [#ids_app_id_list]
+
+También puede utilizar <DNT>**Applications > List**</DNT>o <DNT>**Applications > List**</DNT> del [de API REST](/docs/apis/using-the-api-explorer) para enumerar los detalles de ID. Ingrese el nombre correcto de la aplicación.
+
+Para enumerar todos los ID que informan en la última hora cuando conoce el [`${APP_ID}`de la aplicación](/docs/apis/rest-api-v2/application-examples-v2/listing-your-app-id-metric-data-v2), use este comando:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}.json" \
+     -H "X-Api-Key:${API_KEY}" -i
+```
+
+También puedes usar `filter[id]`:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications.json" \
+     -H "X-Api-Key:${API_KEY}" -i  \
+     -d "filter[id]=${APP_ID}"
+```
+
+## Enumere las identificaciones actuales para todas las aplicaciones [#ids_all_apps]
+
+También puede utilizar <DNT>**Applications > List**</DNT>o <DNT>**Applications > List**</DNT> del [de API REST](/docs/apis/using-the-api-explorer) para enumerar los detalles de ID. Ingrese el nombre correcto de la aplicación.
+
+Para toda la aplicación, enumere todos los informes [de ID de la instancia](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_instance_id) y [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) en la última hora usando el siguiente comando. Esto proporciona los [datos resumidos](/docs/apis/rest-api-v2/application-examples-v2/summary-data-examples-v2#app) actuales seguidos de las listas de ID para la instancia y los hosts de todas las aplicaciones en la cuenta asociada con `${API_KEY}`.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications.json" \
+     -H "X-Api-Key:${API_KEY}" -i
+```
+
+## Ejemplo de listas ID del host e ID de la instancia [#example_id_list]
+
+A continuación se muestra un ejemplo de cómo aparecen las listas de ID en formato JSON:
+
+```json
+...
+{  
+  "links": {
+    "application_instances": [    <---<<<< {INSTANCE_ID} list
+      21790,
+      24810,
+      27948,
+      35120,
+      35121,
+      35122,
+      186288,
+      247253,
+      247254,
+      247255,
+      247256
+    ],
+    "application_hosts": [    <---<<<< {HOST_ID} list
+      21788,
+      24808,
+      34966,
+      186283,
+      247245,
+      286551
+    ]
+  }
+}
+...
+```

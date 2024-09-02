@@ -1,0 +1,848 @@
+---
+title: 'Tutorial de NerdGraph: alerta canal de notificación'
+tags:
+  - Alerts and applied intelligence
+  - Alerts
+  - Alerts and NerdGraph
+metaDescription: 'For New Relic alerts: how to list, create, update, and delete alert notification channels with our NerdGraph API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para las alertas de New Relic, puede administrar su [canal de notificación de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts) utilizando nuestra API NerdGraph. Para saber cómo administrar las notificaciones de inteligencia aplicada, consulte el [tutorial de NerdGraph sobre destinos](/docs/apis/nerdgraph/examples/nerdgraph-api-notifications-destinations).
+
+<Callout variant="tip">
+  Para saber cómo empezar a utilizar NerdGraph, consulte [Introducción a NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+</Callout>
+
+## Obtener canal de notificación [#get-channels]
+
+La consulta `notificationChannels` le permite paginar todo su [canal de notificación](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts) por cuenta. También puede utilizar la consulta `notificationChannel` para obtener un canal de notificación específico por su ID.
+
+<Callout variant="tip">
+  Tenga en cuenta que ciertos campos secretos (por ejemplo, contraseñas o clave de API) están ofuscados en los campos devueltos.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="list-all-channels"
+    title="Listar todos los canales de notificación de una cuenta"
+  >
+    Este ejemplo devuelve todos los campos para cada canal de notificación en el ID de cuenta proporcionado, hasta el límite de páginas de 200. Observe cómo utilizamos [fragmentos en línea](https://graphql.org/learn/queries/#inline-fragments "Fragmentos en línea | Consulta y Mutaciones | GraphQL") para hacer referencia a campos específicos en los tipos concretos que implementan la interfaz `AlertsNotificationChannel` .
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            notificationChannels {
+              channels {
+                id
+                name
+                type
+                ... on AlertsXMattersNotificationChannel {
+                  config {
+                    integrationUrl
+                  }
+                }
+                ... on AlertsWebhookNotificationChannel {
+                  config {
+                    baseUrl
+                    basicAuth {
+                      password
+                      username
+                    }
+                    customHttpHeaders {
+                      name
+                      value
+                    }
+                    customPayloadBody
+                    customPayloadType
+                  }
+                }
+                ... on AlertsVictorOpsNotificationChannel {
+                  config {
+                    key
+                    routeKey
+                  }
+                }
+                ... on AlertsUserNotificationChannel {
+                  config {
+                    userId
+                  }
+                }
+                ... on AlertsSlackNotificationChannel {
+                  config {
+                    teamChannel
+                    url
+                  }
+                }
+                ... on AlertsPagerDutyNotificationChannel {
+                  config {
+                    apiKey
+                  }
+                }
+                ... on AlertsOpsGenieNotificationChannel {
+                  config {
+                    apiKey
+                    dataCenterRegion
+                    recipients
+                    tags
+                    teams
+                  }
+                }
+                ... on AlertsHipChatNotificationChannel {
+                  config {
+                    authToken
+                    baseUrl
+                    roomId
+                  }
+                }
+                ... on AlertsEmailNotificationChannel {
+                  config {
+                    emails
+                    includeJson
+                  }
+                }
+                ... on AlertsCampfireNotificationChannel {
+                  config {
+                    room
+                    subdomain
+                    token
+                  }
+                }
+              }
+              totalCount
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="paginate"
+    title="Paginar a través del canal de notificación con paginación del cursor"
+  >
+    Si la lista de canal de notificación de una cuenta determinada excede el límite de páginas de 200 canales, puede usar el cursor de paginación para recuperar páginas adicionales.
+
+    Con la paginación del cursor, continúa solicitando páginas adicionales usando `nextCursor` hasta que ese campo regrese vacío en la respuesta. Un `nextCursor` vacío indica que ha llegado al final del conjunto de resultados.
+
+    He aquí un ejemplo:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            notificationChannels {
+              channels {
+                id
+                name
+                type
+              }
+              totalCount
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    El código anterior devuelve un conjunto de resultados como este:
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "alerts": {
+              "notificationChannels": {
+                "channels": [
+                  {
+                    "id": "250",
+                    "name": "Channel 1",
+                    "type": "SLACK"
+                  },
+                  {
+                    "id": "713",
+                    "name": "Channel 2",
+                    "type": "WEBHOOK"
+                  },
+                  // ... +198 more notification channels in reality
+                ],
+                "nextCursor": "Wh4LK9JYzfACVlNkyvf7Rg==:I5VbSEpgx3UWNA5AOVsUPv4=",
+                "totalCount": 268
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    En su próxima solicitud, proporcione el cursor así, actualizando cada solicitud posterior para devolver el cursor actualizado, hasta que el cursor esté vacío:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            notificationChannels(cursor: "Wh4LK9JYzfACVlNkyvf7Rg==:I5VbSEpgx3UWNA5AOVsUPv4=") {
+              channels {
+                id
+                name
+                type
+              }
+              totalCount
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-by-id"
+    title="Encuentre un canal de notificación específico por identificación"
+  >
+    Si tiene el ID de un canal de notificación específico, la API le permite buscarlo directamente. Tenga en cuenta que debido a que el canal específico es un tipo concreto que implementa la interfaz `AlertsNotificationChannel` , es posible que deba especificar ciertos campos usando la sintaxis `... on` para [fragmentos en línea](https://graphql.org/learn/queries/#inline-fragments "Fragmentos en línea | Consulta y Mutaciones | GraphQL").
+
+    En este ejemplo, recuperamos un canal de Slack:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            notificationChannel(id: YOUR_CHANNEL_ID) {
+              id
+              name
+              type
+              ... on AlertsSlackNotificationChannel {
+                config {
+                  teamChannel
+                  url
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="channels-with-policies"
+    title="Listar canal de notificación con sus políticas asociadas"
+  >
+    Este ejemplo devuelve el ID, el nombre y el tipo de cada canal de notificación en el ID de cuenta proporcionado, así como una lista de cada política asociada con ese canal.
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            notificationChannels {
+              channels {
+                id
+                name
+                type
+                associatedPolicies {
+                  policies {
+                    id
+                    name
+                  }
+                  totalCount
+                }
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Crear un canal de notificación [#create-channel]
+
+Para poder crear un canal de notificación alerta, necesitas saber el tipo específico de canal de notificación que deseas crear (por ejemplo correo electrónico, Slack, etc.), así como los detalles necesarios para configurarlo (que dependerán del canal). tipo). Una vez creado un canal de notificación, se puede asociar a una o más [políticas de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/ "Alerta e inteligencia aplicada | New Relic"). Una vez asociados, esos canales recibirán notificaciones de esas políticas cuando se incumplan las condiciones.
+
+<Callout variant="caution">
+  Si bien puede consultar cualquier tipo de canal de notificación existente, solo puede crear un subconjunto de ellos. Específicamente, el tipo de canal <DNT>**user**</DNT> no tiene campos editables y los tipos de canal <DNT>**Campfire**</DNT> y <DNT>**HipChat**</DNT> están obsoletos.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="create-email-channel"
+    title="Crear un canal de notificación por correo electrónico"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación por correo electrónico:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        email: {
+          emails: [ "email@example.com" ],
+          includeJson: true,
+          name: "Some Name <email@example.com>"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsEmailNotificationChannel {
+            id
+            name
+            type
+            config {
+              emails
+              includeJson
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-opsgenie-channel"
+    title="Crear un canal de notificación de OpsGenie"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación de OpsGenie:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        opsGenie: {
+          apiKey: "api-key-from-opsgenie",
+          dataCenterRegion: US,
+          name: "OpsGenie notification channel name",
+          recipients: [ "user@example.com" ],
+          tags: [ "tag1", "tag2" ],
+          teams: [ "team1", "team2" ]
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsOpsGenieNotificationChannel {
+            id
+            name
+            type
+            config {
+              apiKey
+              teams
+              tags
+              recipients
+              dataCenterRegion
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-pagerduty-channel"
+    title="Crear un canal de notificación de PagerDuty"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación PagerDuty:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        pagerDuty: {
+          name: "PagerDuty notification channel name",
+          apiKey: "api-key-from-pagerduty"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsPagerDutyNotificationChannel {
+            id
+            name
+            type
+            config {
+              apiKey
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-slack-channel"
+    title="Crea un canal de notificación de Slack"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación de Slack:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        slack: {
+          name: "Slack notification channel name",
+          teamChannel: "#team-channel",
+          url: "https://hooks.slack.com/services/FAKE/MOREFAKE/IMAGINARYEXAMPLEURLCHUNK"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsSlackNotificationChannel {
+            id
+            name
+            type
+            config {
+              teamChannel
+              url
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-victorops-channel"
+    title="Crear un canal de notificación VictorOps"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación VictorOps:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        victorOps: {
+          key: "example-api-key-from-victorops",
+          name: "VictorOps notification channel name",
+          routeKey: "example-route-key"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsVictorOpsNotificationChannel {
+            id
+            name
+            type
+            config {
+              key
+              routeKey
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-webhook-channel"
+    title="Crear un canal de notificación de Webhook"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación de Webhook:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(
+        accountId: YOUR_ACCOUNT_ID
+        notificationChannel: {
+          webhook: {
+            baseUrl: "https://example.com/webhook"
+            basicAuth: {
+              password: "t0t4lly-s3cr3t-p455w0rd"
+              username: "webhook-user"
+            }
+            customHttpHeaders: [
+              { name: "X-Api-Key", value: "100%-real-api-key" }
+              { name: "X-Calling-Service", value: "New Relic Alerts" }
+            ]
+            customPayloadBody: "{ \"account_id\": \"$ACCOUNT_ID\", \"account_name\": \"$ACCOUNT_NAME\", \"closed_violations_count_critical\": \"$CLOSED_VIOLATIONS_COUNT_CRITICAL\", \"closed_violations_count_warning\": \"$CLOSED_VIOLATIONS_COUNT_WARNING\", \"condition_description\": \"$DESCRIPTION\", \"condition_family_id\": \"$CONDITION_FAMILY_ID\", \"condition_name\": \"$CONDITION_NAME\", \"current_state\": \"$EVENT_STATE\", \"details\": \"$EVENT_DETAILS\", \"duration\": \"$DURATION\", \"event_type\": \"$EVENT_TYPE\", \"incident_acknowledge_url\": \"$INCIDENT_ACKNOWLEDGE_URL\", \"incident_id\": \"$INCIDENT_ID\", \"incident_url\": \"$INCIDENT_URL\", \"metadata\": \"$METADATA\", \"open_violations_count_critical\": \"$OPEN_VIOLATIONS_COUNT_CRITICAL\", \"open_violations_count_warning\": \"$OPEN_VIOLATIONS_COUNT_WARNING\", \"owner\": \"$EVENT_OWNER\", \"policy_name\": \"$POLICY_NAME\", \"policy_url\": \"$POLICY_URL\", \"runbook_url\": \"$RUNBOOK_URL\", \"severity\": \"$SEVERITY\", \"targets\": \"$TARGETS\", \"timestamp\": \"$TIMESTAMP\", \"timestamp_utc_string\": \"$TIMESTAMP_UTC_STRING\", \"violation_callback_url\": \"$VIOLATION_CALLBACK_URL\", \"violation_chart_url\": \"$VIOLATION_CHART_URL\" }"
+            customPayloadType: JSON
+            name: "Webhook notification channel name"
+          }
+        }
+      ) {
+        notificationChannel {
+          ... on AlertsWebhookNotificationChannel {
+            id
+            name
+            type
+            config {
+              customPayloadType
+              customPayloadBody
+              customHttpHeaders {
+                value
+                name
+              }
+              basicAuth {
+                password
+                username
+              }
+              baseUrl
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-xmatters-channel"
+    title="Crea un canal de notificación de xMatters"
+  >
+    Un ejemplo de creación de mutación para un canal de notificación xMatters:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelCreate(accountId: YOUR_ACCOUNT_ID, notificationChannel: {
+        xMatters: {
+          integrationUrl: "https://company.instance.xmatters.com/api/xm/v<version>/...",
+          name: "xMatters notification channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsXMattersNotificationChannel {
+            id
+            name
+            type
+            config {
+              integrationUrl
+            }
+          }
+        }
+        error {
+          description
+          errorType
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Actualizar un canal de notificación [#update-channel]
+
+Para actualizar un canal de notificación de alerta, necesitas saber el tipo específico de canal de notificación que deseas cambiar (por ejemplo correo electrónico, Slack, etc.), así como los detalles necesarios para configurarlo (que dependerán del canal). tipo). De manera consistente con otras API de GraphQL, puede actualizar un solo campo en el canal sin saber nada más que el ID del canal.
+
+<Callout variant="caution">
+  Si bien puede consultar cualquier tipo de canal de notificación existente, solo puede actualizar un subconjunto de ellos. Específicamente, el tipo de canal <DNT>**user**</DNT> no tiene campos editables y los tipos de canal <DNT>**Campfire**</DNT> y <DNT>**HipChat**</DNT> están obsoletos.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="update-email-channel"
+    title="Actualizar un canal de notificación por correo electrónico"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación por correo electrónico donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        email: {
+          name: "Updated Name <email@example.com>"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsEmailNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-opsgenie-channel"
+    title="Actualizar un canal de notificación de OpsGenie"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación de OpsGenie donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        opsGenie: {
+          name: "OpsGenie updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsOpsGenieNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-pagerduty-channel"
+    title="Actualizar un canal de notificación de PagerDuty"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación de PagerDuty donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        pagerDuty: {
+          name: "PagerDuty updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsPagerDutyNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-slack-channel"
+    title="Actualizar un canal de notificación de Slack"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación de Slack donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        slack: {
+          name: "Slack updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsSlackNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-victorops-channel"
+    title="Actualizar un canal de notificación de VictorOps"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación VictorOps donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        victorOps: {
+          name: "VictorOps updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsVictorOpsNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-webhook-channel"
+    title="Actualizar un canal de notificación de Webhook"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación de Webhook donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        webhook: {
+          name: "Webhook updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsWebhookNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="update-xmatters-channel"
+    title="Actualizar un canal de notificación de xMatters"
+  >
+    Un ejemplo de mutación de actualización para un canal de notificación de xMatters donde actualizamos solo el nombre:
+
+    ```graphql
+    mutation {
+      alertsNotificationChannelUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_CHANNEL_ID, notificationChannel: {
+        xMatters: {
+          name: "xMatters updated channel name"
+        }
+      }) {
+        notificationChannel {
+          ... on AlertsXMattersNotificationChannel {
+            id
+            name
+            type
+          }
+        }
+        error {
+          description
+          errorType
+          notificationChannelId
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Eliminar un canal de notificación [#delete-channel]
+
+Puede eliminar un canal de notificación solo con el ID de la cuenta y el ID del canal. Tenga en cuenta que eliminar un canal lo disocia de todas las políticas, lo que significa que no se enviará ninguna notificación adicional a ese canal.
+
+```graphql
+mutation {
+  alertsNotificationChannelDelete(
+    accountId: YOUR_ACCOUNT_ID,
+    id: YOUR_CHANNEL_ID
+  ) {
+    id
+    error {
+      description
+      errorType
+      notificationChannelId
+    }
+  }
+}
+```
+
+## Asociar canales a una política [#associate-channel]
+
+Crear un canal de notificación alerta no es suficiente: una vez creado el canal, es necesario asociarlo a una o más [políticas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/ "Alerta e inteligencia aplicada | New Relic"). Una vez asociado a una política, el canal puede recibir una notificación de alerta cuando las condiciones de esa política superen el umbral.
+
+En este ejemplo, asociamos dos canales con una política:
+
+```graphql
+mutation {
+  alertsNotificationChannelsAddToPolicy(
+    accountId: YOUR_ACCOUNT_ID,
+    notificationChannelIds: [ FIRST_CHANNEL_ID, SECOND_CHANNEL_ID ],
+    policyId: YOUR_POLICY_ID
+  ) {
+    notificationChannels {
+      id
+    }
+    policyId
+    errors {
+      description
+      errorType
+      notificationChannelId
+    }
+  }
+}
+```
+
+## Disociar un canal de una política [#dissociate-channel]
+
+En aquellos casos en los que un canal de notificación ha dejado de ser útil (por ejemplo, una lista de correo electrónico que se ha retirado), ha llegado el momento de disociar ese canal de la [política](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/ "Alerta e inteligencia aplicada | New Relic") (o políticas) que le envían notificaciones de alerta. Esta llamada API deja el canal intacto, pero lo elimina de la política especificada.
+
+En este ejemplo, eliminamos dos canales de una política (dejamos los demás vigentes) y obtenemos la confirmación de que esos dos ID de canal se eliminaron:
+
+```graphql
+mutation {
+  alertsNotificationChannelsRemoveFromPolicy(
+    accountId: YOUR_ACCOUNT_ID,
+    notificationChannelIds: [ FIRST_CHANNEL_ID, SECOND_CHANNEL_ID ],
+    policyId: YOUR_POLICY_ID
+  ) {
+    notificationChannels {
+      id
+    }
+    policyId
+    errors {
+      description
+      errorType
+      notificationChannelId
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+  Eliminación de un canal de notificación de alerta de una política <DNT>**does not**</DNT> elimine el canal porque podría ser utilizado por otras políticas. Por otro lado, eliminar un canal hará que todas las políticas asociadas dejen de enviar notificaciones de alerta a ese canal.
+</Callout>

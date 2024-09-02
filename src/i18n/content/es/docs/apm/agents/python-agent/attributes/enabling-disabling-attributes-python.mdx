@@ -1,0 +1,787 @@
+---
+title: Habilitar y deshabilitar atributo (Python)
+tags:
+  - Agents
+  - Python agent
+  - Attributes
+metaDescription: 'How to include and exclude specific attributes for your Python agent, including configuration settings and rules.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esto describe los ajustes de configuración para habilitar o deshabilitar [el atributo de agente Python](/docs/agents/python-agent/attributes/python-agent-attributes) y las reglas que nuestros agentes usan al determinar qué atributo incluir o excluir para un [destino](/docs/features/agent-attributes#destinations).
+
+Esto también incluye un resumen de los [ajustes de configuración del agente Python que han quedado obsoletos](#deprecated) con el lanzamiento del atributo del agente.
+
+## Ajustes de configuración [#configurationSettings]
+
+Utilice la siguiente configuración de destino para abrir o cerrar el destino de cualquier colección de atributos:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Enciende o apaga todos los atributos.
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-enabled"
+    title="transaction_tracer.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Enciende o apaga todos los atributos de la traza de la transacción. Si `attributes.enabled` es `false`, no se enviará ningún atributo a la traza de la transacción independientemente de cómo se establezca esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="cfg-error-attributes-enabled"
+    title="error_collector.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva todos los atributos por errores de traza. Si `attributes.enabled` es `false`, no se enviará ningún atributo a los errores de traza independientemente de cómo se establezca esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="cfg-events-attributes-enabled"
+    title="transaction_events.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva todos los atributos del evento de transacción. Si `attributes.enabled` es `false`, no se enviará ningún atributo al evento de transacción independientemente de cómo se establezca esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="cfg-browser-attributes-enabled"
+    title="browser_monitoring.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva todos los atributos de <InlinePopover type="browser"/>. Estos son los datos que se envían al destino de PageView. Si `attributes.enabled` es `false`, no se enviará ningún atributo al monitoreo del navegador independientemente de cómo se establezca esta configuración.
+  </Collapser>
+</CollapserGroup>
+
+Utilice la siguiente configuración `.include` o `.exclude` específica de atributo/destino para agregar o eliminar atributos específicos en destinos específicos:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados, se enviarán todas las claves de atributos de esta lista.
+  </Collapser>
+
+  <Collapser
+    id="cfg-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    **No** se enviarán todas las claves de atributos de esta lista.
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-include"
+    title="transaction_tracer.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para la traza de la transacción, todas las claves de atributos en esta lista se enviarán en la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-exclude"
+    title="transaction_tracer.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos en esta lista **no** se enviarán en la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-ec-attributes-include"
+    title="error_collector.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para errores de traza, todas las claves de atributos en esta lista se enviarán en errores de traza.
+  </Collapser>
+
+  <Collapser
+    id="cfg-ec-attributes-exclude"
+    title="error_collector.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos en esta lista **no** se enviarán en errores de traza.
+  </Collapser>
+
+  <Collapser
+    id="cfg-te-attributes-include"
+    title="transaction_events.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para el evento de transacción, todas las claves de atributos en esta lista se enviarán en el evento de transacción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-te-attributes-exclude"
+    title="transaction_events.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributo en esta lista **no** se enviarán en el evento de transacción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-bm-attributes-include"
+    title="browser_monitoring.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para `browser_monitoring`, todas las claves de atributos de esta lista se enviarán en las vistas de página.
+  </Collapser>
+
+  <Collapser
+    id="cfg-bm-attributes-exclude"
+    title="browser_monitoring.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Lista de cadenas separadas por espacios
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista **no** se enviarán en las visitas a la página.
+  </Collapser>
+</CollapserGroup>
+
+## Reglas de atributos [#attruls]
+
+El agente sigue estas reglas al determinar qué atributo incluir o excluir para un destino:
+
+<CollapserGroup>
+  <Collapser
+    id="rule-root-precedence"
+    title="El nivel raíz tiene prioridad para habilitado."
+  >
+    El campo `attributes.enabled` prevalece sobre todas las demás configuraciones. Cuando `false`, no se informará ningún atributo.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = false
+    attributes.include = foo bar
+    transaction_tracer.attributes.enabled = true
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: foo, bar, baz
+    Keys included for all destinations:
+    Keys excluded for all destinations: foo, bar, baz
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-destination-precedence"
+    title="El destino habilitado tiene prioridad sobre incluir y excluir."
+  >
+    Las marcas `YOUR_DESTINATION.attributes.enabled` tienen prioridad sobre las claves de inclusión y exclusión.
+
+    Configuración de ejemplo:
+
+    ```ini
+    transaction_tracer.attributes.enabled = false
+    attributes.include = one two
+    transaction_tracer.attributes.include = three four
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: one, two, three, four
+    Keys included for transaction traces:
+    Keys excluded for transaction traces: one, two, three, four
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-included-destination"
+    title="El atributo se incluye si el destino está habilitado."
+  >
+    Si un destino está habilitado, todos los atributos del usuario se envían a ese destino de forma predeterminada.
+
+    Todos los atributos de usuario están predeterminados en `true`. Sin embargo, de forma predeterminada, los parámetros de solicitud están deshabilitados para todos los destinos.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = true
+    attributes.exclude = baz
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: foo, bar, baz
+    Keys included:  foo, bar
+    Keys excluded:  baz
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-exclude-wins"
+    title="Excluir siempre reemplaza a incluir."
+  >
+    Si la misma clave aparece en las listas de inclusión y exclusión, entonces se excluirá el atributo con la clave especificada.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = true
+    attributes.include = foo bar
+    attributes.exclude = nerd bar
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: foo, bar, nerd
+    Keys included:  foo
+    Keys excluded:  nerd, bar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-keys-case-sensitive"
+    title="Las claves distinguen entre mayúsculas y minúsculas."
+  >
+    Las claves distinguen entre mayúsculas y minúsculas.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = true
+    attributes.exclude = username UsErNaMe
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: username, Username, USERNAME, UsErNaMe, userNAME
+    Keys included:  Username, USERNAME, userNAME
+    Keys excluded:  username, UsErNaMe
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-star-wildcard"
+    title={<>Utilice <InlineCode>\*</InlineCode> como comodín.</>}
+  >
+    Puede utilizar un asterisco `*` al final de una clave como comodín. Esto coincidirá con un conjunto de atributos con el mismo prefijo.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = true
+    attributes.include = custom*
+    attributes.exclude = request.parameters.*
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: custom, custom.key1, custom.key2, request.parameters., request.parameters.foo, request.parameters.bar
+    Keys included:  custom, custom.key1, custom.key2
+    Keys excluded:  request.parameters., request.parameters.foo, request.parameters.bar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-specific-wins"
+    title="La configuración más específica de una clave tiene prioridad."
+  >
+    Si varios atributos de inclusión o exclusión afectan a la misma clave, la configuración más específica tendrá prioridad.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.enabled = true
+    attributes.include = request.parameters.foo
+    attributes.exclude = request.parameters.*
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: request.parameters., request.parameters.foo, request.parameters.bar
+    Keys included:  request.parameters.foo
+    Keys excluded:  request.parameters., request.parameters.bar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rule-destination-include-exclude"
+    title="Incluir o excluir afecta al destino específico."
+  >
+    Si el atributo incluir o excluir se especifica en un destino, solo afecta a ese destino.
+
+    Configuración de ejemplo:
+
+    ```ini
+    attributes.include = foo
+    transaction_events.attributes.exclude = foo
+    ```
+
+    Salida de ejemplo:
+
+    ```
+    Keys passed in: foo
+    Keys included for transaction events: 
+    Keys included for other destinations: foo
+    Keys excluded for transaction events: foo
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Opciones de configuración obsoletas [#deprecated]
+
+Las siguientes opciones de configuración han quedado obsoletas. Cambie a la nueva configuración de atributos para estas configuraciones cuando actualice su agente Python.
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Deprecated setting**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **New setting**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `capture_params`
+      </td>
+
+      <td>
+        `attributes.include = request.parameters.*`
+
+        De forma predeterminada, los parámetros de solicitud no se envían. Agregue `request.parameters.*` a la lista `attributes.include` para activar todos los parámetros de solicitud. La propiedad `capture_params` ha quedado obsoleta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ignored_params`
+      </td>
+
+      <td>
+        `attributes.exclude = request.parameters.{name}`
+
+        Agregue cada clave de parámetro de solicitud a la lista `attributes.exclude` . Asegúrese de anteponer la clave con `request.parameters`. La propiedad `ignored_params` ha quedado obsoleta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `analytics_events.enabled`
+      </td>
+
+      <td>
+        `transaction_events.enabled`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `analytics_events.capture_attributes`
+      </td>
+
+      <td>
+        `transaction_events.capture_attributes`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `analytics_events.max_samples_stored`
+      </td>
+
+      <td>
+        `transaction_events.max_samples_stored`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `browser_monitoring.capture_attributes`
+      </td>
+
+      <td>
+        `browser_monitoring.attributes.enabled`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `error_collector.capture_attributes`
+      </td>
+
+      <td>
+        `error_collector.attributes.enabled`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transaction_tracer.capture_attributes`
+      </td>
+
+      <td>
+        `transaction_tracer.attributes.enabled`
+      </td>
+    </tr>
+  </tbody>
+</table>

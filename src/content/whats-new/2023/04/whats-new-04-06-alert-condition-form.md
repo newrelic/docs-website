@@ -2,23 +2,23 @@
 title: 'Streamline alert configuration and management'
 summary: 'Set up alerts faster and with more flexible configuration options.'
 releaseDate: '2023-04-06'
-learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/' 
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/'
 ---
 
 We’re releasing a number of capabilities that simplify alert management, making setup faster and easier than ever and ensuring coverage without noise.
 
 # Capabilities simplifying alert management:
 
-* Faster setup for creating alerts
-* Guided point-and-click alert configuration flow
-* Recommended alert configurations to eliminate gaps
-* Delayed signal evaluation for noisy environments
-* Extended alert violation evaluation thresholds (2 hours > 24 hours)
-* Workflows are now taggable entities
-* New issues notifications log with critical workflow details
-* Alert condition creation and management with Terraform
+- Faster setup for creating alerts
+- Guided point-and-click alert configuration flow
+- Recommended alert configurations to eliminate gaps
+- Delayed signal evaluation for noisy environments
+- Extended alert incident evaluation thresholds (2 hours > 24 hours)
+- Workflows are now taggable entities
+- New issues notifications log with critical workflow details
+- Alert condition creation and management with Terraform
 
-![The new alert condition creation form in New Relic](./images/alert_condition_form_screenshot.webp "A screenshot of the New Relic alert condition creation form.")
+![The new alert condition creation form in New Relic](/images/alert_condition_form_screenshot.webp 'A screenshot of the New Relic alert condition creation form.')
 
 # Deep dive into each capability:
 
@@ -38,7 +38,7 @@ Alert coverage gaps will highlight areas in your stack where you're missing cove
 
 When alerting on autoscale environments, alerts are configured to start watching new signals automatically as soon as they appear. However, since new signals are often atypical or erratic at first, they quite often trigger false alarms. Now, when creating a NRQL-based alert condition, you can specify how long to wait before we start evaluating a new signal that is covered by that alert.
 
-## Extended alert violation evaluation thresholds (2 hours > 24 hours)
+## Extended alert incident evaluation thresholds (2 hours > 24 hours)
 
 New Relic now allows alert evaluation periods to support the aggregation of up to 24 hours of data, up from 2 hours previously. This gives you more flexibility in alert conditions and furthers the accuracy of alert thresholds to help you limit noisy redundant alerts and ensure coverage across critical services.
 
@@ -54,4 +54,4 @@ Until now, the issues notifications log did not include critical details relevan
 
 We’ve made enhancements to the alert configuration flow to make it easier to use Terraform directly in New Relic. The Terraform script generator provides a button in your NRQL alert condition edit screen that will let you see an alert condition, as currently configured in the UI, as it would appear in a Terraform script.
 
-To dive into more of these improvements, check out the [Data Byte video](https://youtu.be/xUfyeZymvBU) or read more about the benefits of the new alert condition creation flow in our [documentation](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). 
+To dive into more of these improvements, check out the [Data Byte video](https://youtu.be/xUfyeZymvBU) or read more about the benefits of the new alert condition creation flow in our [documentation](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/).

@@ -1,0 +1,347 @@
+---
+title: Python e GraphQL
+tags:
+  - Agents
+  - Python agent
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Transação
+
+Transações são capturadas como transações da web que são nomeadas com base nas operações GraphQL executadas. Os detalhes a seguir são usados para agrupar representações de consulta exclusivas: tipo de operação, nome da operação e o caminho exclusivo mais profundo.
+
+A representação bruta de uma transação é semelhante a esta: `{operation_type}/{operation_name}/{deepest_unique_path}`
+
+Usando este exemplo de consulta:
+
+```graphql
+query {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+A transação ativada na interface será exibida de forma semelhante a esta: `query/<anonymous>/libraries.books`
+
+### Detalhes
+
+#### Tipo de operação
+
+Indica se a operação foi uma consulta ou uma mutação.
+
+#### Nome da Operação
+
+O nome da operação quando fornecido ou `<anonymous>`.
+
+`query { libraries }` teria um nome de operação em branco porque um nome não foi fornecido.
+
+Uma consulta com um nome como `query GetLibraries { libraries }` usaria o nome da operação `'GetLibraries'`.
+
+#### Caminho único mais profundo
+
+O caminho mais profundo incluído no conjunto de seleção de uma consulta onde apenas um campo foi selecionado em cada nível. Como os nomes das operações podem ser reutilizados, isso ajuda a determinar ainda mais a exclusividade de uma determinada operação.
+
+Usamos o caminho único mais profundo (em vez do caminho mais profundo como antes) para evitar tomar decisões arbitrárias na nomenclatura, o que pode implicar ou ocultar detalhes do que poderia causar lentidão em um aplicativo.
+
+Para a consulta:
+
+```graphql
+query {
+  libraries {
+    branch
+    booksInStock {
+      isbn,
+      title,
+      author
+    }
+    magazinesInStock {
+      issue,
+      title
+    }
+  }
+}
+```
+
+Selecionaremos um caminho único e mais profundo da 'biblioteca' à medida que selecionamos vários campos além desse ponto. Qualquer resolução executada além desse ponto pode contribuir para as características de desempenho da transação.
+
+Se a consulta selecionasse apenas um campo por resolvedor, selecionamos o caminho completo, pois cada conjunto de seleção é único.
+
+A consulta:
+
+```graphql
+query {
+  libraries {
+    booksInStock {
+      title
+    }
+  }
+}
+```
+
+Resultará no caminho exclusivo mais profundo: `'libraries.booksInStock.title'`.
+
+`id` e os campos `__typename` são automaticamente excluídos da decisão de nomenclatura.
+
+Por exemplo, uma consulta de subgráfico:
+
+```graph1l
+query {
+  libraries {
+    branch
+    __typename
+    id
+  }
+}
+```
+
+Resultaria no caminho exclusivo mais profundo de: `libraries.branch`.
+
+### Tipos de união e fragmentos embutidos
+
+Para tipos de união que utilizam fragmentos embutidos, o nome da transação usará colchetes `< ... >` para indicar o campo selecionado subjacente para a consulta de união se apenas um resultado for especificado na consulta.
+
+Para o seguinte esquema:
+
+```graphql
+union SearchResult = Book | Author
+
+type Book {
+  title: String!
+}
+
+type Author {
+  name: String!
+}
+
+type Query {
+  search(contains: String): [SearchResult!]
+}
+```
+
+e a seguinte consulta:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+  }
+}
+```
+
+Resultaria no seguinte nome de transação:
+
+`query/example/search<Author>.name`
+
+No entanto, se a consulta retornar Livro e Autor:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+    ... on Book {
+      title
+    }
+  }
+}
+```
+
+O nome da transação resultante seria `query/example/search`
+
+### Nomeação em caso de erro
+
+Erros na validação ou análise de uma solicitação GraphQL podem afetar a nomenclatura da transação.
+
+#### Exceções
+
+Se for encontrado um erro no middleware ou no resolvedor, o nome da transação será simplesmente o nome do middleware ou do resolvedor no qual ocorreu a falha.
+
+#### Erros de validação
+
+Se uma operação solicitada puder ser analisada, mas não validada, o seguinte será gerado como o nome da transação:
+
+No GraphQL2: `graphql.validation.validation:validate` No GraphQL3: `graphql.validation.validate.validate`
+
+#### Erros de análise
+
+Se uma operação solicitada não puder ser analisada, o seguinte será gerado como nome da transação:
+
+```
+graphql.language.parser:parse
+```
+
+## Métrica
+
+O agente Python relata o resolvedor de campo GraphQL e a métrica de operação para permitir que você entenda e analise tendências de longo prazo.
+
+### Operação métrica
+
+As métricas da operação são reportadas no seguinte formato:
+
+```
+GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}
+```
+
+Tipo de operação: especifica o tipo de operação a ser executada. Será `query`, `mutation` ou `<unknown>` se o tipo de operação não puder ser determinado.
+
+Nome da Operação: O nome da operação, se fornecido, ou `<anonymous>`.
+
+[Caminho Único Mais Profundo](#deepest-unique-path): O caminho mais profundo incluído no conjunto de seleção de uma consulta onde apenas um campo é selecionado em cada nível. Isso ajuda a determinar ainda mais a exclusividade de uma determinada operação, uma vez que os nomes das operações podem ser reutilizados.
+
+### Métrica do resolvedor de campo
+
+As métricas do resolvedor de campo são reportadas usando o seguinte formato:
+
+```
+GraphQL/resolve/GraphQL/{field_name}
+```
+
+As métricas do resolvedor capturam o tempo gasto na resolução de um dado específico do GraphQL solicitado. Eles podem ser usados para encontrar resolvedores específicos que podem contribuir para retardar as consultas recebidas.
+
+## Vãos e atributo
+
+Os spans são capturados para operações GraphQL, resoluções de campo e trabalho adicional que ocorre como parte de uma resolução de campo, como fazer uma consulta a um banco de dados.
+
+Os intervalos de operação incluem o tipo de operação, o nome da operação e o caminho exclusivo mais profundo. Eles representam a duração individual e o atributo de uma invocação específica dentro de uma transação ou trace.
+
+```
+GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}
+```
+
+<DNT>
+  **Operation span attributes**
+</DNT>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.operation.type`
+      </td>
+
+      <td>
+        Consulta ou mutação
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.name`
+      </td>
+
+      <td>
+        Nome dado à operação ou `< anonymous >`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.query`
+      </td>
+
+      <td>
+        Nome dado à consulta ou `< anonymous >`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Extensão do resolvedor de campo
+
+Os intervalos do resolvedor aproveitam o caminho de resolução do campo individual para melhor diferenciar dentro de um determinado trace ou transação. Por exemplo, `libraries.books` pode ser usado em vez de apenas livros. Eles representam a duração individual e o atributo de um campo específico sendo resolvido como parte da operação GraphQL.
+
+```
+GraphQL/resolve/GraphQL/{path}
+```
+
+<DNT>
+  **Resolver span attributes**
+</DNT>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.field.name`
+      </td>
+
+      <td>
+        Nome do campo resolvido
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.returnType`
+      </td>
+
+      <td>
+        Tipo de retorno do campo resolvido (por exemplo, `Book!`, `[String]`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.parentType`
+      </td>
+
+      <td>
+        Tipo do pai deste campo (por exemplo, `[Book]`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.path`
+      </td>
+
+      <td>
+        Caminho completo do resolvedor do campo (por exemplo, `libraries.books`)
+      </td>
+    </tr>
+  </tbody>
+</table>

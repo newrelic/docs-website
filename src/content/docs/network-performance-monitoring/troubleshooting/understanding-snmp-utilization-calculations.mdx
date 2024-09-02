@@ -1,0 +1,252 @@
+---
+title: Understanding default SNMP utilization calculations
+tags:
+  - Integrations
+  - Network monitoring
+  - Troubleshooting
+metaDescription: Understanding how various utilization metrics are calculated in ktranslate.
+freshnessValidatedDate: 2023-10-30
+---
+
+## Problem [#problem]
+
+You have questions about various results calculated by the `ktranslate` network monitoring agent.
+
+## Background [#background]
+
+`ktranslate` returns the raw data collected by SNMP polling in almost every instance with the following caveats:
+
+* CPU utilization %
+* Memory utilization %
+* Interface utilization %
+* Interface error %
+* Various metrics with the `enum` or `conversion` functions applied in their configuration
+
+## Solution [#solution]
+
+<CollapserGroup>
+  <Collapser
+    id="cpu-utilization"
+    title="CPU Utilization %"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.CPU`
+
+    CPU is generally returned in a direct OID that provides a integer or float value representing percentage utilization. In rare cases, there is only a result for CPU idle, which is [translated to CPU](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L281-L285) using this formula:
+
+    ```
+    CPU = 100 - CPU Idle
+    ```
+  </Collapser>
+
+  <Collapser
+    id="memory-utilization"
+    title="Memory Utilization %"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.MemoryUtilization`
+
+    Unlike CPU, memory utilization is rarely presented as a direct OID value. To calculate the percent utilization, [ktranslate uses this logic](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L287-L317):
+
+    ```
+    If Memory Used and Memory Free are available:
+      Memory Utilization = ( Memory Used / (Memory Free + Memory Used) ) * 100
+
+    If Memory Total and Memory Free are available:
+      Memory Utilization = ( (Memory Total - Memory Free) / Memory Total ) * 100
+
+    If Memory Total and Memory Used are available:
+      Memory Utilization = ( Memory Used / Memory Total ) * 100
+
+    If Memory Total, Memory Buffer, and Memory Cache are available:
+      Memory Utilization = ( ( Memory Total - (Memory Buffer + Memory Cache ) ) / Memory Total ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="interface-utilization"
+    title="Interface Utilization %"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.IfInUtilization` \| `kentik.snmp.IfOutUtilization`
+
+    Interface utilization follows the industry standard approach of calculating the delta in bits and dividing by the product of the interface's configured speed and the time delta since the last collection was made.
+
+    For example, assuming 1 is the previous data point and 2 is the most recent:
+
+    > ( ( ifHCInOctets_2 - ifHCInOctets_1 ) \* 8 \* 100 ) / ( (sysUptime_2 - sysUptime_1) \* ifSpeed )
+
+    ### Translated calculation
+
+    For the numerator:
+
+    * Take the latest count of octets and subtract the value of the previous sample to get a delta.
+    * Multiply the result by 8 to convert octets to bits.
+    * Multiply the bits by 100 to set up the percentage calculation.
+
+    For the denominator:
+
+    * Take the latest value of `sysUptime` and subtract the value of the previous sample to get a delta that shows the polling interval.
+    * Multiply the interval by the configured `ifSpeed` (which is reported in bits).
+
+    Finally:
+
+    * Divide the numerator by the denominator to find the utilization percent.
+
+    ### Source data
+
+    [Ktranslate](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/formats/nrm/nrm.go#L581-L623), uses the value of either [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (receive) or [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (transmit); replacing `ifSpeed` in the denominator with the value of [ifHighSpeed](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.15) as needed:
+
+    <Callout variant="tip">
+      A common reason for seeing inaccurate interface utilization percentages is the configured interface speed on the device doesn't reflect the real interface speed. For instance, a 1GB MPLS circuit on a 10GB interface would show percentages at only 10% of the real utilization. To resolve this, consult your vendor's documentation on setting the interface bandwidth.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="interface-throughput"
+    title="Interface Throughput"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifHCInOctets` \| `kentik.snmp.ifHCOutOctets`
+
+    Interface throughput uses the value of either [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (receive) or [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (transmit).
+
+    It's important to note exactly what you are looking for when querying for throughput.
+
+    * 1 octet = 1 byte
+    * 1 octet = 8 bits
+
+      The raw measurement in SNMP is counting octets, which in this context would be synonymous with bytes. You can easily calculate bytes directly through the reported metric without any conversion needed.
+
+      If you are looking for bits per second (bps), you need to both multiply the octets and convert the final number into a 'per second' rate.
+
+      **Example**
+
+      ```sql
+      FROM Metric SELECT
+      max(kentik.snmp.ifHCInOctets) AS 'total_received_bytes',
+      max(kentik.snmp.ifHCOutOctets) AS 'total_sent_bytes',
+      rate(average(kentik.snmp.ifHCInOctets)*8, 1 SECOND) AS 'average_received_bps',
+      rate(average(kentik.snmp.ifHCOutOctets)*8, 1 SECOND) AS 'average_sent_bps'
+      FACET entity.name, if_interface_name
+      SINCE 1 WEEK AGO
+      TIMESERIES
+      ```
+  </Collapser>
+
+  <Collapser
+    id="interface-errors"
+    title="Interface Errors %"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifInErrorPercent` \| `kentik.snmp.ifOutErrorPercent`
+
+    Interface error percentage uses the value of either [ifInErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.14) (receive) or [ifOutErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.20) (transmit), divided by either [ifHCInUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.7) (receive) or [ifHCOutUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.11) (transmit). [In ktranslate](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/interface_metrics.go#L255-L271), the formula looks like this:
+
+    ```
+    ( ifInErrors / ifHCInUcastPkts ) * 100
+    or
+    ( ifOutErrors / ifHCOutUcastPkts ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="snmp-conversions"
+    title="SNMP conversions"
+  >
+    <DNT>**Metric Name**</DNT>: Various
+
+    Other SNMP metrics are converted based on the existence of the `enum` and `conversion` functions in their respective [SNMP profile](https://github.com/kentik/snmp-profiles/blob/main/profiles/kentik_snmp/_template.yml).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "450px" }}>
+            Profile Setting
+          </th>
+
+          <th>
+            Usage
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `tag`
+          </td>
+
+          <td>
+            Used to override the `name` attribute and present a friendly name that will be sent with the exported payload.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enum:[]`
+          </td>
+
+          <td>
+            Used to handle SNMP enumerations which convert the integer value of a dimensional metric into the enumerated value in an attribute decorated on the dimensional metric (using the same metric name suffix). A common example is the conversion of [kentik.snmp.if_AdminStatus](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.7) to the enumerated value of [if_AdminStatus](https://github.com/kentik/snmp-profiles/blob/ccb1df47a5068a59fb3e3765746524e0286252e7/profiles/kentik_snmp/_general/if-mib.yml#L59-L66) as either `up`, `down`, or `testing`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoint: <current>: <desired>`
+          </td>
+
+          <td>
+            Used to convert hexadecimal values into integer format. Options for <DNT>**current**</DNT>: `LittleEndian` \| `BigEndian`. Options for <DNT>**desired**</DNT>: `uint16` \| `uint32` \| `uint64`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoip`
+          </td>
+
+          <td>
+            Used to convert hexadecimal values into 4-octet IPv4 strings.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hwaddr`
+          </td>
+
+          <td>
+            Used to convert hexadecimal values into MAC address strings.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: powerset_status`
+          </td>
+
+          <td>
+            Used for enumeration of the [upsBasicStateOutputState](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.318.1.1.1.11.1.1) ASCII string in the `POWERNET-MIB`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: regexp`
+          </td>
+
+          <td>
+            Places a regex match on the OID output to capture substrings; needs to be wrapped in quotes and have backslashes escaped.<br/>Example OID result: `" 5 Secs ( 96.3762%) 60 Secs ( 62.8549%) 300 Secs ( 25.2877%)"`<br/>Example conversion: `"regexp:60 Secs.*?(\\d+)"`<br/>Final result: `62`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: to_one`
+          </td>
+
+          <td>
+            Used to create a gauge metric with the value of `1` in order to poll non-numeric scalar OIDs that don't have enumeration options. An example is the [tlUpsTestResultsDetail](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.850.100.1.7.2) OID which returns a value of the type [DisplayString](https://www.circitor.fr/Mibs/Html/S/SNMPv2-TC.php#DisplayString).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>

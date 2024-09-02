@@ -1,0 +1,494 @@
+---
+title: Compatibilidad y requisitos para el agente de Java
+tags:
+  - Agents
+  - Java agent
+  - Getting started
+metaDescription: 'The New Relic APM Java agent: compatibility and requirements.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[El agente de Java de New Relic](/docs/agents/java-agent/getting-started/introduction-new-relic-java) incluye instrumentación integrada de las partes más populares del ecosistema Java, incluidos servidores de aplicaciones, marco, base de datos y sistemas de colas de mensajes. Para el marco y la biblioteca que no están instrumentados de fábrica, puede ampliar el agente con [instrumentación personalizada de Java](/docs/agents/java-agent/custom-instrumentation/java-custom-instrumentation).
+
+¿Quieres probar el agente de Java de New Relic? ¡ [Crea una cuenta New Relic](https://newrelic.com/signup) gratis! No se requiere tarjeta de crédito.
+
+## Requisitos para instalar el agente [#java-requirements]
+
+Antes de instalar el agente de Java, asegúrese de que su sistema cumpla con estos requisitos:
+
+<CollapserGroup>
+  <Collapser
+    id="jvm"
+    title="JVM"
+  >
+    El agente de Java es compatible con cualquier lenguaje basado en JVM, incluidos: Java, Scala, Kotlin y Clojure. Para obtener soporte de instrumentación para características específicas del idioma, consulte la sección [Biblioteca y marco instrumentado automáticamente](#auto-instrumented) a continuación.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            versión java
+          </th>
+
+          <th style={{ width: "300px" }}>
+            Versiones compatibles del agente de Java
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Java 7
+          </td>
+
+          <td>
+            v3.0.0 a v6.5.0, v6.5.2, v6.5.3 y v6.5.4
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Java 8
+          </td>
+
+          <td>
+            v3.10.0 a la actual
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Java 11
+          </td>
+
+          <td>
+            v4.7.0 a la actual
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Java 17
+          </td>
+
+          <td>
+            v7.4.0 a la actual
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Java 21
+          </td>
+
+          <td>
+            v8.7.0 a la actual
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Algunas versiones del agente de Java en esta tabla ya no son compatibles, pero aún se enumeran como referencia. La lista de versiones compatibles del agente de Java se encuentra en [la política EOL del agente de Java](/docs/apm/agents/java-agent/getting-started/java-agent-eol-policy/).
+  </Collapser>
+
+  <Collapser
+    id="security-requirements"
+    title="Requerimientos de seguridad"
+  >
+    Como [medida de seguridad estándar para la recopilación de datos](/docs/accounts-partnerships/accounts/security/data-security), su servidor de aplicaciones debe admitir SHA-2 (256 bits). SHA-1 no es compatible.
+  </Collapser>
+
+  <Collapser
+    id="other-apm"
+    title="Uso de otro software de monitoreo"
+  >
+    Si su aplicación utiliza otro software de monitoreo de aplicaciones además de nuestro agente, no podemos garantizar que nuestro agente funcionará correctamente y no podemos ofrecer soporte técnico. Para obtener más información, consulte [Errores al utilizar otro software de monitoreo](/docs/apm/new-relic-apm/troubleshooting/errors-while-using-new-relic-apm-alongside-other-apm-software).
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentación incorporada [#auto-instrumented]
+
+Después de [instalar el agente de Java](/docs/agents/java-agent/installation/install-java-agent), instrumenta automáticamente muchos marcos y bibliotecas populares. Con la instrumentación automática, el agente recopila datos enriquecidos desde el primer momento y los datos aparecerán en su panel de control de New Relic a los pocos minutos de la instalación. Incluso si su biblioteca no está instrumentada automáticamente, aún puede recopilar datos con [instrumentación personalizada](/docs/agents/java-agent/custom-instrumentation/java-custom-instrumentation) y la [API del agente de Java](/docs/agents/java-agent/api-guides/guide-using-java-agent-api).
+
+El agente instrumentó automáticamente estos framework y biblioteca:
+
+<CollapserGroup>
+  <Collapser
+    id="app-web-servers"
+    title="Servidores web/aplicaciones"
+  >
+    El agente instrumentó automáticamente los siguientes servidores web/aplicaciones. Para instalar el agente de Java en servidores web/aplicaciones compatibles, consulte [Instalar el agente de Java](/docs/agents/java-agent/installation/java-agent-manual-installation).
+
+    * Fusión Fría 10
+    * Glassfish 3.0 a la última versión
+    * JBoss 7.0 a la última versión
+    * JBoss EAP 6.0 a la última versión
+    * Jetty 9.3.0.M1 a la última versión
+    * Mule ESB 3.4 a 3.9.x
+    * Netty 3.3.0.Alpha1 a 5.0.0.Alpha1
+    * Resin 3.1.9 a 4.0.x
+    * Lata de aerosol 1.3.1 a la última versión
+    * Tomcat 7.0.0 a la última versión
+    * TomEE 1.5 a la última versión
+    * WebLogic 12.1.2.1 a 12.2.x
+    * WebSphere 8.5.x a 9.x
+    * WebSphere Liberty Profile 8.5 a la última versión
+    * WildFly 8.0.0.Final a la última versión
+  </Collapser>
+
+  <Collapser
+    id="frameworks"
+    title="Marco y biblioteca"
+  >
+    El agente instrumentó automáticamente el siguiente marco. Para instalar el agente de Java en un marco compatible, consulte [Instalar el agente de Java](/docs/agents/java-agent/installation/java-agent-manual-installation).
+
+    * Akka 2.2.0-RC1 a la última versión
+
+    * Cliente AmazonS3 1.2.13 a la última versión
+
+    * Clientes AmazonSNS y AmazonSNSAsync 1.11.12 a la última versión
+
+    * Clientes AmazonSQS y AmazonSQSAsync 1.3.22 a la última versión
+
+    * Efecto gatos v2
+
+      * Scala 2.12: 2.1 a la última
+      * Scala 2.13: 2.1 a la última
+
+    * Efecto Gatos v3
+
+      * Scala 2.12: 3.2.x
+      * Scala 2.13: 3.2.x
+
+    * CXF 2.1.3 a la última
+
+    * Grails 1.3.7 a 2.3.x
+
+    * GraphQL 16.0 - 16.2
+
+    * GraphQL 17.0 a 20.x
+
+    * GraphQL 21.0 a la última versión
+
+    * Hibernate 3.3.0.CR1 a 6.0.0.Alpha2
+
+    * Hystrix 1.3.15 a la última versión
+
+    * Jakarta RESTful WS API 2.1.x a 3.1.x
+
+    * JAX-RS 1.0 a 2.0
+
+    * JBoss Logging 1.3.0.Final a la última versión (para nuestra característica [de logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all/) )
+
+    * [JCache API](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3200) 1.0.0 a la última versión
+
+    * Jersey 1.0.1 a la última versión
+
+    * JSF (caras del servidor Java)
+
+    * JUL (registro de utilidades de Java) (para nuestra característica [de logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all/) )
+
+    * Log4j1 1.2.17 a la última versión (para nuestra característica [de logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all/) )
+
+    * Log4j2 2.6 a la última versión (para nuestra característica [de logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all/) )
+
+    * Iniciar sesión 1.1 a la última versión (para nuestra característica [de logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all/) )
+
+    * Tareas de Monix
+
+      * Scala 2.11: 3.0.0 a 3.2.x
+      * Scala 2.12: 3.0.0 a la última versión
+      * Scala 2.13: 3.0.0 a la última versión
+      * Scala 3: 3.0.0 a la última versión
+
+    * Play Server 2.3.0 a la última versión
+
+    * Quartz Job Scheduler 1.8.3 a 2.2.x
+
+    * RESTEasy 2.2-RC-1 a la última versión
+
+    * Cliente S3 2.1.0 a la última
+
+    * SnsClient 2.1.0 a la última
+
+    * Rocíe 1.3.1 a la última versión
+
+    * Spring 3.0.0.RELEASE a la última versión
+
+    * Spring Batch 4.0.0 a la última versión
+
+    * Spring Web Services desde 1.5.7 hasta la última versión
+
+    * Spring Webflux 5.0.0.RELEASE a la última versión
+
+    * SqsClient 2.1.0 a la última
+
+    * Struts 2.0 a la última versión
+
+    * Ahorro 0.8.0 a la última versión
+
+    * Vert.x 3.2.0 a 4.5.x
+
+    * CIO
+
+      * Scala 2.13: 1.0.9 a la última versión
+  </Collapser>
+
+  <Collapser
+    id="http-messaging"
+    title="HTTP y mensajería"
+  >
+    El agente instrumentó automáticamente los siguientes clientes HTTP y servicios de mensajería. Para obtener instrucciones, consulte [Instalar el agente de Java](/docs/agents/java-agent/installation/java-agent-manual-installation).
+
+    * Akka HTTP 2.4.5 a la última versión
+
+    * Akka Http Core desde 0.4 hasta la última versión
+
+    * AsyncHttpClient 2.0.0-RC1 a la última versión
+
+    * gRPC 1.4.0 a la última versión
+
+    * Cliente HTTP4s Blaze
+
+      * Scala 2.12: 0.21 - 0.23.0-M1
+      * Scala 2.13: 0.21 - 0.23.0-M1
+
+    * Servidor HTTP4s Blaze
+
+      * Scala 2.12: 0.21 - 0.22.0-M8
+      * Scala 2.13: 0.21 - 0.22.0-M8
+
+    * HttpAsyncClient 4.1 a la última versión
+
+    * Apache Httpclient de 3.1 a 5.x
+
+    * java.net.HttpURLConnection
+
+    * JMS desde 1.1 hasta la última versión
+
+    * [Clientes Kafka](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 0.10.0.0 a la última versión (para datos métricos y de eventos)
+
+    * [Clientes Kafka](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 0.11.0.0 a la última versión (para rastreo distribuido y datos de eventos)
+
+    * [Kafka Connect](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 1.0.0 a la última versión (para métrica)
+
+    * [Kafka Connect](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 2.0.0 a la última versión (para datos de rastreo distribuido y transacción)
+
+    * [Kafka Streams](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 1.0.0 a la última versión (para métrica)
+
+    * [Kafka Streams](/docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues) 2.0.0 a la última versión (para datos de rastreo distribuido y transacción)
+
+    * OkHttp 3.6.0 a la última versión
+
+    * Ning AsyncHttpClient 1.x
+
+    * Play WS
+
+      * Scala 2.11: 2.6.0 a la última versión
+      * Scala 2.12: 2.6.0 a la última versión
+      * Scala 2.13: 2.7.3 a la última versión
+
+    * RabbitMQ 1.7.2 a la última versión (AMQP y JMS)
+
+    * Cliente de spray 1.3.1 a la última versión
+
+    * Primavera JMS 1.1 a la última versión
+
+    * Cliente web Spring desde la versión 5.0.0 hasta la última
+
+    * STTP v2
+
+      * Scala 2.12: 2.2.3 a la última versión 2.x
+      * Scala 2.13: 2.2.3 a la última versión 2.x, 3.0.0 a la última versión 3.x
+  </Collapser>
+
+  <Collapser
+    id="JDBC"
+    title="Almacenes de datos"
+  >
+    New Relic actualmente admite MySQL y PostgreSQL para capturar planes explicativos para la consulta lenta de la base de datos.
+
+    * Amazon v1 DynamoDB 1.11.106 a la última versión
+
+    * Amazon v2 DynamoDB 2.1.0 a la última
+
+    * Normal de 2,0 a 2,5
+
+    * DataStax Cassandra 3.0.0 a la última versión (si usa [alta seguridad](/docs/accounts-partnerships/accounts/security/high-security), consulte la [documentación de configuración para ver la lista de 'permitidos'](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#tt-slow_query_whitelist)).
+
+    * DB2 9.1 a la última versión
+
+    * Derby 10.11.1.1 a la última versión
+
+    * JDBC genérico (cualquier controlador compatible con JDBC)
+
+    * H2 1.0.57 a la última
+
+    * HSQL 1.7.2.2 a la última versión
+
+    * Controlador INet Oracle (Oranxo) 3.06, 3.14
+
+    * INet MERLIA 7.0.3, 8.04.03 y 8.06
+
+    * Jedis Redis driver 1.4.0 a 2.10.x, 3.0.0 a 4.x
+
+    * jTDS 1.2 a la última versión
+
+    * Controlador Lettuce Redis 4.3 a la última versión
+
+    * MariaDB 1.1.7 o superior
+
+    * Microsoft SQL Server 1.2 a la última versión
+
+    * MongoDB
+
+      * Clientes síncronos: 3.1.0-rc0 a la última
+      * Clientes asincrónicos: 3.4.0 a 4.1.x
+      * Clientes de transmisiones reactivas: 4.2.0 a la última versión
+
+    * MySQL MySQL-connector-java 3.0.8 a la última versión
+
+    * Oráculo ojdbc5, ojdbc6, ojdbc7, ojdbc8, ojdbc10, ojdbc14
+
+    * Postgres 8.0-312.jdbc3 a la última versión
+
+    * R2DBC H2 0.8.x a 0.9.x
+
+    * R2DBC MariaDB 1.0.2 a 1.1.1
+
+    * R2DBC MySQL 0.8.x a la última versión
+
+    * R2DBC MSSQL 0.8.0 a la última versión
+
+    * R2DBC Oracle 0.x a la última versión
+
+    * R2DBC Postgres 0.9.x a la última versión
+
+    * Slick 3.0.0 a 3.3.x
+
+    * Solr 4.0 a la última versión
+
+    * Spymemcached 2.11 a la última versión
+
+    * Controlador Sybase (jConnect) JDBC 3 6.0 a la última versión
+  </Collapser>
+
+  <Collapser
+    id="instance-level-db"
+    title="Información de la base de datos a nivel de instancia"
+  >
+    New Relic recopila [detalles de instancia para una variedad de base de datos y controlador de la base de datos](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues). La capacidad de ver instancias específicas y los tipos de información de la base de datos en APM depende de la versión de su agente New Relic.
+
+    [Las versiones 3.33.0 o superiores](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3330) del agente de Java de New Relic admiten lo siguiente:
+
+    * Cualquier [controlador JDBC compatible](#JDBC)
+
+    * Amazon DynamoDB 1.11.106 o superior
+
+    * Amazon v2 DynamoDB 2.1.0 a la última
+
+    * Controlador DataStax Cassandra 3.0.0 a la última versión
+
+    * Jedis Redis driver 1.4 a 2.10.x, 3.0.0 a 4.x
+
+    * MongoDB
+
+      * Clientes síncronos: 3.1.0-rc0 a la última
+      * Clientes asincrónicos/Reactive streams: 3.4.0 hasta 4.1.2
+
+    * Spymemcached 2.11.0 a la última versión
+
+      <DNT>**Exception:**</DNT> La información a nivel de instancia no se proporciona para las llamadas al método API `getBulk()` .
+
+      El agente de Java informa el nombre de la base de datos y el servidor/identificador del atributo de base de datos en consulta lenta traza y traza de la transacción para estos controlador de la base de datos. Para solicitar información a nivel de instancia de almacenes de datos adicionales, obtenga soporte en [support.newrelic.com](https://support.newrelic.com).
+  </Collapser>
+
+  <Collapser
+    id="hosting-services"
+    title="Servicios de alojamiento"
+  >
+    Puede instalar el agente de Java en una variedad de servicios de alojamiento, incluidos los que no se enumeran a continuación. Aquí hay guías de instalación detalladas para servicios de alojamiento particulares:
+
+    * [Entorno flexible de Google App Engine (GAE)](/docs/agents/java-agent/additional-installation/google-app-engine-flexible-installation-java#tomcat-example)
+    * [Heroku](/docs/agents/java-agent/heroku/java-agent-heroku)
+  </Collapser>
+
+  <Collapser
+    id="async"
+    title="Instrumentación asincrónica"
+  >
+    Para el marco compatible, el agente de Java [generalmente instrumenta el trabajo asíncrono automáticamente](/docs/agents/java-agent/async-instrumentation/asynchronous-applications-monitoring-considerations). Sin embargo, puede utilizar la API del agente de Java para [ampliar esta instrumentación](/docs/agents/java-agent/async-instrumentation/java-agent-api-asynchronous-applications).
+  </Collapser>
+
+  <Collapser
+    id="other"
+    title="Otro instrumentado característico"
+  >
+    * Beans de sesión EJB 3.0 o superior
+    * JMX
+    * JSP (páginas del servidor Java) 2.0 a 3.0
+    * [Scala](/docs/agents/java-agent/frameworks/scala-installation-java) 2.9.3 a la última versión
+  </Collapser>
+</CollapserGroup>
+
+## Conecte el agente a otros productos New Relic [#digital-intelligence-platform]
+
+El agente de Java se integra con otros productos New Relic para brindarle visibilidad de un extremo a otro:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Producto
+      </th>
+
+      <th>
+        integracion
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [monitoreo del navegador](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)
+      </td>
+
+      <td>
+        El agente de Java inyecta automáticamente el agente JavaScript del browser cuando [habilita la instrumentación automática](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#select-apm-app). Después de habilitar la inyección browser , puede ver los datos del browser en la [página Resumen de APM](/docs/apm/applications-menu/monitoring/apm-overview-page) y cambiar rápidamente entre el APM y los datos del browser para una aplicación en particular. Para opciones de configuración e instrumentación manual, consulte [<InlinePopover type="browser"/>y el agente de Java](/docs/agents/java-agent/instrumentation/page-load-timing-java).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure)
+      </td>
+
+      <td>
+        Cuando instalas la infraestructura y el agente APM en el mismo host, se detectan automáticamente entre sí. Luego puede ver una lista de hosts en la UI de APM y filtrar sus hosts por aplicación de APM en nuestra UI de infraestructura. Para obtener más información, consulte [Datos de APM en la UIde la infraestructura](/docs/infrastructure/new-relic-infrastructure/data-instrumentation/new-relic-apm-data-infrastructure).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [New Relic](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards)
+      </td>
+
+      <td>
+        El agente de Java envía el evento y atributo predeterminados al panel, o puede [ejecutar la consulta NRQL en el generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data). También puedes [grabar eventos personalizados](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) para análisis avanzado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo sintetico](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics)
+      </td>
+
+      <td>
+        [Sintético traza de la transacción](/docs/synthetics/new-relic-synthetics/using-monitors/collect-synthetic-transaction-traces) conecta las solicitudes del monitor Sintético a la transacción APM subyacente.
+      </td>
+    </tr>
+  </tbody>
+</table>

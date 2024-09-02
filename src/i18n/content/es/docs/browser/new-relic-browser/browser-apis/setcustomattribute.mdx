@@ -1,0 +1,141 @@
+---
+title: setCustomAttribute
+type: apiDoc
+shortDescription: Agrega un nombre y valor de atributo definido por el usuario al evento posterior en la página.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: Browser API call to add a user-defined attribute name and value to subsequent events on the page.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.setCustomAttribute(name: string, value: string|number|boolean|null[, persist: boolean])
+```
+
+Agrega un nombre y valor [de atributo personalizado](/docs/data-apis/custom-data/custom-events/collect-custom-attributes/) definido por el usuario al evento posterior en la página.
+
+## Requisitos
+
+* Browser Lite, Pro o Pro+SPA agente (v593 o superior)
+
+  * Para soporte de `persist` parámetro o `null` valor, se requiere la versión 1.230.0 o superior del agente.
+  * Para soporte de valor `boolean` , se requiere la versión del agente 1.245.0 o superior.
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar al menos una función al crear una instancia de la clase `BrowserAgent` . Por ejemplo, agregue lo siguiente en la matriz`features` :
+
+  ```js
+  import { Metrics } from '@newrelic/browser-agent/features/metrics'
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Metrics
+    ]
+  }
+  ```
+
+Para obtener más información, consulte la [documentación de instalación del navegador NPM](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+Realice esta llamada antes de que se active el evento de carga de la ventana (cuando se transmiten esos datos) para que el atributo se incluya en el evento [`PageView`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browser-attributes-table) . Una vez que se establece un atributo, la plataforma New Relic lo registra con todos los eventos hasta que se recarga la página o el atributo se desactiva manualmente.
+
+Si está utilizando [monitoreo SPA](/docs/browser/single-page-app-monitoring/get-started/welcome-single-page-app-monitoring) con una versión de agente compatible, el atributo establecido con esta llamada también se incluirá en el evento [`newrelic.interaction`](/docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicinteraction) . Sin embargo, los atributos configurados mediante la API SPA tendrán prioridad sobre estos atributos.
+
+Los errores del atributo personalizado se incluirán en el evento en la [página de errores de JS](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors). Para ver o log errores para un atributo personalizado a través de API, utilice la llamada [`noticeError`](/docs/browser/new-relic-browser/browser-agent-spa-api/newrelicnoticeerror-browser-agent-api) de la API del navegador.
+
+Con la bandera `persist`, el atributo también se puede almacenar en el browser, de modo que las visitas posteriores a páginas del _mismo_ origen <DNT>**within a session**</DNT> lo conserven en el evento. Tenga en cuenta que esta funcionalidad puede variar según la configuración de privacidad browser del usuario final. Si esta función se llama con `value = null`, el atributo se eliminará de <DNT>**both**</DNT> el evento y el almacenamiento de la página actual, _independientemente_ del indicador `persist` .
+
+<Callout variant="important">
+  ¡Tenga en cuenta que el atributo persistente tiene prioridad sobre `info.jsAttributes` claves del mismo nombre! Por ejemplo, un atributo persistente `someName` establecido en `somedomain.com/pageA` anulará cualquier `someName` que esté configurado estáticamente en el bloque de información de `somedomain.com/pageB`, asumiendo que comparten el mismo almacenamiento (de sesión).
+</Callout>
+
+## Parámetros
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+
+        _cadena_
+      </td>
+
+      <td>
+        Requerido. Nombre del atributo. Aparece como columna en el evento `PageView` . También aparecerá como una columna en el evento `PageAction` si lo estás usando.
+
+        Evite el uso [de palabras NRQL reservadas](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-attributes-insights-javascript-api#limits) cuando nombre el atributo/valor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value`
+
+        _cadena_ O _entero_ O _booleano_ O _nulo_
+      </td>
+
+      <td>
+        Requerido. Valor del atributo. Aparece como el valor en la columna de atributo nombrado en el evento `PageView` . Aparecerá como una columna en el evento `PageAction` si lo está utilizando. atributo personalizado los valores no pueden ser objetos complejos, sólo tipos simples como cadenas, enteros y booleanos.
+
+        Pasar un valor `null` anula cualquier atributo existente con el mismo nombre.
+
+        Evite el uso [de palabras NRQL reservadas](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-attributes-insights-javascript-api#limits) cuando nombre el atributo/valor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `persist`
+
+        _booleano_
+      </td>
+
+      <td>
+        Opcional. Si se establece en `true`, el par nombre-valor también se establecerá en la API de almacenamiento del browser. Luego, en las siguientes páginas instrumentadas que se cargan dentro de la misma sesión, el par se volverá a aplicar como un atributo personalizado.
+
+        El valor predeterminado es `false`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplos
+
+### Obtenga JavaScript/jQuery para elementos HTML [#jquery-example]
+
+Este ejemplo utiliza JavaScript/jQuery para obtener los valores de los siguientes elementos HTML en una página generada por Drupal:
+
+* `<link rel="shortlink" href="/node/1111" />`
+* `<h1>Using NRQL</h1>`
+
+New Relic los reporta como atributo personalizado. Esto es útil para consultar `PageView` y `PageAction` evento.
+
+```js
+var node_id = jQuery("link[rel='shortlink']").attr("href");
+var node_title = jQuery('h1').text();
+
+if (typeof newrelic == 'object') {
+  newrelic.setCustomAttribute('nodeId', node_id);
+  newrelic.setCustomAttribute('title', node_title);
+}
+```

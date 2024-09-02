@@ -1,0 +1,369 @@
+---
+title: Auto-discovery de contêineres para integração no host
+tags:
+  - Integrations
+  - On-host integrations
+  - Installation
+metaDescription: Use discovery to automatically configure a New Relic infrastructure integration to monitor services that may run in multiple containers.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nosso recurso de auto-discovery de contêineres permite configurar uma integração para monitor automaticamente serviços que rodam em múltiplos contêineres. No arquivo de configuração de integração, você pode definir os critérios de correspondência do contêiner, e o agente executa a integração para cada contêiner local que corresponda aos critérios.
+
+Uma integração será executada quantas vezes encontrar elementos de descoberta. Se a descoberta não encontrar nenhum contêiner, a integração não será executada.
+
+<Callout variant="tip">
+  Atualmente, o [agente de infraestrutura](/docs/infrastructure/install-configure-manage-infrastructure) pode descobrir o contêiner Docker local.
+</Callout>
+
+## Adicione espaço reservado à sua configuração [#placeholders]
+
+Na sua configuração de integração você deve criar `${discovery.<property>}` espaço reservado. Eles serão então automaticamente substituídos por informações específicas do contêiner.
+
+Estes exemplos (para ambientes Docker-only e para Kubernetes) mostram como configurar uma [integração NGINX](/docs/infrastructure/host-integrations/host-integrations-list/nginx/nginx-integration) para monitor todos os contêineres locais que possuem um nome de imagem contendo `nginx` e que são rotulados como `env=production`. Cada serviço estará disponível através de IPs e portas diferentes, portanto devem ser variáveis.
+
+<CollapserGroup>
+  <Collapser
+    id="docker-example"
+    title="Exemplo Docker (não orquestrado)"
+  >
+    Esta configuração se aplica a cenários não orquestrados, onde Docker é usado sem Kubernetes ou outros ambientes de orquestração.
+
+    ```
+    discovery:
+      docker:
+        match:
+          image: /nginx/
+          label.env: production
+    integrations:
+      - name: nginx-server-metrics
+        command: metrics
+        env:
+    # use discovery.private.ip if container doesn't have attached public ip address
+          STATUS_URL: http://${discovery.ip}:${discovery.port}/status
+          STATUS_MODULE: discover
+          REMOTE_MONITORING: true
+        labels:
+          env: ${discovery.label.env}
+          role: ${discovery.label.role}
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-example"
+    title="Exemplo de Kubernetes"
+  >
+    Se você usar o Kubernetes e nossa [integração com o Kubernetes](/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration), seria assim que o ConfigMap para a integração ficaria. Observe que `nri-discovery-kubernetes` detectará automaticamente a configuração. No entanto, se for necessária alguma personalização, a ferramenta aceita vários argumentos opcionais:
+
+    * `--namespaces`: lista separada por vírgulas de namespace
+
+    * `--tls`: Use conexão segura (TLS)
+
+    * `--port`: a porta usada para conectar ao kubelet.
+
+    * `--host`: o host usado para conectar-se ao kubelet.
+
+      ```
+      ---
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: nri-integration-cfg
+        namespace: default
+      data:
+        nginx-config.yaml: |
+          ---
+          discovery:
+            command:
+              # Run discovery for Kubernetes. Use the following optional arguments:
+              # --namespaces: Comma separated list of namespaces to discover pods on
+              # --tls: Use secure (TLS) connection
+              # --port: Port used to connect to the kubelet.
+              # --host: Host used to connect to the kubelet.
+              exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+              match:
+                image: /nginx/
+                label.env: production
+          integrations:
+            - name: nri-nginx
+              env:
+                # Use the discovered IP as the host address
+                STATUS_URL: http://${discovery.ip}/server-status?auto
+                METRICS: 1
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## Adicionar propriedades de descoberta [#define-discover]
+
+Para configurar a descoberta, configure uma entrada `discovery` no YAML de configuração de integração usando as propriedades a seguir. Um contêiner será correspondido quando <DNT>**all**</DNT> as propriedades corresponderem aos valores definidos.
+
+<Callout variant="tip">
+  Os valores das propriedades serão correspondidos com um <DNT>**exact string**</DNT>, a menos que o valor a ser correspondido seja definido entre `/.../`. O conteúdo dentro das barras será correspondido como [expressões regulares](https://en.wikipedia.org/wiki/Regular_expression).
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Nome da chave de descoberta
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ttl`
+
+        Tipo: Corda
+      </td>
+
+      <td>
+        Time-To-Live dos resultados da descoberta em cache, usado para minimizar o número de processos de descoberta. Defina como um número seguido por uma unidade de tempo (`s`, `m` ou `h`).
+
+        Exemplos: `30s`, `10m`, `1h`, `0`
+
+        Padrão: 1m
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `docker`
+
+        Tipo: propriedades YAML
+      </td>
+
+      <td>
+        Definição de correspondência Docker contêiner. Consiste em uma propriedade `match` contendo um mapa onde:
+
+        * Cada chave é qualquer uma das propriedades a seguir.
+
+        * O valor é o valor esperado da propriedade informada para o contêiner retornado.
+
+        * Um contêiner corresponde se todas as propriedades corresponderem (operação AND).
+
+          As chaves YAML disponíveis incluem:
+
+        * `ip`: Endereço IP externo do contêiner, se houver
+
+        * `private.ip`: Endereço IP privado do contêiner
+
+        * `port`: Número da porta externa do contêiner
+
+        * `private.port`: Número da porta privada do contêiner
+
+        * `image`: Nome da imagem
+
+        * `name`: Nome do contêiner
+
+        * `label.<label name>`: Qualquer etiqueta de contêiner, acessível pelo seu nome
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Exemplo de descoberta [#example]
+
+O exemplo a seguir corresponde a todos os contêineres Docker cuja imagem começa com `httpd:` (fornecida como expressão regular) e é rotulada como `scrapable=yes`. Os resultados são armazenados em cache com um tempo de vida de 5 minutos.
+
+```
+discovery:
+  ttl: 5m
+  docker:
+    match:
+      image: /^httpd:/
+      label.scrapable: yes
+```
+
+## Informações de contêiner disponíveis [#container-information]
+
+Nosso recurso de descoberta atualmente emite as seguintes variáveis, que podem ser utilizadas para configurar sua integração. O agente de infraestrutura os substitui pelos valores correspondentes do contêiner descoberto.
+
+<Callout variant="important">
+  Certifique-se de adicionar o prefixo `discovery.` .
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Variável
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.ip}`
+      </td>
+
+      <td>
+        Endereço IP público do contêiner, se houver
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ip}`
+      </td>
+
+      <td>
+        Endereço IP privado do contêiner
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}`
+      </td>
+
+      <td>
+        Número da porta pública do contêiner
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}`
+      </td>
+
+      <td>
+        Número da porta privada do contêiner
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.image}`
+      </td>
+
+      <td>
+        Nome da imagem
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.name}`
+      </td>
+
+      <td>
+        Nome do contêiner
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.label.<label name>}`
+      </td>
+
+      <td>
+        Qualquer etiqueta de contêiner, acessível pelo seu nome
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Mapeando múltiplas portas
+
+Quando um contêiner expõe muitas portas privadas ou públicas, elas podem ser acessadas por meio de `discovery.private.ports.` ou `discovery.ports.` seguido por um índice começando em 0. As portas são indexadas do menor para o maior valor de porta privada.
+
+Por exemplo, um contêiner que expõe as portas privadas 80 e 443 através das portas públicas 2345 e 1111, respectivamente, forneceria as seguintes variáveis com seus respectivos valores:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Variável
+      </th>
+
+      <th>
+        Valor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.private.ports.0}`
+      </td>
+
+      <td>
+        `80` (a porta privada mais baixa)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ports.1}`
+      </td>
+
+      <td>
+        `443` (o porto privado mais alto)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.0}`
+      </td>
+
+      <td>
+        `2345` (o mapeamento da porta pública para a porta privada 0)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.1}`
+      </td>
+
+      <td>
+        `1111` (o mapeamento da porta pública para a porta privada 1)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}`
+      </td>
+
+      <td>
+        `80` (igual a `${discovery.private.ports.0}`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}`
+      </td>
+
+      <td>
+        `2345` (igual a `${discovery.ports.0}`)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Observe que a palavra `port` é singular nas variáveis não indexadas e plural nas variáveis indexadas.
+</Callout>
+
+### Mapeando portas por nome de protocolo
+
+Além da indexação da seção anterior, as portas também podem ser referidas pelo nome do protocolo (como `tcp`, `udp`, etc.). Por exemplo, `${discovery.ports.tcp}` ou `${discovery.ports.udp}`.
+
+Se várias portas corresponderem ao mesmo protocolo, elas também poderão ser indexadas pelas regras da seção anterior: `${discovery.ports.tcp.0}`, `${discovery.ports.tcp.1}` e assim por diante.

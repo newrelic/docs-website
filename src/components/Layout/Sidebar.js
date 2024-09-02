@@ -9,7 +9,6 @@ const Sidebar = ({ children, className }) => {
       data-swiftype-index={false}
       css={css`
         grid-area: sidebar;
-        border-right: 1px solid var(--divider-color);
         height: calc(100vh - var(--global-header-height));
         position: sticky;
         top: var(--global-header-height);
@@ -27,7 +26,7 @@ const Sidebar = ({ children, className }) => {
           bottom: 0;
           left: 0;
           right: 0;
-          padding: var(--site-content-padding);
+          padding: 1.5rem;
           overflow: auto;
         `}
       >

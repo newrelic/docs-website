@@ -1,0 +1,220 @@
+---
+title: 'Tutorial NerdGraph: Perda de sinal e preenchimento de lacunas'
+tags:
+  - Alerts
+  - Alerts and Nerdgraph
+metaDescription: Customize how New Relic detects loss of signal and what values it should use for filling gaps in the data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Você pode personalizar o alerta New Relic de perda de detecção de sinal e preenchimento de lacunas usando nossa [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph). Por exemplo, você pode configurar quanto tempo esperar antes de considerar a perda do sinal ou qual valor deve ser usado para preencher lacunas na série temporal.
+
+A perda de sinal ocorre quando o New Relic para de receber dados por um tempo; tecnicamente, detectamos perda de sinal após um período de tempo significativo desde a última recepção de dados em uma série temporal. A perda de sinal pode ser usada para acionar ou resolver um incidente, que você pode usar para configurar um alerta.
+
+O preenchimento de lacunas pode ajudá-lo a resolver problemas causados por pontos de dados perdidos. Quando são detectadas lacunas entre pontos de dados válidos, preenchemos automaticamente essas lacunas com valores de substituição, como os últimos valores conhecidos ou um valor estático. O preenchimento de lacunas pode impedir que alertas sejam acionados ou resolvidos quando não deveriam.
+
+<Callout variant="tip">
+  O sistema <InlinePopover type="alerts" />preenche lacunas nos sinais relatados ativamente. Este histórico de sinal é eliminado após 2 horas de inatividade. Para preencher lacunas, os pontos de dados recebidos após este período de inatividade são tratados como novos sinais.
+
+  Para saber mais sobre perda de sinal, preenchimento de lacunas e como solicitar acesso a esses recursos, veja [este post do Fórum de Suporte](https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361).
+</Callout>
+
+Neste guia, cobrimos o seguinte:
+
+* [Personalize a detecção de perda de sinal](#loss-of-signal)
+* [Personalize o preenchimento de lacunas](#customize)
+
+## Personalize sua detecção de perda de sinal [#loss-of-signal]
+
+A perda de detecção de sinal abre ou fecha caso nenhum dado seja recebido após um determinado período de tempo. Por exemplo, se você definir a duração do período de expiração para 60 segundos e uma integração parecer não enviar dados por mais de um minuto, uma perda de limite de sinal será acionada.
+
+Você pode configurar a duração da perda de sinal e se deseja abrir ou fechar um incidente usando estes três campos no NerdGraph:
+
+* `expiration.expirationDuration`: Quanto tempo esperar, em segundos, após o último ponto de dados ser recebido pela nossa plataforma antes de considerar o sinal como perdido. Isso se baseia no horário em que os dados chegam à nossa plataforma e não no carimbo de data/hora dos dados. O padrão é deixar nulo e, portanto, isso não ativaria a detecção de perda de sinal.
+* `expiration.openViolationOnExpiration`: Se `true`, um novo incidente é aberto quando um sinal é perdido. O padrão é `false`. Para usar este campo, uma duração deve ser especificada.
+* `expiration.closeViolationsOnExpiration`: Se `true`, os incidentes abertos relacionados ao sinal são fechados na expiração. O padrão é `false`. Para usar este campo, uma duração deve ser especificada.
+
+Você também tem a opção de pular a abertura de um incidente quando se espera que o sinal seja perdido. Para fazer isso, use este campo no NerdGraph:
+
+* `expiration.ignoreOnExpectedTermination`: Se `true`, um incidente não será aberto quando se espera que o sinal seja perdido. Para indicar que se espera que um sinal seja perdido, a tag `termination: expected` deve estar presente na entidade. O padrão é `false`.
+
+### Visualizar configurações de perda de sinal para uma condição existente
+
+As condições NRQL existentes podem ter suas configurações de perda de sinal já configuradas. Para visualizar as configurações de condição existentes, selecione os campos em `nrqlCondition` &amp;gt; `expiration`:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      alerts {
+        nrqlCondition(id: NRQL_CONDITION_ID) {
+          ... on AlertsNrqlStaticCondition {
+            id
+            name
+            nrql {
+              query
+            }
+            expiration {
+              closeViolationsOnExpiration
+              expirationDuration
+              openViolationOnExpiration
+              ignoreOnExpectedTermination
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Você deverá ver um resultado como este:
+
+```json
+{
+  "data": {
+    "actor": {
+      "account": {
+        "alerts": {
+          "nrqlCondition": {
+            "expiration": {
+              "closeViolationsOnExpiration": false,
+              "expirationDuration": 300,
+              "openViolationOnExpiration": true,
+              "ignoreOnExpectedTermination": false
+            },
+            "id": "YOUR_ACCOUNT_ID",
+            "name": "Any less than - Extrapolation",
+            "nrql": {
+              "query": "SELECT average(value) FROM AlertsSmokeTestSignals WHERE wave_type IN ('min-max', 'single-gap') FACET wave_type"
+            }
+          }
+        }
+      }
+    }
+  },
+  ...
+```
+
+### Crie uma nova condição com perda de configurações de sinal
+
+Digamos que você queira criar uma nova [condição estática NRQL](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) que acione uma perda de limite de sinal depois que nenhum dado for recebido por dois minutos. Você definiria `expirationDuration` como 120 segundos e `openViolationOnExpiration` como `true`, como no exemplo abaixo.
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticCreate(
+    accountId: YOUR_ACCOUNT_ID
+    policyId: YOUR_POLICY_ID
+    condition: {
+      name: "Low Host Count - Catastrophic"
+      enabled: true
+      nrql: {
+        query: "SELECT uniqueCount(host) FROM Transaction WHERE appName='my-app-name'"
+      }
+      signal {
+        aggregationWindow: 60
+        aggregationMethod: EVENT_FLOW
+        aggregationDelay: 120
+      }
+      terms: [{
+        threshold: 2
+        thresholdOccurrences: AT_LEAST_ONCE
+        thresholdDuration: 600
+        operator: BELOW
+        priority: CRITICAL
+      }]
+      valueFunction: SINGLE_VALUE
+      violationTimeLimitSeconds: 86400
+      expiration: {
+        expirationDuration: 120
+        openViolationOnExpiration: true
+      }
+    }
+  ) {
+    id
+    name
+  }
+}
+```
+
+### Atualizar as configurações de perda de sinal de uma condição
+
+E se você quiser atualizar o parâmetro de perda de sinal para uma condição do alerta? A mutação a seguir permite [atualizar uma condição estática NRQL](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) com novos valores `expiration` .
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticUpdate(
+    accountId: YOUR_ACCOUNT_ID
+    id: YOUR_STATIC_CONDITION_ID
+    condition: {
+      expiration: {
+        closeViolationsOnExpiration: true
+        expirationDuration: 300
+        openViolationOnExpiration: false
+        ignoreOnExpectedTermination: true
+      }
+    }
+  ) {
+    id
+    expiration {
+      closeViolationsOnExpiration
+      expirationDuration
+      openViolationOnExpiration
+      ignoreOneExpectedTermination
+    }
+  }
+}
+```
+
+## Personalize o preenchimento de lacunas [#customize]
+
+O preenchimento de lacunas substitui os valores de lacunas em uma série temporal pelo último valor encontrado ou por um valor estático e arbitrário de sua escolha. Preenchemos as lacunas somente após outro ponto de dados ter sido recebido após as lacunas no sinal (após a recepção de dados ter sido restaurada).
+
+Você pode configurar tanto o tipo de preenchimento quanto o valor, se o tipo estiver definido como estático:
+
+* `signal.fillOption`: Tipo de valor de substituição para pontos de dados perdidos. Os valores podem ser:
+
+  * `NONE`: O preenchimento de lacunas está desativado.
+  * `LAST_VALUE`: O último valor visto na série temporal.
+  * `STATIC`: um valor arbitrário, definido em `fillValue`.
+
+* `signal.fillValue`: valor a ser usado para substituir pontos de dados perdidos quando `fillOption` estiver definido como `STATIC`.
+
+<Callout variant="important">
+  O preenchimento de lacunas também é afetado por `expiration.expirationDuration`. Quando um intervalo é maior que a duração da expiração, o sinal é considerado expirado e o intervalo não será mais preenchido.
+</Callout>
+
+Por exemplo, veja como criar uma condição NRQL estática com preenchimento de lacunas configurado:
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticCreate(
+    accountId: YOUR_ACCOUNT_ID
+    policyId: YOUR_POLICY_ID
+    condition: {
+      enabled: true
+      name: "Example Gap Filling Condition"
+      nrql: { query: "SELECT count(*) FROM Transaction" }
+      terms: {
+        operator: ABOVE
+        priority: CRITICAL
+        threshold: 1000
+        thresholdDuration: 300
+        thresholdOccurrences: ALL
+      }
+      valueFunction: SINGLE_VALUE
+      violationTimeLimitSeconds: 28800
+      signal: {
+        aggregationWindow: 60,
+        aggregationMethod: EVENT_FLOW,
+        aggregationDelay: 120,
+        fillOption: STATIC,
+        fillValue: 1
+      }
+    }
+  ) {
+    id
+  }
+}
+```

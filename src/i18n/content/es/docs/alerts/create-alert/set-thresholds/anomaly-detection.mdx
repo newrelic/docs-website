@@ -1,0 +1,111 @@
+---
+title: Detección de anomalías
+tags:
+  - Anomaly detection
+  - Alerts
+metaDescription: Learn how anomaly detection in New Relic notifies you of unusual app behavior.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La detección de anomalías le permite a su equipo la mayor versatilidad al detectar comportamientos inusuales en su sistema. La detección de anomalías le brinda a su equipo la capacidad de alertar sobre cualquier entidad o señal y ajustar y optimizar su umbral de sensibilidad. La detección de anomalías utiliza el mismo canal de alertas de transmisión que las alertas umbral estáticas y comparte la misma configuración de ajuste avanzada. Esto garantiza que el procesamiento de la transmisión esté alineado con las características de su señal de telemetría para reducir las alertas falsas.
+
+También puede enriquecer su configuración de detección de anomalías con metadatos adicionales para proporcionar más contexto y agregar descripciones de incidentes personalizadas que pueden proporcionar instrucciones adicionales a su ingeniero de guardia.
+
+## Configurar umbral de sensibilidad de anomalía [#configure-custom-anomalies]
+
+Puede crear un umbral de sensibilidad de anomalía a partir de una [condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). A continuación se ofrecen algunos consejos para configurar el umbral de anomalía:
+
+* Establezca la [dirección de la anomalía](#anomaly-direction) para monitor los incidentes que ocurren por encima o por debajo de la anomalía.
+
+* Utilice la barra deslizante para ajustar el umbral de sensibilidad
+
+  <DNT>
+    **Critical**
+  </DNT>
+
+  , representado en el gráfico de vista previa por el área gris claro alrededor de la señal. Cuanto más estrecha sea la banda alrededor de la señal, más sensible será y más incidencia generará.
+
+* Puede crear un [umbral](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels)
+
+  <DNT>
+    [**Warning**](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels)
+  </DNT>
+
+  [](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels)(el área gris más oscura alrededor de la anomalía).
+
+Siga estos pasos para crear una condición de alerta de detección de anomalías:
+
+1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert Conditions**</DNT>.
+
+2. Haga clic en <DNT>**+ New alert condition > Use guided mode**</DNT> (o en el modo de consulta más avanzado).
+
+3. Siga los pasos guiados hasta llegar a <DNT>**Set thresholds**</DNT>.
+
+4. Seleccione <DNT>**Anomaly**</DNT>.
+
+   <img
+     width="80%;"
+     title="Set anomoly thresholds"
+     alt="Screenshot of the anomoly thresholds options"
+     src="/images/alerts_screenshot-crop_try-anomaly-thresholds.webp"
+   />
+
+5. Configure los ajustes para uno o más umbrales. La detección de anomalías hace una predicción sobre cuál será el siguiente punto de datos en función de la actividad anterior. El valor umbral para la detección de anomalías controla la sensibilidad de la condición de alerta para tolerar qué tan lejos está el valor real del valor previsto. El umbral es el número de desviación estándar que el valor de su señal está alejado del valor predicho. Realizamos un seguimiento de la desviación estándar entre el valor previsto y el valor real de los datos de los 7 días anteriores.
+
+   Para configurar el umbral, necesitará:
+
+   * Establezca la 'dirección del umbral' en superior, inferior o ambos. Esto significa que solo crearemos un incidente si el valor de la señal (el resultado de la consulta) está por encima del valor previsto, por debajo del valor previsto o cualquiera de los dos, respectivamente.
+
+     Este campo dicta cuántos puntos de datos durante un período de tiempo específico deben estar fuera del umbral. Las opciones son <DNT>**for at least**</DNT> y <DNT>**at least once in**</DNT>. Seleccionar <DNT>**for at least**</DNT> significa que TODOS los puntos de datos de su señal deben estar fuera del umbral durante el período de tiempo especificado antes de que se abra un incidente. Lo inverso debe ser cierto para cerrar el incidente. La opción <DNT>**at least once in**</DNT> simplemente significa que tan pronto como cualquiera de los puntos de datos de su señal esté fuera del umbral, se abrirá un incidente. Con esta opción, la duración del tiempo no es relevante para determinar cuándo abrir un incidente. Sin embargo, es relevante para cerrar el incidente. Todos los puntos de datos de su señal deben estar dentro del umbral durante el período de tiempo especificado.
+
+   * Establezca la 'duración del umbral'. Piense en esto como cuánto tiempo debe permanecer el valor de la señal fuera del umbral antes de que se abra un incidente. Por el contrario, también es el tiempo que una señal debe permanecer dentro del umbral para que se cierre un incidente.
+
+     Este campo responde al periodo de tiempo mencionado anteriormente. Es cuánto tiempo la señal excede el umbral que se está definiendo. Esta es la duración del umbral real.
+
+   * Establezca el 'nivel umbral'. Para la detección de anomalías personalizada, este es el número de desviación estándar que el punto de datos de la señal es del valor que predijimos que sería.
+
+6. Agregue los detalles de la condición de alerta y haga clic en <DNT>**Save condition**</DNT>.
+
+## Configuración de umbral para condiciones de múltiples señales (consulta facetada) [#faceted-queries]
+
+Dependiendo de cómo definió su consulta en el paso 1, la condición de alerta puede ser monitorear muchas señales, no solo una. Cuando se trabaja con NRQL, estas consultas utilizan la [cláusula`FACET` ](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet). El número máximo de señales que una condición de alerta puede monitor es 5000. La configuración de umbral que especifique se aplica de la misma manera a todas las señales monitoreadas por esta condición. Cada señal se monitorea y evalúa individualmente, pero la configuración se aplica de manera consistente a todas las señales. Solo mostraremos un máximo de 500 señales en el gráfico de vista previa. Pero no mostramos las bandas de señal y umbral previstas cuando se muestra más de una señal en el gráfico. Para mostrar esa información mientras se determina el valor umbral ideal, seleccione una de las señales de series temporales de la leyenda para filtrar el gráfico por una única serie temporal.
+
+## Dirección de anomalía: seleccione rangos superior o inferior [#anomaly-direction]
+
+Puede elegir si desea que la condición busque un comportamiento que supere el valor previsto ("superior") o que vaya por debajo del valor previsto ("inferior"), o que vaya por encima o por debajo. Los eliges con el selector de dirección de predicción.
+
+Casos de uso de ejemplo para esto:
+
+* Puede usar la configuración Superior para una fuente de datos como tasa de errores, porque generalmente solo le preocupa si sube y no si baja.
+* Puede utilizar la configuración Inferior para una fuente de datos como el rendimiento, porque las fluctuaciones repentinas ascendentes son bastante comunes, pero una gran caída repentina indicaría un problema.
+
+A continuación se muestran ejemplos de cómo se tratarían las grandes fluctuaciones en sus datos bajo las diferentes configuraciones de dirección de anomalía. Las áreas rojas representan incidentes.
+
+<img
+  title="A screenshot of anomaly details in the New Relic UI"
+  alt="A screenshot demonstrating how to select upper and lower ranges for anomalies"
+  src="/images/alerts_screenshot-full_anomalies-set-upper-and-lower-ranges.webp"
+/>
+
+## Reglas que rigen el cálculo del valor previsto. [#anomaly-rules]
+
+El algoritmo para calcular la predicción es matemáticamente complejo. Estas son algunas de las reglas principales que rigen sus capacidades predictivas:
+
+* <DNT>
+    **Age of data**
+  </DNT>
+
+  En la creación inicial, la predicción se calcula utilizando entre 1 y 4 semanas de datos, según la disponibilidad de datos y el tipo de predicción. Actualmente, las consultas que utilizan la cláusula `FACET` no están entrenadas en datos almacenados. Después de su creación, el algoritmo tiene en cuenta las fluctuaciones de datos en curso durante un largo período de tiempo, aunque se da mayor peso a los datos más recientes. Para datos que han existido por poco tiempo, el valor predicho probablemente fluctuará mucho y no será muy preciso. Esto se debe a que no hay datos suficientes para determinar sus valores y comportamiento habituales. Cuanto más historial tengan los datos, más precisa será la predicción.
+
+* <DNT>
+    **Consistency of data**
+  </DNT>
+
+  Para los valores métricos que permanecen en un rango constante o que tienen una tendencia lenta y constante, su comportamiento más predecible significa que su umbral de sensibilidad se volverá más estricto en torno a la predicción. Los datos que sean más variados e impredecibles tendrán un umbral de sensibilidad más flexible (más amplio).
+
+* <DNT>
+    **Regular fluctuations**
+  </DNT>
+
+  Para fluctuaciones cíclicas de menos de una semana (como el despliegue semanal de los miércoles a la 1:00 p. m. o informes nocturnos), el algoritmo de predicción busca estas fluctuaciones cíclicas e intenta adaptarse a ellas.

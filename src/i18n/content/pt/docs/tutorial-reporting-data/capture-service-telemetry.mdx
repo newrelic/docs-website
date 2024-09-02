@@ -1,0 +1,578 @@
+---
+title: Capture a telemetria de serviço certa
+metaDescription: This guide will help you to optimize application telemetry for issue detection and resolution
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Pense no que seu serviço faz. Talvez ele receba um pedido, precise validar a integridade do pedido, transmita esse pedido a um serviço de compensação e receba um código de confirmação que é retransmitido de volta ao solicitante. Este exemplo fornece um caminho claro para detalhar a função do serviço e avaliar se você tem telemetria e contexto suficientes para tomar decisões sobre como o serviço está funcionando. Se estiver usando o agente da New Relic, você deverá ter todas as informações necessárias para responder às perguntas no início desta seção. No entanto, às vezes, implementações específicas requerem instrumentação adicional.
+
+<img src="/images/oma-oe_diagram_sc-service.webp" alt="Service Diagram" title="Service Diagram" />
+
+A lista de perguntas a seguir ajuda você a descobrir onde pode ser necessário adicionar telemetria ou captura de metadados por meio de instrumentação. A seção [do processo de melhoria](#improvement-process) a seguir descreve como obter os dados necessários para gerenciar seu serviço.
+
+Considerações para instrumentação:
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        Meus requisitos básicos de telemetria foram atendidos?
+      </td>
+
+      <td>
+        Caso contrário, documente as lacunas e avalie se elas podem ser eliminadas por meio de configuração personalizada ou técnicas de instrumentação adicionais.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Posso isolar histórias discretas de usuários na telemetria?
+      </td>
+
+      <td>
+        Caso contrário, use os recursos trace do agente para capturar a invocação de uma história de usuário discreta com metadados de contexto adequados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tenho informações sobre os parâmetros que invocam as histórias dos usuários?
+      </td>
+
+      <td>
+        Caso contrário, use o atributo personalizado através do SDK do agente para adicionar contexto à transação e aos spans.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Posso medir os principais componentes funcionais do software?
+      </td>
+
+      <td>
+        Caso contrário, use SDKs de instrumentação para criar métricas baseline em um elemento funcional específico do código. (pesquisas de cache, rotinas de processamento ou funções utilitárias).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Posso medir a interação do cliente do meu código com sistemas externos?
+      </td>
+
+      <td>
+        Caso contrário, certifique-se de que as solicitações e respostas sejam capturadas pelo rastreamento no nível do componente. Se a chamada do cliente não estiver sincronizada, considere implementar o recurso distributed trace para visualizar corretamente o processamento.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Steps>
+  <Step>
+    ## Determine suas necessidades de instrumentação [#instrumentation-needs]
+
+    Primeiro, você precisará determinar especificamente o que precisa fazer. Todo serviço que atenda a uma necessidade de negócios deve ter instrumentação suficiente para responder às seguintes perguntas, e agora é um bom momento para definir quais você pode ou não responder, para saber em quais áreas precisa se concentrar.
+
+    * Quantas solicitações recebo?
+    * Quantas mensagens e solicitações HTTP devo enviar?
+    * Quantas solicitações foram bem-sucedidas?
+    * Qual é o tempo de resposta para uma solicitação completa?
+    * Qual é o tempo de resposta para invocação de uma dependência?
+    * Quanto recurso esse processo deve consumir sob qual número de solicitações?
+    * Quais são todos os meus pontos de falha?
+  </Step>
+
+  <Step>
+    ## Configure sua instrumentação [#config-based-instrumentation]
+
+    Em seguida, é hora de começar a configurar sua instrumentação. Cada agente New Relic oferece uma variedade de opções de configuração. Normalmente, você definirá uma abordagem padrão para incluir o agente em hosts de infraestrutura, tempos de execução de aplicativos e conexões com seu provedor de serviço em nuvem. A configuração padrão do agente foi criada para ser amplamente aplicável.
+
+    Uma das melhores maneiras para os desenvolvedores influenciarem a aplicabilidade da implantação é substituindo as opções de configuração padrão da sua instância de serviço. A seguir estão as opções de instrumentação padrão a serem consideradas:
+
+    <CollapserGroup>
+      <Collapser id="service-naming" title="Crie um nome de serviço eficaz">
+        <Callout variant="tip">
+          O agente New Relic fornece uma variedade de opções para definir o nome do tempo de execução do serviço. Consulte o [guia de nomenclatura de aplicativos](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/apm-best-practices-guide/#1-standardize-application-names-naming) para localizar os detalhes de implementação para seu ambiente de tempo de execução.
+        </Callout>
+
+        O nome que você dá a um serviço fornece o <DNT>**namespace**</DNT> (onde você encontrará os dados do agente). Uma das estratégias mais importantes que a New Relic usa para entender o comportamento de seus serviços é agregar coisas semelhantes e usar os pontos em comum dessa agregação para isolar a variação. Ao implantar serviços, peça o seguinte para ajudá-lo a nomeá-los:
+
+        * Meu serviço destina-se a um público específico?
+        * Meu serviço está executando uma base de código diferente?
+        * Minha base de código está usando uma configuração de tempo de execução diferente?
+
+        Se você responder “sim” a qualquer uma dessas perguntas, considere criar um nome exclusivo para o seu serviço com base no seguinte:
+
+        <CollapserGroup>
+          <Collapser id="audience-criteria" title="Critérios de público">
+            Pense no público como o conjunto de usuários finais ou funções de serviço. Se o seu serviço estiver dividido entre implantação norte-americana e europeia, os tempos de execução nessas implantações deverão ser agrupados de acordo. Por exemplo:
+
+            ```
+            newrelic.appname = PORTAL_AMER
+            ```
+
+            e
+
+            ```
+            newrelic.appname = PORTAL_EMEA
+            ```
+
+            Isso agrupará a telemetria criada por esse público, permitindo entender melhor as semelhanças contextuais dos problemas de serviço relacionados a um público de usuário específico.
+
+            Às vezes a forma como implantamos aplicativos divide o contexto operacional de um serviço, como um aplicativo de portal com funções administrativas. Talvez as funções administrativas estejam integradas na base de código geral do portal, mas apenas uma instância em um cluster está manipulando as solicitações administrativas do portal. Nesse caso, você tem uma oportunidade funcional de segmentação de público, portanto, certifique-se de que ela seja nomeada de forma adequada. Por exemplo:
+
+            ```
+            newrelic.appname = PORTAL_MAIN
+            ```
+
+            e
+
+            ```
+            newrelic.appname = PORTAL_ADMIN
+            ```
+          </Collapser>
+
+          <Collapser id="codebase-criteria" title="Critérios de base de código">
+            Se você estiver executando diferentes versões de código sob o disfarce de um serviço, considere segmentar essas instâncias de tempo de execução e incorporar a nomenclatura de versão como parte do seu esquema de nomenclatura. Ao agrupar o código como um nome de serviço que executa diferentes versões de serviço, você aumenta a relação ruído/sinal de qualquer métrica produzida.
+
+            Diferentes versões de código podem usar diferentes quantidades de recursos computacionais ou processar dados de maneira diferente. Torna-se muito difícil determinar se um serviço está se comportando normalmente quando os sinais obtidos da métrica são devidos a diferentes implementações funcionais.
+
+            Se você tiver várias versões em execução simultaneamente, considere adicionar um identificador numérico ao nome do serviço. Por exemplo:
+
+            ```
+            newrelic.appname = PORTAL_MAIN_V112
+            ```
+
+            e
+
+            ```
+            newrelic.appname = PORTAL_MAIN_V115
+            ```
+
+            Se você empregar uma estrutura de sinalizador de recurso como LaunchDarkly ou Split, poderá ter várias versões de um aplicativo ou serviço em uma única base de código. Para resolver essas condições, consulte a seção sobre isolamento de funções de serviço.
+          </Collapser>
+
+          <Collapser id="runtime-criteria" title="Critérios de tempo de execução">
+            Se uma instância de um serviço for implantada em um sistema com diferentes restrições de tempo de execução, ela deverá ser encapsulada em seu próprio namespace de telemetria. Isso pode ser uma implantação em um data center diferente que oferece vantagens de conectividade de rede para um recurso compartilhado, ou talvez o serviço esteja sendo executado em um nível de computador separado com uma configuração de memória ou thread diferente.
+
+            Essas características que afetam a operação do tempo de execução do código podem causar diferentes comportamentos que levam a diferentes comportamentos de operações. Por exemplo:
+
+            ```
+            newrelic.appname = PORTAL_NYC_DC
+            ```
+
+            e
+
+            ```
+            newrelic.appname = PORTAL_REALLY_BIG_FOOTPRINT
+            ```
+          </Collapser>
+        </CollapserGroup>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Substituir a configuração padrão do agente [#override-default-agent-config]
+
+    <Callout variant="tip">
+      O agente New Relic fornece uma variedade de opções para configuração de tempo de execução. Consulte a [documentação de configuração do agente APM](/docs/new-relic-one/install-configure/configure-new-relic-agents) para obter as opções específicas para seu tempo de execução.
+    </Callout>
+
+    Cada agente New Relic APM oferece uma variedade de opções para modificar a configuração padrão. O local mais consistente para fazer isso é o arquivo de configuração que acompanha a instalação de cada agente. No entanto, você também pode configurar nossos agentes passando parâmetros de linha de comando diretamente para o tempo de execução da instância de serviço, usando variáveis de ambiente ou chamando funções dentro do SDK do agente em tempo de execução.
+
+    Aqui estão as opções de configuração do agente .NET:
+
+    * [Usando a API do SDK .NET da New Relic](/docs/apm/agents/net-agent/net-agent-api/)
+    * [Variáveis ambientais](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#environment-variables)
+    * [Opções de arquivo de configuração](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#setup)
+  </Step>
+
+  <Step>
+    ## Isolar funções de serviço [#isolate-service-functions]
+
+    Conforme indicado na seção [Criar um nome de serviço efetivo](#service-naming) , um dos principais objetivos da instrumentação é configurar o agente New Relic para agrupar restrições de tempo de execução semelhantes como uma única unidade nomeada. Para um conjunto específico de insumos, você deve obter uma gama esperada de resultados mensuráveis. O grau em que podemos contê-los confortavelmente em componentes de tempo de execução de serviço nomeados nos ajuda muito a compreender o comportamento normal e a isolar problemas.
+
+    O agente New Relic é configurado com um conjunto de suposições que criam namespace para transação à medida que são detectadas. Essas suposições diferem entre o tempo de execução da linguagem do agente. Um bom exemplo de como nosso agente Java determina o nome da transação pode ser encontrado no [documento de nomenclatura da transação do agente Java](/docs/apm/agents/java-agent/instrumentation/transaction-naming-protocol/).
+
+    No entanto, mesmo depois de aplicar o protocolo de nomenclatura de transação do agente, ele poderá fornecer um resultado insatisfatório dependendo de suas necessidades. Ao adicionar instrumentação adicional para nomear a transação e melhorar seu contexto, você pode melhorar bastante sua compreensão do comportamento de execução do serviço.
+
+    <img src="/images/oma-oe-sc_screenshot-full_transaction-breakdown.webp" alt="Transaction Breakdown" title="Transaction Breakdown" />
+
+    O objetivo do naming de transação deve ser uma visão de transação de APM que proporcione uma boa segmentação das funções de serviços em uma abordagem que seja fácil de entender para quem não está envolvido. A imagem de detalhamento da transação acima é um bom exemplo de segmentação da transação. Ele fornece rastreamento detalhado da quantidade de trabalho realizado por cada transação dentro da base de código mais ampla do serviço, bem como da transação com um nome simples e amigável ao usuário que oferece insights sobre o que a transação faz. À medida que você aprende mais sobre nomenclatura e inclusão de atributo, certifique-se de tornar sua abordagem de nomenclatura acessível para observadores não técnicos dos dados.
+
+    <img src="/images/oma-oe-sc-transaction-breakdown-weighted.webp" alt="Transaction Breakdown Weighted" title="Transaction Breakdown Weighted" />
+
+    O detalhamento da transação na imagem acima demonstra um mau exemplo de segmentação de nomes de transação. Nesse caso, você teria cerca de 60% do volume de transação sendo denominado `OperationHandler/handle`. Tanto a atribuição percentual do volume de transação quanto a natureza genérica do nome indicam que pode haver muita agregação de transação sob esse namespace.
+
+    Seu objetivo é criar um nome de transação que facilite o agrupamento de transações com o menor número de características exclusivas, como abaixo.
+
+    <img src="/images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-normal.webp" alt="Transaction Histogram" title="Transaction Histogram" />
+
+    A imagem de distribuição normal demonstra transação nomeada de forma mais proposital dentro de um serviço. Neste caso, as transações da web tempo de resposta estão agrupadas de forma mais próxima, indicando características de execução consistentes.
+  </Step>
+
+  <Step>
+    ## Definir nomes de transação personalizados [#custom-transaction-names]
+
+    <Callout variant="tip">
+      Consulte o guia da API do seu [agente New Relic](/docs/apm/new-relic-apm/getting-started/introduction-apm) para revisar o procedimento de nomenclatura de transação para seu tempo de execução.
+    </Callout>
+
+    O serviço de nomenclatura de transação do agente New Relic requer a invocação de uma chamada de API semelhante a `SetName(String name)`para o SDK do agente New Relic. Cada agente de tempo de execução de linguagem possui sua própria sintaxe e opção para configurar o nome. Veja o exemplo abaixo se precisar de mais informações:
+
+    <CollapserGroup>
+      <Collapser id="transaction-example" title="Exemplo">
+        Para pegar o valor de um parâmetro de solicitação HTTP e usá-lo para nomear uma transação no agente Java New Relic, você pode usar um código semelhante a este:
+
+        ```
+        com.newrelic.agent.Agent.LOG.finer("[my query handler] Renaming transaction based on an important query parameter");
+
+        com.newrelic.api.agent.NewRelic.setTransactionName("Query Handler_" + (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    Existe uma capacidade máxima para a transação de nomes. Quando muitos nomes de transação estiverem sendo relatados, tentaremos criar regras para agrupar esses nomes de transação. Mais detalhes podem ser encontrados no [guia de resolução de problemas de agentes](/docs/using-new-relic/cross-product-functions/troubleshooting/metric-grouping-issues) relacionados a questões de agrupamento métrico. Sua estratégia de nomenclatura de transação terá que compensar um certo grau de especificidade se houver milhares de nomes de transação em potencial.
+
+    Caso você suspeite de um problema de agrupamento métrico, abra um caso de suporte conosco e teremos prazer em trabalhar com você para isolar a causa do problema de nomenclatura da transação.
+  </Step>
+
+  <Step>
+    ## Capture parâmetro com sua transação [#capture-parameters]
+
+    <Callout variant="tip">
+      Consulte o [guia de atributo personalizado do agente New Relic](/docs/using-new-relic/data/customize-data/collect-custom-attributes/) para o idioma do seu agente para revisar as opções de aprimoramento de metadados para personalização de atributo.
+    </Callout>
+
+    O nome da transação é uma maneira poderosa de segmentar seu serviço para entender melhor seu comportamento. Ele permite isolar discretamente a funcionalidade diretamente na interface do New Relic.
+
+    No entanto, há muitas ocasiões em que você desejará obter algum contexto adicional sobre a função do seu serviço sem precisar isolar o nome da transação. Isso pode ser conseguido introduzindo a captura de atributo em seu serviço.
+
+    Você pode adicionar `name:value` pares de atributos para decorar os detalhes de cada transação. O atributo estará disponível em cada evento de transação através da interface de trace da transação e erros do APM, ou através de consulta direta de parâmetro do tipo de evento `Transaction` . Aqui está um exemplo dos detalhes do rastreamento da transação que você pode ver na interface de erros do APM.
+
+    <img src="/images/oma-oe-sc_screenshot-crop_error-attributes.webp" alt="Error Attributes" title="Error Attributes" />
+
+    Se você desenvolveu uma segmentação de nome de transação útil, poderá usar o contexto adicionado do atributo para entender melhor as entradas, coortes ou segmentos que levaram a um resultado inesperado.
+
+    Além de poder entender o contexto da sua transação dentro da interface do APM, o uso de parâmetros é útil para analisar transações consultando diretamente os dados da transação. Adicione um atributo personalizado a cada transação para facilitar o isolamento de condições específicas.
+
+    A abordagem de captura de parâmetro também pode ser usada com sistemas de flag de recurso como Split ou LaunchDarkly. Nesse caso, ao implementar o manipulador de decisão para o sinalizador de recurso, considere capturar o contexto do sinalizador (por exemplo, `optimized_version = on`) que está sendo aplicado ao bloco de código que controla a versão ou recurso que os clientes veem.
+
+    Por exemplo, para pegar o valor de um parâmetro de solicitação HTTP e salvá-lo como um atributo personalizado com o agente Java New Relic, você pode usar um código semelhante a este:
+
+    ```
+    com.newrelic.agent.Agent.LOG.finer("[my query handler] Adding an Attribute to transaction based on an important query parameter");
+
+    com.newrelic.api.agent.NewRelic.addCustomParameter("ImportantParm", (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+    ```
+  </Step>
+
+  <Step>
+    ## Medir componentes de serviço [#component-measurement]
+
+    O comportamento de uma transação específica no contexto de um serviço é uma forma poderosa de garantir que um sistema de software esteja operando de maneira eficaz. Entretanto, outra maneira de observar o comportamento de um sistema de software é revisar o modelo detalhado de execução dos componentes de sua implementação. Os componentes do código framework do aplicativo são compartilhados por todo o serviço, e a avaliação contínua do desempenho dos componentes pode fornecer insights sobre a integridade geral do serviço.
+
+    No New Relic, há dois lugares onde você pode observar os detalhes de execução dos componentes. O dashboard de resumo de serviço no APM fornece uma visão da execução composta do serviço dividida por suas partes componentes (por exemplo, execução de coleta de lixo ou chamadas de banco de dados).
+
+    <img src="/images/oma-oe-sc_screenshot-full_summary-components.webp" alt="Summary Components" title="Summary Components" />
+
+    Os segmentos de componentes de transação tendem a demonstrar comportamento de desempenho consistente. Você pode usar isso para detectar uma mudança no comportamento fundamental. Isso pode indicar um problema subjacente. Isso permite que você encontre dependência por meio de partes comuns no código em execução em um serviço.
+  </Step>
+
+  <Step>
+    ## Certifique-se de que sua estrutura seja medida [#framework-measurement]
+
+    <Callout variant="tip">
+      Para encontrar informações sobre como adicionar nomes de métricas à sua instrumentação, consulte os guias de instrumentação e SDK de um agente APM específico.
+    </Callout>
+
+    A sintaxe da instrumentação framework é específica para a linguagem em que seu serviço está escrito, mas a abordagem geral é consistente em todas elas. Cada execução de método ou função na stack é uma oportunidade para adicionar instrumentação adicional.
+
+    <img src="/images/oma-oe-sc_screenshot-full_summary-client.webp" alt="Service Summary Components" title="Service Summary Components" />
+
+    Se um determinado segmento de lógica for necessário para a função do seu serviço ou transação, considere agrupar essa chamada com retorno de chamada para o agente New Relic para que o agente possa entender que inseriu um componente de código discreto e possa agregar o tempo consumido dentro desse componente adequadamente. Ao passar um nome de métrica para o retorno de chamada, você criará uma métrica de segmento de componente para seu serviço e transação.
+
+    A opção de nomenclatura de métrica é específica da linguagem de instrumentação, portanto, consulte a documentação específica da linguagem.
+
+    Nosso agente permite que você especifique um nome métrico personalizado para a instrumentação. Usamos `metricName` para determinar a métrica agregada do componente. O exemplo a seguir demonstra o parâmetro `metricName` sendo transmitido para uma anotação `@Trace` do SDK do agente Java.
+
+    <CollapserGroup>
+      <Collapser id="metric-code-example" title="Exemplo">
+        ```
+        @Weave
+        public abstract class MQOutboundMessageContext implements OutboundTransportMessageContext {
+
+            @Trace(dispatcher = true, metricName="MQTransport")
+            public void send(final TransportSendListener listener) throws TransportException {
+                try {
+                    NewRelic.getAgent().getTracedMethod().setMetricName("Message", "MQ", "Produce");
+                    MQHelper.processSendMessage(this, NewRelic.getAgent().getTracedMethod());
+                } catch (Exception e) {
+                    NewRelic.getAgent().getLogger().log(Level.FINE, e, "Unable to set metadata on outgoing MQ message");
+                }
+
+                Weaver.callOriginal();
+            }
+
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Rastreie suas chamadas de serviço externas [#external-services]
+
+    <Callout variant="tip">
+      Para encontrar os detalhes da instrumentação da biblioteca cliente, consulte os guias de instrumentação e SDK do agente APM relevante.
+    </Callout>
+
+    A instrumentação do cliente refere-se a fazer uma chamada do seu serviço para um recurso externo. Geralmente, os agentes da New Relic conhecem clientes populares para protocolos HTTP, gRPC, mensagens e banco de dados e aplicarão o padrão de instrumentação apropriado para agregar chamadas a esses clientes como serviços externos.
+
+    Se você escreveu seu próprio manipulador de cliente para um protocolo ou está usando algo muito novo, nosso agente pode não reconhecer o cliente e registrar o comportamento da chamada do cliente. Para tanto, você deve verificar os serviços externos e o banco de dados dentro do APM para representar todas as externalidades esperadas para o seu serviço.
+
+    É importante validar que todas as dependências dos seus serviços estão aqui representadas. Se você não vir sua dependência de serviço, precisará introduzir uma nova instrumentação para interceptar a chamada externa para que seu agente APM possa rastreá-la. O exemplo a seguir demonstra o encapsulamento de uma chamada externa em Golang para captura pelo agente.
+
+    <CollapserGroup>
+      <Collapser id="external-service-example" title="Exemplo">
+        ```
+        package main
+
+        import (
+        	"net/http"
+
+        	"github.com/newrelic/go-agent/v3/newrelic"
+        )
+
+        func currentTransaction() *newrelic.Transaction {
+        	return nil
+        }
+
+        func main() {
+        	txn := currentTransaction()
+        	client := &http.Client{}
+        	request, _ := http.NewRequest("GET", "http://www.example.com", nil)
+        	segment := newrelic.StartExternalSegment(txn, request)
+        	response, _ := client.Do(request)
+        	segment.Response = response
+        	segment.End()
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    Exemplos de outro rastreamento de chamadas externas da API do agente:
+
+    * [Go `ExternalSegment`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#ExternalSegment)
+    * [Java `ExternalParameters`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TracedMethod.html#reportAsExternal\(com.newrelic.api.agent.ExternalParameters\))
+    * [Python `external_trace`](/docs/apm/agents/python-agent/python-agent-api/externaltrace-python-agent-api/)
+  </Step>
+
+  <Step>
+    ## Teste seu terminal [#endpoint-testing]
+
+    <CollapserGroup>
+      <Collapser id="endpoint-testing2" title="Entenda os testes de endpoint">
+        Antes de começar, certifique-se de compreender o conceito de teste de endpoint. O teste de endpoint é uma abordagem simples e prática que acelera a descoberta das causas raízes de determinadas falhas do sistema. Ele permite que as equipes de operações e de suporte saibam rapidamente que há um problema real e isolem esse problema em um serviço específico.
+
+        Os sistemas de software modernos dependem de vários serviços para completar suas tarefas. Historicamente, o processo de monitoramento desses terminais de serviço era simples. A equipe de arquitetura produziria um mapa de dependência bem documentado para a equipe de operações e criaria uma verificação do endpoint detalhado.
+
+        Hoje, com processos de entrega contínua e pequenas alterações em lotes, você pode criar novos endpoints e dependências e implantá-los a uma taxa que torna difícil para uma equipe de operações antecipar e definir proativamente verificações sintéticas. Ao dar aos desenvolvedores de serviços maior escopo de controle para definir testes de serviços de produção durante a fase de desenvolvimento, você aumentará bastante a cobertura de testes para seu programa de observabilidade.
+      </Collapser>
+    </CollapserGroup>
+
+    O teste de endpoint oferece dois benefícios ao seu programa de instrumentação de serviço:
+
+    * <DNT>**Defect detection:**</DNT> Ao codificar um teste para um endpoint que produz um resultado simples de verdadeiro/falso, suas operações podem isolar falhas discretas para determinar se a integridade da entrega do serviço foi comprometida.
+    * <DNT>**Baselining:**</DNT> Os testes sintéticos ou de máquina fornecem um conjunto previsível de condições que permitem avaliar a consistência da entrega do seu serviço a partir de uma perspectiva de controle.
+
+    Nosso monitoramento sintético oferece a capacidade de criar uma variedade de tipos de testes, empregando um Selenium JavaScript SDK aprimorado. Depois que um script de teste baseado em Selenium for definido, gerenciaremos o local de execução do script, bem como sua frequência. O teste sintético oferece uma variedade de opções de teste, cada uma com seu foco. Para obter mais informações, consulte nossa [documentação de monitoramento sintético](/docs/synthetics/).
+
+    Primeiro, você precisará criar uma matriz de decisão para verificações sintéticas. Saber se você precisa ou não criar verificações sintéticas é simples. Você vai querer saber a primeira ocorrência de falha em uma dependência. Se você responder “sim” a qualquer uma das perguntas a seguir, considere a criação de um relatório dedicado de verificações sintéticas:
+
+    * O endpoint é voltado para o cliente?
+    * O endpoint invoca nova dependência?
+    * O endpoint está em uma infraestrutura de rede diferente?
+    * O endpoint é compartilhado entre vários serviços?
+    * O endpoint é uma origem de conteúdo suportada por uma CDN?
+
+    Você deve então considerar a implementação do teste mais simples possível para avaliar a disponibilidade e integridade do endpoint. Por exemplo, você acabou de criar um novo endpoint de serviço que fornece a taxa de câmbio atual para um grupo de moedas. Este é um GET simples em um endpoint que retorna uma matriz de objetos JSON.
+
+    * Exemplo de solicitação: `http://example-ip:3000/exchange`
+    * Exemplo de resposta:
+
+    ```
+      [
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bf97f61c22f4fb5beb5c9",
+          "name": "cdn",
+          "Created_date": "2021-07-12T18:10:07.488Z",
+          "__v": 1
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb2a61c22f4fb5beb5ca",
+          "name": "usd",
+          "Created_date": "2021-07-12T18:17:14.224Z",
+          "__v": 0.80
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb3261c22f4fb5beb5cb",
+          "name": "eur",
+          "Created_date": "2021-07-12T18:17:22.476Z",
+          "__v": 0.68
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb3761c22f4fb5beb5cc",
+          "name": "mex",
+          "Created_date": "2021-07-12T18:17:27.009Z",
+          "__v": 15.97
+        }
+      ]
+    ```
+
+    Para que este serviço seja considerado operacional, necessita de responder às solicitações, mas também de fornecer as respostas em quatro moedas. Não estamos preocupados com o conteúdo no momento, apenas com o fato de termos quatro elementos de volta na matriz um, para cada moeda CDN, USD, EUR e MEX.
+
+    Usando o monitoramento sintético da New Relic, um script de teste de API poderia ter a seguinte aparência:
+
+    ```
+      /**
+      * This script checks to see if we get the currency data from the endpoint.
+      */
+      var assert = require('assert');
+      var myQueryKey = 'secret_key';
+      var options = {
+        uri: 'http://example_ip:3000/exchange',
+        headers: {
+          'X-Query-Key': myQueryKey,
+          'Accept': 'application/json'
+        }
+      };
+
+      function callback (err, response, body){
+        var data = JSON.parse(body);
+        var info = body;
+        if (Array.isArray(data)) {
+          if (data.length !== 4) {
+            assert.fail('Unexpected results in API Call, result was ' + JSON.stringify(data));
+          }
+        }
+      }
+
+      $http.get(options, callback);
+    ```
+
+    Você pode configurar diretamente o script Sintético na interface do New Relic , mas é altamente recomendável que você mantenha seus testes endpoint dentro do seu sistema de repositório de origem e empregue automação. Isso garante que seus testes endpoint acompanhem a nova dependência endpoint que seus serviços introduzem na entrega de serviços de produção.
+  </Step>
+</Steps>
+
+## Percebendo o valor [#value-realization]
+
+Assim como o processo de serviços de monitoramento, seu programa de observabilidade se beneficiará por meio de uma equipe dedicada que pensa criticamente sobre suas expectativas de retorno pelo seu investimento em esforço. A seção a seguir descreve uma abordagem para estimar os custos e benefícios que você deve esperar ao incorporar a instrumentação de serviço em sua prática de observabilidade.
+
+### Investimentos [#investments]
+
+<CollapserGroup>
+  <Collapser id="inv-training" title="Treinamento">
+    Certifique-se de que todos os desenvolvedores estejam familiarizados com os recursos do agente e da plataforma do SDK do New Relic.
+
+    **Modelo de custo:** Depende do modelo de FTE dos desenvolvedores da sua empresa e da estimativa do projeto. **Estimativa:** Normalmente, um número de horas para um desenvolvedor se tornar efetivo usando o recurso de instrumentação New Relic .
+
+    * Inicial: 16 horas de treinamento e exploração
+    * Recorrente: 4 horas/revisão Q
+    * Por desenvolvedores, um investimento anual de 16 a 40 horas de treinamento para desenvolver habilidades essenciais e manter a moeda de habilidades para a plataforma New Relic
+  </Collapser>
+
+  <Collapser id="inv-maintain" title="Desenvolvimento e manutenção">
+    O esforço de desenvolvimento necessário para implementar e manter a instrumentação dentro de um projeto de serviço.
+
+    **Modelo de custo:** Depende do modelo de FTE dos desenvolvedores da sua empresa e da estimativa do projeto. **Estimativa:** tende a depender do escopo do projeto e da quantidade de trabalho de instrumentação necessária.
+
+    * Inicial: 8 horas por desenvolvedor por serviço
+    * Recorrente: 4 horas/manutenção Q
+    * Por desenvolvedores uma estimativa de projeto de 16 a 32 horas desenvolvendo e mantendo instrumentação de serviço
+  </Collapser>
+</CollapserGroup>
+
+### Benefícios [#benefits]
+
+<CollapserGroup>
+  <Collapser id="returns-aqm-impact" title="Impacto na qualidade do alerta">
+    Nosso documento sobre [qualidade de alerta](/docs/tutorial-create-alerts/manage-alert-quality/) oferece benefícios significativos para a equipe de operações, garantindo que a notificação de alerta do desempenho do sistema variante seja tratada rapidamente. Isto melhora a prestação de serviços e a alocação de recursos durante a remediação de incidentes.
+
+    Uma prática de instrumentação eficaz integrada ao seu programa de observabilidade melhorará muito a capacidade da sua equipe de criar alertas significativos.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Volume: contagem de incidentes
+    * Volume: duração acumulada do incidente
+    * Volume: tempo médio de fechamento (MTTC)
+    * Engajamento do usuário: tempo médio para investigar
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Menos ruído de alerta
+    * Maior capacidade de resposta a alertas e incidentes
+    * Causa raiz menos desconhecida
+    * Aumento da produtividade das operações
+    * Melhor prestação de serviços
+  </Collapser>
+
+  <Collapser id="returns-service-quality-improvement" title="Melhoria da qualidade do serviço">
+    Melhorar a qualidade do seu serviço terá um impacto direto na métrica financeira chave do seu serviço. Isso exigirá que você tenha um modelo financeiro bem racionalizado para o seu aplicativo. Normalmente, esse retorno pode ser projetado associando-se um valor monetário para cada percentual de melhoria em uma medida básica de qualidade de serviço, como erros ou atingimento de apdex.
+
+    À medida que seu investimento em instrumentação de serviço aumenta, você deverá observar um melhor desempenho em suas medidas de qualidade de serviço.
+
+    <DNT>**KPI:**</DNT> Qualidade do serviço (KPI de negócios)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Diminuição do número de erros que impactam o usuário
+    * Componentes de serviço com mais desempenho e resiliência
+  </Collapser>
+
+  <Collapser id="returns-service-delivery-improvement" title="Melhoria na prestação de serviços">
+    Ao fornecer melhor telemetria da sua instância de serviço, sua organização de entrega deverá ser capaz de detectar volatilidade ou período de inatividade mais rapidamente e remediar mais rapidamente. Isso levará a melhores KPIs gerais de prestação de serviços e diminuirá os episódios de interrupção ou degradação.
+
+    O custo pode estar associado ao tempo necessário para detectar, investigar e remediar um incidente. Isso pode estar relacionado ao valor que o Serviço oferece à sua organização, que será perdido durante um evento, ou pode estar relacionado ao custo geral para lidar com o mau comportamento do Serviço.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Tempo médio para detecção (MTTD)
+    * Tempo médio para identificar (MTTI)
+    * Tempo médio de resolução (MTTR)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Tempo reduzido para detectar incidente
+    * Diminuição do tempo para resolução do incidente
+  </Collapser>
+</CollapserGroup>
+
+<DocTiles>
+  <DocTile title="Capture the right data" path="/docs/tutorial-reporting-data/capture-the-right-data/" />
+
+  <DocTile title="Capture web telemetry" path="/docs/tutorial-reporting-data/capture-web-telemetry/" />
+</DocTiles>

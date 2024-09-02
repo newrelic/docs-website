@@ -1,0 +1,137 @@
+---
+title: Panel de control en las aplicaciones New Relic Mobile
+tags:
+  - Mobile apps
+  - New Relic mobile apps
+  - Authentication and alerts
+metaDescription: 'In New Relic mobile you can use our dashboard capability to gather and chart the specific data you want to see, the way you want to see it, from anywhere in our platform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En New Relic Mobile, puede utilizar nuestra capacidad dashboard para recopilar y representar gráficamente los datos específicos que desea ver. Cualquier panel creado en el sitio web de New Relic será visible en la aplicación móvil.
+
+Puede utilizar nuestro panel móvil para:
+
+* Obtenga información valiosa con visualizaciones interactivas personalizadas de alta densidad con una UI coherente.
+* Grafica todos los eventos y atributos de todas partes de nuestra plataforma.
+* Agregue un atributo personalizado o envíe tipos de eventos personalizados a la mayoría de los eventos para comprender mejor su negocio y ver detalles específicos sobre cómo sus clientes interactúan con su plataforma, como vistas de página, transacciones de host, etc.
+* Explore y contextualice datos con información sobre herramientas avanzadas y funciones de zoom para monitor lo que están haciendo sus sistemas en tiempo real.
+* Busque en su panel de control atributos y métricas.
+* Informe datos personalizados a New Relic y a su panel de control desde cualquier fuente.
+
+## Comenzando con el panel [#getting-started]
+
+1. Log en su aplicación New Relic Mobile y toque
+
+   <DNT>
+     **Dashboards**
+   </DNT>
+
+   .
+
+2. Para cada dashboard, el índice muestra la siguiente información:
+
+   * Estado favorito, indicado por una estrella.
+   * Nombre: el nombre del dashboard.
+
+## Permisos dashboard [#dashboard-permissions]
+
+El panel tiene tres tipos de permisos:
+
+* <DNT>
+    **Edit**
+  </DNT>
+
+  : todos en la cuenta: todos los usuarios tienen plenos derechos sobre el dashboard.
+
+* <DNT>
+    **Read-only**
+  </DNT>
+
+  : todos en la cuenta: todos los usuarios pueden ver el dashboard, pero solo usted tiene todos los derechos para trabajar con el dashboard. Otros usuarios pueden acceder al dashboard pero no pueden editarlo ni eliminarlo, aunque pueden duplicarlo.
+
+* <DNT>
+    **Private**
+  </DNT>
+
+  : Sólo tú puedes ver el dashboard. Todo menos los metadatos está oculto.
+
+Para editar permisos, consulte nuestros [documentos de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/).
+
+## Filtra y refina tus gráficos [#filter-and-refine]
+
+Puede limitar la información que se muestra utilizando la función de filtrado, que es una representación visual de las condiciones de la consulta. En cualquier dashboard, toque el enlace <DNT>**Filter by any attribute or value**</DNT> en la parte superior.
+
+* Utilice la barra de filtro para seleccionar los valores o atributos que desea ver y elimine el resto de elementos de los gráficos.
+* Abra la barra de filtro avanzado para acceder a los operadores booleanos (como `=`, `!=`, `CONTAINS` y `EXCLUDES`) y agregue condiciones compuestas y complejas para filtrar datos.
+* Después de aplicar un filtro, su dashboard solo mostrará los datos asociados a los elementos que seleccionó. Un pequeño contador indica la cantidad de filtros aplicados a la vez.
+
+Para volver a la vista predeterminada, toque la "X" junto al filtro en la parte superior para eliminarlo.
+
+## Filtrar usando la leyenda del gráfico [#chart-legend]
+
+Toque una leyenda en cualquier gráfico con leyendas para ver solo esa serie y eliminar el resto de la serie del gráfico. Esto le ayuda a aislar los datos que desea analizar.
+
+## Ajustar la configuración de tiempo [#adjust-time]
+
+De forma predeterminada, cada gráfico del dashboard muestra datos para el período de tiempo especificado cuando se crearon en el generador de consultas. Sin embargo, puede utilizar el selector de tiempo para cambiar el rango de tiempo de los datos que se muestran y establecer el mismo rango para todos los gráficos. Esto es particularmente útil durante la resolución de problemas de incidentes, si necesita limitar sus datos para observar lo que sucedió en un período de tiempo específico.
+
+Para cambiar el rango de tiempo:
+
+* Toca el ícono del reloj en la parte superior derecha de tu dashboard
+* Elija una de las opciones disponibles en el menú tocando el botón de opción
+* O puede personalizar el rango de tiempo con una marca de tiempo de inicio y finalización específica utilizando el menú personalizado.
+
+## Comparte tus datos [#share-data]
+
+1. En tu dashboard, toca el ícono Compartir en la parte superior derecha
+2. Utilice la hoja para compartir de su dispositivo para enviar el enlace de su dashboard
+
+## Depurador de datos [#data-scrubber]
+
+El depurador de gráficos le ayuda a seleccionar un punto de datos o una faceta en un gráfico cuando el gráfico está demasiado lleno y las facetas están demasiado cerca unas de otras.
+
+Mueva el dedo a lo largo de la aguja para seleccionar suavemente las facetas adyacentes y ver sus puntos de datos asociados. También puede aligerar un gráfico muy poblado deseleccionando uno o más de los atributos que aparecen en la UI.
+
+## Variables de plantilla: filtrar dinámicamente el panel [#template-variables]
+
+En el panel de New Relic, las variables de plantilla son marcadores de posición en la [consulta NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) a las que luego se les puede asignar un valor, lo que permite una mayor flexibilidad al manejar diferentes casos de uso. Una vez que cree un panel con estas variables en New Relic en la web, podrá verlos en New Relic Mobile, lo que le permitirá filtrar fácilmente a través de su dashboard para obtener información más precisa y valiosa.
+
+Para obtener más información sobre la creación de variables de plantilla en la web, lea nuestros [documentosdashboard ](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).
+
+Después de crear su dashboard en la web, puede ver ese mismo dashboard y filtrar por esas mismas variables en la aplicación móvil:
+
+<img
+  title="Web view of dashboards"
+  alt="A screenshot depicting dashboards on the web before they're ready for mobile"
+  src="/images/dashboards_screenshot-full_dashboards-to-prepare-for-mobile.webp"
+/>
+
+<figcaption>
+  Paneles de New Relic en la web.
+</figcaption>
+
+<SideBySide>
+  <Side>
+    <img
+      title="New Relic mobile dashboards"
+      alt="A screenshot depicting New Relic's mobile dashboards"
+      src="/images/dashboards_screenshot-full_mobile-dashboards.webp"
+      style={{ width: "50%" }}
+    />
+  </Side>
+
+  <Side>
+    <img
+      title="mobile dashboards filtered by variable"
+      alt="A screenshot showing variable filters for New Relic mobile dashboards."
+      src="/images/dashboards_screenshot-full_filter-mobile-dashboards-by-variable.webp"
+      style={{ width: "50%" }}
+    />
+  </Side>
+</SideBySide>
+
+<figcaption>
+  El panel de New Relic para dispositivos móviles se puede filtrar por las mismas variables que en la web.
+</figcaption>

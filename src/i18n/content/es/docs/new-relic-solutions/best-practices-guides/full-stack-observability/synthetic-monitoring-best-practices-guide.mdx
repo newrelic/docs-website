@@ -1,0 +1,344 @@
+---
+title: Guía de mejores prácticas de monitoreo sintético
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: Best practices designed to help you get the most out of New Relic's synthetic monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con el monitoreo sintético, puede monitor y probar sus aplicaciones y abordar problemas antes de que afecten a su usuario final. A continuación te damos cinco consejos para que puedas aprovechar toda su potencia.
+
+<Steps>
+  <Step>
+    ## Elige tu monitor Sintético [#add-monitor]
+
+    Los monitores Sintético son navegadores virtuales que miden el rendimiento de su sitio web y capturan números agregados de tiempo de carga, tiempo de actividad y tamaño promedio de descarga. También tendrá acceso a estadísticas detalladas sobre el incidente del tiempo de inactividad y el recurso de cada página.
+
+    Disponemos de [siete tipos de monitor Sintético](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors) para elegir, dependiendo de lo que quieras monitor y cómo quieras hacerlo. Por ejemplo, un [monitor de pasos](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors#stepmonitor) es una excelente manera de crear lo que esencialmente funciona como un browser con script sin escribir código. Si está buscando una administración automatizada de su monitor Sintético, nuestra [API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial) le permite crear, actualizar y eliminar su monitor Sintético a través de llamada API.
+  </Step>
+
+  <Step>
+    ## Añade tu monitor Sintético [#howto-1]
+
+    1. Para agregar un monitor, vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Synthetic Monitoring**</DNT>.
+
+    Si tiene una [cuenta basada en la UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center), vaya a <DNT>**[one.eu.newrelic.com](http://one.eu.newrelic.com)**</DNT>.
+
+    2. Haga clic en <DNT>**Create monitor**</DNT>.
+
+       <img
+         src="/images/synthetic_screenshot-crop_create-monitor.webp"
+         title="Create your synthetic monitor"
+         alt="A screenshot showing the location of the Create monitor button in the UI."
+       />
+
+    3. Seleccione un tipo de monitor y luego complete todos los campos obligatorios.
+
+    4. Puede agregar etiqueta, cambiar el periodo, seleccionar entre múltiples configuraciones browser o dispositivo emulado, o seleccionar una [versión de tiempo de ejecución](/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime) diferente. Para el ping y el monitor browser simple, puede agregar una cadena de validación. Puede emplear opciones avanzadas para habilitar capacidades adicionales:
+
+       * <DNT>
+           **Verify SSL (for ping and simple browser).**
+         </DNT>
+
+         Esta opción verifica la validez de la cadena del certificado SSL. Se puede duplicar ejecutando la siguiente sintaxis:
+
+       ```sh
+       openssl s_client -servername {YOUR_HOSTNAME} -connect {YOUR_HOSTNAME}:443 -CApath /etc/ssl/certs > /dev/null
+       ```
+
+    * <DNT>
+        **Bypass HEAD request (for ping monitors).**
+      </DNT>
+
+      Esta opción omite la solicitud HEAD predeterminada y en su lugar utiliza el verbo GET con una verificación de ping. La solicitud GET siempre ocurrirá si la solicitud HEAD falla.
+
+    * <DNT>
+        **Redirect is Failure (for ping).**
+      </DNT>
+
+      Si se produce un resultado de redireccionamiento cuando `Redirect is Failure` está habilitado, su monitor Sintético lo categoriza como una falla en lugar de seguir el redireccionamiento y verificar la URL resultante.
+
+    5. Seleccione las ubicaciones desde donde desea que se ejecute su monitor. Recomendamos elegir al menos tres ubicaciones para evitar falsos positivos. En otras palabras, si al menos una ubicación arroja un resultado exitoso, entonces el extremo debe estar activado y se puede evitar la activación de una alerta.
+
+    6. Dependiendo del tipo de monitor, aparecerá el símbolo de
+
+       <DNT>
+         **Save monitor**
+       </DNT>
+
+       ,
+
+       <DNT>
+         **Validate**
+       </DNT>
+
+       o
+
+       <DNT>
+         **Write script**
+       </DNT>
+
+       .
+
+    7. Vea sus resultados tal como los recibe en la [página de resumen](#summary-page).
+  </Step>
+
+  <Step>
+    ## Vea la página de resumen de su monitor Sintético [#summary-page]
+
+    En la página de resumen, verás información sobre el estado de tu monitor Sintético. Si algo creó un incidente activo que desencadenó una alerta, haga clic en el enlace de alerta crítica para abrir una nueva ventana.
+
+    <img
+      src="/images/synthetic_screenshot-crop_monitor-critical-alert.webp"
+      title="Synthetic monitor critical alert"
+      alt="A screenshot that shows where your critical alerts are located in the UI."
+    />
+  </Step>
+
+  <Step>
+    ## Obtenga una descripción general del rendimiento de su aplicación [#synthetics-monitors]
+
+    Para garantizar que los servicios web estén implementados, funcionando como se espera y sin errores, querrá tener acceso continuo a los resultados del rendimiento de su aplicación. El monitoreo sintético brinda este tipo de garantía al realizar pruebas automatizadas en su aplicación web para cada ubicación seleccionada. Su monitor Sintético anotará el tiempo de inactividad de la instancia y recopilará los números agregados, los resultados y las estadísticas detalladas de cada recurso de la página.
+
+    Para identificar rápidamente los monitores que están fallando, puede usar el [índice de la página del monitor Sintético](/docs/new-relic-one-monitors-index) para ver qué monitor tiene incidentes abiertos, tasas de éxito durante 24 horas, cantidad de ubicaciones fallidas, período del monitor y tipo de monitor . Cuando hace clic en un monitor, accederá a la [página Summary](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) donde encontrará información para evaluar dónde falla ese monitor en particular, por qué falla, por ejemplo, último mensaje de error, códigos de respuesta de error, duración por dominio y más. Con esta información, tendrá una información más profunda y valiosa sobre el rendimiento de su aplicación a lo largo del tiempo.
+
+    ### Visualiza tu monitor en tu lista de entidad [#howto-2]
+
+    <CollapserGroup>
+      <Collapser id="summary-ui" title="Explorador de entidades">
+        Para ver una lista de monitores::
+
+        Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities)**</DNT> &amp;gt; <DNT>**Synthetic monitoring**</DNT>.
+
+        Para obtener más información, consulte [nuestros documentos sobre cómo explorar sus datos](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/).
+      </Collapser>
+
+      <Collapser id="overview-ui" title="monitorear la página de índice">
+        Para ver una lista de monitores usando la página [de índice de monitores](/docs/synthetics/new-relic-synthetics/pages/synthetics-monitors-index-access-your-monitors) :
+
+        Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Synthetic Monitoring**</DNT>.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Ver resultados monitor individuales [#view]
+
+    Puede ver el rendimiento de sus aplicaciones web a medida que se accede a ellas desde diferentes partes del mundo. Su página [de resultados](/docs/synthetics/new-relic-synthetics/pages/synthetics-results-access-individual-monitor-runs) muestra cómo todo, desde el desarrollo hasta la producción, afecta la experiencia del usuario. Puede ordenar lo que aparece en la lista para identificar mejor áreas problemáticas o resultados inusuales. Intente filtrar por ubicación para comparar el rendimiento del monitor desde diferentes ubicaciones. Para hacer esto:
+
+    1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Synthetic Monitoring**</DNT>.
+    2. Haga clic en <DNT>**Monitor**</DNT> y luego haga clic en <DNT>**Results**</DNT>.
+
+    Puede ver vistas actualizadas al minuto de las cargas de página más lentas para cada ubicación del monitor.
+  </Step>
+
+  <Step>
+    ## Comprender el impacto del tiempo de carga de cada recurso [#impact]
+
+    Puedes ver cómo los diferentes componentes de tu sitio afectan tu carga general en la página [de recursos de Sintético](/docs/synthetics/new-relic-synthetics/pages/synthetics-resources-understand-load-times) . Estos componentes pueden ser CSS, JavaScript, imágenes, HTML, etc. Puede profundizar en métricas detalladas recopiladas en el tiempo de ejecución, localizar información de rendimiento sobre el tiempo invertido por recursos de terceros e identificar códigos de respuesta HTTP para cada recurso. Para hacer esto:
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+       </DNT>
+
+       y luego haga clic en
+
+       <DNT>
+         **Synthetic Monitoring**
+       </DNT>
+
+       .
+
+    2. En el menú desplegable
+
+       <DNT>
+         **Monitors**
+       </DNT>
+
+       , seleccione su monitor.
+
+    3. Haga clic en
+
+       <DNT>
+         **Monitor**
+       </DNT>
+
+       y luego haga clic en
+
+       <DNT>
+         **Resources**
+       </DNT>
+
+       .
+  </Step>
+
+  <Step>
+    ## Configurar y desarrollar un browser con script o una prueba API con script [#scripted-test]
+
+    Empleando el script monitor de browser con, puede crear fácilmente un monitoreo de flujo de trabajo con Selenium JavaScript Webdriver. Por ejemplo, puede navegar a una página en individua, buscar un elemento en la página, verificar que se encuentre el texto esperado y tomar una captura de pantalla. Para hacer esto, usted:
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Synthetic Monitoring**
+       </DNT>
+
+       .
+
+    2. Haga clic en el botón
+
+       <DNT>
+         **Create monitor**
+       </DNT>
+
+       .
+
+    3. Elija el tipo de monitor
+
+       <DNT>
+         **Scripted browser**
+       </DNT>
+
+       .
+
+    4. Ingrese un nombre, seleccione un tiempo de ejecución y seleccione un periodo para su monitor.
+    5. Seleccione las ubicaciones desde donde desea que se ejecute su monitor. Por ejemplo, Mumbai, Seúl, Columbus o Montreal.
+    6. Ahora está listo para escribir su script. Vea este script de ejemplo que prueba el rendimiento de `newrelic.com` y verifica que ciertos elementos se cargaron.
+
+```js
+    /**
+     * Script Name: Best Practices Example - Chrome 100+
+     * Author:      New Relic
+     * Version:     1.0
+     * Purpose:     A simple New Relic Synthetics scripted browser monitor to navigate to a page, find an element, and assert on expected text.
+     */
+
+    // -------------------- DEPENDENCIES
+    const assert = require("assert")
+
+    // -------------------- CONFIGURATION
+    const PAGE_URL = "https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/scripting-monitors/synthetic-scripted-browser-reference-monitor-versions-chrome-100/"
+    const TEXT_TO_CHECK = "Synthetic scripted browser reference (Chrome 100 and higher)"
+
+    // Set timeouts for page load and element finding
+    await $webDriver.manage().setTimeouts({
+      pageLoad: 30000, // 30 seconds for page load timeout
+      implicit: 5000, // 5 seconds for element finding timeout
+    })
+
+    // -------------------- START OF SCRIPT
+    console.log("Starting simplified synthetics script")
+
+    // Navigate to the page
+    console.log("Navigating to: " + PAGE_URL)
+    await $webDriver.get(PAGE_URL)
+
+    // Find the element with the specified text
+    const By = $selenium.By
+    const textElement = By.className("css-v50zng")
+
+    console.log("Checking for presence of element with text: " + TEXT_TO_CHECK)
+    const element = await $webDriver.findElement(textElement)
+    const text = await element.getText()
+
+    // Assert the text is present
+    console.log("Found text: " + text)
+    assert.equal(text, TEXT_TO_CHECK, "Expected text not found on the page")
+
+    // Take a screenshot
+    console.log("Taking screenshot")
+    await $webDriver.takeScreenshot()
+
+    console.log("Script completed successfully")
+```
+
+    Al emplear el monitor API con script, puede crear fácilmente un monitoreo de flujo de trabajo con Node.js y el módulo `got`. Por ejemplo, puede autenticar con una API y hacer valer el código de respuesta.
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Synthetic Monitoring**
+       </DNT>
+
+       .
+
+    2. Haga clic en el botón
+
+       <DNT>
+         **Create monitor**
+       </DNT>
+
+       .
+
+    3. Elija el tipo de monitor
+
+       <DNT>
+         **Scripted API**
+       </DNT>
+
+       .
+
+    4. Ingrese un nombre, seleccione un tiempo de ejecución y seleccione un periodo para su monitor.
+    5. Seleccione las ubicaciones desde donde desea que se ejecute su monitor. Por ejemplo, Mumbai, Seúl, Columbus o Montreal.
+    6. Ahora está listo para escribir su script. Vea este script de ejemplo que realiza una solicitud de API y procesa la respuesta.
+
+```js
+/**
+  * Script Name: Best Practices Example - Node 16.10.0
+  * Author:      New Relic
+  * Version:     1.0
+  * Purpose:     A simple New Relic Synthetics scripted API monitor to make a GET request and assert on statusCode.
+  */
+
+const assert = require("assert")
+
+// Get secure credentials
+const applicationId = $secure.APP_ID
+const apiKey = $secure.API_KEY
+
+// The URL for the API endpoint to get information about a specific application
+const URL = `https://api.newrelic.com/v2/applications/${applicationId}.json`
+
+// Define headers, including the API key for authentication
+const headers = {
+  "X-Api-Key": apiKey,
+}
+
+// Make a GET request
+$http.get({ url: URL, headers: headers }, function (error, response, body) {
+  // If error handling is needed, check if an error occurred during the request
+  // if (error) {
+  //   console.error("An error occurred:", error);
+  // Handle the error as needed, or rethrow to fail the monitor
+  //   throw error;
+  // }
+
+  // Assert the response status code is 200
+  assert.equal(response.statusCode, 200, "Expected HTTP status code 200")
+
+  // Log the status code to the console
+  console.log("Request Status Code:", response.statusCode)
+
+  // If further processing of the response body is needed, it can be done here
+  // For example, parsing JSON response (if response is in JSON format)
+  // const jsonData =
+  //   typeof body === "string"
+  //     ? JSON.parse(body)
+  //     : body
+
+  // Log the parsed JSON to the console
+  // console.log("Parsed JSON data:", jsonData)
+
+  // Check the application's health status
+  // const healthStatus = jsonData.application.health_status
+  // assert.equal(healthStatus, "green", "Expected the application's health status to be 'green'")
+
+  // If the assertion passes, the script will continue; otherwise, it will fail the monitor
+})
+```
+  </Step>
+</Steps>

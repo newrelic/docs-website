@@ -1,0 +1,5811 @@
+---
+title: 'Configuración del agente de Java: archivo de configuración'
+tags:
+  - Agents
+  - Java agent
+  - Configuration
+metaDescription: 'New Relic''s Java agent config settings for APM, including transaction tracer, errors, custom instrumentation, distributed tracing, system properties, etc.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente de Java New Relic lee su configuración del archivo `newrelic.yml` . De forma predeterminada, el agente busca este archivo en el [directorio](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) que contiene `newrelic.jar`. Puede anular la ubicación del archivo de configuración estableciendo la propiedad del sistema [`newrelic.config.file`](#newrelic-config-file) en un nombre de archivo completo.
+
+Podrás configurar nuestro agente de Java para adaptarlo a tu entorno después de [crear una cuenta New Relic](https://newrelic.com/signup) (es gratis, para siempre) e [instalar el agente de Java](/docs/apm/agents/java-agent/installation/install-java-agent/).
+
+## Estructura del archivo de configuración [#Structure]
+
+El archivo `newrelic.yml` tiene secciones separadas para diferentes entornos:
+
+* Prueba
+* Desarrollo
+* De prueba
+* Producción (predeterminado)
+
+New Relic aplica la configuración en la sección `common` a cada uno de estos entornos. Puede seleccionar otros entornos como predeterminados configurando la propiedad del sistema [`newrelic.environment`](#newrelic-environment) en el nombre del entorno.
+
+<Callout variant="tip">
+  Hay una [plantilla`newrelic.yml` ](/docs/java/java-agent-config-file-template)disponible.
+</Callout>
+
+Si edita `newrelic.yml`, tenga cuidado de ajustarse al [formato YAML](https://en.wikipedia.org/wiki/YAML). Utilice un validador YAML para asegurarse de que la sintaxis sea precisa antes de usar el archivo con el agente de Java de New Relic y siga estas reglas:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Java agent newrelic.yml**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Requirements**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Formato
+      </td>
+
+      <td>
+        Los archivos YML distinguen entre mayúsculas y minúsculas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sangrías
+      </td>
+
+      <td>
+        Todas las sangrías deben realizarse en incrementos de dos caracteres. Otras sangrías generarán un error `Unable to parse configuration file` al iniciar el agente.
+
+        * Utilice el mismo nivel de sangría para los datos en la misma sección del archivo.
+        * Sangra las subsecciones con dos espacios adicionales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cambios en el archivo
+      </td>
+
+      <td>
+        Debe reiniciar su proceso de host JVM para que los cambios surtan efecto.
+
+        <DNT>**Exception:**</DNT> Los cambios de propiedad en `log_level` y `audit_mode` no requieren reinicio. Los cambios de propiedad bajo interruptor no requieren reiniciar.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Prioridad de los ajustes de configuración [#config-options-precedence]
+
+Para anular cualquier configuración en el archivo de configuración, utilice una [anulación de propiedad del sistema](#System_Properties). En ciertos entornos, [las variables de entorno](#Environment_Variables) también se pueden usar para anular tanto el archivo de configuración como las propiedades del sistema. Las variables de entorno existen principalmente para admitir Heroku. Cuando se utiliza, [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration) anula todas las demás configuraciones.
+
+<img
+  title="java-config-order.png"
+  alt="java-config-order.png"
+  src="/images/apm_diagram_Java-config-precedence.webp"
+/>
+
+<figcaption>
+  Con el agente de Java, la configuración del lado del servidor anula todas las demás configuraciones. Las variables de entorno anulan las propiedades del sistema Java. Las propiedades de Java anulan los ajustes de configuración del usuario en su archivo `newrelic.yml` . La configuración del usuario anula la configuración predeterminada `newrelic.yml` .
+</figcaption>
+
+## Configurar el directorio de extensiones de Java [#extensions-directory]
+
+El agente de Java lee los archivos de configuración al iniciar el proceso. Para identificar el directorio donde se encuentran los archivos, cree un directorio de extensiones nuevo o especifique uno existente:
+
+<CollapserGroup>
+  <Collapser
+    id="create-extensions-directory"
+    title="Crear un directorio de extensiones"
+  >
+    Para crear el directorio de extensiones:
+
+    1. Navegue hasta el directorio donde se encuentran `newrelic.jar` y `newrelic.yml` . Cree un directorio llamado `extensions`.
+    2. En `newrelic.yml`, verifique que la propiedad [`extensions.dir`](#cfg-extensions-dir) no esté configurada.
+  </Collapser>
+
+  <Collapser
+    id="specify-extensions-directory"
+    title="Especificar un directorio de extensiones existente"
+  >
+    Para utilizar un directorio de extensiones de Java existente:
+
+    1. En su archivo `newrelic.yml` , busque la sección `common` .
+    2. Utilice la propiedad [`extensions.dir`](#cfg-extensions-dir) para especificar la ubicación del archivo.
+  </Collapser>
+</CollapserGroup>
+
+## Ajustes de configuración generales [#General]
+
+Configure estas opciones en la sección `common` . Para [anular](#System_Properties) cualquiera de estas opciones, utilice una propiedad del sistema con el prefijo `newrelic.config` .
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-license_key"
+    title="license_key (REQUIRED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración es <DNT>**required**</DNT>. Debe especificar la [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) asociada con su cuenta New Relic. Esta clave vincula los datos de su agente a su cuenta en el servicio New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-app_name"
+    title="app_name (REQUIRED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración es <DNT>**required**</DNT>. Define el [nombre de la aplicación](/docs/site/naming-your-application) utilizada para informar datos a New Relic.
+
+    Si [`enable_auto_app_naming`](#cfg-enable_auto_app_naming) es falso, el agente informa todos los datos a esta aplicación. De lo contrario, el agente reporta solo tareas en segundo plano (transacción para aplicaciones no web) a esta aplicación.
+
+    Para informar datos a [más de una aplicación](/docs/java/multiple-application-names), separe los nombres de las aplicaciones con un punto y coma. Por ejemplo, para informar datos a <DNT>**My Application**</DNT> y <DNT>**My Application 2**</DNT> utilice esto:
+
+    ```yml
+    app_name: My Application;My Application 2
+    ```
+
+    Para conocer más métodos para nombrar su aplicación, consulte [Nombrar su aplicación Java](/docs/agents/java-agent/configuration/name-your-java-application).
+  </Collapser>
+
+  <Collapser
+    id="cfg-agent_enabled"
+    title="agent_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Bandera para habilitar al agente. Utilice esta configuración para forzar que el agente se ejecute o no.
+  </Collapser>
+
+  <Collapser
+    id="cfg-apdex_t"
+    title="apdex_t (DEPRECATED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `1.0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El umbral `apdex_t` en segundos para la puntuación [Apdex](/docs/site/apdex-measuring-user-satisfaction) de la aplicación. Para las versiones 1.2.008 o superiores del agente de Java, el valor `apdex_t` se establece en la UI y el valor en `newrelic.yml` se ignora.
+  </Collapser>
+
+  <Collapser
+    id="cfg-appserver_port"
+    title="appserver_port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Número para diferenciar las JVM para la misma aplicación en la misma máquina. New Relic [usa host/port para ser único](/docs/agents/java-agent/configuration/hostname-logic-java#unique-identifier), por lo que puede distinguir las JVM colocando un modificador como este en los argumentos de inicio de cada JVM:
+
+    ```ini
+    -Dnewrelic.config.appserver_port=<var>8081</var>
+    ```
+
+    Una vez que haya utilizado `appserver_port` para nombrar las JVM y reiniciarlas, debería poder verlas individualmente en el menú desplegable y en la interfaz de creación de perfiles.
+
+    <Callout variant="important">
+      Esto es sólo un cambio para New Relic; en realidad, no afecta de ninguna manera el puerto en el que se comunica el host.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-audit_mode"
+    title="audit_mode"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite el registro de texto sin formato de todos los datos enviados a New Relic en el archivo de registro del agente. Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+  </Collapser>
+
+  <Collapser
+    id="ca_config_bundle"
+    title="ca_bundle_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Formato de valor
+          </th>
+
+          <td>
+            `/path/to/ca/cert/bundle.pem`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica una ruta a un paquete de certificado SSL personalizado que utilizará el agente para establecer una conexión segura con New Relic. Si su paquete de certificado SSL personalizado no incluye certificados que sean suficientes para conectarse a New Relic, deberá [fusionar los certificados requeridos en su paquete de certificados personalizado](/docs/agents/java-agent/troubleshooting/ssl-or-connection-errors-java).
+
+    <Callout variant="important">
+      Nuestra implementación de Java Flight Recorder que actualmente viene incluida con el agente de Java utiliza el SDK de telemetría. Especificar ca_bundle_path no actualizará el certificado que utiliza nuestra opción JFR para conectarse a New Relic. Si está utilizando un almacén de confianza personalizado y desea utilizar la implementación del agente de Java JFR, deberá agregar los certificados necesarios en su almacén de confianza personalizado.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-enable_auto_app_naming"
+    title="enable_auto_app_naming"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite generar informes de datos por separado para cada aplicación web. Configúrelo en `true` para habilitar la compatibilidad con la denominación automática de aplicaciones. El nombre de cada aplicación web se detecta automáticamente y el agente reporta datos por separado para cada una. Esto proporciona un desglose del rendimiento más detallado para las aplicaciones web en New Relic.
+
+    Para obtener más información, consulte [Nomenclatura automática de aplicaciones](/docs/agents/java-agent/configuration/automatic-application-naming).
+
+    Para conocer más métodos para nombrar su aplicación, consulte [Nombrar su aplicación Java](/docs/agents/java-agent/configuration/name-your-java-application).
+  </Collapser>
+
+  <Collapser
+    id="cfg-enable_auto_transaction_naming"
+    title="enable_auto_transaction_naming"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita la denominación de transacciones basada en componentes. Establezca en `true` para habilitar la denominación de transacciones basada en componentes. Establezca en `false` para utilizar el URI de una solicitud web como nombre de la transacción. Para más información, consulte [Naming transacción web](/docs/agents/java-agent/instrumentation/naming-web-transactions).
+
+    <Callout variant="caution">
+      A menos que implemente la API de llamada para nombrar su transacción, es muy probable que deshabilitar el nombramiento de transacciones automáticas cause [problemas de agrupación métrica](/docs/features/metric-grouping-issues).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-enable_custom_tracing"
+    title="enable_custom_tracing"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita toda la instrumentación [mediante una anotación `@Trace` ](/docs/agents/java-agent/custom-instrumentation/java-instrumentation-annotation). Deshabilitar esto hace que se ignoren las anotaciones `@Trace` .
+  </Collapser>
+
+  <Collapser
+    id="event_ingest_uri"
+    title="event_ingest_uri"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            [`https://insights-collector.newrelic.com/v1/accounts/events`](https://insights-collector.newrelic.com/v1/accounts/events)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Evento ingest URI utilizado por alguna característica del agente. Por defecto el extremo de ingestión de producción estadounidense. Se puede configurar manualmente para enviar eventos a otro extremo de ingesta (por ejemplo, producción de la UE: [`https://insights-collector.eu01.nr-data.net/v1/accounts/events`](https://insights-collector.eu01.nr-data.net/v1/accounts/events)).
+
+    Los clientes que cumplen con FedRAMP deben utilizar el [extremo compatible con FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/#event-api): `https://gov-insights-collector.newrelic.com/v1/accounts/events`
+  </Collapser>
+
+  <Collapser
+    id="cfg-extensions-dir"
+    title="extensions.dir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define la ubicación del [directorio de extensiones](#extensions-directory) opcionales. Si esta propiedad no está configurada, el agente buscará un subdirectorio denominado `extensions` en el mismo directorio que `newrelic.jar` y `newrelic.yml`.
+  </Collapser>
+
+  <Collapser
+    id="cfg-enable_high_security"
+    title="high_security"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para habilitar [la alta seguridad](/docs/subscriptions/high-security) , esta propiedad debe establecerse en `true` y la propiedad de alta seguridad en la interfaz de usuario de New Relic debe estar habilitada. Habilitar la alta seguridad significa que SSL está activado, los parámetros de la cola de solicitudes y mensajes no se recopilan y la consulta no se puede enviar a New Relic en su forma original.
+
+    <Callout variant="important">
+      A partir del [agente de Java 3.48.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3480), SSL está habilitado de forma predeterminada y la opción de configuración para deshabilitarlo ha quedado obsoleta. A partir del [agente de Java 4.0.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-400), se eliminó la capacidad de deshabilitar SSL.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-host"
+    title="anfitrión"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Proporciona la capacidad de configurar un [extremo compatible con FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/) para que lo utilice el agente, con el valor `gov-collector.newrelic.com`.
+  </Collapser>
+
+  <Collapser
+    id="cfg-insert_api_key"
+    title="insert_api_key"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una [Insert clave de API](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#event-insert-key) válida para su cuenta. El agente no lo utiliza actualmente.
+  </Collapser>
+
+  <Collapser
+    id="labels"
+    title="etiquetas"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Adjunte [etiqueta](/docs/apm/new-relic-apm/maintenance/labels-categories-organize-your-apps-servers) a esta aplicación.
+
+    Tenga en cuenta que esta opción ahora habilita etiquetas, que reemplazaron la característica de etiqueta. Aún puedes consultar tus [etiquetas](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor#labels) históricas. Se pueden adjuntar varias etiquetas utilizando un punto y coma como separador de la siguiente manera:
+
+    ```ini
+    -Dnewrelic.config.labels="tagName1:tagValue1;tagName2:tagValue2;tagName3:tagValue3"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="legacy_async_api_skip_suspend"
+    title="legacy_async_api_skip_suspend"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            FALSO
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    En casos excepcionales, podría producirse una pérdida de memoria con la instrumentación que utiliza la API legacy heredada para realizar un seguimiento del ciclo de vida de los servlets asíncronos o Jetty Continuations. La pérdida de memoria se manifestaría como transacciones filtradas que se suspendieron pero nunca se reanudaron. Esta configuración actúa como una solución para evitar que ocurra tal escenario. Se recomienda habilitar esta solución solo cuando se produzca una pérdida de memoria de este tipo.
+  </Collapser>
+
+  <Collapser
+    id="max-stack-trace-lines"
+    title="max_stack_trace_lines"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `30`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Limita la cantidad de líneas que el agente recopila de cada rastreo del stack. Aumentar este valor puede afectar el rendimiento, porque aumenta la cantidad de memoria que utiliza el agente y la cantidad de datos enviados a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="metric_ingest_uri"
+    title="metric_ingest_uri"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            [`https://metric-api.newrelic.com/metric/v1`](https://metric-api.newrelic.com/metric/v1)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Métrica ingest URI utilizada por algún agente característico. Por defecto el extremo de ingestión de producción estadounidense. Se puede configurar manualmente para enviar métrica a otro extremo de ingesta (ejemplo de URI de producción de la UE: [`https://metric-api.eu.newrelic.com/metric/v1`](https://metric-api.eu.newrelic.com/metric/v1)).
+
+    Los clientes que cumplen con FedRAMP deben utilizar el [extremo compatible con FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/#metric-api): `https://gov-metric-api.newrelic.com/metric/v1`
+  </Collapser>
+
+  <Collapser
+    id="cfg-proxy_host"
+    title="proxy_host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El host proxy a través del cual conectarse al [recopilador New Relic](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector). Si se utiliza un proxy, se requiere la configuración del host. Otras configuraciones de proxy son opcionales.
+  </Collapser>
+
+  <Collapser
+    id="cfg-proxy_password"
+    title="proxy_password"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La contraseña para la autenticación de proxy. Si se utiliza un proxy, se requiere la configuración del host. Otras configuraciones de proxy son opcionales. La configuración de nombre de usuario y contraseña se utilizará para autenticarse en los desafíos de autenticación básica desde un servidor proxy.
+
+    <Callout variant="important">
+      El agente de Java admite autenticación básica (texto sin cifrar).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-proxy_port"
+    title="proxy_port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `8080`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El número de puerto del host proxy. Si se utiliza un proxy, se requiere la configuración del host. Otras configuraciones de proxy son opcionales.
+  </Collapser>
+
+  <Collapser
+    id="cfg-proxy_user"
+    title="proxy_user"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El nombre de usuario para la autenticación de proxy, como la autenticación básica (texto sin cifrar). Si se utiliza un proxy, se requiere la configuración del host. Otras configuraciones de proxy son opcionales. La configuración de nombre de usuario y contraseña se utilizará para autenticarse en los desafíos de autenticación básica desde un servidor proxy.
+  </Collapser>
+
+  <Collapser
+    id="cfg-proxy_scheme"
+    title="proxy_scheme"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El esquema de proxy utilizado. La configuración `proxy_scheme: "https"` permitirá que el agente se conecte a través de servidores proxy utilizando el esquema HTTPS.
+  </Collapser>
+
+  <Collapser
+    id="cfg-reactor-netty-errors-enabled"
+    title="reactor-netty.errors.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si se informan errores para Reactor Netty. El valor predeterminado es falso. Si se establece en verdadero, se informarán los errores de Reactor Netty.
+
+    <Callout variant="important">
+      Sólo disponible en [agente de Java 6.3.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-630) y superior.
+
+      Tenga en cuenta que el valor predeterminado se cambió a falso a partir del agente de Java 6.5.0.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-send_data_on_exit"
+    title="send_data_on_exit"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite el apagado retrasado de JVM para darle al agente la oportunidad de enviar los datos métricos más recientes a New Relic antes del cierre de JVM.
+  </Collapser>
+
+  <Collapser
+    id="send_data_on_exit_threshold"
+    title="send_data_on_exit_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `60`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La cantidad de segundos después de los cuales el agente utilizará la configuración [`send_data_on_exit`](#cfg-send_data_on_exit) .
+  </Collapser>
+
+  <Collapser
+    id="cfg-send_environment_info"
+    title="send_environment_info"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite los informes de la configuración de JVM a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-send_jvm_props"
+    title="send_jvm_props"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, las propiedades de JVM se enviarán a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-ssl"
+    title="ssl (OBSECUTIVO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Requiere conexiones al recopilador New Relic para pasar por SSL.
+
+    El agente se comunica con New Relic a través de HTTPS de forma predeterminada, y New Relic [requiere HTTPS](/docs/apis/rest-api-v2/troubleshooting/301-response-rest-api-calls) para todo el tráfico hacia <InlinePopover type="apm"/>y la API REST de New Relic.
+
+    Este trabajo se realiza de forma asincrónica con los subprocesos que procesan el código de su aplicación, por lo que el tiempo de respuesta no se verá afectado directamente por este cambio.
+
+    <Callout variant="important">
+      A partir del [agente de Java 3.48.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3480), SSL está habilitado de forma predeterminada y la opción de configuración para deshabilitarlo ha quedado obsoleta. A partir del [agente de Java 4.0.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-400), se eliminó la capacidad de deshabilitar SSL.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-sync_startup"
+    title="sync_startup"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permita que el agente se conecte al recolector New Relic inmediatamente después del inicio de la aplicación.
+  </Collapser>
+
+  <Collapser
+    id="scala-futures-segment"
+    title="scala_futures_as_segments"
+  >
+    <Callout variant="important">
+      Esto se aplica al agente de Java [versión 3.44.0 o superior](/docs/release-notes/agent-release-notes/java-release-notes).
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para obtener detalles más concisos de la traza de la transacción, el agente no informa los futuros de Scala como segmentos de transacción, y esos futuros no contribuyen al [tiempo total de la transacción](/docs/data-analysis/user-interface-functions/view-your-data/response-time#response-time-total-time).
+
+    Habilitar `scala_futures_as_segments` aumenta sus gastos generales. Si desea que Scala Futures se informe como segmentos de transacción para poder verlos en una traza de la transacción, puede habilitarlo:
+
+    ```yml
+    scala_futures_as_segments:
+      enabled: true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Variables de entorno [#Environment_Variables]
+
+Las variables de entorno tienen la máxima prioridad y anulan las propiedades del sistema y la configuración de yml.
+
+* Para configurar variables de entorno, utilice el comando `export VARNAME=value` .
+* Para establecer variables de entorno de forma permanente, agregue la línea de exportación a un archivo como `~/.bashrc` o `~/.bash_profile`.
+
+Puede anular cualquier configuración de una propiedad del sistema o en `newrelic.yml` configurando una variable de entorno. La variable de entorno correspondiente a una configuración determinada en el archivo de configuración es el nombre de la configuración con el prefijo `NEW_RELIC` con todos los puntos (`.`) y guiones (`-`) reemplazados por guiones bajos (`_`). Por ejemplo, la variable de entorno para la configuración `log_level` es `NEW_RELIC_LOG_LEVEL`.
+
+Para configuraciones anidadas en secciones, anteponga el nombre de la sección al nombre de la configuración. Por ejemplo:
+
+```yml:
+  class_transformer:
+    com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
+      enabled: true
+```
+
+La configuración anterior se convertiría a la siguiente variable de entorno: `NEW_RELIC_CLASS_TRANSFORMER_COM_NEWRELIC_INSTRUMENTATION_KAFKA_CLIENTS_SPANS_0_11_0_0_ENABLED`
+
+<Callout variant="important">
+  La configuración del agente mediante variables de entorno requiere [agente de Java versión 4.10.0 o superior](/docs/agents/java-agent/installation/upgrade-java-agent).
+</Callout>
+
+## Propiedades del sistema [#System_Properties]
+
+Puede anular cualquier configuración en el archivo `newrelic.yml` estableciendo una propiedad del sistema. La propiedad del sistema correspondiente a una configuración determinada en el archivo de configuración es el nombre de la configuración con el prefijo `newrelic.config`. Por ejemplo, la propiedad del sistema para la configuración `log_level` es `newrelic.config.log_level`.
+
+Para configuraciones anidadas en secciones, anteponga el nombre de la sección al nombre de la configuración. Por ejemplo, la propiedad del sistema para la configuración `enabled` en la sección de transacciones es `newrelic.config.transaction_tracer.enabled`.
+
+Además de anular los ajustes de configuración, el agente reconoce estas propiedades del sistema:
+
+<CollapserGroup>
+  <Collapser
+    id="com-newrelic-jboss-jsr77-fix"
+    title="com.newrelic.jboss.jsr77.fix"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    A partir de la versión del agente `8.7.0`, si se establece en verdadero y el Agente se ejecuta con JBoss EAP/Wildfly, esto evitará que el agente requiera que el cargador de clases del sistema cargue cualquier clase del paquete `javax.management` . Esto se agrega para ayudar a solucionar problemas de inicio de la aplicación con los módulos JBoss cuando se utiliza la API de administración J2EE/Jakarta. Se proporciona más información en el [documento de resolución de problemas de](/docs/apm/agents/java-agent/troubleshooting/classloading-issues-from-jboss-and-wildfly) JBoss/Wildfly.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-config-experimental-runtime"
+    title="newrelic.config.experimental_runtime"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Indicador de expiración que permite que el agente se ejecute con versiones de Java no compatibles.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-bootstrap_classpath"
+    title="newrelic.config.process_host.display_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca un [nombre para mostrar](/docs/agents/java-agent/configuration/hostname-logic-java#display-name) para decorar la etiqueta "host:puerto" en la UI de New Relic. Requiere agente de Java 3.17 o superior.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-config-file"
+    title="newrelic.config.file"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cadena que contiene una ruta completa al archivo de configuración de newrelic. Si está vacío, el agente supone `newrelic.yml` está en el mismo directorio que `newrelic.jar`.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-debug"
+    title="newrelic.debug"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite el registro de depuración.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-environment"
+    title="newrelic.environment"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cadena que contiene la configuración del entorno que utilizará el agente.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-home"
+    title="newrelic.home"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cadena que contiene el directorio de inicio del agente. El valor predeterminado es el mismo directorio que el archivo jar del agente.
+  </Collapser>
+
+  <Collapser
+    id="newrelic-logfile"
+    title="newrelic.logfile"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `newrelic_agent.log`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cadena que contiene el nombre del agente archivo de log.
+  </Collapser>
+</CollapserGroup>
+
+## Atributo [#attributes]
+
+Para configurar estas opciones, utilice la sección `attributes` . Para [anularlos](#System_Properties) , utilice una propiedad del sistema con el prefijo `newrelic.config.attributes` .
+
+Los atributos son pares de valores principales relacionados con la traza de la transacción, los errores de traza, <InlinePopover type="browser"/>y el evento transacción. Hay una sección `attribute` debajo de cada destino. Para obtener más información, consulte [agente de atributo Java](/docs/java/java-agent-attributes), [Habilitación y deshabilitación de atributos](/docs/java/enabling-and-disabling-attributes) y [ejemplos de atributos](/docs/java/attribute-examples).
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-attributes-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos. <Callout variant="important">Por motivos de seguridad, la captura de atributos personalizados mediante el [Editor de instrumentación personalizada](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-instrument-ui#options) está configurada en `false` de forma predeterminada.</Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-attributes-include"
+    title="incluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados, las claves de atributos que se encuentran en esta lista se enviarán a New Relic. Separe las claves de la lista con una coma; Por ejemplo:
+
+    ```
+    key1, key2, key3
+    ```
+
+    Consulte también las [reglas de atributos del agente](/docs/subscriptions/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-attributes-exclude"
+    title="excluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos encontradas en esta lista no se enviarán a New Relic. Separe las claves de la lista con una coma; Por ejemplo:
+
+    ```
+    key1, key2, key3
+    ```
+
+    Consulte también las [reglas de atributos del agente](/docs/subscriptions/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-http_attribute_mode"
+    title="http_attribute_mode"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            ambos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El informe de atributos se puede configurar a través de los siguientes medios.
+
+    YAML:
+
+    ```
+    attributes:
+    http_attribute_mode: both
+    ```
+
+    Propiedad del sistema:
+
+    ```properties
+    -Dnewrelic.config.attributes.http_attribute_mode=both
+    ```
+
+    Variable ambiental:
+
+    ```properties
+    NEW_RELIC_ATTRIBUTES_HTTP_ATTRIBUTE=both
+    ```
+
+    Las opciones de configuración son:
+
+    * `standard` : Los informes utilizarán estándares (es decir, OTEL) atributo. Se recomienda esta configuración. Minimizará el impacto en la funcionalidad y mantendrá el nivel más bajo de ingesta para los informes de atributos.
+    * `legacy` : Los informes se realizarán mediante el atributo HTTP reintroducido; esta configuración puede afectar la funcionalidad actual o futura.
+    * `both` : Esta es la configuración predeterminada, los informes se realizarán mediante el atributo HTTP reintroducido y el atributo OTEL. Esta configuración también aumentará su ingesta de datos.
+
+    <Callout variant="important">
+      Disponible desde [agente de Java versión 8.8.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-880). La configuración predeterminada, `both`, aumentará la ingesta de datos. Para evitar un aumento en la ingesta de datos, debe anular el valor predeterminado configurando `http_attribute_mode` en `legacy` o `standard`.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentación asíncrona [#async_config]
+
+Estas opciones se configuran directamente en la sección `common` y se pueden [anular](#System_Properties) mediante una propiedad del sistema con prefijo.
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-token_timeout"
+    title="token_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Predeterminado (segundos)
+          </th>
+
+          <td>
+            `180`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La cantidad de segundos después de los cuales el agente caducará automáticamente un token asíncrono que no ha caducado explícitamente con `token.expire()`. Para obtener instrucciones de uso, consulte [token: conectar subprocesos asíncronos](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications#tokens).
+
+    <Callout variant="important">
+      Aumentar este valor puede afectar el rendimiento, porque aumenta la cantidad de memoria que utiliza el agente y evita que se informe de transacciones debido a que el token no ha caducado.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-segment_timeout"
+    title="segment_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Predeterminado (segundos)
+          </th>
+
+          <td>
+            `600`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La cantidad de segundos después de los cuales el agente finalizará automáticamente un segmento que no haya finalizado explícitamente con `segment.end()` o `segment.ignore()`. Para obtener instrucciones de uso, consulte [Segmentos: actividad asíncrona arbitraria de tiempo](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications#segments).
+
+    <Callout variant="important">
+      Aumentar este valor puede afectar el rendimiento, porque aumenta la cantidad de memoria que utiliza el agente y evita que se informen transacciones debido a segmentos no finalizados.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## monitoreo del navegador [#Browser_Monitoring]
+
+Estas opciones se configuran en la sección `browser_monitoring` y se pueden [anular](#System_Properties) utilizando una propiedad del sistema con el prefijo `newrelic.config.browser_monitoring` .
+
+El monitoreo del navegador le brinda información valiosa sobre el rendimiento que el usuario real está experimentando con su sitio web. Esto se logra midiendo el tiempo que le toma al navegador de su usuario descargar y representar sus páginas web inyectando una pequeña cantidad de código JavaScript en el encabezado y pie de página de cada página.
+
+<CollapserGroup>
+  <Collapser
+    id="bm-auto_instrument"
+    title="auto_instrument"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    De forma predeterminada, el agente inserta automáticamente la API de llamada en JSP compilados para inyectar el JavaScript de monitoreo en las páginas web. Establezca este atributo en `false` para desactivar este comportamiento.
+  </Collapser>
+
+  <Collapser
+    id="bm-disabled_auto_pages"
+    title="disabled_auto_pages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas separadas por comas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando [`auto_instrument`](#bm-auto_instrument) es `true`, de forma predeterminada todas las páginas están instrumentadas. Enumere todas las páginas que desea que la instrumentación automática omita aquí. Aún puede utilizar instrumentación manual en estas páginas.
+
+    Por ejemplo:
+
+    ```yml
+    browser_monitoring:
+      disabled_auto_pages: /WEB-INF/jsp/testpage_1.jsp, /WEB-INF/jsp/testpage_2.jsp
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cfg-browser-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos de monitoreo del navegador. Estos son los [datos que puedes consultar](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data). Si `attributes.enabled` es falso en el nivel raíz, no se enviará ningún atributo en el monitoreo del navegador independientemente de cómo esté configurada esta propiedad en `browser_monitoring` .
+  </Collapser>
+
+  <Collapser
+    id="cfg-bm-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para `browser_monitoring`, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en las vistas de página. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-bm-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en las visitas a la página. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+</CollapserGroup>
+
+## Interruptor
+
+Estas configuraciones personalizan el comportamiento del [interruptor Java](/docs/agents/java-agent/custom-instrumentation/circuit-breaker-java-custom-instrumentation). Estas configuraciones no están incluidas en `newrelic.yml` de forma predeterminada. No es necesario reiniciar su JVM después de cambiarlos.
+
+Si desea personalizar el interruptor, agréguelo en la sección `common` :
+
+```yml
+common: &default_settings​
+  <var>OTHER_CONFIG_SETTINGS</var>
+  circuitbreaker:
+    enabled: <var>true</var>
+    memory_threshold: <var>20</var>
+    gc_cpu_threshold: <var>10</var>
+```
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-circuitbreaker_enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si su aplicación se comporta como se esperaba, es posible que desee desactivar el interruptor.
+  </Collapser>
+
+  <Collapser
+    id="cfg-circuitbreaker_memory_threshold"
+    title="memory_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero (0 a 100)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `20`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Personalice el porcentaje de memoria dinámica libre por debajo del cual debería activarse el interruptor. Cuando el porcentaje de memoria dinámica libre es menor que `memory_threshold` y el tiempo de CPU dedicado a la recolección de basura es mayor que `gc_cpu_threshold`, el interruptor se activa. Para que sea menos probable que el interruptor se dispare, disminuya `memory_threshold` y/o aumente `gc_cpu_threshold`. Ajuste estos valores según sea necesario, según el rendimiento operativo y el comportamiento de su aplicación.
+  </Collapser>
+
+  <Collapser
+    id="cfg-circuitbreaker_gc_cpu_threshold"
+    title="gc_cpu_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero (0 a 100)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Personalice el porcentaje de tiempo de CPU de recolección de basura por encima del cual debería activarse el interruptor. Cuando el porcentaje de memoria de montón libre es menor que `memory_threshold` y el tiempo de CPU dedicado a la recolección de basura es mayor que `gc_cpu_threshold`, el interruptor se activa. Para que sea menos probable que el interruptor se dispare, disminuya `memory_threshold` y/o aumente `gc_cpu_threshold`. Ajuste estos valores según sea necesario, según el rendimiento operativo y el comportamiento de su aplicación.
+  </Collapser>
+</CollapserGroup>
+
+## Utilización de la plataforma en la nube [#utilization]
+
+Establezca la configuración de utilización de la plataforma en la nube en la sección `utilization` y se puede anular con la propiedad del sistema con el prefijo `newrelic.config.utilization` .
+
+El agente recopila información de utilización y la envía al servicio New Relic. El agente puede recopilar información de Amazon Web Services (AWS), Azure, Google Cloud Platform y Pivotal Cloud Foundry instancia. También recopilará información relacionada con el contenedor Docker y los servicios de Kubernetes.
+
+<CollapserGroup>
+  <Collapser
+    id="aws-enabled"
+    title="detect_aws"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente sondea la API de metadatos de AWS.
+  </Collapser>
+
+  <Collapser
+    id="azure-enabled"
+    title="detect_azure"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente sondea la API de metadatos de Azure.
+  </Collapser>
+
+  <Collapser
+    id="gcp-enabled"
+    title="detect_gcp"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente sondea la API de metadatos de Google Cloud Platform.
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-enabled"
+    title="detect_kubernetes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente informa la variable de entorno `KUBERNETES_SERVICE_HOST` .
+  </Collapser>
+
+  <Collapser
+    id="pcf-enabled"
+    title="detect_pcf"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente lee las variables de entorno de Pivotal Cloud Foundry.
+  </Collapser>
+
+  <Collapser
+    id="docker-enabled"
+    title="detect_docker"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente lee la información Docker del sistema de archivos.
+  </Collapser>
+</CollapserGroup>
+
+## Métrica a nivel de código
+
+Las métricas a nivel de código le brindan información detallada y valiosa sobre el rendimiento de su código a nivel de método. Verá la métrica de cada método que se haya instrumentado automáticamente o que haya sido instrumentado mediante la anotación @Trace. Para obtener más información sobre métricas a nivel de código, consulte [Monitoreo de desempeño con CodeStream](/docs/codestream/how-use-codestream/performance-monitoring).
+
+Establezca las opciones métricas a nivel de código en la sección `code_level_metrics` . Se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.code_level_metrics` .
+
+<CollapserGroup>
+  <Collapser
+    id="clm-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    [La métrica a nivel de código](/docs/codestream/observability/code-level-metrics) está deshabilitada de forma predeterminada en la versión 7.10.0 del agente. Establezca esto en verdadero para activarlo. A partir de la versión 7.11.0 del agente, el valor predeterminado es, como se indicó anteriormente, `true`.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración Errors Inbox [#errors-inbox-configuration]
+
+Configurar una de las siguientes etiquetas le ayudará a identificar qué versiones de su software están produciendo los errores.
+
+* `NEW_RELIC_METADATA_SERVICE_VERSION` creará `tags.service.version` en los datos del evento que contienen la versión de su código que se desplegará, en muchos casos una versión semántica como 1.2.3, pero no siempre.
+* `NEW_RELIC_METADATA_RELEASE_TAG `creará `tags.releaseTag` en los datos del evento que contienen la etiqueta de lanzamiento (como v0.1.209 o release-209).
+* `NEW_RELIC_METADATA_COMMIT` creará `tags.commit` en los datos del evento que contienen el sha de confirmación. Puede utilizar el sha completo o utilizar sólo los primeros siete caracteres (por ejemplo, 734713b).
+
+Una próxima versión de Errors Inbox rastreará automáticamente qué versiones de su software están produciendo errores. Los datos de la versión se mostrarán en [CodeStream](/docs/codestream/how-use-codestream/performance-monitoring/#buildsha).
+
+## Rastreador multiaplicación [#Cross_Application_Tracer]
+
+<Callout variant="important">
+  El seguimiento de aplicaciones múltiples ha quedado obsoleto a partir de la versión 7.4.0 del agente y se eliminará en una versión futura del agente.
+
+  En lugar de utilizar el rastreo multiaplicación, recomendamos nuestra característica [rastreo distribuido](#distributed-tracing) . rastreo distribuido es una mejora de la característica de rastreo multiaplicación y se recomienda para sistemas distribuidos grandes.
+</Callout>
+
+Configure las opciones de seguimiento de múltiples aplicaciones en la sección `cross_application_tracer` . Estas configuraciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.cross_application_tracer` .
+
+[El rastreo de aplicaciones múltiples](/docs/apm/transactions/cross-application-traces/cross-application-tracing) agrega encabezados de solicitud y respuesta a llamadas externas utilizando la biblioteca Apache HttpClient. Esto proporciona mejores datos de rendimiento cuando otro agente de New Relic llama al monitor de aplicaciones.
+
+<CollapserGroup>
+  <Collapser
+    id="cat-enabled"
+    title="habilitado (OBSECUTIVO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    [El rastreo multiaplicación](/docs/apm/transactions/cross-application-traces/cross-application-tracing) está habilitado por defecto. Establezca esto en falso para desactivarlo.
+  </Collapser>
+</CollapserGroup>
+
+## Evento personalizado [#Custom_Events]
+
+Establezca la configuración del evento personalizado en la sección `custom_insights_events` . Puede [anular](#System_Properties) esta configuración con una propiedad del sistema con el prefijo `newrelic.config.custom_insights_events` .
+
+APM le permite [registrar datos de eventos personalizados](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) a través del agente de lenguaje de API de New Relic, que [luego puede consultar](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data).
+
+<Callout variant="important">
+  Para versiones de agente de Java anteriores a 4.1.0, Se reconoce la siguiente configuración YAML:
+
+  ```yml
+  custom_insights_events.enabled: true
+    custom_insights_events.max_samples_stored: 5000
+  ```
+
+  Para las versiones del agente 4.1.0 y superiores, la configuración YAML utiliza el formato de sección anidada:
+
+  ```yml
+  custom_insights_events:
+    enabled: false
+    max_samples_stored: 5000
+  ```
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="cie-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto habilita el servicio de evento personalizado.
+  </Collapser>
+
+  <Collapser
+    id="cie-max_attribute_value"
+    title="max_attribute_value"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `255`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El tamaño máximo de un valor de atributo, después del cual el valor se truncará. El valor predeterminado es `255` bytes (en codificación de juego de caracteres UTF-8) y el límite máximo es `4095`.
+
+    Esta configuración existe en el agente de Java versión 8.9.0+.
+  </Collapser>
+
+  <Collapser
+    id="cie-max_samples_stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `30000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El número máximo de eventos personalizados muestreados se informa cada 60 segundos.
+  </Collapser>
+</CollapserGroup>
+
+## Transformador de clase [#Class_Transformer]
+
+Establezca la configuración relacionada con la instrumentación en la sección `class_transformer` . Puede anular esta configuración con una [propiedad del sistema](#System_Properties) con prefijo `newrelic.config.class_transformer` o una [variable de entorno](#Environment_Variables) con prefijo `NEW_RELIC_CLASS_TRANSFORMER_` .
+
+<CollapserGroup>
+  <Collapser
+    id="ct-enhanced_spring_transaction_naming"
+    title="enhanced_spring_transaction_naming"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            FALSO
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitada, la denominación mejorada de transacciones Spring nombrará cualquier transacción que se origine en un controlador Spring después de la ruta definida y el método HTTP. Por ejemplo: `/customer/v1/edit (POST)`. Esto incluye controladores que implementan o amplían interfaces/clases con anotaciones relacionadas con WebMVC (`@RestController`, `@Controller`, `@RequestMapping`, etc.).
+
+    De forma predeterminada, esto está configurado en `false`, que nombrará la transacción para esos tipos de controladores según el nombre de clase y el método del controlador. Por ejemplo; `CustomerController/edit`. Esta es la lógica de nomenclatura heredada de versiones anteriores del agente. Los controladores "estándar", con todas las anotaciones relevantes presentes en la clase real, seguirán recibiendo nombres según la ruta y el método HTTP.
+
+    Esta configuración existe en el agente de Java versión 8.9.0+.
+  </Collapser>
+
+  <Collapser
+    id="ct-trace_annotation_class_name"
+    title="trace_annotation_class_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cadena que contiene el nombre completo de la clase de anotación que utiliza el agente para determinar qué métodos especificados por el usuario instrumentar. Para obtener más información sobre anotaciones personalizadas, consulte [Colección Java métrica personalizada](/docs/java/java-custom-metric-collection).
+  </Collapser>
+
+  <Collapser
+    id="ct-servlet-user"
+    title="com.newrelic.instrumentation.servlet-user"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite esta opción para capturar el nombre `userPrincipal` . Este nombre se incluye como traza de la transacción (con nombres de atributo `user` y `enduser.id`), y [se puede consultar](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data). Esto también le permite ver en [Errors Inbox cuántos usuarios se ven afectados por un grupo de errores](/docs/errors-inbox/error-users-impacted/).
+  </Collapser>
+</CollapserGroup>
+
+## rastreo distribuido [#dt-main]
+
+<Callout variant="important">
+  Habilitar rastreo distribuido deshabilita [el rastreo de múltiples aplicaciones](#Cross_Application_Tracer) y tiene otros efectos en la característica APM. Antes de habilitar, lea la [guía de transición](/docs/transition-guide-distributed-tracing).
+
+  Requiere [agente de Java versión 4.3.0 o superior](/docs/agents/java-agent/installation/upgrade-java-agent).
+</Callout>
+
+[rastreo distribuido](/docs/understand-dependencies/distributed-tracing/get-started/introduction-distributed-tracing) te permite ver el camino que sigue una solicitud a medida que viaja a través de un sistema distribuido. Está activado de forma predeterminada para el agente de Java versión 7.4.0 o superior.
+
+En el archivo de configuración, puede anular esto manualmente en la sección `distributed_tracing` . También puede anular esto utilizando una propiedad del sistema con prefijo (`newrelic.config.distributed_tracing`) o una variable de entorno (`NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`). Vea los ejemplos a continuación.
+
+Para obtener más información sobre cómo configurar rastreo distribuido, consulte [Habilitar rastreo distribuido para su aplicación Java](/docs/apm/agents/go-agent/instrumentation/distributed-tracing-go-agent).
+
+<CollapserGroup>
+  <Collapser
+    id="dt-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `false` para deshabilitar el rastreo distribuido. Por ejemplo, en el archivo de configuración, usarías:
+
+    ```yml
+    distributed_tracing:
+      enabled: false
+    ```
+
+    Aquí hay otras opciones para desactivar rastreo distribuido:
+
+    [Propiedad del sistema](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#System_Properties):
+
+    ```ini
+    -Dnewrelic.config.distributed_tracing.enabled=false
+    ```
+
+    Variables ambientales:
+
+    ```ini
+    NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=false
+    ```
+  </Collapser>
+
+  <Collapser
+    id="dt-exclude_newrelic_header"
+    title="exclude_newrelic_header"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    De forma predeterminada, las versiones compatibles del agente utilizan tanto el encabezado `newrelic` como los encabezados W3C Trace Context para rastreo distribuido. El encabezado rastreo distribuido `newrelic` permite la interoperabilidad con agentes más antiguos que no admiten encabezados W3C Trace Context . Las versiones del agente que admiten encabezados W3C Trace Context los priorizarán sobre `newrelic` encabezados para rastreo distribuido.
+
+    Si no desea utilizar el encabezado `newrelic`, configurarlo en `true` hará que el agente excluya el encabezado `newrelic` y solo use encabezados W3C Trace Context para rastreo distribuido.
+
+    Por ejemplo, para excluir `newrelic` encabezados en el archivo de configuración, usaría:
+
+    ```yml
+    distributed_tracing:
+      exclude_newrelic_header: true
+    ```
+
+    Para excluir `newrelic` encabezados usando una [propiedad del sistema](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#System_Properties), usaría:
+
+    ```ini
+    -Dnewrelic.config.distributed_tracing.exclude_newrelic_header=true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Recolector de errores [#Error_Collector]
+
+Establezca la configuración del selector de errores en la sección `error_collector` . A menos que se indique lo contrario, puede [anular](#System_Properties) esta configuración con una propiedad del sistema con el prefijo `newrelic.config.error_collector` . El recolector de errores captura información sobre excepciones no detectadas y las envía a New Relic para su visualización.
+
+<Callout variant="tip">
+  Para saber cómo configurar errores para el agente de Java, incluido cómo configurar errores a través de la UI, consulte [configuración de errores del agente de Java](/docs/agents/java-agent/configuration/java-agent-error-configuration).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="ec-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilitar la recopilación de errores.
+  </Collapser>
+
+  <Collapser
+    id="ec-ignore_classes"
+    title="ignore_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Sección que contiene una lista de cadenas `class_name` completas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Los nombres de clases de excepción especificados se ignorarán y no afectarán la tasa de errores ni la puntuación de Apdex, ni se informarán a APM. <DNT>**Cannot be specified by system property.**</DNT>
+
+    Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      ignore_classes:
+        - "com.example.MyException"
+        - "com.example.DifferentException"
+    ```
+
+    Se puede utilizar una variable de entorno para enumerar los nombres de clases de excepción que desea ignorar:
+
+    ```ini
+    NEW_RELIC_ERROR_COLLECTOR_IGNORE_CLASSES="[\"com.example.MyException\", \"com.example.DifferentException\"]"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ec-ignore_messages"
+    title="ignore_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Sección que contiene un `class_name` completo y una lista de `messages` por clase de error
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique nombres de clases de excepción que el agente debe ignorar. Los mensajes ignorados no afectarán la tasa de errores o la puntuación Apdex, ni serán reportados a APM. Contiene `yaml` pares que constan de:
+
+    * Un nombre de clase de excepción completo que no debe informarse a APM
+
+      Y
+
+    * Una lista de excepciones `message`con las que comparar (se requiere al menos una)
+
+      Si el nombre de la clase de excepción coincide con un error pero el mensaje no, entonces se ignorará ese error <DNT>**will not**</DNT> . Las cadenas de mensajes utilizan `contains` para hacer coincidir. Un mensaje no se puede proporcionar por sí solo y siempre debe ir acompañado de un nombre de clase completo. <DNT>**Cannot be specified by system property.**</DNT>
+
+      Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+      Por ejemplo:
+
+      ```yml
+      error_collector:
+        ignore_messages:
+          com.example.MyException:
+            - "Some error message to ignore"
+            - "Some other error message to ignore"
+          com.example.DifferentException:
+            - "Some different error message to ignore"
+      ```
+
+      Se puede utilizar una variable de entorno para enumerar nombres de clases de excepción y mensajes que desea ignorar:
+
+      ```ini
+      NEW_RELIC_ERROR_COLLECTOR_IGNORE_MESSAGES="{\"com.example.MyException\": [\"Some error message to ignore\", \"Some other error message to ignore\"], \"com.example.DifferentException\": [\"Some different error message to ignore\"]}"
+      ```
+  </Collapser>
+
+  <Collapser
+    id="ec-ignore_status_codes"
+    title="ignore_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas y rangos separados por comas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `404`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista separada por comas compuesta por rangos individuales y discontinuos de códigos de estado HTTP que no deben tratarse como errores.
+
+    Si esta propiedad se comenta en el archivo de configuración `newrelic.yml` , el código de estado 404 se ignorará automáticamente. Cuando se utiliza [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration), se debe especificar el código de estado 404 para que se ignore.
+
+    Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      ignore_status_codes: 404,507-511
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ec-expected_classes"
+    title="expected_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Sección que contiene una lista de cadenas `class_name` completas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Evita que clases de excepción específicas afecten la tasa de errores o la puntuación de Apdex y al mismo tiempo informa los errores a APM. <DNT>**Cannot be specified by system property.**</DNT>
+
+    Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      expected_classes:
+        - "com.example.MyException"
+        - "com.example.DifferentException"
+    ```
+
+    Se puede utilizar una variable de entorno para enumerar los nombres de clases de excepción esperadas:
+
+    ```ini
+    NEW_RELIC_ERROR_COLLECTOR_EXPECTED_CLASSES="[\"com.example.MyException\", \"com.example.DifferentException\"]"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ec-expected_messages"
+    title="expected_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Sección que contiene un `class_name` completo y una lista de `messages` por clase de error
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Contiene pares de yaml que constan de un nombre de clase de excepción completo que debe marcarse como se esperaba y, por lo tanto, evitar que afecte la tasa de errores o la puntuación de Apdex y una lista de excepciones `message`con las que comparar, la última de las cuales es obligatoria al menos una. . Si el nombre de la clase de excepción coincide con un error pero el mensaje no, entonces ese error <DNT>**will not**</DNT> se marcará como se esperaba y, por lo tanto, afectará la tasa de errores y la puntuación de Apdex.
+
+    Las cadenas de mensajes utilizan `contains` para hacer coincidir. Un mensaje no se puede proporcionar por sí solo y siempre debe ir acompañado de un nombre de clase completo. <DNT>**Cannot be specified by system property.**</DNT>
+
+    Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      expected_messages:
+        com.example.MyException:
+          - "Some expected error message"
+          - "Some other expected error message"
+        com.example.DifferentException:
+          - "Some different expected error message"
+    ```
+
+    Se puede utilizar una variable de entorno para enumerar los nombres y mensajes de clases de excepción esperados:
+
+    ```ini
+    NEW_RELIC_ERROR_COLLECTOR_EXPECTED_MESSAGES="{\"com.example.MyException\": [\"Some error message to ignore\", \"Some other error message to ignore\"], \"com.example.DifferentException\": [\"Some different error message to ignore\"]}"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ec-expected_status_codes"
+    title="expected_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas y rangos separados por comas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista separada por comas compuesta por rangos individuales y discontinuos de códigos de estado HTTP que se marcarán como se esperaba y, por lo tanto, se evitará que afecten la tasa de errores o la puntuación Apdex.
+
+    Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      expected_status_codes: 415,500-506
+    ```
+
+    Los códigos de estado esperados también pueden estar con la variable de entorno `NEW_RELIC_ERROR_COLLECTOR_EXPECTED_STATUS_CODES` .
+  </Collapser>
+
+  <Collapser
+    id="cfg-error-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos para errores de traza. Si `attributes.enabled` es `false` en el nivel raíz, no se enviará ningún atributo a los errores de traza independientemente de cómo se establezca esta propiedad en `error_collector`.
+  </Collapser>
+
+  <Collapser
+    id="cfg-ec-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para errores de traza, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en errores de traza. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-ec-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en caso de errores de traza. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="ec-ignoreErrorPriority"
+    title="ignoreErrorPriority"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se detectan varios errores en una transacción, solo se informará el último error de forma predeterminada. En cambio, establecer esta propiedad en `false` informará solo el primer error que se detecte. Para obtener más información, consulte la [API NoticeError](/docs/agents/java-agent/configuration/java-agent-error-configuration/). Por ejemplo:
+
+    ```yml
+    error_collector:
+      ignoreErrorPriority: false
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ec-ignore_errors"
+    title="ignore_errors (DEPRECATED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas separadas por comas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todos los nombres de clases de excepción especificados no se tratarán como errores. Obsoleto a partir de agente de Java 3.40.0 y reemplazado por [`ignore_classes`](#ec-ignore_classes).
+
+    Por ejemplo:
+
+    ```yml
+    error_collector:
+      ignore_errors: some.other.MyException
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Rastreador externo [#External_Tracer]
+
+Configure las opciones de seguimiento externo en la sección `external_tracer` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.external_tracer` .
+
+<CollapserGroup>
+  <Collapser
+    id="cat-enabled"
+    title="exclude_request_uri"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para controlar la recopilación de URI de solicitud saliente para errores y la traza de la transacción. Establezca esto en verdadero para deshabilitar la recopilación de esta información.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del nombre de host [#hostname_configuration]
+
+Establezca las opciones de configuración del nombre de host en la sección `process_host` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.process_host` .
+
+Utilice estas propiedades para configurar el nombre de host que se muestra en la UI:
+
+<CollapserGroup>
+  <Collapser
+    id="display_name"
+    title="display_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca un [nombre para mostrar](/docs/agents/java-agent/configuration/hostname-logic-java#display-name) para decorar la etiqueta "host:puerto" en la UI de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="ipv_preference"
+    title="ipv_preference"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `4`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si no se puede determinar el nombre del host, se utilizará la dirección IP del host. Esta propiedad determina si se debe utilizar la dirección IPv4 o IPv6. El valor predeterminado es IPv4.
+  </Collapser>
+</CollapserGroup>
+
+## Rastreo infinito
+
+<Callout variant="important">
+  Requisitos:
+
+  * [agente de Java 5.12.1 o superior](/docs/agents/java-agent/installation/update-java-agent).
+  * El seguimiento infinito no funciona si `enable_auto_app_naming` está habilitado.
+</Callout>
+
+Para activar Infinite Tracing, habilite rastreo distribuido y agregue la configuración adicional a continuación. Para ver un ejemplo, consulte [Agente de idioma: Configurar rastreo distribuido](/docs/understand-dependencies/distributed-tracing/enable-configure/language-agents-enable-distributed-tracing#java-config).
+
+<CollapserGroup>
+  <Collapser
+    id="infinite-tracing-trace-observer-host"
+    title="trace_observer.host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para obtener ayuda para obtener una entrada de host de observador de traza Infinite Tracing válida, consulte [buscar o crear un observador de traza](/docs/understand-dependencies/distributed-tracing/enable-configure/language-agents-enable-distributed-tracing#provision-trace-observer).
+
+    Puedes configurar esto a través de YAML:
+
+    ```yml
+    infinite_tracing:
+      trace_observer:
+        host: <var>YOUR_TRACE_OBSERVER_HOST</var>
+    ```
+
+    También puede utilizar la propiedad del sistema `newrelic.config.infinite_tracing.trace_observer.host` o la variable de entorno `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST`.
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentación
+
+Estas opciones se configuran en la sección `instrumentation` y se pueden anular mediante una propiedad del sistema con el prefijo `newrelic.config.instrumentation` .
+
+<CollapserGroup>
+  <Collapser
+    id="trace-lambda-enabled"
+    title="trace_lambda.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            false
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    De forma predeterminada, las anotaciones [@TraceLambda](/docs/apm/agents/java-agent/api-guides/java-agent-api-instrument-using-annotation/#tracelambda) están deshabilitadas. Para utilizar la funcionalidad de anotación para rastrear métodos lambda, debe habilitar explícitamente la característica de la siguiente manera:
+
+    Puedes configurar esto a través de YAML:
+
+    ```yml
+    instrumentation:
+      trace_lambda:
+        enabled: true
+    ```
+
+    También puede utilizar la propiedad del sistema `newrelic.config.instrumentation.trace_lambda.enabled=true` o la variable de entorno `NEW_RELIC_INSTRUMENTATION_TRACE_LAMBDA_ENABLED`.
+  </Collapser>
+</CollapserGroup>
+
+## Recolector de Jar
+
+El agente de Java recopila información sobre archivos jar y sus versiones en el classpath de la aplicación.
+
+Establezca la configuración de la colección jar en la sección `jar_collector` . Estas opciones de configuración se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.jar_collector` . Las opciones incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-jar-collector-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Se utiliza para habilitar/deshabilitar la recopilación y los informes de jar.
+  </Collapser>
+
+  <Collapser
+    id="cfg-jar-collector-skip-temp-jars"
+    title="skip_temp_jars"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Se utiliza para habilitar/deshabilitar la colección de archivos temporales. Los archivos jar temporales son aquellos que residen en el directorio especificado por la propiedad del sistema `java.io.tmpdir`.
+  </Collapser>
+
+  <Collapser
+    id="cfg-jar-collector-jars-per-second"
+    title="jars_per_second"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El número máximo de archivos jar para procesar por segundo. Debe ser positivo.
+  </Collapser>
+</CollapserGroup>
+
+## JFR (perfiles en tiempo real)
+
+El agente de Java utiliza Java Flight Recorder (JFR) para recopilar datos JVM de alta fidelidad para [la creación de perfiles en tiempo real](/docs/agents/java-agent/features/real-time-profiling-java-using-jfr-metrics/).
+
+Configure la creación de perfiles en tiempo real en la sección `jfr` del agente YAML con [propiedades del sistema](#System_Properties) con el prefijo `newrelic.config.jfr.` o con [variables de entorno](#Environment_Variables) con el prefijo `NEW_RELIC_JFR_`.
+
+<CollapserGroup>
+  <Collapser
+    id="jfr-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configúrelo en `true` para habilitar [la creación de perfiles en tiempo real con JFR](/docs/agents/java-agent/features/real-time-profiling-java-using-jfr-metrics/). Esta configuración se aplicará dinámicamente y no requiere reiniciar JVM.
+
+    <Callout variant="important">
+      La creación de perfiles en tiempo real con JFR está activada de forma predeterminada en el agente de Java [versión 7.1.0](/docs/release-notes/agent-release-notes/java-release-notes). Si tiene cualquier otro agente versión 7.0.0 o superior, puede activar JFR cambiando el valor a `true`.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="jfr-audit_logging"
+    title="audit_logging"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca en `true` para habilitar el registro de auditoría que mostrará todas las métricas y eventos JFR en cada lote de cosecha. El registro de auditoría es extremadamente detallado y sólo debe usarse con fines de resolución de problemas.
+
+    <Callout variant="important">
+      Esto se aplica al agente de Java [versión 7.0.0 o superior](/docs/release-notes/agent-release-notes/java-release-notes).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## JMX
+
+Para configurar estas opciones, utilice la sección `jmx` . Para [anularlos](#System_Properties) , utilice una propiedad del sistema con el prefijo `newrelic.config.jmx` .
+
+El agente de Java utiliza JMX para recopilar datos de JVM. Además, el agente puede exponer metadatos de enlace a través de JMX que pueden ser utilizados por otros sistemas de seguimiento.
+
+<CollapserGroup>
+  <Collapser
+    id="jmx-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todas las funciones de JMX.
+  </Collapser>
+
+  <Collapser
+    id="jmx-linkingMetadataMBean"
+    title="linkingMetadataMBean"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede habilitar para permitir que el agente de Java exponga metadatos de enlace a través de JMX remoto.
+
+    <Callout variant="important">
+      Esto se aplica al agente de Java [versión 6.1.0 o superior](/docs/release-notes/agent-release-notes/java-release-notes).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Kafka cola de mensajes [#kafka-message-queues]
+
+Puede encontrar información detallada sobre la configuración de la instrumentación de Kafka en la página [instrumentado Kafka cola de mensajes](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/) .
+
+* \[Kafka evento collection(/docs/agente APM/java-instrumentación del agente/agente de Java-instrumentado-kafka-cola de mensajes/#collect-kafka-evento)
+* [Nodo Kafka métrico](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#kafka-node-metrics)
+* [Evento de configuración de Kafka](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#kafka-config)
+* [Kafka transmite la transacción](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#collect-kafka-streams-transactions)
+* [Kafka conectar transacción](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#collect-kafka-connect-transactions)
+* [Kafka rastreo distribuido](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#collect-kafka-distributed-traces)
+
+## Logs en el contexto [#logs-in-context]
+
+A partir de la versión `7.6.0` del agente de Java, se agregó compatibilidad con [logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all) al agente, lo que facilita su uso en el marco de registro compatible. Para obtener sugerencias sobre cómo utilizar el agente de Java para logs en el contexto, consulte [Java logs en el contexto](/docs/logs/logs-context/java-configure-logs-context-all).
+
+El cambio de estas configuraciones en el archivo de configuración de su agente local ocurre dinámicamente y no requiere reiniciar el agente para que esos cambios surtan efecto. Una configuración de ejemplo:
+
+```yml
+application_logging:
+  enabled: true
+  forwarding:
+    enabled: true
+    max_samples_stored: 10000
+    context_data:
+      enabled: false
+      include:
+      exclude:
+  metrics:
+    enabled: true
+  local_decorating:
+      enabled: false
+```
+
+Establezca la configuración de logs en el contexto en la sección `application_logging` . Esto se puede [anular](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.application_logging` . La única opción disponible es:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configúrelo en `true` para habilitar la característica principal de logs en el contexto. Cuando está habilitado, se habilita instrumentación adicional framework de registro, independientemente de si los registros se decoran o se envían a New Relic.
+
+    <Callout variant="important">
+      Las versiones 7.7.0 y superiores del agente tienen esta característica habilitada en el archivo de configuración del agente de forma predeterminada.
+    </Callout>
+
+    Establezca en `false` para deshabilitar completamente esta característica, incluida la recopilación de log métrica.
+  </Collapser>
+</CollapserGroup>
+
+### Reenvío de log [#log-forwarding]
+
+Si está utilizando un framework de registro compatible y desea utilizar el agente para enviar su registro de aplicación a New Relic, puede controlarlo a través de la configuración en la sección `forwarding`. Estas configuraciones pueden ser anuladas por la propiedad del sistema con el prefijo `newrelic.config.application_logging.forwarding` . Las opciones disponibles son:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_forwarding-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita el envío de log de aplicación a New Relic.
+
+    <Callout variant="important">
+      Las versiones del agente 7.7.0 y superiores tienen esta característica habilitada en el archivo de configuración del agente de forma predeterminada.
+
+      El uso de la característica de reenvío de registros aumentará su ingesta de datos, lo que puede afectar su facturación. Para obtener más información, consulte nuestra documentación sobre [el seguimiento de su ingesta de datos](/docs/apm/new-relic-apm/getting-started/get-started-logs-context#ingest).
+
+      Si ya tiene una solución de reenvío de registros y está actualizando su agente para usar el logs en el contexto automático, asegúrese de <DNT>**disable your old log forwarder**</DNT>. De lo contrario, su aplicación enviará líneas log dobles. Dependiendo de su cuenta, esto podría resultar en una doble facturación. Para obtener más información, siga los procedimientos para desactivar su [reenviador de registros específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+    </Callout>
+
+    Establece esto en `true` para que tu registro decorado se envíe a New Relic.
+
+    Establezca esto en `false` si no desea que su registro decorado se envíe a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding-max_samples_stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un entero positivo que especifica el número máximo de líneas de registro por minuto que se enviarán.
+
+    Establezca esto en `0` para deshabilitar efectivamente el envío de registros.
+
+    <Callout variant="important">
+      Esto controla la cantidad de registros enviados _por minuto_. Establecer `max_samples_stored` en `0`, o cualquier valor menor que `12`, _no_ deshabilita la característica en sí, aunque sí da como resultado que no se envíen líneas log a New Relic.
+    </Callout>
+
+    Establezca esto en un valor más bajo para reducir la cantidad de líneas log enviadas (puede causar muestreo log ). Establezca esto en un valor más alto para enviar más líneas log .
+
+    Cada log recibe la misma prioridad que su transacción asociada. Los registros que ocurren fuera de una transacción recibirán una prioridad aleatoria. Es posible que algunos registros no se incluyan porque están limitados por `max_samples_stored`. Por ejemplo, si el registro `max_samples_stored` se establece en 10 000 y la transacción 1 tiene 10 000 entradas log , solo se registrarán las entradas log de la transacción 1. Si la transacción 1 tiene menos de 10 000 registros, recibirá todos los registros de la transacción 1. Si todavía hay espacio, recibirás todo el registro de la transacción 2, y así sucesivamente.
+
+    Si después de todo se registran los registros de transacciones muestreadas y no han alcanzado el límite en `max_samples_stored`, entonces se envían mensajes de registro de transacciones que no estaban en nuestro muestreo. Si queda alguno, se registran mensajes de registro fuera de la transacción.
+  </Collapser>
+</CollapserGroup>
+
+#### Log datos de contexto [#log-context-data]
+
+El agente de Java puede capturar datos de contexto (Contexto de diagnóstico asignado en logback/slf4j, ThreadContext en log4j2) y agregar su contenido como atributo en el registro reenviado a New Relic. Puedes controlarlo a través de la configuración en la sección `context_data` , anidada en la sección `forwarding` . Estas configuraciones pueden ser anuladas por la propiedad del sistema con el prefijo `newrelic.config.application_logging.forwarding.context_data` . Las opciones disponibles son:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `true` envío de datos de contexto como atributo log a New Relic.
+
+    Establezca esto en `false` si no desea que los datos de contexto en el registro se envíen a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-include"
+    title="incluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `context_data` está habilitado para el reenvío de registros, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en los log . Si esta lista está vacía, se enviarán todos los atributos.
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-exclude"
+    title="excluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `context_data` está habilitado para el reenvío de registros, todas las claves de atributos que se encuentran en esta lista NO se enviarán a New Relic en log .
+
+    La lista de inclusión y exclusión sigue las reglas `Exclude overrides include`, `More specific rules take priority`, `Keys are case-sensitive` y `Use an asterisk for wildcards` definidas en [las reglas de atributo](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file).
+  </Collapser>
+</CollapserGroup>
+
+### Log métrico [#log-metrics]
+
+Además de permitirle decorar y enviar líneas log individuales, el agente de Java puede capturar datos métricos de registro. Puede encontrar estos datos en el gráfico de registro en la UI de New Relic. Puede configurar los ajustes log métrica en la sección `metrics`. Puede anular esta configuración con la propiedad del sistema con el prefijo `newrelic.config.application_logging.metrics` . La única opción disponible es:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_metrics-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite capturar información métrica sobre su registro y nivel de registros, que se muestra en un gráfico en la página APM <DNT>**Summary**</DNT> .
+
+    Deje esto configurado en `true` para permitir que el agente capture información métrica sobre su registro.
+
+    Establezca esto en `false` para desactivar esta característica.
+
+    <Callout variant="important">
+      Si desactiva la recopilación de log métrica, el gráfico log en la página de resumen aparecerá en blanco.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### Decoración log [#log-decorating]
+
+Puede configurar los ajustes de decoración log en la sección `local_decorating`. Puede utilizar esto para controlar cómo se decoran las líneas log locales. Puede anular esta configuración con una propiedad del sistema con el prefijo `newrelic.config.application_logging.local_decorating` . La única opción disponible es:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging-local_decorating"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto controla si las líneas log almacenadas localmente están decoradas o no. Esto es independiente de si el reenvío de registros está habilitado o no y se utiliza para ayudar a los clientes que desean utilizar una solución de reenvío de registros separada.
+
+    Establezca esto en `true` para que el agente agregue metadatos de enlace de logs en el contexto a líneas log almacenadas localmente por el marco compatible.
+
+    <Callout variant="important">
+      Habilitar la decoración log locales agregará metadatos de enlace a sus archivos de registro de aplicación, lo que resultará en un aumento en el almacenamiento en disco. Desactive esta característica si es inaceptable.
+
+      No es necesario utilizar la decoración log local cuando el reenvío de logs está habilitado. Hacerlo hará que se agreguen metadatos de enlace a su mensaje de registro innecesariamente, lo que puede distraer visualmente.
+    </Callout>
+
+    Establezca esto en `false` para desactivar la característica de decoración local. Esto _no_ afectará la decoración de las líneas log que se envían a New Relic.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de registro [#Logging-Configuration]
+
+Estas son parte de las variables de configuración generales. Se desglosan aquí porque con frecuencia se modifican para la depuración.
+
+Algunas de las variables de configuración de registro son dinámicas y no necesitan reiniciar el host para que surtan efecto. Por ejemplo, si los archivos de registro crecen demasiado rápido, [`log_level`](#cfg-log_level) se puede configurar en una configuración menos detallada para reducir la tasa de informes.
+
+A continuación se muestra el orden de prioridad y explicación de las variables de configuración que afectan la rotación log .
+
+* Si `log_daily` es `true`:
+
+  * Un valor `log_limit_in_kbytes` mayor que cero dará como resultado una política de activación compuesta, donde el registro se actualizará una vez al día o cuando se alcance el tamaño definido, reteniendo hasta `log_file_count` archivos
+  * Un valor de `log_limit_in_kbytes` igual a cero dará como resultado que el registro se actualice una vez al día y conserve hasta `log_file_count` archivos
+
+* Si `log_daily` es `false` y `log_limit_in_kbytes` > 0, se configurará una política basada en el tamaño, donde el registro se actualizará cuando se alcance el tamaño definido, reteniendo hasta `log_file_count` archivos
+
+* Si `log_daily` es `false` y `log_limit_in_kbytes` = 0, no se configurará ninguna lógica de archivo de registro continuo
+
+Dependiendo de la tasa de crecimiento, es posible que el tamaño del archivo de registro exceda el valor configurado en una pequeña cantidad.
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-log_file_count"
+    title="log_daily"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca en `true` para actualizar el registro diariamente.
+  </Collapser>
+
+  <Collapser
+    id="cfg-log_file_count"
+    title="log_file_count"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `1`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El número máximo de archivos de registro que se deben conservar cuando se utiliza la rotación log .
+  </Collapser>
+
+  <Collapser
+    id="cfg-log_file_name"
+    title="log_file_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `newrelic_agent.log`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El nombre del archivo de registro no calificado o la cadena `STDOUT` que iniciará log en la salida estándar.
+  </Collapser>
+
+  <Collapser
+    id="cfg-log_file_path"
+    title="log_file_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `logs` subdirectorio donde se encuentra `newrelic.jar`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El camino del archivo de registro.
+
+    <Callout variant="tip">
+      Si se especifica `log_file_path` , el directorio ya debe existir. Si se utiliza el valor predeterminado, el agente intentará crear el directorio.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-log_level"
+    title="log_level"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `info`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El nivel de detalle log . Cuando cambie esta configuración en el archivo de configuración yaml del agente, se actualizará dinámicamente. Sin embargo, la variable de entorno y la propiedad del sistema no se actualizarán dinámicamente.
+
+    El agente utiliza su propio archivo de registro para mantener su registro separado del de su aplicación. Las opciones válidas, en orden de detalle, son:
+
+    * `off`
+
+    * `severe`
+
+    * `warning`
+
+    * `info`
+
+    * `fine`
+
+    * `finer`
+
+    * `finest`
+
+      <Callout variant="caution">
+        No utilice el registro `debug` o `trace` a menos que el soporte de New Relic le solicite que los utilice. Estos niveles de registro pueden generar gastos generales excesivos. Para la mayoría de situaciones, use `info`.
+      </Callout>
+
+      Esta configuración es dinámica, por lo que al ejecutar agente notará cambios en `newrelic.yml` sin reiniciar la JVM.
+  </Collapser>
+
+  <Collapser
+    id="cfg-log_limit_in_kbytes"
+    title="log_limit_in_kbytes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El tamaño del archivo de registro en kilobytes al que se rota el archivo de registro. Establezca en `0` para no tener límite.
+  </Collapser>
+</CollapserGroup>
+
+## Rastreador de mensajes [#Transaction_Tracer]
+
+Configure las opciones del rastreador de mensajes en la sección `message_tracer` . Puede [anular](#System_Properties) esta configuración con una propiedad del sistema con el prefijo `newrelic.config.message_tracer` .
+
+<CollapserGroup>
+  <Collapser
+    id="tt-enabled"
+    title="segment_parameters.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Agrega propiedades de mensaje al atributo tracer. Establezca esto en `false` para desactivarlo.
+  </Collapser>
+</CollapserGroup>
+
+## Agente de seguridad [#sec-agent]
+
+[La prueba de seguridad de aplicaciones interactivas (IAST) del agente New Relic Security](/docs/iast/introduction/) prueba su aplicación en busca de vulnerabilidades explotables reproduciendo la solicitud HTTP generada con carga vulnerable.
+
+<Callout variant="important">
+  Ejecute IAST con despliegue no productivo solo para evitar exponer vulnerabilidades en su software de producción.
+</Callout>
+
+Puede establecer la configuración del agente New Relic Security en la sección `security` . Estas configuraciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.security` . Las opciones incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-security-agent-enabled"
+    title="agent.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para deshabilitar completamente todas las funciones de seguridad, establezca este indicador en falso. Esta propiedad se lee solo una vez al inicio de la aplicación. El valor predeterminado es falso.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si los datos de seguridad se envían a New Relic o no. Cuando esto está deshabilitado y agente.enabled es verdadero, el módulo de seguridad se ejecutará pero no se enviarán datos. El valor predeterminado es falso.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-mode"
+    title="modo"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `IAST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Modo de suministro de New Relic Security: IAST. El valor predeterminado es IAST. Debido a la naturaleza invasiva del escaneo IAST, NO habilite este modo ni en un entorno de producción ni en un entorno donde se procesen datos de producción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-validator-service-url"
+    title="validator_service_url"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `wss://csec.nr-data.net`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    URL de conexión SaaS de New Relic Security. Este es el extremo al que el agente de seguridad envía datos, debe coincidir con ese entorno que has configurado para el APM agente de Java.
+
+    Producción de EE. UU.: wss://csec.nr-data.net
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-detection-rci-enabled"
+    title="detection.rci.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad de RCI. El valor predeterminado es verdadero.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-detection-rxss-enabled"
+    title="detection.rxss.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad RXSS. El valor predeterminado es verdadero.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-detection-deserialization-enabled"
+    title="detection.deserialization.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad de deserialización. El valor predeterminado es verdadero.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  El modo de pruebas de seguridad de aplicaciones interactivas (IAST) New Relic Security requiere [agente de Java versión 8.4.0 o superior](/docs/agents/java-agent/installation/upgrade-java-agent).
+</Callout>
+
+## Detección de transacciones lentas
+
+El agente ahora puede detectar transacciones lentas a través del evento `SlowTransaction` desde la versión `8.7.0` del agente de Java. Estos eventos se registran cuando la duración de la transacción excede un cierto umbral. De forma predeterminada, el umbral es 600.000 milisegundos (10 minutos).
+
+La detección de transacciones lentas se establece en `slow_transactions` y se puede [anular](#System_Properties) utilizando una propiedad del sistema con el prefijo `newrelic.config.slow_transactions` . Las opciones incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-slow-transactions-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Se utiliza para habilitar/deshabilitar la detección de transacciones lentas.
+  </Collapser>
+
+  <Collapser
+    id="cfg-slow-transactions-threshold"
+    title="umbral"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `600000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina cuánto tiempo debe tardar una transacción en milisegundos para que se informe un evento `SlowTransaction` .
+  </Collapser>
+
+  <Collapser
+    id="cfg-evaluate_completed_transaction"
+    title="evaluate_completed_transaction"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si esto se establece en verdadero, se verificará que cada transacción supere el umbral definido al finalizar la transacción. Tenga en cuenta que si una gran cantidad de transacciones excede el umbral, esto puede resultar costoso desde el punto de vista computacional ya que se envía un rastreo del stack con cada evento SlowTransaction.
+  </Collapser>
+</CollapserGroup>
+
+## Evento de duración
+
+[Span evento](/docs/apm/distributed-tracing/ui-data/span-event) son reportados para [rastreo distribuido](#distributed-tracing). Debes habilitar rastreo distribuido para reportar span evento.
+
+Establezca la configuración del evento span en la sección `span_events` . Estas configuraciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.span_events` . Las opciones incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-span-events-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Se utiliza para habilitar/deshabilitar el informe de eventos de extensión.
+  </Collapser>
+
+  <Collapser
+    id="cfg-span-events-max-samples-stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `2000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            máx.
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina el número de eventos de intervalo que se pueden capturar durante un ciclo de recolección de agente. Disponible en agente de Java 7.4.0 y superior.
+
+    <Callout variant="important">
+      Aumentar el número de eventos de intervalo puede generar una sobrecarga adicional del agente.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-span-events-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos del evento span. Si `attributes.enabled` en el nivel raíz es `false`, no se enviará ningún atributo al evento span independientemente de cómo esté configurada esta propiedad (`span_events.attributes.enabled`).
+  </Collapser>
+
+  <Collapser
+    id="cfg-span-events-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para el evento span, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en `span_events`. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-span-events-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en el evento span. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  El filtrado de atributos de eventos Span requiere [agente de Java versión 4.10.0 o superior](/docs/agents/java-agent/installation/upgrade-java-agent).
+</Callout>
+
+## Excepciones de tira [#strip_exceptions]
+
+Configure las opciones de excepciones de tira en la sección `strip_exception_messages` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.strip_exception_messages` . Habilite esta configuración para controlar si los mensajes de excepción de Java se informan a New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="strip_exception_messages"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    De forma predeterminada, está configurado en `false`, lo que significa que el agente envía mensajes de todas las excepciones al [recolector de New Relic](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector).
+
+    * Si lo configura en `true`, el agente elimina las excepciones de los mensajes para evitar que capture información confidencial sin darse cuenta.
+    * Si habilita [el modo de alta seguridad](/docs/agents/manage-apm-agents/configuration/high-security-mode), se establece automáticamente en `true`.
+    * Si configura `enabled` en `true` pero desea que el agente capture mensajes de excepciones específicas, agregue las excepciones a su [lista de 'permitidos'](#strip_exception_messages_whitelist).
+  </Collapser>
+
+  <Collapser
+    id="strip_exception_messages_whitelist"
+    title="whitelist (DEPRECATED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      Esta configuración ha quedado obsoleta a partir de la versión 5.10.0 del agente y se eliminará en una versión futura del agente. En su lugar, utilice `allowed_classes`.
+    </Callout>
+
+    Si configura `enabled` en `true` pero desea que el agente capture mensajes para excepciones específicas, agregue cada excepción a `whitelist`, separada por una coma.
+  </Collapser>
+
+  <Collapser
+    id="strip_exception_messages_allowed_classes"
+    title="allowed_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si configura `enabled` en `true` pero desea que el agente capture mensajes para excepciones específicas, agregue cada excepción a `allowed_classes`, separada por una coma.
+  </Collapser>
+</CollapserGroup>
+
+## Hilo generador de perfiles [#Thread_Profiler]
+
+Configure las opciones del hilo generador de perfiles en la sección `thread_profiler` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.thread_profiler` .
+
+El generador de perfiles de subprocesos mide el tiempo de reloj, el tiempo de CPU y el recuento de llamadas a métodos en los subprocesos de su aplicación a medida que se ejecutan.
+
+<CollapserGroup>
+  <Collapser
+    id="tp-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilitar el hilo generador de perfiles.
+  </Collapser>
+</CollapserGroup>
+
+## Evento de transacción [#Transaction_Events]
+
+Configure las opciones del evento de transacción en la sección `transaction_events` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.transaction_events` .
+
+Los datos del evento de transacción se utilizan para mostrar histograma y percentil en la UI.
+
+<Callout variant="important">
+  Anteriormente, esta sección se llamaba `analytics_events`. Si su archivo de configuración todavía usa `analytics_events`, actualice su agente para usar `transaction_events`.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="ae-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilitar el servicio de transacción evento.
+  </Collapser>
+
+  <Collapser
+    id="ae-max_samples_stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `2000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            máx.
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El número máximo de eventos de transacción muestreados informados cada 60 segundos.
+  </Collapser>
+
+  <Collapser
+    id="tt-custom-request-headers"
+    title="custom_request_headers"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de mapas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      A diferencia de otras configuraciones, `custom_request_headers` deben emparejarse y configurarse en el archivo `newrelic.yml` . No pueden sobrescribirse con argumentos de la máquina virtual Java (propiedad del sistema) o variables de entorno.
+    </Callout>
+
+    Una lista de mapas con las claves emparejadas `header_name` y el `header_alias` opcional. Elija uno o más encabezados de solicitud HTTP personalizados para agregar como atributo de transacción.
+
+    Puede enumerar múltiples configuraciones de encabezado:
+
+    ```yml
+    transaction_events:
+      custom_request_headers:
+        -
+          header_name: "X-Custom-Header-1"
+        -
+          header_name: "X-Custom-Header-2"
+          header_alias: "CustomHeader2alias"
+    ```
+
+    En el primer conjunto de mapas, el agente captura y reporta `X-Custom-Header-1` como el nombre del encabezado para un valor correspondiente del objeto de solicitud. El `header_name` también será el nombre del atributo enviado a New Relic.
+
+    En el segundo conjunto de mapas, el encabezado de la solicitud es `X-Custom-Header-2`, pero `CustomHeader2alias` es el nombre enviado a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-events-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos del evento de transacción. Si `attributes.enabled` es `false` en el nivel raíz, no se enviará ningún atributo al evento de transacción independientemente de cómo se establezca esta propiedad en `transaction_events`.
+  </Collapser>
+
+  <Collapser
+    id="cfg-te-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para el evento de transacción, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en el evento de transacción. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-te-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en el evento de transacción. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+</CollapserGroup>
+
+## Segmentos de transacciones
+
+Configure las opciones de segmentos de transacciones en la sección `transaction_segments` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.transaction_segments` .
+
+Los segmentos representan piezas de trabajo discretas (generalmente llamadas a métodos) y se muestran dentro de [la traza de la transacción](/docs/traces/transaction-traces).
+
+<Callout variant="important">
+  El filtrado de atributos del segmento de transacciones requiere [agente de Java versión 4.10.0 o superior](/docs/agents/java-agent/installation/upgrade-java-agent).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-ts-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos de los segmentos de transacciones. Si `attributes.enabled` en el nivel raíz es `false`, no se enviará ningún atributo a los segmentos de transacciones independientemente de cómo esté configurada esta propiedad (`transaction_segments.attributes.enabled`).
+  </Collapser>
+
+  <Collapser
+    id="cfg-ts-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para los segmentos de transacciones, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en los segmentos de transacciones. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-ts-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en los segmentos de transacción. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+</CollapserGroup>
+
+## Rastreador de transacciones
+
+Configure las opciones del rastreador de transacciones en la sección `transaction_tracer` . Estas opciones se pueden [anular](#System_Properties) con una propiedad del sistema con el prefijo `newrelic.config.transaction_tracer` .
+
+[El seguimiento de transacciones](/docs/traces/transaction-traces) captura información detallada sobre transacciones lentas y la envía al servicio New Relic. La transacción incluye la secuencia exacta de llamadas de las transacciones, incluidas las declaraciones de consulta emitidas.
+
+<Callout variant="important">
+  No utilice corchetes `[suffix]` al final del nombre de su transacción. New Relic elimina automáticamente los corchetes del nombre. En su lugar, utilice paréntesis `(suffix)` u otros símbolos si es necesario.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="tt-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El rastreador de transacciones está habilitado de forma predeterminada. Establezca esto en `false` para desactivarlo.
+  </Collapser>
+
+  <Collapser
+    id="tt-explain_enabled"
+    title="explain_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si el agente capturará el plan `EXPLAIN` para consulta lenta. [Solo es compatible con MySQL y PostgreSQL.](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent#JDBC)
+  </Collapser>
+
+  <Collapser
+    id="tt-explain_threshold"
+    title="explain_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.5`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Umbral en segundos para el tiempo de ejecución de la consulta por debajo del cual no se capturarán la consulta lenta y el plan `EXPLAIN` ([si es compatible](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent#JDBC)). Relevante para consulta lenta solo cuando `record_sql` está configurado en `raw` o `obfuscated`. Relevante para los planes `EXPLAIN` solo cuando `explain_enabled` está establecido en `true`.
+  </Collapser>
+
+  <Collapser
+    id="insert_sql_max_length"
+    title="insert_sql_max_length"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `2000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El límite de caracteres para la cadena de consulta SQL. Si tiene muchas consultas SQL lentas con grandes cantidades de información, esto podría afectar negativamente el rendimiento o la rapidez con la que ve sus datos en New Relic. Aumente el valor gradualmente hasta encontrar el equilibrio adecuado entre información y rendimiento.
+  </Collapser>
+
+  <Collapser
+    id="tt-log_sql"
+    title="log_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca en `true` para habilitar el registro de consultas en el archivo de registro del agente en lugar de cargarlo en New Relic. Las consultas se registran utilizando el modo `record_sql` .
+  </Collapser>
+
+  <Collapser
+    id="tt-record_sql"
+    title="record_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `obfuscated`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando el rastreador de transacciones está activado, las declaraciones de consulta se pueden registrar opcionalmente. La grabadora tiene tres modos:
+
+    * `off`: No enviar consulta.
+    * `raw`: Envíe la declaración de consulta en su forma original.
+    * `obfuscated`: elimina los literales numéricos y de cadena.
+  </Collapser>
+
+  <Collapser
+    id="tt-stack_based_naming"
+    title="stack_based_naming (Play 2.x+ solamente)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+
+            El valor predeterminado es `true` hasta la versión 3.12.1 del agente de Java. cuando se cambió a `false`.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción es solo para Play 2.x+. La instrumentación de Play/Scala puede usar `Thread.getStackTrace()` para mejorar el nombre del rastreador, pero a costa de una mayor sobrecarga.
+  </Collapser>
+
+  <Collapser
+    id="tt-stack_trace_threshold"
+    title="stack_trace_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.5`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un umbral (en segundos) para recopilar el rastreo del stack de una llamada SQL. Cuando las sentencias SQL superen este umbral, el agente capturará el rastreo actual de la pila. Esto es útil para identificar de dónde se originan las llamadas SQL largas.
+  </Collapser>
+
+  <Collapser
+    id="tt-top_n"
+    title="top_n"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `20`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice esta configuración para controlar la variedad de su traza de la transacción. `top_n` es un número entero que representa el número de transacciones lentas y únicas para las que se creará la traza.
+
+    * Si desea que la traza de la transacción refleje con mayor precisión la transacción más lenta real en su aplicación, establezca este valor en <DNT>**lower**</DNT>.
+
+    * Si desea probar una matriz de transacción más diversa, haga el valor <DNT>**higher**</DNT>.
+
+      Un valor de `0` significaría que <DNT>**only**</DNT> la transacción más lenta siempre es la traza. Sin embargo, se considera que esto no es óptimo porque es posible que tenga una o dos transacciones que siempre sean las más lentas, y ver repetidamente esa misma traza de la transacción probablemente no le dará mucho valor.
+
+      Si la misma transacción suele ser la más lenta, la configuración `top_n` permite que el agente de Java (con el tiempo) muestree las transacciones `n` más lentas. Esto le brinda mayor variedad y más información valiosa para su aplicación.
+  </Collapser>
+
+  <Collapser
+    id="tt-transaction_threshold"
+    title="transaction_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena (flotante)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `apdex_f`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El umbral de tiempo utilizado para determinar cuándo una transacción es elegible para ser traza. Cuando el tiempo de respuesta de la transacción supere este umbral, se registrará una [traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces) y se enviará a New Relic.
+
+    El valor predeterminado es `apdex_f` (predeterminado), que establece el umbral en el nivel [Apdex](/docs/site/apdex-measuring-user-satisfaction) ["Frustrated"](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#apdex_f) (cuatro veces el `apdex_t` valor ). También puede establecer un umbral de tiempo específico ingresando un valor flotante que represente una cantidad de segundos.
+  </Collapser>
+
+  <Collapser
+    id="tt-slow_query_whitelist"
+    title="slow_query_whitelist (DEPRECATED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      Esta configuración ha quedado obsoleta a partir de la versión 5.10.0 del agente y se eliminará en una versión futura del agente. En su lugar, utilice `collect_slow_queries_from`.
+    </Callout>
+
+    De forma predeterminada, [el modo de alta seguridad](/docs/accounts-partnerships/accounts/security/high-security) no permite que el agente recopile [consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details). Habilite esta opción para recopilar consultas de Cassandra desde el controlador DataStax, incluso con la alta seguridad habilitada. Si no utiliza alta seguridad, el agente cobra consulta lenta automáticamente.
+
+    Para el controlador DataStax 2.1.2, añade esta regla a tu lista de 'permitidos':
+
+    ```yml
+    transaction_tracer:
+      slow_query_whitelist:
+        'com.newrelic.instrumentation.cassandra-datastax-2.1.2'
+    ```
+
+    Para el controlador DataStax 3.0.0, añade esta regla a tu lista de 'permitidos':
+
+    ```yml
+    transaction_tracer:
+      slow_query_whitelist:
+        'com.newrelic.instrumentation.cassandra-datastax-3.0.0'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tt-collect_slow_queries_from"
+    title="collect_slow_queries_from"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    De forma predeterminada, [el modo de alta seguridad](/docs/accounts-partnerships/accounts/security/high-security) no permite que el agente recopile [consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details). Habilite esta opción para recopilar consultas de Cassandra desde el controlador DataStax, incluso con la alta seguridad habilitada. Si no utiliza alta seguridad, el agente cobra consulta lenta automáticamente.
+
+    Para el controlador DataStax 2.1.2, añade esta regla a tu lista de 'permitidos':
+
+    ```yml
+    transaction_tracer:
+      collect_slow_queries_from:
+        'com.newrelic.instrumentation.cassandra-datastax-2.1.2'
+    ```
+
+    Para el controlador DataStax 3.0.0, añade esta regla a tu lista de 'permitidos':
+
+    ```yml
+    transaction_tracer:
+      collect_slow_queries_from:
+        'com.newrelic.instrumentation.cassandra-datastax-3.0.0'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar todos los atributos de la traza de la transacción. Si `attributes.enabled` en el nivel raíz es `false`, no se enviará ningún atributo a la traza de la transacción independientemente de cómo esté configurada esta propiedad (`transaction_tracer.attributes.enabled`).
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para la traza de la transacción, todas las claves de atributos que se encuentran en esta lista se enviarán a New Relic en la traza de la transacción. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán a New Relic en la traza de la transacción. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-token_limit"
+    title="token_limit"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `3000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Limita la cantidad de tokens que se pueden crear por transacción. Aumentar este valor puede afectar el rendimiento, porque aumenta la cantidad de memoria que utiliza el agente y la cantidad de datos enviados a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="cfg-tt-segment_limit"
+    title="segment_limit"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `3000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Limita la cantidad de segmentos que se pueden crear por transacción. Aumentar este valor puede afectar el rendimiento, porque aumenta la cantidad de memoria que utiliza el agente y la cantidad de datos enviados a New Relic.
+  </Collapser>
+</CollapserGroup>

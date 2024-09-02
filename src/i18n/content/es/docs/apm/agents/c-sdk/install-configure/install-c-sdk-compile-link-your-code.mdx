@@ -1,0 +1,172 @@
+---
+title: 'Instale el SDK de C: compile y vincule su código'
+tags:
+  - Agents
+  - C SDK
+  - Install and configure
+metaDescription: 'To monitor your app with New Relic, install (compile and link) the New Relic C SDK into your app''s code library.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout
+  variant="important"
+  title="AVISO EOL"
+>
+  A partir de abril de 2022, no admitimos la capacidad C SDK. Para obtener más detalles, consulte nuestra [publicación en el foro de soporte](https://discuss.newrelic.com/t/q1-bulk-eol-announcement-fy23/181744).
+</Callout>
+
+Nuestro C SDK auto-instrumentado su código para que pueda iniciar la aplicación de monitoreo. Puede utilizar nuestro iniciador o seguir las instrucciones de este documento para completar una instalación básica del SDK de C.
+
+Si aún no tiene una, [cree una cuenta New Relic](https://newrelic.com/signup). Es gratis, para siempre.
+
+<ButtonLink
+  role="button"
+  to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9&cards[0]=eyJuZXJkbGV0SWQiOiJzZXR1cC1uZXJkbGV0cy5zZXR1cC1jLWludGVncmF0aW9uIiwiYWNjb3VudElkIjoyNjQwNDA5fQ==&platform[accountId]=1"
+  variant="primary"
+>
+  Agregar datos C
+</ButtonLink>
+
+## Agregue el C SDK a su código [#get-new-relic]
+
+Para monitor su aplicación con el C SDK de New Relic, utilice la característica que desea usar:
+
+* Transacción web, transacción evento, transacción no web
+* Segmentos (para niveles adicionales de detalles de tiempo)
+* Atributo
+* Errores
+
+Luego compila y vincula tu aplicación con la biblioteca estática de C SDK.
+
+Para instalar C SDK en la biblioteca de códigos de su aplicación, siga este procedimiento.
+
+<CollapserGroup>
+  <Collapser
+    id="requirements"
+    title="1. Verificar requisitos."
+  >
+    1. Asegúrese de que su aplicación cumpla con [la compatibilidad y los requisitos de New Relic para C SDK](/docs/c-agent-compatibility-requirements).
+
+    2. Asegúrate de tener un
+
+       <InlinePopover type="licenseKey"/>
+
+       .
+  </Collapser>
+
+  <Collapser
+    id="header-file"
+    title="2. Incluya el archivo de encabezado proporcionado."
+  >
+    ```c
+    #include "libnewrelic.h"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="logging"
+    title="3. Configure el registro."
+  >
+    Siga los procedimientos para [configurar el registro](/docs/generate-logs-troubleshooting-c-sdk) tanto para C SDK como para el daemon. Por ejemplo:
+
+    ```c
+    if (!newrelic_configure_log("./c_sdk.log", NEWRELIC_LOG_INFO)) {
+      printf("Error configuring logging.\n");
+      return -1;
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="app-name"
+    title="4. Esté preparado para proporcionar un nombre de aplicación significativo."
+  >
+    Esté preparado para proporcionar un [nombre de aplicación significativo](/docs/agents/manage-apm-agents/app-naming/name-your-application) en la configuración inicial de su aplicación; Por ejemplo:
+
+    ```c
+    newrelic_app_config_t* config;
+    /* ... */
+    config = newrelic_create_app_config("Your Application Name", "LICENSE_KEY_HERE");
+    ```
+
+    Puede darle a su aplicación hasta tres nombres diferentes, separados por `;`. [Darle a su aplicación varios nombres](/docs/agents/manage-apm-agents/app-naming/use-multiple-names-app) le permite métrica agregada para múltiples agentes en toda una aplicación o servicio; Por ejemplo:
+
+    ```c
+    config = newrelic_create_app_config("YOUR_APP_NAME;APP_GROUP_1;ALL_APPS", "LICENSE_KEY_HERE");
+    ```
+
+    Con la aplicación configurada, puede crear una nueva aplicación para conectarse al daemon.
+
+    ```c
+    newrelic_app_t* app;
+
+    /* ... */
+
+    if (!newrelic_init(NULL, 0)) {
+      printf("Error connecting to daemon.\n");
+      return -1;
+    }
+
+    /* Wait up to 10 seconds for the SDK to connect to the daemon */
+    app = newrelic_create_app(config, 10000);
+    newrelic_destroy_app_config(&config);
+    ```
+  </Collapser>
+
+  <Collapser
+    id="instrumentation"
+    title="5. Termina de instrumentar tu código."
+  >
+    Para terminar de instrumentar su código, consulte los programas de ejemplo en la [documentación del SDK de C <DNT>**Examples**</DNT> en GitHub](https://github.com/newrelic/c-sdk/tree/master/examples). Para obtener más información sobre el código fuente y las características, consulte la [documentación fuente del SDK de C para `libnewrelic.h` en GitHub](https://newrelic.github.io/c-sdk/libnewrelic_8h_source.html).
+  </Collapser>
+
+  <Collapser
+    id="example-program"
+    title="6. Compile y vincule su aplicación."
+  >
+    `libnewrelic.a` del C SDK es una biblioteca estática que ya está vinculada con las bibliotecas `libpcre` y `libpthread` . Para evitar colisiones de símbolos en este paso de vinculación, asegúrese de vincular cada una de estas bibliotecas.
+
+    Además, para aprovechar al máximo la traza de error en [la página<DNT>**Error analytics**</DNT> ](/docs/apm/applications-menu/error-analytics/introduction-error-analytics)de APM, vincule su aplicación utilizando el indicador de enlace `-rdynamic` de GNU. Esto permitirá que aparezca información más significativa en el rastreo de la pila para el registro de errores en una transacción utilizando la llamada API `newrelic_notice_error` del SDK de C.
+
+    Por ejemplo:
+
+    ```sh
+    gcc -o test_app test_app.c -L. -lnewrelic -lpcre -lm -pthread -rdynamic
+    ```
+  </Collapser>
+
+  <Collapser
+    id="daemon"
+    title="7. Inicie el daemon y verifique el registro."
+  >
+    1. Inicie el daemon del SDK de C. Por ejemplo:
+
+       ```sh
+       ./newrelic-daemon -f -logfile newrelic-daemon.log -loglevel debug
+       ```
+
+    2. Verifique el resultado en los archivos `c_sdk.log` y `newrelic-daemon.log` .
+
+       La arquitectura del SDK de C requiere que el daemon se invoque primero <DNT>**before**</DNT> cuando se invoca su aplicación instrumentada.
+
+       <Callout variant="tip">
+         Para ver todas las opciones disponibles para el daemon C: En la línea de comando, escriba:
+
+         ```sh
+         ./newrelic-daemon --help
+         ```
+       </Callout>
+  </Collapser>
+</CollapserGroup>
+
+Para obtener más información, consulte C SDK [GUIDE.md](https://github.com/newrelic/c-sdk/blob/master/GUIDE.md#getting-started).
+
+## Ver el rendimiento de la aplicación en New Relic [#view-apm]
+
+Para ver el rendimiento de su aplicación con [APM](/docs/apm/new-relic-apm/getting-started/introduction-new-relic-apm):
+
+1. Genere algo de tráfico para su aplicación, luego espere unos minutos hasta que su aplicación envíe datos a New Relic.
+2. Explore los datos de su aplicación en la [UIde APM](/docs/apm/applications-menu/monitoring/apm-overview-page).
+
+Si no aparecen datos en unos minutos, revise sus archivos `c_sdk.log` y `newrelic-daemon.log` para ver si hay errores. Si aún tienes problemas, sigue los [consejos de resolución de problemas](/docs/apm/agents/c-sdk/troubleshooting/no-data-appears-c-sdk).

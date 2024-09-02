@@ -1,0 +1,234 @@
+---
+title: "Instrument your non-containerized Lambda function"
+metaDescription: Instrument your non-containerized Lambda function
+freshnessValidatedDate: never
+redirects:
+  - /docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/instrument-your-own
+---
+
+After you've successfully linked your New Relic and AWS accounts you can instrument your non-containerized AWS Lambda functions by adding the New Relic Lambda layer. This integrates the New Relic agent, enabling automatic monitoring whenever your functions are invoked.
+
+<img
+  title="non-containerized"
+  alt="a diagram depicting non-containerized lambda function instrumentation"
+  src="/images/serverless_diagram_non-containerized-lambda-function.webp"
+/>
+
+## Before you begin [#begin]
+
+* [Link your New Relic and AWS accounts](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#link)
+* [Review our different instrumentation methods](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#method)
+
+## Instrumentation methods [#instrumentation]
+
+New Relic offers several methods to instrument your AWS Lambda functions for comprehensive monitoring:
+
+* **Command Line Interface (CLI)**: Use the AWS CLI to quickly add the New Relic layer to your Lambda functions.
+* **Serverless Framework**: Seamlessly integrate New Relic instrumentation into your serverless deployments.
+* **CloudFormation/SAM**: Include the New Relic layer in your infrastructure-as-code templates.
+* **Terraform**: Easily manage New Relic instrumentation alongside your other infrastructure resources.
+* **Manual Instrumentation**: Directly add the New Relic layer through the AWS Lambda console for more granular control.
+
+Regardless of the method you choose, the New Relic layer adds the New Relic agent to your functions. This agent automatically instruments your functions upon invocation, generating a payload, `NR_LAMBDA_MONITORING`,  that is sent to New Relic via the New Relic Lambda extension.
+
+Depending on your needs, you can choose to either bypass the extension and only see telemetry in CloudWatch, bypass CloudWatch, or use CloudWatch as a fallback. The [CloudWatch](#CloudWatch-only) section at end of this doc will guide you through each option.
+
+<CollapserGroup>
+  <Collapser
+    id="cli"
+    title="New Relic CLI"
+  >
+    You can instrument your Lambda function with the `newrelic-lambda` CLI quickstart.
+
+    To install or upgrade the New Relic instrumentation layer, run this command:
+
+    ```shell
+    newrelic-lambda layers install --nr-account-id YOUR_NR_ACCOUNT_ID --function my-function --upgrade
+    ```
+
+    This command automatically finds the newest available layer for your Lambda's region and runtime.
+
+    This command provides a rapid way to initiate New Relic instrumentation and can be easily integrated into your CI/CD pipeline.  However, since it modifies existing Lambda function resources, redeployment of updated code may inadvertently remove the instrumentation. To ensure continuous monitoring, either re-run the command after each deployment or, preferably, incorporate the New Relic layer and configuration directly into your deployment process.
+
+    Note that the CLI can operate on many functions in a batch: use `--function all`, `--function installed`, or
+    `--function not-installed` to operate on all functions in a region, or only those with or without existing
+    New Relic instrumentation.
+  </Collapser>
+
+  <Collapser
+    id="cloudformation"
+    title="CloudFormation / SAM templates"
+  >
+    AWS's Serverless Application Model, or SAM is a variant of CloudFormation templates that simplifies relating functions to the resources they depend on, and managing the lifecycle of an entire application. We use SAM and CloudFormation for most of our Lambda example functions, and many other tools are built on top of CloudFormation templates, providing an addition layer of abstraction.
+
+    CloudFormation is an AWS service that simplifies the provisioning and management of AWS resources. By defining the desired state of resources in YAML or JSON templates, CloudFormation automatically handles the underlying API calls to create, update, or delete resources as needed. This declarative approach automates infrastructure management, ensuring consistency and reproducibility.
+
+    Here's an example of a simple CloudFormation template for a Node.js Lambda function:
+
+    ```yaml
+    AWSTemplateFormatVersion: '2010-09-09'
+    Transform: AWS::Serverless-2016-10-31
+    Description: And example of a simple instrumented Node.js Lambda
+
+    Resources:
+      NewRelicExample:
+        Type: AWS::Serverless::Function
+        Properties:
+          # In this example, we're using the SAM CLI to package and deploy our lambda. SAM will transform this value during the publish step.
+          CodeUri: newrelic-example-node/
+          # The handler for your function needs to be the one provided by the instrumentation layer, below.
+          Handler: newrelic-lambda-wrapper.handler
+          Runtime: nodejs12.x
+          Environment:
+            Variables:
+              # For the instrumentation handler to invoke your real handler, we need this value
+              NEW_RELIC_LAMBDA_HANDLER: YOUR_PATH_TO_INITIAL_LAMBDA_HANDLER
+              # Distributed tracing needs your account ID, and your trusted account ID
+              NEW_RELIC_ACCOUNT_ID: YOUR_ACCOUNT_ID_HERE
+              # If your New Relic account has a parent account, this value should be that account ID. Otherwise, just
+              # your account id.
+              NEW_RELIC_TRUSTED_ACCOUNT_KEY: YOUR_PARENT_ACCOUNT_ID_HERE
+          Layers:
+            # This layer includes the New Relic Lambda extension, a sidecar process that sends telemetry,
+            # as well as the New Relic agent for Node.js, and a handler wrapper that makes integration easy.
+            - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:451483290750:layer:NewRelicNodeJS12X:34
+          Policies:
+            # This policy allows the lambda to know the value of the New Relic license key. We need this so
+            # that we can send telemetry back to New Relic
+            - AWSSecretsManagerGetSecretValuePolicy:
+                SecretArn: !ImportValue NewRelicLicenseKeySecret-NewRelic-LicenseKeySecretARN
+    ```
+
+    Typically, you'll have a file named `template.yaml` that describes your function, and its resources.
+  </Collapser>
+
+  <Collapser
+    id="serverless"
+    title="Serverless Framework"
+  >
+    Serverless Framework is a popular development and deployment tool for serverless applications. It's written for AWS in Node.js, and acts mostly as a high level abstraction on top of CloudFormation templates. It works well for Node, Python, Ruby, Java, and .NET functions.
+
+    New Relic offers a [Serverless Framework Plugin](https://github.com/newrelic/serverless-newrelic-lambda-layers) to simplify instrumentation of your Serverless Framework application.
+
+    To install the plugin, run this command:
+
+    ```bash
+    npm install --save-dev serverless-newrelic-lambda-layers
+    ```
+
+    Or, alternatively, you can run this command:
+
+    ```bash
+    yarn add --dev serverless-newrelic-lambda-layers
+    ```
+
+    Then, find your [New Relic Account ID](/docs/accounts/install-new-relic/account-setup/account-id), your [New Relic Personal API Key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key)
+
+    Now add the following to your `serverless.yaml` file:
+
+    ```yaml
+    plugins:
+      - serverless-newrelic-lambda-layers
+    custom:
+      newRelic:
+        accountId: your-new-relic-account-id-here
+        apiKey: your-new-relic-personal-api-key-here
+        linkedAccount: your-new-relic-integration-account-name-here
+    ```
+  </Collapser>
+
+  <Collapser
+    id="terraform"
+    title="Terraform"
+  >
+    Terraform is a popular general-purpose infrastructure as code tool. It can be used to manage AWS resources. We offer [some examples](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/terraform) of New Relic instrumented Lambda functions deployed using Terraform scripts.
+
+    You can use the [New Relic Terraform provider](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/cloud_aws_integrations) to set up your AWS integrations.
+  </Collapser>
+
+  <Collapser
+    id="console"
+    title="AWS manual instrumentation"
+  >
+    While it is more error prone and labor intensive than the approaches above, you can manually alter the configuration of a Lambda function to use New Relic from the AWS Lambda Console, for Node.js, Python, Ruby and Java.
+
+    Here's an example for how to instrument New Relic Lambda monitoring for a Ruby runtime:
+
+    1. Navigate to the **Lambda** service section in the AWS web console. From there, find the Lambda function you would like to connect to New Relic.
+    2. In the default **Code** tab, scroll down to the **Layers** section, and click on the **Add a layer** button.
+    3. Click the **Create layer** button.
+    4. Go to the **Choose a layer** and select the **Specify an ARN** option.
+    5. Go to [New Relic's list of layers](https://layers.newrelic-external.com/) and use the drop-down list to select the AWS region where your Lambda function is hosted. From there, locate the ARN that matches your Lambda function's Ruby version and architecture. There should be two options: X86 and ARM64. Use the **Copy to clipboard** button or manually copy the ARN string.
+    6. In the **Specify an ARN** section of the AWS console form, paste in the New Relic Lambda layer ARN.
+    7. On the AWS console form, click the **Add** button to add the layer to your Lambda function.
+    8. On your Lambda function's page, with the default **Code** tab selected, scroll down to the **Runtime settings** section and click the **Edit** button.
+    9. Make a safe copy of the existing **Handler** value. You'll need it for a later step.
+    10. Change the **Handler** value to: `newrelic_lambda_wrapper.handler` and click **Save**.
+    11. Switch to the **Configuration** tab on your Lambda function's page.
+    12. Select the **Environment variables** sub-tab.
+    13. Define the following environment variables:
+        * `NEW_RELIC_ACCOUNT_ID`: Set to your New Relic [account ID](/docs/accounts/install-new-relic/account-setup/account-id).
+        * `NEW_RELIC_LAMBDA_HANDLER`: Set to your function's original Handler value copied down earlier.
+          * `NEW_RELIC_LICENSE_KEY`: Set to your New Relic license key.
+          * `NEW_RELIC_LOG_ENDPOINT`: Set to [https://log-api.newrelic.com/log/v1](https://log-api.newrelic.com/log/v1).
+          * `NEW_RELIC_TELEMETRY_ENDPOINT`: Set to [https://cloud-collector.newrelic.com/aws/lambda/v1](https://cloud-collector.newrelic.com/aws/lambda/v1).
+    14. If you want to send your Lambda function's logs to New Relic, which will include everything your function writes to STDOUT, make sure you set the `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS` environment variable to `true`.
+    15. Modify the Execution Role to allow access to the New Relic license key secret.
+        * Find the ARN of the secret named `NEW_RELIC_LICENSE_KEY`.
+        * Add a new inline policy in the function's execution role that looks like this the code below. Replace the `SECRET_ARN` with the value you found above.
+          ```json
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue"
+              ],
+              "Resource": "SECRET_ARN",
+              "Effect": "Allow"
+            }
+          ]
+          ```
+          <Callout variant="tip">
+            The New Relic layer will automatically deliver the New Relic Ruby agent and be loaded via a Ruby `require` prior to your Lambda function's invocation. To avoid conflicts, don't include a copy of the Ruby agent anywhere else. Feel free to perform any desired New Relic Ruby agent API calls within your function to take advantage of the agent's presence.
+          </Callout>
+
+    Java, Python, Node.js, and .Net runtimes will follow the same instrumentation flow as Ruby, but with some different handlers. Here's how to update your function's handler to point to the newly attached layer in the console for your function:
+
+    * Java:
+      * `RequestHandler` implementation: `com.newrelic.java.HandlerWrapper::handleRequest`.
+      * `RequestStreamHandlerWrapper` implementation: `com.newrelic.java.HandlerWrapper::handleStreamsRequest`.
+    * Python: `newrelic_lambda_wrapper.handler` (underscores).
+    * Node: `newrelic-lambda-wrapper.handler` (hyphens).
+    * For .Net you don't have to set the handler.
+
+    Note that for Go, you must make source code changes to your Lambda function to instrument it. Configuration changes are not enough.
+  </Collapser>
+</CollapserGroup>
+
+## Shipping methods
+
+<CollapserGroup>
+  <Collapser
+    id="extension"
+    title="Instrument with the extension only"
+  >
+    Every agent layer also contains an extension for sending logs and payloads to New Relic, bypassing CloudWatch. This can help reduce latency and costs. However, it comes at the risk of impacting the performance and reliability of your function.
+
+    After adding a New Relic Lambda layer, the extension is enabled and has log shipping disabled by default.
+
+    If you want to see function logs in New Relic, you'll need to enable extension sending of function logs with an environment variable.
+
+    It's important to note that function logs are just the logs recorded by the function during its invocation. The extension will not send Lambda runtime logs like `START`, `END`, and `REPORT` lines.
+  </Collapser>
+
+  <Collapser
+    id="fallback"
+    title="CloudWatch only and CloudWatch fallback"
+  >
+    You can choose to send data to CloudWatch only or as a fallback.To learn more, please see our [CloudWatch fallback documentation](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/cloudwatch-fallback).
+  </Collapser>
+</CollapserGroup>
+
+## What's next? [#find-data]
+
+* After you complete these steps, you can see data reporting in the [Lambda monitoring UI](/docs/lambda-monitoring-ui).
+* If you're having trouble finding your data, see [Lambda enable troubleshooting](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#troubleshoot).

@@ -1,0 +1,371 @@
+---
+title: Alerta en aplicaciones New Relic Mobile
+tags:
+  - Mobile apps
+  - New Relic mobile apps
+  - Authentication and alerts
+metaDescription: 'Customize alert settings for your New Relic mobile app, including email or push notifications. View and acknowledge view alerting incidents.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El administrador de la cuenta puede configurar la configuración para recibir notificaciones automáticas en dispositivos Android e iOS desde [las alertas New Relic](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-applied-intelligence). Puede recibir el problema <InlinePopover type="alerts"/>de cualquier flujo de trabajo con destino a [inserción móvil](/docs/alerts-applied-intelligence/notifications/notification-integrations#mobile_push).
+
+<iframe
+  width="560"
+  height="315"
+  src="https://www.youtube.com/embed/bVJZUatrCpY"
+  title="YouTube video player"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowfullscreen
+/>
+
+## Requisitos [#requirements]
+
+Los usuarios tanto del [modelo de usuario New Relic One](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models) como del [modelo de usuario original](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models) pueden configurar un flujo de trabajo con mobile push como [destino](/docs/alerts-applied-intelligence/notifications/notification-integrations#mobile_push).
+
+## Activar o desactivar la notificación [#enabling-alerts]
+
+Cuando log sesión en su cuenta New Relic desde una aplicación de Android o iOS, su dispositivo se asocia automáticamente con su usuario. Asegúrese de [agregar un destino de envío móvil al flujo de trabajo](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows#add-workflow).
+
+## Ver detalles del incidente del problema [#viewing-alerts]
+
+La notificación aparece automáticamente en la pantalla de bloqueo de su dispositivo. Para iniciar la aplicación New Relic:
+
+1. Dependiendo de su dispositivo, haga lo siguiente:
+
+   * En dispositivos Android, toque la notificación en el cajón de notificaciones.
+   * En dispositivos iOS, desliza la pantalla.
+
+2. En el menú
+
+   <DNT>
+     **Alerts**
+   </DNT>
+
+   de la aplicación New Relic, seleccione cualquier problema para ver los detalles del error de la aplicación asociada.
+
+3. Opcionalmente, seleccione
+
+   <DNT>
+     **Acknowledge**
+   </DNT>
+
+   .
+
+4. Opcionalmente, para ver detalles adicionales, seleccione
+
+   <DNT>
+     **Overview**
+   </DNT>
+
+   ,
+
+   <DNT>
+     **Incidents**
+   </DNT>
+
+   o
+
+   <DNT>
+     **Issue log**
+   </DNT>
+
+   .
+
+La lista <DNT>**Alerts**</DNT> del menú principal muestra los problemas ordenados por tiempo, puede aplicar filtros adicionales o cambiar la ventana de tiempo en la parte superior derecha:
+
+## Solucionar problemas de configuración de alerta [#troubleshooting]
+
+Si las notificaciones push no funcionan en su dispositivo móvil:
+
+1. Verifica que cumples con [los requisitos](#requirements).
+2. Verifique que [las alertas estén habilitadas](#enabling-alerts).
+3. Verifique [la configuración de notificaciones](#notification-settings) de su dispositivo móvil para asegurarse de que New Relic pueda enviar notificaciones automáticas.
+
+Si la configuración de notificación para su dispositivo móvil es correcta, pero aún no recibe la notificación, [elimine el dispositivo de su cuenta](#account-delete), luego [desinstale](#uninstall-app) y [reinstale](#reinstall-app) la aplicación New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="notification-settings"
+    title="Verifique la configuración de notificaciones para su dispositivo móvil"
+  >
+    Siga el procedimiento para su dispositivo móvil.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            <DNT>
+              **Device**
+            </DNT>
+          </th>
+
+          <th>
+            <DNT>
+              **To check notification settings:**
+            </DNT>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Android
+          </td>
+
+          <td>
+            1. Desde
+
+               <DNT>
+                 **Settings**
+               </DNT>
+
+               de tu dispositivo Android, selecciona
+
+               <DNT>
+                 **Sound and notification**
+               </DNT>
+
+               .
+
+            2. Verifique la configuración del volumen del sonido.
+
+            3. Opcional: habilite
+
+               <DNT>
+                 **Also vibrate for calls**
+               </DNT>
+
+               .
+
+            4. Verifique la configuración de
+
+               <DNT>
+                 **Interruptions**
+               </DNT>
+
+               .
+
+            5. Verifique la configuración de
+
+               <DNT>
+                 **Notification**
+               </DNT>
+
+               .
+
+            6. Verifique la configuración de
+
+               <DNT>
+                 **App notifications**
+               </DNT>
+
+               : seleccione la aplicación New Relic, luego verifique la configuración de
+
+               <DNT>
+                 **Block**
+               </DNT>
+
+               y
+
+               <DNT>
+                 **Priority**
+               </DNT>
+
+               .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            iOS
+          </td>
+
+          <td>
+            1. Asegúrese [de que No molestar](http://support.apple.com/kb/HT5463) esté desactivado: desde la aplicación
+
+               <DNT>
+                 **Settings**
+               </DNT>
+
+               de iOS, seleccione
+
+               <DNT>
+                 **Do Not Disturb**
+               </DNT>
+
+               y verifique que el interruptor
+
+               <DNT>
+                 **Manual**
+               </DNT>
+
+               esté desactivado.
+
+            2. Asegúrese de que la aplicación New Relic tenga permiso para enviar notificaciones: desde la aplicación
+
+               <DNT>
+                 **Settings**
+               </DNT>
+
+               de iOS, seleccione
+
+               <DNT>
+                 **Notifications**
+               </DNT>
+
+               y busque la aplicación New Relic en la lista de aplicaciones.
+
+            3. Asegúrese de que el interruptor
+
+               <DNT>
+                 **Allow Notifications**
+               </DNT>
+
+               esté encendido.
+
+            4. Asegúrese de que el estilo de alerta esté configurado en
+
+               <DNT>
+                 **Banners**
+               </DNT>
+
+               o
+
+               <DNT>
+                 **Alerts**
+               </DNT>
+
+               .
+
+            5. Opcional: para habilitar la alerta de audio, active
+
+               <DNT>
+                 **Sounds**
+               </DNT>
+
+               .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="account-delete"
+    title="Elimina el dispositivo Android o iOS de tu cuenta New Relic"
+  >
+    Para eliminar el dispositivo móvil de su cuenta New Relic, utilice el explorador API NerdGraph:
+
+    1. <DNT>**Query**</DNT> [dispositivos actuales](https://api.newrelic.com/graphiql?#query=query%20List%20%7B%0A%20%20actor%20%7B%0A%20%20%20%20mobilePushNotification%20%7B%0A%20%20%20%20%20%20devices%20%7B%0A%20%20%20%20%20%20%20%20appVersion%0A%20%20%20%20%20%20%20%20deviceId%0A%20%20%20%20%20%20%20%20deviceName%0A%20%20%20%20%20%20%20%20operatingSystem%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A) seleccionando actor -> mobilePushNotification -> dispositivos y seleccionando appVersion, deviceId y deviceName. Ejecute esta consulta para obtener la lista de dispositivos.
+
+    2. <DNT>**Mutate**</DNT> para [eliminar](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20mobilePushNotificationRemoveDevice%28deviceId%3A%20%22%22%29%20%7B%0A%20%20%20%20message%0A%20%20%7D%0A%7D%0A) un dispositivo seleccionando mutación -> mobilePushNotificationRemoveDevice y pasando el ID del dispositivo de la lista anterior.
+
+       O puede eliminar el dispositivo desde la opción <DNT>**Settings**</DNT> en la aplicación desde el menú -> Configuración
+
+    3. Mire debajo de <DNT>**Push notification devices**</DNT> y elimínelo desde allí. En iOS, deslícese de derecha a izquierda hasta <DNT>**Delete**</DNT> un dispositivo; en Android, toque <DNT>**Delete**</DNT>
+
+       Continúe con los pasos para [reinstalar](#uninstall-app) la aplicación New Relic desde su dispositivo.
+  </Collapser>
+
+  <Collapser
+    id="uninstall-app"
+    title="Desinstale la aplicación New Relic Mobile"
+  >
+    Siga el procedimiento para desinstalar la aplicación New Relic de su dispositivo y luego vuelva a instalarla.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            <DNT>
+              **Device**
+            </DNT>
+          </th>
+
+          <th>
+            <DNT>
+              **To uninstall the New Relic app:**
+            </DNT>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Android
+          </td>
+
+          <td>
+            1. Desde
+
+               <DNT>
+                 **Settings**
+               </DNT>
+
+               de tu dispositivo Android, selecciona
+
+               <DNT>
+                 **Apps**
+               </DNT>
+
+               y luego selecciona la aplicación New Relic.
+
+            2. Seleccione
+
+               <DNT>
+                 **Uninstall**
+               </DNT>
+
+               .
+
+            3. Continúe con los pasos para [reinstalar](#reinstall-app) la aplicación New Relic.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            iOS
+          </td>
+
+          <td>
+            1. Desde la pantalla de inicio de iOS, mantén presionado el ícono New Relic hasta que tiemble.
+
+            2. Para [eliminar la aplicación](http://support.apple.com/kb/TI135), seleccione el icono
+
+               <DNT>
+                 **X**
+               </DNT>
+
+               .
+
+            3. Continúe con los pasos para [reinstalar](#reinstall-app) la aplicación New Relic.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="reinstall-app"
+    title="Reinstale la aplicación New Relic Mobile"
+  >
+    Para reinstalar la aplicación New Relic Mobile :
+
+    1. Desde su dispositivo Android, seleccione [<DNT>**Google Play Store**</DNT>](https://play.google.com/store/apps/details?id=com.newrelic.rpm).
+
+       O
+
+       Desde la pantalla de inicio de su dispositivo iOS, seleccione [<DNT>**App Store**</DNT>.](https://itunes.apple.com/us/app/new-relic/id594038638?mt=8)
+
+    2. Busque <DNT>**New Relic**</DNT>.
+
+    3. Descarga la aplicación.
+
+    4. Cuando finalice la descarga, inicie sesión en su aplicación New Relic Mobile con su cuenta New Relic.
+  </Collapser>
+</CollapserGroup>

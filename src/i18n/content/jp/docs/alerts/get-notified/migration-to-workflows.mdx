@@ -1,0 +1,835 @@
+---
+title: 通知の移行
+metaDescription: Migrating notifications from alerts
+freshnessValidatedDate: never
+translationType: machine
+---
+
+ワークフローは、 <InlinePopover type="alerts"/>の従来の通知システムに代わるものです。 これは朗報です。ワークフローは改良された柔軟な通知システムだからです。 ワークフローは、チームがスタックのより大きなコンテキスト内で潜在的なエラーを把握するのに役立ち、迅速かつ効率的なアクションを実行できます。
+
+[この移行は](https://discuss.newrelic.com/t/plan-to-upgrade-alert-notification-channels-to-workflows-and-destinations/188205)あなたのチームにとって何を意味しますか? 以前の通知モデルでは、チームは異なる閾値と論点を持つアラート条件を作成します。 その条件が特定のポリシーに関連付けられており、違反があり、それをチームにすぐに知らせたい場合は、 <DNT>**notification settings**</DNT>を追加します。 通知設定により、New Relic にどのデータをどこに送信するかが伝えられます。
+
+これで、ワークフローが追加されました。今後は、従来の通知チャネルを構成してポリシーに関連付ける代わりに、通知先を作成してワークフローに関連付けます。ワークフローは、さまざまなポリシーからのデータを処理でき、タグや優先度などの属性を使用して通知を整理できます。
+
+## 何を期待します [#what-to-expect]
+
+クラシック通知システムからワークフローへの移行では、各<DNT>**classic notification channel**</DNT>に<DNT>**destination**</DNT>が作成され、各<DNT>**policy.**</DNT>に作成された<DNT>**workflows**</DNT>に接続されます。チャネル関連付けのあるポリシーのみが移行されます。
+
+1. New Relic は、2023 年 1 月 23 日から 5 月 15 日までアカウントを自動的に移行します。
+2. New Relic はアカウントを早期に移行できます。アカウント チームに連絡してください。
+3. ポリシーからチャネルを削除することで、チームは自動移行を回避できます。
+4. 通知チャネル API と Terraform リソースは、2023 年 12 月 31 日まで引き続き機能します。
+
+## 既知の変更 [#known-changes]
+
+移行中に通知が大幅に変更されることはありません。それらは、同じ属性名とほとんど同じ値を持ち続けます。ワークフローへの移行により、以下が変更されます。
+
+* すべての \_url 属性値が変更され、インシデント ベースのページではなく、問題ベースのページにつながります。`condition_id`は常に`condition_family_id`と同じ値になります。
+* `issue_id` 追加されました。`incident_id`はいずれ削除されるため、消費者は`incident_id` } の代わりに`issue_id`を使用するようにすべての統合を切り替える必要があります。
+* `radar_entity.entityGuid` また、 `targets[0].id`は、Webhook を除くすべてのタイプで使用できるエンティティ GUID になります。
+* `targets[0].labels` ターゲットによって定義されたエンティティのタグだけでなく、問題からのすべてのタグが含まれます。
+* `targets[0].link` そして`violation_callback_url`は課題ページにつながります。
+* `open_violations_count.critical` すべての優先度にわたるすべてのオープン インシデントの数が含まれます。プライオリティ固有のカウントは利用できません。
+* `open_violations_count.warning` 常に`0`になります。 優先度別のカウントは利用できません。
+* `closed_violations_count.critical` すべての優先度にわたるすべてのクローズされたインシデントの数が含まれます。プライオリティ固有のカウントは利用できません。
+* `closed_violations_count.warning` 常に`0`になります。 優先度別のカウントは利用できません。
+* `owner` 問題が認識されていない場合、値は NA になります。
+* `timestamp_utc_string` `YYYY-MM-DD, HH:MM UTC` から ISO 8601 準拠の `YYYY-MM-DDThh:mm:ss.sssZ` 形式に切り替わります。
+* `violation_chart_url` グラフの生成が失敗したか、タイムリーに返されなかった場合、値は `Not Available` になります。
+* メール送信者は `noreply@notifications.newrelic.com`に変わります。
+
+### インシデント\_id
+
+PagerDuty、Webhook、VictorOps、OpsGenie、および xMatters 通知の `incident_id` は、従来のインシデント ID を参照します。クラシック インシデント ID は非推奨になりました。消費者は代わりに `issue_id` の使用を開始する必要があります。
+
+`Incident_id` 変更:
+
+* 固有の `incident_id` は引き続き問題ごとに生成されます。この値は、非推奨のインシデント API で使用される値とは異なります。
+* VictorOps、OpsGenie、xMatters 通知への影響を制限するために、 `incident_id`には問題 ID が入力されます。 これにより、xMatters でインシデントを承認またはクローズする New Relic の手順が機能しなくなります。
+
+## カスタム ペイロードの構成 [#configure-custom-payloads]
+
+通知チャネルからワークフローに移行するとき、チームはカスタム ペイロードにいくつかの調整を加えたい場合があります。ワークフローは、条件に違反すると通知が Webhook に送信され、送信される際にはカスタム ペイロードとともに送信されるという点で、通知と同じように機能します。通知チャネルからワークフローに移行するには、このペイロード内の用語の一部を変更する必要があります。
+
+次の表は、従来の通知システムで使用されている Webhook ペイロード名と、問題ペイロード内の対応する新しい名前の間の翻訳を示しています。[Handlebars は](/docs/alerts-applied-intelligence/notifications/message-templates/#handlebars-syntax)、メッセージ テンプレートの作成に使用されるシンプルなテンプレート言語です。
+
+多くのキーでは、問題のペイロードに値のリストが含まれる場合があります。1 対 1 のマッピングを提供するために、最初の値のみが置換で使用されます。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Alerts (classic) name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Alerts (classic) variable**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Workflow message template replacement**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `account_id`
+      </td>
+
+      <td>
+        `$ACCOUNT_ID`
+      </td>
+
+      <td>
+        `{{nrAccountId}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `account_name`
+      </td>
+
+      <td>
+        `$ACCOUNT_NAME`
+      </td>
+
+      <td>
+        `{{json accumulations.tag.account.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `closed_violations_count_critical`
+      </td>
+
+      <td>
+        `$CLOSED_VIOLATIONS_COUNT_CRITICAL`
+      </td>
+
+      <td>
+        `{{closedIncidentsCount}}`
+
+        すべての優先度にわたるクローズされたインシデントの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `closed_violations_count_warning`
+      </td>
+
+      <td>
+        `$CLOSED_VIOLATIONS_COUNT_WARNING`
+      </td>
+
+      <td>
+        `0`
+
+        警告カウントに代わるものはありません。インシデントの二重カウントを避けるために、すべてのクローズされたインシデント カウントは重大として表されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_description`
+      </td>
+
+      <td>
+        `$DESCRIPTION`
+      </td>
+
+      <td>
+        `{{escape accumulations.conditionDescription.[0]}}`
+
+        カスタム インシデントの説明 (定義されている場合)。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_id`
+      </td>
+
+      <td>
+        `$CONDITION_ID`
+      </td>
+
+      <td>
+        `{{accumulations.conditionFamilyId.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_metric_name`
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td>
+        `{{escape accumulations.evaluationName.[0]}}`
+
+        <InlinePopover type="apm"/>条件に対してのみ有効です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_metric_value_function`
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td>
+        `{{escape accumulations.evaluationMetricValueFunction.[0]}}`
+
+        <InlinePopover type="apm"/>条件に対してのみ有効です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_name`
+      </td>
+
+      <td>
+        `$CONDITION_NAME`
+      </td>
+
+      <td>
+        `{{escape accumulations.conditionName.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `current_state`
+      </td>
+
+      <td>
+        `$EVENT_STATE`
+      </td>
+
+      <td>
+        `{{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}}`
+
+        問題の状態には複数の状態がありますが、承認済みの状態はありません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `details`
+      </td>
+
+      <td>
+        `$EVENT_DETAILS`
+      </td>
+
+      <td>
+        `{{escape issueTitle}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `duration`
+      </td>
+
+      <td>
+        `$DURATION`
+      </td>
+
+      <td>
+        `{{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}}`
+
+        `issueDurationMs` 問題がクローズしたときにのみ利用可能
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `event_type`
+      </td>
+
+      <td>
+        `$EVENT_TYPE`
+      </td>
+
+      <td>
+        `"INCIDENT"`
+
+        問題レベルに一致する属性はありません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_acknowledge_url`
+      </td>
+
+      <td>
+        `$INCIDENT_ACKNOWLEDGE_URL`
+      </td>
+
+      <td>
+        `{{json issueAckUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_id`
+      </td>
+
+      <td>
+        `$INCIDENT_ID`
+      </td>
+
+      <td>
+        `{{issueId}}` また `{{labels.nrIncidentId.[0]}}`
+
+        `labels.nrIncidentId`はいずれ削除されるため、 `issueId`を優先してください。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_url`
+      </td>
+
+      <td>
+        `$INCIDENT_URL`
+      </td>
+
+      <td>
+        `{{json issuePageUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issue_id`
+      </td>
+
+      <td>
+        `N/A`
+      </td>
+
+      <td>
+        `{{issueId}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadata`
+      </td>
+
+      <td>
+        `METADATA`
+      </td>
+
+      <td>
+        ```handlebars
+        {{#if locationStatusesObject}}"location_statuses": {{locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `open_violations_count_critical`
+      </td>
+
+      <td>
+        `$OPEN_VIOLATIONS_COUNT_CRITICAL`
+      </td>
+
+      <td>
+        `{{openIncidentsCount}}`
+
+        優先度に関係なく、すべてのインシデントのオープン インシデント カウント。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `open_violations_count_warning`
+      </td>
+
+      <td>
+        `$OPEN_VIOLATIONS_COUNT_WARNING`
+      </td>
+
+      <td>
+        `N/A`
+
+        優先度に関係なく、すべてのインシデントのオープン インシデント カウント。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `owner`
+      </td>
+
+      <td>
+        `$EVENT_OWNER`
+      </td>
+
+      <td>
+        `{{escape owner}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `policy_name`
+      </td>
+
+      <td>
+        `$POLICY_NAME`
+      </td>
+
+      <td>
+        `{{escape accumulations.policyName.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `policy_url`
+      </td>
+
+      <td>
+        `$POLICY_URL`
+      </td>
+
+      <td>
+        `{{json policyUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `runbook_url`
+      </td>
+
+      <td>
+        `$RUNBOOK_URL`
+      </td>
+
+      <td>
+        `{{json accumulations.runbookUrl.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `severity`
+      </td>
+
+      <td>
+        `$SEVERITY`
+      </td>
+
+      <td>
+        `{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}`
+
+        問題には優先度があり、重大度とは異なる値を持つことができます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `targets`
+      </td>
+
+      <td>
+        `$TARGETS`
+      </td>
+
+      <td>
+        ```handlebars
+        [
+          {
+            "id": "{{labels.targetId.[0]}}",
+            "name": "{{#if accumulations.targetName}}{{accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{entitiesData.entities.[0].name}}{{else}}N/A{{/if}}",
+            "link": "{{issuePageUrl}}",
+            "product": "{{accumulations.conditionProduct.[0]}}",
+            "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}",
+            "labels": { {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}} }
+          }
+        ]
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp`
+      </td>
+
+      <td>
+        `$TIMESTAMP`
+      </td>
+
+      <td>
+        `{{updatedAt}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp_utc_string`
+      </td>
+
+      <td>
+        `$TIMESTAMP_UTC_STRING`
+      </td>
+
+      <td>
+        `{{issueUpdatedAt}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `version`
+      </td>
+
+      <td>
+        `$VERSION`
+      </td>
+
+      <td>
+        `"1.0"`
+
+        問題レベルに一致する属性はありません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `violation_callback_url`
+      </td>
+
+      <td>
+        `$VIOLATION_CALLBACK_URL`
+      </td>
+
+      <td>
+        `{{json issuePageUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `violation_chart_url`
+      </td>
+
+      <td>
+        `$VIOLATION_CHART_URL`
+      </td>
+
+      <td>
+        `{{json violationChartUrl}}`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id=""
+    title="アラート (クラシック) の既定の Webhook チャネルの移行されたワークフロー ペイロード"
+  >
+    次のテンプレートは、問題のペイロードを従来の Webhook チャネルで使用される既定のペイロードにマップします。カスタム変数とともに動的変数の一部またはすべてを使用して、独自のペイロードを定義できます。
+
+    ```handlebars
+    { 
+      "account_id": {{nrAccountId}},
+      "account_name": {{json accumulations.tag.account.[0]}},
+      "closed_violations_count": {"critical": {{closedIncidentsCount}}, "warning": 0},
+      "closed_violations_count_warning": 0,
+      "closed_violations_count_critical": {{closedIncidentsCount}},
+      "open_violations_count_warning": 0,
+      "open_violations_count_critical": {{openIncidentsCount}},
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": "{{escape accumulations.conditionName.[0]}}",
+      "condition_description": "{{escape accumulations.conditionDescription.[0]}}",
+      "current_state": "{{#if issueClosedAtUtc}}closed{{else if issueAcknowledgedAt}}acknowledged{{else}}open{{/if}}",
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      "incident_id": {{#if labels.nrIncidentId}}{{labels.nrIncidentId.[0]}}{{else}}-1{{/if}},
+      "incident_url": {{json issuePageUrl}},
+      "issue_id": {{json issueId}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}},{{/if}}
+        "section": "metadata"
+      },
+      "open_violations_count": {
+        "critical": {{openIncidentsCount}},
+        "warning": 0
+      },
+      "owner": {{json owner}},
+      "policy_name": {{json accumulations.policyName.[0]}},
+      "policy_url": {{json policyUrl}},
+      "runbook_url": {{json accumulations.runbookUrl.[0]}},
+      "severity": "{{#eq HIGH priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "targets": [
+        {
+          "id": "{{labels.targetId.[0]}}",
+          "name": "{{#if accumulations.targetName}}{{escape accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{escape entitiesData.entities.[0].name}}{{else}}N/A{{/if}}",
+          "link": "{{issuePageUrl}}",
+          "product": "{{accumulations.conditionProduct.[0]}}",
+          "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}",
+          "labels": {
+            {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": 1.0,
+      "violation_callback_url": {{json issuePageUrl}},
+      "violation_chart_url": {{json violationChartUrl}}
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="Alerts (クラシック) VictorOps および xMatters チャネルの移行されたワークフロー ペイロード"
+  >
+    次のテンプレートは、問題のペイロードを従来の VictorOps および xMatters チャネルで使用されるペイロードにマップします。カスタム変数とともに動的変数の一部またはすべてを使用して、独自のペイロードを定義できます。
+
+    ```handlebars
+    {
+      {{#if nrAccountId}}"account_id": {{nrAccountId}},{{/if}}
+      "account_name": {{json accumulations.tag.account.[0]}},
+      {{#if accumulations.tag.action}}"action":{{json accumulations.tag.action.[0]}},{{/if}}
+      "closed_violations_count": {
+        "critical": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}}
+      },
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": {{json accumulations.conditionName.[0]}},
+      {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+      {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}},{{/if}}
+      "current_state": {{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}},
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      "incident_url": {{json issuePageUrl}},
+      "incident_id": {{json issueId}},
+      "issue_close_url": {{json issueCloseUrl}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+      },
+      "open_violations_count": {
+        "critical": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}}
+      },
+      "policy_name": {{json accumulations.policyName.[0]}},
+      {{#if policyUrl}}"policy_url": {{json policyUrl}},{{/if}}
+      "radar_entity": {
+        "accountId": {{json accumulations.tag.accountId.[0]}},
+        "domain": {{json accumulations.conditionProduct.[0]}},
+        "domainId": {{json issueId}},
+        "entityGuid": {{json entitiesData.entities.[0].id}},
+        "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+        "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+      },
+      {{#if accumulations.runbookUrl}}"runbook_url": {{json accumulations.runbookUrl.[0]}},{{/if}}
+      "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "state": {{json state}},
+      "status": {{json status}},
+      "targets": [
+        {
+          "id": {{#if entitiesData.entities.[0].id}}{{json entitiesData.entities.[0].id}}{{else if accumulations.nrqlEventType}}{{json accumulations.nrqlEventType.[0]}}{{else}}"N/A"{{/if}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "link": {{json issuePageUrl}},
+          "product": {{json accumulations.conditionProduct.[0]}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}},
+          "labels": {
+            {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": 1.0,
+      {{#if accumulations.conditionDescription}}"VIOLATION DESCRIPTION": {{json accumulations.conditionDescription.[0]}},{{/if}}
+      {{#if violationChartUrl}}"violation_chart_url": {{json violationChartUrl}},{{/if}}
+      "violation_callback_url": {{json issuePageUrl}}
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="アラート (クラシック) OpsGenie チャネルの移行されたワークフロー ペイロード"
+  >
+    次のテンプレートは、問題のペイロードを従来の OpsGenie チャネルで使用されるペイロードにマップします。カスタム変数とともに動的変数の一部またはすべてを使用して、独自のペイロードを定義できます。
+
+    ```handlebars
+    {
+      "tags": "enter your tags here",
+      "teams": "enter your teams here",
+      "recipients": "enter your recipients here",
+      "payload": {
+        "condition_id": {{json accumulations.conditionFamilyId.[0]}},
+        "condition_name": {{json accumulations.conditionName.[0] }},
+        "current_state": {{#if issueClosedAtUtc}} "closed" {{else if issueAcknowledgedAt}} "acknowledged" {{else}} "open"{{/if}},
+        "details": {{json issueTitle}},
+        "event_type": "Incident",
+        "incident_acknowledge_url": {{json issueAckUrl }},
+        "incident_api_url": "N/A",
+        "incident_id": {{json issueId }},
+        "incident_url": {{json issuePageUrl }},
+        "owner": "N/A",
+        "policy_name": {{ json accumulations.policyName.[0] }},
+        "policy_url":  {{json issuePageUrl }},
+        "runbook_url": {{ json accumulations.runbookUrl.[0] }},
+        "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+        "targets": [  
+          {
+            "id": "{{labels.targetId.[0]}}", 
+            "name": "{{#if accumulations.targetName}}{{escape accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{escape entitiesData.entities.[0].name}}{{else}}N/A{{/if}}", 
+            "link": "{{issuePageUrl}}", 
+            "product": "{{accumulations.conditionProduct.[0]}}", 
+            "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}", 
+            "labels": {
+              {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+            }
+          }
+        ],
+        "metadata": {
+          {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+          {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+          {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}},{{/if}}
+          "section": "metadata"
+        },
+        "radar_entity": {
+          "accountId": {{json accumulations.tag.accountId.[0]}}, 
+          "domain": {{json accumulations.conditionProduct.[0]}},
+          "domainId": {{json issueId}},
+          "entityGuid": {{json entitiesData.entities.[0].id}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+        },
+        {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+        {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}}, {{/if}}
+        {{#if nrAccountId}} "account_id": {{nrAccountId}},{{/if}}
+        "account_name": {{json accumulations.tag.account.[0]}},
+        "timestamp": {{updatedAt}}
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="アラート (クラシック) PagerDuty チャネルの移行されたワークフロー ペイロード"
+  >
+    次のテンプレートは、issue ペイロードを従来の PagerDuty チャネルで使用されるデフォルトのペイロードにマップします。カスタム変数とともに動的変数の一部またはすべてを使用して、独自のペイロードを定義できます。
+
+    ```handlebars
+    {
+      {{#if nrAccountId}}"account_id": {{nrAccountId}},{{/if}}
+      "account_name": {{json accumulations.tag.account.[0]}},
+      {{#if accumulations.tag.action}}"action":{{json accumulations.tag.action.[0]}},{{/if}}
+      "closed_violations_count": {
+        "critical": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}}
+      },
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": {{json accumulations.conditionName.[0]}},
+      {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+      {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}},{{/if}}
+      "current_state": {{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}},
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      {{#if labels.nrIncidentId}}"incident_id": {{labels.nrIncidentId.[0]}},{{/if}}
+      "incident_url": {{json issuePageUrl}},
+      "issue_id": {{json issueId}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+      },
+      "open_violations_count": {
+        "critical": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}}
+      },
+      {{#if owner}}"owner": {{json owner}},{{/if}}
+      "policy_name": {{json accumulations.policyName.[0]}},
+      {{#if policyUrl}}"policy_url": {{json policyUrl}},{{/if}}
+      "radar_entity": {
+        "accountId": {{json accumulations.tag.accountId.[0]}},
+        "domain": {{json accumulations.conditionProduct.[0]}},
+        "domainId": {{json issueId}},
+        "entityGuid": {{json entitiesData.entities.[0].id}},
+        "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+        "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+      },
+      {{#if accumulations.runbookUrl}}"runbook_url": {{json accumulations.runbookUrl.[0]}},{{/if}}
+      "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "state": {{json state}},
+      "status": {{json status}},
+      "targets": [
+        {
+          "id": {{#if entitiesData.entities.[0].id}}{{json entitiesData.entities.[0].id}}{{else if accumulations.nrqlEventType}}{{json accumulations.nrqlEventType.[0]}}{{else}}"N/A"{{/if}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "link": {{json issuePageUrl}},
+          "product": {{json accumulations.conditionProduct.[0]}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}},
+          "labels": {
+            {{#each accumulations.rawTag}}{{#if this.[0]}}"{{escape @key}}":{{escape this.[0]}}{{#unless @last}},{{/unless}}{{/if}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": "1.0",
+      {{#if accumulations.conditionDescription}}"VIOLATION DESCRIPTION": {{json accumulations.conditionDescription.[0]}},{{/if}}
+      {{#if violationChartUrl}}"violation_chart_url": {{json violationChartUrl}},{{/if}}
+      "violation_callback_url": {{json issuePageUrl}}
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

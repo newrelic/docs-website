@@ -1,0 +1,263 @@
+---
+title: 一時的な自己ホスト型監視インテグレーション
+tags:
+  - Temporal integration
+  - Temporal monitoring
+  - New Relic integrations
+metaDescription: Install our Temporal dashboards and see your Temporal data in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+当社の Temporal Integration は、Temporal データのパフォーマンスを監視し、書き込み分散型、フォールト トレラント、スケーラブルなアプリケーションの問題の診断を支援します。 当社の Temporal インテグレーションでは、最も重要な Temporal SDK アプリ メトリックスを備えた事前構築されたダッシュボードを提供します。
+
+<img
+  title="Temporal"
+  alt="A screenshot depicting the Temporal dashboard"
+  src="/images/infrastructure_screenshot-full_temporal-dashboard.webp"
+/>
+
+<figcaption>
+  New Relic との統合を設定したら、すぐにこのようなダッシュボードでデータを確認できます。
+</figcaption>
+
+<Steps>
+  <Step>
+    ## インフラストラクチャエージェントをインストールします [#infra]
+
+    Temporal Integration を使用するには、まず同じホストに[インフラストラクチャエージェントをインストールする](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/)必要があります。 インフラストラクチャエージェントはホスト自体を監視しますが、次の手順でインストールするインテグレーションは、データベースやインスタンスメトリックなどの時間固有のデータを使用して監視を拡張します。
+  </Step>
+
+  <Step>
+    ## Temporal メトリクスを公開する [#expose-temporal-metrics]
+
+    次の手順では、デフォルトの設定ファイル`docker-compose.yml`を使用して Temporal Server のローカル インスタンスを実行します。
+
+    1. まだインストールしていない場合は、ホストに`docker`と`docker-compose`をインストールします。
+
+       ```shell
+       sudo apt install docker
+       sudo apt install docker-compose
+       ```
+
+    2. リポジトリをクローンします:
+
+       ```shell
+       git clone https://github.com/temporalio/docker-compose.git
+       ```
+
+    3. プロジェクトのルートにディレクトリを変更します。
+
+       ```shell
+       sudo nano docker-compose/docker-compose.yml
+       ```
+
+    4. Prometheus エンドポイントとポートを`docker-compose.yml`ファイルに追加します。
+
+       ```yml
+       Environment:
+       - PROMETHEUS_ENDPOINT=0.0.0.0:8000
+       ports:
+       - 8000:8000
+       ```
+
+    5. インスタンスを構築するには、 `docker-compose up`コマンドを実行します。
+
+       ```shell
+       sudo docker-compose up
+       ```
+
+    6. 次の URL でインスタンスが正しく実行されていることを確認します。
+
+       * Temporal サーバーは`localhost:7233`で利用可能になります。
+       * Temporal Web UIは次の場所でご利用いただけます。 `http://YOUR_DOMAIN:8080`
+       * Temporal サーバーのメトリクスは、 `http://YOUR_DOMAIN:8000/metrics`
+  </Step>
+
+  <Step>
+    ## Java SDK メトリクスを公開する [#expose-java-sdk-metrics]
+
+    ここで、Prometheus がスクレイピングする SDK クライアント メトリックを公開します。
+
+    1. プロジェクトのメイン フォルダーに`MetricsWorker.java`ファイルを作成します。
+
+       ```java
+       //...
+       // You need to import the following packages to set up metrics in Java.
+       // See the Developer's guide for packages required for the other SDKs.
+       import com.sun.net.httpserver.HttpServer;
+       import com.uber.m3.tally.RootScopeBuilder;
+       import com.uber.m3.tally.Scope;
+       import com.uber.m3.util.Duration;
+       import com.uber.m3.util.ImmutableMap;
+
+       // See the Micrometer documentation for configuration details on other supported monitoring systems.
+       // This example shows how to set up the Prometheus registry and stats reported.
+
+       PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+       StatsReporter reporter = new MicrometerClientStatsReporter(registry);
+
+       // set up a new scope, report every 10 seconds
+           Scope scope = new RootScopeBuilder()
+                   .tags(ImmutableMap.of(
+                               "workerCustomTag1",
+                               "workerCustomTag1Value",
+                               "workerCustomTag2",
+                               "workerCustomTag2Value"))
+                   .reporter(reporter)
+                   .reportEvery(com.uber.m3.util.Duration.ofSeconds(10));
+
+       // For Prometheus collection, expose the scrape endpoint at port 8077. See Micrometer documentation for details on starting the Prometheus scrape endpoint. For example,
+       HttpServer scrapeEndpoint = MetricsUtils.startPrometheusScrapeEndpoint(registry, 8077); //note: MetricsUtils is a utility file with the scrape endpoint configuration. See Micrometer docs for details on this configuration.
+       // Stopping the starter stops the HTTP server that exposes the scrape endpoint.
+       //Runtime.getRuntime().addShutdownHook(new Thread(() -> scrapeEndpoint.stop(1)));
+
+       //Create Workflow service stubs to connect to the Frontend Service.
+       WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(
+               WorkflowServiceStubsOptions.newBuilder()
+                       .setMetricsScope(scope) //set the metrics scope for the WorkflowServiceStubs
+                       .build());
+
+       //Create a Workflow service client, which can be used to start, signal, and query Workflow Executions.
+       WorkflowClient yourClient = WorkflowClient.newInstance(service,
+               WorkflowClientOptions.newBuilder().build());
+
+       //...
+       ```
+
+    2. プロジェクト ディレクトリに移動してプロジェクトをビルドします。
+
+       ```shell
+       ./gradlew build
+       ```
+
+    3. ワーカーを起動します。
+
+       ```shell
+       ./gradlew -q execute -PmainClass=<YOUR_METRICS_FILE>
+       ```
+
+    4. 公開された Prometheus Scrape オブジェクトのワーカー メトリックを確認してください: `http://YOUR_DOMAIN:8077/metrics` 。
+
+       <Callout
+         title="注記"
+         variant="tip"
+       >
+         SDK メトリクス構成の詳細については、Temporal 公式[ドキュメント](https://docs.temporal.io/self-hosted-guide/monitoring#sdk-metrics-setup)を参照してください。
+       </Callout>
+  </Step>
+
+  <Step>
+    ## NRI-Prometheus の構成 [#configure-prometheus]
+
+    インストレーションが成功したら、次の NRI-Prometheus 設定を行います。
+
+    1. 次のパスに`nri-prometheus-temporal-config.yml`という名前のファイルを作成します。
+
+       ```shell
+       cd /etc/newrelic-infra/integrations.d/
+       ```
+
+    2. 設定ファイルの例を次に示します。 プレースホルダー URL を必ず更新してください。
+
+       ```yml
+       integrations:
+       - name: nri-prometheus
+           config:
+           standalone: false
+           # Defaults to true. When standalone is set to `false`, `nri-prometheus` requires an infrastructure agent to send data.
+           emitters: infra-sdk
+           # When running with infrastructure agent emitters will have to include infra-sdk
+           cluster_name: Temporal_Server_Metrics
+           # Match the name of your cluster with the name seen in New Relic.
+           targets:
+               - description: Temporal_Server_Metrics
+               urls: ["http://<YOUR_DOMAIN>:8000/metrics", "http://<YOUR_DOMAIN>:8077/metrics"]
+           #    tls_config:
+           #      ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+           #      cert_file_path: "/etc/etcd/etcd-client.crt"
+           #      key_file_path: "/etc/etcd/etcd-client.key"
+           verbose: false
+           # Defaults to false. This determines whether or not the integration should run in verbose mode.
+           audit: false
+           # Defaults to false and does not include verbose mode. Audit mode logs the uncompressed data sent to New Relic and can lead to a high log volume.
+           # scrape_timeout: "YOUR_TIMEOUT_DURATION"
+           # `scrape_timeout` is not a mandatory configuration and defaults to 30s. The HTTP client timeout when fetching data from endpoints.
+           scrape_duration: "5s"
+           # worker_threads: 4
+           # `worker_threads` is not a mandatory configuration and defaults to `4` for clusters with more than 400 endpoints. Slowly increase the worker thread until scrape time falls between the desired `scrape_duration`. Note: Increasing this value too much results in huge memory consumption if too many metrics are scraped at once.
+           insecure_skip_verify: false
+           # Defaults to false. Determins if the integration should skip TLS verification or not.
+           timeout: 10s
+       ```
+  </Step>
+
+  <Step>
+    ## 一時ログを構成する [#temporal-logs-configuration]
+
+    一時ログを構成するには、以下の手順に従います。
+
+    1. 実行中のコンテナのステータスを確認するには、次のdockerコマンドを実行します。
+
+       ```shell
+       sudo docker ps
+       ```
+
+    2. **Temporalio/ UI**コンテナのコンテナ ID をコピーし、次のコマンドを実行します。
+
+       ```shell
+       sudo docker logs -f <container_id> &> /tmp/temporal.log &
+       ```
+
+       その後、 `/tmp/`ディレクトリに`temporal.log`という名前のログファイルがあることを確認します。
+  </Step>
+
+  <Step>
+    ## ログをNew Relicに転送する [#temporal-logs-to-newrelic]
+
+    [ログ転送を](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)使用して、Temporal ログを New Relic に転送できます。
+
+    1. Linux マシンでは、 `logging.yml`という名前のログファイルが次のパスにあることを確認してください。
+
+       ```shell
+       cd /etc/newrelic-infra/logging.d/
+       ```
+
+    2. 上記のパスでログファイルを見つけたら、次のスクリプトを`logging.yml`ファイルに含めます。
+
+       ```yml
+       logs:
+       - name: temporal.log
+           file: /tmp/temporal.log
+           attributes:
+           logtype: temporal_logs
+       ```
+
+    3. 以下の手順[に従って、インフラストラクチャ エージェントを再起動してください。](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/)
+
+       ```bash
+       sudo systemctl restart newrelic-infra.service
+       ```
+
+    4. データが[New Relic アカウント](https://one.newrelic.com/)に流れ始めるまで数分間お待ちください。
+  </Step>
+
+  <Step>
+    ## データを検索する [#find-your-data]
+
+    Temporal という名前の事前に構築されたダッシュボード テンプレートを選択して、Temporal メトリクスを監視できます。 事前に構築されたダッシュボード テンプレートを使用するには、次の手順に従います。
+
+    1. [one.newrelic.com](https://one.newrelic.com/)より、 **+ Integrations & Agents**ページに移動します。
+    2. **\[ダッシュボード]**をクリックします。
+    3. 検索バーに**Temporal**と入力します。
+    4. Temporal ダッシュボードが表示されたら、クリックしてインストールします。
+
+       Temporal ダッシュボードはカスタム ダッシュボードとみなされ、ダッシュボード UI に表示されます。 ダッシュボードの使用と編集に関するドキュメントについては、 [ダッシュボードのドキュメント](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)を参照してください。
+
+       以下は、Temporal リクエスト レイテンシの合計を確認するための NRQL クエリです。
+
+       ```sql
+       SELECT sum(temporal_request_latency_sum) FROM Metric WHERE scrapedTargetURL = 'http://<YOUR_DOMAIN>:8000/metrics'
+       ```
+  </Step>
+</Steps>

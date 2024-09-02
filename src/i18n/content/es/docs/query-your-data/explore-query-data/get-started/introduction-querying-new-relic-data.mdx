@@ -1,0 +1,104 @@
+---
+title: Cómo consultar tus datos de New Relic
+tags:
+  - Ingest and manage data
+  - Understand data
+metaDescription: Options for querying your data by using the New Relic UI or our APIs.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New Relic](https://one.newrelic.com) es una poderosa plataforma de observabilidad que le brinda acceso a todos sus datos en todo su sistema. Alojamos telemetry data enviados por [su entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/), que básicamente es cualquier cosa que podamos identificar que tenga datos que pueda monitor, incluidas aplicaciones, servicios, hosts, etc. ¡Tu dilo!
+
+Si bien le brindamos una experiencia lista para usar para ver sus datos con [un panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) seleccionado, puede adaptar el acceso a sus datos y personalizar la visibilidad de varias maneras, incluso [en la UI](#query-ui) o [mediante API](#query-apis).
+
+<Callout variant="important">
+  Para comprender mejor sus datos almacenados en New Relic, consulte [Tipos de datos](/docs/using-new-relic/data/understand-data/new-relic-data-types).
+</Callout>
+
+## Nuestra puerta abierta a tus datos [#explore]
+
+Independientemente de su experiencia con New Relic, lo ayudaremos a descubrir, comprender y visualizar sus datos.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Tú...
+      </th>
+
+      <th>
+        Entonces haz esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Acabo de instalar un agente y quiero ver sus datos en New Relic.
+      </td>
+
+      <td>
+        [Explore sus datos](#browse-data) fácilmente sin realizar consultas. Con [métrica y evento](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer), puedes entender los datos que hemos almacenado, ver su cardinalidad o crear gráficos en unos pocos clics.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sepa qué datos están disponibles, pero desea comprender más sobre qué más viene con esos datos.
+      </td>
+
+      <td>
+        Si es un usuario avanzado, utilice nuestro [generador de consultas](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data) para personalizar los datos que desea recuperar.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Quiere crear un dashboard.
+      </td>
+
+      <td>
+        Crea un [panel personalizado](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) desde métrica y evento o el generador de consultas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Quiere más opciones de consulta de las que ofrece el generador de consultas de la UI .
+      </td>
+
+      <td>
+        Utilice [nuestra API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial), que tiene más características, como consultas entre cuentas y exportación de datos históricos.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Explore sus datos en la UI [#browse-data]
+
+Nuestra plataforma ofrece varias experiencias que no requieren conocimientos de NRQL ni de ningún lenguaje de consulta:
+
+* Para explorar sus datos de New Relic, puede utilizar [métrica y evento](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer), un navegador de datos intuitivo para explorar datos y crear visualizaciones. También puede utilizar el [generador de consultas](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data) para refinar su consulta.
+* Para explorar tus datos de traza, puedes utilizar la [consulta rastreo distribuido](/docs/understand-dependencies/distributed-tracing/ui-data/additional-distributed-tracing-features-new-relic-one).
+* Para explorar el log, puede utilizar la [UI de logs](/docs/logs/ui-data/use-logs-ui/).
+
+## Consultar datos en la UI [#query-ui]
+
+Si está listo para hacer más que navegar por los datos, conviértase en un actor integral y personalice su consulta en la UI de New Relic. Utilice lenguajes de consulta, incluido nuestro [lenguaje de consulta New Relic](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) o [nuestro lenguaje de consulta estilo PromQL](https://prometheus.io/docs/prometheus/latest/querying/basics/), para editar consultas con total flexibilidad. Por ejemplo, puede agregar más [cláusulas`WHERE` ](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-where), modificar el valor devuelto, cambiar a [otros tipos de visualizaciones](/docs/query-your-data/explore-query-data/use-charts/chart-types/), etc.
+
+<Callout variant="tip">
+  ¿Eres nuevo en la consulta de idiomas? Comience a explorar datos en [métrica y evento](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer), luego acceda al [generador de consultas](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data) para ver la consulta que creó y refinarla.
+</Callout>
+
+Hay dos formas de escribir su propia consulta para recuperar datos y crear gráficos:
+
+* [generador de consultas en modo NRQL](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data): consulta utilizando [el lenguaje de consulta New Relic](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language) (NRQL), el mismo lenguaje que usamos para crear la mayoría de nuestras experiencias UI y la forma más avanzada de consultar datos en New Relic.
+* [generador de consultas en modo estilo PromQL](/docs/query-your-data/explore-query-data/chart-builder/use-advanced-promql-mode-specify-data): Escribe consultas usando una consulta estilo PromQL.
+
+También puedes [consultar datos de tu IDE](/docs/codestream/observability/query-builder/) utilizando la extensión CodeStream de New Relic.
+
+## Consultar datos vía API [#query-apis]
+
+Cuando necesite opciones programáticas o desee desbloquear más poder de consulta, puede usar API para consultar sus datos de New Relic. Nuestra API NerdGraph le ofrece opciones más potentes que no están disponibles en la UI, como realizar consultas entre cuentas y exportar conjuntos de datos históricos a largo plazo. Para obtener más información, consulte [Introducción a NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#tutorials).

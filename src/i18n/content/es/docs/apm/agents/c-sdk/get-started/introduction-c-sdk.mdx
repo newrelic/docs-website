@@ -1,0 +1,189 @@
+---
+title: Introducción al SDK de C
+tags:
+  - Agents
+  - C SDK
+  - Get started
+metaDescription: Learn how you can use New Relic C SDK's library and daemon to monitor your app's performance in Linux environments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout
+  variant="important"
+  title="AVISO EOL"
+>
+  A partir de abril de 2022, no admitimos la capacidad C SDK. Explore la [opción de utilizar OpenTelemetry](/docs/apm/agents/c-sdk/get-started/otel_cpp_example) como alternativa para enviar telemetry data de C++ a New Relic. Para obtener más detalles sobre el EOL, consulte nuestra [publicación en el foro de soporte](https://discuss.newrelic.com/t/q1-bulk-eol-announcement-fy23/181744).
+</Callout>
+
+El SDK de C está diseñado para admitir la naturaleza, a menudo compleja y de subprocesos múltiples, de las aplicaciones C/C++. Puede obtener un nuevo nivel de visibilidad para ayudarle a identificar y resolver problemas de rendimiento. También puede recopilar y analizar datos para ayudarle a mejorar la experiencia de los clientes y tomar decisiones comerciales impulsadas por datos.
+
+El C SDK se puede utilizar para instrumentar una amplia gama de aplicaciones más allá de C o C++. Si su aplicación no utiliza [otros idiomas admitidos por New Relic](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#agent) y puede importar la biblioteca C, puede usar el SDK de New Relic C para aprovechar nuestras capacidades y características de monitoreo.
+
+## Comience a monitorear su aplicación C [#next-steps]
+
+Para utilizar nuestro agente C SDK:
+
+1. Asegúrese de que su aplicación cumpla con la [compatibilidad y los requisitos](/docs/agents/c-sdk/get-started/c-sdk-compatibility-requirements) del C SDK.
+2. Si aún no tiene una, [regístrese para obtener una cuenta gratuita de New Relic](https://newrelic.com/signup).
+3. Utilice nuestro iniciador o siga los [procedimientos de instalación e instrumentación](/docs/install-c-sdk-compile-link-your-code) para instalar el agente. En unos minutos, podrá ver los datos de su aplicación en UI de su cuenta New Relic.
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code"
+    variant="normal"
+  >
+    Lea los documentos de instalación
+  </ButtonLink>
+
+  <ButtonLink
+    role="button"
+    to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9&cards[0]=eyJuZXJkbGV0SWQiOiJzZXR1cC1uZXJkbGV0cy5zZXR1cC1jLWludGVncmF0aW9uIiwiYWNjb3VudElkIjoyNjQwNDA5fQ==&platform[accountId]=1"
+    variant="primary"
+  >
+    Agregar datos C
+  </ButtonLink>
+</ButtonGroup>
+
+## monitor el rendimiento de la aplicación [#features]
+
+Si su aplicación cumple con la [compatibilidad y los requisitos del SDK de C en entornos Linux](/docs/c-agent-compatibility-requirements), puede personalizar la biblioteca genérica para comunicarse con New Relic y luego comenzar con [APM](/docs/apm/new-relic-apm/getting-started/introduction-new-relic-apm) para monitor el rendimiento de su aplicación.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Lo que puedes hacer
+      </th>
+
+      <th>
+        Cómo hacerlo
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Ver la imagen completa
+      </td>
+
+      <td>
+        * Comience con la [página APM](/docs/apm/applications-menu/monitoring/apm-overview-page)
+
+          <DNT>
+            [**Summary**](/docs/apm/applications-menu/monitoring/apm-overview-page)
+          </DNT>
+
+          [](/docs/apm/applications-menu/monitoring/apm-overview-page)para monitor el rendimiento, el tiempo de respuesta, los errores, la memoria y el uso de CPU en su aplicación y servicios, luego explore otros detalles con [el panel de APM](/docs/apm) adicional.
+
+        * Con [el marcador de despliegue](/docs/apm/new-relic-apm/maintenance/record-deployments), vea cómo los cambios de código afectan el rendimiento de la aplicación y la salud.
+
+        * Utilice [monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) para ver datos detallados del host y del servidor. Cuando instala el [agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic) y
+
+          <InlinePopover type="apm"/>
+
+          en el mismo host, se detectan automáticamente entre sí. Luego puede [ver una lista de hosts en la UIde APM](/docs/infrastructure/new-relic-infrastructure/data-instrumentation/new-relic-apm-data-infrastructure) y filtrar sus hosts por aplicación en nuestra UI de monitoreo de infraestructura.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Identificar y corregir errores
+      </td>
+
+      <td>
+        * Utilice [herramientas de análisis de errores](/docs/apm/applications-menu/error-analytics/introduction-error-analytics) para encontrar el cuello de botella viendo el tiempo dedicado a llamadas a base de datos, llamadas al sistema externo y bloques clave de código.
+        * Reciba [notificaciones de alerta](/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts) sobre problemas o errores antes de que afecten al usuario.
+        * Crea [un tablero personalizado](/docs/insights/use-insights-ui/explore-data/metric-explorer-search-chart-metrics-sent-new-relic-agents) para métricas importantes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver el registro de sus datos de infraestructura y APM
+      </td>
+
+      <td>
+        Puede reunir los datos de su registro y de la aplicación para que la resolución de problemas sea más fácil y rápida. No es necesario cambiar a otra página de UI.
+
+        * Con [el contexto de inicio de sesión](/docs/logs/logs-context/c-sdk-configure-logs-context/), puede ver el mensaje de registro relacionado con sus errores y la traza directamente en UI de su aplicación.
+        * También puede ver el inicio de sesión en el contexto de [los datos de su infraestructura](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/), como el clúster de Kubernetes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Analizar datos comerciales
+      </td>
+
+      <td>
+        * [consultar](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) datos relacionados con los usuarios y mejorar el proceso empresarial.
+        * Envía tus propios datos personalizados a New Relic.
+        * Cree [una consulta personalizada](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) de los datos de su aplicación.
+        * Cree y comparta [visualizaciones visuales e interactivas](/docs/insights/use-insights-ui/manage-dashboards/create-edit-insights-dashboards) de sus datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ¡Y más!
+      </td>
+
+      <td>
+        * monitor y solucione problemas de la experiencia de escritorio del usuario de su aplicación con su aplicación, incluidos problemas de tiempo de carga de la página, errores de JavaScript, cronogramas de rastreo de sesión, etc., mediante el uso de
+
+          <InlinePopover type="browser">
+            [](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)
+          </InlinePopover>
+
+          .
+
+        * Utilice herramientas automatizadas y programables para monitor sus sitios web, transacciones comerciales críticas y extremos de API con [monitoreo sintético](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics).
+
+        * Analice y ajuste el rendimiento de la aplicación Android e iOS, solucione fallos, compare varias versiones y examine el rendimiento de HTTP y otros componentes de red con
+
+          <InlinePopover type="mobile">
+            [](/docs/mobile-monitoring/new-relic-mobile/getting-started/introduction-new-relic-mobile)
+          </InlinePopover>
+
+          .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Arquitectura: biblioteca C y daemon [#architecture]
+
+El C SDK se basa en dos componentes para enviar datos desde su aplicación a New Relic:
+
+* Las llamadas del SDK de LC: usted descarga esta biblioteca y luego agrega las llamadas y la instrumentación al código de su aplicación. Esto le permite identificar y personalizar los tipos de datos que más le importan.
+* El daemon de C SDK: este es un binario separado que acumula datos de las llamadas de C SDK y los envía a New Relic. Esto actúa como un proxy entre el SDK y New Relic.
+
+<img
+  title="C SDK architecture"
+  alt="C SDK architecture"
+  src="/images/apm_diagram_C-SDK-architecture.webp"
+/>
+
+<figcaption>
+  <DNT>**C SDK architecture:**</DNT> Para enviar datos desde su aplicación a New Relic, se debe invocar al daemon <DNT>**before**</DNT> realizando llamadas a la biblioteca de instrumentación C SDK de su aplicación.
+</figcaption>
+
+Trabajando juntos, la instrumentación C SDK y el daemon envían datos a New Relic, donde puede ver y consultar datos sobre transacciones. El flujo de trabajo entre su aplicación y New Relic debe ocurrir en este orden:
+
+1. Se establece un enlace HTTPS entre el daemon y New Relic. El daemon debe invocarse primero, antes de invocar su aplicación instrumentada.
+2. A continuación, se establece la comunicación por socket entre su aplicación instrumentada y el daemon. Esto ocurre después de llamadas exitosas a [`newrelic_new_app_config()`](https://newrelic.github.io/c-sdk/libnewrelic_8h.html#af067b3ff89a40b6fa417e18be5e847aa) y [`newrelic_create_app()`](https://newrelic.github.io/c-sdk/libnewrelic_8h.html#a61dd90439ae3cc5060021f6ab4701132).
+
+La llamada a [`newrelic_create_app()`](https://newrelic.github.io/c-sdk/libnewrelic_8h.html#a61dd90439ae3cc5060021f6ab4701132) no bloquea. Su segundo parámetro le permite especificar una cantidad de tiempo que su aplicación instrumentada esperará para que la comunicación del socket se establezca adecuadamente. Por ejemplo:
+
+```c
+newrelic_app_t* app = newrelic_create_app(config, 10000);
+```
+
+Si su aplicación instrumentada envía transacciones antes de que se establezcan tanto la conexión daemon como la comunicación del socket de su aplicación, los datos reportados desde su aplicación se perderán.
+
+## Comprueba el código fuente [#source-code]
+
+El C SDK es un software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/c-sdk) y enviar mejoras, o crear tu propia bifurcación y compilarla. Para obtener más información, consulte el [archivo LÉAME](https://github.com/newrelic/c-sdk/blob/main/README.md).

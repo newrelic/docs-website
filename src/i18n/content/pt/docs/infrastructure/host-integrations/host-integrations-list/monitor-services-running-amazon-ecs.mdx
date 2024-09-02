@@ -1,0 +1,446 @@
+---
+title: Monitor serviços em execução no Amazon ECS
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: 'Enable infrastructure monitoring of services running on Amazon ECS (like NGINX, Redis, MySQL, others) in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Se você tiver serviços executados no Docker contêiner no Amazon ECS e forem [suportados](#requirements), poderá habilitar essas integração por meio de nossa integração ECS. Isso reporta dados dos seus serviços de monitor, do host e do contêiner.
+
+## Requisitos [#requirements]
+
+Para monitor serviços em execução no ECS, você deve atender a estes requisitos:
+
+* Um serviço compatível executado no ECS que atende aos nossos requisitos. Os serviços suportados incluem:
+
+  * [Apache](/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration)
+  * [Cassandra](/docs/integrations/host-integrations/host-integrations-list/cassandra-monitoring-integration)
+  * [Sofá](/docs/integrations/host-integrations/host-integrations-list/couchbase-monitoring-integration)
+  * [Elasticsearch](/docs/integrations/host-integrations/host-integrations-list/elasticsearch-monitoring-integration)
+  * [HAProxy](/docs/integrations/host-integrations/host-integrations-list/haproxy-monitoring-integration)
+  * [Cônsul HashiCorp](/docs/integrations/host-integrations/host-integrations-list/hashicorp-consul-monitoring-integration)
+  * [JMX](/docs/integrations/host-integrations/host-integrations-list/jmx-monitoring-integration)
+  * [Kafka](/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration)
+  * [Memcached](/docs/integrations/host-integrations/host-integrations-list/memcached-monitoring-integration)
+  * [MongoDB](/docs/integrations/host-integrations/host-integrations-list/mongodb-monitoring-integration)
+  * [MySQL](/docs/integrations/host-integrations/host-integrations-list/mysql-monitoring-integration)
+  * [NGINX](/docs/integrations/host-integrations/host-integrations-list/nginx-monitoring-integration)
+  * [PostgreSQL](/docs/integrations/host-integrations/host-integrations-list/postgresql-monitoring-integration)
+  * [RabbitMQ](/docs/integrations/host-integrations/host-integrations-list/rabbitmq-monitoring-integration)
+  * [Redis](/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration)
+
+* Um cluster ECS [com escalonamento automático](https://aws.amazon.com/autoscaling) executando Amazon Linux, CentOS ou RHEL que atende aos [requisitos e compatibilidade do agente de infraestrutura](/docs/infrastructure/new-relic-infrastructure/getting-started/compatibility-requirements-new-relic-infrastructure).
+
+* As tarefas do ECS devem ter [o modo de rede](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode) definido como `none` ou `bridge` (`awsvpc` e `host` não são suportados).
+
+Limitações:
+
+* Para este método de instalação, nossa integração RabbitMQ e Apache não reportam dados de inventário.
+* AWS Fargate não é compatível.
+
+## Como habilitar [#enable-overview]
+
+Antes de explicar como habilitar o monitoramento de serviços em execução no ECS, aqui está uma visão geral do processo:
+
+1. [Habilite Amazon EC2](#enable-ec2) para instalar nosso agente de infraestrutura em seu cluster ECS.
+2. [Habilite o monitoramento de serviços](#enable-services) usando um arquivo de configuração específico do serviço.
+
+## Etapa 1: habilitar o EC2 para instalar o agente de infraestrutura [#enable-ec2]
+
+Primeiro, você deve habilitar Amazon EC2 para instalar nosso agente de infraestrutura no cluster ECS. Para fazer isso, primeiro você precisa atualizar os dados do seu usuário para instalar o agente de infraestrutura no lançamento.
+
+Aqui estão as instruções para alterar a configuração de lançamento do EC2 (retiradas da [documentação Amazon EC2 ](https://docs.aws.amazon.com/autoscaling/ec2/userguide/change-launch-config.html)):
+
+1. Abra o [console do Amazon EC2](https://console.aws.amazon.com/ec2).
+
+2. No painel de navegação, em <DNT>**Auto scaling**</DNT>, escolha <DNT>**Launch configurations**</DNT>.
+
+3. Na próxima página, selecione o lançamento configuração que deseja atualizar.
+
+4. Clique com o botão direito e selecione <DNT>**Copy launch configuration**</DNT>.
+
+5. Na guia <DNT>**Launch configuration details**</DNT>, clique em <DNT>**Edit details**</DNT>.
+
+6. Substitua os dados do usuário por um dos seguintes trechos:
+
+   <CollapserGroup>
+     <Collapser
+       id="os-1"
+       title="Para CentOS 6, RHEL 6, Amazon Linux 1"
+     >
+       Substitua os campos destacados por valores relevantes:
+
+       ```
+       Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
+       MIME-Version: 1.0
+
+       --MIMEBOUNDARY
+       Content-Disposition: attachment; filename="init.cfg"
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/cloud-config
+       Mime-Version: 1.0
+
+       yum_repos:
+           newrelic-infra:
+               baseurl: https://download.newrelic.com/infrastructure_agent/linux/yum/el/6/x86_64
+               gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+               gpgcheck: 1
+               repo_gpgcheck: 1
+               enabled: true
+               name: New Relic Infrastructure
+       write_files:
+       -   content: |
+               ---
+               # New Relic config file
+               license_key: <a href="/docs/accounts/install-new-relic/account-setup/license-key">YOUR_LICENSE_KEY</a>
+           path: /etc/newrelic-infra.yml
+       packages:
+         - newrelic-infra
+         - nri-*
+       runcmd:
+         - [ yum, install, newrelic-infra, -y ]
+         - [ systemctl, daemon-reload ]
+         - [ systemctl, enable, newrelic-infra.service ]
+         - [ systemctl, start, --no-block, newrelic-infra.service ]
+
+       --MIMEBOUNDARY
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/x-shellscript
+       Mime-Version: 1.0
+
+       #!/bin/bash
+
+       # ECS config
+       {
+         echo "ECS_CLUSTER=YOUR_CLUSTER_NAME"
+       } >> /etc/ecs/ecs.config
+
+       start ecs
+
+       echo "Done"
+       --MIMEBOUNDARY--
+       ```
+     </Collapser>
+
+     <Collapser
+       id="os-2"
+       title="CentOS 7, RHEL 7"
+     >
+       Substitua os campos destacados por valores relevantes:
+
+       ```
+       Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
+       MIME-Version: 1.0
+
+       --MIMEBOUNDARY
+       Content-Disposition: attachment; filename="init.cfg"
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/cloud-config
+       Mime-Version: 1.0
+
+       yum_repos:
+           newrelic-infra:
+               baseurl: https://download.newrelic.com/infrastructure_agent/linux/yum/el/7/x86_64
+               gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+               gpgcheck: 1
+               repo_gpgcheck: 1
+               enabled: true
+               name: New Relic Infrastructure
+       write_files:
+       -   content: |
+               ---
+               # New Relic config file
+               license_key: <a href="/docs/accounts/install-new-relic/account-setup/license-key">YOUR_LICENSE_KEY</a>
+           path: /etc/newrelic-infra.yml
+       packages:
+         - newrelic-infra
+         - nri-*
+       runcmd:
+         - [ yum, install, newrelic-infra, -y ]
+         - [ systemctl, daemon-reload ]
+         - [ systemctl, enable, newrelic-infra.service ]
+         - [ systemctl, start, --no-block, newrelic-infra.service ]
+
+       --MIMEBOUNDARY
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/x-shellscript
+       Mime-Version: 1.0
+
+       #!/bin/bash
+
+       # ECS config
+       {
+         echo "ECS_CLUSTER=YOUR_ECS_CLUSTER_NAME"
+       } >> /etc/ecs/ecs.config
+
+       start ecs
+
+       echo "Done"
+       --MIMEBOUNDARY--
+       ```
+     </Collapser>
+
+     <Collapser
+       id="os-2"
+       title="Amazon Linux 2"
+     >
+       Substitua os campos destacados por valores relevantes:
+
+       ```
+       Content-Type: multipart/mixed; boundary="MIMEBOUNDARY"
+       MIME-Version: 1.0
+
+       --MIMEBOUNDARY
+       Content-Disposition: attachment; filename="init.cfg"
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/cloud-config
+       Mime-Version: 1.0
+
+       yum_repos:
+           newrelic-infra:
+               baseurl: https://download.newrelic.com/infrastructure_agent/linux/yum/amazonlinux/2/x86_64
+               gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+               gpgcheck: 1
+               repo_gpgcheck: 1
+               enabled: true
+               name: New Relic Infrastructure
+       write_files:
+       -   content: |
+               ---
+               # New Relic config file
+               license_key: <a href="/docs/accounts/install-new-relic/account-setup/license-key">YOUR_LICENSE_KEY</a>
+           path: /etc/newrelic-infra.yml
+       packages:
+         - newrelic-infra
+         - nri-*
+       runcmd:
+         - [ yum, install, newrelic-infra, -y ]
+         - [ systemctl, daemon-reload ]
+         - [ systemctl, enable, newrelic-infra.service ]
+         - [ systemctl, start, --no-block, newrelic-infra.service ]
+
+       --MIMEBOUNDARY
+       Content-Transfer-Encoding: 7bit
+       Content-Type: text/x-shellscript
+       Mime-Version: 1.0
+
+       #!/bin/bash
+
+       # ECS config
+       {
+         echo "ECS_CLUSTER=YOUR_ECS_CLUSTER_NAME"
+       } >> /etc/ecs/ecs.config
+
+       start ecs
+
+       echo "Done"
+       --MIMEBOUNDARY--
+       ```
+     </Collapser>
+   </CollapserGroup>
+
+7. Escolha <DNT>**Skip to review**</DNT>.
+
+8. Escolha <DNT>**Create launch configuration**</DNT>.
+
+Em seguida, atualize o grupo de escalonamento automático:
+
+1. Abra o [console do Amazon EC2](https://console.aws.amazon.com/ec2).
+
+2. No painel de navegação, em
+
+   <DNT>
+     **Auto scaling**
+   </DNT>
+
+   , escolha
+
+   <DNT>
+     **Auto scaling groups**
+   </DNT>
+
+   .
+
+3. Selecione o grupo de escalonamento automático que você deseja atualizar.
+
+4. No menu
+
+   <DNT>
+     **Actions**
+   </DNT>
+
+   , escolha
+
+   <DNT>
+     **Edit**
+   </DNT>
+
+   .
+
+5. No menu suspenso de
+
+   <DNT>
+     **Launch configuration**
+   </DNT>
+
+   , selecione o novo lançamento de configuração criado.
+
+6. Clique em
+
+   <DNT>
+     **Save**
+   </DNT>
+
+   .
+
+Para testar se o agente está detectando a instância automaticamente, [encerre uma instância do EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html) no grupo de auto scaling: a instância de substituição agora será lançada com os novos dados do usuário. Após cinco minutos, você deverá ver os dados do novo host na [página Hosts](/docs/infrastructure/infrastructure-ui-pages/hosts-new-view).
+
+Em seguida, prossiga para habilitar o monitoramento de serviços.
+
+## Etapa 2: Habilitar o monitoramento de serviços [#enable-services]
+
+Depois de [habilitar o EC2 para executar o agente de infraestrutura](#enable-ec2), o agente inicia o monitoramento do contêiner em execução naquele host.
+
+A seguir explicaremos como monitor serviços implantados no ECS. Por exemplo, você pode monitor uma tarefa do ECS contendo uma instância do NGINX que fica na frente do servidor do seu aplicativo.
+
+Aqui está uma breve visão geral de como você monitor um [serviço suportado](#requirements) implantado no ECS:
+
+1. Crie um arquivo de configuração YAML para o serviço que deseja monitor. Eventualmente, isso será colocado na seção de dados do usuário EC2 por meio do console AWS. Mas antes de fazer isso, você pode testar se a configuração está funcionando colocando esse arquivo na pasta do agente de infraestrutura (`etc/newrelic-infra/integrations.d`) no EC2. Esse arquivo de configuração deve usar nosso formato [de auto-discovery de contêiner](/docs/integrations/host-integrations/installation/container-auto-discovery), que permite encontrar contêineres automaticamente. As opções exatas de configuração dependerão da [integração](/docs/integrations/host-integrations/host-integrations-list) específica.
+2. Verifique se os dados do serviço estão sendo relatados à New Relic.
+3. Se estiver satisfeito com os dados exibidos, você poderá usar o console do EC2 para adicionar essa configuração à configuração de lançamento apropriada, na seção `write_files`, e depois atualizar o grupo de escalonamento automático.
+4. Na seção `runcmd`, adicione o comando `yum` para instalar a integração na configuração de lançamento apropriada.
+
+Aqui está um exemplo detalhado de como executar o procedimento acima para NGINX:
+
+1. Certifique-se de ter acesso SSH ao servidor ou acesso ao [AWS Systems Manager Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html). Login no host que executa o agente de infraestrutura.
+
+2. Através da linha de comando, altere o diretório para a pasta integração configuração:
+
+   ```shell
+   cd /etc/newrelic-infra/integrations.d
+   ```
+
+3. Crie um arquivo chamado `nginx-config.yml` e adicione o seguinte trecho:
+
+   ```yml
+   ---
+   discovery:
+     docker:
+       match:
+         image: /nginx/
+   integrations:
+     - name: nri-nginx
+       env:
+         STATUS_URL: http://${'${discovery.ip}'}:/status
+         REMOTE_MONITORING: true
+         METRICS: 1
+   ```
+
+   Essa configuração faz com que o agente de infraestrutura procure por contêiner no ECS que contenha `nginx`. Depois que um contêiner corresponde, ele se conecta à página de status do NGINX. Para obter detalhes sobre como o trecho `discovery.ip` funciona, consulte [descoberta automática](/docs/integrations/host-integrations/installation/container-auto-discovery). Para obter detalhes sobre a configuração geral do NGINX, consulte a [integração NGINX](/docs/integrations/host-integrations/host-integrations-list/nginx-monitoring-integration#config).
+
+4. Se sua página de status do NGINX estiver configurada para atender solicitações do `STATUS_URL` na porta 80, o agente de infraestrutura inicia o monitoramento dela. Após cinco minutos, verifique se os dados do NGINX estão aparecendo em nossa interface de infraestrutura (seja: <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Third party services**</DNT> ou <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Third-party services**</DNT>).
+
+5. Se a configuração funcionar, coloque-a na configuração de lançamento do EC2:
+
+   1. Abra o [console do Amazon EC2](https://console.aws.amazon.com/ec2).
+
+   2. No painel de navegação, em <DNT>**Auto scaling**</DNT>, escolha <DNT>**Launch configurations**</DNT>.
+
+   3. Na próxima página, selecione o lançamento configuração que deseja atualizar.
+
+   4. Clique com o botão direito e selecione <DNT>**Copy launch configuration**</DNT>.
+
+   5. Na guia <DNT>**Launch configuration details**</DNT>, clique em <DNT>**Edit details**</DNT>.
+
+   6. Na seção <DNT>**User data**</DNT>, edite a seção `write_files` (na parte marcada como `text/cloud-config`).
+
+   7. Adicione uma nova entrada de arquivo/conteúdo:
+
+      ```yml
+      -   content: |
+          ---
+          discovery:
+            docker:
+              match:
+                image: /nginx/
+          integrations:
+            - name: nri-nginx
+              env:
+                STATUS_URL: http://${'${discovery.ip}'}:/status
+                REMOTE_MONITORING: true
+                METRICS: 1
+          path: /etc/newrelic-infra/integrations.d/nginx-config.yml
+      ```
+
+   8. Edite também a seção `runcmd` para incluir o comando `yum` para instalar `nri-nginx`:
+
+      ```yml
+      runcmd:
+        - [ yum, install, newrelic-infra, -y ]
+        - [ yum, install, nri-nginx, -y ]
+        - [ systemctl, daemon-reload ]
+        - [ systemctl, enable, newrelic-infra.service ]
+        - [ systemctl, start, --no-block, newrelic-infra.service ]
+      ```
+
+6. Escolha <DNT>**Skip to review**</DNT>.
+
+7. Escolha <DNT>**Create launch configuration**</DNT>.
+
+8. Em seguida, atualize o grupo de escalonamento automático:
+
+   1. Abra o [console do Amazon EC2](https://console.aws.amazon.com/ec2/).
+
+   2. No painel de navegação, em
+
+      <DNT>
+        **Auto scaling**
+      </DNT>
+
+      , escolha
+
+      <DNT>
+        **Auto scaling groups**
+      </DNT>
+
+      .
+
+   3. Selecione o grupo de escalonamento automático que você deseja atualizar.
+
+   4. No menu
+
+      <DNT>
+        **Actions**
+      </DNT>
+
+      , escolha
+
+      <DNT>
+        **Edit**
+      </DNT>
+
+      .
+
+   5. No menu suspenso de
+
+      <DNT>
+        **Launch configuration**
+      </DNT>
+
+      , selecione o novo lançamento de configuração criado.
+
+   6. Clique em
+
+      <DNT>
+        **Save**
+      </DNT>
+
+      .
+
+Quando uma instância do EC2 é encerrada, ela é substituída por uma nova que procura automaticamente novos contêineres NGINX.
+
+<InstallFeedback/>

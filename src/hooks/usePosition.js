@@ -20,6 +20,7 @@ const usePosition = () => {
     if (!measureEl || dimensions != null) return;
 
     setDimensions(measureEl.getBoundingClientRect());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return [

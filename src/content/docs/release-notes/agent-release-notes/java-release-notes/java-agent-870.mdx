@@ -1,0 +1,174 @@
+---
+subject:  Java agent
+releaseDate:  '2023-10-26'
+version:  8.7.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.7.0/'
+features: [“Adds support for Java 21”, “Add experimental config option to run the agent with unsupported java versions”, “Add a new thread ID attribute to spans”, “Include stack traces in client spans”, “Add new configuration to enable/disable low priority instrumentation security.low-priority-instrumentation.enabled for the CSEC agent”, “Adds support for getting the containerId from a docker container with Linux cgroup v2”, “Add database and external span attributes to correlate to metric data in accordance with Open Telemetry specs”, “Add stall detection which can be configured. It is disabled by default.”, “Add instrumentation for r2dbc postgresql 0.9.2”, “Security agent version bump to 1.0.6 public preview”]
+bugs: [“Fixed a bug where a ClassCircularityError was thrown by Sonarqube9.9 ”,  “Fix a bug where the Java agent fails to detect spring-security-oauth2-client.jar”, “Fix a bug where Spring 6/ Spring Boot3 does not report underlying exception/stacktrace when a @RestControllerAdvice class is used”, “Fix HttpUrlConnection instrumentation so segment timing is accurate”, “Fixes a bug in Spring 6 instrumentation where transactions are incorrectly named in certain scenarios”, “Add a configurable fix for JBoss EAP / Wildfly where if customers are using the J2EE/Jakarta Management API, the application fails to startup”, “Resolve missing class exception on Scala instrumentation”]
+security: [“Upgrade OkHttp to 4.12.0”, “Upgrade commons-codec to v1.13” ]
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.7.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Adds support for Java 21 [1546](https://github.com/newrelic/newrelic-java-agent/pull/1546)
+* Add experimental config option to run the agent with unsupported java versions [1480](https://github.com/newrelic/newrelic-java-agent/pull/1480)
+* Add intrinsic attribute thread.id to spans to allow for faceting queries by thread ID [1513](https://github.com/newrelic/newrelic-java-agent/pull/1513)
+* Include stack traces in client spans [1507](https://github.com/newrelic/newrelic-java-agent/pull/1507)
+* Adds support for getting the containerId from a docker container with Linux cgroup v2. [1529](https://github.com/newrelic/newrelic-java-agent/pull/1529)
+* Add database and external span attributes to correlate to metric data in accordance with Open Telemetry specs. Certain old attributes are removed. [1525](https://github.com/newrelic/newrelic-java-agent/pull/1525)
+
+  #### New attributes:
+
+  * `db.system`
+  * `db.operation`
+  * `db.collection`
+  * `server.address`
+  * `server.port`
+
+  #### Removed attributes:
+
+  * `component`
+  * `peer.hostname`
+* Add slow transaction detection which can be configured. It is disabled by default. [1542](https://github.com/newrelic/newrelic-java-agent/pull/1542)
+  E.g:
+  ```yaml
+  slow_transactions:
+    enabled: true
+    threshold: 1000 # The threshold is measured in milliseconds
+  ```
+* Add instrumentation for r2dbc postgresql 0.9.2 to 0.9.x [1410](https://github.com/newrelic/newrelic-java-agent/pull/1410)
+* Security Agent: Add new configuration to enable/disable low priority instrumentation `security.low-priority-instrumentation.enabled` for the CSEC agent. Default value is false. [1515](https://github.com/newrelic/newrelic-java-agent/pull/1515)
+* Security Agent: Cassandra DB v3.0+ Support: The Security agent now supports Cassandra DB version 3.0 and above [122](https://github.com/newrelic/csec-java-agent/pull/122)
+* Security Agent: HttpClient v5.0+ Support: The Security agent now also supports HttpClient version 5.0 and above [122](https://github.com/newrelic/csec-java-agent/pull/122)
+* Security Agent: Support for std-out logging [122](https://github.com/newrelic/csec-java-agent/pull/122)
+* Security Agent: Added feature for Daily log rollover [122](https://github.com/newrelic/csec-java-agent/pull/122)
+* Security Agent: Support for logger config: log_file_count and log_limit_in_kbytes [122](https://github.com/newrelic/csec-java-agent/pull/122)
+* Security Agent: Relocating all our instrumentation packages under the package `com.newrelic.agent.security.instrumentation.*`  [122](https://github.com/newrelic/csec-java-agent/pull/122)
+
+## Fixes
+
+* Fixed a bug where a ClassCircularityError was thrown by Sonarqube9.9 [1522](https://github.com/newrelic/newrelic-java-agent/pull/1522)
+* Fix a bug where the Java agent fails to detect `spring-security-oauth2-client.jar` [1462](https://github.com/newrelic/newrelic-java-agent/pull/1462)
+* Fix a bug where Spring 6/ Spring Boot3 does not report underlying exception/stacktrace when a @RestControllerAdvice class is used [1538](https://github.com/newrelic/newrelic-java-agent/pull/1538)
+* Fix HttpUrlConnection instrumentation so segment timing is accurate [1537](https://github.com/newrelic/newrelic-java-agent/pull/1537)
+* Fixes a bug in Spring 6 instrumentation where transactions are incorrectly named in certain scenarios. [1544](https://github.com/newrelic/newrelic-java-agent/pull/1544)
+  Such include:
+  * "built-in" controllers that don't have `@RestController`-like annotations, e.g. /actuator/health (see [Actuator endpoints](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#actuator.endpoints))
+  * custom controllers that don't use `@RestController `directly (e.g. using custom annotations)
+  * requests returning 401s / 404s
+* Add a fix for JBoss EAP / Wildfly where if customers are using the J2EE/Jakarta Management API, the application fails to startup. [1549](https://github.com/newrelic/newrelic-java-agent/pull/1549)
+  This is done by adding the system property `com.newrelic.jboss.jsr77.fix` and setting it to `true`.
+  E.g.
+
+  ```
+  -Dcom.newrelic.jboss.jsr77.fix=true
+  ```
+
+  Customers using JBoss EAP 7.4+ or Wildfly 23+ will need to manually configure the `io.undertow.servlet` module and add
+  `java.management` as a dependency.
+  This translates to doing the following steps:
+
+  1. Opening the file `modules/system/layers/base/io/undertow/servlet/main/module.xml`
+  2. Adding the XML element `<module name="java.management"/>` inside the body of the `<dependencies>` tag
+
+  Here is what the configured XML file may look like:
+
+  ```xml
+  <module name="io.undertow.servlet" xmlns="urn:jboss:module:1.9">
+      <resources>
+          <resource-root path="undertow-servlet-2.2.5.Final-redhat-00001.jar"/>
+      </resources>
+
+      <dependencies>
+          <module name="javax.annotation.api"/>
+          <module name="sun.jdk"/>
+          <module name="javax.servlet.api"/>
+          <module name="javax.servlet.jsp.api"/>
+          <module name="javax.servlet.jstl.api"/>
+          <module name="org.jboss.logging"/>
+          <module name="io.undertow.core"/>
+          <module name="org.jboss.xnio"/>
+          <module name="jdk.unsupported"/>
+          <module name="java.management"/>
+      </dependencies>
+  </module>
+  ```
+* Resolve missing class exception on Scala instrumentation [1528](https://github.com/newrelic/newrelic-java-agent/pull/1528)
+* Security Agent: Fixed ClassNotFoundException for IOStreamHelper class with Glassfish [122](https://github.com/newrelic/csec-java-agent/pull/122)
+
+## Security
+
+* Update agent dependency commons-codec to v1.13 [1548](https://github.com/newrelic/newrelic-java-agent/pull/1548)
+* Update JFR daemon to `1.11.1`. This upgrade updates the underlying OkHttp dependency to version `4.12.0` [1561](https://github.com/newrelic/newrelic-java-agent/pull/1561)
+
+## Deprecations
+
+The following instrumentation modules will be removed in the next major release:
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1`
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes)
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you are moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

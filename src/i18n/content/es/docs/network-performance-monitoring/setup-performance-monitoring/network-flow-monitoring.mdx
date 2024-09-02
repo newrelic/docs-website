@@ -1,0 +1,946 @@
+---
+title: Configurar el monitoreo de datos de flujo de red
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+metaDescription: Set up network flow data monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar nuestro proceso de instalación guiada para instalar el agente de monitoreo de flujo de red o instalar el agente manualmente. Este documento cubre los requisitos previos para iniciar este proceso de instalación y un recorrido paso a paso por las opciones de instalación.
+
+## Requisitos previos [#prerequisites]
+
+Antes de poder comenzar, deberá [registrarse para obtener una cuenta New Relic](https://newrelic.com/signup). Si elige instalar el agente manualmente, también necesitará:
+
+* Una [identificación de cuenta](/docs/accounts/accounts-billing/account-setup/account-id) de New Relic.
+
+* Una New Relic
+
+  <InlinePopover type="licenseKey"/>
+
+  .
+
+<CollapserGroup>
+  <Collapser
+    id="docker"
+    title="Requisitos previos Docker"
+  >
+    Recomendamos emplear un contenedor Docker para desplegar el agente para la recopilación de flujo de red. Para usarlo, necesitarás:
+
+    * [Docker](https://docs.docker.com/engine/install) instalado en un host Linux
+    * Capacidad para lanzar un nuevo contenedor a través de línea de comando
+  </Collapser>
+
+  <Collapser
+    id="podman"
+    title="Requisitos previos del Podman"
+  >
+    Si está empleando un contenedor Podman para lanzar el agente, necesita:
+
+    * [Podman](https://podman.io/docs/installation) instalado en un host Linux
+    * Capacidad para lanzar un nuevo contenedor a través de línea de comando
+  </Collapser>
+
+  <Collapser
+    id="linux"
+    title="Requisitos previos del host Linux"
+  >
+    Si emplea Linux para instalar el agente como servicio, necesitará:
+
+    * Acceso SSH al host
+
+    * Acceso para instalar/eliminar aplicaciones y servicios.
+
+    * Uno de estos sistemas operativos soportados:
+
+      * CentOS 8
+      * Debian 12 (ratón de biblioteca)
+      * Debian 11 (Diana)
+      * Debian 10 (Buster)
+      * RedHat Enterprise Linux 9
+      * Ubuntu 20.04 (LTS focal)
+      * Ubuntu 22.04 (Jammy LTS)
+      * Ubuntu 23.04 (Lunar)
+  </Collapser>
+
+  <Collapser
+    id="net-flow"
+    title="Requisitos previos de los dispositivos de datos de flujo de red"
+  >
+    * Debe configurar los dispositivos de origen para enviar datos de flujo al host que ejecuta el Monitoreo de red agente. A continuación se explica cómo configurar la exportación de flujo de red en algunos dispositivos (esta no es una lista exhaustiva):
+
+      * Datos de Netflow
+
+        * [Cisco - IOS](https://www.cisco.com/c/en/us/td/docs/ios/netflow/configuration/guide/12_2sr/nf_12_2sr_book/cfg_nflow_data_expt.html#wp1087069)
+        * [Cisco - Meraki](https://documentation.meraki.com/MX/Monitoring_and_Reporting/NetFlow_Overview)
+        * [Cisco-NX-OS](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/7-x/system_management/configuration/guide/b_Cisco_Nexus_9000_Series_NX-OS_System_Management_Configuration_Guide_7x/b_Cisco_Nexus_9000_Series_NX-OS_System_Management_Configuration_Guide_7x_chapter_011100.html#task_52D8A0952B06404197D2536B6E33EE80)
+        * [Fortinet Fortigate](https://kb.fortinet.com/kb/documentLink.do?externalID=FD36460)
+        * [Palo Alto - PAN-OS](https://docs.paloaltonetworks.com/pan-os/8-1/pan-os-admin/monitoring/netflow-monitoring/configure-netflow-exports)
+
+      * Datos de sFlow
+
+        * [F5 - IP GRANDE](https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-external-monitoring-implementations-12-0-0/15.html)
+
+      * Datos de jFlow
+
+        * [Enebro - Junos](https://www.juniper.net/documentation/us/en/software/junos/flow-monitoring/flow-monitoring.pdf)
+  </Collapser>
+
+  <Collapser
+    id="net-sec"
+    title="Requisitos previos de seguridad de la red"
+  >
+    Verifique los [requisitos previos de seguridad de la red para el flujo de la red](/install/npm).
+  </Collapser>
+</CollapserGroup>
+
+## Tipos admitidos de datos de flujo de red [#supported-network-flow-data-types]
+
+El monitoreo del flujo de la red admite los cuatro tipos principales de datos de flujo de la red y sus derivados. Al ejecutar el agente, puede especificar qué tipo principal desea monitor usando la opción `-nf.source`.
+
+<Callout variant="tip">
+  La colección de plantillas `NetFlow v5`, `NetFlow v9`, `sFlow` y `IPFIX` se puede manejar usando `-nf.source.=auto` en un solo agente. Esto está habilitado como configuración predeterminada cuando se utiliza el argumento `nr1.flow` en tiempo de ejecución.
+</Callout>
+
+<Collapser
+  id="flow-types"
+  title="Tipos de flujo de red"
+>
+  <table>
+    <thead>
+      <tr>
+        <th style={{ width: '300px' }}>
+          Tipo de flujo de red
+        </th>
+
+        <th>
+          ¿Habilitado con `auto`?
+        </th>
+
+        <th>
+          `-nf.source` valor
+        </th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr>
+        <td>
+          AppFlow
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          Argus
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          Cisco ASA
+        </td>
+
+        <td/>
+
+        <td>
+          `asa`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          NBAR de Cisco
+        </td>
+
+        <td/>
+
+        <td>
+          `nbar`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          cflowd
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          IPFIX
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `ipfix`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          J-Flow
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          NetFlow v5
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          NetFlow v9
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow9`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          NetStream
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          Palo Alto Networks
+        </td>
+
+        <td/>
+
+        <td>
+          `pan`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          RFlow
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `netflow5`
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          sFlow
+        </td>
+
+        <td>
+          ✓
+        </td>
+
+        <td>
+          `auto` \| `sflow`
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</Collapser>
+
+## ¿Cuándo debería escalar la recopilación de flujo de red? [#scale]
+
+Al planificar su estrategia para recopilar flujos de red a escala, se deben considerar los siguientes elementos:
+
+* El agente `ktranslate` solo puede realizar un trabajo a la vez. Un agente que ejecuta la recopilación SNMP no puede escuchar también los flujos de red.
+* El agente `ktranslate` solo puede escuchar flujos de red entrantes en un único puerto de escucha a la vez (valor predeterminado: `9995`). Si necesita que se abran varios puertos, cada uno requiere un agente dedicado, utilizando la opción de configuración [-nf.port](/docs/network-performance-monitoring/advanced/ktranslate-container-management/#container-runtime-options) en tiempo de ejecución para cambiar el puerto.
+* La configuración predeterminada `-nf.source=auto` permite que el contenedor escuche múltiples tipos de flujo estándar. Si necesita analizar otros tipos de datos de flujo, como plantillas de Cisco ASA, Cisco NBAR o Palo Alto Networks, cada uno necesitará su propio agente.
+* New Relic recomienda 1 CPU por 2000 flujos por segundo (120 000 flujos por minuto). Decidir si escalar horizontalmente varios agentes para distribuir la carga o escalar verticalmente algunos agentes más grandes para consolidar la gestión es una cuestión de preferencia personal.
+
+## Configurar el monitoreo de datos de flujo de red [#setup-network-flow-monitoring]
+
+Para la mayoría de los casos de uso, recomendamos nuestra instalación guiada para configurar el monitoreo de datos del flujo de red. Si su configuración es más avanzada con configuraciones personalizadas, le recomendamos instalarla manualmente.
+
+<CollapserGroup>
+  <Collapser
+    id="guided-install-setup"
+    title="Configuración de instalación guiada"
+  >
+    1. Ir a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Add more data**</DNT>
+
+    2. Desplácese hacia abajo hasta que vea <DNT>**Network**</DNT> y haga clic en <DNT>**Network Flows**</DNT>.
+
+    3. Siga los pasos descritos en el proceso de instalación guiada. Puede emplear Docker, Podman o Linux.
+
+       <ButtonLink
+         role="button"
+         to="https://one.newrelic.com/nr1-core?state=01bc12b8-758e-cc28-a93f-a93970485d99"
+         variant="primary"
+       >
+         Agregar datos de flujo de red
+       </ButtonLink>
+
+       <img
+         title="Network Flows guided setup"
+         alt="Network Flows guided setup"
+         src="/images/network_screenshot-full_network-flows-guided-install.webp"
+       />
+
+       <figcaption>
+         <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/ll-capabilities) > Add more data > Network > Network Flows**</DNT> para configurar el monitoreo de datos de flujo de red.
+       </figcaption>
+
+    4. Investigue los datos de flujo de su red en la New Relic <InlinePopover type="networkMonitoring"/>UI.
+  </Collapser>
+
+  <Collapser
+    id="manual-container-setup"
+    title="Configuración manual del contenedor"
+  >
+    Antes de leer sobre la instalación manual del agente de flujo de red, considere utilizar nuestro proceso de instalación guiada para evitar errores:
+
+    <ButtonLink
+      role="button"
+      to="https://one.newrelic.com/nr1-core?state=01bc12b8-758e-cc28-a93f-a93970485d99"
+      variant="primary"
+    >
+      Agregar datos de flujo de red
+    </ButtonLink>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="dockerInstall">
+          Contenedor docker
+        </TabsBarItem>
+
+        <TabsBarItem id="podmanInstall">
+          Contenedor Podman
+        </TabsBarItem>
+
+        <TabsBarItem id="linuxInstall">
+          Servicio de Linux
+        </TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="dockerInstall">
+          1. En un host Linux con Docker instalado, descargue la imagen <DNT>**ktranslate**</DNT> ejecutando una de las siguientes opciones:
+
+             * [Centro Docker](https://hub.docker.com/):
+
+               ```shell
+               docker pull kentik/ktranslate:v2
+               ```
+
+             * [Quay.io](https://quay.io/):
+
+               ```shell
+               docker pull quay.io/kentik/ktranslate:v2
+               ```
+
+          2. Copie el archivo `snmp-base.yaml` en el directorio local `$HOME` de su usuario Docker y descarte el contenedor ejecutando:
+
+             ```shell
+             cd ~
+             id=$(docker create kentik/ktranslate:v2)
+             docker cp $id:/etc/ktranslate/snmp-base.yaml .
+             docker rm -v $id
+             ```
+
+          3. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos de flujo de red dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               flow_device1:
+                 device_name: flow_device1
+                 device_ip: x.x.x.x/yy
+                 flow_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+             <Callout variant="important">
+               Si ya está monitoreando dispositivos de datos SNMP que también enviarán flujos de red, querrá asegurarse de que el valor de `device_name` sea idéntico para ambos archivos de configuración para garantizar que la telemetría de flujo se atribuya a la entidad correcta en New Relic UI.
+             </Callout>
+
+          4. Ejecute `ktranslate` para escuchar los flujos de red con el comando:
+
+             ```shell
+             docker run -d --name ktranslate-$CONTAINER_SERVICE --restart unless-stopped --pull=always --net=host \
+             -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+             -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+             kentik/ktranslate:v2 \
+               -snmp /snmp-base.yaml \
+               -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+               -metrics=jchf \
+               -tee_logs=true \
+               # Use this field to create a unique value for `tags.container_service` inside of New Relic
+               -service_name=$CONTAINER_SERVICE \
+               -flow_only=true \
+               nr1.flow
+             ```
+
+          5. Investigue los datos de flujo de su red en la New Relic <InlinePopover type="networkMonitoring"/>UI.
+        </TabsPageItem>
+
+        <TabsPageItem id="podmanInstall">
+          1. En un host con Podman instalado, descargue la imagen <DNT>**ktranslate**</DNT> ejecutando el siguiente comando:
+
+             * [Centro Docker](https://hub.docker.com/):
+
+               ```shell
+               podman pull docker.io/kentik/ktranslate:v2
+               ```
+
+          2. Copie el archivo `snmp-base.yaml` en el directorio local `$HOME` de su usuario de Podman y descarte el contenedor ejecutando:
+
+             ```shell
+             cd ~
+             id=$(podman create kentik/ktranslate:v2)
+             podman cp $id:/etc/ktranslate/snmp-base.yaml .
+             podman rm -v $id
+             ```
+
+          3. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos de flujo de red dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               flow_device1:
+                 device_name: flow_device1
+                 device_ip: x.x.x.x/yy
+                 flow_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+             <Callout variant="important">
+               Si ya está monitoreando dispositivos de datos SNMP que también enviarán flujos de red, querrá asegurarse de que el valor de `device_name` sea idéntico para ambos archivos de configuración para garantizar que la telemetría de flujo se atribuya a la entidad correcta en New Relic UI.
+             </Callout>
+
+          4. Ejecute `ktranslate` para escuchar los flujos de red con el comando:
+
+             ```shell
+             podman run -d --name ktranslate-$CONTAINER_SERVICE --userns=keep-id --restart unless-stopped --pull=always --net=host \
+             -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+             -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+             kentik/ktranslate:v2 \
+               -snmp /snmp-base.yaml \
+               -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+               -metrics=jchf \
+               -tee_logs=true \
+               # Use this field to create a unique value for `tags.container_service` inside of New Relic
+               -service_name=$CONTAINER_SERVICE \
+               -flow_only=true \
+               nr1.flow
+             ```
+
+             <Callout variant="tip">
+               El contenedor Rootless Podman no puede vincular a puertos inferiores a 1024. Si los flujos de su red se envían a un puerto inferior a 1024 en lugar del predeterminado (9995), deberá crear una regla `iptables` para manejar la redirección de paquetes con el comando:
+
+               ```shell
+               sudo iptables -t nat -A PREROUTING -p udp --dport $srcPort -j REDIRECT --to-port 9995
+               ```
+             </Callout>
+
+          5. Investigue los datos de flujo de su red en la New Relic <InlinePopover type="networkMonitoring"/>UI.
+        </TabsPageItem>
+
+        <TabsPageItem id="linuxInstall">
+          1. Dependiendo de su administrador de paquetes, use uno de los siguientes comandos para instalar `ktranslate`
+
+          * Yum:
+
+            ```shell
+              curl -s https://packagecloud.io/install/repositories/kentik/ktranslate/script.rpm.sh | sudo bash && \
+              sudo yum install ktranslate
+            ```
+
+          * Apt:
+
+            ```shell
+              curl -s https://packagecloud.io/install/repositories/kentik/ktranslate/script.deb.sh | sudo bash && \
+              sudo apt-get install ktranslate
+            ```
+
+          2. Defina las variables de entorno empleadas por `ktranslate`:
+
+             ```shell
+             sudo tee "/etc/default/ktranslate.env" > /dev/null <<'EOF'
+             NR_ACCOUNT_ID=$YOUR_NR_ACCOUNT_ID
+             NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY
+             KT_FLAGS="-snmp /etc/ktranslate/snmp-base.yaml \
+               -metrics=jchf \
+               -flow_only=true \
+               -tee_logs=true \
+               -service_name=$CONTAINER_SERVICE \
+               nr1.flow"
+             EOF
+
+             # ensure /etc/default/ktranslate.env is owned by ktranslate user
+             sudo chown ktranslate:ktranslate /etc/default/ktranslate.env
+             ```
+
+          3. Si no tiene un archivo de configuración `snmp-base.yaml` existente, cree uno con:
+
+             ```shell
+             cd ~
+             touch snmp-base.yaml
+             ```
+
+          4. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos de flujo de red dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               flow_device1:
+                 device_name: flow_device1
+                 device_ip: x.x.x.x/yy
+                 flow_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+          5. Resetear el servicio `ktranslate` para aplicar los cambios al archivo `snmp-base.yaml` :
+
+             ```shell
+             sudo systemctl restart ktranslate
+             ```
+
+          6. Investigue los datos de flujo de su red en la New Relic <InlinePopover type="networkMonitoring"/>UI.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+</CollapserGroup>
+
+## Encuentra y usa tu métrica [#find-your-metrics]
+
+Todo el registro de flujo de red exportado desde el `ktranslate` contenedor utiliza el `KFlow` namespace, a través de la [New Relic de eventos API](/docs/telemetry-data-platform/ingest-apis/introduction-event-api). Actualmente, estos son los campos predeterminados que se completan en esta integración:
+
+<CollapserGroup>
+  <Collapser
+    id="kflow-fields-collapser"
+    title="Campos KFlow"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: '150px' }}>
+            Atributo
+          </th>
+
+          <th style={{ width: '150px' }}>
+            Tipo
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `application`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La clase de programa que genera el tráfico en este registro de flujo. Esto se deriva del valor numérico más bajo de `l4_dst_port` y `l4_src_port`. Los ejemplos comunes incluyen `http`, `ssh` y `ftp`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `device_name`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            El nombre para mostrar del dispositivo de muestreo para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_addr`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La dirección IP de destino para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_as`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El objetivo \[Autonomous System Number] ([https://www.iana.org/assignments/](https://www.iana.org/assignments/) como-números/as-números.xhtml) para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_as_name`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            El objetivo \[Autonomous System Name] ([https://www.iana.org/assignments/](https://www.iana.org/assignments/) as-numbers/as-numbers.xhtml) para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La tupla objetivo `IP:Port` para este registro de flujo. Esta es una combinación de `dst_addr` y `l4_dst_port`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_geo`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            El país objetivo de este registro de flujo, si se conoce.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `in_bytes`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El número de bytes transferidos para registros de flujo de entrada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `in_pkts`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El número de paquetes transferidos para registros de flujo de entrada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `input_port`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            `If_Index` valor para la interfaz en el origen de este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `l4_dst_port`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El puerto de destino para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `l4_src_port`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El puerto de origen de este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `output_port`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            `If_Index` valor para la interfaz en el destino de este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `protocol`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            El nombre para mostrar del protocolo utilizado en este registro de flujo, derivado del \[número de protocolo numérico de la IANA] ([https://www.iana.org/assignments/](https://www.iana.org/assignments/) protocol-numbers/protocol-numbers.xhtml).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `provider`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            Este atributo se utiliza para identificar de forma única varias fuentes de datos de `ktranslate`. El registro de flujo de red siempre tendrá el valor de `kentik-flow-device`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sample_rate`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            Frecuencia de muestreo aplicada por la configuración del dispositivo de muestreo o por el argumento `sample_rate` en `ktranslate`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_addr`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La dirección IP de origen para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_as`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            La fuente \[Autonomous System Number] ([https://www.iana.org/assignments/](https://www.iana.org/assignments/) as-numbers/as-numbers.xhtml) para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_as_name`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La fuente \[Autonomous System Name] ([https://www.iana.org/assignments/](https://www.iana.org/assignments/) as-numbers/as-numbers.xhtml) para este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            La tupla de origen `IP:Port` para este registro de flujo. Es una combinación de `src_addr` y `l4_src_port`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_geo`
+          </td>
+
+          <td>
+            Cadena
+          </td>
+
+          <td>
+            El país de origen de este registro de flujo, si se conoce.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `tcp_flags`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            Banderas TCP en este registro de flujo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            Numérico
+          </td>
+
+          <td>
+            El tiempo, en segundos de Unix, en que la el New Relic Event API recibió este registro de flujo.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## ¿Que sigue?
+
+Puede configurar algún agente adicional para complementar los datos de flujo de su red:
+
+* Para obtener una mejor visibilidad del rendimiento de su dispositivo de red, [configure el monitoreo de datos SNMP](/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring).
+* Para obtener una mejor visibilidad de los mensajes de syslog de su red, [configure el monitoreo de syslog de red](/docs/network-performance-monitoring/setup-performance-monitoring/network-syslog-monitoring).

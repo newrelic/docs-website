@@ -1,0 +1,340 @@
+---
+title: Introducción al monitor Sintético
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Getting started
+metaDescription: 'New Relic synthetic monitoring capabilities give you automated, scriptable tools to monitor your websites, critical business transactions, and API endpoints.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede considerar nuestro monitor Sintético como muñecos de prueba de choque para sus sitios web, aplicaciones y extremos de API. Cuando implementa un monitor Sintético, una verificación de API o una instancia browser virtual ejecuta su flujo de trabajo más importante, prueba su extremo crítico e informa los resultados a New Relic. Si hay un error, falla o anomalía que afecta las aplicaciones orientadas a sus clientes, su monitor Sintético lo detectará y lo alertará, todo antes de que nadie tenga tiempo de darse cuenta.
+
+Nuestras capacidades de monitoreo sintético funcionan en sus aplicaciones internas y también detrás del firewall. Configure una ubicación privada, luego envíe una aplicación en contenedor para administrar los trabajos (es decir, para desplegar el tipo de monitor Sintético que desea desplegar) en un contexto seguro.
+
+## Monitor sintético para monitoreo proactivo [#proactive]
+
+Nuestros monitores Sintético son más que un simple monitor de ping. Sintético puede realizar comprobaciones mediante secuencias de comandos en las aplicaciones internas o orientadas a los clientes, hasta los encabezados HTTP.
+
+Configurar el monitor Sintético con New Relic te permite:
+
+* Amplíe su monitoreo de browser con [un browser con script](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts) real impulsado por Selenium, que prueba los procedimientos de inicio de sesión, búsquedas y otras transacciones comerciales críticas.
+* Ejecute una [prueba de API](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-api-tests) para verificar los certificados o asegurarse de que se complete cualquier tipo de solicitud HTTP.
+* Obtenga una cobertura ampliada de casos de uso con [módulos Node adicionales](/docs/synthetics/synthetic-monitoring/scripting-monitors/import-nodejs-modules) para su monitor API con script.
+* Diagnostique fácilmente si un problema se debe a la red o a la ubicación de AWS, a un recurso de terceros lento o al estado de sus servicios o infraestructura backend.
+
+Puede ver ejemplos de algunos monitores Sintético de origen comunitario en nuestros [inicios rápidos de Sintético](https://newrelic.github.io/quickstarts-synthetics-library/#/). Estos ejemplos son código abierto y no son compatibles con New Relic, pero contienen secuencias de comandos y fragmentos valiosos que pueden ayudarlo a cubrir casos de uso comunes en API secuenciadas y monitorear el navegador con secuencias de comandos.
+
+## Antes de crear tu primer monitor Sintético...
+
+A continuación, puede obtener una descripción general de alto nivel del requisito del sistema, cómo protegemos los datos y cómo puede controlar los permisos.
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="compatibility" title="¿Existe algún requisito del sistema con el monitoreo sintético?">
+    El monitoreo sintético no requiere ningún software excepto un [browsercompatible](/docs/apm/new-relic-apm/getting-started/supported-browsers).
+
+    <Callout variant="important">
+      Para monitorear un sitio detrás de su firewall, agregue las [direcciones IP públicas minion de monitoreo sintético](/docs/synthetics/new-relic-synthetics/using-monitors/synthetics-public-minion-ips) a su lista de &amp;apos;permitidos&amp;apos; o [cree una ubicación privada](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/).
+    </Callout>
+  </Collapser>
+
+  <Collapser className="freq-link" id="privacy" title="¿Qué tipo de datos genera el monitor Sintético?">
+    Los datos del monitoreo sintético son datos de prueba, que representan una interacción común con su página web o aplicación. Nunca son datos reales de humanos reales y, por lo tanto, no contienen datos personales. Para obtener más información, consulte la [documentación de seguridad de monitoreo sintético](/docs/synthetics/new-relic-synthetics/getting-started/security-new-relic-synthetics).
+  </Collapser>
+
+  <Collapser className="freq-link" id="perms" title="¿Cómo funcionan los permisos de New Relic?">
+    Para obtener más información, consulte [Permisos](/docs/synthetics/synthetic-monitoring/administration/user-roles-synthetic-monitoring).
+  </Collapser>
+</CollapserGroup>
+
+## Tipos de monitor sintético
+
+Dependiendo del tipo de monitor Sintético que elijas podrás:
+
+* [Agregar y editar monitor](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors).
+* Utilice [una API](/docs/synthetics/synthetic-monitoring/administration/synthetics-api) para administrar su monitor.
+* Configure monitores desde [ubicaciones específicas o para servidores privados](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations).
+
+También puede utilizar la característica [de host que no informa](/docs/infrastructure/new-relic-infrastructure/configuration/create-infrastructure-host-not-reporting-condition) en [el monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure). Esto le permite aprovechar las opciones de monitoreo mejoradas y recibir notificaciones cuando dejemos de recibir datos de sus hosts.
+
+Estos son los siete tipos de monitor Sintético:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Tipo de monitor sintético
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Monitor de enlaces rotos
+
+        Nombre de API: `BROKEN_LINKS`
+      </td>
+
+      <td>
+        Proporcione una URL y este monitor probará que todos los enlaces de la página sean exitosos. Si se detecta una falla, puede ver los enlaces individuales no exitosos que causaron la falla.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitor de verificación de certificados
+
+        Nombre de API: `CERT_CHECK`
+      </td>
+
+      <td>
+        Haga ping proactivamente a sus certificados de dominio según un umbral configurable. Combínelo con una alerta para asegurarse de recibir una notificación cuando sea necesario renovar sus certificados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitor de ping
+
+        Nombre de API: `SIMPLE`
+      </td>
+
+      <td>
+        Los monitores Ping son el tipo de monitor más simple. Simplemente verifican si una solicitud está en línea. El monitor de ping Sintético utiliza un cliente HTTP Java simple para realizar solicitudes a su sitio.
+
+        Para mantener la coherencia con otros tipos monitor de Sintético, el agente de usuario se identifica como `Google Chrome`. Sin embargo, el cliente HTTP no es un browser completo y no ejecuta JavaScript. Si necesita la funcionalidad de JavaScript, utilice un monitor browser simple.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        monitor de pasos
+
+        Nombre de API: `STEP_MONITOR`
+      </td>
+
+      <td>
+        Los monitores de pasos son monitores avanzados basados browser que no requieren código para configurar.
+
+        El monitor se puede configurar para:
+
+        * Afirmar modal
+        * Afirmar texto
+        * Afirmar título
+        * Afirmar un elemento
+        * Haga clic en un elemento
+        * Descartar un modal
+        * Haga doble clic en un elemento
+        * Ingrese una credencial segura
+        * Pase el cursor sobre un elemento
+        * Localizar un elemento por clase CSS, ID HTML, texto de vínculo, Xpath o valor
+        * Navegar a una URL
+        * Seleccionar de un menú desplegable
+        * Teclee el texto
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitor browser sencillo
+
+        Nombre de API: `BROWSER`
+      </td>
+
+      <td>
+        Los monitores browser simples son scripts de configuración de monitor de browser simples y prediseñados. Realizan una solicitud a su sitio empleando una instancia de Chrome o Firefox.
+
+        En comparación con un simple monitor de ping, esta es una emulación más precisa de la visita de un cliente real.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitorear el browser con script
+
+        Nombre de API: `SCRIPT_BROWSER`
+      </td>
+
+      <td>
+        Monitor de browser con script se utilizan para un monitoreo más sofisticado y personalizado. Puede crear un script personalizado que navegue por su sitio web, realice acciones específicas y garantice la presencia de recursos específicos.
+
+        El monitor admite varios tipos de browser , incluidos Chrome y Firefox. También puede emplear una variedad de [módulos de terceros](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment#runtime-table) para crear su monitor personalizado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pruebas API
+
+        Nombre de API: `SCRIPT_API`
+      </td>
+
+      <td>
+        Las pruebas API se utilizan para monitor sus extremos de API. Esto puede garantizar que el servidor de su aplicación funcione además de su sitio web. New Relic utiliza el [módulo`http-request` ](https://github.com/request/request)internamente para realizar llamadas HTTP a su extremo y validar los resultados.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Puede [agregar y editar el monitor Sintético](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors) directamente en nuestra UI.
+
+## Pruebas avanzadas con browser con script [#advanced]
+
+El monitoreo sintético le permite monitor de forma proactiva su sitio web o extremos de API para garantizar que su contenido no solo esté disponible, sino que también sea completamente funcional. [El navegador con script](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts) envía una instancia real de Chrome o Firefox con Seleniuma su sitio desde ubicaciones en todo el mundo para que pueda estar seguro de que su contenido estará siempre disponible, en todas partes.
+
+El browser con secuencias de comandos amplía sus capacidades de prueba, para que pueda probar flujos de usuarios poco comunes o realizar pruebas beta de procedimientos complejos. Por ejemplo, puede asegurarse de que su usuario pueda suscribirse a su boletín informativo, agregar un artículo a su carrito o buscar y encontrar un contenido crítico con un lenguaje simple similar a JavaScript. Pruebe su backend con el monitor API, que le permite ejecutar pruebas programadas en cualquier extremo de API.
+
+## Característica adicional [#feature-overview]
+
+El monitoreo sintético incluye las siguientes características:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Característica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Browser real
+      </td>
+
+      <td>
+        Para browser simple y para monitorear la configuración del browser , no solo verifican que su host esté activo. Carga el contenido real de la página en un navegador Chrome o Firefox real y totalmente virtualizado (con tecnología Selenium) para proporcionar pruebas que reflejen las acciones del usuario.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Vista detallada de resultados
+      </td>
+
+      <td>
+        El monitoreo sintético almacena cada ejecución de su monitor durante 13 meses, para que pueda [ver un desglose detallado de todas y cada una de las comprobaciones](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding). Puede obtener una instantánea del rendimiento y la disponibilidad de su sitio web o buscar problemas específicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cuadros comparativos con monitoreo de navegador
+      </td>
+
+      <td>
+        Utilice [la característica de gráficos comparativos](/docs/synthetics/new-relic-synthetics/administration/compare-page-load-performance-browser-synthetics) de New Relic para una comparación directa del tiempo de carga de la página entre la interacción del usuario real ([<InlinePopover type="browser" />](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)) y el monitor Sintético. Por ejemplo, durante una interrupción de una página, puede comparar tendencias para ver si un problema también es visible en el monitoreo sintético o si es causado por otras variables.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Emulación de dispositivo
+      </td>
+
+      <td>
+        Emplee [la emulación de dispositivos](/docs/synthetics/synthetic-monitoring/using-monitors/device-emulation) para simular dispositivos móviles o tabletas en browser simple y con scripts, y en un monitor de pasos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        &quot;Tres strikes&quot; antes del fracaso
+      </td>
+
+      <td>
+        Nuestro monitor realiza tres comprobaciones antes de entrar en un estado fallido. Este sistema de golpe múltiple ayuda a reducir el ruido. Para obtener más información sobre esto, consulte [esta publicación del foro sobre el comportamiento de los tres golpes](https://forum.newrelic.com/s/hubtopic/aAX8W0000008b18WAA/relic-solution-understanding-the-three-strikes-behavior-in-synthetics).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo guionado avanzado
+      </td>
+
+      <td>
+        Utilice [un browser con secuencias de comandos](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts) para ejecutar casos de prueba complejos en su sitio web. Asegúrese de que los procesos críticos, como el pago y el inicio de sesión, siempre se ejecuten sin problemas y cree una línea de base para comparar cuando algo salga mal. Con un IDE de script integrado basado en Node.js, cree scripts rápidamente sin salir de su browser.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cobertura de prueba global
+      </td>
+
+      <td>
+        Verifique la cobertura desde ubicaciones alrededor del mundo para asegurarse de que su usuario pueda acceder a su sitio web desde cualquier lugar y en cualquier momento. monitor los sitios detrás de su firewall agregando las [direcciones IP estáticas de monitoreo sintético](/docs/apm/new-relic-apm/getting-started/networks#synthetics-public) a su lista de &amp;apos;permitidos&amp;apos;. Utilice [ubicación privada](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) para monitorear sitios internos o para ampliar su cobertura a nuevas ubicaciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Compatibilidad con la popular plataforma de análisis
+      </td>
+
+      <td>
+        El monitoreo sintético excluye específicamente los scripts para [servicios de análisis populares](https://s3.amazonaws.com/nr-synthetics-assets/default-hostnames-blacklist/production/default-hostnames-blacklist.txt), como Google Analytics. Esto garantiza que sus herramientas de análisis sigan recibiendo exactamente los mismos datos, incluso con miles de monitores revisando su sitio web cada mes.
+
+        Puede [desbloquear](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers#unblock-service) cualquiera de los servicios bloqueados de forma predeterminada o [bloquear](/docs/synthetics/new-relic-synthetics/scripting-monitors/synthetics-scripted-browser-reference#browser-addHostnameToBlacklist) servicios adicionales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Funciones de la API de NerdGraph
+      </td>
+
+      <td>
+        Incluimos monitoreo sintético en NerdGraph, nuestra API GraphQL. NerdGraph contiene una serie de funciones de consulta para Sintético, que puedes revisar en nuestra [documentación de Sintético Nerdgraph](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#query).
+
+        * Las mutaciones de NerdGraph para Sintético te permiten crear, actualizar y eliminar tu monitor. También puedes administrar tus credenciales seguras, ubicación privada y monitor el tiempo de inactividad. Vea ejemplos de [estas mutaciones](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#create-monitors) en nuestra documentación.
+        * Puede crear Sintético desde [el explorador NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer/), que le permite generar consultas y mutaciones en su IaC, OaC, canalización de CI/CD y otras aplicaciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Funciones de API REST (en desuso)
+      </td>
+
+      <td>
+        Las API REST están en desuso. Le recomendamos que utilice NerdGraph en su lugar, ya que los nuevos tiempos de ejecución solo pueden ser administrados por NerdGraph. Para utilizar la API REST, consulte nuestros documentos:
+
+        * [Monitores simples](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitors-via-rest-api) y [monitores con script](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitor-scripts-rest-api)
+        * [Categorías y etiquetas para monitor.](/docs/apis/synthetics-rest-api/monitor-examples/use-synthetics-label-apis)
+        * [Notificación de alerta](/docs/apis/synthetics-rest-api/alert-examples/manage-synthetics-alert-notifications-rest-api)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Terraformar
+      </td>
+
+      <td>
+        Terraform proporciona recursos para cada tipo monitor y credenciales seguras y ubicación privada. Para obtener más información, consulte nuestra [Introducción a Terraform](/docs/more-integrations/terraform/terraform-intro/) o revise [los documentos de Terraform en el registro de Terraform](registry.terraform.io/providers/newrelic/newrelic/latest/docs) .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## ¿Que sigue? [#enhanced-monitoring]
+
+Después de haber configurado algún monitor Sintético, le recomendamos estos siguientes pasos:
+
+* Comprueba cómo tus datos de Sintético convierten tus resultados agregados en [métricas](/docs/synthetics/new-relic-synthetics/dashboards/synthetics-overview-dashboard), permitiéndote ver patrones e identificar causas de bajo rendimiento.
+* Vea cómo se desglosan [todos y cada uno de los resultados del monitor](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding) .
+* ¿Quieres complementar tus datos de Sintético con datos de usuarios reales? Consulte nuestro tutorial [Mejore el rendimiento de su sitio web](/docs/journey-performance/improve-website-performance) .
+* Crea [alertas que te notifiquen](/docs/synthetics/new-relic-synthetics/using-monitors/alerting-synthetics) si tu sitio web o extremos de API son inaccesibles. Incluso puedes ampliar tu cobertura geográfica o monitorear sitios web internos creando [una ubicación privada](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations).
+* También puede [consultar los resultados de su monitor](/docs/using-new-relic/data/understand-data/query-new-relic-data) para verlos más de cerca. New Relic conserva los resultados del monitor durante trece meses, lo que garantiza que pueda comparar el uso año tras año.

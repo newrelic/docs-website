@@ -8,10 +8,6 @@ const unified = require('unified');
 const parse = require('rehype-parse');
 const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
-
-// NOTE: remove-imports and remove-exports are now depreciated
 
 const whatsNewQuery = async (graphql) => {
   const query = `
@@ -81,7 +77,14 @@ const getFeedItem = (node, siteMetadata) => {
 const generateFeed = (publicDir, siteMetadata, reporter, whatsNewNodes) => {
   const title = `What's new in New Relic`;
 
-  const feedPath = path.join('whats-new', 'feed.xml');
+  let feedPath = path.join('whats-new', 'feed.xml');
+  const buildLang = process.env.BUILD_LANG;
+
+  // generate the XML at `<lang>/whats-new/feed.xml` for the i18n sites,
+  // otherwise they'll 404.
+  if (buildLang !== 'en') {
+    feedPath = path.join(buildLang, feedPath);
+  }
 
   // https://github.com/dylang/node-rss#feedoptions
   const feedOptions = {

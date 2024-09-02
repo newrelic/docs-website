@@ -1,0 +1,227 @@
+---
+title: 'Implementación parte 1: Planifique y configure su cuenta'
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: 'Part 1 of the New Relic implementation guide, where you set up your New Relic account and users, and plan out your instrumentation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+_Esta es la primera parte de [nuestra guía de implementación](/docs/new-relic-solutions/get-started/implementation-guide-intro)._
+
+Cuando se registra por primera vez en New Relic, debe tomar algunas decisiones importantes relacionadas con la cuenta y el usuario. En esta etapa de la implementación, podrá:
+
+* Decidir algunas configuraciones importantes relacionadas con la cuenta
+* Piensa en quiénes liderará tu equipo New Relic
+* Piensa en qué componentes de tu sistema deberías instrumentar
+* Piensa en algunas estrategias para organizar tus datos.
+
+## Configuración inicial de la cuenta [#account-setup]
+
+Cuando te [registras en New Relic](https://newrelic.com/signup), obtienes una _organización New Relic_. Esta organización es el contenedor de los datos, las cuentas y el usuario de su organización. Aquí hay algunas cosas iniciales importantes a considerar.
+
+### Decidir la región del centro de datos [#data-center]
+
+Cuando se registra en New Relic, debe elegir en cuál de nuestras dos regiones del centro de datos estará su organización: EE. UU. o UE. Hay algunas diferencias entre las regiones: por ejemplo, tienen diferentes extremos de API y tienen algunas diferencias características. [Obtenga más información sobre las regiones del centro de datos.](/docs/accounts/accounts-billing/account-setup/choose-your-data-center/)
+
+### Piensa en la edición que necesitarás [#edition]
+
+Una organización de New Relic puede utilizar New Relic [gratis y para siempre](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#free). Cuando una organización de New Relic comienza a pagar por New Relic, puede estar en una de tres ediciones: <DNT>**Standard**</DNT>, <DNT>**Pro**</DNT> o <DNT>**Enterprise**</DNT>. Siempre puede actualizar su edición más adelante, pero para organizaciones más grandes puede tener sentido mirar las ediciones para comprender las características de cada una y en cuál probablemente terminará: [consulte nuestra página de precios](https://newrelic.com/pricing).
+
+### Decidir sobre las necesidades de cumplimiento de seguridad [#security-compliance]
+
+New Relic ofrece un alto nivel de seguridad de forma predeterminada ([lea más sobre nuestra característica de seguridad](https://newrelic.com/security)). Pero ciertas industrias requieren niveles mucho más altos de cumplimiento de seguridad (por ejemplo, instituciones financieras y de atención médica). Para estas organizaciones, ofrecemos cumplimiento de seguridad FedRAMP e HIPAA. Estas opciones de cumplimiento requieren tanto la edición Enterprise ([obtenga más información sobre las ediciones](https://newrelic.com/pricing)) como nuestra opción Data Plus. Data Plus le brinda acceso a algunas características de datos poderosas, como una mayor retención y límites de consulta más altos. [Lea más sobre los beneficios de Data Plus.](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)
+
+Para obtener más información sobre nuestra característica de cumplimiento, consulte los documentos:
+
+* [FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints)
+* [HIPAA](/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/)
+
+## Decidir sobre los líderes del equipo [#admin-users]
+
+Querrá decidir cuáles de los miembros de su equipo serán los líderes iniciales del equipo de New Relic. Estos serán los miembros del equipo que realicen uno o más de los siguientes:
+
+* Instalar y configurar instrumentación
+* Agregar y administrar usuario de New Relic
+* Supervisar la facturación
+* Capacita a tu usuario y responde preguntas
+
+Aquí hay algunas cosas a considerar al agregar líderes de equipo:
+
+* <DNT>
+    **Assign user type based on expected duties.**
+  </DNT>
+
+  Para tareas administrativas, debe convertir su usuario en usuario principal o de plataforma completa. [Obtenga más información sobre el tipo de usuario.](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+
+* <DNT>
+    **Assign users to appropriate [groups](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#understand-concepts).**
+  </DNT>
+
+  Opciones para agregar administradores a grupos:
+
+  * Agréguelos al [grupo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#default-groups)
+
+    <DNT>
+      [**Admin**](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#default-groups)
+    </DNT>
+
+    [](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#default-groups)predeterminado, que da acceso a todo.
+
+  * Deles el [rol](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#group-admin)
+
+    <DNT>
+      [**Group admin**](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#group-admin)
+    </DNT>
+
+    [](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#group-admin), que les otorga la posibilidad de agregar o eliminar usuarios para grupos específicos.
+
+  * Crea un [grupo personalizado](/docs/accounts/accounts-billing/new-relic-one-user-management/account-user-mgmt-tutorial/#grants-ui).
+
+Recomendamos utilizar una hoja de cálculo para planificar las responsabilidades de New Relic de su usuario.
+
+## Entender la facturación [#understand-billing]
+
+Su equipo debe comprender cuáles son los factores de facturación y qué obtiene de forma gratuita.
+
+<img
+  title="New Relic usage UI"
+  alt="New Relic usage UI"
+  src="/images/alerts_screenshot-crop_usage-ui.webp"
+/>
+
+<figcaption>
+  La UI de uso le muestra sus datos de ingesta.
+</figcaption>
+
+¿Quiere estimar los costos futuros? [Consulte nuestra publicación de blog sobre estimación de ingesta.](https://newrelic.com/blog/nerdlog/estimate-data-cost)
+
+## Piense en los objetivos y planes de instrumentación [#plan-instrumentation]
+
+Para aprovechar al máximo New Relic, querrá dedicar algo de tiempo a pensar en sus objetivos de observabilidad y en lo que necesitará instrumentar para lograr esos objetivos. Cuanto más grande sea su organización, más importante será esta planificación.
+
+<img
+  title="Trace details page"
+  alt="New Relic distributed tracing UI - trace details page"
+  src="/images/alerts_screenshot-full_distributed-tracing-trace-details-page.webp"
+/>
+
+<figcaption>
+  Una vista de nuestra UI de rastreo distribuido. Cuantos más componentes del sistema instrumente, más completa será su visibilidad y más efectivos serán sus esfuerzos de observabilidad.
+</figcaption>
+
+Algunos consejos para tener más claridad sobre sus planes de instrumentación:
+
+* Piense en cuáles son sus objetivos de observabilidad y cómo los alcanzará. ¿Cuáles son las principales unidades de negocio involucradas? ¿Cuáles son los indicadores de rendimiento clave que utilizará para medir el éxito?
+* Si ha utilizado otras soluciones de monitoreo en el pasado, piense en cuáles han sido los puntos débiles y cómo podría mejorar las cosas esta vez.
+* Realice un diagrama de la arquitectura de su sistema, tanto de hardware como de software. ¿Qué componentes están en las instalaciones y qué componentes están en la nube? Decide qué entidad (aplicaciones, hosts, servicios, etc.) necesitarás monitor para lograr tus objetivos.
+* Cree una hoja de cálculo que describa la entidad de su monitor y cómo se relacionan con sus equipos u otras unidades de negocio.
+* ¿Quieres utilizar New Relic para todas tus necesidades de observabilidad? ¿O planea utilizar una variedad de herramientas? Puede resultar valioso cambiar a New Relic para todo, de modo que todos sus datos estén en un solo lugar. Tenga en cuenta que también puede reenviar datos de otros servicios a New Relic. ([Conozca algunas herramientas y servicios de telemetría comunes que admitimos).](/docs/data-apis/custom-data/get-custom-data-from-any-source/#third-party-telemetry)
+
+Éstas son algunas cosas en las que quizás quieras pensar. Si desea obtener orientación detallada sobre cómo lograr una observabilidad óptima, consulte [nuestra serie <DNT>**Observability maturity**</DNT> ](/docs/new-relic-solutions/observability-maturity/introduction)(por ejemplo, [esta guía sobre cómo determinar qué instrumentar](/docs/new-relic-solutions/observability-maturity/operational-efficiency/service-characterization-optimize-telemetry-data-guide)).
+
+## Piense en la organización de datos [#data-organization]
+
+Cuanto más organizados estén tus datos de New Relic, más fácil será:
+
+* Busca y consulta tus datos
+
+* Crea
+
+  <InlinePopover type="alerts"/>
+
+  para tus datos
+
+* Resolver un problema
+
+Algunas estrategias importantes para organizar sus datos son:
+
+* Utilice
+
+  <DNT>
+    [**tags**](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data)
+  </DNT>
+
+  para ver rápidamente las relaciones entre la entidad del monitor, lo que le ayudará a solucionar problemas más fácilmente. Es importante tener una estrategia de etiquetas sólida. Por ejemplo, es una buena práctica que todos utilicen la misma estructura de denominación de etiquetas y utilizar la misma etiqueta de forma consistente. Si aún no tiene una, considere crear una estrategia de etiquetas para su organización.
+
+* Utilice nuestra [característica](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)
+
+  <DNT>
+    [**workloads**](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)
+  </DNT>
+
+  [](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)para agrupar aplicaciones, servicios, hosts y otras entidades relacionadas en grupos relevantes para el negocio y ver información sobre ellos en un dashboard. Dedique algún tiempo a pensar en cómo podría agrupar la entidad relacionada en carga de trabajo.
+
+Volveremos a mencionar etiqueta y carga de trabajo más adelante en esta guía, pero si su organización es grande, podría ser útil pensar un poco en estas cosas ahora.
+
+## Considere varias cuentas [#multiple-accounts]
+
+Usar varias cuentas es otra forma potencial de organizar sus datos.
+
+Cuando te registras en New Relic, se crea una organización New Relic que tiene una sola cuenta. Pro o edición Enterprise te permiten tener varias cuentas: en caso contrario, sólo podrás tener una.
+
+[Obtenga más información sobre por qué agregaría cuentas](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure#add-accounts).
+
+Recomendamos utilizar una hoja de cálculo para planificar las cuentas que necesitará y realizar un seguimiento de los ID de las cuentas: puede ser la misma hoja de cálculo que utiliza para planificar el acceso de los usuarios.
+
+## Comprender las API disponibles [#apis]
+
+Comprender algunos conceptos básicos sobre nuestras API será útil más adelante durante la instrumentación y configuración. Nuestras API incluyen:
+
+* Nuestro
+
+  <DNT>
+    **data ingest APIs**
+  </DNT>
+
+  : estas son nuestras API para nuestros cuatro tipos de datos principales: métrica, evento, log y traza. Nuestras herramientas de generación de informes de datos envían datos a través de estas API, y las API también se pueden utilizar directamente. Nuestra principal clave de ingesta de datos es
+
+  <InlinePopover type="licenseKey"/>
+
+  . La clave de licencia está vinculada a una ID de cuenta específica. Nuestras opciones de instalación más automatizadas incluyen la clave de licencia correcta para usted.
+
+* Nuestro
+
+  <DNT>
+    **GraphQL-format API**
+  </DNT>
+
+  , al que llamamos
+
+  <DNT>
+    **NerdGraph**
+  </DNT>
+
+  . Esto se usa para todo excepto para la ingesta de datos, desde consultar sus datos hasta configurar la característica New Relic. NerdGraph requiere un
+
+  <InlinePopover type="userKey"/>
+
+  , que es una clave personal única para cada usuario.
+
+[Obtenga más información sobre nuestras API.](/docs/apis/intro-apis/introduction-new-relic-apis/)
+
+## Planificar y agregar usuario [#plan-add-users]
+
+Hasta ahora, has agregado a tus administradores de New Relic pero probablemente aún no hayas agregado otro usuario.
+
+Para organizaciones con aproximadamente 15 usuarios o más, es útil planificar el acceso a New Relic de su usuario. Este es especialmente el caso si necesita un control granular sobre a qué cuentas y roles podrá acceder su usuario. Pero si solo tendrá unos pocos usuarios, o si planea darle a la mayoría o a todos sus usuarios acceso a todas las características de New Relic, es menos importante planificar el acceso de los usuarios.
+
+Tenga en cuenta que solo [las ediciones](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) Pro y Enterprise permiten múltiples cuentas, la capacidad de agregar grupos y roles personalizados y la capacidad de tener más de cinco usuarios de plataforma completa. Esto significa que si tienes la edición Free o Standard, planificar tu usuario es menos importante.
+
+Algunos pasos sugeridos:
+
+* [Lea algunos conceptos básicos de cómo funciona nuestro sistema de gestión de usuarios.](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts)
+* Planifica qué miembros del equipo tendrán acceso a New Relic, cuál será su [tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) y a qué cuentas tendrán acceso.
+
+¿Listo para agregar usuario? Algunas opciones:
+
+* ¿Quiere utilizar el inicio de sesión único o administrar su usuario desde su proveedor de identidad? [Vea nuestras opciones de inicio de sesión y gestión de usuarios.](/docs/accounts/accounts-billing/new-relic-one-user-management/introduction-saml-scim)
+* ¿Quiere agregar usuarios manualmente desde nuestra UI? Consulte [Agregar usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/account-user-mgmt-tutorial#add-users).
+* ¿Quiere administrar cuentas y usuarios mediante programación? Consulte [nuestros documentos de la API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-user-mgmt).
+
+También tenga en cuenta que siempre puede agregar un usuario más tarde, después de haber obtenido el informe de datos.
+
+## Siguiente etapa [#next]
+
+¿Listo para continuar su viaje de implementación? [Pasar a la siguiente etapa: instrumentación.](/docs/new-relic-solutions/get-started/implementation-guide-instrument)

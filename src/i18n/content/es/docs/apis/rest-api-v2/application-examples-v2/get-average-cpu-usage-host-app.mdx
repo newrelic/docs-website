@@ -1,0 +1,55 @@
+---
+title: Obtenga el uso promedio de CPU por host para una aplicación
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: Use New Relic's REST API v2 or the API Explorer to get average CPU usage per by host.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar la API REST de New Relic (v2) para obtener el uso promedio de CPU para su aplicación en un solo host. Este valor aparece en la [página APM <DNT>**Summary**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page)de la tabla <DNT>**Hosts**</DNT> , en la columna denominada <DNT>**CPU usage**</DNT>.
+
+## Obtener el uso de CPU para un host
+
+Para obtener el uso promedio de CPU para uno de los hosts de su aplicación, use un solo comando para obtener la métrica `names[]=CPU/User+Time` con `values[]=percent`. Este ejemplo muestra el rango de tiempo para el [período de tiempo predeterminado](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) (últimos 30 minutos):
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/hosts/$HOST_ID/metrics/data.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d 'names[]=CPU/User+Time&values[]=percent&summarize=true'
+```
+
+* Reemplace `$APP_ID` y `$API_KEY` con su [ID de aplicación](/docs/apm/apis/requirements/identification-code) y su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+* Reemplace el `$HOST_ID` con el [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) de su host objetivo.
+
+Para detalles adicionales:
+
+* Elimine `summarize=true` para obtener [datos detallados de series temporales.](/docs/apis/rest-api-v2/requirements/calculating-average-metric-values-summarize)
+* Especifique un [rango de tiempo](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) diferente.
+
+<Callout variant="tip">
+  Para obtener la misma información del [Explorador de API de New Relic (v2)](https://rpm.newrelic.com/api/explore), seleccione [<DNT>**Application Hosts > GET Metric Data**</DNT>](https://rpm.newrelic.com/api/explore/application_hosts/data) e incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key). Agregue su [ID de la aplicación](/docs/apm/apis/requirements/identification-code), [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) y las métricas `names[]=CPU/User Time` y `values[]=percent` en los campos correspondientes.
+</Callout>
+
+## Obtenga uso de CPU para toda la aplicación [#api-call]
+
+Para obtener el uso promedio de CPU para su aplicación, use un comando similar al del ejemplo anterior pero sin la referencia a `host_id`:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d 'names[]=CPU/User+Time&values[]=percent&summarize=true'
+```
+
+* Reemplace `$APP_ID` y `$API_KEY` con su [ID de aplicación](/docs/apm/apis/requirements/identification-code) y su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+Para detalles adicionales:
+
+* Elimine `summarize=true` para obtener [datos detallados de series temporales.](/docs/apis/rest-api-v2/requirements/calculating-average-metric-values-summarize)
+* Especifique un [rango de tiempo](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) diferente.
+
+<Callout variant="tip">
+  Para obtener la misma información del [Explorador de API de New Relic (v2)](https://rpm.newrelic.com/api/explore), seleccione [<DNT>**Applications > GET Metric Data**</DNT>](https://rpm.newrelic.com/api/explore/applications/data) e incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key). Añade tu [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y la métrica `names[]=CPU/User Time` y `values[]=percent` en los campos correspondientes.
+</Callout>

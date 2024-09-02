@@ -1,0 +1,164 @@
+---
+title: 'EntityCountQuery'
+metaDescription: 'Learn how to work the EntityCountQuery component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Query the number of entities available for each entityDomain and entityType.
+
+### Usage
+
+```js
+import { EntityCountQuery } from 'nr1'
+```
+
+### Examples
+
+#### Declarative query
+
+```js
+<EntityCountQuery>
+  {({ loading, error, data }) => {
+    if (loading) {
+      return <Spinner />;
+    }
+
+
+    if (error) {
+      return 'Error!';
+    }
+
+
+    return (
+      <List items={data.types} rowCount={data.types.length} rowHeight={20}>
+        {({ item }) => (
+          <ListItem key={item.name}>
+            {item.domain}|{item.type}: {item.count}
+          </ListItem>
+        )}
+      </List>
+    );
+  }}
+</EntityCountQuery>
+```
+
+#### Imperative query
+
+```js
+EntityCountQuery.query().then(({ data }) => console.log(data));
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>function</h5>
+      </td>
+
+      <td>
+        Render prop function as a child.
+
+        <FunctionDefinition
+          returnValue={[{"type":"React.ReactNode","description":""}]}
+          arguments={[{"name":"queryResult","type":"QueryResult","description":"Results of the query."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetchPolicyType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Allows you to specify how you want your query to interact with the cached data.
+
+        * `CACHE_AND_NETWORK`: The query returns your initial data from the cache if available. However, regardless of whether or not the full data is in your cache, the query always makes a request using your network interface and returns the updated data. This option is not available when using the static `query()` method of the component.
+        * `CACHE_FIRST`: The query makes a request using your network interface **only** if the data for your query is not already in the cache.
+        * `CACHE_ONLY`: The query **never** makes a request using your network interface. Instead it returns the data available in the cache. If the data for your query does not exist in the cache, then an error is thrown.
+        * `NETWORK_ONLY`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface.
+        * `NO_CACHE`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface. Unlike the `NETWORK_ONLY` policy, it does not write any data to the cache after the query completes.
+
+          <OptionReference>
+            EntityCountQuery.FETCH_POLICY_TYPE.CACHE_AND_NETWORK,
+            EntityCountQuery.FETCH_POLICY_TYPE.CACHE_FIRST,
+            EntityCountQuery.FETCH_POLICY_TYPE.CACHE_ONLY,
+            EntityCountQuery.FETCH_POLICY_TYPE.NETWORK_ONLY,
+            EntityCountQuery.FETCH_POLICY_TYPE.NO_CACHE
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `filters` <h5>string|(shape|shape|shape)\[]</h5>
+      </td>
+
+      <td>
+        Filters used to narrow down the entities.This is an array of filters, and there are 3 possible filters:
+
+        * SearchQueryFilter: `Object<type: string = "searchQuery", value: string>`
+        * EntityTypeFilter: `Object<type: string = "entityType", Object<domain: string, type: string>>`
+        * TagFilter: `Object<type: string = "tag", Object<key: string, value: string>>`
+
+        ```js
+        const filters = [
+          {
+            type: 'searchQuery',
+            value: 'foo',
+          },
+          {
+            type: 'entityType',
+            value: { domain: 'APM', type: 'APPLICATION' },
+          },
+          {
+            type: 'tag',
+            value: { key: 'environment', value: 'production' },
+          },
+          {
+            type: 'tag',
+            value: { key: 'team', value: 'bar' },
+          },
+        ];
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `pollInterval` <h5>number</h5>
+      </td>
+
+      <td>
+        Interval in milliseconds to poll for new data. Set to zero to avoid any kind of regular polling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `skip` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When set to `true`, the query will be skipped entirely from rendering.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `EntityCountQuery.query`
+
+<FunctionDefinition
+  arguments={[{"description":"Object containing the query options. Any `EntityCountQuery` prop is a valid option except `children` and `pollInterval`.","name":"props","type":"Object"}]}
+  returnValue={{"description":"","type":"PromiseQueryResult"}}
+/>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"PromiseQueryResult","properties":[{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>
+
+<TypeDefReference typeDef={{"name":"QueryResult","properties":[{"description":"Indicates that the request is in flight.","name":"loading","type":"boolean"},{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>

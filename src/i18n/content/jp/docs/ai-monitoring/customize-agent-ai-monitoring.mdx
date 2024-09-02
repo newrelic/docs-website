@@ -1,0 +1,184 @@
+---
+title: AIモニタリング用エージェントのカスタマイズ
+metaDescription: You can apply certain configurations to your APM agents to change how your AI data appears in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[AI モニタリングをインストールする](/install/ai-monitoring)と、エージェントのデフォルトの動作を構成したり、さまざまな種類のデータを収集するようにアプリを更新したりできます。
+
+## エージェントを構成します [#configure-agents]
+
+AI モニタリングのデフォルトのエージェント動作を次のエージェント設定ドキュメントで更新します。
+
+<CollapserGroup>
+  <Collapser
+    id="go-config"
+    title="設定に行く"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#ai-monitoring-enabled)
+    * [`ai_monitoring.streaming.enabled`](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#ai-monitoring-streaming)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#ai-monitoring-record-content)
+    * [`ConfigCustomInsightsEventsMaxSamplesStored`](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#env-var-table)
+  </Collapser>
+
+  <Collapser
+    id="dotnet-config"
+    title=".NET 設定"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#ai_monitoring)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#aiMonitoring_recordContent)
+    * [`customEvents.maximumSamplesStored`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#customevents-maximumSamplesStored)
+    * [`spanEvents.maximumSamplesStored`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#span-max-samples-stored)
+  </Collapser>
+
+  <Collapser
+    id="java-config"
+    title="Javaの設定"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#ai-monitoring-enabled)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#ai-monitoring-record-content)
+    * [`custom_insights_events.max_samples_stored`](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#cie-max_samples_stored)
+    * [`span_events.max_samples_stored`](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#cfg-span-events-max-samples-stored)
+  </Collapser>
+
+  <Collapser
+    id="nodejs-config"
+    title="Node.jsの設定"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#ai-monitoring-enabled)
+    * [`ai_monitoring.streaming.enabled`](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#ai-monitoring-streaming)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#ai-monitoring-record-content)
+    * [`custom_insights_events.max_samples_stored`](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#custom_events_max_samples_stored)
+    * [`span_events.max_samples_stored`](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#span-events-max-samples-stored)
+  </Collapser>
+
+  <Collapser
+    id="python-config"
+    title="Pythonの設定"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#ai-monitoring-enabled)
+    * [`ai_monitoring.streaming.enabled`](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#ai-monitoring-streaming)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#ai-monitoring-record-content)
+    * [`event_harvest_config.harvest_limits.span_event_data`](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#harvest-limits-span-event-data)
+    * [`event_harvest_config.harvest_limits.custom_event_data`](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#harvest-limits-custom-event-data)
+  </Collapser>
+
+  <Collapser
+    id="ruby-config"
+    title="Ruby設定"
+  >
+    * [`ai_monitoring.enabled`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#ai-monitoring-enabled)
+    * [`instrumentation.ruby_openai`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#ruby-openai)
+    * [`ai_monitoring.record_content.enabled`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#ai-monitoring-record-content)
+    * [`span_events.max_samples_stored`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#custom_insights_events-max_samples_stored)
+    * [`custom_insights_events.max_samples_stored`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#span_events-max_samples_stored)
+  </Collapser>
+</CollapserGroup>
+
+## トークンカウント方法 [#enable-token]
+
+`ai_monitoring.record_content.enabled`を無効にしていない場合は、トークン カウント コールバック API を実装する必要はありません。
+
+`ai_monitoring.record_content.enabled` を無効にすると、エージェントが AI コンテンツをNew Relicに送信できなくなりますが、エージェントがアプリでインタラクションのカウントを転送することもできなくなります。 アプリコードにコールバックを実装してローカルでトークン数を特定し、その情報を New Relic に転送することができます。
+
+トークンのカウントをローカルで設定する例については、以下のドキュメントを参照してください。
+
+<CollapserGroup>
+  <Collapser
+    id="go-token-method"
+    title="Go トークンカウント方法"
+  >
+    [`SetLLMTokenCountCallback`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#Application.SetLLMTokenCountCallback)については Go API ドキュメントを参照してください
+  </Collapser>
+
+  <Collapser
+    id="dotnet-token-method"
+    title=".NET トークンカウントメソッド"
+  >
+    [`SetLlmTokenCountingCallback`](/docs/apm/agents/net-agent/net-agent-api/setllmtokencountingcallback-net-agent-api)については API ドキュメントを参照してください
+  </Collapser>
+
+  <Collapser
+    id="java-token-method"
+    title="Javaトークンカウントメソッド"
+  >
+    [`setLlmTokenCountCallback`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#setLlmTokenCountCallback)については API ドキュメントを参照してください
+  </Collapser>
+
+  <Collapser
+    id="nodejs-token-method"
+    title="Node.js トークンカウントメソッド"
+  >
+    以下については API ドキュメントを参照してください。
+
+    * [`setLlmTokenCountCallback`](https://newrelic.github.io/node-newrelic/API.html#setLlmTokenCountCallback)
+    * [`getTraceMetadata`](https://newrelic.github.io/node-newrelic/API.html#getTraceMetadata)
+  </Collapser>
+
+  <Collapser
+    id="python-token-method"
+    title="Pythonのトークンカウント方法"
+  >
+    [`set_llm_token_count_callback`](/docs/apm/agents/python-agent/python-agent-api/setllmtokencountcallback-python-agent-api)については API ドキュメントを参照してください。
+  </Collapser>
+
+  <Collapser
+    id="ruby-token-method"
+    title="Rubyのトークンカウント方法"
+  >
+    [`NewRelic::Agent.set_llm_token_count_callback`](/docs/apm/agents/ruby-agent/api-guides/ruby-ai-monitoring-apis)については API ドキュメントを参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## ユーザーフィードバックの方法 [#enable-feedback]
+
+エンドユーザーが AI 応答に関するフィードバックを残すことができる場合、このデータを AI モニタリング応答テーブルに転送できます。 これを行うには、コールバック メソッドを使用して AI イベント データからのトレース ID を関連付けるようにアプリ コードを更新します。
+
+この種の情報を転送するには、次の 2 つのメソッドを実装する必要があります。
+
+<CollapserGroup>
+  <Collapser
+    id="go-feedback-methods"
+    title="Go のフィードバック方法"
+  >
+    以下については Go API ドキュメントを参照してください。
+
+    * [`GetTraceMetadata`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#Application.getTraceMetadata)
+    * [`RecordLLMFeedbackEvent`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#Application.RecordLLMFeedbackEvent)
+  </Collapser>
+
+  <Collapser
+    id="java-feedback-methods"
+    title="Javaフィードバックメソッド"
+  >
+    以下の Java API ドキュメントを参照してください。
+
+    * [`TraceMetadata.getTraceId()`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TraceMetadata.html#getTraceId)
+    * [`recordLlmFeedbackEvent`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent)
+  </Collapser>
+
+  <Collapser
+    id="nodejs-feedback-methods"
+    title="Node.js のフィードバック メソッド"
+  >
+    [`recordLlmFeedbackEvent`](https://newrelic.github.io/node-newrelic/API.html#recordLlmFeedbackEvent)の API ドキュメントを参照してください。
+  </Collapser>
+
+  <Collapser
+    id="python-feedback-methods"
+    title="Python フィードバックメソッド"
+  >
+    以下については API ドキュメントを参照してください。
+
+    * [`newrelic.agent.current_trace_id()`](/docs/apm/agents/python-agent/python-agent-api/currenttraceid-python-agent)
+    * [`record_llm_feedback_event`](/docs/apm/agents/python-agent/python-agent-api/recordllmfeedbackevent-python-agent-api)
+  </Collapser>
+
+  <Collapser
+    id="ruby-feedback-methods"
+    title="Rubyのフィードバック方法"
+  >
+    [`NewRelic::Agent.record_llm_feedback_event`](/docs/apm/agents/ruby-agent/api-guides/ruby-ai-monitoring-apis/#user-feedback)の API ドキュメントを参照してください。
+  </Collapser>
+</CollapserGroup>

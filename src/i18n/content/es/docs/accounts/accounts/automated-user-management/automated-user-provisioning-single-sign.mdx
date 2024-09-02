@@ -1,0 +1,85 @@
+---
+title: Introducción a la gestión automatizada de usuarios (aprovisionamiento SCIM)
+tags:
+  - Accounts
+  - Accounts and billing
+  - Automated user management
+metaDescription: 'Intro to New Relic automatic user management: support for SCIM provisioning for OneLogin, Okta, Azure AD, and more.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic le permite configurar la administración automatizada de usuarios (AUM), que le permite importar, actualizar y desactivar su usuario de New Relic a través del aprovisionamiento SCIM desde su proveedor de identidad (por ejemplo, Azure AD, Okta o OneLogin).
+
+## Beneficios [#benefits]
+
+Antes de leer los beneficios de la gestión automatizada de usuarios, recomendamos leer [Comenzar con SAML SSO y SCIM](/docs/accounts/accounts-billing/new-relic-one-user-management/introduction-saml-scim).
+
+Los beneficios de habilitar la gestión automatizada de usuarios incluyen:
+
+* Eficiencia de tiempo y costos: cuando realiza cambios en su proveedor de identidad, como crear, actualizar y eliminar usuarios, estos cambios se reflejan automáticamente en New Relic. Al poder administrar un gran conjunto de usuarios desde su proveedor de identidad, reduce la carga de trabajo de sus administradores que de otra manera necesitarían hacer una cantidad significativa de trabajo en New Relic para lograr lo mismo.
+* Mayor productividad: al tener una forma más automática de configurar usuarios y grupos, sus usuarios estarán habilitados y listos más rápidamente para usar New Relic.
+* Seguridad mejorada: SCIM es un protocolo estándar de la industria para mantener grupos de usuarios.
+* El uso de esta característica requiere SAML SSO, por lo que una vez que su usuario se agrega a New Relic, puede log sesión utilizando su proveedor de identidad.
+* Los proveedores de identidad populares Azure AD, Okta y OneLogin tienen aplicaciones New Relic dedicadas, lo que mejora la facilidad de habilitación.
+
+## Requisitos y limitaciones [#requirements]
+
+Revise antes de habilitar la gestión automatizada de usuarios:
+
+* Requiere [edición Pro o Enterprise](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions).
+
+* Una vez que un [dominio de autenticación](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more) está configurado en SCIM,
+
+  <DNT>
+    **must**
+  </DNT>
+
+  usa SCIM para administrar sus grupos y usuarios, y no puede administrarlos a través de nuestra UI. Una vez que un dominio de autenticación está configurado en SCIM, no se puede cambiar a una configuración que no sea SCIM.
+
+* Admitimos el estándar SCIM 2.0. Tres proveedores de identidades tienen una aplicación New Relic: Azure AD, Okta y OneLogin. Si tiene otro proveedor de identidad, utilice nuestra [API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management).
+
+  * PingOne de Ping Identity no es compatible porque no permite el aprovisionamiento de grupos.
+
+* Inicio de sesión único (SSO): admitimos el estándar SAML 2.0.
+
+* Requisitos relacionados con los permisos:
+
+  * Debes estar en nuestro [modelo de usuario más nuevo](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models). Esta característica crea un usuario en ese modelo.
+
+  * Debe tener un [tipo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) de usuario principal o usuario de plataforma completa y estar en un grupo con la [configuración de administrador](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings)
+
+    <DNT>
+      [**Authentication domain**](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings)
+    </DNT>
+
+    [](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings).
+
+* Antes de habilitarlo, debe configurar [grupos de usuarios](/docs/accounts/accounts/automated-user-management/roles-permissions-automated-user-management) en su servicio de proveedor de identidad y pensar a qué roles y cuentas de New Relic tendrán acceso esos grupos.
+
+* Algunos proveedores de identidad tienen un estado `suspended` para usuario. No apoyamos eso. Un usuario en ese estado no será visible ni manejable desde nuestra UI, pero aún será facturable y seguirá teniendo acceso a su clave de API de usuario.
+
+## Configurar la gestión automatizada de usuarios [#how-to]
+
+Para obtener una explicación de cómo se asignan sus grupos de proveedores de identidad a los grupos de New Relic, consulte [Cómo se asignan sus grupos](/docs/accounts/accounts/automated-user-management/roles-permissions-automated-user-management).
+
+Para utilizar la gestión automatizada de usuarios para importar usuarios desde su proveedor de identidad:
+
+1. Recomendado: primero revisar los [requisitos](#requirements).
+
+2. En la [UIde usuario del dominio de autenticación](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#ui), cree un nuevo dominio de autenticación. Suponiendo que desea SCIM y SAML SSO, habilítelos para el dominio de autenticación. Realizarás más configuraciones de esos ajustes más adelante, pero por ahora solo crea .
+
+3. Si usa Azure AD, Okta o OneLogin, use la guía correspondiente: [Azure AD](/docs/azure-scimsso-application-configuration) \| [Okta](/docs/okta-scimsso-application-configuration) \| [Un inicio de sesión](/docs/onelogin-scimsso-application-configuration).
+
+4. Si <DNT>**don't**</DNT> utiliza uno de los servicios anteriores, deberá:
+
+   * Utilice la UI de usuario del dominio de autenticación para [habilitar SCIM como origen de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#source-users).
+   * Utilice nuestra [API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management) para integrarla con su servicio de proveedor de identidad. Consulte [el tutorial de la API de SCIM](/docs/accounts/accounts/automated-user-management/tutorial-manage-users-groups-scim) para conocer todos los pasos necesarios.
+
+5. <DNT>**Recommended**</DNT>: establezca una zona horaria en su proveedor de identidad. La forma de hacerlo depende del servicio que utilice. Si no configura una zona horaria, nuestra UI utiliza la zona horaria UTC (especificada en el formato IANA, también conocido como formato "Olson": por ejemplo, "América/Los_Angeles"). Su usuario también tiene la opción de anular su configuración y [establecer su propia zona horaria](/docs/accounts/accounts-billing/general-account-settings/default-time-zone-setting).
+
+Si tiene problemas, comuníquese con su representante de cuenta.
+
+Después de ser aprovisionado, su usuario puede hacer clic en el mosaico de la aplicación SCIM/SSO de New Relic en su proveedor de identidad para iniciar sesión en New Relic.
+
+Para obtener más información sobre los roles y permisos de New Relic, consulte [Roles estándar](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#standard-roles).

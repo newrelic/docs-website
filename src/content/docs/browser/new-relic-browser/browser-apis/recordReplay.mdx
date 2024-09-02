@@ -1,0 +1,48 @@
+---
+title: recordReplay
+type: apiDoc
+shortDescription: A method used to force a replay to start recording
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser Agent
+metaDescription: A method used to force a replay to start recording
+redirects:
+freshnessValidatedDate: 2024-04-22
+---
+
+## Syntax
+
+```js
+newrelic.recordReplay()
+```
+
+Browser API used to force a replay to start recording.
+
+## Requirements
+
+* Browser Pro, or Pro+SPA agent (v1.240.0 or higher)
+
+## Description
+
+`newrelic.recordReplay()` can be called to manually force a replay to begin recording. You must meet the following requirements:
+
+* Account is entitled to record replays
+* Session Tracking is Enabled
+* Session Trace is Enabled
+* Browser mutation observer global is present in the current version of the browser being used
+* The Session Replay feature is either normally imported, or set to `autoStart: false` and has already been "started"
+
+If a replay is already in progress, or not all of the above criteria are met, this API method will have no effect.
+
+## Use Cases
+
+* You want to manually trigger a replay to record on certain site pages or under certain conditions, regardless of the sampling settings.
+
+## Examples
+
+### Forcing a replay to start recording
+
+```js
+newrelic.recordReplay()
+```

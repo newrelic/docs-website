@@ -1,0 +1,171 @@
+---
+title: Configurar ProGuard o DexGuard para aplicaciones de Android
+tags:
+  - Mobile monitoring
+  - New Relic Mobile Android
+  - Install configure
+metaDescription: How to configure the Android agent for ProGuard and DexGuard
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Siga estas instrucciones para admitir ProGuard o DexGuard con el agente de Android. Consulte [nuestra compatibilidad y requisitos de Android](/docs/mobile-monitoring/new-relic-mobile-android/get-started/new-relic-android-compatibility-requirements) y, si ha instalado previamente el SDK del agente de Android, siga los [pasos antes de actualizar](/docs/mobile-apps/android-1-upgrade) a la última versión con ProGuard o DexGuard.
+
+## Configurar ProGuard [#proguard]
+
+Para agregar soporte para [ProGuard](http://proguard.sourceforge.net/manual/usage.html):
+
+1. Agregue una exclusión a su aplicación; Por ejemplo:
+
+   * Para admitir la instrumentación de New Relic, agregue `keep class`.
+   * Para desactivar las advertencias relacionadas con problemas no resueltos, agregue `dont warn`.
+   * Para conservar los números de línea para los informes de fallos, agregue `LineNumberTable`.
+   * Para conservar la información stack para las excepciones manejadas, agregue `SourceFile` y `EnclosingMethod.`
+
+2. Agregue lo siguiente a su [archivo de configuración de ProGuard](#proguard-library) (`proguard.cfg`, `proguard-android.txt`, `proguard-rules.pro`, etc.):
+
+   ```
+   -keep class com.newrelic.** { *; }
+   -dontwarn com.newrelic.**
+   -keepattributes Exceptions, Signature, InnerClasses, LineNumberTable, SourceFile, EnclosingMethod
+
+   ##
+   ## NewRelic Gradle plugin 7.x may require the following additions:
+   ##
+   # Retain generic signatures of TypeToken and its subclasses if R8 version 3.0 full-mode is enabled.
+   # https://r8.googlesource.com/r8/+/refs/heads/master/compatibility-faq.md#r8-full-mode
+   -keepattributes Signature
+   -keep class com.newrelic.com.google.gson.reflect.TypeToken { *; }
+   -keep class * extends com.newrelic.com.google.gson.reflect.TypeToken
+   # For using GSON @Expose annotation
+   -keepattributes *Annotation*
+   ```
+
+3. Limpia y reconstruye tu proyecto.
+
+4. Ejecute su aplicación en un emulador o dispositivo para comenzar a ver datos en [la página<DNT>**Overview**</DNT> ](/docs/mobile-apps/mobile-apps-dashboard)de su aplicación móvil.
+
+5. Opcional: utilice la página <InlinePopover type="mobile"/><DNT>**Settings**</DNT> para [personalizar su aplicación móvil](/docs/mobile-apps/customizing-your-mobile-app-settings).
+
+Si no aparece ningún dato, revise el resultado de `logcat` para detectar errores.
+
+<InstallFeedback/>
+
+## Soporte de biblioteca de red [#proguard-library]
+
+La instrumentación de New Relic ocurre antes de que ProGuard ofusque su código. Para que estas bibliotecas estén correctamente instrumentadas, ProGuard no debe ofuscar sus clases.
+
+A continuación se muestran ejemplos de reglas que se aplicarán para preservar estas clases. Esta no es una lista completa. Se necesitarán reglas diferentes según su biblioteca o versión.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Library**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Rules**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Apache http
+      </td>
+
+      <td>
+        ```
+        -keep class org.apache.http.** { *; }
+        -dontwarn org.apache.http.**
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        OkHttp 2
+      </td>
+
+      <td>
+        ```
+        -keep class com.squareup.okhttp.* { *; }
+        -dontwarn com.squareup.okhttp.**
+        -dontwarn okio.**
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        OkHttp 3
+      </td>
+
+      <td>
+        ```
+        -keep class okhttp3.** { *; }
+        -dontwarn okhttp3.**
+        -dontwarn okio.**
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Reequipamiento 2
+      </td>
+
+      <td>
+        ```
+        -keep class retrofit2.** { *; }
+        -dontwarn retrofit2.**
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Configurar DexGuard [#dexguard]
+
+DexGuard utiliza las mismas opciones de configuración que ProGuard y puede leer cualquier archivo de configuración de ProGuard preexistente. DexGuard también tiene su propio conjunto de opciones de configuración adicionales y proporciona configuraciones de muestra para muchos marcos de aplicaciones comunes.
+
+Para agregar soporte para <DNT>**DexGuard**</DNT>:
+
+1. Agregue DexGuard a su aplicación y configure el complemento Gradle de acuerdo con las instrucciones de DexGuard.
+
+2. Cree un archivo `dexguard-project.txt` para contener opciones de configuración específicas de DexGuard y agregue:
+
+   ```
+   -dontnote com.newrelic.agent.android.NewRelic
+   -dontnote com.newrelic.agent.android.harvest.crash.Crash
+   ```
+
+3. Una vez configurado el complemento DexGuard, verifique lo siguiente.
+
+   DexGuard 8.x: verifique que la configuración `buildTypes` de su aplicación sea similar a esta:
+
+   ```gradle
+   buildTypes {
+       release {
+           minifyEnabled false
+           shrinkResources false
+           proguardFile getDefaultDexGuardFile('dexguard-release.pro')
+           proguardFile 'proguard-rules.pro'
+           proguardFile 'dexguard-project.txt'
+       } 
+       ...
+   ```
+
+4. Limpia y reconstruye tu proyecto.
+
+5. Ejecute su aplicación en un emulador o dispositivo para comenzar a ver datos en [la página<DNT>**Overview**</DNT> ](/docs/mobile-apps/mobile-apps-dashboard)de su aplicación móvil.
+
+6. Opcional: utilice la página monitoreo de móviles <DNT>**Settings**</DNT> para [personalizar su aplicación móvil](/docs/mobile-apps/customizing-your-mobile-app-settings).
+
+Si no aparece ningún dato, revise el resultado de `logcat` para detectar errores.

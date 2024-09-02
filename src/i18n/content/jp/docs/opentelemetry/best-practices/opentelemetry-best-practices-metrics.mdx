@@ -1,0 +1,458 @@
+---
+title: OpenTelemetryの メトリクスNew Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Details on how New Relic works with OpenTelemetry metrics
+freshnessValidatedDate: '2024-05-23T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetry 、次元メトリックス[データ モデル](https://opentelemetry.io/docs/specs/otel/metrics/data-model/)、メトリックス テレメトリーを記録するための[API](https://opentelemetry.io/docs/specs/otel/metrics/api/) 、メトリックス データを集約およびエクスポートするための[SDK を](https://opentelemetry.io/docs/specs/otel/metrics/sdk/)提供します。
+
+このページでは、New Relic OpenTelemetryが[New Relic OTLP インターフェース](/docs/opentelemetry/best-practices/opentelemetry-otlp) 経由で受信した メトリックスをどのように処理するかについて説明します。OpenTelemetryメトリックスとNew Relicを統合するには、メトリックス ソースをこの エージェント にエクスポートするように構成する必要があります。 エージェント 設定の要件を確認してください。 OpenTelemetryメトリックスを使用したサービスの構成については、 [OpenTelemetry APM監視」](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro)を参照してください。
+
+## 計装の種類からメトリクスの種類まで マッピング [#instrument-mapping]
+
+OpenTelemetryメトリクスAPI[いくつかの計装の種類](https://opentelemetry.io/docs/specs/otel/metrics/api/#instrument)を定義します。 インストゥルメントされたレコード測定値は集約され、特定のメトリック タイプとして OTLP 経由でエクスポートされます。 以下の表は、各OpenTelemetryメーターが集計およびエクスポートする方法のデフォルトの動作を示しています。 で各メトリック タイプがどのように処理されるかの詳細については[ 、「OTLP メトリック マッピング」を](#otlp-mapping)New Relic 参照してください。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        計装の種類
+      </th>
+
+      <th>
+        使用例
+      </th>
+
+      <th>
+        デフォルトの集計
+      </th>
+
+      <th>
+        エクスポートされたメトリックスタイプ
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`Counter`](https://opentelemetry.io/docs/specs/otel/metrics/api/#counter)
+      </td>
+
+      <td>
+        処理されたバイト数
+      </td>
+
+      <td>
+        [サム](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum`メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226)、 `is_monotonic=true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [非同期カウンター](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-counter)
+      </td>
+
+      <td>
+        プロセス全体のCPU時間を観察する
+      </td>
+
+      <td>
+        [サム](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum`メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226)、 `is_monotonic=true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`UpDownCounter`](https://opentelemetry.io/docs/specs/otel/metrics/api/#updowncounter)
+      </td>
+
+      <td>
+        キュー内のアイテム
+      </td>
+
+      <td>
+        [サム](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum`メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226)、 `is_monotonic=false`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [非同期アップダウンカウンタ](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-updowncounter)
+      </td>
+
+      <td>
+        現在のメモリ使用量を観察する
+      </td>
+
+      <td>
+        [サム](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum`メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226)、 `is_monotonic=false`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`Histogram`](https://opentelemetry.io/docs/specs/otel/metrics/api/#histogram)
+      </td>
+
+      <td>
+        httpリクエストの持続時間
+      </td>
+
+      <td>
+        [明示的なバケットヒストグラム](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#explicit-bucket-histogram-aggregation)
+      </td>
+
+      <td>
+        [`Histogram`メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L230-L236)**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`Gauge`](https://opentelemetry.io/docs/specs/otel/metrics/api/#gauge)
+      </td>
+
+      <td>
+        CPUファン速度のイベントを変更する
+      </td>
+
+      <td>
+        [最終値](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#last-value-aggregation)
+      </td>
+
+      <td>
+        [`Gauge` メトリック](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L211-L213)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [非同期ゲージ](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)
+      </td>
+
+      <td>
+        現在の室温を観察する
+      </td>
+
+      <td>
+        [最終値](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#last-value-aggregation)
+      </td>
+
+      <td>
+        [`Gauge` メトリック](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L211-L213)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+正しい計装タイプの選択の詳細については[、 OpenTelemetryの補足ガイドラインを](https://opentelemetry.io/docs/specs/otel/metrics/supplementary-guidelines/)参照してください。
+
+**\[1]**ヒストグラム インストゥルメントされたは、指数ヒストグラムメトリックスに集約することもできます。 詳細については[、OTLP ヒストグラム メトリック](#otlp-histogram)を参照してください。
+
+## OTLP メトリック マッピング [#otlp-mapping]
+
+New Relic OTLP メトリックを[`Metric` データ型](https://docs.newrelic.com/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)にマッピングします。 以下の表は[、Metriks proto メッセージ](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto)のフィールドがどのように解釈されるかを示しています。 /SDK によってさまざまなメトリック [タイプがどのように生成されるかの詳細については、「メトリック タイプへの計算の種類」 を参照してください。](#instrument-mapping)OpenTelemetryAPI
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        OTLPメトリクス原始体
+      </th>
+
+      <th>
+        New Relic `Metric`フィールド
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ResourceMetrics.Resource.attributes`
+      </td>
+
+      <td>
+        各キー値は`Metric`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.name`
+      </td>
+
+      <td>
+        `otel.library.name`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.version`
+      </td>
+
+      <td>
+        `otel.library.version`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.attributes`
+      </td>
+
+      <td>
+        各キー値は`Metric`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.name`
+      </td>
+
+      <td>
+        `metricName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.description`
+      </td>
+
+      <td>
+        `description`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.unit`
+      </td>
+
+      <td>
+        `unit`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.start_time_unix_nano`
+      </td>
+
+      <td>
+        `timestamp`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.time_unix_nano`
+      </td>
+
+      <td>
+        `endTimestamp`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.attributes`
+      </td>
+
+      <td>
+        各キー値は`Metric`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.gauge.data_points`
+      </td>
+
+      <td>
+        New Relic へのマップ[`gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.sum.data_points`
+      </td>
+
+      <td>
+        New Relic [`count` 、 `cumulativeCount` 、または`gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)にマップします
+
+        [OTLP合計メトリクス](#otlp-sum)を参照
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.histogram.data_points`
+      </td>
+
+      <td>
+        New Relic へのマップ[`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        [OTLPヒストグラムメトリクスを](#otlp-histogram)参照
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.exponential_histogram.data_points`
+      </td>
+
+      <td>
+        New Relic へのマップ[`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        [OTLPヒストグラムメトリクスを](#otlp-histogram)参照
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.summary.data_points`
+      </td>
+
+      <td>
+        New Relic へのマップ[`summary`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        [OTLPの概要を](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L254-L256)見る
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**\[1]** : リソース属性、スコープ属性、メトリクスポイント属性、および最上位のメトリクスフィールドで競合が発生した場合、優先順位（最高から最低）は次のようになります：最上位の`Metric.*`フィールド > `Metric.*.data_points.attributes` > `ScopeMetrics.InstrumentationScope.attributes` > `ResourceMetrics.Resource.attributes` 。
+
+### OTLP 合計メトリック [#otlp-sum]
+
+OTLP [合計メトリクスは、](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226)時間の経過に伴う測定値の合計を表します。 合計には、値が単調に増加するか (つまり、上昇のみ可能)、そうでないか (つまり、上昇と下降が可能) を示す[`aggregation_temporality`](#aggregation-temporality)フィールドと`is_monotonic`フィールドが含まれます。 次の表は、New Relic がさまざまな合計の種類をどのように処理するかを示しています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        `is_monotonic`
+      </th>
+
+      <th>
+        `aggregation_temporality`
+      </th>
+
+      <th>
+        行動
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `true`
+      </td>
+
+      <td>
+        `cumulative`
+      </td>
+
+      <td>
+        New Relic へのマップ[`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `true`
+      </td>
+
+      <td>
+        `delta`
+      </td>
+
+      <td>
+        New Relic へのマップ[`count`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `false`
+      </td>
+
+      <td>
+        `cumulative`
+      </td>
+
+      <td>
+        New Relic へのマップ[`gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `false`
+      </td>
+
+      <td>
+        `delta`
+      </td>
+
+      <td>
+        データが意味をなさないためサポートされていません。 詳細については[このディスカッションを](https://github.com/open-telemetry/opentelemetry-specification/pull/2314#pullrequestreview-877408961)参照してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### OTLP ヒストグラム メトリック [#otlp-histogram]
+
+OTLP [ヒストグラム メトリクス](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L230-L236)と[指数ヒストグラム メトリクスは、](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L240-L246)測定値の分布を表す合計、カウント、最小、最大、バケットなどの情報を使用して測定値の集団を要約します。 ヒストグラムの種類 (明示的なバケット ヒストグラムとも呼ばれます) には、明示的な境界を持つバケットがあります。 指数関数型には、指数式で記述される境界を持つバケットがあります。 どちらの種類にも[、集約時間](#aggregation-temporality)フィールドが含まれています。
+
+ヒストグラムの両方の種類は、内部の基数 2 の指数ヒストグラム表現によってサポートされるNew Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)に変換されます。 この表現は、OpenTelemetry 指数ヒストグラム形式にほぼ一致しています。 このため、 New Relic指数ヒストグラムが優先されます (指数ヒストグラムを優先するように OTLP を構成する方法の詳細については、「メトリクス ミストグラム[集計」](/docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-mistogram-aggregation)を参照してください)。 OpenTelemetry の明示的なバケット ヒストグラムの種類は、線形補間を使用して指数表現に変換されます。 詳しい説明については[NrSketchを](https://github.com/newrelic-experimental/newrelic-sketch-java#new-relic-sketch)参照してください。
+
+負の無限大と正の無限大に境界を持つバケットは、New Relic ではゼロ幅のバケットとして表されます。 たとえば、境界が`[-∞, 10)`の OpenTelemetry バケットは、New Relic では`[10, 10)`として表されます。 その結果、ディストリビューションの最後に誇張されたバケット数が表示される場合があります。
+
+### OTLPサマリーメトリクス [#otlp-summary]
+
+OTLP [サマリー メトリクスは、](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L254-L256)合計やカウントを含む一連の測定値を要約する点でヒストグラムに似ています。 ただし、ヒストグラムには測定値の分布を表すバケットが含まれますが、サマリーには分位数が含まれます。 これらの分位数は、空間的または時間的な再集約ができないため、用途が限られています。 レガシー サポート用の OpenTelemetry に含まれるサマリーと、OpenTelemetry API および SDK ではサマリーは生成されません。
+
+要約は New Relic [`summary`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)に翻訳されます。
+
+## 集約の時間性 [#aggregation-temporality]
+
+OpenTelemetryの[集計時間](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality)の概念は、特定の Metrics データ ポイントが累積的な測定値セット (通常はアプリケーションの開始以降) を集計するか、最後のエクスポート以降の測定値のデルタ セットを集計するかを定義します。 OTLP[合計メトリクス](#otlp-sum)と[ヒストグラム](#otlp-histogram)メトリクスには、ポイントのセマンティクスを記述する`aggregation_temporality`フィールドがあります。
+
+累積的時間メトリックとデルタ時間メトリックの両方を受け入れますが、 New Relic一般的にデルタ時間メトリック システムであるため、ユーザーに[は OTLP エクスポーターを設定してデルタ時間メトリックを優先するように](/docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)推奨します。
+
+時間性が累積的である場合、メトリックはデルタ表現に変換されます（累積値は[`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)に対して保持されます）。ステートフル変換を使用すると、同じシリーズの 2 つの連続する累積ポイントからデルタを計算するステートフル プロセスが実行されます。 `Metric.*.data_points.start_time_unix_nano`はシリーズのリセットを検出するために使用されます。
+
+## 模範となるサポート [#exemplars]
+
+OpenTelemetryメトリクス[サンプルは](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exemplars)現在New Relicではサポートされていません。

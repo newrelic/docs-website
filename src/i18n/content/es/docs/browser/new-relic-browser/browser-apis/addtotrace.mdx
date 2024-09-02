@@ -1,0 +1,117 @@
+---
+title: addToTrace
+type: apiDoc
+shortDescription: 'Agrega un objeto JavaScript con un nombre personalizado, hora de inicio, etc. a un rastreo de sesión en progreso.'
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: 'Browser API call to add a JavaScript object with a user-defined name, start time, etc. to a session trace already in progress.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.addToTrace(JavaScript object $custom_object)
+```
+
+Agrega un objeto JavaScript con un nombre personalizado, hora de inicio, etc. a un rastreo de sesión en progreso.
+
+## Requisitos
+
+* Browser Pro o agente Pro+SPA (v593 o superior)
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar la característica `session_trace` al crear una instancia de la clase `BrowserAgent` . En la matriz `features` , agregue lo siguiente:
+
+  ```js
+  import { SessionTrace } from '@newrelic/browser-agent/features/session_trace';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      SessionTrace
+    ]
+  }
+  ```
+
+  Para obtener más información, consulte la [documentación de instalación del navegador npm](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+El evento personalizado dentro [del navegador rastreo de sesión](/docs/browser/new-relic-browser/browser-pro-features/session-traces-exploring-webpages-life-cycle) puede proporcionar contexto para otras acciones del usuario, errores y eventos predeterminados dentro de la traza. Este evento aparecerá en el rastreo de detalles de sesión browser .
+
+* Si un rastreo de sesión actualmente
+
+  <DNT>
+    **is**
+  </DNT>
+
+  está en progreso, esto agrega un objeto con un nombre definido por el usuario, hora de inicio y otros campos opcionales.
+
+* Si realiza esta llamada y ya hay un rastreo de sesión
+
+  <DNT>
+    **is not**
+  </DNT>
+
+  en progreso, esto no hará que browser capture una traza.
+
+Tenga en cuenta que la cantidad de eventos compartidos de esta manera está limitada por el ciclo de recolección del agente del navegador. [Aquí está la última actualización sobre ese límite](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1026/#:~:text=Adjusted%20PageAction%20limits,events%20per%20harvest).
+
+## Parámetros
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$custom_object`
+
+        _Objeto JavaScript_
+      </td>
+
+      <td>
+        Requerido. Proporcione un objeto JavaScript con estos pares de nombre/valor obligatorios y opcionales:
+
+        * Pares de nombre/valor requeridos: `name`, `start`
+
+        * Pares de nombre/valor opcionales: `end`, `origin`, `type`
+
+          Si envía el mismo objeto de evento a New Relic como [`PageAction`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#pageaction-list), omita el atributo `TYPE` . (`type` es una cadena para describir qué tipo de evento estás marcando dentro de un rastreo de sesión). Si se incluye, anulará el tipo de evento y provocará que el evento `PageAction` se envíe incorrectamente. En su lugar, utilice el atributo `name` para obtener información del evento.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplos
+
+```js
+var obj = {
+  // REQUIRED
+  name: 'Event Name',
+  start: 1417044274239, // Time in ms since epoch
+
+  // OPTIONAL
+  end: 1417044274252,
+  // Time in ms since epoch. Defaults to same as start resulting in trace object with a duration of zero.
+  origin: 'Origin of event',
+  // Defaults to empty string
+  type: 'What type of event was this'
+  // Defaults to empty string
+};
+```

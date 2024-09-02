@@ -1,0 +1,184 @@
+---
+title: 'browser: pestaña de errores de grupo'
+tags:
+  - APM
+  - APM UI pages
+  - Error analytics
+metaDescription: New Relic's browser group errors tab shows trends and anomalies that help you compare and troubleshoot error events.
+freshnessValidatedDate: '2024-01-02T00:00:00.000Z'
+translationType: machine
+---
+
+Con la pestaña <DNT>**Group errors**</DNT> puede filtrar y agrupar errores dinámicamente para un análisis más profundo. Los errores de grupo le muestran dónde se producen los errores de JavaScript y proporciona herramientas para ayudarle a descubrir la causa raíz. También puede consultar y crear un panel de datos de errores de JS en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) o utilizar la API browser para monitor los errores manejados.
+
+<img
+  title="browser group errors tab "
+  alt="a screenshot depiciting the browser group errors tab"
+  src="/images/errors-inbox_screenshot-full_browser-group-errors-tab.webp"
+/>
+
+Para examinar errores de JavaScript:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Errors**
+   </DNT>
+
+   .
+
+2. Utilice las [opciones disponibles en la UI](#ui-features) para examinar qué puede estar causando los errores.
+
+3. Opcional: [Revisar traza de evento ](#event-trail)o [rastreo del stack](#stack-trace) en la UI.
+
+4. Opcional: [consulte y cree un panel para datos de errores de JS](#insights) con el generador de consultas, o [use la API](#api-logs) para monitor o log errores.
+
+## Vista de lista de errores [#list-view]
+
+Comience con el gráfico de errores de carga de la página para ver de un vistazo si hay picos, caídas o patrones inesperados con errores en general. Correlacione cualquier patrón general en el cuadro de los 5 errores principales con las alertas que ocurren durante el mismo período de tiempo.
+
+* <DNT>
+    **Dynamic grouping:**
+  </DNT>
+
+  La agrupación predeterminada para las ocurrencias de errores se basa en el mensaje de error. Tienes la opción de cambiar las opciones de agrupación por cualquier atributo, hasta cinco atributos a la vez.
+
+* <DNT>
+    **Filtering:**
+  </DNT>
+
+  Muchos clientes de New Relic instrumentan [un atributo personalizado](/docs/data-apis/custom-data/custom-events/collect-custom-attributes/#enabling-custom). Filtrar por un atributo personalizado específico puede ser una forma rápida de eliminar el ruido de todas las ocurrencias de errores.
+
+<img
+  title="browser group errors list view"
+  alt="A screenshot depicting the browser group errors list view. "
+  src="/images/errors-inbox_screenshot-full_browser-errors-list-view.webp"
+/>
+
+## Perfiles de error [#JS-profiles]
+
+Los perfiles de error revelan usuarios afectados con frecuencia durante un período de tiempo designado. Puede descargar atributos de usuario como CSV o explorar desgloses detallados seleccionando filas individuales. Aproveche esta valiosa información para priorizar la corrección de errores y mejorar la estabilidad de la aplicación.
+
+<img
+  title="JS error profiles"
+  alt="A screenshot depicting error profiles for JS."
+  src="/images/errors-inbox_screenshot-crop_browser-error-profiles.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Errors (errors inbox) > View profiles**
+  </DNT>
+</figcaption>
+
+## Vista de detalles de errores [#details-view]
+
+En esta página, puede profundizar en un grupo de errores específico. La vista detallada proporciona detalles en contexto. Desde la vista detallada, puede recorrer ocurrencias de errores específicas usando el interruptor en la esquina superior derecha para navegar entre la primera instancia del error, la última o cualquier instancia intermedia. En la parte superior de la página de detalles, puede inspeccionar los campos <DNT>**Filtered**</DNT> y <DNT>**Grouped By**</DNT> para ver cómo se filtró y agrupó la información. Puede recibir un vínculo permanente por un hecho específico. Es importante conocer los filtros y las selecciones de agrupación para comprender el contexto del suceso.
+
+<img
+  title="browser errors details view"
+  alt="A screenshot depicting the browser group errors detail view. "
+  src="/images/errors-inbox_screenshot-crop_browser-errors-details-view.webp"
+/>
+
+## Pestaña de ocurrencias [#error-group-occurrences]
+
+La pestaña <DNT>**Occurrences**</DNT> incluye no solo la frecuencia de los errores, los detalles de ocurrencia y el rastreo de la pila, sino que también incluye información de clasificación.
+
+### Sección de triaje [#triage-card]
+
+<img
+  title="errors inbox triage"
+  alt="A screenshot depicting the triage section of the browser group errors tab."
+  src="/images/errors-inbox_screenshot-crop_errors-inbox-triage-section.webp"
+/>
+
+La sección de clasificación vincula la ocurrencia de error específica que está viendo con un [grupo de errores creado por el sistema](/docs/errors-inbox/errors-inbox/#groups) que tiene una huella digital única. ¿Por que importa? Esa huella digital única le permite clasificar un grupo de errores mediante una actualización o [asignación](/docs/errors-inbox/errors-inbox/#assign) [de estado](/docs/errors-inbox/errors-inbox/#status). Los grupos de errores creados por el sistema son los que se encuentran en la pestaña <DNT>**Triage**</DNT> . Para obtener más información sobre cómo se generan, consulte [Cómo funcionan los grupos de errores](/docs/errors-inbox/errors-inbox/#how-groups-work).
+
+### Rastreo del stack [#stack-trace]
+
+Rastreo del stack puede mostrarle en qué parte del código se origina un error para ayudar a una resolución más rápida. Hay diferentes formas de asegurarse de que el código que está viendo no esté minificado. Puede cargar mapas de origen manualmente a través de la UI o de la API.
+
+### Solucionar problemas que faltan en el rastreo de la pila [#troubleshoot]
+
+Estas son algunas de las razones por las que no ve un rastreo del stack debido a un error:
+
+* Si no se arrojan errores, no habrá un rastreo del stack.
+
+  * Ejemplo de error arrojado que NO tendrá rastreo del stack: throw `this is an error string`.
+  * Ejemplo de error arrojado que tendrá un rastreo del stack: throw new Error `this is an error string`.
+
+* El Javascript está alojado en una CDN u otra ubicación externa, y New Relic no puede ver los errores que se originan en esos scripts. En algunos casos, esto se puede resolver mediante el uso compartido de recursos entre orígenes (CORS).
+
+* Es un error de AngularJS. Para obtener más información sobre esto, consulte [Errores angulares faltantes](/docs/browser/new-relic-browser/troubleshooting/angularjs-errors-do-not-appear).
+
+* El error es un `SyntaxError` o `Script error`: ocurren mientras se carga el script, por lo que no producen un rastreo del stack.
+
+* Algunos navegadores antiguos pueden generar errores sin un rastreo del stack o pueden proporcionar un rastreo del stack que no se puede utilizar.
+
+* Captó el error antes de que el agente de New Relic lo vea.
+
+* Si el error ocurre durante múltiples [ciclos de recolección](http://%5Bcycle%5D(docs.newrelic.com/docs/using-new-relic/welcome-new-relic/get-started/glossary#harvest-cycle)) en la misma visita del usuario, solo el evento de error reportado durante el primer ciclo de recolección tendrá un rastreo del stack registrado.
+
+### Soluciones para reportar rastreo del stack [#solutions]
+
+* Utilice la [llamada API`noticeError` ](/docs/browser/new-relic-browser/browser-agent-spa-api/notice-error).
+
+* Utilice la página UI
+
+  <DNT>
+    **JS errors**
+  </DNT>
+
+  para obtener más información, incluida la [traza del evento](#event-trail). La página
+
+  <DNT>
+    **JS errors**
+  </DNT>
+
+  está diseñada para brindarle información útil incluso sin un rastreo del stack.
+
+### Traza de evento [#event-trail]
+
+Para algunos navegadores antiguos, es posible que los siguientes errores no estén disponibles: El monitoreo de SPA debe estar habilitado. La traza de evento muestra la interacción browser , las llamadas AJAX y la traza que condujo a un error de Javascript. Esto puede ayudarle a solucionar la causa raíz de los errores.
+
+Por ejemplo, si se produce un error de JS después de una solicitud AJAX que proporciona un mensaje de error, es posible que su solicitud AJAX no contenga la información correcta. Esto da como resultado un error de JS debido a una llamada AJAX fallida.
+
+<img
+  title="event trail errors inbox"
+  alt="A screenshot depicting the event trail for errors inbox. "
+  src="/images/errors-inbox_screenshot-crop_event-trail-for-errors-inbox.webp"
+/>
+
+Estas son algunas de las razones por las que un evento en el log de eventos no está presente:
+
+* <DNT>
+    **Agent version.**
+  </DNT>
+
+  Para capturar datos log de eventos, su sitio debe tener habilitado [el monitoreo SPA](/docs/browser/single-page-app-monitoring/get-started/install-single-page-app-monitoring-new-relic-browser) (agente del navegador versión 1071 o superior).
+
+* <DNT>
+    **JS error not part of a browser [interaction](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#interaction).**
+  </DNT>
+
+  Si el error JS ocurre fuera de una interacción, los detalles de la interacción browser relacionados no se pueden capturar (por ejemplo: si un archivo JS asíncrono experimenta un error).
+
+* <DNT>
+    **A click triggered the JS error.**
+  </DNT>
+
+  En algunos casos, si el error es el resultado directo de un clic, no se captura ninguna interacción asociada. Sin evento log o rastreo del stack, puedes usar los [gráficos de detalles de errores](#error-details) para analizar el impacto que tiene el error por tipo de browser , tipo de dispositivo y URI.
+
+## Consultar y visualizar datos JS [#insights]
+
+New Relic guarda los errores de JS como datos de eventos. Esto le permite consultar sus datos de error en el generador de consultas. Para ejecutar la consulta NRQL y crear un panel para ver o compartir, consulte el tipo de evento JavaScriptError en el generador de consultas.
+
+## Errores globales y genéricos. [#js-unavailable-errors]
+
+New Relic envuelve funciones de JavaScript para obtener información sobre errores arrojados a través del rastreo del stack. Si no se generan errores, no estarán disponibles. Por ejemplo, si tiene una aplicación AngularJS, siga los procedimientos de resolución de problemas cuando [los errores de AngularJS no aparecen](/docs/browser/new-relic-browser/troubleshooting/angularjs-errors-do-not-appear) en la UI. Para algunos navegadores antiguos, es posible que los siguientes errores no estén disponibles:
+
+* `SyntaxError` o `Script error`: ocurren mientras se carga el script, por lo que no producen un rastreo del stack.
+* Errores de JavaScript en línea o del controlador de eventos: estos se desenvuelven.
+* Los errores generados por secuencias de comandos de terceros que residen en otro dominio no están disponibles.
+* Errores que ocurren en navegadores antiguos: es posible que estos no puedan proporcionar un rastreo del stack utilizable. En algunos casos, es posible que no proporcionen ningún rastreo del stack. La recopilación de errores se realiza envolviendo funciones de JavaScript, por lo que los errores generados por el browser en un nivel inferior (como errores [de intercambio de recursos entre orígenes](http://en.wikipedia.org/wiki/Cross-origin_resource_sharing) ) tampoco están disponibles.

@@ -1,0 +1,721 @@
+---
+title: 'Access NerdStorage from your Nerdlet'
+metaDescription: 'Access NerdStorage from your Nerdlet'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. If you haven't already, check out the Overview.
+
+  Each lesson in the course builds upon the last, so make sure you've completed the last lesson, Customize NRQL data, before starting this one.
+</Callout>
+
+In previous lessons, you created a user experience in your application which includes charts and a button to end your A/B test. You also configured your charts to query real data from New Relic's database. However, you left mock data in two charts:
+
+* **Past tests**
+* **Total cancellations per version**
+
+Both of these charts hold data that you can't get from New Relic. **Past tests** shows historical test information, whereas **Total cancellations per version** shows the number of cancellations each version sees over time. Focus, first on **Past tests**.
+
+**Past tests** shows historical test information, so you need to store information about each test upon completion. And you have all the tools you need to accomplish this task. First, you have an **End test** button that triggers the save action. Second, you know how to use NerdGraph and NerdStorage to hold the test information.
+
+## Save test information to NerdStorage [#save]
+
+<Steps>
+  <Step>
+    Change to the `add-nerdstorage/ab-test` directory of the [coursework repository](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-nerdstorage/ab-test
+    ```
+
+    This directory contains the code that we expect your application to have at this point in the course. By navigating to the correct directory at the start of each lesson, you leave your custom code behind, thereby protecting yourself from carrying incorrect code from one lesson to the next.
+  </Step>
+
+  <Step>
+    In `nerdlets/ab-test-nerdlet/end-test.js`, create a method, `EndTestButton.endTest()`:
+
+    ```js
+    import React from 'react';
+    import {
+        AccountStorageMutation,
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+            this.endTest = this.endTest.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        endTest() {
+            const today = new Date();
+            const dd = String(today.getDate()).padStart(2, '0');
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const yyyy = today.getFullYear();
+            const endDate = `${mm}-${dd}-${yyyy}`
+
+            AccountStorageMutation.mutate(
+                {
+                    accountIds: this.props.accountIds,
+                    actionType: AccountStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+                    collection: "past-tests",
+                    documentId: endDate,
+                    document: {
+                        versionADescription: this.props.versionADescription,
+                        versionBDescription: this.props.versionBDescription,
+                        winner: this.props.selectedVersion,
+                    }
+                }
+            )
+
+            this.closeModal();
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version {this.props.selectedVersion}</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.closeModal}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton selectedVersion={this.state.selectedVersion}>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    With this code, you build a formatted date string, `endDate`. Then, you mutate account storage with a call to `AccountStorageMutation.mutate()`. You pass your account identifier, the `WRITE_DOCUMENT` action type, "past-tests" as the collection name, `endDate` as the `documentId`, and the document data, which includes the version descriptions and the winner.
+
+    You pass `WRITE_DOCUMENT` because you're either creating a new document or updating a document, if one with a matching collection and `documentId` already exists. `documentId` is `endDate`, which is helpful for only creating one record per day.
+
+    <Callout variant="tip">
+      If you suspected you might complete multiple tests in one day, you'd need to change this logic.
+    </Callout>
+  </Step>
+
+  <Step>
+    Notice `this.props.closeModal()` at the end of the method. This closes the modal that shows when you try to end a test. Therefore, you can replace the `onClick` callback for your **Yes, end test** button in `EndTestButton.render()`:
+
+    ```js
+    import React from 'react';
+    import {
+        AccountStorageMutation,
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+            this.endTest = this.endTest.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        endTest() {
+            const today = new Date();
+            const dd = String(today.getDate()).padStart(2, '0');
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const yyyy = today.getFullYear();
+            const endDate = `${mm}-${dd}-${yyyy}`
+
+            AccountStorageMutation.mutate(
+                {
+                    accountIds: this.props.accountIds,
+                    actionType: AccountStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+                    collection: "past-tests",
+                    documentId: endDate,
+                    document: {
+                        versionADescription: this.props.versionADescription,
+                        versionBDescription: this.props.versionBDescription,
+                        winner: this.props.selectedVersion,
+                    }
+                }
+            )
+
+            this.closeModal();
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version {this.props.selectedVersion}</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.endTest}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton selectedVersion={this.state.selectedVersion}>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    When you end the test, `endTest` stores your test data in account storage and closes the modal. This is only half the behavior you need to populate your table, you also need to query this collection from account storage.
+  </Step>
+
+  <Step>
+    In your Nerdlet's `index.js` file, pass the account ID and version descriptions to `EndTestSection`:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Make sure you replace `<YOUR NEW RELIC ACCOUNT ID>` with your actual New Relic [account ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id).
+    </Callout>
+
+    Now, `EndTestSection` can access these variables in its props.
+  </Step>
+
+  <Step>
+    Forward your account ID and version descriptions from `EndTestSection` to `EndTestButton`:
+
+    ```js
+    import React from 'react';
+    import {
+        AccountStorageMutation,
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+            this.endTest = this.endTest.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        endTest() {
+            const today = new Date();
+            const dd = String(today.getDate()).padStart(2, '0');
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const yyyy = today.getFullYear();
+            const endDate = `${mm}-${dd}-${yyyy}`
+
+            AccountStorageMutation.mutate(
+                {
+                    accountIds: this.props.accountIds,
+                    actionType: AccountStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+                    collection: "past-tests",
+                    documentId: endDate,
+                    document: {
+                        versionADescription: this.props.versionADescription,
+                        versionBDescription: this.props.versionBDescription,
+                        winner: this.props.selectedVersion,
+                    }
+                }
+            )
+
+            this.closeModal();
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version {this.props.selectedVersion}</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.endTest}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton
+                        accountIds={this.props.accountIds}
+                        selectedVersion={this.state.selectedVersion}
+                        versionADescription={this.props.versionADescription}
+                        versionBDescription={this.props.versionBDescription}
+                    >
+                        End test
+                    </EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Fetch test information from NerdStorage [#fetch]
+
+<Steps>
+  <Step>
+    In `past-tests.js`, update `PastTests` to fetch data from account storage and display it in the `TableChart`:
+
+    ```js
+    import React from 'react';
+    import {
+        AccountStorageQuery,
+        HeadingText,
+        Spinner,
+        TableChart,
+    } from 'nr1';
+
+    export default class PastTests extends React.Component {
+        render() {
+            const historicalData = {
+                metadata: {
+                    id: 'past-tests',
+                    name: 'Past tests',
+                    columns: ['endDate', 'versionADescription', 'versionBDescription', 'winner'],
+                },
+                data: [],
+            }
+
+            return <div>
+                <HeadingText className="chartHeader">
+                    Past tests
+                </HeadingText>
+                <AccountStorageQuery accountIds={this.props.accountIds} collection="past-tests">
+                    {({ loading, error, data }) => {
+                        if (loading) {
+                            return <Spinner />;
+                        }
+                        if (error) {
+                            console.debug(error);
+                            return 'There was an error fetching your data.';
+                        }
+                        data.forEach(
+                            function (currentValue, index) {
+                                historicalData.data.push({
+                                    endDate: currentValue.id,
+                                    versionADescription: currentValue.document.versionADescription,
+                                    versionBDescription: currentValue.document.versionBDescription,
+                                    winner: currentValue.document.winner,
+                                })
+                            }, data
+                        )
+                        return <TableChart data={[historicalData]} fullWidth />
+                    }}
+                </AccountStorageQuery>
+            </div>
+        }
+    }
+    ```
+
+    First, you removed the mocked data from `historicalData`. Then, you used `AccountStorageQuery` to fetch data from NerdStorage. You passed your account identifier and the name of the collection in which you stored the document.
+
+    Notice that there are three return values from the query:
+
+    * `loading`
+    * `error`
+    * `data`
+
+    If the query is in progress, `loading` is `true`. In this case, you show a `Spinner` user interface component to let users know that the table isn't yet ready. If the query returned an error, you can see information about that error in the `error` variable. You log that information to the console for debugging purposes and return an error message. If the query returned successfully, you can access the data in the `data` variable. Because the data doesn't match the format that the `TableChart` requires, you loop through the data and format it according to the `TableChart` specifications. Finally, you pass `historicalData` to your `TableChart`.
+  </Step>
+
+  <Step>
+    In your Nerdlet's `index.js` file, pass your `ACCOUNT_ID` to `PastTests`:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 1234567  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Make sure you replace `<YOUR NEW RELIC ACCOUNT ID>` with your actual New Relic [account ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id).
+    </Callout>
+  </Step>
+
+  <Step>
+    Navigate to the root of your Nerdpack at `nru-programmability-course/add-nerdstorage/ab-test`.
+  </Step>
+
+  <Step>
+    Generate a new UUID for your Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Because you cloned the coursework repository that contained an existing Nerdpack, you need to generate your own unique identifier. This UUID maps your Nerdpack to your New Relic account. It also allows your app to make Nerdgraph requests on behalf of your account.
+  </Step>
+
+  <Step>
+    Serve your application locally:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Go to [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local), and view your application under **Apps > Your apps**.
+
+    At first, you should see no data.
+
+    Click **End test** and approve your action in the modal. Now, you see data in **Past tests**.
+
+    <Callout variant="tip">
+      If something doesn't work, use your browser's debug tools to try to identify the problem.
+
+      **Make sure you:**
+
+      * Copied the code correctly from the lesson
+      * Generated a new UUID
+      * Replaced all instances of `<YOUR NEW RELIC ACCOUNT ID>` in your project with your actual New Relic [account ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+
+    When you're finished, stop serving your New Relic application by pressing `CTRL+C` in your local server's terminal window.
+  </Step>
+</Steps>
+
+Great work! You now have experience using the NerdStorage query and mutation components. However, there's still one more chart with mocked data: **Total cancellations per version**.
+
+**Total cancellations per version** is different from the other charts in your A/B test application. Because New Relic knows nothing about how many users unsubscribe to your newsletter, you need to request that information from an external source. For the purposes of this course, we've created an external data service that provides fake newsletter cancellation data for you to consume in your application. This mock service lives at [https://api.nerdsletter.net/cancellations](https://api.nerdsletter.net/cancellations).
+
+New Relic applications are React applications, which means that you can use React and Javascript facilities to gather data not only from New Relic, but any external service. In a later lesson, you'll learn how to look beyond New Relic for data that will inform you of how your software is helping you achieve your business objectives. But before you learn that, you need to know something about our mock data service: it requires an Authorization header!
+
+In this lesson, you learned how to use NerdStorage to query and mutate data in your application's own data store. While NerdStorage is a great place for many categories of data, it's not appropriate for sensitive data, like a token you would pass in an Authorization header to an external service. For that, you'd use NerdStorageVault.
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the next lesson: Access NerdStorageVault from your nerdlet.
+</Callout>

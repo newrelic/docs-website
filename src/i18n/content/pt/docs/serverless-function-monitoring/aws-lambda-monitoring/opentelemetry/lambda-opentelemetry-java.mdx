@@ -1,0 +1,349 @@
+---
+title: Trace sua função Java do Lambda com New Relic e OpenTelemetry
+metaDescription: How to instrument Java applications on AWS Lambda with OpenTelemetry in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout
+  variant="tip"
+  title="VISUALIZAR"
+>
+  AWS Lambda com OpenTelemetry for Java ainda está em desenvolvimento.
+
+  Temos documentação semelhante para [.NET](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet), mas se você estiver usando Python, Go, JavaScript, Ruby ou PHP para AWS Lambda com OpenTelemetry, poderá usar nossa documentação Java ou .NET como um guia geral para a configuração. Para obter informações adicionais, consulte [AWS Distro para OpenTelemetry](https://aws-otel.github.io/docs/introduction).
+</Callout>
+
+Este guia abordará como você pode usar [OpenTelemetry Lambda](https://github.com/open-telemetry/opentelemetry-lambda) para trace sua função Java do Lambda usando [OpenTelemetry Lambda Layers](https://aws-otel.github.io/docs/getting-started/lambda/lambda-java-auto-instr) gerenciados pela AWS. OpenTelemetry facilita a instrumentação de suas funções, incluindo instrumentação automática para muitas bibliotecas populares.
+
+## Pré-requisitos [#prerequisites]
+
+Este guia pressupõe que você tenha o seguinte:
+
+* Uma conta New Relic . Se você não tiver um, [crie um gratuitamente](https://newrelic.com/signup).
+* Uma conta AWS. Se você não tiver um, [crie um gratuitamente](https://aws.amazon.com/).
+* Uma função Java do Lambda em execução nos tempos de execução `java8.al2` ou `java11` . Se você ainda não tem um, [crie um agora](https://docs.aws.amazon.com/lambda/latest/dg/lambda-java.html).
+
+## Etapa 1: ativar o raio-X [#xray]
+
+Mesmo que não estejamos usando o AWS X-Ray nesta configuração, ainda precisamos habilitar o X-Ray na função do Lambda para habilitar o recurso de rastreamento integrado ao AWS OpenDistro.
+
+Para ativar o Raio X:
+
+1. Abra sua função no [Console do Lambda](https://console.aws.amazon.com/lambda).
+
+2. Escolha
+
+   <DNT>
+     **Configuration**
+   </DNT>
+
+   e depois
+
+   <DNT>
+     **Monitoring Tools**
+   </DNT>
+
+   .
+
+3. Escolha
+
+   <DNT>
+     **Edit**
+   </DNT>
+
+   .
+
+4. Em
+
+   <DNT>
+     **X-Ray**
+   </DNT>
+
+   , ative
+
+   <DNT>
+     **Active tracing**
+   </DNT>
+
+   .
+
+Alternativamente, se você estiver usando [modelos SAM (Serverless aplicativo Model)](https://aws.amazon.com/serverless/sam/) ou [CloudFormation](https://aws.amazon.com/cloudformation/resources/templates/) , você pode habilitar o X-Ray adicionando o seguinte às propriedades da sua função do Lambda:
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Policies:
+      - AWSLambdaBasicExecutionRole
+      # ...
+      - AWSXrayWriteOnlyAccess
+    Tracing: Active
+```
+
+<Callout variant="important">
+  Esta opção requer que você tenha `AWSLambdaBasicExecutionRole` ou uma política equivalente anexada à sua função.
+</Callout>
+
+## Passo 2: Instale a camada [#install]
+
+A AWS publica uma camada gerenciada que inclui o [coletor OpenTelemetry Lambda](https://github.com/open-telemetry/opentelemetry-lambda), o [OpenTelemetry Java SDK](https://github.com/open-telemetry/opentelemetry-java-instrumentation) e o [agente de instrumentação automática ADOT](https://github.com/aws-observability/aws-otel-java-instrumentation).
+
+Para instalá-lo:
+
+1. Abra sua função no [Console do Lambda](https://console.aws.amazon.com/lambda).
+
+2. Em <DNT>**Layers**</DNT> na seção <DNT>**Designer**</DNT> , escolha <DNT>**Add a layer**</DNT>.
+
+3. Em <DNT>**Specify an ARN**</DNT>, cole um dos ARNs da camada para a arquitetura da sua função na lista abaixo. Substitua `{region}`pela sua região da AWS, como `us-east-1`.
+
+4. Escolha <DNT>**Add**</DNT>.
+
+   * AMD64/X86_64: `arn:aws:lambda:{region}:901920570463:layer:aws-otel-java-agent-amd64-ver-1-11-1:1`
+   * ARM64: `arn:aws:lambda:{region}:901920570463:layer:aws-otel-java-agent-arm64-ver-1-11-1:1`
+
+Para modelos SAM ou CloudFormation, adicione isto às propriedades da sua função:
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Layers:
+      # Use this if using x86_64 architecture
+      - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-java-agent-amd64-ver-1-11-1:1
+      # Use this if using arm64 architecture
+      - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-java-agent-arm64-ver-1-11-1:1
+```
+
+<Callout variant="important">
+  Consulte os [ARNs mais recentes publicados pela AWS](https://aws-otel.github.io/docs/getting-started/lambda/lambda-java-auto-instr) para verificar se os ARNs da camada acima estão atualizados.
+</Callout>
+
+## Etapa 3: configurar a camada [#configure]
+
+Para configurar a camada precisamos configurar um [wrapper exec](https://docs.aws.amazon.com/lambda/latest/dg/runtimes-modify.html#runtime-wrapper). O wrapper exec é um script executado durante a inicialização da função. Neste caso, o script configura o OpenTelemetry.
+
+1. Abra sua função no [Console do Lambda](https://console.aws.amazon.com/lambda).
+
+2. Escolha <DNT>**Configuration**</DNT> e depois <DNT>**Environment variables**</DNT>.
+
+3. Em <DNT>**Environment variables**</DNT>, escolha <DNT>**Edit**</DNT>.
+
+4. Escolha <DNT>**Add environment variable**</DNT>.
+
+5. Para <DNT>**Key**</DNT> defina-o como `AWS_LAMBDA_EXEC_WRAPPER` e defina <DNT>**Value**</DNT> como uma das opções a seguir (depende do tipo de manipulador). Em seguida, escolha <DNT>**Save**</DNT>.
+
+   * `/opt/otel-handler`: para agrupar manipuladores regulares (implementando `RequestHandler`)
+   * `/opt/otel-proxy-handler`: para agrupar manipuladores regulares (implementando `RequestHandler`) com proxy por meio do API Gateway, permitindo a propagação de contexto HTTP
+   * `/opt/otel-stream-handler`: para agrupar manipuladores de streaming (implementando `RequestStreamHandler`), permitindo a propagação de contexto HTTP para solicitações HTTP
+
+Para modelos SAM ou CloudFormation, adicione isto às propriedades da sua função:
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+```
+
+<Callout variant="important">
+  Substitua `/opt/otel-handler` se o seu manipulador de função implementar um dos outros tipos de manipulador.
+</Callout>
+
+## Etapa 4: adicionar variáveis de ambiente do New Relic [#env-variables]
+
+Para enviar os dados OpenTelemetry que esta camada coleta para o New Relic, precisamos configurar o coletor OpenTelemetry Lambda que é empacotado com a camada para exportar a telemetria que recebe para o [endpointOpenTelemetry do New Relic](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start). Antes de fazermos isso, primeiro precisamos definir algumas variáveis de ambiente das quais dependerá.
+
+1. Gere e copie uma New Relic <InlinePopover type="licenseKey"/>da sua conta New Relic.
+
+2. Abra sua função no [Lambda Console](https://console.aws.amazon.com/lambda).
+
+3. Escolha <DNT>**Configuration**</DNT> e depois <DNT>**Environment variables**</DNT>.
+
+4. Em <DNT>**Environment variables**</DNT>, escolha <DNT>**Edit**</DNT>.
+
+5. Escolha <DNT>**Add environment variable**</DNT>.
+
+6. Para <DNT>**Key**</DNT> defina-o como `NEW_RELIC_LICENSE_KEY` e defina <DNT>**Value**</DNT> como o valor da chave de licença gerada na etapa 1. Em seguida, escolha <DNT>**Save**</DNT>.
+
+7. Escolha <DNT>**Add environment variable**</DNT> novamente.
+
+8. Para <DNT>**Key**</DNT> defina-o como `NEW_RELIC_OPENTELEMETRY_ENDPOINT` e defina <DNT>**Value**</DNT> como uma das opções abaixo (depende da sua região do New Relic). Em seguida, escolha <DNT>**Save**</DNT>.
+
+   * `otlp.nr-data.net:4317`: Se sua conta New Relic estiver na região dos EUA
+   * `otlp.eu01.nr-data.net:4317`: Se a sua conta New Relic estiver na região da UE
+
+Para modelos SAM e CloudFormation, adicione o seguinte às propriedades da sua função. Certifique-se de substituir `your-license-key-here` por seu <InlinePopover type="licenseKey"/>e `otlp.nr-data.net:4317` pelo endpoint New Relic OpenTelemetry para sua região.
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        # ...
+        NEW_RELIC_LICENSE_KEY: your-license-key-here
+        NEW_RELIC_OPENTELEMETRY_ENDPOINT: otlp.nr-data.net:4317
+```
+
+<Callout variant="important">
+  Substitua `your-license-key-here` pelo seu New Relic <InlinePopover type="licenseKey"/>e `otlp.nr-data.net:4317` pelo endpoint apropriado para sua região do New Relic. Veja a lista acima.
+</Callout>
+
+## Etapa 5: configurar o coletor [#collector]
+
+Agora substituiremos a configuração padrão do coletor OpenTelemetry Lambda por uma que exporte a telemetria para o endpoint New Relic OpenTelemetry. Para fazer isso, devemos incluir um arquivo de configuração `collector.yaml` com nossa função.
+
+Crie um arquivo `collector.yaml` no diretório raiz da sua função com o seguinte conteúdo:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  otlp:
+    endpoint: ${NEW_RELIC_OPENTELEMETRY_ENDPOINT}
+    headers:
+      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp]
+```
+
+Agrupe esse arquivo `collector.yaml` no diretório raiz do pacote zip da sua função e reimplante-o.
+
+1. Abra sua função no [Console do Lambda](https://console.aws.amazon.com/lambda).
+
+2. Escolha
+
+   <DNT>
+     **Configuration**
+   </DNT>
+
+   e depois
+
+   <DNT>
+     **Environment variables**
+   </DNT>
+
+   .
+
+3. Em
+
+   <DNT>
+     **Environment variables**
+   </DNT>
+
+   , escolha
+
+   <DNT>
+     **Edit**
+   </DNT>
+
+   .
+
+4. Escolha
+
+   <DNT>
+     **Add environment variable**
+   </DNT>
+
+   .
+
+5. Para
+
+   <DNT>
+     **Key**
+   </DNT>
+
+   defina `OPENTELEMETRY_COLLECTOR_CONFIG_FILE` e defina
+
+   <DNT>
+     **Value**
+   </DNT>
+
+   como `/var/task/collector.yaml`.
+
+6. Em seguida, escolha
+
+   <DNT>
+     **Save**
+   </DNT>
+
+   .
+
+Para modelos SAM e CloudFormation, adicione isto às propriedades da sua função:
+
+```yaml
+yourFunctionHere:
+  Type: AWS::Serverless::Function
+  Properties:
+    # ...
+    Environment:
+      Variables:
+        # ...
+        OPENTELEMETRY_COLLECTOR_CONFIG_FILE: /var/task/collector.yaml
+```
+
+<Callout variant="important">
+  Isso pressupõe que você agrupou seu `collector.yaml` no diretório raiz da sua função. Se você o empacotou em outro lugar, substitua `/var/task/collector.yaml` pelo caminho para seu `collector.yaml`.
+</Callout>
+
+## Etapa 6: visualize seus dados na interface do New Relic \[view-data]
+
+Primeiro você vai querer [invocar sua função do Lambda](https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html) algumas vezes para começar a gerar telemetria. A partir daí, vá para New Relic para encontrar seu [trace](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gU3BhbiBTRUxFQ1QgY291bnQoKikgd2hlcmUgbmV3cmVsaWMuc291cmNlPSclb3RscCUnIFRJTUVTRVJJRVMifV0sImluaXRpYWxDaGFydFNldHRpbmdzIjp7ImNoYXJ0VHlwZSI6IkNIQVJUX0xJTkUiLCJsaW1pdCI6NzU0MiwibGlua2VkRW50aXR5R3VpZCI6bnVsbCwibGlua2VkRGFzaGJvYXJkSWQiOm51bGwsInlTY2FsZSI6eyJzdGF0aWMiOmZhbHNlLCJkb21haW4iOltudWxsLG51bGxdfSwieVplcm8iOnRydWV9fQo=), [métrica](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTWV0cmljIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2UgTElLRSAnJW90bHAlJyBUSU1FU0VSSUVTIn1dLCJpbml0aWFsQ2hhcnRTZXR0aW5ncyI6eyJjaGFydFR5cGUiOiJDSEFSVF9MSU5FIiwibGltaXQiOjc1NDIsImxpbmtlZEVudGl0eUd1aWQiOm51bGwsImxpbmtlZERhc2hib2FyZElkIjpudWxsLCJ5U2NhbGUiOnsic3RhdGljIjpmYWxzZSwiZG9tYWluIjpbbnVsbCxudWxsXX0sInlaZXJvIjp0cnVlfX0K) e [log](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTG9nIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2U9JyVvdGxwJScgVElNRVNFUklFUyJ9XSwiaW5pdGlhbENoYXJ0U2V0dGluZ3MiOnsiY2hhcnRUeXBlIjoiQ0hBUlRfTElORSIsImxpbWl0Ijo3NTQyLCJsaW5rZWRFbnRpdHlHdWlkIjpudWxsLCJsaW5rZWREYXNoYm9hcmRJZCI6bnVsbCwieVNjYWxlIjp7InN0YXRpYyI6ZmFsc2UsImRvbWFpbiI6W251bGwsbnVsbF19LCJ5WmVybyI6dHJ1ZX19Cg==).
+
+Sua telemetria não aparecerá no New Relic Serverless. Em vez disso, você encontrará seus dados de telemetria nos New Relic OpenTelemetry Nerdlets.
+
+## Sobrecarga automática de instrumentação [#auto-inst]
+
+O agente de instrumentação automática ADOT Lambda Layer para Java tem um impacto notável no tempo de inicialização no AWS Lambda, e geralmente você precisará usar isso junto com [a simultaneidade provisionada](https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html) para atender solicitações de produção sem causar tempos limite nas solicitações iniciais durante a inicialização. Recomendamos testar primeiro esta configuração em um ambiente não produção para determinar as configurações apropriadas para seu caso de uso.
+
+Alternativamente, você pode usar o seguinte método de instrumentação manual. Por padrão, a instrumentação manual requer menos recursos na inicialização da função. No entanto, este método requer uma alteração de código na maioria dos casos.
+
+## Instrumentação manual [#manual-inst]
+
+O método de instrumentação manual é semelhante ao procedimento de instrumentação automática neste documento. A única diferença é o ARN da camada Lambda que você especifica na [etapa 1](#install).
+
+Para instrumentação manual, em vez de usar os ARNs de camada na [Etapa 2](#install), use um dos ARNs de camada na lista abaixo para a arquitetura da sua função:
+
+* AMD64/X86_64: `arn:aws:lambda:{region}:901920570463:layer:aws-otel-java-wrapper-amd64-ver-1-11-1:1`
+* ARM64: `arn:aws:lambda:{region}:901920570463:layer:aws-otel-java-wrapper-arm64-ver-1-11-1:1`
+
+Substitua `{region}` pela sua região da AWS, como `us-east-1`.
+
+Todas as outras etapas permanecem as mesmas.
+
+Esta camada Lambda alternativa ainda envolverá sua função do Lambda como o método automático. Também instrumentará o [AWS SDK](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/aws-sdk/aws-sdk-2.2/library) automaticamente. Mas todas as outras bibliotecas que você usa exigirão que você inclua a biblioteca de instrumentação OpenTelemetry da biblioteca do [repositório de instrumentação OpenTelemetry](https://github.com/open-telemetry/opentelemetry-java-instrumentation) na dependência da sua função e modifique seu código para inicializá-lo.
+
+Você pode ver um [exemplo com OKHttp no GitHub](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/java#sample-applications).
+
+<Callout variant="important">
+  Consulte os [ARNs mais recentes publicados pela AWS](https://aws-otel.github.io/docs/getting-started/lambda/lambda-java) para verificar se os ARNs da camada acima estão atualizados.
+</Callout>
+
+## Distributed tracing [#distributed-tracing]
+
+Em alguns casos, você poderá ver rastreamento distribuído fragmentado no New Relic com esta configuração. Isso ocorre quando um trace inicia ou envolve um serviço que está fora do contexto ADOT (por exemplo, um serviço gerenciado da AWS). Os spans desse serviço são criados pelo X-Ray, não pelo OpenTelemetry, e o ADOT não os encaminha para o New Relic. Embora o rastreamento pareça fragmentado, eles ainda fornecem insights completos sobre o desempenho dentro da função do Lambda, bem como de outros serviços cujos spans foram encaminhados para a New Relic.
+
+## Mais Informações [#more-info]
+
+Para obter mais informações, confira [o início rápido do New Relic OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start).

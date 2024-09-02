@@ -1,0 +1,91 @@
+---
+title: No aparecen datos (integración de Prometheus)
+type: troubleshooting
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Troubleshooting
+metaDescription: Troubleshooting tips for the Prometheus OpenMetrics integration for Docker or Kubernetes if no data appears in New Relic's UI.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Ha instalado la integración Prometheus OpenMetrics para docker o Kubernetes, pero no aparece ningún dato en la UI de New Relic.
+
+## Solución
+
+Siga estos consejos de resolución de problemas para docker o Kubernetes , según corresponda:
+
+<CollapserGroup>
+  <Collapser
+    id="docker"
+    title={<><img style={{ width: '32px', height: '28px', verticalAlign: 'middle'}} class="inline" title="Docker" alt="Docker" src="/images/os_icon_docker.webp">docker resolución de problemas</img></>}
+  >
+    Si tienes problemas con la integración:
+
+    1. Compruebe si la integración de Prometheus OpenMetrics se está ejecutando:
+
+       ```shell
+       docker ps -f "name=nri-prometheus"
+       ```
+
+    2. Marque el campo `Status` del contenedor:
+
+       ```shell
+       docker inspect nri-prometheus
+       ```
+
+    3. Para obtener información más detallada, utilice docker `inspect`.
+
+       Si no aparecen datos en New Relic de UI:
+
+    4. Ejecute esta consulta NRQL:
+
+       ```shell
+       docker logs nri-prometheus | grep "error emitting metrics"
+       ```
+
+    5. Compruebe si el log contiene esto:
+
+       ```shell
+       metrics api responded with status code 403
+       ```
+
+    6. En caso afirmativo, verifique el `LICENSE_KEY` en su archivo de configuración docker .
+  </Collapser>
+
+  <Collapser
+    id="kubernetes"
+    title={<><img style={{ width: '32px', height: '28px', verticalAlign: 'middle'}} class="inline" title="Kubernetes" alt="Docker" src="/images/os_icon_k8.webp">Kubernetes Resolución de problemas</img></>}
+  >
+    Si tienes problemas con la integración:
+
+    1. Compruebe si la integración de Prometheus OpenMetrics se está ejecutando:
+
+       ```shell
+       kubectl describe pod -l "app=nri-prometheus"
+       ```
+
+    2. Marque el campo `Ready` del pod.
+
+    3. Si el pod no está listo, verifique el `Events`.
+
+       Si no aparecen datos en New Relic de UI:
+
+    4. Inspeccione el registro en busca de errores métricos:
+
+       ```shell
+       kubectl logs deploy/nri-prometheus | grep "error emitting metrics"
+       ```
+
+    5. Compruebe si el log contiene este mensaje:
+
+       ```shell
+       metrics api responded with status code 403
+       ```
+
+    6. En caso afirmativo, marque el `LICENSE_KEY` en su archivo de manifiesto `nri-prometheus-latest.yaml` .
+  </Collapser>
+</CollapserGroup>

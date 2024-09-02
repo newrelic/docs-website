@@ -1,0 +1,150 @@
+---
+title: Diagnose app failure with host data
+metaDescription: Learn how to identify failing hosts and apps using infrastructure data.
+freshnessValidatedDate: 2023-08-24
+---
+
+When your system is fully instrumented, you can correlate data between your system infrastructure and the apps your infrastructure supports. It's likely, though, that you have thousands of faceless hosts allocating resources to various apps. You may not have the full context of what is happening where, which makes finding relevant data overwhelming. How do you sort through all of your data to find infrastructure-related causes to failing apps?
+
+## Objectives [#objectives]
+
+This doc guides you through finding relevant data within the infrastructure UI. You will:
+
+* Filter your infrastructure data by attributes
+* Identify specific hosts and apps without additional context
+* Use the timepicker to find when a change occurred
+
+## Explore your host data to find the cause of an outage [#explore]
+
+<Steps>
+  <Step>
+    ## Identify failing hosts
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="hosts-via-alerts">
+          Find hosts with alerts
+        </TabsBarItem>
+
+        <TabsBarItem id="hosts-no-alerts">
+          Find hosts without alerts
+        </TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="hosts-via-alerts">
+          If you're uncertain about how to get started, we recommend initially scoping your hosts by alert severity. Using the summary page overview, you can see that there are three critical alert incidents happening in your system.
+
+          You can use the filter bar to view data only about those three critical alerts. In this case, your query would read `alertSeverity = 'CRITICAL'`, which scopes your aggregated data from 83 hosts down to three.
+
+          <img
+            title="Add a query to the filter bar to sort by alert severity"
+            alt="A screenshot identifying the two areas in the UI that indicate alert severity. An arrow points to the Alerts tile and a second arrow points to the filter bar."
+            src="/images/infrastructure_screenshot-full_hosts-alert-critical.webp"
+          />
+        </TabsPageItem>
+
+        <TabsPageItem id="hosts-no-alerts">
+          If you haven't set up <InlinePopover type="alerts"/> yet, you can always sort the summary table by hosts metrics. For example, let's say that you have no indication that hosts are failing but you've still been notified about a problem.
+
+          <img
+            title="Sort your summary table data"
+            alt="A screenshot that shows the summary table sorted by descending CPU usage. An arrow points to the column title where you can toggle the sort action by ascending or descending."
+            src="/images/infrastructure_screenshot-full_table-ordered.webp"
+          />
+
+          1. Click the name column on the summary table. You can sort by ascending or descending order.
+          2. In the screenshot, we sorted hosts by CPU usage, which placed  `host-tower-portland` at the top with 99.84% CPU.
+          3. Repeat the same process for memory usage, storage usage, and so on if needed. Repeat until you've found a pattern for anomolous behavior.
+          4. When you have time, consider creating alerts for any critical thresholds.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Filter by app name
+
+    Once you've identified a host related to the incident, you can click through to view data only about that host. In this scenario, we've chosen `apache-svr01`. Since we're trying to solve an app-related issue, we're starting at the service map on the host's page. This map shows you what apps depend on your chosen host.
+
+    <SideBySide>
+      <Side>
+        <img
+          title="Open your host-scoped summary page"
+          alt="A screenshot displaying a summary page with data scoped to the individual host, named apache-svr01. An arrow points to the service map on the right side of the UI."
+          src="/images/infrastructure_screenshot-service-maps-app.webp"
+        />
+
+        From the `apache-svr01` scoped view, we can see that two apps depend on this host. One is alerting.
+      </Side>
+
+      <Side>
+        <img
+          title="Open the service map to view dependencies"
+          alt="A screenshot displaying a service map. This service map shows two apps. One app named 'Orders team' is alerting in the critical."
+          src="/images/infrastructure_screenshot-find-app.webp"
+        />
+
+        In this case, the app `Orders team` is the failing app.
+      </Side>
+    </SideBySide>
+  </Step>
+
+  <Step>
+    Return to the infrastructure summary page so you can update your query. We want to evaluate all hosts related to this app even if they're not yet alerting. Viewing the problem host in context of its partner set improves your understanding of what's causing the app failure. For instance, maybe the other hosts are approaching a threshold, or maybe you haven't created an alert for those others hosts.
+
+    Adjust the filter bar to show any hosts related to the `Orders team` app. Your query should now read `apmApplicationNames = Orders team`.
+
+    <img
+      title="Update your filter query to show all hosts related to the failing app"
+      alt="A screenshot with an updated view of the hosts page. Instead of showing a table of alerting hosts, it now displays host data that serves the app Orders team"
+      src="/images/infrastructure_screenshot-full_hosts-filtered-app.webp"
+    />
+
+    This filter widened the incident radius beyond your initial `apache_svr01` host, but still kept your data scoped to a relevant set. From here, you can start digging deeper into what resource limitation is affecting performance.
+
+    * Since only a couple of these hosts are alerting, you can rule out a potential database issue, which would affect all of the hosts.
+    * Instead you might choose to dig deeper in the System, Network, Processes, Storage, or Docker containers tabs. The next doc in this series covers how to compare and correlate data behavior.
+  </Step>
+
+  <Step>
+    ## Adjust the time picker to find when a change first occurred
+
+    Adjusting the time picker lets you view how your data has changed over time. This action lets you track when a change first occurred. Let's look at these metrics graphs toggled between 3 hours ago and 6 hours ago.
+
+    <SideBySide>
+      <Side>
+        <img
+          title="Tiles and graphs set to a 3 hour time parameter"
+          alt="A screenshot displaying two metrics graphs and tiles from the past 6 hours."
+          src="/images/infrastructure_screenshot-full_metrics-time1.webp"
+        />
+      </Side>
+
+      <Side>
+        <img
+          title="Tiles and graphs set to a 6 hour time parameter"
+          alt="A screenshot displaying two metrics graphs and tiles from the past 6 hours."
+          src="/images/infrastructure_screenshot-full_metrics-time2.webp"
+        />
+      </Side>
+    </SideBySide>
+
+    * Your time series at 6 hours doesn't display an obvious increase in disk utilization. Toggled to a 3 hour parameter, you can see approximately when behavior started to change. Your metrics graphs give you a visual clue when a spike or drop occurs.
+    * If there's been an unexpected increase in load, the <DNT>**Events**</DNT> tile will display either many or too few expected events.
+    * The <DNT>**Alerts**</DNT> tile displays the number of hosts that are currently alerting with critical or warning thresholds. A steady increase in alerts over time might indicate when a change escalated the incident behavior.
+
+    The tiles and metrics graphs can help you triangulate the approximate time of an incident. This is especially helpful if the cause of an incident is due to a update from an external vendor, or a deployment from another team. If that is the case, your next step for digging deeper would change.
+  </Step>
+</Steps>
+
+## What's next? [#next]
+
+We've introduced how to locate failing apps by evaluating your infrastructure data. By starting with the summary page, you can overview how your hosts are performing over time and identify which hosts are supporting failing apps.
+
+But how do you use your infrastructure data to make a decision about resource allocation? The next doc covers how you can dig deeper on a more specific incident, like troubleshooting high CPU.
+
+<UserJourneyControls
+  previousStep={{path: "/docs/tutorial-troubleshoot-infra-hosts/collect-your-data", title: "Previous step", body: "Install the infrastructure agent."}}
+  nextStep={{path: "/docs/tutorial-troubleshoot-infra-hosts/investigate-your-resources", title: "Next Step", body: "Make resource decisions with your data"}}
+/>

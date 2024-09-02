@@ -1,0 +1,120 @@
+---
+title: Troubleshoot slow application performance
+metaDescription: Discover actionable steps for troubleshooting slow application performance to identify and resolve issues for a smoother user experience.
+translate:
+  - jp
+  - kr
+redirects:
+  - /docs/journey-app-slow/root-causes/
+  - /docs/tutorial-app-slow/root-causes/
+freshnessValidatedDate: never
+---
+
+Your app is slow. Perhaps it's so slow it's causing downtime or issues in related services, or perhaps it's simply a slow back-end response that makes your UX just a little bit worse. What do you do about it?
+
+This tutorial walks you through how to use New Relic to triage your application and identify the root cause of your app's degraded performance. You'll start by "instrumenting" your app with an agent, which means installing a piece of code that reports data about your app to New Relic through language and framework specific integrations. Using this data in New Relic, you'll dig into the performance of your application and identify slow transactions, slow database queries, or slow external services as your issue—or possibly all three!
+
+## How to fix a slow running application with New Relic
+
+Addressing a slow running application requires a systematic approach to identify the root cause of performance issues. The following steps will provide you the information needed to troubleshoot, diagnose, and resolve issues negatively impacting the speed of your application.
+
+## Implement performance monitoring through application instrumentation [#prereq]
+
+Before you can improve your site's performance, you need the ability to see what's going on. New Relic monitoring always starts with an <DNT>**integration**</DNT>, or a piece of code that collects data from a relevant technology and reports it to New Relic. To monitor your application's performance, you will use an agent created specifically for your app's language.
+
+Click a logo to install an agent. This will send you to the New Relic platform where you will be guided through installing and configuring the agent.
+
+<TechTileGrid>
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="https://one.newrelic.com/nr1-core?state=985d4005-ba90-a8c7-1da1-2af34539b03b"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="https://one.newrelic.com/nr1-core?state=80d18bcb-4919-1fcb-2b77-9406838eb916"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="https://one.newrelic.com/nr1-core?state=30e93090-6dfa-6b70-8e75-472f54414355"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="https://one.newrelic.com/marketplace/install-data-source?state=be2e62fa-cc3b-c428-27c4-8d662c9e80a1"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="https://one.newrelic.com/nr1-core?state=aa633b41-72d4-009c-3abf-55dcf64894fe"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="https://one.newrelic.com/nr1-core?state=20fda75b-58fb-a92a-f9e1-7b052035c6e8"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+  />
+</TechTileGrid>
+
+Once you've installed an agent, go to <DNT>**[one.newrelic.com](https://one.newrelic.com/nr1-core?filters=(domain%3D'APM'ANDtype%3D'APPLICATION'))**</DNT> and select your app. If you don't see much data just yet, step away for a while and let the agent gather real-time data as your application runs.
+
+## Identify application issues [#identify]
+
+<SideBySide>
+  <Side>
+    Look at the <DNT>**Web transactions time**</DNT> chart. This chart displays the average response time of certain metrics within your app. As your chart populates with data, take note of strange spikes in any line or segment. At the same time, take note of any segments or lines that consistantly take a large amount of time.
+
+    <Callout variant="tip">
+      Use the time picker in the top right of your page to look for spikes over various time ranges.
+    </Callout>
+  </Side>
+
+  <Side>
+    <img
+      title="Default web transactions chart"
+      alt="Default web transactions chart"
+      src="/images/journey_screenshot-web-transactions.webp"
+    />
+  </Side>
+</SideBySide>
+
+## Diagnose your application
+
+With the information on the charts provided you can analyze the current speed and efficiency of your application transactions, database queries, and external services.  The next step is to prioritize and implemented targeted fixes to improve performance.
+
+Choose your next step in this tutorial based on which colors take up the largest chunks of the chart, or show spikes or other odd behavior:
+
+<DocTiles>
+  <DocTile
+    title="If it's the blue line: slow application traces"
+    path="/docs/journey-app-slow/problematic-transactions"
+  >
+    The blue line is <DNT>**application code**</DNT>, specifically time spent in your application on code that isn't external or database calls. To troubleshoot this, click here for tutorial step 2.
+  </DocTile>
+
+  <DocTile
+    title="If it's the yellow segment: slow database queries"
+    path="/docs/journey-app-slow/slow-database-queries"
+  >
+    The yellow segment is <DNT>**database queries**</DNT>, specifically time spent calling and waiting on database queries. To troubleshoot this, click here for tutorial step 3.
+  </DocTile>
+
+  <DocTile
+    title="If it's the green segment: slow external services"
+    path="/docs/journey-app-slow/external-services/"
+  >
+    The green segment is <DNT>**external services**</DNT>, specifically time spent calling a HTTP service or endpoint. This could be a HTTP endpoint as part of the same app, another service as part of the same system, or it could be a completely external third party API. To troubleshoot this, click here for tutorial step 4.
+  </DocTile>
+</DocTiles>

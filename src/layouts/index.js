@@ -1,28 +1,22 @@
 import React from 'react';
-import MainLayout from './MainLayout';
-import EmbedLayout from './EmbedLayout';
 import PropTypes from 'prop-types';
+import MainLayout from './MainLayout';
+import HomePageLayout from './HomePageLayout';
 
 const Layout = ({ children, ...props }) => {
   const { pageContext } = props;
-
   switch (pageContext.layout) {
     case 'basic':
       return children;
-    case 'EmbedLayout':
-      if (pageContext.fileRelativePath.match(/404/)) {
-        return children;
-      } else {
-        return <EmbedLayout>{children}</EmbedLayout>;
-      }
+    case 'homepage':
+      return <HomePageLayout {...props}>{children}</HomePageLayout>;
     default:
       return <MainLayout {...props}>{children}</MainLayout>;
   }
 };
-
 Layout.propTypes = {
   children: PropTypes.node,
-  pageContext: PropTypes.object,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export default Layout;

@@ -1,0 +1,17 @@
+---
+title: Manage synthetic monitors via API
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Administration
+metaDescription: 'For New Relic synthetic monitoring, how to use APIs to manage monitors.'
+redirects:
+freshnessValidatedDate: 2023-07-14
+---
+
+We have two options for managing your New Relic synthetic monitors via API:
+
+* NerdGraph (recommended): this is the primary and recommended way. See [our NerdGraph synthetics tutorial](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial).
+* REST API: Some customers prefer to use our older REST API. See [Synthetics REST API](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitors-rest-api)
+
+For an overview of all our available APIs, see [Intro to APIs](/docs/apis/getting-started/introduction-new-relic-apis).

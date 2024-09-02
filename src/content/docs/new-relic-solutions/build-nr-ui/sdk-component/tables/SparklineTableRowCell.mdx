@@ -1,0 +1,281 @@
+---
+title: 'SparklineTableRowCell'
+metaDescription: 'Learn how to work the SparklineTableRowCell component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Renders a table row cell showing a sparkline. Sparklines can either come from a NRQL query (thus providing `accountId` and `query`), or from a predefined `data` passed in the chart format. In either case, all props are 1:1 compatible with the `<NrqlQuery>` format type `CHART`.
+
+A common case to render one row per NRQL facet, is to perform the query outside of the table, then pass the result as items (returned data from a `<NrqlQuery>` is an array, that can be directly used as the input items of a table). Once rendering the sparkline, you need to re-wrap the data in an array, in order to build, from a series, a new entire set of data.
+
+### Usage
+
+```js
+import { SparklineTableRowCell } from 'nr1'
+```
+
+### Examples
+
+#### Example 1
+
+```js
+function render() {
+  const items = [
+    {
+      accountId: 1,
+      query: "SELECT count(*) FROM Transaction WHERE metric = '…' TIMESERIES",
+    },
+  ];
+
+
+  return (
+    <Table items={items}>
+      <TableHeader>
+        <TableHeaderCell>Account</TableHeaderCell>
+        <TableHeaderCell>Stats</TableHeaderCell>
+      </TableHeader>
+
+
+      {({ item }) => (
+        <TableRow>
+          <TableRowCell>{item.accountId}</TableRowCell>
+          <SparklineTableRowCell
+            accountId={item.accountId}
+            query={item.query}
+          />
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+#### Example 2
+
+```js
+<NrqlQuery
+  accountId={1}
+  query="SELECT count(*) FROM Transaction WHERE metric = '…' TIMESERIES"
+>
+  {({ loading, error, data }) => {
+    if (loading || error) {
+      return null;
+    }
+
+
+    return (
+      <Table items={data}>
+        <TableHeader>
+          <TableHeaderCell>Name</TableHeaderCell>
+          <TableHeaderCell>Stats</TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell>{item.metadata.name}</TableRowCell>
+            <SparklineTableRowCell data={[item]} />
+          </TableRow>
+        )}
+      </Table>
+    );
+  }}
+</NrqlQuery>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `accountId` <h5>DEPRECATED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        <Callout variant="caution" title="Due November 1st, 2022">The accountId is deprecated, use accountIds instead </Callout> Sets the account ID to perform the query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `data` <h5>object\[]</h5>
+      </td>
+
+      <td>
+        Data is an array of objects where each object represents a series to be drawn. Each series comprises visualization metadata and an array of data points.
+
+        ```js
+        const data = [
+          {
+            metadata: {
+              id: 'series-1',
+              name: 'Serie 1',
+              color: '#a35ebf',
+              viz: 'main',
+              units_data: {
+                x: 'TIMESTAMP',
+                y: 'BYTES',
+              },
+            },
+            data: [
+              {
+                x: 1712312066891,
+                y: 21400,
+              },
+              {
+                x: 1712315666891,
+                y: 12200,
+              },
+              {
+                x: 1712319266891,
+                y: 9300,
+              },
+              {
+                x: 1712322866891,
+                y: 14500,
+              },
+              {
+                x: 1712326466891,
+                y: 27500,
+              },
+              {
+                x: 1712330066891,
+                y: 24700,
+              },
+            ],
+          },
+          {
+            metadata: {
+              id: 'series-2',
+              name: 'Serie 2',
+              color: '#85c956',
+              viz: 'main',
+              units_data: {
+                x: 'TIMESTAMP',
+                y: 'BYTES',
+              },
+            },
+            data: [
+              {
+                x: 1712312066891,
+                y: 8800,
+              },
+              {
+                x: 1712315666891,
+                y: 1400,
+              },
+              {
+                x: 1712319266891,
+                y: 4600,
+              },
+              {
+                x: 1712322866891,
+                y: 5200,
+              },
+              {
+                x: 1712326466891,
+                y: 14100,
+              },
+              {
+                x: 1712330066891,
+                y: 19300,
+              },
+            ],
+          },
+          {
+            metadata: {
+              id: 'events',
+              name: 'Events',
+              color: 'red',
+              viz: 'event',
+            },
+            data: [
+              {
+                x0: 1712315666891,
+                x1: 1712319266891,
+              },
+              {
+                x0: 1712326466891,
+                x1: 1712326466891,
+              },
+            ],
+          },
+        ];
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the table cell.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query` <h5>string</h5>
+      </td>
+
+      <td>
+        NRQL query used for fetching data. The query is performed against the provided `accountIds`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.Linked `TableRowCell`s are unstyled and will not show icons for external links. If the same styling as the Link component is what is desired, then use a `Link` instead as a child component within the cell.<h3>shape</h3>
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

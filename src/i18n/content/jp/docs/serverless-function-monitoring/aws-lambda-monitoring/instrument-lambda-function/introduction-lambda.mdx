@@ -1,0 +1,1540 @@
+---
+title: AWS Lambda監視の概要
+metaDescription: This provides an overview of New Relic's AWS Lambda monitoring and details how to link your accounts.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+組織がAWS Lambdaを使用して Function-as-a-Service (FaaS) アーキテクチャに移行すると、シームレスで効率的なユーザーエクスペリエンスを実現するために、関数のパフォーマンスを理解して最適化することが重要になります。 各 Lambda 呼び出しは、潜在的なボトルネックまたは改善の機会を表します。
+
+New RelicのAWS Lambda向けインストゥルメンテーションは、関数の内部動作を詳細に可視化します。 関数に New Relic エージェントを追加すると、関数が呼び出されるたびに New Relic も呼び出されます。 期間、コールド スタート、例外、トレースバックなどの主要なパフォーマンス メトリックをインサイトで取得できます。
+
+このドキュメントでは、 New Relicの Lambda 監視アーキテクチャについて説明し、 AWSとNew Relicアカウントをリンクする手順を説明します。 機能を利用する前にアカウントをリンクする必要があります。
+
+## Lambda インストゥルメンテーションの仕組み [#how]
+
+これらは、 を使用したAWS Lambda インストゥルメンテーションの重要な要素です。New Relic
+
+* **あなたの関数**: あなたの関数はあなたが理解したいコードです。 いつエラーが発生したのか、なぜ遅いのか、どのくらいの頻度で呼び出されるのかを知りたいのです。
+
+* **New Relicエージェントまたは SDK** : 関数が記述されている言語に応じて、 New Relic異なるエージェントまたは SDK を提供します。 彼らの仕事は、実際にコードを監視することです。 関数呼び出しの継続時間を測定し、発生したエラーを記録し、ソース イベントの詳細と関数の応答を記録します。 これを行うには、Lambda 呼び出しハンドラー関数をラップする必要があります。
+
+* **New Relic Lambda 拡張機能**: 関数にNew Relic Lambda 拡張機能を組み込むと、コードと一緒に Lambda 実行環境内で実行されます。 エージェントが収集したテレメトリを強化し、 New Relicのバックエンドにバッチで送信します。 関数のログを New Relic に送信することもできます。 New Relicで関数を監視するために Lambda 拡張機能は必要ありません。
+
+## 配送方法を選択してください [#method]
+
+New Relic AWS Lambdaテレメトリを出荷する方法は 3 つあります。 どの配送方法を選択するかは、データのニーズによって異なります。
+
+<img title="shipping methods" alt="A screenshot depicting the different shipping methods for Lambda" src="/images/serverless_diagram_shipping-methods.webp" />
+
+* **コスト**: AWS Lambdaで計画する最もコスト効率の高い方法は、Lambda 拡張機能を含むいずれかのレイヤーを使用することです。 デフォルトでは、拡張機能は AWS CloudWatch にデータを送信しません。
+
+* **信頼性**: データは CloudWatch 経由でのみ送信できます。 これを行うには、New Relic Lambda 拡張機能を無効にします。 つまり、Lambda 関数は軽量になり、呼び出されたときに追加のプロセスが実行されなくなります。 この場合、ログとペイロードは拡張機能ではなく CloudWatch を介して New Relic に送信されます。
+
+* **両方の長所を活かす**: AWS CloudWatch をフォールバックとして拡張機能と併用すると、コストを抑えながら、拡張機能に問題が発生した場合にフェイルセーフを提供できます。
+
+インストゥルメント ドキュメントの各メソッドを使用して Lambda 関数を計算 する方法を説明します。
+
+* [コンテナ化されたLambda関数を計画する](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/containerized-images/)
+
+* [コンテナ化されていないLambda関数を設計する](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/)
+
+* [レイヤーレスLambda関数を設計する](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monioring-lambda-monitoring-layerless/)
+
+## あなたが始める前に [#begin]
+
+Lambda レイヤーを使用してサーバーレス監視を有効にする前に、次のものが必要です。
+
+1. [管理者ロール](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles)または**インフラストラクチャ マネージャー**[アドオン ロール](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#add-on)を持つ New Relic アカウント。
+
+2. <InlinePopover type="userKey" />。
+
+3. IAMリソース、マネージドシークレット、Lambdasを作成するパーミッションを持つAWSアカウント。また、CloudFormationスタックやS3バケットを作成するための権限も必要です。
+
+次に、以下の手順を完了する必要があります。
+
+1. `aws configure`を使用して[AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)構成をインストールします。 AWS アクセスキー ID と AWS シークレットアクセスキーが必要になります。
+
+2. [Python](https://www.python.org/downloads/)バージョン 3.3 以降をインストールします。
+
+3. [`newrelic-lambda` CLI を](https://github.com/newrelic/newrelic-lambda-cli#installation)インストールします。 インストールするには、次のコマンドを実行します。
+
+   ```bash
+   pip3 install newrelic-lambda-cli
+   ```
+
+4. デフォルトでは、AWS 管理ポリシー`ReadOnlyAccess`を使用します。 これにより、インフラストラクチャ インテグレーションは、Lambda 関数と CloudWatch メトリックだけでなく、アカウント内のすべてのリソースを確認できるようになります。 New Relicではこのデフォルトを推奨していますが、サードパーティのインテグレーションに対して厳格なセキュリティ体制を好む組織もあることを理解しています。 New Relic のアクセスを制限する場合は、IAM ロールに最低限以下の権限を付与できます。
+
+```yaml
+Resource: "*"
+  Action:
+    - "cloudwatch:GetMetricStatistics"
+    - "cloudwatch:ListMetrics"
+    - "cloudwatch:GetMetricData"
+    - "lambda:GetAccountSettings"
+    - "lambda:ListFunctions"
+    - "lambda:ListAliases"
+    - "lambda:ListTags"
+    - "lambda:ListEventSourceMappings"
+```
+
+5. CLI を実行する前に、AWS で New Relic に最低限以下の権限を付与する必要があります。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CLIAccessPolicy",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:CreateStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:ExecuteChangeSet",
+        "iam:AttachRolePolicy",
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:PassRole",
+        "lambda:AddPermission",
+        "lambda:CreateFunction",
+        "lambda:GetFunction",
+        "logs:DeleteSubscriptionFilter",
+        "logs:DescribeSubscriptionFilters",
+        "logs:PutSubscriptionFilter",
+        "s3:GetObject",
+        "serverlessrepo:CreateCloudFormationChangeSet",
+        "secretsmanager:CreateSecret"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "NRLogAccessPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "serverlessrepo:CreateCloudFormationTemplate",
+        "serverlessrepo:GetCloudFormationTemplate"
+      ],
+      "Resource": "arn:aws:serverlessrepo:us-east-1:463657938898:applications/NewRelic-log-ingestion"
+    }
+  ]
+}
+```
+
+CLI について詳しく知りたい場合は、 [CLI リポジトリ](https://github.com/newrelic/newrelic-lambda-cli#installation)をご覧ください。
+
+## 推奨されるAWS Lambda言語のランタイム [#recommended]
+
+以下のランタイムをお勧めします。
+
+* Node.js： `nodejs16.x` 、 `nodejs18.x` 、 `nodejs20.x`
+* Python: `python3.8` 、 `python3.9` 、 `python3.10` 、 `python3.11` 、 `python3.12`
+* Go： `provided.al2` 、 `provided.al2023`
+* Java: `java8.al2` 、 `java11` 、 `java17` 、 `java21`
+* Ruby : `ruby3.2`, `ruby3.3`
+* .NET: `dotnet6` 、 `dotnet8`
+
+## コストを考慮する [#costs]
+
+AWS Lambda のサーバーレス監視を有効にすると、Amazon Web Services の料金が発生する可能性があります。 お客様の Lambda データを当社に報告する `newrelic-log-ingestion` Lambda 関数は[サードパーティサービス](/docs/licenses/license-information/acceptable-use-policy/acceptable-use-policy)とみなされます。このサービスの使用によって発生するAWS料金はお客様の責任となります。
+
+[New RelicLambda](https://github.com/newrelic/newrelic-lambda-layers) Layers にバンドルされている[ newrelic-lambda-extension](https://github.com/newrelic/newrelic-lambda-extension) を使用すると、CloudWatch および[ newrelic-log-ingestion](https://github.com/newrelic/aws-log-ingestion) 関数を介したログとテレメトリーの送信を回避できます。オブザーバビリティデータの高可用性を必要とする機能の[ CloudWatch](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/cloud-watch-fallback/) フォールバック メソッドとして newrelic-log-ingestion[ 関数を設定することもできます。](https://github.com/newrelic/aws-log-ingestion)
+
+## Lambda監視をインストールする [#setup]
+
+Lambda 監視には以下が含まれます:
+
+* AWSCloudWatchメトリクスを取り込み、 内でエンティティ合成を実行するための インテグレーション。New Relic
+* 「サーバーレス」モードで動作する New Relic エージェント[。New Relic Lambda レイヤー](https://github.com/newrelic/newrelic-lambda-layers)または[デプロイメントに](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monitoring-aws-lambda-layerless/)含まれています。
+* 「インストゥルメントされた」ペイロードを送信し、オプションでNew Relic [newrelic--logingestion](https://github.com/newrelic/aws-log-ingestion) 関数または[ Extension](https://github.com/newrelic/newrelic-lambda-extension) を 介して にログを送信する方法。これも[New Relic Lambda Layers に含まれています。](https://github.com/newrelic/newrelic-lambda-layers)
+
+<Steps>
+  <Step>
+    ## AWSとNew Relicアカウントをリンクする [#link]
+
+    New Relicで「インストゥルメントされた」Lambda関数のテレメトリーを受け取る前に、 AWSアカウントをNew Relicにリンクする必要があります。 アカウントをリンクすると、 New RelicにAWSアカウントのインベントリを作成し、Lambda 関数の CloudWatch メトリックを自動的に収集する権限が付与されます。 アカウントをリンクすると、 AWSアカウントのリソース[がエンティティ エクスプローラー](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/#find)にエンティティとして表示されます。 Lambda関数 エンティティはサーバーレス機能ビューにあります。
+
+    ### AWSメトリクスストリーム統合をセットアップする (推奨)
+
+    New Relic Lambda関数を監視するには、 New RelicとAWSの間の統合をセットアップする必要があります。 レイテンシを削減し、ポーリング リクエストのスロットルを回避するには[、メトリクス ストリーム](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream)を使用することをお勧めします。
+
+    ### とのAPI ポーリング統合をセットアップするAWS
+
+    メトリクス Streams インテグレーションを使用していない場合は、代わりに[APIポーリング インテグレーション](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring)をセットアップすることを選択できます。 デフォルトでは、Lambda サービスが有効になっているAPIポーリング統合は、CloudWatchメトリクスに対して 5 分ごとにポーリングを行います。
+
+    [newrelic-lambda-cli](https://github.com/newrelic/newrelic-lambda-cli)を使用してAPIポーリング統合をセットアップすることはできますが、メトリクス Streams 統合はセットアップできません。
+
+    ```sh
+    newrelic-lambda integrations install --nr-account-id YOUR_NR_ACCOUNT_ID \
+    --nr-api-key YOUR_NEW_RELIC_USER_KEY
+    ```
+
+    [統合インストール コマンド](https://github.com/newrelic/newrelic-lambda-cli?tab=readme-ov-file#aws-lambda-integration)の 1 つのステップで、 [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)に `NEW_RELIC_LICENSE_KEY` シークレットが作成され、セキュリティが向上します。 これは、他のオプションやフラグとともに、 `--disable-license-key-secret`フラグを使用して構成できます。
+  </Step>
+
+  <Step>
+    ## Lambda関数を計算 [#instrument]
+
+    Lambda関数にインストゥルメンテーションを追加するには、いくつかの方法があります。 「コード変更なし」のインストゥルメンテーションには、 New Relicレイヤーを使用します。 レイヤー[を Lambda に直接追加すること](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/)も、 [dockerfile に含めることも](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/containerized-images/)できます。 拡張レイヤーを除く各レイヤーには、エージェント、ハンドラー ラッパー、およびペイロードとログの配布用の拡張機能が含まれます。
+
+    [newrelic-lambda-cli は、](https://github.com/newrelic/newrelic-lambda-cli) [New Relic Lambda レイヤー](https://github.com/newrelic/newrelic-lambda-layers)を追加する最も迅速で簡単な方法です。 CI/CD よりもテストに使用されることが多いです。
+
+    New RelicCI/CD既存の パイプライン経由で レイヤーを追加するには、[ サーバーレス フレームワーク プラグイン](https://github.com/newrelic/serverless-newrelic-lambda-layers) [と SAM および Terraform](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples) の例を用意しています。
+
+    パフォーマンスを向上させるため、またはNew Relic 関数のコードとより緊密に統合するために、[ 除くすべてのランタイムに レイヤーレス インストゥルメンテーション](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monitoring-aws-lambda-layerless/) Rubyを使用することもできます。
+  </Step>
+
+  <Step>
+    ## Lambda関数を設定する [#configure]
+
+    関数をインストゥルメントした後、 AWSコンソールで設定が正しいことを確認します。
+
+    <CollapserGroup>
+      <Collapser id="dt" title="分散型トレーシング">
+        ディストリビューティッド（分散）トレーシングには通常、次の 3 つの環境変数が必要です。
+
+        * `NEW_RELIC_ACCOUNT_ID`
+        * `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+        * `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+      </Collapser>
+
+      <Collapser id="ext" title="拡張子">
+        拡張機能では、機能ログの送信はデフォルトで無効になっています。 一般的な環境変数は次のとおりです。
+
+        * `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS` 機能ログを送信します。 デフォルトは`false`です。
+        * `NEW_RELIC_LICENSE_KEY` AWS Secrets Manager のシークレットを上書きします。 これは、間違ったライセンスキーを[取り込ん](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)でシークレットが作成された場合に備えて良いチェックです。
+        * `NEW_RELIC_DATA_COLLECTION_TIMEOUT` タイムアウトが発生したときに、ログとペイロードを New Relic に送信するのにかかる時間を短縮します。 デフォルトは`10s`です。
+      </Collapser>
+
+      <Collapser id="nodejs" title="Node.js">
+        Node.js エージェント用に設定を検討する必要がある追加の環境変数を次に示します。
+
+        * `NEW_RELIC_USE_ESM` 関数が CommonJS ではなく ECMAScript 標準を使用する場合。 コールド スタート時のパフォーマンスへの影響を避けるために、 [ハンドラーを手動で計測](https://github.com/newrelic/newrelic-lambda-layers?tab=readme-ov-file#manual-instrumentation-for-es-modules)してください。
+        * `NEW_RELIC_NATIVE_METRICS_ENABLED` パフォーマンスへの影響を避けるために無効にする必要があります。 Lambda ではネイティブ メトリクスのインストゥルメンテーションは必要ありません。 デフォルトは`true`です。
+      </Collapser>
+
+      <Collapser id="python" title="Python">
+        Python エージェント用に設定を検討する必要がある追加の環境変数を次に示します。
+
+        * `NEW_RELIC_PACKAGE_REPORTING_ENABLED` コールドスタートのパフォーマンスを向上させるには無効にする必要があります。 Lambda ではパッケージ レポート機能は必要ありません。 デフォルトは`true`です。
+      </Collapser>
+    </CollapserGroup>
+
+    実行時により一般的に使用される環境変数については、次の手順を参照してください。
+  </Step>
+
+  <Step>
+    ## 環境変数 [#environment]
+
+    CLI を使用してNew Relicの Lambda レイヤーをセットアップすると、環境変数が自動的に構成されます。 デフォルト設定の一部を変更し、監視ニーズに合った環境変数を使用して Lambda 関数を構成することもできます。 ランタイムを選択して、利用可能な環境変数とデフォルト設定の推奨事項を確認してください。
+
+    <CollapserGroup>
+      <Collapser id="go" title="Go">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New RelicアカウントIDまたは親ID（存在する場合）
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="java" title="Java オープントレーシング">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New RelicアカウントIDまたは親ID（存在する場合）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                関数の実際のハンドラーを見つけるために
+
+                [ハンドラー ラッパー](https://github.com/newrelic/newrelic-lambda-layers/blob/master/java/src/main/java/com/newrelic/java/HandlerWrapper.java)
+
+                によって使用されます。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                ディストリビューティッド（分散）トレーシングを有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_PRIMARY_APPLICATION_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DEBUG`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                エージェントログレベル
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="node-js" title="Node.js">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New RelicアカウントIDまたは親ID（存在する場合）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                関数の実際のハンドラーを見つけるために
+
+                [ハンドラー ラッパー](https://github.com/newrelic/newrelic-lambda-layers/blob/master/nodejs/index.js)
+
+                によって使用されます。 
+
+                [手動ラッピング方式](https://github.com/newrelic/newrelic-lambda-layers?tab=readme-ov-file#note-on-performance-for-es-module-functions)
+
+                を使用する場合は必要ありません。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                ディストリビューティッド（分散）トレーシングを有効または無効にする（Java を除く）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NO_CONFIG_FILE`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                Node.jsエージェントはLambdaで環境変数を使用するので、これを次のように設定する必要があります。 
+
+                `true`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                設定する必要がありますが、New Relic UI では使用されません。 代わりに、エンタープライズ名はAWSインテグレーションから取得されます。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                ,
+
+                `false`
+              </td>
+
+              <td>
+                エージェントのログ記録を有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `fatal`
+
+                、 
+
+                `error`
+
+                 、 
+
+                `warn`
+
+                 、 
+
+                `info`
+
+                 、 
+
+                `debug`
+
+                 、 
+
+                `trace`
+              </td>
+
+              <td>
+                エージェントログレベル
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG`
+              </td>
+
+              <td>
+                `stdout`
+              </td>
+
+              <td>
+                `stdout`
+              </td>
+
+              <td>
+                サーバーレス モードの Node.js エージェントの場合、エージェント ログ パスは stdout である必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_USE_ESM`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                コールバックではなくasync/awaitを使用するESM関数
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NATIVE_METRICS_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                コールド スタートの期間を短縮するには、false に設定する必要があります。 
+
+                `false`
+
+                に設定するとVMメトリクスは収集されません
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        さらに多くの環境変数については[、Node.js 設定ドキュメント](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)をご覧ください。
+      </Collapser>
+
+      <Collapser id="python" title="Python">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New RelicアカウントIDまたは親ID（存在する場合）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                ディストリビューティッド（分散）トレーシングを有効または無効にする（Java を除く）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                関数の実際のハンドラーを見つけるために
+
+                [ハンドラー ラッパー](https://github.com/newrelic/newrelic-lambda-layers/blob/master/python/newrelic_lambda_wrapper.py)
+
+                によって使用されます。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NO_CONFIG_FILE`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                エージェントはLambdaで環境変数を使用するため、これをtrueに設定する必要があります
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                設定する必要がありますが、New Relic UI では使用されません。 代わりに、エンタープライズ名はAWSインテグレーションから取得されます。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG`
+              </td>
+
+              <td>
+                `stderr`
+              </td>
+
+              <td>
+                `stderr`
+              </td>
+
+              <td>
+                サーバーレス モードの Python エージェントの場合、エージェント ログ パスは
+
+                `stderr `
+
+                である必要があります
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `critical`
+
+                、
+
+                `error`
+
+                、
+
+                `warning`
+
+                、
+
+                `info`
+
+                、 
+
+                `debug`
+              </td>
+
+              <td>
+                エージェントログレベル
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_SERVERLESS_MODE_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                エージェントがサーバーレスモードで実行されるように、これを
+
+                `true`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_PACKAGE_REPORTING_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                コールドスタート時間を改善するには、Python エージェント パッケージ レポートを
+
+                `false`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        その他の環境変数については、 [Python 設定ドキュメント](/docs/apm/agents/python-agent/configuration/python-agent-configuration)をご覧ください。
+      </Collapser>
+
+      <Collapser id="ruby" title="Ruby">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                NewRelicアカウントID
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New RelicアカウントIDまたは親ID（存在する場合）
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                ディストリビューティッド（分散）トレーシングを有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                関数の実際のハンドラーを見つけるために
+
+                [ハンドラー ラッパー](https://github.com/newrelic/newrelic-lambda-layers/blob/master/ruby/newrelic_lambda_wrapper.rb)
+
+                によって使用されます。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="dotnet" title=".NET">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `CORECLR_ENABLE_PROFILING`
+              </td>
+
+              <td>
+                `0`
+              </td>
+
+              <td>
+                `0`
+
+                , 
+
+                `1`
+              </td>
+
+              <td>
+                必須: .NET エージェントがアプリケーションを計測するには、これを
+
+                `1`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_PROFILER`
+              </td>
+
+              <td />
+
+              <td>
+                `{36032161-FFC0-4B61-B559-F6C5D41BAE5A}`
+              </td>
+
+              <td>
+                必須: .NET エージェントがアプリケーションを計測するには、これを
+
+                `{36032161-FFC0-4B61-B559-F6C5D41BAE5A}`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_NEWRELIC_HOME`
+              </td>
+
+              <td />
+
+              <td>
+                `/opt/lib/newrelic-dotnet-agent`
+              </td>
+
+              <td>
+                必須: .NET エージェントがレイヤー経由でアプリケーションを計装するには、これを
+
+                `/opt/lib/newrelic-dotnet-agent`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_PROFILER_PATH`
+              </td>
+
+              <td />
+
+              <td>
+                `/opt/lib/newrelic-dotnet-agent/libNewRelicProfiler.so`
+              </td>
+
+              <td>
+                必須: .NET エージェントがレイヤー経由でアプリケーションを計装するには、これを
+
+                `/opt/lib/newrelic-dotnet-agent/libNewRelicProfiler.so`
+
+                に設定する必要があります。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td>
+                ランタイムハンドラ
+              </td>
+
+              <td />
+
+              <td>
+                ランタイム ハンドラーが
+
+                `assembly::class::method`
+
+                形式でない場合に必須です。ここで、 
+
+                `assembly`
+
+                はコードを含む DLL ファイルの名前、 
+
+                `class`
+
+                はハンドラー メソッドを含むクラスの完全な名前 (ネームスペースを含む)、 
+
+                `method`
+
+                は関数ハンドラー メソッドの名前です。 この環境変数は、他のエージェントの
+
+                [ハンドラー ラッパー](https://github.com/search?q=NEW_RELIC_LAMBDA_HANDLER+AND+%28path%3Anodejs%2Findex.js+OR+path%3Apython%2Fnewrelic_lambda_wrapper.py+OR+path%3Aruby%2Fnewrelic_lambda_wrapper.rb+OR+path%3A**%2Fjava%2FHandlerWrapper.java%29++owner%3Anewrelic+&type=code&ref=advsearch)
+
+                で使用される名前と同じ名前を持っていることに注意してください。ただし、.NET エージェントはハンドラー ラッパーを利用する必要はありません。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                設定する必要がありますが、New Relic UI では使用されません。 代わりに、エンタープライズ名はAWSインテグレーションから取得されます。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_ENABLED`
+              </td>
+
+              <td>
+                `1`
+              </td>
+
+              <td>
+                `1`
+
+                , 
+
+                `0`
+              </td>
+
+              <td>
+                エージェントのログ記録を有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_CONSOLE`
+              </td>
+
+              <td>
+                `0`
+              </td>
+
+              <td>
+                `1`
+
+                , 
+
+                `0`
+              </td>
+
+              <td>
+                CloudWatch にログを出力するには、 
+
+                `1`
+
+                に設定する必要があります
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `info`
+
+                、 
+
+                `debug`
+
+                 、 
+
+                `finest`
+              </td>
+
+              <td>
+                エージェントログレベル
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        [.NET 設定ドキュメント](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)と[レイヤーレス インストゥルメンテーション](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monitoring-aws-lambda-layerless/#dotnet)メソッドでその他の環境変数を見つけることができます。
+      </Collapser>
+
+      <Collapser id="extension" title="ラムダ拡張">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                環境変数
+              </th>
+
+              <th>
+                デフォルト値
+              </th>
+
+              <th>
+                オプション
+              </th>
+
+              <th>
+                説明
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                拡張機能を有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LICENSE_KEY`
+              </td>
+
+              <td />
+
+              <td />
+
+              <td>
+                New Relic 取り込みキー。 これは Secrets Manager をオーバーライドします。
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LICENSE_KEY_SECRET`
+              </td>
+
+              <td>
+                `NEW_RELIC_LICENSE_KEY`
+              </td>
+
+              <td />
+
+              <td>
+                AWS Secrets Manager のカスタムシークレット名
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DATA_COLLECTION_TIMEOUT`
+              </td>
+
+              <td>
+                10s
+              </td>
+
+              <td />
+
+              <td>
+                タイムアウト時間を短縮する 
+
+                `Telemetry client error`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_LOGS_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                `[NR_EXT]`
+
+                ログ行を有効または無効にする
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_LOG_LEVEL`
+              </td>
+
+              <td>
+                `INFO`
+              </td>
+
+              <td>
+                `INFO`
+
+                , 
+
+                `DEBUG`
+              </td>
+
+              <td>
+                NR_EXT ログ行のログレベル
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`
+
+                , 
+
+                `false`
+              </td>
+
+              <td>
+                機能ログを送信する
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_ENDPOINT`
+              </td>
+
+              <td>
+                `https://log-api.newrelic.com/log/v1`
+              </td>
+
+              <td>
+                `https://log-api.newrelic.com/log/v1`
+
+                , 
+
+                `https://log-api.eu.newrelic.com/log/v1`
+              </td>
+
+              <td>
+                ログエンドポイント
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TELEMETRY_ENDPOINT`
+              </td>
+
+              <td>
+                `https://cloud-collector.newrelic.com/aws/lambda/v1`
+              </td>
+
+              <td>
+                `https://cloud-collector.newrelic.com/aws/lambda/v1`
+
+                , 
+
+                `https://cloud-collector.eu01.nr-data.net/aws/lambda/v1`
+              </td>
+
+              <td>
+                テレメトリーエンドポイント
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        New Relic 拡張機能のその他の環境変数については、 [ドキュメント](https://github.com/newrelic/newrelic-lambda-extension/blob/cf86fb53f0bd816e1d09d07f7b5c5ab4841010a0/config/config.go#L41-L55)をご覧ください。
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## サンプル関数をお試しください
+
+    New Relicの Lambda レイヤーをインストゥルメントした後は、サンプル関数を試してみることを強くお勧めします。 これらの実用的な例は、独自のサーバーレス機能を開始するための出発点として使用する必要があります。 これらの例を使用すると、 New Relic Lambda レイヤーやアカウント リンクのテストに慣れることができ、独自のインストゥルメンテーションのリファレンスとしても使用できます。 各例では、権限の追加、ハンドラーをラップするためのランタイム固有の手法、CloudWatch での関数ログ保持の管理などを示します。
+
+    Lambda 関数を管理およびデプロイする方法は多数ありますが、この例ではAWS CloudFormation というメカニズムを使用しています。
+
+    私たちの例は、New Relic Lambda Extension とともに、この[GitHub リポジトリ](https://github.com/newrelic/newrelic-lambda-extension)で公開されています。 New Relic がサポートする Lambda ランタイムごとに 1 つあります。
+
+    * [Node.js](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/node)
+    * [Python](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/python)
+    * [Go](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/go)
+    * [Java](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/java)
+    * [Ruby](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/ruby)
+    * [.NET](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/dotnet)
+
+    また、ディストリビューティッド（分散）トレーシングの例で、ディストリビュー[ティッド（分散）トレーシングを](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/distributedtracing)非自明なサーバーレス アプリケーションに組み込む方法を学ぶこともできます。 これは、Node、Python、 Ruby 、Java 関数を使用して、Lambda 関数を呼び出す可能性のある 2 つの一般的なサービスである SQS と SNS の手動トレース伝播を示しています。
+
+    <Callout variant="tip">
+      手動でテストする場合、テレメトリーデータが遅延する可能性があります。 バッファリングされたテレメトリが配信されるように、関数を再度呼び出す前に 7 秒待つことをお勧めします。
+    </Callout>
+  </Step>
+</Steps>
+
+## トラブルシューティング [#troubleshooting]
+
+Lambda 関数で問題が発生した場合に備えて、一般的なトラブルシューティングのヒントをいくつか示します。
+
+<CollapserGroup>
+  <Collapser id="no-secrets" title="AWSのシークレットマネージャーが使えない">
+    組織が AWS Secrets Manager の使用を許可していない場合、New Relic Lambda Extension は`NEW_RELIC_LICENSE_KEY`環境変数を受け入れます。 `newrelic-lambda integrations install`コマンドから`--disable-license-key-secret`フラグを追加します。 次に、この環境変数を Lambda関数 設定の<InlinePopover type="licenseKey" />に設定します。
+  </Collapser>
+
+  <Collapser id="multiple" title="複数のAWSリージョンとアカウント">
+    `newrelic-lambda` CLI は、 `--aws-region`問題を指定してリージョンごとに 1 回実行する必要があります。 同じリンクされたアカウント名を使用すると、ツールはアカウント リンクがすでに作成されていることを検出します。 <InlinePopover type="licenseKey" />シークレットは各リージョンで作成する必要があります。
+
+    同様に、複数のAWSアカウントをNewRelicアカウントにリンクできます。各アカウントに異なるリンクされたアカウント名を付けます。 CLIツールの`--aws-profile`引数は、名前付きプロファイルを選択します。このツールは、AWSCLIと同じ設定を使用します。
+  </Collapser>
+
+  <Collapser id="not-instrumented" title="Lambda 関数がインストルメント済みとして表示されない">
+    Lambda関数をインストゥルメントされたようにしましたが、New Relic の<DNT>**Amazon Web Services -&gt; Lambda functions**</DNT>セクションにインストゥルメントされたとして表示されません。
+
+    [API ポーリング](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/)と[Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/)統合の両方を UI で手動で New Relic アカウントにリンクしました。
+
+    1 つの New Relic アカウントで同じ AWS アカウントの 2 つの統合を行うこのシナリオでは、計測されたペイロードが New Relic [cloud-collector エンドポイント](https://github.com/newrelic/newrelic-lambda-extension/blob/54ccfd44765feb4b3da77ae606323c18d9db7593/telemetry/client.go#L18-L19)で計測された Lambda 関数から受信されると、競合状態が発生します。ペイロードは、2 つの統合のいずれかにランダムに割り当てられます。関数エンティティにリンクされていない統合に割り当てられた場合、ペイロードはドロップされ、関数はインストルメント済みとして表示されません。`AwsLambdaInvocation`イベントまでの過去 30 日間に少なくとも 1 つのペイロードを受け取った関数のみがインストルメント済みとして表示されます。
+
+    ```sql
+    FROM AwsLambdaInvocation
+    SELECT count (*)
+    SINCE 30 days ago
+    WHERE entityGuid = 'ENTITY_GUID'
+    LIMIT 1
+    ```
+
+    同じ AWS アカウントに対して 2 つの統合を作成しないようにするには、前述のように`newrelic-lambda` CLI を使用することをお勧めします。これは、既存の統合を検出して使用するためです。
+
+    すでに 2 つの統合が作成されている場合は、New Relic の<DNT>**Infrastructure &gt; AWS**</DNT>にある<DNT>**Unlink this account**</DNT>をクリックして、1 つを選択して保持し、もう 1 つのリンクを解除します。
+
+    <Callout variant="tip">
+      [Metric Streams 統合にはいくつかの制限](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/#integrations-not-replaced-streams)があり、API ポーリング統合のリンクを解除する前に考慮する必要があります。また、 [インフラストラクチャ ディメンション メトリクス クエリにはいくつかの制限](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-infrastructure-dimensional-metrics-nrql/#known-limitations)があり、メトリクス ストリーム統合に完全にコミットする前に考慮する必要があります。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="fail-retrieve-license" title="ライセンスキー `AccessDeniedException` の取得に失敗しました">
+    ラムダコードには、AWSSecretsManagerを読み取る権限を持つ実行ロールが必要です。次のようなログが見つかった場合は、実行ロールのポリシーに適切な権限を追加してください。この例では、 `template.yaml`ファイルをチェックして、この権限を付与する簡単な方法を確認してください。
+
+    ```bash
+    [output] Failed to retrieve license key AccessDeniedException: User: <ARN> is not authorized to perform: secretsmanager:GetSecretValue on resource: <ARN>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ
+
+<DocTiles>
+  <DocTile title="Containerized Lambda functions" path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/containerized-images">Lambda関数をコンテナ化している場合は、ここをクリックして計装してください。</DocTile> <DocTile title="Non-containerized Lambda functions" path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own">コンテナ化されていないLambda関数をお持ちの場合は、ここをクリックして計装してください。</DocTile> <DocTile title="Layerless Lambda functions" path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monitoring-aws-lambda-layerless">レイヤーレスのLambda関数をお持ちの場合は、ここをクリックして計装してください。</DocTile>
+</DocTiles>

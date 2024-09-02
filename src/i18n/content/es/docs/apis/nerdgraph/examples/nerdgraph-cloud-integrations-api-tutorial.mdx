@@ -1,0 +1,930 @@
+---
+title: 'Tutorial de NerdGraph: Configurar la integración en la nube'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: Use New Relic NerdGraph (our GraphQL API) to query your New Relic infrastructure monitoring cloud integration data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este documento proporciona ejemplos de cómo utilizar [New Relic NerdGraph](/docs/apis/graphql-api/get-started/introduction-new-relic-nerdgraph) para consultar y modificar sus [datos de configuración de integración en la nube](/docs/integrations/new-relic-integrations/getting-started/introduction-infrastructure-integrations#integration-types), incluidos Amazon Web Services (AWS), Microsoft Azure y Google Cloud Platform (GCP). Utilizando el [explorador NerdGraph GraphiQL](https://api.newrelic.com/graphiql), también puedes [consultar datos NRQL](/docs/query-nrql-through-new-relic-graphql-api).
+
+Estos ejemplos para consultar datos de configuración de integración en la nube utilizan [mutaciones y consultas GraphQL](https://graphql.org/learn/queries/):
+
+* [consulta](#queries): solicitudes destinadas a obtener únicamente datos
+* [Mutaciones](#mutations): solicitudes que crean o actualizan datos en el servidor.
+
+## Requisitos
+
+Antes de consultar datos de integración en la nube con NerdGraph, asegúrese de tener:
+
+* Seguí las instrucciones para [conectar la integración en la nube con New Relic](/docs/integrations/new-relic-integrations/getting-started/introduction-infrastructure-integrations#installation-instructions).
+* Creó una [clave de API](/docs/apis/getting-started/intro-apis/understand-new-relic-api-keys#user-api-key).
+
+## Accede al explorador NerdGraph GraphiQL [#access]
+
+Para acceder al explorador NerdGraph GraphiQL:
+
+1. Vaya a [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql).
+2. Agregue cualquiera de los siguientes ejemplos.
+
+## Ejemplos de consulta [#queries]
+
+Consulta son solicitudes que están destinadas únicamente a obtener datos (sin efectos secundarios). Las consultas en NerdGraph no son estáticas, lo que significa que puedes pedir más o menos datos dependiendo de tus necesidades. Para cada consulta, puede especificar exactamente qué datos desea recuperar, siempre que sean compatibles con el esquema.
+
+<CollapserGroup>
+  <Collapser
+    id="list-cloud-providers-available"
+    title="Cuentas de proveedores disponibles"
+  >
+    Esta consulta devuelve una lista de todas las cuentas de proveedores disponibles en sus datos de infraestructura. Dependiendo del proveedor se pueden solicitar propiedades adicionales. Por ejemplo, para GCP, también puedes solicitar la propiedad `serviceAccountId` , que es necesaria al vincular un nuevo proyecto de GCP a New Relic.
+
+    <DNT>
+      **Anonymous:**
+    </DNT>
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            providers {
+              id
+              name
+              slug
+              ... on CloudGcpProvider {
+                serviceAccountId
+              }
+            }
+          }
+        }  
+      }
+    }
+    ```
+
+    <DNT>
+      **Named:**
+    </DNT>
+
+    ```
+    query cloudProviders {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            providers {
+              id
+              name
+              slug
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="specific-provider-info"
+    title="Información de cuenta de proveedor específica"
+  >
+    Esta consulta devuelve información sobre una cuenta de proveedor específica para su integración de AWS. Se solicitan las propiedades `id`, `name`, `slug` , junto con una lista de integraciones disponibles para monitorear.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            provider(slug: "aws") {
+              id
+              slug
+              name
+              services {
+                id
+                slug
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="specific-cloud-service-integration"
+    title="Datos de integración específicos de un proveedor de nube específico"
+  >
+    Esta consulta devuelve información sobre la integración de servicios en la nube específica de un proveedor. En este ejemplo, la integración es la [integración de monitoreo de AWS ALB](/docs/integrations/amazon-integrations/aws-integrations-list/aws-alb-monitoring-integration) y el proveedor es AWS. Las propiedades `id`, `name`, `slug` y `isAllowed` se solicitan con el parámetro de configuración disponible.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            provider(slug: "aws") {
+              service(slug: "alb") {
+                id
+                name
+                slug
+                isEnabled
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="list-enabled-provider-accounts"
+    title="Lista de cuentas en la nube habilitadas"
+  >
+    Esta consulta devuelve la lista de cuentas en la nube habilitadas con su cuenta New Relic. (Su cuenta en la nube asocia su cuenta New Relic y una cuenta de proveedor específica con su integración). Puede habilitar varias cuentas de proveedores de nube en la misma cuenta de New Relic, incluso con el mismo proveedor de nube.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            linkedAccounts {
+              id
+              name    
+              createdAt
+              provider {
+                id
+                name      
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enabled-provider-account"
+    title="Datos específicos de cuentas vinculadas"
+  >
+    Esta consulta devuelve información sobre una cuenta vinculada, incluidas las propiedades `name`, `providerId` y una lista de la integración en la nube habilitada para monitoreo.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            linkedAccount(id: <LINKED_CLOUD_ACCOUNT_ID>) {
+              name
+              provider {
+                id
+                name
+              }
+              integrations {
+                id
+                name
+                createdAt
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="all-provider-accounts"
+    title="Integración habilitada en la nube para todas las cuentas vinculadas."
+  >
+    Esta consulta devuelve toda la integración de monitores para todas las cuentas de la nube del proveedor.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            linkedAccounts {
+              name
+              provider {
+                id
+                name
+              }
+              integrations {
+                id
+                name
+                service {
+                  id
+                  name        
+                }
+                createdAt
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cloud-integration-provider-account"
+    title="Datos específicos de integración en la nube para una cuenta vinculada específica"
+  >
+    Esta consulta devuelve información sobre una integración específica de una cuenta vinculada específica.
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            linkedAccount(id: <LINKED_CLOUD_ACCOUNT_ID>) {
+              name
+              provider {
+                id
+                name
+              }
+              integration(id: <INTEGRATION_ID>) {
+                id
+                name
+                service {
+                  id
+                  name        
+                }
+                createdAt
+                updatedAt     
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ejemplos de mutaciones [#mutations]
+
+Las mutaciones son solicitudes que pretenden tener efectos secundarios, como crear o actualizar datos en el servidor. Las mutaciones requieren la palabra clave `mutation` y el nombre de la mutación. Las mutaciones de NerdGraph están restringidas a un subconjunto de todas las mutaciones posibles.
+
+<CollapserGroup>
+  <Collapser
+    id="link-account"
+    title="Vincular una cuenta"
+  >
+    Esta mutación permite vincular cuentas de proveedores de la nube a una cuenta de New Relic, creando una o más cuentas vinculadas. Puede vincular una cuenta de proveedor de nube específica (por ejemplo, `aws`) a la cuenta de New Relic o varias cuentas de proveedor de nube a una cuenta de New Relic.
+
+    <DNT>
+      **Required:**
+    </DNT>
+
+    * El parámetro `<PROVIDER_ACCOUNT_NAME>` es obligatorio y no puede estar vacío. Debe ser único en su cuenta New Relic.
+
+    * Otros parámetros son específicos del proveedor (AWS, GCP y Azure) y también son obligatorios. En las siguientes secciones podrá ver qué parámetros son necesarios para cada cuenta de proveedor. Después de vincular una cuenta, los valores `createdAt` y `updatedAt` son iguales.
+
+      ```
+      mutation {
+        cloudLinkAccount(
+            accounts: {
+              accountId: <NR_ACCOUNT_ID>,
+              aws: [{
+                name: <PROVIDER_ACCOUNT_NAME>,
+                <other_params>
+              }]
+              azure: [{
+                name: <PROVIDER_ACCOUNT_NAME>,
+                <other_params>
+              }]
+              gcp: [{
+                name: <PROVIDER_ACCOUNT_NAME>,
+                <other_params>
+              }]
+            }
+          ) {
+            linkedAccounts {
+              id
+              name
+              authLabel
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+      ```
+  </Collapser>
+
+  <Collapser
+    id="link-aws"
+    title="Vincular una cuenta de AWS"
+  >
+    Esta mutación vincula una cuenta de proveedor de AWS a su cuenta de New Relic.
+
+    ```
+    mutation {
+      cloudLinkAccount(
+          accountId: <NR_ACCOUNT_ID>,
+          accounts: {
+            aws: [{
+              name: <PROVIDER_ACCOUNT_NAME>,
+              arn: <AWS_ROLE_ARN>
+            }]
+          }
+        ) {
+          linkedAccounts {
+            id
+            name
+            authLabel
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="link-aws-cloudwatch"
+    title="Vincular una cuenta de AWS mediante CloudWatch Metric Streams"
+  >
+    Esta mutación vincula una cuenta de AWS que envía datos a través de CloudWatch Metric Streams a su cuenta New Relic.
+
+    ```
+    mutation {
+      cloudLinkAccount(
+          accountId: <NR_ACCOUNT_ID>,
+          accounts: {
+            aws: [{
+              name: <PROVIDER_ACCOUNT_NAME>,
+              arn: <AWS_ROLE_ARN>,
+              metricCollectionMode: PUSH
+            }]
+          }
+        ) {
+          linkedAccounts {
+            id
+            name
+            authLabel
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="link-azure"
+    title="Vincular una cuenta de Microsoft Azure"
+  >
+    Esta mutación vincula una suscripción a la nube de Microsoft Azure con la cuenta New Relic.
+
+    ```
+    mutation {
+      cloudLinkAccount(
+        accountId: <NR_ACCOUNT_ID>,
+        accounts: {
+          azure: [{        
+            name: <PROVIDER_ACCOUNT_NAME>, 
+            applicationId: <azure_application_id>, 
+            clientSecret: <azure_application_key>, 
+            tenantId: <azure_tenant_id>, 
+            subscriptionId: <azure_subscription_id>
+           }]          
+        }
+      ) {
+        linkedAccounts {
+          id
+          name
+          authLabel
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="link-gcp"
+    title="Vincular un proyecto de Google Cloud Platform (GCP)"
+  >
+    Esta mutación vincula un proyecto de GCP a la cuenta de New Relic.
+
+    ```
+    mutation {
+      cloudLinkAccount(
+        accountId: <NR_ACCOUNT_ID>,
+        accounts: {
+          gcp: [{        
+            name: <PROVIDER_ACCOUNT_NAME>,
+            projectId: <GCP_PROJECT_ID>
+           }]
+        }
+      ) {
+        linkedAccounts {
+          id
+          name
+          authLabel
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rename-cloud-account"
+    title="Cambiar el nombre de una o más cuentas en la nube"
+  >
+    Esta mutación le permite cambiar el nombre de una o más cuentas de proveedores vinculadas. El parámetro `name` es obligatorio, no puede estar vacío y debe ser único dentro de su cuenta de New Relic.
+
+    ```
+    mutation {
+      cloudRenameAccount(
+        accountId: <NR_ACCOUNT_ID>,
+        accounts: [
+          {        
+            id: <linked_cloud_account_id_1>,
+            name: <new_provider_account_name>
+          },
+          {
+            id: <linked_cloud_account_id_2>,
+            name: <new_provider_account_name>
+          }
+        ]
+      ) {
+        linkedAccounts {
+          id          
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enable-in-cloud-account"
+    title="Habilitar una integración en una cuenta en la nube"
+  >
+    Esta mutación le permite habilitar el monitoreo de una o más integraciones específicas en la nube en una cuenta de nube existente. Con esta mutación, New Relic registra datos para la integración habilitada desde la cuenta del proveedor. Para cada cuenta de proveedor tiene acceso a diferentes parámetros de entrada, que coinciden con cada servicio disponible.
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          <provider_slug> : {
+            <integration_slug>: [{            
+                linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID>,
+                <other_parameters> 
+            }]
+          }
+        }
+      ) {
+        integrations {
+          id
+          name
+          integration {
+            id
+            slug
+          }
+          ... on SqsIntegration {
+            awsRegions
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enable-in-multiple-accounts"
+    title="Habilite una integración en múltiples cuentas en la nube"
+  >
+    Si tiene muchas cuentas de proveedores vinculadas, puede habilitar la misma integración en muchas cuentas de la nube al mismo tiempo.
+
+    Para el resultado de la operación, puede utilizar [fragmentos GraphQL](https://graphql.org/learn/queries/#fragments) para integrar parámetros de configuración específicos.
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          <provider_slug> : {
+            <integration_slug> : [
+              { linkedAccountId: <linked_cloud_account_id_1>  }, 
+              { linkedAccountId: <linked_cloud_account_id_2>  }
+            ]
+          } 
+        }
+      ) {
+        integrations {
+          id
+          name
+          integration {
+            id 
+            name
+          }
+          ... on SqsIntegration {
+                awsRegions
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enable-multiple-integrations-multiple-accounts"
+    title="Habilite la integración múltiple en múltiples cuentas en la nube"
+  >
+    Si tiene varias cuentas en la nube vinculadas, también puede habilitar la integración múltiple en varias cuentas en la nube vinculadas al mismo tiempo.
+
+    Para el resultado de la operación, puede utilizar [fragmentos de GraphQL](https://graphql.org/learn/queries/#fragments) para solicitar el parámetro de configuración específico de la integración.
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          <provider_slug_1>: {
+            <integration_slug_1>: [
+              { linkedAccountId: <linked_cloud_account_id_1> }
+            ]
+            <integration_slug_2>: [
+              { linkedAccountId: <linked_cloud_account_id_2> }
+            ]
+          },
+          <provider_slug_2>: {
+            <integration_slug_3>: [
+              { linkedAccountId: <linked_cloud_account_id_3>},
+              { linkedAccountId: <linked_cloud_account_id_4>}
+            ]
+          } 
+        }
+      ) {
+        integrations {
+          id
+          name
+          service {
+            id 
+            name
+          }
+          ... on SqsIntegration {
+                awsRegions
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="modify-integration"
+    title="Modificar la configuración de una integración (regiones, intervalo de sonido, etc.)"
+  >
+    Esta mutación también permite modificar una o más integraciones en la nube y cambiar uno o más parámetros de configuración. Cada servicio tendrá un parámetro específico que podrás modificar.
+
+    Para el parámetro de una lista de tipo (por ejemplo, `awsRegion`), proporcione la lista completa. Para el resultado de la operación, puede utilizar [fragmentos de GraphQL](https://graphql.org/learn/queries/#fragments) para solicitar el parámetro de configuración específico de la integración.
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          <provider_slug>: {
+            <integration_slug>: [{          
+              linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID>,
+              metricsPollingInterval: <new_polling_interval>,
+              <parameter_1>: <value_1>,
+              <parameter_N>: <value_N>,
+            }]
+          }
+        }
+      ) {
+        integrations {
+          id
+          name
+          service {
+            id
+            slug
+          }
+          ... on SqsIntegration {            
+            metricsPollingInterval,
+            <parameter_1>,
+            <parameter_N>
+          }
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="disable-integration"
+    title="Deshabilitar (eliminar) una integración"
+  >
+    Esta mutación le permite deshabilitar una integración y detener la recopilación de datos para la integración específica en la nube.
+
+    ```
+    mutation {
+      cloudDisableIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          : {
+            : [
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID> }
+            ]
+          }
+        }
+      ) {
+        disabledIntegrations {
+          id
+          name
+          authLabel
+          provider {
+            id
+          }
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="disable-integration"
+    title="Desvincular cuenta"
+  >
+    Esta mutación le permite desvincular cuentas de proveedores de nube de la cuenta de New Relic.
+
+    <Callout variant="caution">
+      Esta acción no se puede deshacer. Sin embargo, puedes volver a vincular la cuenta, pero el historial de la cuenta aún se perderá.
+    </Callout>
+
+    ```
+    mutation {
+      cloudUnlinkAccount (
+        accountId: <NR_ACCOUNT_ID>,
+        accounts: {
+          { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID> }
+        }
+      ) {
+        unlinkedAccounts {
+          id
+          name
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Habilitar una integración de AWS [#enable-aws-sqs]
+
+Este ejemplo utiliza una integración [de AWS SQS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-sqs-monitoring-integration) y supone que ha [conectado una cuenta de AWS a New Relic](/docs/integrations/amazon-integrations/get-started/connect-aws-services-infrastructure).
+
+Para habilitar una integración de AWS:
+
+<CollapserGroup>
+  <Collapser
+    id="send-query-fetch"
+    title="Enviar consulta para recuperar datos de la cuenta"
+  >
+    Envíe una consulta para obtener datos sobre la cuenta, específicamente los proveedores disponibles y las cuentas de proveedores ya creadas:
+
+    ```
+    {
+      actor {
+        account(id: <NR_ACCOUNT_ID>) {
+          cloud {
+            providers {
+              id 
+              name
+              slug
+            }     
+            linkedAccounts {
+              name
+              integrations {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enable-link-aws-sqs"
+    title="Vincular cuenta de proveedor de AWS"
+  >
+    Vincule una cuenta de proveedor de AWS, si aún no hay ninguna vinculada o si desea vincular otra cuenta de AWS:
+
+    1. Utilice su identificador de cuenta New Relic en el parámetro `<NR_ACCOUNT_ID>` .
+
+    2. Proporcione un nombre para la cuenta del proveedor en `<PROVIDER_ACCOUNT_NAME>`.
+
+    3. Incluya el ARN del rol de AWS utilizado para recuperar datos de su cuenta de AWS.
+
+       ```
+       mutation {
+         cloudLinkAccount(
+           accountId: <NR_ACCOUNT_ID>,
+           accounts: {
+             aws: [{        
+               name: <PROVIDER_ACCOUNT_NAME>,
+               arn: <AWS_ROLE_ARN> }]
+           }
+         ) {
+           linkedAccounts {
+             id
+             name
+             authLabel
+             createdAt
+             updatedAt
+           }
+           errors {
+             type
+             message
+           }
+         }
+       }
+       ```
+  </Collapser>
+
+  <Collapser
+    id="enable-sqs-integration"
+    title="Habilite la integración de AWS SQS"
+  >
+    Utilice su ID de cuenta New Relic en el parámetro `<NR_ACCOUNT_ID>` y el ID de la cuenta del proveedor en el valor del parámetro `<LINKED_CLOUD_ACCOUNT_ID>` .
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          aws: {
+            sqs: [
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID> }
+            ]
+          }
+        } 
+      ) {
+        integrations {
+          id
+          name
+          service {
+            id 
+            name
+          }
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enable-sqs-multiple-provider-accounts"
+    title="Habilitar la integración en múltiples cuentas de proveedores"
+  >
+    Si tiene varias cuentas con la misma cuenta de proveedor, puede habilitar la misma integración en varias cuentas de proveedor al mismo tiempo. Utilice su ID de cuenta New Relic en el parámetro `<NR_ACCOUNT_ID>` y el ID de las cuentas del proveedor en el valor del parámetro `<LINKED_CLOUD_ACCOUNT_ID_n>` .
+
+    ```
+    mutation {
+      cloudConfigureIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          aws: {
+            sqs: [
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID_1> }, 
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID_2>, configuration_param_1: value_1, configuration_param_2: value_2 }
+            ]
+          } 
+        }
+      }) {
+        integrations {
+          id
+          name
+          service {
+            id 
+            name
+          }
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cambiar el intervalo de sondeo para la integración de AWS [#alter-polling-interval]
+
+Este ejemplo utiliza una integración [de AWS SQS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-sqs-monitoring-integration) y supone que ha [conectado una cuenta de AWS a New Relic](/docs/integrations/amazon-integrations/get-started/connect-aws-services-infrastructure). Para cambiar el intervalo de sondeo de una integración de AWS:
+
+<CollapserGroup>
+  <Collapser
+    id="update-sqs-polling"
+    title="Actualizar el intervalo de sondeo"
+  >
+    Para actualizar el intervalo de sondeo para una integración de AWS SQS, utilice el ID de su cuenta New Relic en el parámetro `<NR_ACCOUNT_ID>` y el `id` de la cuenta del proveedor vinculado en el valor del parámetro `<LINKED_ACCOUNT_ID>` :
+
+    ```
+    mutation {
+      cloudConfigureIntegration( 
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          aws : {
+            sqs: [
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID>, metricsPollingInterval: 300 }
+            ]
+          }
+        }
+      ) {
+        integrations {
+          id
+          name            
+          service {
+            id
+            slug
+          }
+          ... on SqsIntegration {
+            metricsPollingInterval
+          }
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Deshabilitar la integración de AWS [#disable-sqs]
+
+Este ejemplo utiliza una integración [de AWS SQS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-sqs-monitoring-integration) y supone que ha [conectado una cuenta de AWS a New Relic](/docs/integrations/amazon-integrations/get-started/connect-aws-services-infrastructure). Para deshabilitar una integración de AWS:
+
+<CollapserGroup>
+  <Collapser
+    id="disable-sqs-scenario"
+    title="Deshabilitar la integración SQS"
+  >
+    Utilice el identificador de su cuenta New Relic en el parámetro `<NR_ACCOUNT_ID>` y el ID de la cuenta de nube vinculada en el valor del parámetro `<LINKED_ACCOUNT_ID>` .
+
+    ```
+    mutation {
+      cloudDisableIntegration (
+        accountId: <NR_ACCOUNT_ID>,
+        integrations: {
+          aws: {
+            sqs: [
+              { linkedAccountId: <LINKED_CLOUD_ACCOUNT_ID> }
+            ]
+          }
+        }
+      ) {
+      disabledIntegrations {
+        id
+          accountId
+          name 
+        }
+        errors {
+          type
+          message
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

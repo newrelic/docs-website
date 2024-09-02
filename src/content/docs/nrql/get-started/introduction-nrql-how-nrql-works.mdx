@@ -1,0 +1,153 @@
+---
+title: "How to query with NRQL: the mechanics of querying"
+tags:
+  - Query your data
+  - 'NRQL: New Relic query language'
+  - Get started
+translate:
+  - jp
+  - kr
+metaDescription: "Learn how to query with NRQL, NRQL syntax, and how you can explore your data."
+redirects:
+  - /docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-how-nrql-works
+freshnessValidatedDate: 2024-03-19
+---
+
+Before using any tool, it's best to know how to use it. There's a process to creating, structuring, and writing queries with NRQL. Understanding the rules of querying with NRQL enables you to get the most from your data. Even if you've never queried anything before, just a basic understanding the rules allows you to access (almost) any data you need and visualize them in [charts](/docs/query-your-data/explore-query-data/use-charts/use-your-charts) and [dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+## Data exploration [#explore-data]
+
+One of the best ways to learn how to use NRQL is to access a New Relic [query tool](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language#where) and use it to query your data. Here's an example of exploring your data using the [query builder](/docs/chart-builder/use-chart-builder/get-started/introduction-chart-builder) and the suggested entries from the interface.
+
+<Callout variant="tip">
+  Don't be afraid to play with your data! You won't break anything using any of our query interfaces, so feel free to tinker as much as you like!
+</Callout>
+
+The query begins with `FROM` followed by a space. The interface suggests available types of data, and you select `Transaction` from that list.
+
+<img
+  title="nrql_query01.png"
+  alt="A screenshot of a NRQL query beginning with From"
+  src="/images/queries-nrql_screenshot-crop_event-definitions-query-builder.webp"
+/>
+
+Next, choose an [attribute](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute) using `SELECT`, and the query looks as follows:
+
+```sql
+FROM Transaction SELECT
+```
+
+Pressing space again causes the interface to suggest available attributes. In the example below, you choose `appId`.
+
+<img
+  title="nrql_query02.png"
+  alt="A screenshot of a NRQL query using the previous screenshot and adding Select"
+  src="/images/queries-nrql_screenshot-crop_attribute-definitions-query-builder.webp"
+/>
+
+This results in a very basic NRQL query using the required clause and statement (`FROM` and `SELECT`), and it provides a list of <InlinePopover type="apm"/> transactions and the associated `appId` for each, as shown below.
+
+<img
+  title="basic_nrql_example.png"
+  alt="A screenshot of a basic NRQL query, From Transaction Select appId"
+  src="/images/queries-nrql_screenshot-crop_basic-nrql-query-example.webp"
+/>
+
+Another great way to explore your data is to go into any existing dashboards you have, click <DNT>**View query**</DNT>, and run your chart in the query builder.
+<img title="new-relic-view-chart-nrql-query.png" alt="New Relic view chart NRQL query" src="/images/queries-nrql_screenshot-crop_view-query-for-chart.webp"/>
+
+<figcaption>
+  Charts built with NRQL will have <DNT>**View query**</DNT> as an option. You can then edit and customize that query to see how your changes affect the resulting visualization.
+</figcaption>
+
+## NRQL query examples [#examples]
+
+Here's an example of a slightly more in-depth NRQL query of `Transaction` data reported by [APM](/docs/apm). For this query:
+
+* You choose `Transaction` as the data type.
+* You use `Select` to determine the average duration.
+* You group results by appName using `Facet`.
+* You use `Timeseries` to display the data over an automated timespan.
+
+```sql
+FROM Transaction 
+SELECT average(duration) 
+  FACET appName 
+  TIMESERIES auto
+```
+
+This generates a chart that looks like:
+
+<img
+  title="nrql_example.png"
+  alt="nrql_example.png"
+  src="/images/queries-nrql_screenshot-crop_nrql-example-timeseries.webp"
+/>
+
+Here are some more query examples:
+
+<CollapserGroup>
+  <Collapser
+    id="basic-browser-nrql"
+    title="Basic NRQL query of browser data"
+  >
+    Here's a NRQL query of `PageView` data from [<InlinePopover type="browser"/>](/docs/browser).
+
+    ```sql
+    SELECT uniqueCount(user) FROM PageView 
+      WHERE userAgentOS = 'Mac' 
+      FACET countryCode
+      SINCE 1 day ago 
+      LIMIT 20
+    ```
+  </Collapser>
+
+  <Collapser
+    id="attribute-with-space"
+    title="Attribute name with a space in it"
+  >
+    If a [custom attribute](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes) name has a space in it, use backticks around the attribute name:
+
+    ```sql
+    SELECT count(*)
+     FROM Transaction
+     FACET `Logged-in user`
+    ```
+  </Collapser>
+
+  <Collapser
+    id="query-multiple-events-columns"
+    title="Querying multiple data sources"
+  >
+    To return data from two data sources, separate their data types with a comma. For example, this query returns a count of all [APM transactions](/docs/insights/new-relic-insights/decorating-events/insights-attributes#transaction-defaults) and [browser events](/docs/insights/new-relic-insights/decorating-events/insights-attributes#browser-defaults) over the last three days:
+
+    ```sql
+    SELECT count(*) FROM Transaction, PageView SINCE 3 days ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="Query returning multiple columns"
+  >
+    To return multiple columns from a dataset, separate the aggregator arguments with a comma:
+
+    ```sql
+    SELECT function(attribute), function(attribute) ...
+      FROM ...
+    ```
+
+    This query returns the minimum, average, and maximum duration for browser monitoring `PageView` events over the last week:
+
+    ```sql
+    SELECT min(duration), max(duration), average(duration)
+      FROM PageView SINCE 1 week ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  To explore your data without having to use NRQL, use the [metrics and events data explorer](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/). Learn more about [querying data in New Relic](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/).
+</Callout>
+
+Ready to learn more? Be sure to check out our [introduction to NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) if you haven't already, or learn [how to use charts and dashboards with NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/charts-and-dashboards-with-nrql/). If you want to start using NRQL right away, jump straight into our [guided NRQL tutorial](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-tutorial/).

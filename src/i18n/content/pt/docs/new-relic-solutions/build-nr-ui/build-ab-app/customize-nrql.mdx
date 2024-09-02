@@ -1,0 +1,435 @@
+---
+title: Personalize dados NRQL
+metaDescription: Customize NRQL data
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lição faz parte de um curso que ensina como construir um aplicativo New Relic do zero. Se ainda não o fez, confira a Visão Geral.
+
+  Cada lição do curso se baseia na anterior, portanto, certifique-se de ter concluído a última lição, Adicionar componentes NrqlQuery ao seu nerdlet, antes de iniciar esta.
+</Callout>
+
+Nesta série, você está criando um aplicativo New Relic, ou aplicativo NR1, que mostra dados de teste A/B em uma variedade de gráficos. A maioria dos gráficos precisa mostrar dados provenientes de um serviço de demonstração que você criou no início desta série.
+
+Na última lição, você forneceu dados reais, provenientes do banco de dados da New Relic, para os seguintes gráficos:
+
+* **Assinatura da newsletter por versão**
+* **Versão A - Visualizações de página**
+* **Versão B - Visualizações de página**
+* **Total de assinaturas por versão**
+
+Como você tem experiência em consultar dados de assinatura e de visualização de página, pode se sentir pronto para fornecer dados para ainda mais gráficos:
+
+* **Versão A - Visualizações de página vs. assinatura**
+* **Versão B - Visualizações de página vs. assinatura**
+
+No entanto, esses gráficos são diferentes dos gráficos para os quais você forneceu dados porque comparam dados de duas fontes diferentes: `subscription` evento e `pageView` evento.
+
+Nesta lição, você aprenderá como formatar dados de diversas fontes para que existam no mesmo gráfico.
+
+## Experimente dados no Data Explorer [#experiment]
+
+<Steps>
+  <Step>
+    No menu de navegação superior da página inicial do [New Relic](https://one.newrelic.com), acesse o **Data Explorer**.
+
+    Aqui, você pode experimentar `subscription` evento e `pageView` evento consulta para ter certeza de buscar os dados corretos em seu aplicativo.
+  </Step>
+
+  <Step>
+    Selecione **assinatura** no menu **Custom events**.
+
+    Esta consulta NRDB para assinatura de eventos totais por minuto nos últimos 30 minutos e mostra esses dados em um gráfico.
+  </Step>
+
+  <Step>
+    Clique em **Dimensions** para ver uma lista dos atributos associados a estes eventos de assinatura.
+
+    Você pode filtrar e agrupar eventos de assinatura usando essas dimensões. Para a **Version A - Page views vs. subscriptions** e **Version B - Page views vs. subscriptions**, você deseja filtrar seus totais de assinatura por `page_version`.
+  </Step>
+
+  <Step>
+    Clique na consulta **NRQL** para navegar até o criador de consulta.
+
+    Aqui, você pode visualizar e editar manualmente a consulta para buscar os dados necessários.
+  </Step>
+
+  <Step>
+    Adicione uma cláusula `WHERE` para filtrar os totais de assinatura por `page_version`:
+
+    ```sql
+    SELECT count(*) FROM subscription WHERE page_version = 'a' SINCE 30 MINUTES AGO TIMESERIES
+    ```
+
+    Remova a cláusula `TIMESERIES` para buscar uma contagem:
+
+    ```sql
+    SELECT count(*) FROM subscription WHERE page_version = 'a' SINCE 30 MINUTES AGO
+    ```
+
+    Modifique a cláusula `SINCE` para ver os totais da semana passada:
+
+    ```sql
+    SELECT count(*) FROM subscription WHERE page_version = 'a' SINCE 7 DAYS AGO
+    ```
+
+    Clique em **Run** e veja os dados visualizados em um gráfico de outdoor em vez de um gráfico de linhas.
+  </Step>
+
+  <Step>
+    **Version A - Page views vs. subscriptions** e **Version B - Page views vs. subscriptions** precisam de um total combinado de quatro valores de dados:
+
+    * Totais de assinaturas de todos os tempos para a versão A
+    * Totais de visualizações de página de todos os tempos para a versão A
+    * Totais de assinaturas de todos os tempos para a versão B
+    * Totais de visualizações de página de todos os tempos para a versão B
+
+      Experimente o criador de consulta para descobrir as quatro consultas que extraem os dados corretos. No final, você terá as seguintes quatro consultas:
+
+      ```sql
+      SELECT count(*) FROM subscription WHERE page_version = 'a' SINCE 7 DAYS AGO
+      SELECT count(*) FROM pageView WHERE page_version = 'a' SINCE 7 DAYS AGO
+      SELECT count(*) FROM subscription WHERE page_version = 'b' SINCE 7 DAYS AGO
+      SELECT count(*) FROM pageView WHERE page_version = 'b' SINCE 7 DAYS AGO
+      ```
+
+      <Callout
+        variant="tip"
+        title="detalhe técnico"
+      >
+        Ao contrário de outras linguagens de consulta estruturada, o NRQL não fornece um mecanismo para unir dados entre fontes. É por isso que você deve realizar duas consultas para obter `subscription` totais de eventos e `pageView` totais de eventos.
+      </Callout>
+
+      Até agora, você forneceu a cada gráfico uma única consulta. Aqui, você deve fornecer duas consultas por gráfico. Nas etapas restantes, você aprenderá como personalizar `NrqlQuery` resultados para mesclar dados de diversas fontes.
+  </Step>
+</Steps>
+
+## Mesclar NRQL de várias fontes [#merge]
+
+<Steps>
+  <Step>
+    Mude para o diretório `customize-nrql-data/ab-test` do [repositório de cursos](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/customize-nrql-data/ab-test
+    ```
+
+    Este diretório contém o código que esperamos que seu aplicativo tenha neste ponto do curso. Ao navegar para o diretório correto no início de cada lição, você deixa seu código personalizado para trás, protegendo-se assim de carregar código incorreto de uma lição para outra.
+  </Step>
+
+  <Step>
+    No arquivo `totals.js` do seu Nerdlet, implemente `constructor()` e o método de ciclo de vida React `componentDidMount()` em `VersionTotals`:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        NrqlQuery,
+        TableChart,
+    } from 'nr1';
+
+    export default class VersionTotals extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                tableData: {
+                    metadata: {
+                        id: `totals-${this.props.version}`,
+                        name: `Version ${this.props.version}`,
+                        columns: ['name', 'count'],
+                    },
+                    data: [
+                        {
+                            name: 'Subscriptions',
+                            count: 0
+                        },
+                        {
+                            name: 'Page views',
+                            count: 0
+                        },
+                    ],
+                }
+            }
+        }
+
+        componentDidMount() {
+            NrqlQuery.query({
+                accountIds: this.props.accountIds,
+                query: `SELECT count(*) FROM subscription WHERE page_version = '${this.props.version}' SINCE 7 DAYS AGO`,
+                formatType: NrqlQuery.FORMAT_TYPE.RAW
+            }).then(({ data }) => {
+                if (data.raw) {
+                    let tableData = {...this.state.tableData}
+                    tableData.data[0].count = data.raw.results[0].count
+                    this.setState({tableData})
+                }
+            })
+
+            NrqlQuery.query({
+                accountIds: this.props.accountIds,
+                query: `SELECT count(*) FROM pageView WHERE page_version = '${this.props.version}' SINCE 7 DAYS AGO`,
+                formatType: NrqlQuery.FORMAT_TYPE.RAW
+            }).then(({ data }) => {
+                if (data.raw) {
+                    let tableData = {...this.state.tableData}
+                    tableData.data[1].count = data.raw.results[0].count
+                    this.setState({tableData})
+                }
+
+            })
+        }
+
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views vs. subscriptions
+                </HeadingText>
+                <TableChart data={[this.state.tableData]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Certifique-se de substituir `<YOUR NEW RELIC ACCOUNT ID>` pelo [ID real da sua conta](/docs/accounts/accounts-billing/account-setup/account-id) New Relic.
+    </Callout>
+
+    Aqui você inicializa seu estado no construtor do componente. O estado tem um único valor, `tableData`, que contém dados de série e metadados para `TableChart`. Em [`componentDidMount()`](https://reactjs.org/docs/react-component.html#componentdidmount), você consulta os dados que preenchem os dados nesse estado.
+
+    `componentDidMount()` é um método de ciclo de vida do React que é chamado quando um componente é montado na árvore de componentes. Você usa esse método, em vez do construtor, para consultar dados porque sua lógica, que solicita dados do New Relic, introduz efeitos colaterais e define valores de estado, nenhum dos quais você deve fazer no construtor.
+
+    Em `componentDidMount()`, você usa `NrqlQuery` de uma nova maneira. Primeiro, você especificou `formatType` a `NrqlQuery.FORMAT_TYPE.RAW` porque irá modificar os dados em vez de fornecê-los diretamente a um gráfico. Antes, você usou seu formato JSX no método `render()` de um gráfico. Segundo, você chamou o método `query()` e tratou os resultados em um retorno de chamada `then()` , que os registrou no console.
+  </Step>
+
+  <Step>
+    No arquivo `index.js` do seu Nerdlet, crie uma constante chamada `ACCOUNT_ID` e passe-a para `VersionTotals`:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR-ACCOUNT-ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}><EndTestSection /></GridItem>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Certifique-se de substituir `<YOUR NEW RELIC ACCOUNT ID>` pelo [ID real da sua conta](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id) New Relic.
+    </Callout>
+  </Step>
+
+  <Step>
+    Navegue até a raiz do seu Nerdpack em `nru-programmability-course/customize-nrql-data/ab-test`.
+  </Step>
+
+  <Step>
+    Gere um novo UUID para o seu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Como você clonou o repositório de cursos que continha um Nerdpack existente, você precisa gerar seu próprio identificador exclusivo. Este UUID mapeia seu Nerdpack para sua conta New Relic.
+  </Step>
+
+  <Step>
+    Sirva seu aplicativo localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+
+    Navegue até seu aplicativo no [New Relic](https://one.newrelic.com?nerdpacks=local).
+  </Step>
+
+  <Step>
+    Para visualizar seus logs, que é útil para descobrir erros em seu aplicativo, ative as ferramentas de desenvolvedor em seu navegador favorito e navegue até o **Console**:
+
+    * [Instruções FireFox](https://developer.mozilla.org/en-US/docs/Tools/Web_Console)
+    * [Instruções do Safári](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/Web_Inspector_Tutorial/DebuggingyourWebpage/DebuggingyourWebpage.html#//apple_ref/doc/uid/TP40017576-CH5-DontLinkElementID_24)
+    * [Instruções do Chrome](https://developers.google.com/web/tools/chrome-devtools#console)
+
+      Com seu aplicativo na tela, observe os dados NRQL no console.
+
+      Este log do console informa que você pode encontrar os dados que procura, ou seja, a contagem `subscription` ou `pageView`, em `data.raw.results[0].count`. A próxima etapa é armazenar essa contagem em `state.tableData`.
+
+      <Callout variant="tip">
+        Se algo não funcionar, use essas ferramentas de depuração para tentar identificar o problema.
+
+        **Assegure-se de que você:**
+
+        * Copiou o código corretamente da lição
+        * Gerou um novo UUID
+        * Todas as instâncias de `<YOUR NEW RELIC ACCOUNT ID>` no seu projeto foram substituídas pelo New Relic [ID real da sua conta](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)
+      </Callout>
+  </Step>
+
+  <Step>
+    Em `totals.js`, armazene os dados da consulta no estado:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        NrqlQuery,
+        TableChart,
+    } from 'nr1';
+
+    export default class VersionTotals extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                tableData: {
+                    metadata: {
+                        id: `totals-${this.props.version}`,
+                        name: `Version ${this.props.version}`,
+                        columns: ['name', 'count'],
+                    },
+                    data: [
+                        {
+                            name: 'Subscriptions',
+                            count: 0
+                        },
+                        {
+                            name: 'Page views',
+                            count: 0
+                        },
+                    ],
+                }
+            }
+        }
+
+        componentDidMount() {
+            NrqlQuery.query({
+                accountIds: this.props.accountIds,
+                query: `SELECT count(*) FROM subscription WHERE page_version = '${this.props.version}' SINCE 7 DAYS AGO`,
+                formatType: NrqlQuery.FORMAT_TYPE.RAW
+            }).then(({ data }) => {
+                if (data.raw) {
+                    let tableData = {...this.state.tableData}
+                    tableData.data[0].count = data.raw.results[0].count
+                    this.setState({tableData})
+                }
+            })
+
+            NrqlQuery.query({
+                accountIds: this.props.accountIds,
+                query: `SELECT count(*) FROM pageView WHERE page_version = '${this.props.version}' SINCE 7 DAYS AGO`,
+                formatType: NrqlQuery.FORMAT_TYPE.RAW
+            }).then(({ data }) => {
+                if (data.raw) {
+                    let tableData = {...this.state.tableData}
+                    tableData.data[1].count = data.raw.results[0].count
+                    this.setState({tableData})
+                }
+
+            })
+        }
+
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views vs. subscriptions
+                </HeadingText>
+                <TableChart data={[this.state.tableData]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    Preste muita atenção aos dados que você está acessando. Os índices da matriz são particularmente importantes para acertar. Os dados da assinatura devem ir para `state.tableData.data[0].count` porque em `tableData` é o primeiro elemento na matriz de dados:
+
+    ```json
+    data: [
+        {
+            name: 'Subscriptions',
+            count: 0
+        },
+        {
+            name: 'Page views',
+            count: 0
+        },
+    ],
+    ```
+
+    Por uma lógica semelhante, os dados de visualização de página devem ir para `state.tableData.data[1].count`.
+  </Step>
+
+  <Step>
+    Com seu Nerdpack servido localmente, [visualize seu aplicativo](https://one.newrelic.com?nerdpacks=local) para ver seus gráficos servindo dados reais.
+
+    <Callout variant="tip">
+      Se algo não funcionar, use as ferramentas de depuração do seu navegador para tentar identificar o problema.
+
+      **Assegure-se de que você:**
+
+      * Copiou o código corretamente da lição
+      * Gerou um novo UUID
+      * Todas as instâncias de `<YOUR NEW RELIC ACCOUNT ID>` no seu projeto foram substituídas pelo New Relic [ID real da sua conta](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+  </Step>
+</Steps>
+
+Nesta lição, você aprendeu como usar `NrqlQuery.query()` para buscar dados de diversas fontes e juntá-los em dados que seu gráfico pode usar. Observe que ainda existem dois gráficos em seu aplicativo NR1 que utilizam dados simulados:
+
+* **Total de cancelamentos por versão**
+* **Testes anteriores**
+
+Infelizmente, seu aplicativo de demonstração não cria um evento New Relic personalizado quando um usuário cancela a assinatura de seu boletim informativo ou você encerra um teste A/B. Na próxima lição, você aprenderá como usar NerdGraph e NerdStorage para preencher **Past tests**.
+
+<Callout variant="course">
+  Esta lição faz parte de um curso que ensina como construir um aplicativo New Relic do zero. Continue para a próxima lição: Acesse o NerdStorage do seu nerdlet.
+</Callout>

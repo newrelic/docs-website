@@ -1,0 +1,167 @@
+---
+title: Agregar o enumerar aplicaciones browser a través de API (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Browser examples (v2)
+metaDescription: How to use the New Relic REST API (v2) to add or list browser apps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A continuación se muestran ejemplos de cómo utilizar la API REST de New Relic (v2) para agregar aplicaciones a [<InlinePopover type="browser"/>](/docs/browser/new-relic-browser/welcome-new-relic-browser/new-relic-browser)o para obtener una lista de las aplicaciones de su navegador para una [clave de API](/docs/apis/rest-api-v2/requirements/api-keys) específica. Esto le ayuda a gestionar el despliegue fuera de New Relic. Estas API de llamadas son útiles, por ejemplo, con organizaciones más grandes que implementan múltiples aplicaciones, o para socios de integración que facilitan la creación de cuentas de New Relic y el monitoreo del despliegue del navegador.
+
+<Callout variant="important">
+  Cuando agrega una aplicación browser a través de API (v2), solo puede instrumentar el tiempo de carga de la página básica. Para utilizar instrumentación compatible con todas las características SPA, [configure el monitoreo de aplicaciones de una sola página mediante otro método](/docs/browser/single-page-app-monitoring/get-started/install-single-page-app-monitoring/).
+</Callout>
+
+## Agregar aplicaciones browser
+
+Para agregar una aplicación a New Relic, reemplace `${API_KEY}` con su [clave de API de New Relic](/docs/apis/rest-api-v2/requirements/api-keys#rest-api-key) y reemplace `${STRING}` con el nombre de la aplicación en el siguiente comando. Para realizar la misma tarea desde API Explorer, use su clave de API y vaya a <DNT>**[rpm.newrelic.com/api/explore](https://rpm.newrelic.com/api/explore) > Browser applications > POST create**</DNT>.
+
+Utilice el siguiente comando:
+
+```
+curl -X POST 'https://api.newrelic.com/v2/browser_applications.json' \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -H 'Content-Type: application/json' \
+     -d \
+'{
+  "browser_application": {
+    "name": ${STRING}
+  }
+}'
+```
+
+La API devuelve una matriz de datos donde el elemento es una aplicación browser y los datos asociados a ella:
+
+```
+{
+  "browser_application": {
+    "id": "integer",
+    "name": "string",
+    "browser_monitoring_key": "string",
+    "loader_script": "string"
+  }
+```
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        <DNT>
+          **API (v2) output**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Aplicación browser `id` (entero)
+      </td>
+
+      <td>
+        Este es el código de identificación único para cada aplicación en New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Aplicación `name` (cadena)
+      </td>
+
+      <td>
+        Este es el nombre de la aplicación tal como aparece en New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        El `browser_monitoring_key` (cadena)
+      </td>
+
+      <td>
+        Se trata de una clave única que está vinculada a (pero no es la misma) la clave de licencia de la cuenta. Se utiliza para indicar la cuenta de New Relic donde se reportarán los datos. No se puede utilizar para determinar [la clave de licencia de su cuenta New Relic](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo del navegador `loader_script` (cadena)
+      </td>
+
+      <td>
+        El script del cargador devuelto es un fragmento de JavaScript codificado en JSON que está configurado con la clave de licencia de New Relic y el ID de la aplicación. El resto del script es estático y tiene un tamaño aproximado de 10k.
+
+        El script del cargador <DNT>**must**</DNT> se insertará correctamente en las páginas HTML del usuario:
+
+        * Debe aparecer en la etiqueta `<head>` de la página antes de la primera etiqueta script . Si no hay etiquetas script , coloque JavaScript inmediatamente antes de la etiqueta `</head>` (fin del encabezado).
+
+        * Todo el script del cargador debe insertarse en línea, **no** como un vínculo al archivo
+
+          <DNT>
+            **.js**
+          </DNT>
+
+          .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Listar todas las aplicaciones browser [#list-browser-apps]
+
+Para ver una lista de las aplicaciones de monitoreo de su browser , reemplace `${API_KEY}` con su [clave de API de New Relic](/docs/apis/rest-api-v2/requirements/api-keys#rest-api-key) en el siguiente comando. Para realizar la misma tarea desde API Explorer, use su clave de API y vaya a <DNT>**[rpm.newrelic.com/api/explore](https://rpm.newrelic.com/api/explore) > Browser Applications > GET List**</DNT>.
+
+Utilice el siguiente comando:
+
+```
+curl -X GET 'https://api.newrelic.com/v2/browser_applications.json' \
+     -H "X-Api-Key:${API_KEY}" -i
+```
+
+Puede utilizar los resultados para verificar la cuenta o el nombre y obtener una copia del script del cargador de la aplicación, si es necesario.
+
+## Ver aplicaciones browser específicas [#specific-browser-app]
+
+<DNT>
+  **View by name:**
+</DNT>
+
+Para ver una aplicación browser específica si conoce su nombre, reemplace `${API_KEY}` con su [clave de API New Relic](/docs/apis/rest-api-v2/requirements/api-keys#rest-api-key) y reemplace `${NAME}` con el nombre de su aplicación en el siguiente comando:
+
+```
+curl -X GET 'https://api.newrelic.com/v2/browser_applications.json' \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d "filter[name]=${NAME}"
+```
+
+<DNT>
+  **View by browser application ID:**
+</DNT>
+
+Para ver una aplicación browser específica si conoce su ID, reemplace `${API_KEY}` con su [clave de API New Relic](/docs/apis/rest-api-v2/requirements/api-keys#rest-api-key) y reemplace `${ID}` con su ID browser de la aplicación en el siguiente comando:
+
+```
+curl -X GET 'https://api.newrelic.com/v2/browser_applications.json' \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'filter[ids]=${ID}'
+```
+
+<DNT>
+  **View multiple browser apps:**
+</DNT>
+
+Para obtener información para varias aplicaciones, separe el nombre o los valores de ID con una coma en estos comandos; Por ejemplo:
+
+```
+-d 'filter[ids]=12345,23456'
+```

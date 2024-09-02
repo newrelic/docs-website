@@ -19,7 +19,7 @@ jest.mock('fs');
 
 const consoleLogSpy = jest
   .spyOn(global.console, 'log')
-  .mockImplementation(() => {});
+  .mockImplementation(() => { });
 const mockFs = mocked(fs, true);
 const mockGlob = mocked(glob, true);
 
@@ -151,20 +151,39 @@ describe('actions tests', () => {
           'src/content/docs/data-apis/convert-to-metrics/data/analyze-monitor-data-trends-metrics.mdx',
       },
       {
+        from:
+          'src/content/docs/an-old-boring-name.mdx',
+        to:
+          'src/content/docs/a-new-directory/wow/more-fun.mdx',
+      },
+      {
+        from: 'src/content/docs/apm/auspicious-petite-moth.mdx',
+        to: 'src/content/docs/apm/aesthetic-purple-moon.mdx',
+      },
+      {
         from: 'src/content/docs/apm/errors-inbox/errors-inbox-ui.mdx',
         to: 'src/content/docs/apm/errors-inbox-ui.mdx',
       },
     ];
 
     /**
-     * Each two values represents inclusion of the [jp, kr] locale path in the result.
-     * This will result in:
-     *  doc[0]: jp included, kr included
-     *  doc[1]: jp included, kr excluded
-     *  doc[2]: jp excluded, kr included
-     *  doc[3]: jp excluded, kr excluded
-     */
-    [true, true, true, false, false, true, false, false].forEach(
+     * getRenameChanges iterates over [jp, kr, es, pt] for locale paths in the result.
+     * Every 4 Booleans represents mocking if the file exists and therefore should be renamed or skipped for those locale paths
+    */
+    [
+      // doc[0]: jp renamed, kr renamed, es renamed, pt renamed
+      true, true, true, true,
+      // doc[1]: jp renamed, kr skipped, es skipped, pt skipped
+      true, false, false, false,
+      // doc[2]: jp skipped, kr renamed, es skipped, pt skipped
+      false, true, false, false,
+      // doc[3]: jp skipped, kr skipped, es renamed, pt skipped
+      false, false, true, false,
+      // doc[4]: jp skipped, kr skipped, es skipped, pt renamed
+      false, false, false, true,
+      // doc[5]: jp skipped, kr skipped, es skipped, pt skipped
+      false, false, false, false,
+    ].forEach(
       (returnValue) => {
         mockFs.existsSync.mockReturnValueOnce(returnValue);
       }
@@ -172,7 +191,7 @@ describe('actions tests', () => {
 
     const result = Actions.getRenameChanges(input);
 
-    expect(result.length).toBe(4);
+    expect(result.length).toBe(8);
     expect(result).toStrictEqual([
       {
         from:
@@ -186,6 +205,16 @@ describe('actions tests', () => {
       },
       {
         from:
+          'src/i18n/content/es/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
+        to: 'src/i18n/content/es/docs/choose-your-data-center.mdx',
+      },
+      {
+        from:
+          'src/i18n/content/pt/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
+        to: 'src/i18n/content/pt/docs/choose-your-data-center.mdx',
+      },
+      {
+        from:
           'src/i18n/content/jp/docs/apm/agents/c-sdk/get-started/images/c-apm-summary.png',
         to:
           'src/i18n/content/jp/docs/apm/agents/c-sdk/images/c-apm-summary.png',
@@ -196,6 +225,17 @@ describe('actions tests', () => {
         to:
           'src/i18n/content/kr/docs/data-apis/convert-to-metrics/data/analyze-monitor-data-trends-metrics.mdx',
       },
+      {
+        from:
+          'src/i18n/content/es/docs/an-old-boring-name.mdx',
+        to:
+          'src/i18n/content/es/docs/a-new-directory/wow/more-fun.mdx',
+      },
+      {
+        from: 'src/i18n/content/pt/docs/apm/auspicious-petite-moth.mdx',
+        to: 'src/i18n/content/pt/docs/apm/aesthetic-purple-moon.mdx',
+      },
+
     ]);
   });
 

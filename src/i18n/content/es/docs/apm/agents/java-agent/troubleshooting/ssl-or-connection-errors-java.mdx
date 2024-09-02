@@ -1,0 +1,116 @@
+---
+title: Errores de conexión o SSL (Java)
+type: troubleshooting
+tags:
+  - Agents
+  - Java agent
+  - Troubleshooting
+metaDescription: What to do if you see SSL or connection errors in your New Relic Java app's logs.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema A: Errores de conexión/SSL en el registro [#ssl-error-logs]
+
+[Los datoslog ](/docs/agents/java-agent/troubleshooting/generate-debug-logs-troubleshooting-java)de su agente de Java New Relic muestran errores de conexión o SSL.
+
+<Callout variant="tip">
+  Consulte [Configuración de su certificado SSL](/docs/agents/java-agent/configuration/configuring-your-ssl-certificates) para obtener instrucciones sobre cómo comunicarse con el recolector New Relic a través de HTTPS.
+</Callout>
+
+### Solución A [#ssl-error-logs-solution]
+
+Los errores al conectarse a través de SSL suelen aparecer al principio del archivo de registro del agente de Java. Por ejemplo:
+
+```
+PKIX path building failed: java.security.cert.CertPathBuilderException: PKIXCertPathBuilderImpl could not build a valid CertPath
+```
+
+```
+INFO: connection error: java.net.SocketException: java.lang.ClassNotFoundException: 
+Cannot find the specified class com.ibm.websphere.ssl.protocol.SSLSocketFactory
+```
+
+Si ve alguno de estos errores, es probable que su instancia JDK esté utilizando un almacén de confianza personalizado.
+
+<DNT>**Recommendation:**</DNT> Agregue la Autoridad de certificación raíz (CA) global de DigiCert, de la cual se deriva el certificado de New Relic, a su almacén de confianza.
+
+Puede descargar [DigiCert Global Root CA](https://www.digicert.com/kb/digicert-root-certificates.htm) desde DigiCert en la sección "Otros certificados raíz" (elija la opción "Descargar PEM").
+
+Para importar el certificado a su almacén de confianza, utilice este comando o consulte [la documentación Java SE de Oracle para keytool](https://docs.oracle.com/javase/6/docs/technotes/tools/solaris/keytool.html):
+
+```
+keytool -importcert -alias ca_alias -file ca_file.pem -keystore truststore.ts -storepass ts_password
+```
+
+Los parámetros incluyen:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ca_alias`
+      </td>
+
+      <td>
+        El alias que desea utilizar en su almacén de confianza para el certificado importado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ca_file`
+      </td>
+
+      <td>
+        El archivo que contiene el certificado que está agregando.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `truststore.ts`
+      </td>
+
+      <td>
+        El almacén de confianza al que se agregará el certificado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ts_password`
+      </td>
+
+      <td>
+        La contraseña utilizada por `truststore.ts`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Problema B: excepción de presentación de registro [#log-exception]
+
+[Los datoslog ](/docs/agents/java-agent/troubleshooting/generate-debug-logs-troubleshooting-java)de su agente de Java New Relic muestran lo siguiente `CertificateException`.
+
+```
+java.security.cert.CertificateException: Could not parse certificate: java.io.IOException: Illegal header: -----BEGIN CERTIFICATE-----
+```
+
+Lo más probable es que esto esté relacionado con este [problema de JDK](https://bugs.openjdk.java.net/browse/JDK-8208602).
+
+### Solución B [#log-exception-solution]
+
+Examine y valide que el encabezado y pie de página de sus certificados no tengan espacios en blanco al final. Si es así, edite o utilice certificados diferentes.

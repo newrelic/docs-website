@@ -1,0 +1,191 @@
+---
+title: Crear un nivel de servicio significativo para el día del partido
+metaDescription: 'Learn to find important capabilities, define your baselines, and set up meaningful service levels for peak demand.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Prepararse para el gran evento de su empresa es un desafío. Lo empuja a usted y a su equipo a repensar la arquitectura de su sistema desde un punto de vista comercial y luego le pide que tome una serie de decisiones cuando surgen múltiples incidentes críticos. ¿Cómo se puede lograr que el día del partido sea un éxito cuando no se puede priorizar todo a la vez? ¿Cómo encuentras lo que importa?
+
+Nuestra mayor recomendación para cualquier equipo que asista a un evento es establecer un nivel de servicio. Con nivel de servicio, puede tomar componentes discretos del sistema y extraer datos comerciales valiosos sobre su día de juego. Mientras un equipo piensa en términos de hosts, servicios y aplicaciones, el nivel de servicio requiere que se desglosen esas entidades en sus partes necesarias.
+
+## Objetivos [#objectives]
+
+En este tutorial, podrás:
+
+* Consulta New Relic para determinar tu línea de base
+* Crear un nivel de servicio basado en la base de referencia
+
+## Identifica tus prioridades [#understand]
+
+Si normalmente piensa en términos de hosts, aplicaciones y servicios, encontrar sus prioridades puede ser complicado, y el objetivo de la planificación de la capacidad es priorizar las cosas correctas. Recomendamos evaluar cómo los clientes interactúan con su aplicación y luego identificar las capacidades que impulsan los puntos de contacto de esos clientes.
+
+A continuación se muestra un ejemplo de recorrido de usuario de nuestro sitio de demostración New Relic Acme Telco Home:
+
+<img
+  title="You can attach service levels to customer touchpoints"
+  alt="An example user journey demonstrating what a customer touchpoint looks like"
+  src="/images/user-journey_screenshot-full_A-possible-user-journey.gif"
+/>
+
+¿Cuántas capacidades toca este usuario? Navegan a una página de lista de productos y luego seleccionan un producto. Una vez que están en la página del producto, se desplazan hacia abajo, ingresan una cantidad y agregan el artículo a su carrito. Cada una de estas acciones corresponde a un nivel de servicio potencial, que puede monitorearse en un día de máxima demanda.
+
+Para ayudar a identificar las capacidades de su propia aplicación, tenemos algunas preguntas preliminares que podría hacerse sobre su arquitectura:
+
+* ¿Qué viajes realizan con más frecuencia sus clientes?
+* De esos viajes, ¿cuáles implican transacción de compra?
+
+Una vez que haya identificado las capacidades críticas para el negocio, debe determinar qué cobertura de observabilidad necesitan. ¿Dónde están los vacíos de alerta en estos viajes? ¿Todavía necesitan ser monitoreados?
+
+Al responder estas preguntas, puede crear una narrativa sobre la arquitectura de su sistema que esté informada por las necesidades comerciales. Los datos recopilados sobre una llamada API, una acción de clic o una transacción se pueden transformar en un indicador de la salud empresarial.
+
+## Consulta por tu línea de base [#query]
+
+Una vez que haya encontrado qué priorizar, el siguiente paso es descubrir cómo se comporta su aplicación en un día normal. El comportamiento normal de tu aplicación es una línea de base, que es una especie de expectativa. Puedes considerarlo como una taza de café por la mañana: tienes una expectativa de cómo sabe ese café, por lo que cualquier diferencia en el sabor puede indicar un problema con tu máquina.
+
+<Steps>
+  <Step>
+    ### Tire de todas las transacciones populares
+
+    Vaya a <DNT>**[one.newrelic.com > Query Your Data](https://one.newrelic.com/data-exploration/query-builder)**</DNT> y luego ingrese la siguiente consulta:
+
+    <SideBySide>
+      <Side>
+        ```sql
+        FROM Transaction SELECT count(*) FACET request.uri SINCE 1 week AGO
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Find all request.uri transactions"
+          alt="Find all request.uri transactions"
+          src="/images/queries-nrql_screenshot-crop_requesturi-facet.webp"
+        />
+      </Side>
+    </SideBySide>
+
+    Esta consulta extrae todos los datos sobre la transacción de su aplicación y luego los filtra para incluir solo la transacción en la que se realiza una solicitud a su aplicación. En la tabla de `request.uri`s, vemos que `/js/controllers/` es un `request.uri` popular. Trabajaremos con este.
+  </Step>
+
+  <Step>
+    ### Encuentra latencia línea de base y éxito línea de base
+
+    Centrándose en `/js/controllers/`, actualice la consulta anterior a:
+
+    * Elimine el `FACET` y centre la consulta en ese URI en particular
+    * Reemplace el total `count(*)` con `percentile(duration, 95)`
+
+      <SideBySide>
+        <Side>
+          ```sql
+          FROM Transaction SELECT percentile(duration, 95) AS 'Latency Baselines', percentage(count(*), WHERE error is false) AS 'Success Baseline' SINCE 1 WEEK AGO WHERE request.URI LIKE '/js/services/%'
+          ```
+        </Side>
+
+        <Side>
+          <img
+            title="Latency and Success baseline"
+            alt=""
+            src="/images/queries-nrql_screenshot-crop_Latency-and-success-baseline.webp"
+          />
+        </Side>
+      </SideBySide>
+
+      Esta consulta nos dice que la transacción normalmente responde en 42 ms y tiene una tasa de éxito del 99,27%. Esta es nuestra línea de base de latencia.
+  </Step>
+
+  <Step>
+    ### Crear un nivel de servicio basado en la base de referencia
+
+    Ahora que tiene algo de línea de base, puede crear un nivel de servicio significativo. Desde la página <DNT>**Query Your Data**</DNT> , regrese a <DNT>**[one.newrelic.com](https://one.newrelic.com) > APM & Services**</DNT> y luego haga clic en <DNT>**Service levels**</DNT> ubicado debajo de <DNT>**Reports**</DNT>.
+
+    Cuando agrega un nuevo nivel de servicio, New Relic completa automáticamente un promedio de línea de base de cada fuente de datos en su aplicación. Pero queremos priorizar una línea de base específica para una capacidad específica.
+
+    Con la línea de base que extrajimos de la sección anterior, podemos editar el cuadro `WHERE` . Agregue la siguiente cadena al final de la consulta completa para que la línea diga:
+
+    <SideBySide>
+      <Side>
+        ```sql
+        entityGUID = 'YOUR_GUID' AND (transactionType = 'Web') AND request.uri LIKE `/js/services/%`
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Create baseline informed SLI"
+          alt=""
+          src="/images/slm_screenshot-full_Update-SLI-in-UI.webp"
+        />
+      </Side>
+    </SideBySide>
+
+    Después de haber actualizado el campo `WHERE` , confirme que la duración en el campo `AND` coincida con el tiempo en milisegundos consultado en el paso 2. En este caso, la solicitud obtiene una respuesta en aproximadamente 42 (ms) y el `AND` campo coincide con un .4 duración.
+  </Step>
+
+  <Step>
+    ### Vea su nivel de servicio en la UI
+
+    Ahora que ha creado un nivel de servicio basado en la línea de base, puede verlo en la UI. Le recomendamos que cree una alerta para este nivel de servicio, cuya calidad podrá evaluar en la siguiente parte de la serie de tutoriales.
+
+    <SideBySide>
+      <Side>
+        <img
+          title="View your service levels"
+          alt=""
+          src="/images/Service-levels-in-the-UI_screenshot-full_Service-levels-in-the-UI.webp"
+        />
+      </Side>
+
+      <Side>
+        <img
+          title="Service levels summary page"
+          src="/images/Service-levels-UI_screenshot-crop.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+</Steps>
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    path="/docs/journey-demand/get-started"
+  >
+    Obtén datos sobre tu arquitectura con APM y agente de infraestructura
+  </DocTile>
+
+  <DocTile
+    title="Create service levels for gameday"
+    path="/docs/journey-demand/find-your-baseline/"
+    label={{text: "You are here", color: "orange"}}
+  >
+    Cree un nivel de servicio informado por su línea de base
+  </DocTile>
+</DocTiles>
+
+<DocTiles>
+  <DocTile
+    title="Reduce noise with quality alerts"
+    number="3"
+    path="/docs/journey-demand/create-quality-alerts/"
+  >
+    Evalúe su alerta con alerta gestión de calidad
+  </DocTile>
+
+  <DocTile
+    title="Align your teams with workloads"
+    number="4"
+    path="/docs/journey-demand/organize-data-workloads/"
+  >
+    Alinee sus equipos en torno a los mismos datos
+  </DocTile>
+
+  <DocTile
+    title="Autoscale your infrastructure with Kubernetes"
+    number="5"
+    path="/docs/journey-demand/autoscale-your-infra/"
+  >
+    Escale sus recursos a medida que la demanda alcance su punto máximo
+  </DocTile>
+</DocTiles>

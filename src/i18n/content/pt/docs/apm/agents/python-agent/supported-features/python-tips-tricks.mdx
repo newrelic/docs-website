@@ -1,0 +1,169 @@
+---
+title: Dicas e truques de Python
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: 'How to use decorators and introspection, identify a transaction, or record custom metrics with the Python agent.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para ajudá-lo a aproveitar ao máximo o uso do agente Python para monitor seu aplicativo da web, aqui estão algumas dicas e truques.
+
+## Decoradores e introspecção [#decorators_and_introspection][#decorators_and_introspection]
+
+Ao nomear uma transação ou um nó trace de função, o agente Python precisa examinar o nome da função que está sendo chamada. Onde a função é uma função bruta ou um método de classe, tudo funciona bem. Se, no entanto, um decorador tiver sido aplicado à função ou método de classe, se o decorador não tiver sido implementado para preservar a capacidade de introspectar a função encapsulada, então o agente usará o nome da função wrapper do decorador em vez da função encapsulada.
+
+A maneira típica de implementar um decorador é usar o padrão:
+
+```
+def decorator(f):
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+O problema desta implementação é que se olharmos para o valor de `foo.__name__` ele será `_decorator` e não `foo`. Se o decorador estiver contido em um módulo separado, olhando para `foo.__module__` , será o nome do módulo no qual o decorador está declarado e não o nome do módulo no qual a função encapsulada está contida.
+
+Para garantir que os módulos e funções sejam nomeados corretamente, use o decorador `wraps()` do módulo <DNT>**functools**</DNT> da biblioteca padrão para encapsular a função do decorador interno:
+
+```
+import functools
+
+def decorator(f):
+    @functools.wraps(f)
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+Para obter mais informações, consulte a [documentação](http://docs.python.org/library/functools.html#functools.wraps) da função `wraps()` no site do Python.
+
+## Identificando uma transação [#identifying_a_transaction][#identifying_a_transaction]
+
+Quando o agente Python registra detalhes de erro para uma transação ou captura um rastreamento lento da transação, não há um identificador exclusivo que você possa capturar para tentar correlacioná-lo com outros dados que você pode registrar separadamente para a transação. Isso dificulta a correspondência das informações da interface com o log do seu próprio aplicativo da web, por exemplo.
+
+Se você quiser fazer essa correspondência cruzada ou simplesmente capturar em uma transação alguns detalhes adicionais que podem ajudar nessa situação, você pode usar a API do agente para registrar parâmetros personalizados na transação. Se ocorrer um erro ou um rastreamento lento da transação for registrado, que será exibido na interface, esses parâmetros adicionais fornecidos serão exibidos na seção <DNT>**Custom parameters**</DNT> dos detalhes do erro ou trace .
+
+Para adicionar esses detalhes adicionais, você pode usar a função `add_custom_attribute()` no módulo <DNT>**newrelic.agent**</DNT> .
+
+<Callout variant="important">
+  Não use colchetes `[suffix]` no final do nome da sua transação. o agente retira automaticamente os colchetes do nome. Em vez disso, use parênteses `(suffix)` ou outros símbolos, se necessário.
+</Callout>
+
+Tomemos por exemplo o seguinte código do aplicativo polls no tutorial do framework web Django.
+
+```
+from django.shortcuts import render_to_response, get_object_or_404
+
+def detail(request, poll_id):
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+Se você quisesse registrar o ID da pesquisa em relação à transação, disponível caso ocorresse um problema, você usaria:
+
+```
+import newrelic.agent
+
+def detail(request, poll_id):
+    newrelic.agent.add_custom_attribute('poll_id', poll_id)
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+O valor usado para um parâmetro personalizado pode ser qualquer valor que possa ser serializado pelo codificador JSON fornecido pelo módulo <DNT>**json**</DNT> . Isso inclui tuplas, listas e dicionários.
+
+Recomendação: restrinja os valores a valores inteiros, float ou string. Se você usar estruturas de dados mais complexas, evite tentar associar uma estrutura de dados muito grande, pois ela precisará ser armazenada em cache até ser colhida, empacotada e então enviada para o aplicativo principal.
+
+Valores simples também são preferidos, porque se o valor não puder ser serializado para JSON, os detalhes do erro ou a transação lenta poderão ser descartados.
+
+## Gravação métrica personalizada [#recording_custom_metrics][#recording_custom_metrics]
+
+Só podemos instrumentar módulos de terceiros disponíveis publicamente para Python que conhecemos. Para estender a instrumentação para seu próprio código, use as técnicas descritas em [adição de instrumentação Python](/docs/agents/python-agent/supported-features/python-custom-instrumentation). Isso lhe dará cobertura em dados de detalhamento de desempenho para transação da web e rastreamento lento de transação.
+
+Você pode registrar dados de desempenho arbitrários por meio de uma chamada de API (por exemplo: tempo ou dados de recursos do computador). Em seguida, use [métricas e eventos ](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer)para criar gráficos e acompanhar essa métrica. Você pode utilizar métrica personalizada para unificar seu monitoramento.
+
+Para registrar métrica personalizada, utilize a função `record_custom_metric()` do módulo <DNT>**newrelic.agent**</DNT> . São necessários dois argumentos, sendo o nome da métrica e o valor. O valor deve ser um valor inteiro ou de ponto flutuante.
+
+```
+import newrelic.agent
+
+def create_account(request, ...):
+    ...
+    newrelic.agent.record_custom_metric('Custom/Signups', 1)
+    ...
+    return render_to_response('...', ...)
+```
+
+Inicie o caminho do nome da métrica `Custom/` para evitar colisões de namespace com métricas de agente existentes (por exemplo, `Custom/MyMetric`).
+
+A métrica personalizada será agregada em cada [ciclo de coleta](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) e posteriormente enviada ao [coletor](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector). Neste caso cada `1` será somado para registrar o número de inscrições no ciclo de coleta.
+
+Embora a instrumentação trace de função seja usada para rastrear chamadas de função ou o tempo gasto em um bloco de código, ela não permite gráficos personalizados separados. A métrica personalizada ainda pode ser usada para registrar e traçar o tempo relacionado a quanto tempo algo leva.
+
+Para facilitar isso, você pode predefinir uma classe de gerenciador de contexto para cronometragem e registro da métrica.
+
+```
+class CustomMetricTimedNode(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc, value, tb):
+        if not self.start_time:
+            return
+        self.end_time = time.time()
+        duration = self.end_time - self.start_time
+        newrelic.agent.record_custom_metric(self.name, duration)
+```
+
+Isso pode então ser usado em conjunto com uma instrução `with` em torno de um bloco de código.
+
+```
+def function():
+    with CustomMetricTimedNode('Custom/TimedNode1'):
+        time.sleep(0.01)
+```
+
+O gerenciador de contexto poderia ser aplicado a funções criando um decorador de função.
+
+```
+def custom_metric_timed_node(name):
+    def _decorator(f):
+        @functools.wraps(f)
+        def _wrapper(*args, **kwargs):
+            with CustomMetricTimedNode(name):
+                return f(*args, **kwargs)
+        return _wrapper
+    return _decorator
+```
+
+sendo usado como:
+
+```
+@custom_metric_timed_node('Custom/TimedNode2')
+def function():
+    time.sleep(0.01)
+```
+
+Assim como ao adicionar instrumentação para rastreamento de função, é recomendado que você escolha nomes de métricas dentro de um conjunto finito e de comprimento relativamente pequeno. Você deve evitar nomes com valor ilimitado, caso contrário, o volume deles dificultará sua exibição de maneira significativa. Um grande número de nomes exclusivos também pode resultar no uso excessivo de memória e na normalização forçada do agente para limitar quantos nomes exclusivos existem.
+
+<Callout variant="caution">
+  Coletar muitas métricas pode impactar o desempenho da sua aplicação e do agente. Para evitar possíveis problemas de dados, tente manter o número total de métricas exclusivas introduzidas pela instrumentação personalizada abaixo de 2.000.
+</Callout>

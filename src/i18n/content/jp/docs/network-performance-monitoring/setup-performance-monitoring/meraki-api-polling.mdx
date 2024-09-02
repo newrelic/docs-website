@@ -1,0 +1,447 @@
+---
+title: Meraki ダッシュボード API モニタリングをセットアップする
+tags:
+  - Integrations
+  - Network monitoring
+  - Meraki
+  - Installation
+  - Setup
+metaDescription: Set up New Relic's Meraki Dashboard API monitoring.
+freshnessValidatedDate: '2023-10-26T00:00:00.000Z'
+translationType: machine
+---
+
+New Relic のネットワーク監視エージェントを使用して、Meraki 環境を監視できます。
+
+<img
+  title="meraki dashboard"
+  alt="A screenshot showing the meraki dashboard UI in New Relic"
+  src="/images/synthetic_screenshot-full_meraki-dashboard.webp"
+/>
+
+## 始めましょう
+
+始める前に、New Relic、Docker、Meraki、およびネットワークのセキュリティの前提条件を満たしていることを確認してください。
+
+* New Relic アカウント。
+
+* New Relic
+
+  <InlinePopover type="licenseKey"/>
+
+  。
+
+* Linux ホストにインストールされた[Docker](https://docs.docker.com/engine/install)または[Podman](https://podman.io/docs/installation) 。
+
+* コマンドライン経由で新しいコンテナを起動する機能。
+
+* 認証用の[Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access) 。
+
+### ネットワークファイアウォールルール [#prerequisites-network]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '200px' }}>
+        方向
+      </th>
+
+      <th>
+        ソース
+      </th>
+
+      <th>
+        行き先
+      </th>
+
+      <th>
+        ポート
+      </th>
+
+      <th>
+        プロトコル
+      </th>
+
+      <th>
+        必須
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        コンテナホスト
+      </td>
+
+      <td>
+        `ktranslate` [Docker Hub](https://hub.docker.com/r/kentik/ktranslate) 、 [Quay.io](https://quay.io/repository/kentik/ktranslate) 、または会社の内部リポジトリ上のイメージ。
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+
+      <td>
+        ✓✓
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        コンテナホスト
+      </td>
+
+      <td>
+        [New Relic メトリクス API](/docs/data-apis/ingest-apis/metric-api/introduction-metric-api/#requirements)エンドポイント: `https://metric-api.newrelic.com`
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+
+      <td>
+        ✓✓
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        コンテナホスト
+      </td>
+
+      <td>
+        [New Relic イベント API](/docs/data-apis/ingest-apis/event-api/introduction-event-api#requirements)エンドポイント: `https://insights-collector.newrelic.com`
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+
+      <td>
+        ✓✓
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        コンテナホスト
+      </td>
+
+      <td>
+        [New Relic ログ API](/docs/logs/log-management/log-api/introduction-log-api/#endpoint)エンドポイント: `https://log-api.newrelic.com`
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        コンテナホスト
+      </td>
+
+      <td>
+        [Meraki ダッシュボード API](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#API_Requests)エンドポイント: `https://api.meraki.com/api/v1/`
+      </td>
+
+      <td>
+        443 (デフォルト)
+      </td>
+
+      <td>
+        TCP
+      </td>
+
+      <td>
+        ✓✓
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## インストール [#installation]
+
+Meraki ダッシュボードAPI監視を既存の SNMP コンテナーに追加することも、専用のコンテナーにデプロイして他の SNMP デバイスとは分離しておくこともできます。 使用ケースに最も適した以下のオプションを選択してください。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="dockerExistingContainer">
+      既存のdockerコンテナ
+    </TabsBarItem>
+
+    <TabsBarItem id="dockerDedicatedContainer">
+      専用dockerコンテナ
+    </TabsBarItem>
+
+    <TabsBarItem id="podmanExistingContainer">
+      既存のPodman コンテナ
+    </TabsBarItem>
+
+    <TabsBarItem id="podmanDedicatedContainer">
+      専用Podman コンテナ
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="dockerExistingContainer">
+      1. SNMP エージェントの既存の設定ファイルに、Meraki デバイス オブジェクトを手動で追加します。 `$DASHBOARD_API_KEY` [を Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access)に置き換えます。
+
+         ```yaml
+         devices:
+           meraki_cloud_controller:
+             device_name: meraki_cloud_controller
+             device_ip: snmp.meraki.com
+             provider: meraki-cloud-controller
+             ext:
+               ext_only: true
+               meraki_config:
+                 api_key: "$DASHBOARD_API_KEY"
+         ```
+
+         <Callout variant="tip">
+           これは基本的な例です。 追加の設定オプションについては、[高度な設定ドキュメント](/docs/network-performance-monitoring/advanced/advanced-config/)をご覧ください。
+         </Callout>
+
+      2. 既存のコンテナを停止して削除します。
+
+         ```shell
+         # Find your current container
+         docker ps -a
+
+         # Forcibly stop and delete the target container (you may also use the container ID here in place of the name)
+         docker rm -f $CONTAINER_NAME
+         ```
+
+      3. 更新された設定ファイルを使用して新しい コンテナを起動します。 `$CONTAINER_SERVICE`をコンテナーの一意の名前に置き換え、 `$YOUR_NR_LICENSE_KEY`と`$YOUR_NR_ACCOUNT_ID`を任意の値に置き換えます。 この例では、デフォルトの設定ファイルの名前が`snmp-base.yaml`であると想定しています。
+
+         ```shell
+         docker run -d --name ktranslate-$CONTAINER_SERVICE --restart unless-stopped --pull=always -p 162:1620/udp \
+         -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+         -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+         kentik/ktranslate:v2 \
+           -snmp /snmp-base.yaml \
+           -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+           -metrics=jchf \
+           -tee_logs=true \
+           -service_name=$CONTAINER_SERVICE \
+           -snmp_discovery_on_start=true \
+           -snmp_discovery_min=180 \
+           nr1.snmp
+         ```
+    </TabsPageItem>
+
+    <TabsPageItem id="dockerDedicatedContainer">
+      1. dockerがインストールされている Linux ホストで、任意のテキスト エディターを使用して、コンテナーの実行に使用する設定ファイルを作成します。 `$DASHBOARD_API_KEY`を[Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access)に置き換えます。
+
+         [vim](https://www.vim.org/)を使用した例:
+
+         ```shell
+         sudo vim meraki-base.yaml
+         ```
+
+         ファイルの内容:
+
+         ```yaml
+         devices:
+           meraki_cloud_controller:
+             device_name: meraki_cloud_controller
+             device_ip: snmp.meraki.com
+             provider: meraki-cloud-controller
+             ext:
+               ext_only: true
+               meraki_config:
+                 api_key: "$DASHBOARD_API_KEY"
+         trap: {}
+         discovery: {}
+         global:
+           poll_time_sec: 300
+           timeout_ms: 30000
+         ```
+
+         <Callout variant="tip">
+           これは基本的な例です。 追加の設定オプションについては、[高度な設定ドキュメント](/docs/network-performance-monitoring/advanced/advanced-config/)をご覧ください。
+         </Callout>
+
+      2. ネットワーク監視エージェントを起動して、Meraki ダッシュボードAPIをポーリングします。 `$CONTAINER_SERVICE`をコンテナーの一意の名前に置き換え、 `$YOUR_NR_LICENSE_KEY`と`$YOUR_NR_ACCOUNT_ID`を任意の値に置き換えます。 この例では、設定ファイルを「meraki-base.yaml」として保存しました。
+
+         ```shell
+         docker run -d --name ktranslate-$CONTAINER_SERVICE --restart unless-stopped --pull=always -p 162:1620/udp \
+         -v `pwd`/meraki-base.yaml:/snmp-base.yaml \
+         -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+         kentik/ktranslate:v2 \
+           -snmp /snmp-base.yaml \
+           -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+           -metrics=jchf \
+           -tee_logs=true \
+           -service_name=$CONTAINER_SERVICE \
+           -snmp_discovery_on_start=true \
+           -snmp_discovery_min=180 \
+           nr1.snmp
+         ```
+    </TabsPageItem>
+
+    <TabsPageItem id="podmanExistingContainer">
+      1. SNMP エージェントの既存の設定ファイルに、Meraki デバイス オブジェクトを手動で追加します。 `$DASHBOARD_API_KEY` [を Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access)に置き換えます。
+
+         ```yaml
+         devices:
+           meraki_cloud_controller:
+             device_name: meraki_cloud_controller
+             device_ip: snmp.meraki.com
+             provider: meraki-cloud-controller
+             ext:
+               ext_only: true
+               meraki_config:
+                 api_key: "$DASHBOARD_API_KEY"
+         ```
+
+         <Callout variant="tip">
+           これは基本的な例です。 追加の設定オプションについては、[高度な設定ドキュメント](/docs/network-performance-monitoring/advanced/advanced-config/)をご覧ください。
+         </Callout>
+
+      2. 既存のコンテナを停止して削除します。
+
+         ```shell
+         # Find your current container
+         podman ps -a
+
+         # Forcibly stop and delete the target container (you may also use the container ID here in place of the name)
+         podman rm -f $CONTAINER_NAME
+         ```
+
+      3. 更新された設定ファイルを使用して新しい コンテナを起動します。 `$CONTAINER_SERVICE`をコンテナーの一意の名前に置き換え、 `$YOUR_NR_LICENSE_KEY`と`$YOUR_NR_ACCOUNT_ID`を任意の値に置き換えます。 この例では、デフォルトの設定ファイル名を`snmp-base.yaml`と想定しています。
+
+         ```shell
+         podman run -d --name ktranslate-$CONTAINER_SERVICE --userns=keep-id --restart unless-stopped --pull=always --net=host \
+         -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+         -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+         kentik/ktranslate:v2 \
+           -snmp /snmp-base.yaml \
+           -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+           -metrics=jchf \
+           -tee_logs=true \
+           -service_name=$CONTAINER_SERVICE \
+           -snmp_discovery_on_start=true \
+           -snmp_discovery_min=180 \
+           nr1.snmp
+         ```
+
+         <Callout variant="important">
+           トラップ メッセージのパケット リダイレクトを処理するための`iptables`ルールをまだ作成していない場合は、次のコマンドを使用して作成する必要があります。
+
+           ```shell
+           sudo iptables -t nat -A PREROUTING -p udp --dport 162 -j REDIRECT --to-port 1620
+           ```
+         </Callout>
+    </TabsPageItem>
+
+    <TabsPageItem id="podmanDedicatedContainer">
+      1. Podman がインストールされている Linux ホストで、任意のテキスト エディターを使用して、コンテナーの実行に使用する設定ファイルを作成します。 `$DASHBOARD_API_KEY`を[Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access)に置き換えます。
+
+         [vim](https://www.vim.org/)を使用した例:
+
+         ```shell
+         sudo vim meraki-base.yaml
+         ```
+
+         ファイルの内容:
+
+         ```yaml
+         devices:
+           meraki_cloud_controller:
+             device_name: meraki_cloud_controller
+             device_ip: snmp.meraki.com
+             provider: meraki-cloud-controller
+             ext:
+               ext_only: true
+               meraki_config:
+                 api_key: "$DASHBOARD_API_KEY"
+         trap: {}
+         discovery: {}
+         global:
+           poll_time_sec: 300
+           timeout_ms: 30000
+         ```
+
+         <Callout variant="tip">
+           これは基本的な例です。 追加の設定オプションについては、[高度な設定ドキュメント](/docs/network-performance-monitoring/advanced/advanced-config/)をご覧ください。
+         </Callout>
+
+      2. ネットワーク監視エージェントを起動して、Meraki ダッシュボードAPIをポーリングします。 `$CONTAINER_SERVICE`をコンテナーの一意の名前に置き換え、 `$YOUR_NR_LICENSE_KEY`と`$YOUR_NR_ACCOUNT_ID`を任意の値に置き換えます。 この例では、設定ファイルを「meraki-base.yaml」として保存しています。
+
+         ```shell
+         podman run -d --name ktranslate-$CONTAINER_SERVICE --userns=keep-id --restart unless-stopped --pull=always --net=host \
+         -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+         -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+         kentik/ktranslate:v2 \
+           -snmp /snmp-base.yaml \
+           -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+           -metrics=jchf \
+           -tee_logs=true \
+           -service_name=$CONTAINER_SERVICE \
+           -snmp_discovery_on_start=true \
+           -snmp_discovery_min=180 \
+           nr1.snmp
+         ```
+
+         <Callout variant="important">
+           トラップ メッセージのパケット リダイレクトを処理するための`iptables`ルールをまだ作成していない場合は、次のコマンドを使用して作成する必要があります。
+
+           ```shell
+           sudo iptables -t nat -A PREROUTING -p udp --dport 162 -j REDIRECT --to-port 1620
+           ```
+         </Callout>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 次のステップ
+
+Meraki 環境データを補完するために、さらに多くのエージェントをセットアップできます。
+
+* ネットワークがどのように使用されているかをよりよく把握するには、[ネットワーク フロー データの監視を設定します](/docs/network-performance-monitoring/setup-performance-monitoring/network-flow-monitoring)。
+* デバイスからシステムメッセージを洞察するには、 [ネットワークsyslogコレクションを設定](/docs/network-performance-monitoring/setup-performance-monitoring/network-syslog-monitoring)します。
+
+<br/>
+
+<InstallFeedback/>

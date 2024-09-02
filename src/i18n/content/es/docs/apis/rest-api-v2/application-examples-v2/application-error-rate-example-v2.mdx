@@ -1,0 +1,152 @@
+---
+title: Ejemplo de tasa de errores de aplicación (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: An example of how to use the New Relic API Explorer (v2) to get your app's average error rate percentage over a specific time period.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este es un ejemplo de cómo utilizar la API de datos de New Relic (v2) para obtener la tasa de errores promedio de su aplicación durante un período de tiempo específico. Este valor aparece como un porcentaje encima del [gráfico de tasa de errores](#avg-error-image) en su [página APM <DNT>**Summary**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page).
+
+Para utilizar la API, necesita:
+
+* Una [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+* Su New Relic ID de la aplicación (desde la URL que muestra su browser desde la interfaz de usuario de APM, o desde la [interfaz de usuario de API Explorer](/docs/apis/api-explorer-examples-metric-data#app_id))
+
+## Fórmula [#avg-error-time-formula]
+
+El porcentaje promedio aparece encima del gráfico <DNT>**Error rate**</DNT> en [la página<DNT>**Summary**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page)de tu aplicación. New Relic utiliza esta fórmula para calcularlo:
+
+```
+Application Error Rate = 100 * Errors/all:error_count / (HttpDispatcher:call_count + OtherTransaction/all:call_count)
+```
+
+## Comandos API [#avg-error-time-commands]
+
+Para obtener los valores [de intervalo de tiempo de métrica](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data) , utilice los siguientes tres comandos. Este ejemplo utiliza el mismo período de tiempo para cada comando y todos están resumidos.
+
+Para obtener el <DNT>**error count:**</DNT>
+
+<CollapserGroup>
+  <Collapser title="Llame para obtener el recuento de errores">
+    ```sh
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+        -H "Api-Key:$API_KEY" -i \
+        -d 'names[]=Errors/all&values[]=error_count&from=2014-04-01T00:00:00+00:00&to=2014-04-01T23:35:00+00:00&summarize=true'
+    ```
+  </Collapser>
+
+  <Collapser title="Ejemplo de salida de una llamada de recuento de errores">
+    ```json
+    {
+      "metric_data": {
+        "from": "2014-04-01T00:00:00+00:00",
+        "metrics": [
+          {
+            "name": "Errors/all",
+            "timeslices": [
+              {
+                "from": "2014-04-01T00:35:00+00:00",
+                "to": "2014-04-01T23:35:00+00:00",
+                "values": {
+                  "error_count": 5
+                }
+              }
+            ]
+          }
+        ],
+        "metrics_found": [
+          "Errors/all"
+        ],
+        "metrics_not_found": [],
+        "to": "2014-04-01T23:35:00+00:00"
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para obtener <DNT>**HttpDispatcher call count**</DNT> (aplicación web):
+
+<CollapserGroup>
+  <Collapser title="Llame para obtener el recuento de llamadas de HttpDispatcher">
+    ```sh
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+        -H "Api-Key:$API_KEY" -i \
+        -d 'names[]=HttpDispatcher&values[]=call_count&from=2014-04-01T00:00:00+00:00&to=2014-04-01T23:35:00+00:00&summarize=true'
+    ```
+  </Collapser>
+
+  <Collapser title="Ejemplo de salida de la llamada de recuento de llamadas de HttpDispatcher">
+    ```json
+    {
+      "metric_data": {
+        "from": "2014-04-01T00:00:00+00:00",
+        "metrics": [
+          {
+            "name": "HttpDispatcher",
+            "timeslices": [
+              {
+                "from": "2014-04-01T00:35:00+00:00",
+                "to": "2014-04-01T23:35:00+00:00",
+                "values": {
+                  "call_count": 19608
+                }
+              }
+            ]
+          }
+        ],
+        "metrics_found": [
+          "HttpDispatcher"
+        ],
+        "metrics_not_found": [],
+        "to": "2014-04-01T23:35:00+00:00"
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para obtener <DNT>**OtherTransaction call count**</DNT> (aplicación no web):
+
+<CollapserGroup>
+  <Collapser title="Llame para obtener el recuento de llamadas de OtherTransaction">
+    ```sh
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+        -H "Api-Key:$API_KEY" -i \
+        -d 'names[]=OtherTransaction/all&values[]=call_count&from=2014-04-01T00:00:00+00:00&to=2014-04-01T23:35:00+00:00&summarize=true'
+    ```
+  </Collapser>
+
+  <Collapser title="Ejemplo de salida de la llamada de recuento de llamadas de OtherTransaction">
+    ```json
+    {
+      "metric_data": {
+        "from": "2014-04-01T00:00:00+00:00",
+        "metrics": [
+          {
+            "name": "OtherTransaction/all",
+            "timeslices": [
+              {
+                "from": "2014-04-01T00:35:00+00:00",
+                "to": "2014-04-01T23:35:00+00:00",
+                "values": {
+                  "call_count": 4
+                }
+              }
+            ]
+          }
+        ],
+        "metrics_found": [
+          "OtherTransaction/all"
+        ],
+        "metrics_not_found": [],
+        "to": "2014-04-01T23:35:00+00:00"
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

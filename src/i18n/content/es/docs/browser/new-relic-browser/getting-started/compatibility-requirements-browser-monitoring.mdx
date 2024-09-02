@@ -1,0 +1,423 @@
+---
+title: Compatibilidad y requisitos para el monitoreo del navegador.
+tags:
+  - Browser
+  - Browser monitoring
+  - Getting started
+metaDescription: Browser monitoring agent compatibility and requirements.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro <InlinePopover type="browser"/>incluye [estrictas medidas de seguridad](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser) para proporcionar un producto sólido e independiente con monitoreo de características del navegador. Antes de [instalar el agente del navegador](/docs/browser/new-relic-browser/getting-started/adding-apps-new-relic-browser), asegúrese de que su sistema cumpla con estos requisitos.
+
+## Requerimientos básicos [#requirements]
+
+Para reportar datos a New Relic, su aplicación debe cumplir dos requisitos básicos:
+
+1. El tráfico a la aplicación debe provenir de clientes capaces de cargar y ejecutar código JavaScript browser .
+2. Los clientes que accedan a la aplicación deben poder enviar datos a New Relic a través de solicitudes HTTP. Se requiere HTTPS para el monitoreo más avanzado de características del navegador.
+
+<Callout variant="important">
+  Es posible que los navegadores que se suscriban a una lista de desconexión o que utilicen extensiones de filtrado de contenido como AdBlock no puedan informar datos a New Relic. Por ejemplo, si está utilizando la [lista de desconexión de Prevención de seguimiento mejorada](https://disconnect.me/trackerprotection/blocked) para [Mozilla Firefox 69.0 o superior](https://www.mozilla.org/en-US/firefox/69.0/releasenotes/), deberá cambiar la configuración predeterminada.
+</Callout>
+
+La mayoría de las aplicaciones browser típicas cumplen con estos requisitos, pero algunas aplicaciones browser en entornos restringidos pueden tener dificultades para informar datos a New Relic. Por ejemplo:
+
+* Aplicación móvil híbrida
+* Aplicación instalada en hardware inusual, como terminales de punto de venta o electrodomésticos de consumo.
+
+Para obtener más información, revise la documentación [de instrumentación para el monitoreo del navegador](/docs/browser/new-relic-browser/page-load-timing-resources/instrumentation-browser-monitoring) y luego verifique [el acceso a la red del usuario final](/docs/browser/new-relic-browser/troubleshooting/troubleshooting-browser-monitoring-installation#manual_network_access).
+
+## Navegador compatible [#browser-types]
+
+El agente del navegador soporta oficialmente las siguientes versiones browser :
+
+* [Chrome](https://www.google.com/chrome/) ([10 versiones anteriores](https://browsersl.ist/#q=last+10+chrome+versions))
+* [Safari](https://www.apple.com/safari/) ([10 versiones anteriores](https://browsersl.ist/#q=last+10+safari+versions))
+* [Firefox](https://www.mozilla.org/firefox/) ([10 versiones anteriores](https://browsersl.ist/#q=last+10+firefox+versions))
+* [Edge](https://www.microsoft.com/edge) ([10 versiones anteriores](https://browsersl.ist/#q=last+10+edge+versions))
+
+La instrumentación y características específicas pueden ser compatibles con otros navegadores o versiones.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Exceptions**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="paint-timings">
+        Tiempos de pintura
+      </td>
+
+      <td>
+        Los atributos [`firstPaint`](/attribute-dictionary/?event=BrowserInteraction&attribute=firstPaint) y [`firstContentfulPaint`](/attribute-dictionary/?event=BrowserInteraction&attribute=firstContentfulPaint) en `BrowserInteraction`, `PageView` y [`PageViewTiming`](/docs/browser/new-relic-browser/page-load-timing-resources/pageviewtiming-async-or-dynamic-page-details) eventos [solo son compatibles con](https://developer.mozilla.org/en-US/docs/Web/API/PerformancePaintTiming#Browser_compatibility):
+
+        * Chrome 60 o superior para escritorio y dispositivos móviles (vista web de Android y Chrome para Android)
+        * Opera 47 o superior para escritorio
+        * Opera 44 o superior para móviles Android
+        * Samsung Internet para móviles
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AJAX
+      </td>
+
+      <td>
+        [La característica de temporización AJAX](/docs/browser/new-relic-browser/dashboard-details/ajax-dashboard) no está disponible con:
+
+        * Chrome para iPhone y iPad
+        * Es decir, 7 y 8
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PageAction` evento
+      </td>
+
+      <td>
+        [`PageAction` incluso](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-attributes-insights-javascript-api) requiere un browser que sea totalmente compatible con dominios cruzados `XMLHttpRequests`. Las versiones 9 y anteriores de Internet Explorer no pueden registrar el evento `PageAction` . Obtenga más información sobre [cómo consultar sus datos](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rastreo de sesión
+      </td>
+
+      <td>
+        [El rastreo de sesión](/docs/browser/new-relic-browser/dashboard-details/session-traces-exploring-webpages-life-cycle) se informa únicamente desde navegadores que admiten la [especificación de sincronización de recursos](http://www.w3.org/TR/resource-timing/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SHA-256
+      </td>
+
+      <td>
+        New Relic solo puede monitor navegadores que sean compatibles con [SHA-256](https://support.globalsign.com/customer/portal/articles/1499561-sha-256-compatibility).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Cuando utiliza el monitoreo del navegador con cookies, las cookies de New Relic son cookies de terceros en su sitio y pueden no almacenarse ni funcionar en ciertos navegadores web utilizados por sus visitantes. Consulte los sitios web del browser correspondiente para obtener detalles sobre su compatibilidad con cookies de terceros.
+</Callout>
+
+## Agente APM [#apm-agents]
+
+Una forma de [implementar el monitoreo del navegador](/docs/browser/new-relic-browser/getting-started/adding-apps-new-relic-browser) de una aplicación es utilizando uno de nuestros agentes APM.
+
+Si está implementando browser para una aplicación que APM ya está monitoreando, asegúrese de que la versión de su agente APM admita el monitoreo del navegador:
+
+* [Go](/docs/release-notes/agent-release-notes/go-release-notes): Versión 2.5.0 o superior
+* [Java](/docs/release-notes/agent-release-notes/java-release-notes): Versión 3.4.0 o mas alto
+* [.NET](/docs/release-notes/agent-release-notes/net-release-notes): Versión 2.20.25.0 o superior
+* [Node.js](/docs/release-notes/agent-release-notes/nodejs-release-notes): Versión 1.4.0 o superior
+* [PHP](/docs/release-notes/agent-release-notes/php-release-notes): Versión 4.4.5.35 o superior
+* [Python](/docs/release-notes/agent-release-notes/python-release-notes): Versión 2.10.1.9 o mas alto
+* [Ruby](/docs/release-notes/agent-release-notes/ruby-release-notes): Versión 3.7.0.177 o superior
+
+## Marco soportado y biblioteca [#frameworks-and-libraries]
+
+El agente del navegador recopila datos en sitios que utilizan muchos marcos de interfaz y bibliotecas populares. El agente del navegador monitorea objetos y métodos JavaScript de bajo nivel, que pueden ser empaquetados o modificados por otra biblioteca y marco. Como resultado, el nivel de detalle recopilado puede variar de un framework a otro y pueden ocurrir conflictos con cualquier biblioteca que modifique la mecánica nativa de JavaScript.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Excepciones de compatibilidad
+      </th>
+
+      <th>
+        Comentarios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Zone.js
+      </td>
+
+      <td>
+        Si está utilizando AngularJS y desea utilizar nuestra [característica de monitoreo SPA](/docs/browser/single-page-app-monitoring/get-started/welcome-single-page-app-monitoring), tenga en cuenta que las versiones de Zone.js 0.6.18 a 0.6.24 no son compatibles con el navegador. En todos los casos, el agente del navegador <DNT>**must**</DNT> se cargará antes que Zone.js para evitar errores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cypress.io
+      </td>
+
+      <td>
+        Browser no puede instrumentar correctamente los métodos `open` y `send` de solicitudes cuando se ejecutan pruebas en Cypress. Esto provocará que se arroje el siguiente error:
+
+        ```
+        Cannot set property 'status' of undefined
+        ```
+
+        Esto solo afectará a los clientes que ejecuten pruebas con el agente del navegador presente en su código. La aplicación de producción no debería verse afectada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        html2pdf.js
+      </td>
+
+      <td>
+        Esta biblioteca no es compatible con nuestro [agente Pro+SPA](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#agent-types) debido a la forma en que esta biblioteca envuelve las promesas. Si está utilizando esta biblioteca, le recomendamos seleccionar el [tipo de agente Pro](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#agent-types).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        MooHerramientas
+      </td>
+
+      <td>
+        El agente del navegador no es compatible con versiones de MooTools anteriores a `1.6.0` ni con ninguna versión que incluya la capa de compatibilidad de mootools. Si migrar desde MooTools no es una opción, recomendamos usar la versión `1.6.0-nocompat`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Monitoreo de aplicación de página única (SPA) [#spa-monitoring]
+
+Para utilizar la característica relacionada con [el monitoreo de aplicaciones de página única (SPA)](/docs/browser/single-page-app-monitoring/get-started/add-apps-single-page-app-monitoring), su aplicación debe cumplir con estos requisitos.
+
+### SPA: versión del agente del navegador [#spa-browser-version]
+
+El monitoreo de SPA requiere una versión específica de SPA del fragmento del navegador, disponible para [la versión 885 o superior del agente del navegador](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes). Esta versión del agente está habilitada de forma predeterminada.
+
+### SPA: tipos browser [#spa-browser-types]
+
+El monitoreo de SPA requiere la [API del navegador`addEventListener` ](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)y la [API de sincronización de navegación](/docs/browser/new-relic-browser/browser-agent-apis/navigation-timing-api). Ambas API están disponibles en todos los navegadores modernos, incluidos Google Chrome, Mozilla Firefox, Apple Safari y Microsoft Internet Explorer (IE) versiones 9 o superiores.
+
+### SPA: requisitos framework [#spa-framework]
+
+Debido a que la instrumentación SPA funciona envolviendo API browser de bajo nivel, es independiente framework . La instrumentación SPA es compatible con la mayoría de los marcos SPA, como Angular, Backbone, Ember y React. También puede instrumentar solicitudes realizadas mediante JSONP.
+
+A continuación se detallan problemas de compatibilidad conocidos:
+
+* Si su aplicación usa AngularJS y desea utilizar las capacidades [de monitoreo de SPA](/docs/browser/single-page-app-monitoring/get-started/welcome-single-page-app-monitoring) del navegador, las versiones de Zone.js 0.6.18-0.6.24 no son compatibles con el agente SPA.
+* La biblioteca html2pdf.js no es compatible con el agente SPA.
+* Las versiones angulares 12 a 14 contienen una limitación en cuanto al tamaño de los elementos de script individuales contenidos en la fuente HTML del índice. Consulte [esta página de resolución de problemas](/docs/browser/single-page-app-monitoring/troubleshooting/angular-truncated-copy-paste-snippet) para obtener más información.
+* Next.JS tiene una incompatibilidad conocida desde la versión 13.3.2-canary.2 donde el uso del enrutador de la aplicación puede provocar que los enlaces de la página no funcionen. Consulte [esta página de resolución de problemas](/docs/browser/single-page-app-monitoring/troubleshooting/nextjs-app-router-links-broken) para obtener más información.
+
+### SPA: Seguridad para fragmentos de hash [#hash-fragments]
+
+Recopilamos y guardamos fragmentos de hash de las URL de cambio de ruta. Si utiliza hash para pasar datos privados o confidenciales, esos datos pueden ser visibles para el usuario de su cuenta New Relic. Siga las pautas de [seguridad del navegador con la recopilación y generación de informes de datos](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser).
+
+## Consideraciones sobre la política de seguridad de contenido (CSP) [#csp]
+
+Para obtener un rendimiento métrico preciso del navegador, nuestro monitoreo de navegador requiere el uso de un pequeño [fragmento de JavaScript](/docs/browser/new-relic-browser/page-load-timing/instrumentation-page-load-timing) en línea. New Relic revisa cuidadosamente el JavaScript en línea para evitar secuencias de comandos entre sitios (XSS) y otras vulnerabilidades potenciales.
+
+[El nivel 2 de la política de seguridad de contenido](https://www.w3.org/TR/CSP2/) agrega restricciones a los tipos de JavaScript permitidos, como el script en línea. También limita qué dominio puede cargar scripts durante la carga de la página.
+
+<Callout variant="important">
+  Si su sitio web no permite la ejecución de ningún JavaScript alojado por terceros, debe solicitar una excepción de CSP a través de los procedimientos estándar de su organización para poder instalar el agente de monitoreo de navegador.
+</Callout>
+
+Al solicitar una excepción de CSP, siga los procedimientos estándar de su organización para comunicarse con su equipo web o de seguridad. Las excepciones de CSP para su caso de uso dependen de la versión del agente del navegador que esté ejecutando actualmente. Siempre recomendamos actualizar a la última versión del agente del navegador.
+
+Puede agregar todas estas excepciones a la directiva alternativa `default-src` (en lugar de `script-src` y `connect-src`). El agente del navegador requiere las siguientes excepciones de CSP:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Excepción CSP
+      </th>
+
+      <th>
+        Comentarios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `unsafe-inline`
+      </td>
+
+      <td>
+        Agréguelo a la directiva `script-src` o a la directiva alternativa `default-src` . Esto es necesario porque el agente se instala incluyendo un script en línea.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `https://js-agent.newrelic.com`
+      </td>
+
+      <td>
+        Agréguelo a la directiva `script-src` o a la directiva alternativa `default-src` . Aquí es donde se alojan los archivos de script adicionales que requiere el agente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `*.nr-data.net`
+      </td>
+
+      <td>
+        El agente intenta enviar carga a subdominios de `nr-data.net`, que pueden variar según el tipo de cuenta. Si `*.nr-data.net` es demasiado inclusivo para sus requisitos, será necesario agregar cada subdominio individual:
+
+        * Cuentas basadas en EE. UU.:
+
+          * `https://bam.nr-data.net`
+          * `https://bam-cell.nr-data.net`
+
+        * Cuentas basadas en la UE:
+
+          * `https://bam.eu01.nr-data.net`
+
+        * Cuentas compatibles con FedRAMP:
+
+          * `https://gov-bam.nr-data.net`
+
+        * Agréguelo a la directiva `connect-src` o a la directiva alternativa `default-src` . La directiva `connect-src` afecta las URL que el script puede llamar (por ejemplo, usando la interfaz XMLHttpRequest). Si tiene restricciones de CSP específicamente en torno a esta directiva, agregue esta URL como excepción.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### `nonce` apoyo [#nonce-support]
+
+A partir de agente del browser [1.247.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1.247.0/), el agente respetará un atributo `nonce` adjunto al script en línea al cargar fragmentos de código adicionales. Si su sitio o infraestructura es capaz de inyectar un atributo `nonce` en el script del agente del navegador en línea, solo necesitará solicitar una excepción CSP para `connect-src`.
+
+<Callout variant="important">
+  Nuestro soporte integrado `nonce` no se aplica al uso del paquete npm agente del navegador. Con el paquete npm, el agente pasa a formar parte del código de su sitio o aplicación. Cualquier fragmento adicional cargado se realizará a través del código de su aplicación y usted tiene control total sobre cuándo y si se usa un atributo `nonce` .
+</Callout>
+
+Algunos agentes APM capaces de inyectar el agente del navegador también admiten agregar un atributo `nonce` al script inyectado.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Agente APM
+      </th>
+
+      <th>
+        Versión mínima
+      </th>
+
+      <th>
+        Nota de soporte
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Go
+      </td>
+
+      <td>
+        [2.5.0](/docs/release-notes/agent-release-notes/go-release-notes/go-agent-25/)
+      </td>
+
+      <td>
+        Admite la inyección del fragmento de JavaScript a través de la API `Transaction.BrowserTimingHeader` . Deberá escribir código adicional para modificar el elemento del script y agregar el atributo `nonce` . Consulte [Agregar monitoreo de navegador para aplicaciones Go](/docs/apm/agents/go-agent/features/add-browser-monitoring-your-go-apps/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Java
+      </td>
+
+      <td>
+        [7.6.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-760/)
+      </td>
+
+      <td>
+        Admite agregar `nonce` a través de las API `getBrowserTimingHeader` y `getBrowserTimingFooter` . Consulte los [documentos del agente de monitoreo de Java del navegador](/docs/apm/agents/java-agent/instrumentation/instrument-browser-monitoring-java-agent-api/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        .NET
+      </td>
+
+      <td>
+        [8.39.0.0](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-83900/)
+      </td>
+
+      <td>
+        Admite agregar `nonce` a través de la API `GetBrowserTimingHeader` . Consulte los [documentos de monitoreo del navegador del agente .NET](/docs/apm/agents/net-agent/other-features/browser-monitoring-net-agent/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Node.js
+      </td>
+
+      <td>
+        [4.3.0](/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-430/)
+      </td>
+
+      <td>
+        Admite agregar `nonce` a través de la API `getBrowserTimingHeader` . Consulte los [documentos de monitoreo del navegador del agente Node.js.](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/browser-monitoring-nodejs-agent/)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ruby
+      </td>
+
+      <td>
+        [7.1.0](/docs/release-notes/agent-release-notes/ruby-release-notes/ruby-agent-710/)
+      </td>
+
+      <td>
+        Admite agregar `nonce` a través de la API `browser_timing_header` . Consulte los [documentos de monitoreo del navegador del agente Ruby](/docs/apm/agents/ruby-agent/features/new-relic-browser-ruby-agent/).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Soporte de proxy [#proxy-support]
+
+<Callout variant="important">
+  Esta característica está actualmente disponible para aquellos que utilizan los métodos de instalación browser copiar/pegar o npm. Actualmente no hay opciones de configuración de UI o NerdGraph disponibles. Seguimos trabajando para mejorar el acceso a estas y otras opciones de configuración.
+</Callout>
+
+A partir del agente del navegador [1.240.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1.240.0/), el agente se puede configurar para enviar solicitudes de red a través de otra combinación de dominio y ruta que usted controle. Dependiendo de su configuración de proxy y de CSP, es posible que no necesite solicitar excepciones para agregar el dominio New Relic a `script-src` y `connect-src`. Consulte nuestros [documentos de proxy](/docs/browser/new-relic-browser/configuration/proxy-agent-requests/) para obtener más información, incluida una guía sobre cómo configurar el agente.
+
+## Integridad de los subrecursos (SRI) [#sri]
+
+El agente del navegador utiliza la división de código para hacer que el fragmento de código en línea sea lo más pequeño posible. El código adicional necesario para que el agente funcione se carga en tiempo de ejecución desde nuestra red de entrega de contenido (CDN). Como capa adicional de seguridad, comenzando con agente del browser [1.247.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1.247.0/), el fragmento del agente contiene hash de todos los fragmentos de código adicionales que podrían cargarse durante el tiempo de ejecución. El browser utiliza estos hash para verificar que el código cargado desde la CDN no se haya modificado involuntariamente, ya sea en la CDN o durante el tránsito mediante un ataque de intermediario.
+
+<Callout variant="important">
+  El hash SRI no se aplica al uso del paquete npm agente del navegador. Con el paquete npm, el agente se convierte en parte del código de su sitio o aplicación, lo que invalida nuestro hash generado.
+</Callout>
+
+Para obtener más información sobre cómo funciona la seguridad SRI, [consulte este artículo de MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity).

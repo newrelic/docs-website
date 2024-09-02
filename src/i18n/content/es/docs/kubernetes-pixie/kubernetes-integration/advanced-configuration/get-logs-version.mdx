@@ -1,0 +1,154 @@
+---
+title: Registro Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Troubleshooting
+metaDescription: 'Kubernetes integration: How to install and activate the integration, and what data is reported.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para generar un registro detallado y obtener información de versión y configuración, siga los pasos a continuación. Para obtener ayuda sobre la resolución de problemas, consulte [No ver datos](/docs/integrations/host-integrations/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data) o [mensaje de error](/docs/integrations/host-integrations/troubleshooting/kubernetes-integration-troubleshooting-error-messages).
+
+Si está empleando la versión 2 de la integración, consulte [Iniciar sesión enKubernetes versión 2](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/overview/#logs-version2).
+
+<CollapserGroup>
+  <Collapser id="verbose-logging" title="Habilitar el registro detallado">
+    La integración Kubernetes no genera un registro de nivel `debug`. Si está realizando una investigación más profunda por su cuenta o con el soporte de New Relic, puede habilitar el modo detallado.
+
+    <Callout variant="caution">
+      El modo detallado aumenta significativamente la cantidad de información enviada al archivo de registro. Habilite este modo solo temporalmente para propósitos de resolución de problemas y restablezca el nivel de registros cuando termine.
+    </Callout>
+
+    * Para obtener detalles de registro detallados empleando Helm y el gráfico `nri-bundle` :
+
+      1. Agregue la siguiente configuración a su archivo `values.yaml` .
+
+         ```yaml
+         # To enable verboseLog for newrelic-infrastructure only
+         newrelic-infrastructure:
+             verboseLog: true
+         ```
+
+         También puede habilitar el registro detallado para todos los subgráficos:
+
+         ```yaml
+         # To enable verboseLog for all sub-charts
+         global:
+             verboseLog: true
+         ```
+
+      2. Una vez que agregó la configuración deseada, actualice la solución con este comando:
+
+         ```shell
+         helm upgrade <RELEASE_NAME> newrelic/nri-bundle \
+         --namespace <NEWRELIC_NAMESPACE> \
+         -f values-newrelic.yaml \
+         [--version fixed-chart-version]
+         ```
+
+      3. Después de recopilar su registro detallado, revierta el cambio en su archivo `values.yaml` y ejecute el comando `upgrade` nuevamente.
+
+    * Para obtener detalles de registro detallados mediante un archivo de manifiesto:
+
+      1. Debes configurar dos variables de entorno diferentes:
+
+         * `NRIA_VERBOSE="1"` para todos los contenedores `agent` y `forwarder` ; esto habilita el registro detallado del agente. Puede configurar esto debajo de `NRIA_LICENSE_KEY`.
+
+         * Establezca `NRI_KUBERNETES_VERBOSE=true"` en todos los componentes de la integración; esto habilita el registro detallado para la integración.
+
+           ```yaml
+           env:
+           - name: NRIA_LICENSE_KEY
+               valueFrom:
+               secretKeyRef:
+                   key: licenseKey
+                   name: newrelic-bundle-newrelic-infrastructure-license
+           - name: NRIA_VERBOSE
+               value: "1"
+           ```
+
+      2. Una vez que editó el manifiesto, actualice la solución con este comando:
+
+         ```shell
+         kubectl apply -f your_newrelic_k8s.yaml -n <NEWRELIC_NAMESPACE>
+         ```
+
+      3. Después de recopilar su registro detallado, revierta el cambio en el manifiesto y aplíquelo nuevamente.
+  </Collapser>
+
+  <Collapser id="retrieve-logs-v3" title="Recuperar registro de cualquiera de los componentes de integración.">
+    Hay tres componentes diferentes de la integración que se encargan de extraer `ksm`, `controlplane` y `kubelet`. En cada instancia, hay dos contenedores en ejecución, uno extrae los datos y el otro los reenvía. El agente en el componente `kubelet` también está a cargo de extraer datos del nodo y ejecutar la integración. El siguiente diagrama muestra la integración instalada en un clúster con tres nodos.
+
+    <img title="Diagram showing the integration installed in a 3 nodes cluster" alt="Diagram showing the integration installed in a 3 nodes cluster" src="/images/kubernetes_diagram_v3-integration.webp" />
+
+    Para recuperar el registro, obtenga el nombre del pod del que desea recuperar el registro:
+
+    ```shell
+    kubectl get pods -n <NEWRELIC_NAMESPACE>
+    ```
+
+    Recuperar el registro:
+
+    ```shell
+    kubectl logs <POD_NAME> --all-containers --prefix
+    ```
+
+    Para recuperar el registro de la ejecución anterior, agregue la marca `--previous` . Para obtener el registro de solo uno de los contenedores, elimine la marca `--all-containers --prefix` y especifique el contenedor con la opción `--container` .
+  </Collapser>
+
+  <Collapser id="infra-version" title="Obtenga la versión del agente de infraestructura">
+    <Callout variant="important">
+      Para obtener la mejor experiencia con nuestra integración de Kubernetes, le recomendamos que emplee la última versión. Consulta [los cambios introducidos en la versión 3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3).
+    </Callout>
+
+    Cuando utiliza la integración Kubernetes , el agente de infraestructura se distribuye como una imagen docker que contiene tanto el agente de infraestructura como la integración Kubernetes . La imagen de la docker es una etiqueta con una versión y el agente de infraestructura también tiene su propia versión.
+
+    Una vez que el agente envía datos a New Relic, puede recuperar las versiones del agente de infraestructura para Kubernetes (la imagen de la docker ) que está ejecutando en su clúster mediante la siguiente consulta NRQL :
+
+    ```sql
+    FROM K8sContainerSample
+    SELECT uniqueCount(entityId)
+    WHERE containerName
+    LIKE 'agent' FACET clusterName, containerImage
+    ```
+
+    Si el agente no informa ningún dato:
+
+    Obtenga las versiones de la integración de New Relic para Kubernetes que está ejecutando en un clúster usando `kubectl`:
+
+    ```shell
+    kubectl get pods --all-namespaces -l app.kubernetes.io/name=newrelic-infrastructure -o jsonpath="{.items..spec..containers..image}"
+    ```
+  </Collapser>
+
+  <Collapser id="kube-state-metrics-version" title="Obtener la versión kube-state-métrica">
+    Para recuperar la versión de `kube-state-metrics` ejecutándose en su clúster, ejecute la siguiente consulta NRQL :
+
+    ```sql
+    FROM K8sContainerSample
+    SELECT uniqueCount(entityId)
+    WHERE containerName
+    LIKE '%kube-state-metrics%' facet clusterName, containerImage
+    ```
+  </Collapser>
+
+  <Collapser id="logs-on-collection" title="Obtener la colección de eventos de inicio de sesión">
+    Para comprobar el registro de nuestro recolector de eventos, ejecute este comando:
+
+    ```bash
+    kubectl logs deploy/nr-kube-events kube-events
+    ```
+
+    Para agregar más detalles, habilite el modo detallado agregando `verbose: "true"` en la sección `config` de su archivo de configuración, ya sea antes o después de `clusterName`.
+  </Collapser>
+
+  <Collapser id="logs-on-sending" title="Obtener inicio de sesión enviando evento">
+    Para verificar el registro del agente responsable de enviar el evento a New Relic, ejecute este comando:
+
+    ```bash
+    kubectl logs deploy/nr-kube-events infra-agent
+    ```
+  </Collapser>
+</CollapserGroup>

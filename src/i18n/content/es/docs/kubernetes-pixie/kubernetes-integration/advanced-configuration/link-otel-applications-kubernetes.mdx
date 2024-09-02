@@ -1,0 +1,302 @@
+---
+title: Vincular la aplicación OpenTelemetry-instrumentada a Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - OpenTelemetry
+  - Link apps and services
+metaDescription: Connect New Relic's Kubernetes monitoring with applications monitored with OpenTelemetry.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si es un desarrollador que ejecuta una aplicación en Kubernetes, puede usar New Relic para comprender cómo la infraestructura Kubernetes afecta su aplicación instrumentada OpenTelemetry .
+
+Luego de completar los pasos a continuación, puede usar la New Relic UI para correlacionar la métrica a nivel de OpenTelemetry aplicación de con Kubernetes la infraestructura métrica . Esto le permite ver el panorama completo de sus telemetry data y colaborar entre equipos para lograr un tiempo medio de resolución (MTTR) más rápido para problemas en su entorno Kubernetes .
+
+## Cómo correlacionamos los datos [#correlate]
+
+Este documento lo guía para habilitar su aplicación para inyectar metadatos específicos de infraestructura en los telemetry data. El resultado es que la New Relic UI está llena de información procesable. Estos son los pasos que deberá seguir para comenzar:
+
+* En cada contenedor de aplicación, defina una variable de entorno para enviar telemetry data al recolector.
+* Implementar el recolector OpenTelemetry como `DaemonSet` en [modo agente](https://opentelemetry.io/docs/collector/getting-started/#agent) con procesadores `resourcedetection`, `resource`, `batch` y `k8sattributes` para inyectar metadatos relevantes (nombres de clúster, despliegue y namespace ).
+
+## Antes de que empieces [#prereqs]
+
+Para completar con éxito los pasos siguientes, ya debe estar familiarizado con OpenTelemetry y Kubernetes y hacer lo siguiente:
+
+* Creó estas variables de entorno:
+
+  * `OTEL_EXPORTER_OTLP_ENDPOINT`: Consulte [el extremoNew Relic OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/) para obtener más información.
+  * `NEW_RELIC_API_KEY`: Consulte [New Relic clave de API](/docs/apis/intro-apis/new-relic-api-keys/) para obtener más información.
+
+* Instaló la [integración de New Relic Kubernetes](/install/kubernetes) en su clúster.
+
+* instrumentó su aplicación con [OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/) y envió datos exitosamente a New Relic a través del Protocolo OpenTelemetry (OTLP).
+
+Si tiene preguntas generales sobre el uso del recolector con New Relic, consulte nuestra [Introducción al recolector OpenTelemetry con New Relic](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-intro).
+
+## Configure su aplicación para enviar telemetry data al recolector OpenTelemetry [#instrument]
+
+Para configurar esto, debe agregar un fragmento personalizado a la sección `env` de su archivo YAML de Kubernetes. El siguiente ejemplo muestra el fragmento de un microservicio de interfaz de muestra (`Frontend.yaml`). El fragmento incluye 2 secciones que hacen lo siguiente:
+
+* <DNT>**Section 1:**</DNT> Asegúrese de que los telemetry data se envíen al recolector. Esto establece la variable de entorno `OTEL_EXPORTER_OTLP_ENDPOINT` con la IP del host. Para ello, llama a la API descendente para extraer la IP del host.
+* <DNT>**Section 2:**</DNT> Anexe metadatos específicos de la infraestructura. Para hacer esto, capturamos `metadata.uid` usando la API descendente y lo agregamos a la variable de entorno `OTEL_RESOURCE_ATTRIBUTES` . Esta variable de entorno la emplean los procesadores `resourcedetection` y `k8sattributes` del recolector OpenTelemetry para agregar contexto adicional específico de la infraestructura a telemetry data.
+
+Para cada microservicio instrumentado con OpenTelemetry, agregue las líneas resaltadas a continuación a la sección `env` de su manifiesto:
+
+```yaml
+# Frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+
+# ...
+spec:
+  containers:
+    - name: yourfrontendservice
+      image: yourfrontendservice-beta
+  env:
+    # Section 1: Ensure that telemetry data is sent to the collector
+    - name: HOST_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    
+    # This is picked up by the opentelemetry sdks
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://$(HOST_IP):55680"
+    
+    # Section 2: Attach infrastructure-specific metadata
+    # Get pod ip so that k8sattributes can tag resources
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    
+    - name: POD_UID
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.uid
+    
+    # This is picked up by the resource detector
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "service.instance.id=$(POD_NAME),k8s.pod.uid=$(POD_UID)"
+```
+
+## Configurar y desplegar el recolector OpenTelemetry como agente [#agent]
+
+Le recomendamos implementar el [recolector como agente](https://opentelemetry.io/docs/collector/getting-started/#agent) en cada nodo dentro de un clúster de Kubernetes. El agente puede recibir telemetry data y enriquecer telemetry data con metadatos. Por ejemplo, el recolector puede agregar información de atributos personalizados o de infraestructura a través de procesadores, así como manejar procesamiento por lotes, reintentos, compresión y características avanzadas adicionales que se manejan de manera menos eficiente en el nivel de instrumentación del cliente.
+
+Para obtener ayuda para configurar el recolector, consulte el archivo de configuración del recolector de muestra a continuación, junto con las secciones sobre cómo configurar estas opciones:
+
+* [Exportador OTLP](#otlp-exporter)
+* [procesador por lotes](#batch)
+* [procesador de resourcedetection](#resource-detection)
+* [Procesador k8sattributes: general](#attributes-general)
+* [Procesador de atributos k8: RBAC](#rbac)
+* [Procesador k8sattributes: filtros](#discovery-filter)
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+processors:
+  batch:
+  resource:
+    attributes:
+      - key: host.id
+        from_attribute: host.name
+        action: upsert
+  resourcedetection:
+    detectors: [gke, gce]
+  k8sattributes:
+    auth_type: "serviceAccount"
+    passthrough: false
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.deployment.name
+        - k8s.cluster.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.pod.start_time
+    pod_association:
+      - from: resource_attribute
+        name: k8s.pod.uid
+
+exporters:
+  otlp:
+    endpoint: $OTEL_EXPORTER_OTLP_ENDPOINT
+    headers:
+      api-key: $NEW_RELIC_API_KEY
+  logging:
+    logLevel: DEBUG
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [resourcedetection, k8sattributes, resource, cumulativetodelta, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, k8sattributes, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [resourcedetection, k8sattributes, resource, batch]
+      exporters: [otlp]
+```
+
+Siga estos pasos para configurar y desplegar el recolector OpenTelemetry como agente:
+
+<Steps>
+  <Step>
+    ### Configurar el exportador OTLP [#otlp-exporter]
+
+    Primero, agregue un exportador OTLP a su [archivo YAML de configuración del recolectorOpenTelemetry ](https://opentelemetry.io/docs/collector/configuration/)junto con su New Relic <InlinePopover type="licenseKey"/>como encabezado.
+
+    ```yaml
+    exporters:
+    otlp:
+        endpoint: $OTEL_EXPORTER_OTLP_ENDPOINT
+        headers: api-key: $NEW_RELIC_API_KEY
+    ```
+  </Step>
+
+  <Step>
+    ### Configurar el procesador por lotes [#batch]
+
+    El procesador por lotes acepta tramos, métricas o troncos y los coloca en lotes. Esto facilita la compresión de datos y reduce las solicitudes salientes del recolector.
+
+    ```yaml
+    processors:
+    batch:
+    ```
+  </Step>
+
+  <Step>
+    ### Configurar el procesador de detección de recursos [#resource-detection]
+
+    El procesador `resourcedetection` obtiene información específica del host para agregar contexto adicional a los telemetry data que se procesan a través del recolector. En este ejemplo, utilizamos Google Kubernetes Engine (GKE) y Google Calcula Engine (GCE) para obtener metadatos específicos Google Cloud , que incluyen:
+
+    * `cloud.provider` ("gcp")
+
+    * `cloud.platform` ("`gcp_compute_engine`")
+
+    * `cloud.account.id`
+
+    * `cloud.region`
+
+    * `cloud.availability_zone`
+
+    * `host.id`
+
+    * `host.image.id`
+
+    * `host.type`
+
+      ```yaml
+      processors:
+      resourcedetection:
+          detectors: [gke, gce]
+      ```
+  </Step>
+
+  <Step>
+    ### Configurar el procesador de atributos Kubernetes (general) [#attributes-general]
+
+    Cuando ejecutamos el procesador `k8sattributes` como parte del recolector OpenTelemetry ejecutándose como agente, detecta las direcciones IP del pod que envía telemetry data al agente recolector OpenTelemetry , usándolas para extraer metadatos pod . A continuación se muestra un ejemplo de manifiesto básico de Kubernetes con solo una sección de procesadores. Para implementar el recolector OpenTelemetry como `DaemonSet`, lea este [ejemplo de manifiesto completo](https://github.com/newrelic-forks/microservices-demo/tree/main/src/otel-collector-agent).
+
+    ```yaml
+    processors:
+    k8sattributes:
+        auth_type: "serviceAccount"
+        passthrough: false
+        filter:
+        node_from_env_var: KUBE_NODE_NAME
+        extract:
+        metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.cluster.name
+            - k8s.namespace.name
+            - k8s.node.name
+            - k8s.pod.start_time
+        pod_association:
+        - from: resource_attribute
+            name: k8s.pod.uid
+    ```
+  </Step>
+
+  <Step>
+    ### Configurar el procesador de atributos Kubernetes (RBAC) [#rbac]
+
+    Debe agregar una configuración para el control de acceso basado en roles (RBAC). El procesador `k8sattributes` necesita licencias `get`, `watch` y `list` para los recursos de pod y espacio de nombres incluidos en los filtros configurados. Este [ejemplo](https://github.com/newrelic-forks/microservices-demo/blob/main/otel-kubernetes-manifests/otel-collector-agent.yaml#L43-L69) muestra cómo configurar el control de acceso basado en roles (RBAC) para que `ClusterRole` otorgue a `ServiceAccount` las licencias necesarias para todos los pods y espacios de nombres en el clúster.
+  </Step>
+
+  <Step>
+    ### Configurar el procesador de atributos Kubernetes (filtro de descubrimiento) [#discovery-filter]
+
+    Al ejecutar el recolector como agente, debe aplicar un filtro de descubrimiento para que el procesador solo descubra el pod del mismo host en el que se está ejecutando. Si no emplea un filtro, el uso de recursos puede ser innecesariamente alto, especialmente en clústeres muy grandes. Una vez aplicado el filtro, cada procesador solo consultará la Kubernetes API para el pod que se ejecuta en su propio nodo.
+
+    Para configurar el filtro, use la API descendente para inyectar el nombre del nodo como una variable de entorno en la sección pod `env` del archivo YAML del agente recolector OpenTelemetry . Para ver un ejemplo, consulte [GitHub](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/examples/kubernetes/otel-collector-config.yml). Esto inyectará una nueva variable de entorno al contenedor del agente recolector OpenTelemetry . El valor será el nombre del nodo en el que se programó la ejecución del pod.
+
+    ```yaml
+    spec:
+    containers:
+        - env:
+            - name: KUBE_NODE_NAME
+            valueFrom:
+                fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+    ```
+
+    Luego, puedes filtrar por el nodo con `k8sattributes`:
+
+    ```yaml
+    k8sattributes:
+    filter:
+        node_from_env_var: KUBE_NODE_NAME
+    ```
+  </Step>
+</Steps>
+
+## Valida que tu configuración esté funcionando [#validate]
+
+Debería poder verificar que su configuración esté funcionando una vez que vinculó exitosamente sus datos OpenTelemetry con sus datos Kubernetes .
+
+1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services**</DNT> y seleccione su aplicación dentro de <DNT>**Services - OpenTelemetry**</DNT>.
+2. En la sección **Monitor** , haga clic en **Service map**.
+3. Vea la conexión entre su servicio OpenTelemetry y su clúster. A la derecha, verá el atributo Kubernetes como `k8s.cluster.name`, `k8s.namespace.name` y `k8s.deployment.name` como etiqueta.
+
+<img
+  src="/images/kubernetes_screenshot-crop_otel-validation.webp"
+  title="Screenshot showing K8s metadata in the New Relic UI"
+  alt="Screenshot showing K8s metadata in the New Relic UI"
+/>
+
+## Elige tu próximo paso [#next]
+
+<DocTiles>
+  <DocTile
+    title="See our best practices guide"
+    path="/docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts"
+  >
+    Aprenda cómo mejorar su uso de OpenTelemetry y New Relic.
+  </DocTile>
+
+  <DocTile
+    title="Check out this blog post"
+    path="https://newrelic.com/blog/how-to-relic/k8s-with-otel"
+  >
+    Correlacionar OpenTelemetry traza, métrica y log con datos de rendimiento Kubernetes
+  </DocTile>
+</DocTiles>

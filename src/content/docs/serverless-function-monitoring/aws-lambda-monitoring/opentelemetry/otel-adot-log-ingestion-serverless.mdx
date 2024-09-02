@@ -1,0 +1,157 @@
+---
+title: Forward your  Lambda function logs with New Relic and OpenTelemetry 
+metaDescription: How to instrument your serverless applications on AWS Lambda with ADOT solution in New Relic.
+freshnessValidatedDate: never
+---
+You can monitor AWS serverless application that sends OpenTelemetry log events data from AWS CloudWatch to the New Relic UI.
+You can configure the ADOT Lambda layer collector to successfully forward your OpenTelemetry application logs with all of your service and application context.
+This includes ensuring that logs contain metadata such as service name, log group name, function ARN and any other relevant attributes that can aid in observability and troubleshooting.
+
+
+## Prerequisites [#Prerequisite]
+
+* Make sure you have a <InlinePopover type="licenseKey" />.
+* An AWS account
+
+
+
+## Procedure [#procedure]
+
+The following setup shows one approach for configuring environment variables to your AWS Lambda application. You can also configure them on the AWS functions page. For more information, [see the Amazon Lambda environment variables doc](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html).
+
+<Steps>
+
+<Step>
+
+Open the [AWS Serverless Application Repository](https://serverlessrepo.aws.amazon.com/applications) in your browser, and complete the following procedure.
+
+
+
+1. Under <DNT>**Applications**</DNT>, type `newrelic` in the search bar, and click the <DNT>**Show apps that create custom IAM roles or resource policies**</DNT> check-box to find `newrelic-aws-otel-log-ingestion`. 
+2. Open the `newrelic-aws-otel-log-ingestion` details and click <DNT>**Deploy**</DNT>.
+3. In the function's <DNT>**Configure**</DNT> menu, go to <DNT>**Environment Variables**</DNT> and configure log forwarding using the following environment variables: 
+
+
+<table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Key
+          </th>
+          <th>
+          Default value          
+          </th>
+          <th>
+          Options
+          </th>
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+    
+      <tbody>
+
+        <tr>
+          <td>
+            `NR_OTEL_LOGGING_ENABLED`
+          </td>
+          <td>
+            true
+          </td>   
+          <td>   
+            `true`,`false`
+          </td>
+          <td>
+          Determines if logs are forwarded to the New Relic UI
+          </td>
+
+        </tr>
+
+        <tr>
+          <td>
+            `DEBUG_LOGGING_ENABLED`
+          </td>
+          <td>
+          false
+          </td>
+          <td>
+          `true`,`false`
+          </td>
+
+          <td>
+            A Boolean to determine if you want to output debug messages in the CloudWatch console.
+          </td>
+        </tr>
+    
+        <tr>
+          <td>
+            `LICENSE_KEY`
+          </td>
+    
+          <td>
+            <InlinePopover type="licenseKey" /> is used for sending data to New Relic. **Required.**
+          </td>
+        </tr>
+    
+      </tbody>
+    </table>
+
+</Step>
+
+
+<Step> 
+Acknowledge that the app creates custom IAM roles, and then click <DNT>**Deploy**</DNT>.
+
+ </Step>
+
+ <Step>
+ 
+Once the process in the step above completes, create a Lambda trigger to link your Lambda function to CloudWatch logs. 
+To get your logs streaming to New Relic UI, attach a trigger to the Lambda in the AWS UI:
+
+1. From the left side menu, select <DNT>**Functions**</DNT>.
+2. Find and select the previously created `newrelic-aws-otel-log-ingestion` function.
+3. Under <DNT>**Triggers**</DNT>, click <DNT>**Add Triggers**</DNT>, and select <DNT>**CloudWatch Logs**</DNT> from the dropdown.
+4. Select the the appropriate <DNT>**Log group**</DNT> for your application.
+5. Enter a name for your filter.
+6. Optional: Enter a [filter pattern](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).
+7. Check the <DNT>**Enable trigger**</DNT> checkbox, then click <DNT>**Add**</DNT> to create the trigger.
+
+<Callout variant="caution">
+On the ingestion function, ensure that you set up a trigger, not a log subscription. Setting up a subscription in the Lambda console can lead to a cascade of logs generated and forwarded to New Relic.
+
+</Callout>
+
+ <CollapserGroup>
+    <Collapser
+        id="config-endpoints"
+        title="Optional: Configure different logging endpoints"
+    >
+
+You can set a custom logging endpoint if needed, this will allow you for example to use our FedRAMP compliant endpoints.
+
+For that, you should deploy the application and explained above and then:
+
+
+1. Go to the recently deployed lambda function view in AWS.
+2. Scroll down and click on the <DNT>**Configuration**</DNT> tab.
+3. On the left menu inside the <DNT>**Configuration**</DNT> tab, click on <DNT>**Environment Variables**</DNT>.
+4. Here you can see a list of the already existing environment variables, just click <DNT>**Edit**</DNT> on the top right of the <DNT>**Environment Variables**</DNT> table.
+5. Update the `NR_OTEL_LOGGING_ENDPOINT` with the appropiate endpoint:
+    - US_OTEL_LOGGING_ENDPOINT: `https://otlp.nr-data.net:4318/v1/logs`
+    - EU_OTEL_LOGGING_ENDPOINT : `https://otlp.eu01.nr-data.net:4318/v1/logs`
+    - For FedRAMP: `https://gov-log-api.newrelic.com/log/v1`
+6. Click <DNT>**Save**</DNT>.
+
+</Collapser>
+</CollapserGroup> 
+
+ 
+ </Step>
+
+</Steps>
+
+
+
+

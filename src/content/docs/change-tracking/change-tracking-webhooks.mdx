@@ -1,0 +1,144 @@
+---
+title: 'Notify your team about APM application deployments'
+tags:
+  - APM
+metaDescription: "After you set up the changes you want to monitor, you can use a webhook to notify your colleagues about the impacts of those changes."
+freshnessValidatedDate: 2023-08-29
+---
+
+After you record a deployment for an APM application entity, you can keep your team informed about those changes through the use of a webhook. These are available whether you record your deployment using the change tracking feature or the older [REST API](/docs/apm/apm-ui-pages/events/record-deployments/#api-instructions).
+
+## Required permissions [#requirements]
+
+Change tracking notification settings require specific [permissions](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions):
+
+* To `create` the webhook: `Modify` permissions for `Applied intelligence > Destinations` and `Applied intelligence > Channels`.
+* To `view` and `test` the webhook: `View` permissions for `Applied intelligence > Destinations` and `Applied intelligence > Channels`.
+* To `modify` the webhook: `View` permissions for `Applied intelligence > Destinations` and `Applied intelligence > Channels`, and `Modify` on `Applied intelligence > Destinations`.
+* To `delete` the webhook: `Delete` permissions for `Applied intelligence > Destinations` and `Applied intelligence > Channels`.
+
+## Get your webhook destination URL [#get-webhook-url]
+
+You can send deployment data to a variety of webhook destinations. Follow the instructions for the tool you're using to get the webhook URL. Once you have the URL, complete the steps in the next section to configure webhook notifications.
+
+If you're using Slack, follow the instructions here to set up the legacy New Relic <InlinePopover type="alerts"/> app:
+
+1. Log in to your Slack account as an admin, and then go to <DNT>**Apps**</DNT>.
+2. Search for <DNT>**New Relic Alerts**</DNT>, and click on that tile.
+3. In the <DNT>**New Relic Alerts**</DNT> listing, click the <DNT>**Configuration**</DNT> button below the New Relic icon.
+4. Click the <DNT>**Configuration**</DNT> tab below the heading <DNT>**New Relic Alerts**</DNT>.
+5. On the <DNT>**Configuration**</DNT> tab, click the pencil icon.
+6. Scroll down to the <DNT>**Webhook URL**</DNT> section, and click <DNT>**Copy URL**</DNT>.
+
+## Configure webhook notifications for tracked changes [#configure-webhook]
+
+Insert the webhook URL in the New Relic UI:
+
+1. Go to the deployment notifications configuration screen: <DNT>**[one.newrelic.com](https://one.newrelic.com/) > (user menu) > Administration > Integrations > Deploy notifications**</DNT>.
+2. Paste your webhook URL into the <DNT>**Webhook URL**</DNT> field and click <DNT>**Save**</DNT>.
+3. Click <DNT>**Send a test request**</DNT> to send an example payload with artificial data to your webhook URL.
+   <img style={{align: "left"}} title="A screenshot showing how to test the webhook" alt="A screenshot showing how to test the webhook" src="/images/tracking_screenshot-crop_webhook_test.webp"/>
+4. Under <DNT>**Toggle this webhook**</DNT>, you can disable or re-enable the webhook notification by sliding the toggle.
+5. To permanently delete the webhook notification configuration, click <DNT>**Delete this webhook**</DNT>.
+
+## Notification payload structure [#payload-structure]
+
+When your deployment notification is enabled and you start tracking a change, your webhook will receive a `POST` request with a payload of type `application/x-www-form-urlencoded`. The keys and values are encoded in key-value tuples separated by an `&`, with an `=` symbol between the key and the value. Non-alphanumeric characters in both keys and values will be URL-encoded.
+
+The following keys and values will be sent, based on the attributes of the deployment and of the APM application entity that was deployed.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Key
+      </th>
+
+      <th>
+        Value
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `created_at`
+      </td>
+
+      <td>
+        The timestamp of the deployment in ISO 8601 format
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `application_name`
+      </td>
+
+      <td>
+        The name of the APM application entity
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `account_name`
+      </td>
+
+      <td>
+        The name of the account that owns the APM application entity
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `changelog`
+      </td>
+
+      <td>
+        A list of changes included in the deployment
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description`
+      </td>
+
+      <td>
+        A description of the deployment
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `revision`
+      </td>
+
+      <td>
+        The version of the deployed software
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `deployment_url`
+      </td>
+
+      <td>
+        A link to the deployments UI for the APM application entity
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `deployed_by`
+      </td>
+
+      <td>
+        The user who deployed the application
+      </td>
+    </tr>
+  </tbody>
+</table>

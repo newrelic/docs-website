@@ -1,0 +1,254 @@
+---
+title: 'Tutorial de NerdGraph: Topología para la correlación de incidentes de inteligencia aplicada'
+metaDescription: 'Use New Relic NerdGraph to set up or view applied intelligence topology, used for incident correlation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este tutorial explicará cómo utilizar nuestra API NerdGraph para configurar su topología. La configuración de la topología permite que sus [decisiones de inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions) correlacionen mejor los incidentes.
+
+## Requisitos [#requirements]
+
+La correlación de topología se encuentra actualmente en versión limitada. Consulte [los requisitos de topología](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#topology-requirements).
+
+Para utilizar NerdGraph, necesitará una [clave de usuario](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#authentication).
+
+## Descripción general del tutorial [#overview]
+
+Con [la inteligencia aplicada](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-applied-intelligence/) de New Relic, puede crear [decisiones](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions) personalizadas que regulen cómo se correlacionan sus incidentes. Un tipo de lógica de decisión personalizada utiliza el concepto de "topología", que es una representación de su mapa de servicios: cómo se relacionan entre sí los servicios y recursos de su infraestructura.
+
+Este tutorial le mostrará cómo utilizar [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) para:
+
+* Configure su topología creando vértices y aristas
+* Eliminar vértices y aristas
+* Recuperar datos de topología
+
+Antes de utilizar NerdGraph para configurar su topología, debe tener conocimientos básicos de:
+
+* [Qué son las decisiones de inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions) y [cómo funciona la correlación topológica](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#topology).
+* La estructura de topología que estás intentando implementar. Una forma de entender esto es utilizar nuestra [característica de mapa de servicios](/docs/understand-dependencies/understand-system-dependencies/service-maps/introduction-service-maps/) para ver cómo las entidades de su infraestructura se relacionan entre sí.
+* [Qué es NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) y [cómo utilizar el explorador API de NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#explorer) para ejecutar consulta.
+
+## Ejemplos de mutaciones [#mutations]
+
+En NerdGraph, las mutaciones son solicitudes que realizan una acción ([obtenga más información sobre la terminología de NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#terminology)), como crear un recurso o cambiar una configuración.
+
+En esta sección, le mostraremos cómo utilizar `aiTopologyCollector` mutaciones para crear, editar o eliminar su topología.
+
+En las secciones de creación, crearemos vértices y aristas para representar este mapa de servicios:
+
+<img
+  title="topology example"
+  alt="Topology example"
+  src="/images/apis-and-data_diagram_AI-topology-.webp"
+/>
+
+<figcaption>
+  Este tutorial utiliza NerdGraph para crear vértices y aristas que representan estas entidades y sus relaciones.
+</figcaption>
+
+### Crear vértices [#create-vertices]
+
+La siguiente mutación crea uno o más vértices, que representan la entidad de su monitor y son la fuente de donde proviene su incidente.
+
+La llamada NerdGraph a continuación utiliza los siguientes campos:
+
+* `accountId`: Su ID de cuenta de New Relic.
+* `name`: El nombre del vértice. Este valor distingue entre mayúsculas y minúsculas y debe ser único dentro del gráfico.
+* `vertexClass`: La clase de vértice puede ser `application`, `host`, `cloud service`, `cluster` o `datastore`. Esta clasificación permite que su lógica de decisión restrinja su correlación basada en topología para restringir los vértices que coinciden con estas clasificaciones.
+* `definingAttributes`: Un conjunto de atributos (pares de valores principales) que coinciden con el atributo de un evento de incidente. Suelen ser identificadores únicos que aparecen en todos los incidentes, como los GUID de entidades u otros ID. Si un incidente contiene cualquiera de los pares principales de valor de un vértice `definingAttributes`, coincide con ese vértice. Para obtener más información sobre el atributo y cómo se pueden agregar, consulte [Agregar atributo](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#add-attributes).
+
+Llamada de ejemplo:
+
+```graphql
+mutation {
+  aiTopologyCollectorCreateVertices(
+    accountId: NEW_RELIC_ACCOUNT_ID
+    vertices: [
+      {
+        name: "ServiceA"
+        vertexClass: APPLICATION
+        definingAttributes: [{ key: "application/name", value: "ServiceA" }]
+      }
+      {
+        name: "ServiceB"
+        vertexClass: APPLICATION
+        definingAttributes: [{ key: "application/name", value: "ServiceB" }]
+      }
+      {
+        name: "ServiceC"
+        vertexClass: APPLICATION
+        definingAttributes: [{ key: "application/name", value: "ServiceC" }]
+      }
+      {
+        name: "HOST1"
+        vertexClass: HOST
+        definingAttributes: [
+          { key: "host/name", value: "HOST1" }
+          { key: "availability-zone", value: "us-west-2a" }
+          { key: "region", value: "us-west-2" }
+        ]
+      }
+      {
+        name: "HOST2"
+        vertexClass: HOST
+        definingAttributes: [
+          { key: "host/name", value: "HOST2" }
+          { key: "availability-zone", value: "us-west-2b" }
+          { key: "region", value: "us-west-2" }
+        ]
+      }
+      {
+        name: "HOST3"
+        vertexClass: HOST
+        definingAttributes: [
+          { key: "host/name", value: "HOST3" }
+          { key: "availability-zone", value: "us-west-2c" }
+          { key: "region", value: "us-west-2" }
+        ]
+      }
+    ]
+  ) {
+    result
+  }
+}
+```
+
+### Crear bordes [#edges]
+
+Esta mutación se utiliza para crear uno o más bordes, que representan relaciones entre vértices.
+
+La llamada NerdGraph a continuación utiliza estos campos:
+
+* `accountId`: Su ID de cuenta de New Relic.
+* `fromVertexName`: El nombre del vértice desde el que comienza el borde.
+* `toVertexName`: El nombre del vértice de conexión.
+* `directed`: un valor booleano que describe cómo se conectan los vértices. `true` indica una relación unidireccional (por ejemplo, un servicio llama a otro) y `false` indica. Por defecto, dirigido = `true`.
+
+Llamada de ejemplo:
+
+```graphql
+mutation {
+  aiTopologyCollectorCreateEdges(
+    accountId: NEW_RELIC_ACCOUNT_ID
+    edges: [
+      { directed: true, fromVertexName: "ServiceA", toVertexName: "ServiceB" }
+      { directed: true, fromVertexName: "ServiceB", toVertexName: "ServiceC" }
+      { directed: false, fromVertexName: "ServiceA", toVertexName: "HOST1" }
+      { directed: false, fromVertexName: "ServiceA", toVertexName: "HOST2" }
+      { directed: false, fromVertexName: "ServiceA", toVertexName: "HOST3" }
+      { directed: false, fromVertexName: "ServiceB", toVertexName: "HOST1" }
+      { directed: false, fromVertexName: "ServiceB", toVertexName: "HOST2" }
+      { directed: false, fromVertexName: "ServiceB", toVertexName: "HOST3" }
+      { directed: false, fromVertexName: "ServiceC", toVertexName: "HOST1" }
+      { directed: false, fromVertexName: "ServiceC", toVertexName: "HOST2" }
+      { directed: false, fromVertexName: "ServiceC", toVertexName: "HOST3" }
+    ]
+  ) {
+    result
+  }
+}
+```
+
+### Eliminar vértices [#delete-vertices]
+
+Esta mutación elimina los vértices en su gráfico de topología. Tenga en cuenta que al eliminar un vértice se eliminan todos los bordes conectados a él.
+
+La llamada NerdGraph a continuación utiliza estos campos:
+
+* `accountId`: Su ID de cuenta de New Relic.
+* `vertexNames`: una lista de nombres de vértices que desea eliminar.
+
+Llamada de ejemplo:
+
+```graphql
+mutation {
+  aiTopologyCollectorDeleteVertices(
+    accountId: NEW_RELIC_ACCOUNT_ID, 
+    vertexNames: [ "ServiceA", "ServiceB", "ServiceC", "HOST1", "HOST2", "HOST3" ]) 
+  {
+    result
+  }
+}
+```
+
+### Eliminar bordes [#delete-edges]
+
+Esta mutación elimina los bordes que conectan los vértices en su gráfico de topología.
+
+La llamada NerdGraph a continuación utiliza estos campos:
+
+* `accountId`: Su ID de cuenta de New Relic.
+* `edgeIds`: una lista de ID de borde que desea eliminar.
+
+Llamada de ejemplo:
+
+```graphql
+mutation {
+  aiTopologyCollectorDeleteEdges(
+    accountId: NEW_RELIC_ACCOUNT_ID, 
+    edgeIds: [ "d8a7971b-575d-42e9-aa13-43a50c5a7d10", "0da5cb92-0428-4890-992b-2823d037cb5e" ]
+  ) {
+    result
+  }
+}
+```
+
+## Ejemplos de consulta [#queries]
+
+En NerdGraph, las consultas se utilizan para recuperar datos, a diferencia de las mutaciones, que realizan acciones ([obtenga más información sobre terminología](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#terminology)). Las consultas de Nerdgraph no son estáticas, lo que significa que puedes solicitar más o menos datos según tus necesidades. Para recuperar sus datos de topología, utilizará la consulta `aiTopology` .
+
+### Recuperar vértices [#retrieve-vertices]
+
+Esta consulta devuelve una lista de vértices en su gráfico de topología.
+
+```graphql
+{
+  actor {
+    account(id: NEW_RELIC_ACCOUNT_ID) {
+      aiTopology {
+        vertices {
+          vertices {
+            id
+            name
+            definingAttributes {
+              key
+              value
+            }
+            updatedAt
+            vertexClass
+          }
+          count
+          cursor
+        }
+      }
+    }
+  }
+}
+```
+
+### Recuperar bordes [#retrieve-edges]
+
+Esta consulta devuelve una lista de bordes en su gráfico de topología:
+
+```graphql
+{
+  actor {
+    account(id: NEW_RELIC_ACCOUNT_ID) {
+      aiTopology {
+        edges {
+          edges {
+            id
+            toVertexName
+            fromVertexName
+            directed
+            updatedAt
+          }
+          cursor
+          count
+        }
+      }
+    }
+  }
+}
+```

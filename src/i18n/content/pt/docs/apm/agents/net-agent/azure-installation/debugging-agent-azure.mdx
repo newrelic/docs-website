@@ -1,0 +1,207 @@
+---
+title: Depurando o agente .NET em aplicativos Web do Azure
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: Troubleshooting tips to debug New Relic .NET agent in Azure Web Apps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Depois de [instalar o agente .NET da New Relic para Azure](/install/dotnet/?deployment=azure), você terá um ou mais dos seguintes problemas:
+
+* Você não vê nenhum dado.
+* Você percebe que o nome do aplicativo aparece no New Relic, mas faltam dados.
+
+## Solução
+
+Coisas importantes para verificar e entender:
+
+* Certifique-se de que as [etapas de instalação e execução foram seguidas](/install/dotnet/?deployment=azure), incluindo a reinicialização do seu aplicativo web.
+* Você <DNT>**must**</DNT> [desativa o aplicativo Insights](/docs/agents/net-agent/azure-troubleshooting/net-profiler-conflict-microsoft-application-insights/) para que o agente .NET funcione corretamente.
+* O aplicativo <DNT>**must**</DNT> está recebendo tráfego para a inicialização do agente .NET.
+* A partir do agente .NET versão 8.22.181.0, A configuração `Always On` do Azure pode ser habilitada sem interferir no agente. Se o seu aplicativo for .NET framework 4.0 ou inferior, `Always On` interferirá no agente e as soluções alternativas [aqui](/docs/agents/net-agent/azure-troubleshooting/azure-web-apps-using-always-no-data-appears) ainda serão aplicáveis.
+
+## Etapa 1: verificar o log do agente do aplicativo [#step-one]
+
+<Callout variant="important">
+  Você pode usar [o Kudu](https://github.com/projectkudu/kudu/wiki) para verificar o log do agente, que é um site executado em paralelo com o seu site e fornece várias ferramentas que podem ser usadas para examinar processos, examinar o sistema de arquivos e baixar arquivos e diretórios.
+
+  Se o URL do seu site for `example.azurewebsites.net`, o site Kudu será `example.scm.azurewebsites.net`. Use as credenciais de implantação do seu site para log no site Kudu.
+</Callout>
+
+Dicas importantes ao verificar o log:
+
+* Ao usar a extensão de site do Azure New Relic, supondo que seu aplicativo Web do Azure use uma raiz do sistema de arquivos `D:` , o local do log será padronizado como `D:\home\LogFiles\NewRelic`. Se o seu Azure Web usar uma raiz `C:` , você precisará usar a letra de unidade correta.
+* Se você instalou o agente com o pacote NuGet `NewRelic.Agent` ou `NewRelic.Azure.WebSites` , encontrará a pasta `logs` no diretório onde o agente foi extraído em seu projeto. Geralmente é a pasta `newrelic` dentro da pasta `wwwroot` .
+
+Para verificar o log do agente:
+
+1. Certifique-se de estar analisando os dados atuais. Exclua ou mova quaisquer arquivos existentes no diretório de log para ter certeza de que o log gerado reflete o estado atual do seu sistema.
+2. Reinicie seu aplicativo.
+3. Exercite seu aplicativo por pelo menos alguns minutos de uma forma que gere o tráfego que você espera ver em sua conta New Relic.
+4. Anote o ID do processo (PID) em que seu aplicativo está sendo executado, para que você possa verificar se um log está sendo criado para esse processo. Você pode encontrar o PID usando <DNT>**Process Explorer**</DNT> integrado do Kudu.
+5. Volte para o diretório de log do agente e procure um arquivo de log com um nome que contenha o ID do processo do seu aplicativo, por exemplo, `NewRelic.Profiler.[PID].log`.
+6. Se você vir esse arquivo de log profiler no diretório de logs, verifique também se há um log de agente correspondente. O log do agente contém o prefixo `newrelic_agent`. Se você estiver executando vários aplicativos .NET em seu host, pode haver mais de um deles. Se você vir um ou mais, deverá determinar qual corresponde ao aplicativo que está tentando monitor.
+7. Procure no log do agente a sequência `(pid [your PID])`, por exemplo `(pid 1573)`. Se você encontrar essa string no arquivo de log, saberá que é o log do agente associado ao seu aplicativo.
+8. Procure erros de rede ou outros erros que possam fazer com que o agente não consiga enviar dados para a New Relic.
+
+## Etapa 2: verifique se o profiler do agente .NET está carregado no processo do aplicativo [#step-two]
+
+Para verificar se o profiler está carregado:
+
+1. Use o Process Explorer integrado do Kudu para instalações do Windows. Para instalações do Linux, consulte os comandos [neste artigo](/docs/apm/agents/net-agent/troubleshooting/debugging-net-core-agent-linux/).
+2. Em <DNT>**Process Explorer**</DNT>, encontre o processo que você está tentando monitor e anote o número na coluna PID. Se você estiver tentando monitor um aplicativo Web, o nome do processo provavelmente será `w3wp.exe` sem o rótulo SCM, que se refere ao próprio processo Kudu. O agente não deve instrumentalizar o processo SCM (Kudu).
+3. Ao localizar o processo do seu aplicativo, clique no botão `Properties` .
+4. Clique na guia <DNT>**Modules**</DNT> e procure por `NewRelic.Profiler.dll` — esta DLL é necessária para que o agente monitor seu aplicativo. Se você não conseguir encontrá-lo, certifique-se de que as variáveis de ambiente corretas estejam presentes (mais sobre isso na [etapa 3](#step-three)) e que [o aplicativo Microsoft Insights esteja desabilitado](/docs/agents/net-agent/azure-troubleshooting/net-profiler-conflict-microsoft-application-insights/).
+
+Se você não vir `NewRelic.Profiler.dll`, continue na próxima etapa. Se você vir essa DLL e o aplicativo estiver recebendo tráfego, você deverá ver o log conforme descrito na [etapa 1](#step-one).
+
+## Etapa 3: verificar as variáveis de ambiente necessárias [#step-three]
+
+Para verificar as variáveis de ambiente necessárias:
+
+1. Em <DNT>**Process Explorer**</DNT>, localize o processo do seu aplicativo e clique no botão `Properties` .
+2. Selecione a guia <DNT>**Environment**</DNT> .
+
+Se as variáveis corretas estiverem definidas e o aplicativo que você está tentando monitor tiver acesso a elas, você deverá ver um conjunto específico de variáveis de ambiente, dependendo se o agente que você instalou é .NET framework ou .NET Core.
+
+<Callout variant="important">
+  Todos esses exemplos pressupõem que seu aplicativo Web do Azure usa uma raiz do sistema de arquivos `D:` . Se o seu Azure Web usar uma raiz `C:` , você precisará usar a letra de unidade correta ao configurar esses caminhos.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="env-var-framework-extension"
+    title="Framework.NET: verifique variáveis de ambiente ao instalar por meio do New Relic Azure Site Extension"
+  >
+    As variáveis de ambiente que aparecem na guia <DNT>**Environment**</DNT> no <DNT>**Process Explorer**</DNT> do Kudu devem ser semelhantes a estas:
+
+    ```ini
+    COR_ENABLE_PROFILING = 1
+    COR_PROFILER = {71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+    COR_PROFILER_PATH = D:\home\NewRelicAgent\Framework\NewRelic.Profiler.dll
+    COR_PROFILER_PATH_32 = D:\home\NewRelicAgent\Framework\x86\NewRelic.Profiler.dll
+    COR_PROFILER_PATH_64 = D:\home\NewRelicAgent\Framework\NewRelic.Profiler.dll
+    NEWRELIC_HOME = D:\home\NewRelicAgent\Framework
+    NEW_RELIC_LICENSE_KEY = YOUR_LICENSE_KEY
+    NEW_RELIC_APP_NAME = YOUR_APP_NAME
+    ```
+
+    Se as variáveis de ambiente não corresponderem ao que você vê acima, tente reinstalar a extensão New Relic Azure Site.
+
+    <Callout variant="important">
+      Para o .NET framework, se o aplicativo que você deseja monitor não estiver hospedado no IIS (como um serviço auto-hospedado do Windows), você deverá habilitar explicitamente o agente para esse aplicativo, conforme observado em nossos [documentos de instalação](/install/dotnet/?deployment=windowsInstallNonIis&docker=noDocker).
+    </Callout>
+
+    Se você fez alguma alteração nas variáveis de ambiente, reinicie seu aplicativo por meio do Portal do Azure. Em seguida, inspecione o novo ID do processo no Process Explorer para garantir que as alterações foram bem-sucedidas.
+  </Collapser>
+
+  <Collapser
+    id="env-var-framework-nuget"
+    title=".NET framework: verifique variáveis de ambiente ao instalar via NuGet"
+  >
+    Para o pacote NuGet, as variáveis de ambiente [devem ser adicionadas como configurações do aplicativo](/install/dotnet/?deployment=azure&azure=azurenugetframework).
+
+    As variáveis de ambiente que aparecem na guia <DNT>**Environment**</DNT> no <DNT>**Process Explorer**</DNT> do Kudu devem ser semelhantes a estas:
+
+    ```ini
+    COR_ENABLE_PROFILING = 1
+    COR_PROFILER = {71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+    COR_PROFILER_PATH = D:\Home\site\wwwroot\newrelic\NewRelic.Profiler.dll
+    NEWRELIC_HOME = D:\Home\site\wwwroot\newrelic
+    NEW_RELIC_LICENSE_KEY = YOUR_LICENSE_KEY
+    NEW_RELIC_APP_NAME = YOUR_APP_NAME
+    ```
+
+    Se as variáveis de ambiente não corresponderem ao que você vê acima, você pode tentar reinstalar a extensão New Relic Azure Site.
+
+    <Callout variant="important">
+      Para o .NET framework, se o aplicativo que você deseja monitor não estiver hospedado no IIS (como um serviço auto-hospedado do Windows), você deverá habilitar explicitamente o agente para esse aplicativo, conforme observado em nossos [documentos de instalação](/docs/apm/agents/net-agent/installation/install-net-agent-windows#enabling-the-agent).
+    </Callout>
+
+    Se você fez alguma alteração nas variáveis de ambiente, reinicie seu aplicativo por meio do Portal do Azure. Em seguida, inspecione o novo PID do processo em <DNT>**Process Explorer**</DNT> para garantir que as alterações foram bem-sucedidas.
+  </Collapser>
+
+  <Collapser
+    id="env-var-core-windows-extension"
+    title=".NET Core (Windows): verifique variáveis de ambiente ao usar a extensão do site New Relic Azure"
+  >
+    As variáveis de ambiente que aparecem na guia <DNT>**Environment**</DNT> no <DNT>**Process Explorer**</DNT> do Kudu devem ser semelhantes a estas:
+
+    ```ini
+    CORECLR_ENABLE_PROFILING = 1
+    CORECLR_PROFILER = {36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+    CORECLR_NEWRELIC_HOME = D:\home\NewRelicAgent\Core
+    CORECLR_PROFILER_PATH_32 = D:\home\NewRelicAgent\Core\x86\NewRelic.Profiler.dll
+    CORECLR_PROFILER_PATH_64 = D:\home\NewRelicAgent\Core\NewRelic.Profiler.dll
+    NEW_RELIC_LICENSE_KEY = YOUR_LICENSE_KEY
+    NEW_RELIC_APP_NAME = YOUR_APP_NAME
+    ```
+  </Collapser>
+
+  <Collapser
+    id="env-var-core-windows-nuget"
+    title=".NET Core (Windows): verifique variáveis de ambiente ao usar o pacote NuGet"
+  >
+    Para o pacote NuGet, as variáveis de ambiente [devem ser adicionadas como configurações do aplicativo](/install/dotnet/?deployment=azure&azure=azureframeworkcore). As variáveis de ambiente que aparecem na guia <DNT>**Environment**</DNT> no <DNT>**Process Explorer**</DNT> do Kudu devem ser semelhantes a estas:
+
+    ```ini
+    CORECLR_ENABLE_PROFILING = 1
+    CORECLR_PROFILER = {36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+    CORECLR_PROFILER_PATH_32 = D:\Home\site\wwwroot\newrelic\x86\NewRelic.Profiler.dll
+    CORECLR_PROFILER_PATH_64 = D:\Home\site\wwwroot\newrelic\NewRelic.Profiler.dll
+    CORECLR_NEWRELIC_HOME = D:\Home\site\wwwroot\newrelic
+    NEW_RELIC_LICENSE_KEY = YOUR_LICENSE_KEY
+    NEW_RELIC_APP_NAME = YOUR_APP_NAME
+    ```
+
+    Certifique-se de que o nó log do arquivo `newrelic.config` inclua um atributo de diretório. Se o Visual Studio impedir que você edite o arquivo `newrelic.config` que foi adicionado ao seu projeto pelo NuGet, será necessário fazer uma cópia local dele no seu aplicativo:
+
+    ```xml
+    <log directory="D:\Home\LogFiles\NewRelic" level="info"></log>
+    ```
+
+    Se você não adicionou esse atributo de diretório ao arquivo de configuração, poderá usar a configuração do aplicativo: `NEWRELIC_LOG_DIRECTORY=D:\Home\LogFiles\NewRelic`
+  </Collapser>
+
+  <Collapser
+    id="env-var-core"
+    title=".NET Core (Linux): verifique variáveis de ambiente ao usar o pacote NuGet"
+  >
+    Para o pacote NuGet, as variáveis de ambiente [devem ser adicionadas como configurações do aplicativo](/install/dotnet/?deployment=azure&azure=azureframeworkcore).
+
+    As variáveis de ambiente que aparecem na guia <DNT>**Environment**</DNT> no <DNT>**Process Explorer**</DNT> do Kudu devem ser semelhantes a estas:
+
+    ```ini
+    CORECLR_ENABLE_PROFILING = 1
+    CORECLR_PROFILER = {36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+    CORECLR_PROFILER_PATH = /home/site/wwwroot/newrelic/libNewRelicProfiler.so
+    CORECLR_NEWRELIC_HOME = /home/site/wwwroot/newrelic
+    NEW_RELIC_LICENSE_KEY = YOUR_LICENSE_KEY
+    NEW_RELIC_APP_NAME = YOUR_APP_NAME
+    ```
+
+    Certifique-se de que o nó <DNT>**log**</DNT> do seu arquivo `newrelic.config` inclua um atributo de diretório. Se o Visual Studio impedir que você edite o arquivo `newrelic.config` que foi adicionado ao seu projeto pelo NuGet, será necessário fazer uma cópia local dele no seu aplicativo:
+
+    ```xml
+    <log directory="/home/LogFiles/NewRelic" level="info"></log>
+    ```
+
+    Se você não adicionou esse atributo de diretório ao arquivo de configuração, poderá usar a configuração do aplicativo: `NEWRELIC_LOG_DIRECTORY=/home/LogFiles/NewRelic`
+  </Collapser>
+</CollapserGroup>
+
+Para ler mais sobre essas variáveis de ambiente e suas funcionalidades, veja como [entender as variáveis env do agente .NET](/docs/apm/agents/net-agent/other-installation/understanding-net-agent-environment-variables/).
+
+Se o nome do aplicativo estiver aparecendo no New Relic, mas nenhuma transação estiver aparecendo, é provável que nenhum tráfego esteja atingindo o aplicativo ou o agente não esteja encontrando uma framework conhecida que possa instrumentar automaticamente:
+
+* Para framework instrumentados automaticamente, consulte nossa [página de compatibilidade](/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-framework/).
+* Para o framework .NET Core instrumentado automaticamente, consulte nossa [página de compatibilidade](/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-core/).
+* Se o seu aplicativo não usar uma dessas estruturas de aplicativos compatíveis, talvez seja necessário implementar [instrumentação personalizada](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/) para informar ao agente quais partes do seu aplicativo são importantes para monitoramento e o que constitui o escopo de uma transação.
+
+Se as etapas acima não ajudaram a resolver seus problemas, recomendamos que você entre em contato com o suporte ou peça ajuda em [nosso Fórum de suporte](https://discuss.newrelic.com/tag/dotnetagent).

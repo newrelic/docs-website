@@ -1,0 +1,480 @@
+---
+title: Comprender y utilizar la UIde rastreo distribuido
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - UI and data
+metaDescription: 'For New Relic''s distributed tracing feature: learn how to use the UI and understand the data displayed.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[rastreo distribuido](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) te ayuda monitor y analizar el comportamiento de tus sistemas distribuidos. Después de habilitar el rastreo distribuido, puede utilizar nuestras herramientas UI para buscar trazas y analizarlas.
+
+Si busca solucionar errores en una transacción que abarca muchos servicios:
+
+1. [Abra](#open-dt-ui) la página UI de rastreo distribuido.
+2. [Ordene su traza](#search-for-spans) usando un filtro para encontrar esa solicitud específica y muestre solo la traza que contiene errores.
+3. En la [página de detalles de la traza](/docs/distributed-tracing/ui-data/trace-details/), revise el tramo a lo largo de la ruta de solicitud que originó el error.
+4. Observando la clase de error y el mensaje, navegue hasta el servicio desde su intervalo en la traza para que pueda ver que el error se está produciendo a un ritmo elevado.
+
+Continúe leyendo para explorar las opciones en la UI de rastreo distribuido.
+
+## Abra la UIde rastreo distribuido [#open-dt-ui]
+
+Para ver la traza de un servicio específico:
+
+1. Ingresa a [one.newrelic.com > All entities](https://one.newrelic.com/).
+
+2. En
+
+   <DNT>
+     **Your system**
+   </DNT>
+
+   en el panel izquierdo, seleccione la entidad que contiene la traza que desea inspeccionar.
+
+3. Haga clic en
+
+   <DNT>
+     **Distributed tracing**
+   </DNT>
+
+   en el panel izquierdo.
+
+O, para ver la traza de todas sus cuentas:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All Capabilities](https://one.newrelic.com/all-capabilities)**
+   </DNT>
+
+   .
+
+2. Haga clic en el mosaico
+
+   <DNT>
+     **Traces**
+   </DNT>
+
+   .
+
+<Callout variant="tip">
+  Si no tiene acceso a las cuentas de algunos servicios en una traza, [ofuscaremos algunos detalles de esos servicios](/docs/understand-dependencies/distributed-tracing/troubleshooting/missing-trace-data/#account-access).
+</Callout>
+
+## Filtra tus datos de tramo [#search-for-spans]
+
+Contamos con una variedad de herramientas para ayudarte a encontrar trazas y tramos para que puedas resolver problemas. La página de apertura de rastreo distribuido se completa con una lista predeterminada de traza. Puede refinar rápidamente esta lista utilizando estas herramientas:
+
+<CollapserGroup>
+  <Collapser
+    id="1"
+    title="Filtrar usando la barra de consulta"
+  >
+    La barra de consulta <DNT>**Find traces**</DNT> es una forma rápida de limitar la búsqueda de traza. Puede comenzar a escribir en la barra de consulta o usar el menú desplegable para crear una consulta compuesta.
+
+    Las devoluciones de la consulta se basan en el atributo [span](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#span) , no en el atributo traza. Usted define tramos que tienen ciertos criterios y la búsqueda muestra una traza que contiene esos tramos.
+
+    Si utiliza un filtro de múltiples atributos, se verá afectado por el primer atributo seleccionado. rastreo distribuido informa sobre dos tipos de datos: transacción evento y spans. Cuando selecciona un atributo en el filtro, el tipo de datos al que está asociado el atributo dicta los atributos disponibles. Por ejemplo, si filtra por un atributo adjunto a un evento de transacción, solo los atributos del evento de transacción estarán disponibles cuando intente agregar un filtro por valores de atributos adicionales.
+
+    Las consultas de traza son similares a [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) (nuestro lenguaje de consulta), con algunas excepciones principales:
+
+    * Los valores de cadena no requieren comillas (por ejemplo, puede usar `appName = MyApp` o `appName = 'MyApp'`)
+
+    * El operador `like` no requiere `%` (por ejemplo, puede usar `appName like product` o `appName like %product%`).
+
+      Estos son dos ejemplos de cómo utilizar la barra de consulta:
+
+      <Tabs>
+        <TabsBar>
+          <TabsBarItem id="query-example-1">
+            Encuentra trazas que tocan dos servicios
+          </TabsBarItem>
+
+          <TabsBarItem id="query-example-2">
+            &lt;>Buscar intervalos de error utilizando el operador &lt;InlineCode>like&lt;/InlineCode> &lt;/>
+          </TabsBarItem>
+        </TabsBar>
+
+        <TabsPages>
+          <TabsPageItem id="query-example-1">
+            La consulta en la imagen a continuación encuentra una traza que:
+
+            1. Pase por la aplicación WebPortal y Inventory Service
+
+            2. Tener una llamada de almacenamiento de datos del Servicio de Inventario que demore más de 500 ms
+
+            3. Contiene un error en cualquier [intervalo](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#span).
+
+               <img
+                 title="Distributed tracing example query 1"
+                 alt="new-relic-one-distributed-tracing-query-example-1.png"
+                 src="/images/new-relic-one-distributed-tracing-query-example-1.webp"
+               />
+
+               <figcaption>
+                 Ir a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Apps > Distributed tracing**</DNT>
+               </figcaption>
+          </TabsPageItem>
+
+          <TabsPageItem id="query-example-2">
+            La consulta en la imagen a continuación encuentra una traza que:
+
+            1. Contiene tramos que pasan a través de la aplicación WebPortal y donde se produjo un error en cualquier tramo de la aplicación WebPortal.
+
+            2. Contiene tramos donde el atributo `customer_user_email` contiene un valor que termina en `hotmail.com` en cualquier parte de la traza.
+
+               <img
+                 title="new-relic-one-distributed-tracing-query-example-2.png"
+                 alt="Distributed tracing - query example 2"
+                 src="/images/new-relic-one-distributed-tracing-query-example-2.webp"
+               />
+
+               <figcaption>
+                 Ir a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Apps > Distributed tracing**</DNT>
+               </figcaption>
+          </TabsPageItem>
+        </TabsPages>
+      </Tabs>
+  </Collapser>
+
+  <Collapser
+    id="2"
+    title="Seleccionar filtros del panel izquierdo"
+  >
+    Además de la barra de consulta en la parte superior de la página, puede usar una variedad de filtros en el panel izquierdo para encontrar la traza que le interesa.
+
+    <img
+      title="Screenshot showing left-pane filters"
+      alt="Screenshot showing left-pane filters"
+      src="/images/distributed-tracing_screenshot-crop_left-pane-filters.webp"
+    />
+
+    * <DNT>**Infinite tracing data**</DNT>: Seleccione esto solo para mostrar la traza relacionada con la característica Infinite Tracing.
+
+    * <DNT>**Multi span traces only**</DNT>: Utilice esto para ocultar la traza de un solo tramo.
+
+    * <DNT>**Error filters**</DNT>: En <DNT>**Errors**</DNT> , seleccione los errores por los que filtrar.
+
+    * <DNT>**Histogram filters**</DNT>: Debajo de <DNT>**Errors**</DNT> en la parte inferior del panel izquierdo, puede hacer clic en <DNT>**More filters**</DNT> para mostrar los filtros de histograma. Arrastre los controles deslizantes para cambiar los valores, como <DNT>**Trace duration**</DNT>:
+
+      * Arrastre el extremo izquierdo del control deslizante para realizar comparaciones mayores que.
+      * Arrastre el extremo derecho del control deslizante para realizar comparaciones menores.
+      * Arrastre cada extremo del control deslizante hacia el centro para filtrar por un rango.
+
+      <img
+        title="new-relic-one-distributed-tracing-histogram-selection.png"
+        alt="Distributed tracing - histogram"
+        src="/images/new-relic-one-distributed-tracing-histogram-selection.webp"
+      />
+
+      <figcaption>
+        Cuando arrastra el control deslizante, cambia tanto la lista de trazas como lo que se muestra en los gráficos de trazas.
+      </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+## Organice sus datos de tramo
+
+<CollapserGroup>
+  <Collapser
+    id="3"
+    title="Grupo similar traza"
+  >
+    La vista predeterminada de rastreo distribuido muestra la traza agrupada por el mismo tramo de entrada raíz. En otras palabras, las trazas se agrupan por el lapso donde New Relic comenzó a registrar la solicitud. Puedes deslizar el botón <DNT>**Group similar traces**</DNT> para activar y desactivar esto.
+
+    Con los grupos de trazas, obtienes una vista de alto nivel de la traza para que puedas comprender el comportamiento de las solicitudes para grupos de trazas similares. Esto le ayuda a comprender las caídas o picos en el recuento, la duración y los errores de las trazas. Cuando hace clic en uno de los grupos de trazas, obtiene todos los detalles estándar en el contexto del grupo de trazas específico que seleccionó.
+
+    Si <DNT>**Group similar traces**</DNT> está activado, verás tres gráficos en la parte superior de la página en rastreo distribuido. Estos gráficos le muestran el recuento de trazas, la duración del percentil 95 y el recuento de errores para cada uno de los grupos de trazas enumerados en la tabla debajo de los gráficos. Para cambiar los filtros en estos gráficos, consulte los filtros del panel izquierdo.
+  </Collapser>
+
+  <Collapser
+    id="4"
+    title="Ver traza periférica en un diagrama de dispersión"
+  >
+    El diagrama de dispersión de trazas es una forma rápida de buscar trazas periféricas. Esto está disponible en la página de inicio de rastreo distribuido si desactivas el botón <DNT>**Group similar traces**</DNT> en la parte superior de la página.
+
+    En el diagrama de dispersión, puede mover el cursor por el gráfico para ver los detalles del trazado y puede hacer clic en puntos individuales para obtener detalles:
+
+    <img
+      title="new-relic-one-distributed-tracing-histogram-selection.webp"
+      alt="Screenshot showing the distributed tracing scatter plot chart."
+      src="/images/new-relic-one-distributed-tracing-scatterplot.webp"
+    />
+
+    Controle lo que se muestra en el diagrama de dispersión:
+
+    1. Seleccione el tipo de duración en el menú desplegable
+
+       <DNT>
+         **View by**
+       </DNT>
+
+       :
+
+    * <DNT>
+        **Backend duration**
+      </DNT>
+    * <DNT>
+        **Root span duration**
+      </DNT>
+    * <DNT>
+        **Trace duration**
+      </DNT>
+
+    2. En
+
+       <DNT>
+         **Facet traces by**
+       </DNT>
+
+       , seleccione una de estas opciones:
+
+    * <DNT>
+        **Root entry span**
+      </DNT>
+
+      : Agrupar por la transacción raíz, que es el extremo del servicio raíz. En una traza donde el Servicio A llama al Servicio B y el Servicio B llama al Servicio C, el tramo de entrada raíz es el extremo del Servicio A. Por ejemplo: "Servicio A - GET /usuario/%".
+
+    * <DNT>
+        **Root entity**
+      </DNT>
+
+      : Grupo por el nombre de la primera entidad en traza. En una traza donde el Servicio A llama al Servicio B y el Servicio B llama al Servicio C, la entidad raíz sería el Servicio A.
+
+    * <DNT>
+        **Errors**
+      </DNT>
+
+      : Agrupar según si la traza contiene errores o no.
+
+    3. Para obtener consejos sobre cómo cambiar los filtros en el diagrama de dispersión, consulte los filtros del panel izquierdo.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  Algunas consultas que producen muchos resultados pueden resultar en falso positivo en los gráficos. Esto podría manifestarse como gráficos que muestran resultados de traza que no están en la lista de traza.
+</Callout>
+
+## Detalles adicionales UI [#rules-limits]
+
+Aquí hay algunos detalles, reglas y límites adicionales UI de rastreo distribuido:
+
+<CollapserGroup>
+  <Collapser
+    id="error-tips"
+    title="Cómo entender los errores de extensión"
+  >
+    Los errores a nivel de tramo le muestran dónde se originaron los errores en un proceso, cómo surgieron y dónde se manejaron. Cada lapso que termina con un error se muestra con un error en la UI y contribuye al recuento total de errores para esa traza.
+
+    A continuación se ofrecen algunos consejos generales para comprender los errores de extensión:
+
+    * Los tramos con errores se resaltan en rojo en la UI del rastreo distribuido. Puede ver más información en el panel <DNT>**Error Details**</DNT> para cada tramo.
+
+    * Todos los tramos que salen con errores se cuentan en el recuento de errores de tramo.
+
+    * Cuando se producen varios errores en el mismo intervalo, solo se escribe uno en el intervalo en este orden de prioridad:
+
+      * A `noticeError`
+      * El error de intervalo más reciente dentro del alcance de ese intervalo
+
+      Esta tabla describe cómo se manejan los diferentes errores de intervalo:
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              Tipo de error
+            </th>
+
+            <th>
+              Descripción
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              Tramos que terminan en errores
+            </td>
+
+            <td>
+              Un error que sale del límite de un intervalo da como resultado un error en ese intervalo y en cualquier intervalo antecesor que también salga con un error, hasta que se detecta el error o sale de la transacción. Puede ver si se detecta un error en un intervalo de ancestros.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Errores de aviso
+            </td>
+
+            <td>
+              Los errores detectados por las llamadas a la API del agente `noticeError` o por la instrumentación automática del agente se adjuntan al intervalo de ejecución actual.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Errores de código de respuesta
+            </td>
+
+            <td>
+              Los errores del código de respuesta se adjuntan al intervalo asociado, como por ejemplo:
+
+              * Span de cliente: Transacción externa con el prefijo `http` o `db`.
+
+              * Intervalo de entrada: En el caso de una transacción que finaliza con un error de código de respuesta.
+
+                El código de respuesta para estos intervalos se captura como un atributo `http.statusCode` y se adjunta a ese intervalo.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Errores de OpenTelemetry
+            </td>
+
+            <td>
+              El cuadro <DNT>**Error Details**</DNT> del panel derecho está lleno de intervalos que contienen `otel.status_code = ERROR` y muestra el contenido de `otel.status_description`.
+
+              <Callout variant="tip">
+                Los eventos de intervalo de OpenTelemetry manejados por la aplicación/servicio se muestran independientemente del estado de error de intervalo y no están necesariamente asociados con un estado de error de intervalo. Puede ver las excepciones y no excepciones de eventos de intervalo haciendo clic en <DNT>**View span events**</DNT> en el panel derecho.
+              </Callout>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+
+  <Collapser
+    id="anomalous-spans"
+    title="Tramos anómalos"
+  >
+    Si un intervalo se muestra como anómalo en la UI, significa que se cumplen las siguientes condiciones:
+
+    * El tramo es más de dos estándar más lento que el promedio de todos los tramos con el mismo nombre del mismo servicio durante las últimas seis horas.
+    * La duración del tramo es superior al 10% de la duración de la traza.
+  </Collapser>
+
+  <Collapser
+    id="client-server-time"
+    title="Duración del span de cliente: diferencias horarias entre los spans del cliente y del servidor"
+  >
+    Cuando un proceso llama a otro proceso, y ambos procesos están instrumentados por New Relic, la traza contiene tanto una representación de la llamada del lado del cliente como una representación del lado del servidor. El [lapso de cliente](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works#trace-structure) (proceso de llamada) puede tener diferencias relacionadas con el tiempo en comparación con el lapso del servidor (llamado proceso). Estas diferencias podrían deberse a:
+
+    * Desfase del reloj, debido a diferencias horarias en el reloj del sistema
+
+    * Diferencias en la duración, debido a cosas como la latencia de la red o el retraso en la resolución de DNS
+
+      La UI muestra estas diferencias relacionadas con el tiempo mostrando un esquema del intervalo de cliente en el mismo espacio que el intervalo del servidor. Este lapso representa la duración del lapso de cliente.
+
+      No es posible determinar todos los factores que contribuyen a estas discrepancias relacionadas con el tiempo, pero aquí hay algunos patrones de intervalos comunes y consejos para comprenderlos:
+
+      <img
+        title="new-relic-distributed-tracing-client-span-time.jpg"
+        alt="New Relic distributed tracing client vs server time discrepancy diagram"
+        src="/images/new-relic-distributed-tracing-client-span-time.webp"
+      />
+
+      R. Cuando una extensión de cliente es más larga que la extensión del servidor, esto podría deberse a la latencia en varias áreas, como: tiempo de red, tiempo de cola, tiempo de resolución de DNS o de un balanceador de carga que no podemos ver. B. Cuando un intervalo de cliente comienza y finaliza antes de que comience un intervalo de servidor, esto podría deberse a una desviación del reloj o a que el servidor realiza un trabajo asincrónico que continúa después de enviar la respuesta. C. Cuando un intervalo de cliente comienza después de un intervalo de servidor, lo más probable es que se trate de un desfase del reloj.
+  </Collapser>
+
+  <Collapser
+    id="fragmented-traces"
+    title="Traza fragmentada"
+  >
+    Las trazas fragmentadas son trazas a las que les faltan tramos. Cuando falta un tramo o tiene ID principales de tramo no válidos, su tramo secundario queda separado del resto de la traza, a lo que nos referimos como "huérfano". Los tramos huérfanos aparecen en la parte inferior de la traza, y carecerán de líneas de conexión con el resto de la traza. Si tiene tramos fragmentados, verá la palabra <DNT>**Fragmented**</DNT> en la parte superior de la página de detalles:
+
+    <img
+      style={{ width: "70%",align: "left" }}
+      title="Screenshot showing how to locate a fragmented trace"
+      alt="Screenshot showing how to locate a fragmented trace"
+      src="/images/distributed-tracing_screenshot-crop_fragmented-trace.webp"
+    />
+
+    Tipos de propiedades de intervalo huérfano indicadas en la UI:
+
+    * <DNT>**No root span.**</DNT> Falta el intervalo raíz, que es la primera operación de la solicitud. Cuando esto sucede, el intervalo con la timestamp más antigua se muestra como raíz.
+
+    * <DNT>**Orphaned span.**</DNT> Un solo tramo al que le falta un tramo principal. Esto podría deberse a que el tramo principal tiene un ID que no coincide con su tramo secundario.
+
+    * <DNT>**Orphaned trace fragment.**</DNT> Un grupo de tramos conectados donde el primer tramo del grupo es un tramo huérfano.
+
+      Esto puede suceder por varias razones, que incluyen:
+
+    * <DNT>**Collection limits.**</DNT> Algunas aplicaciones de alto rendimiento pueden exceder los límites de recopilación (por ejemplo, [límites de recopilación del agente APM](#1k-limit) o límites de API). Cuando esto sucede, es posible que a la traza le falten tramos. Una forma de remediar esto es desactivar algunos informes para que no se alcance el límite.
+
+    * <DNT>**Incorrect instrumentation.**</DNT> Si una aplicación se instrumenta incorrectamente, no pasará el contexto de traza correctamente y esto resultará en una traza fragmentada. Para remediar esto, examine la fuente de datos que genera intervalos huérfanos para asegurarse de que la instrumentación se realice correctamente. Para descubrir la fuente de datos de un tramo, selecciónelo y examine los detalles del tramo.
+
+    * <DNT>**Spans still arriving**</DNT>. Si aún no se ha recopilado parte del principal del tramo, esto puede resultar en espacios temporales hasta que se haya informado toda la traza.
+
+    * <DNT>**UI display limits.**</DNT> Se pueden producir tramos huérfanos si una traza excede el límite de visualización de tramos de 10K.
+  </Collapser>
+
+  <Collapser
+    id="preserved-traces"
+    title="Traza conservada"
+  >
+    Las trazas conservadas son similares a las instantáneas de la traza original. Archivan una traza completa que ha sido visualizada previamente y ha superado el período de retención. Las trazas completas solo están disponibles durante 7 días, a menos que hayas comprado la retención extendida (que se reflejaría automáticamente en la UI). Sin embargo, la traza conservada puede existir hasta por 1 año y generalmente funciona como la traza original.
+
+    Tenga en cuenta que la traza conservada no mostrará datos de rendimiento del intervalo ni datos de anomalía del intervalo. Es posible que no se pueda acceder a la traza conservada si una entidad en una traza conservada se elimina, caduca o deja de informar datos.
+
+    <img
+      style={{ width: "70%",align: "left" }}
+      title="Screenshot showing how to locate a preserved trace"
+      alt="Screenshot showing how to locate a preserved trace"
+      src="/images/distributed-tracing_screenshot-crop_preserved-trace.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="account-access"
+    title="Detalles de la traza ofuscados según el acceso a la cuenta."
+  >
+    Si no tiene acceso a las cuentas de New Relic que monitor otros servicios, algunos de los detalles del período y del servicio se ocultarán en la UI. La ofuscación puede incluir:
+
+    * Nombre del tramo oculto por asteriscos
+
+    * Nombre del servicio reemplazado por ID de cuenta de New Relic y ID de aplicación
+
+      Para obtener más información sobre los factores que afectan su acceso a las cuentas, consulte [Acceso a la cuenta](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data/#account-access).
+  </Collapser>
+
+  <Collapser
+    id="1k-limit"
+    title="Límites de amplitud y muestreo"
+  >
+    Véase [Agente de lenguaje: muestreo adaptativo](/docs/apm/distributed-tracing/getting-started/how-new-relic-distributed-tracing-works#trace-origin-sampling).
+  </Collapser>
+
+  <Collapser
+    id="prettified-span-names"
+    title="Nombres de tramos incompletos en vista en cascada"
+  >
+    Al visualizar la cascada de tramos, es posible que los nombres de tramos se muestren en un formato incompleto que sea más legible para los humanos que el nombre completo del tramo. Para encontrar el nombre completo, seleccione ese intervalo y busque <DNT>**Full span name**</DNT>. Conocer el nombre completo puede resultar valioso para consultar esos datos con NRQL.
+  </Collapser>
+
+  <Collapser
+    id="span-counts"
+    title="Tramos faltantes y discrepancias en el recuento de tramos/servicios"
+  >
+    En ocasiones, a una traza le pueden faltar (o parecer tener) tramos o servicios. Esto puede manifestarse como una discrepancia entre el recuento de tramos o servicios de una traza que se muestra en la [lista de traza](#trace-list) y el recuento que se muestra en la página [de detalles de la traza](#trace-details) .
+
+    Los motivos por los que faltan tramos y las discrepancias en el recuento incluyen:
+
+    * Es posible que un agente <InlinePopover type="apm"/>haya alcanzado su [límite de recopilación de intervalos](/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works/#trace-origin-sampling).
+
+    * Es posible que un intervalo se cuente inicialmente pero no se muestre en una visualización de traza, por motivos como la latencia de la red o un problema de consulta.
+
+    * Es posible que la UI haya alcanzado su límite de visualización de 10 K.
+
+      Todos los tramos recopilados, incluidos los que no se muestran, se pueden [consultar con NRQL](/docs/apm/distributed-tracing/ui-data/example-insights-queries-distributed-trace-data).
+  </Collapser>
+</CollapserGroup>
+
+Además de estas herramientas UI , también puedes consultar el ejemplo de consulta NRQL en [consulta rastreo distribuido data](/docs/distributed-tracing/ui-data/query-distributed-trace-data/#example-nrql-queries).
+
+<UserJourneyControls nextStep={{"path":"/docs/distributed-tracing/ui-data/trace-details/","title":"Próximo paso:","body":"Comprender la UIde detalles de la traza"}}/>

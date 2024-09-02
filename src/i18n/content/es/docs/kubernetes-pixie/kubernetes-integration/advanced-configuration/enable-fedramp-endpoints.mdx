@@ -1,0 +1,108 @@
+---
+title: Habilitar extremo compatible con FedRAMP
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+  - Configuration
+  - Fedramp
+metaDescription: How to enable the Kubernetes integrations to send data to the New Relic FedRamp-compliant endpoints.
+freshnessValidatedDate: '2023-07-26T00:00:00.000Z'
+translationType: machine
+---
+
+Si está instalando New Relic la Kubernetes integración de y necesita asegurarse de que sus datos se envíen a un [extremo compatible](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/) con FedRAMP , esta página explica cómo lograrlo utilizando las opciones de instalación Helm y Manifest.
+
+Para obtener información sobre el cumplimiento de FedRAMP en New Relic, visite nuestra [página de documentación de FedRAMP](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp/).
+
+### Timón [#helm]
+
+Puede habilitar la compatibilidad con FedRAMP globalmente configurando el parámetro `global.fedramp.enabled` en `true` al realizar una instalación de Helm. Esta configuración global se aplicará en cascada a todos los subgráficos contenidos en el gráfico principal `nri-bundle`, lo que dará como resultado la configuración de todos los agentes para enviar sus datos al extremo compatible con FedRAMP de New Relic.
+
+```shell
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+ --set global.licenseKey=<YOUR LICENSE KEY> \
+ --set global.cluster=<YOUR CLUSTER NAME> \
+ --namespace=newrelic \
+ --set newrelic-infrastructure.privileged=true \
+ --set global.lowDataMode=true \
+ --set kube-state-metrics.image.tag=<KSM VERSION> \
+ --set kube-state-metrics.enabled=true \
+ --set kubeEvents.enabled=true \
+ --set global.fedramp.enabled=true
+```
+
+Si utiliza un archivo values.yaml para su instalación, deberá habilitar el mismo parámetro.
+
+```yaml
+...
+global:
+  fedramp:
+    enabled: true
+...
+```
+
+El ejemplo completo del archivo `nri-bundle` values.yaml se puede encontrar [aquí](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml).
+
+### Manifiesto [#manifest]
+
+Si realiza la instalación utilizando el método de instalación Manifest de la [instalación guiada](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234), deberá agregar `"global.fedramp.enabled":"true"` al parámetro JSON que se pasa al servicio `k8s-config-generator` .
+
+#### Ejemplo
+
+```shell
+function ver { printf "%03d%03d" $(echo "$1" | tr '.' ' '); } && \
+K8S_VERSION=$(kubectl version --short 2>&1 | grep 'Server Version' | awk -F' v' '{ print $2; }' | awk -F. '{ print $1"."$2; }') && \
+if [[ $(ver $K8S_VERSION) -lt $(ver "1.25") ]]; then KSM_IMAGE_VERSION="v2.6.0"; else KSM_IMAGE_VERSION="v2.7.0"; fi && \
+curl -X POST https://k8s-config-generator.service.newrelic.com/generate -H 'Content-Type: application/json' -d '{"global.cluster":"<YOUR CLUSTER NAME>>","global.namespace":"newrelic","newrelic-infrastructure.privileged":"true","global.lowDataMode":"true","kube-state-metrics.image.tag":"'${KSM_IMAGE_VERSION}'","kube-state-metrics.enabled":"true","kubeEvents.enabled":"true","global.licenseKey":"<YOUR LICENSE KEY>", "global.fedramp.enabled":"true"}' > newrelic.yaml && (kubectl create namespace newrelic ; kubectl apply -f newrelic.yaml)
+```
+
+### Validar la configuración de FedRAMP
+
+Hay un par de formas de validar que el extremo FedRAMP se haya configurado correctamente. Primero, valide el `ConfigMaps` para que contenga `fedramp: true`, cuando corresponda. El resultado de su clúster puede variar según los componentes que se instalaron.
+
+#### Validación del mapa de configuración
+
+```
+$ kubectl get cm -n newrelic -o yaml | grep fedramp -A 1
+        fedramp:
+          enabled: true
+--
+          cluster_name: minkube-fedramp-test
+        scrape_interval: 30s
+--
+      fedramp: true
+  kind: ConfigMap
+--
+            clusterName: minkube-fedramp-test
+            agentHTTPTimeout: 30s
+--
+        clusterName: minkube-fedramp-test
+      fedramp: true
+      http_server_enabled: true
+--
+        clusterName: minkube-fedramp-test
+      fedramp: true
+      http_server_enabled: true
+--
+        clusterName: minkube-fedramp-test
+      features:
+--
+      fedramp: true
+      http_server_enabled: true
+```
+
+#### Pod log validación
+
+Además, puede comprobar el valor `collectorURL` en el registro pod . Nuestro agente de infraestructura se conecta a este recolector para la transmisión de datos.
+
+<Callout title="Registro DETALLADO REQUERIDO">
+  Deberá habilitar el registro detallado para ver el `collectorURL`. Haga esto usando la configuración `--set newrelic-infrastructure.verboseLog=true` para el gráfico de timón `nri-bundle` . Cuando se complete la validación, debe desactivar el registro detallado.
+</Callout>
+
+Para validar que habilitó FedRAMP extremo correctamente, ejecute el comando `kubectl` como se indica a continuación y busque `collectorURL` en la salida log . Asegúrese de reemplazar el nombre del pod `newrelic-bundle-nrk8s-kubelet-f74g2` con un pod de su clúster.
+
+```
+$ kubectl logs newrelic-bundle-nrk8s-kubelet-f74g2 -n newrelic -c agent | grep collectorURL
+time="2023-07-26T20:09:33Z" level=debug msg="Collector URL" action=NormalizeConfig collectorURL="https://gov-infra-api.newrelic.com" component=Configuration
+```

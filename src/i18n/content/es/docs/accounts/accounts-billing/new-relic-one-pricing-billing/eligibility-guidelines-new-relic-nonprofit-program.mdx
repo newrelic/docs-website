@@ -1,0 +1,251 @@
+---
+title: Organizaciones sin fines de lucro y New Relic
+tags:
+  - Accounts
+  - Accounts and billing
+  - General account settings
+metaDescription: 'A description of the New Relic nonprofit program, and eligibility requirements.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este documento proporciona las pautas de elegibilidad del programa Observabilidad for Good de New Relic para organizaciones sin fines de lucro, caritativas y ONG.
+
+## Excepciones
+
+Muchas organizaciones globales sin fines de lucro, organizaciones benéficas y ONG son elegibles para la observabilidad for Good si la organización tiene un estatus legal reconocido en sus respectivos países igual al estatus 501(c)(3) según el Código de Rentas Internas de los Estados Unidos, con ciertas excepciones. Además, todas las organizaciones deben ser verificadas por nuestro [socio](https://poweredbypercent.com/)de validación global.
+
+Ejemplos de organizaciones no elegibles incluyen, entre otros:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Ineligible nonprofits**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Instituciones de educación superior
+      </td>
+
+      <td>
+        Las instituciones de educación superior públicas y privadas sin fines de lucro no califican. Esto incluye:
+
+        * Universidades
+        * Colegios
+        * Escuelas de oficios
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Escuelas primarias y secundarias (públicas y privadas)
+      </td>
+
+      <td>
+        Las escuelas primarias y secundarias no califican. Esto incluye, pero no se limita a:
+
+        * Distritos escolares públicos K-12
+        * Escuelas públicas individuales K-12 dentro de un distrito escolar financiado estatal o federalmente
+        * Escuelas charter independientes K-12
+        * Escuelas K-12 del Programa Conocimiento es Poder (KiPP)
+        * Otras escuelas K-12 que no forman parte de un distrito escolar financiado estatal o federalmente
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Organización sanitaria que proporciona atención al paciente.
+      </td>
+
+      <td>
+        Esto incluye hospitales, auxiliares hospitalarios, sistemas de salud y organizaciones de servicios de salud relacionados, tales como:
+
+        * Residencias de ancianos o convalecientes
+
+        * Atención y vivienda para personas mayores.
+
+        * Centros de embarazo
+
+          <Callout variant="tip">
+            Las clínicas gratuitas pueden calificar.
+          </Callout>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Organización profesional, mercantil, mutualista y mercantil.
+      </td>
+
+      <td>
+        Esto incluye organizaciones como:
+
+        * Las cooperativas de crédito
+        * Regulación de negocios
+        * Ferias del sector
+        * Ligas atléticas profesionales
+        * Oficinas de turismo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Empleado o organización de beneficio de membresía
+      </td>
+
+      <td>
+        Esto incluye organizaciones como:
+
+        * Sociedades fraternales beneficiarias
+
+        * Asociaciones de empleados
+
+        * Empleado o miembro de asociaciones de bienestar
+
+        * Beneficios de pensión y jubilación
+
+          <Callout variant="tip">
+            Una organización centrada en la mejora de las condiciones de trabajo puede calificar.
+          </Callout>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Organizaciones legislativas o políticas y grupos de defensa.
+      </td>
+
+      <td>
+        Una organización centrada en la educación electoral no partidista puede calificar.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Organización dentro de países sancionados por EE.UU.
+      </td>
+
+      <td>
+        Esto incluye organizaciones dentro de cualquier país sancionado incluido en [la lista de control](https://www.treasury.gov/resource-center/sanctions/Programs/Pages/Programs.aspx) de activos extranjeros de la Oficina del Departamento del Tesoro de EE. UU., que se actualiza periódicamente.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Requerimientos adicionales [#requirements]
+
+Para participar, la organización aprobada también debe:
+
+* Envíe una solicitud a través de [newrelic.org/signup](https://www.newrelic.org/signup).
+* Complete el proceso de validación de elegibilidad a través de nuestro socio de validación Percent.
+* Revise las definiciones de ONG locales de nuestros socios de validación en [Definiciones de ONG locales de Percent](https://poweredbypercent.com/nonprofit-definitions/)
+* Acepte [los términos de servicio](https://newrelic.com/terms) estándar de New Relic.
+* Ser cliente directo de New Relic y tener una relación de facturación directa con New Relic.
+
+## Procedimientos de registro [#signup]
+
+Para obtener más información o registrarse como cliente nuevo o existente de New Relic, visite [newrelic.org/signup](https://www.newrelic.org/signup).
+
+## Beneficios del programa [#benefits]
+
+<table>
+  <tbody>
+    <tr>
+      <th>
+        Beneficios mensuales
+      </th>
+
+      <th>
+        Prueba gratis
+      </th>
+
+      <th>
+        Estándar O4G con Datos Plus
+      </th>
+    </tr>
+
+    <tr>
+      <td>
+        <strong>
+          Usuario
+        </strong>
+      </td>
+
+      <td>
+        1 completo
+      </td>
+
+      <td>
+        3 plataforma completa
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <strong>
+          Ingesta de datos
+        </strong>
+      </td>
+
+      <td>
+        100GB
+      </td>
+
+      <td>
+        1000GB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <strong>
+          Sintético
+        </strong>
+      </td>
+
+      <td>
+        500
+      </td>
+
+      <td>
+        10.000
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+* Nuestro Programa O4G con Data Plus incluye estas características:
+
+  * Cuenta estándar New Relic (ahorro de $99 por mes por usuario)
+  * 1000 gigabytes de ingesta mensual gratuita de Data Plus
+  * 3 usuarios de plataforma completa
+  * SAML SSO (inicio de sesión único)
+  * 10k checks sintéticos incluidos cada mes
+  * Retención de datos extendida
+  * Hasta 10 veces la duración máxima por consulta y 3 veces el límite máximo de consulta
+  * Controles avanzados de ofuscación de logs.
+  * Transmisión mejorada y exportaciones de datos históricos
+  * New Relic Gestión de vulnerabilidades
+  * Elección del proveedor de la nube
+  * También puede acceder a capacidades de gobernanza y cumplimiento, incluida la elegibilidad para FedRAMP Moderate y HIPAA.
+
+* Nuestras [ediciones Gratuita y Estándar](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#editions) están disponibles mediante validación y cumplimiento en línea y son los mejores lugares para comenzar para la mayoría de las organizaciones sin fines de lucro.
+
+  * Hay descuentos adicionales disponibles para la edición Pro, contáctenos en [o4ginfo@newrelic.com](mailto:o4ginfo@newrelic.com)
+
+  <Callout variant="tip">
+    Se requiere un método de pago registrado para todas las cuentas que utilizan el programa observabilidad for Good.
+  </Callout>

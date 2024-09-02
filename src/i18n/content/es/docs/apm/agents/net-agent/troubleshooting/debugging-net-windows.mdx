@@ -1,0 +1,190 @@
+---
+title: Depurando el agente .NET en Windows
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: Troubleshooting tips to debug New Relic .NET agent for Windows.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Después de [instalar el agente .NET de New Relic para Windows](/docs/apm/agents/net-agent/installation/install-net-agent-windows), tiene uno o más de los siguientes problemas:
+
+* No ves ningún dato
+* Notas datos faltantes
+* No ves ningún registro
+
+## Solución
+
+Cosas importantes para verificar y comprender:
+
+* Asegúrese de tener privilegios de administrador en su host.
+* Asegúrese de que [se hayan seguido los pasos de instalación y ejecución.](/docs/apm/agents/net-agent/installation/install-net-agent-windows)
+
+## Paso 1: Verifique el registro del agente de la aplicación [#step-one]
+
+Consejos importantes antes de comprobar el registro:
+
+* Cuando se utiliza el instalador MSI de Windows, el valor predeterminado es `%ALLUSERSPROFILE%\New Relic\.NET Agent\Logs`.
+* Si instaló el agente con el paquete NuGet `NewRelic.Agent` , encontrará una carpeta `logs` en el directorio donde se extrajo el agente en su sistema.
+
+Para verificar el registro del agente:
+
+1. Asegúrate de estar mirando los datos actuales. Elimine o mueva cualquier archivo existente en el directorio de registro para asegurarse de que el registro que genere refleje el estado actual de su sistema.
+2. Reinicie su aplicación. Si su aplicación está alojada en IIS, ejecute una línea de comando IISRESET en una línea de comando de administrador.
+3. Ejercite su aplicación durante al menos unos minutos de una manera que genere el tráfico que esperaría ver en su cuenta de New Relic.
+4. Tome nota del ID de proceso (PID) con el que se ejecuta su aplicación para que pueda verificar si se está creando un log para ese proceso. Puede encontrar el PID utilizando el Administrador de tareas de Windows o el Explorador de procesos.
+5. Vuelva al directorio de registro del agente y busque un archivo de registro con un nombre que contenga el ID del proceso de su aplicación (por ejemplo, `NewRelic.Profiler.[PID].log`).
+6. Si ve ese archivo `profiler log` en el directorio de registro, verifique también si hay un log de agente correspondiente. El log del agente contiene el prefijo `newrelic_agent`. Si está ejecutando varias aplicaciones .NET en su host, es posible que haya más de una. Si ves uno o más debes determinar cuál corresponde a la aplicación que estás intentando monitor.
+7. Busque en el log del agente la cadena `(pid [your PID])`, por ejemplo `(pid 1573)`. Si encuentra esa cadena en el archivo de registro, entonces sabrá que es el log del agente asociado con su aplicación.
+8. Busque errores de red u otros errores que puedan provocar que el agente no envíe datos a New Relic.
+
+## Paso 2: Verifique si el generador de perfiles del agente .NET está cargado en el proceso de la aplicación [#step-two]
+
+Para comprobar si el generador de perfiles está cargado:
+
+1. Descargue y extraiga [Microsoft Process Explorer](https://learn.microsoft.com/en-us/sysinternals/downloads/process-explorer) en su servidor.
+
+2. Lance la versión apropiada de Process Explorer para su entorno (32 vs 64 bits) como administrador (haga clic derecho en <DNT>**Run as Administrator**</DNT>).
+
+3. En la ventana principal de Process Explorer, busque el proceso que está intentando monitor y anote el número en la columna PID. Si está intentando monitor una aplicación web alojada en IIS, el nombre del proceso será `w3wp.exe`.
+
+4. En la barra de menú de Process Explorer, seleccione <DNT>**View > Show lower pane**</DNT> y luego <DNT>**View > Lower pane view > DLLs**</DNT>.
+
+5. Resalte el proceso de su aplicación en el panel superior, luego verifique en el panel inferior las siguientes DLL.
+
+   * `NewRelic.Profiler.dll` - Esta DLL es necesaria para que el agente monitor su aplicación. Si no está presente, asegúrese de que el usuario bajo el cual se ejecuta la aplicación tenga permisos de lectura en la carpeta donde se instaló el agente.
+
+     <Callout variant="important">
+       * En
+
+         <DNT>
+           **.NET Framework agent**
+         </DNT>
+
+         , esto debería ser igual que la variable de entorno `NEWRELIC_INSTALL_PATH` .
+
+       * En
+
+         <DNT>
+           **.NET Core agent**
+         </DNT>
+
+         , esto debería ser igual que la variable de entorno `CORECLR_NEWRELIC_HOME` .
+     </Callout>
+
+   * `mscorlib.dll`: <DNT>**.NET Framework agent only.**</DNT> La presencia de esta DLL es la forma en que el agente identifica su aplicación como una aplicación de .NET framework . Si no está presente, el agente ignora la aplicación por completo. Si su aplicación no contiene esta DLL, verifique dos veces para asegurarse de que cumpla con los [requisitos de compatibilidad del agente.](/docs/agents/net-agent/getting-started/compatibility-requirements-net-framework-agent)
+
+<Callout variant="important">
+  El uso de [Code Access Security](https://docs.microsoft.com/en-us/dotnet/framework/misc/code-access-security) es compatible con el agente .NET solo cuando se proporciona Full Trust. El agente no es compatible con niveles de confianza más restrictivos.
+</Callout>
+
+Si no ve `NewRelic.Profiler.dll`, continúe con el siguiente paso. Si obtiene resultados, vaya al [Paso 4](#step-four) (permisos).
+
+## Paso 3: Verifique las variables de entorno requeridas [#step-three]
+
+Para verificar las variables de entorno requeridas: haga clic derecho en el proceso en Process Explorer y seleccione <DNT>**Properties**</DNT>. Verás un conjunto de pestañas en la parte superior de la ventana que aparece. Seleccione la pestaña <DNT>**Environment**</DNT> .
+
+Si se configuran las variables correctas y la aplicación que intenta monitor tiene acceso a ellas, debería ver un conjunto particular de variables de entorno, dependiendo de si el agente que ha instalado es .NET framework o .NET Core.
+
+<CollapserGroup>
+  <Collapser
+    id="env-var-framework"
+    title=".NET framework: comprobar las variables de entorno"
+  >
+    Suponiendo que instaló el agente usando .msi instalador, las variables de entorno que aparecen en la pestaña de entorno deben ser similares a estas:
+
+    ```ini
+    COR_ENABLE_PROFILING = 1
+    COR_PROFILER = {71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+    NEWRELIC_INSTALL_PATH = C:\Program Files\New Relic\.NET Agent
+    ```
+
+    Para obtener más detalles sobre estas variables, así como valores correctos para otros escenarios de instalación, consulte [Comprender las variables de entorno del agente .NET](/docs/apm/agents/net-agent/other-installation/understanding-net-agent-environment-variables/).
+
+    Si las variables de entorno no coinciden con lo que ve arriba, puede volver a ejecutar el instalador del agente .NET (.msi) y seleccionar `Repair` cuando símbolo para restaurarlas a los valores predeterminados.
+
+    Si las variables de entorno anteriores no están presentes en el proceso, generalmente significa una de las siguientes cosas:
+
+    * <DNT>
+        **IIS applications**
+      </DNT>
+
+      : Hay
+
+      <DNT>
+        **[permissions issues](/docs/agents/net-agent/troubleshooting/no-data-registry-key-permission-issues)**
+      </DNT>
+
+      en su servidor que impiden que la aplicación que intenta monitor acceda a las claves de registro donde se configuran las variables.
+
+    * <DNT>
+        **Non-IIS applications**
+      </DNT>
+
+      : La [característica “instrumento toda aplicación .NET”](/docs/agents/net-agent/additional-installation/instrument-non-iis-apps) no fue seleccionada cuando se instaló el agente. Listo para usar, el agente framework monitorea las aplicaciones web alojadas en IIS. Si la función `Instrument all .NET Applications` no está instalada, el agente ignorará todas las aplicaciones que no sean IIS que se inicien en su servidor. Puede verificar si la característica se instaló observando las variables de entorno del sistema de Windows para el servidor y viendo si las variables anteriores están configuradas. Si no es así, vuelva a ejecutar el instalador y seleccione la característica `Instrument all .NET applications` cuando símbolo.
+
+    <Callout variant="important">
+      Si la aplicación que desea monitor no está alojada en IIS (como un servicio de Windows autohospedado), debe habilitar `Instrument All` y también habilitar explícitamente el agente para esa aplicación, como se indica en nuestros [documentos de instalación](/docs/apm/agents/net-agent/installation/install-net-agent-windows#enabling-the-agent).
+    </Callout>
+
+    Si realizó algún cambio en las variables de entorno, asegúrese de emitir una línea de comando `iisreset` o reiniciar el proceso de su aplicación (si no es IIS). Luego, inspeccione el nuevo PID del proceso en Process Explorer para asegurarse de que los cambios se hayan realizado correctamente.
+
+    <Callout variant="important">
+      Si el nombre de la aplicación aparece en New Relic, pero no aparece ninguna transacción, es probable que no llegue tráfico a la aplicación o que el agente no encuentre un [marco conocido](/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-framework/#app-frameworks) que pueda implementar automáticamente.
+
+      Si su aplicación no utiliza uno de esos marcos de aplicaciones compatibles, es posible que necesite [personalizar su aplicación](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/) para decirle al agente qué partes de su aplicación son importantes para el monitoreo y cuál constituye el alcance de una transacción.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="env-var-core"
+    title=".NET Core: comprobar las variables de entorno"
+  >
+    Suponiendo que instaló el agente usando .msi instalador, las variables de entorno que aparecen en la pestaña de entorno deben ser similares a estas:
+
+    ```ini
+    CORECLR_ENABLE_PROFILING=1
+    CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+    NEWRELIC_INSTALL_PATH=C:\Program Files\New Relic\.NET Agent\
+    CORECLR_NEWRELIC_HOME=C:\ProgramData\New Relic\.NET Agent\
+    ```
+
+    Estas variables se configuran manualmente como parte del proceso de instalación o en tiempo de ejecución. Si es necesario realizar cambios, ajuste las variables en Windows o donde haya configurado las variables para esta aplicación.
+
+    Para obtener más detalles sobre estas variables, así como valores correctos para otros escenarios de instalación, consulte [Comprender las variables de entorno del agente .NET](/docs/apm/agents/net-agent/other-installation/understanding-net-agent-environment-variables/).
+
+    Si no ve las variables anteriores en Process Explorer al inspeccionar el proceso de su aplicación, asegúrese de tener las variables configuradas y de que la aplicación pueda acceder a ellas en tiempo de ejecución.
+
+    <Callout variant="important">
+      Si el nombre de la aplicación aparece en New Relic, pero no aparece ninguna transacción, es probable que no llegue tráfico a la aplicación o que el agente no encuentre un [frameworkconocido](/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-core/#app-frameworks) que pueda implementar automáticamente.
+
+      Si su aplicación no utiliza uno de esos marcos de aplicaciones compatibles, es posible que deba implementar [un instrumento personalizado](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/) para decirle al agente qué partes de su aplicación son importantes para el monitoreo y cuál constituye el alcance de una transacción.
+    </Callout>
+
+    Si la aplicación que desea monitor no está alojada en IIS (como un servicio de Windows autohospedado), debe configurar su aplicación para que sea monitoreada configurando la siguiente variable de entorno:
+
+    ```ini
+    CORECLR_ENABLE_PROFILING=1
+    ```
+
+    Recomendamos configurar las variables de entorno para cada aplicación que desee monitorear. Si los configura globalmente, puede implementar otros procesos .NET además de la aplicación que desea monitor.
+
+    <Callout variant="tip">
+      Para obtener sugerencias sobre cómo configurar esta variable de entorno por proceso en lugar de en todo el sistema, consulte [nuestra publicación del foro sobre cómo configurar variables de entorno](https://discuss.newrelic.com/t/setting-net-core-agent-environment-variables-per-process/157750).
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Paso 4: Verifique los permisos [#step-four]
+
+Verifique las siguientes tareas de permisos:
+
+* Asegúrese de que el usuario bajo el cual se ejecuta el proceso de su aplicación tenga permisos de lectura/escritura/ejecución en el directorio donde se extrajo el agente .NET en su sistema (`NEWRELIC_INSTALL_PATH` o `CORECLR_NEWRELIC_HOME`) y en todos sus subdirectorios.
+* Si realizó algún cambio, reinicie su aplicación y regrese al [Paso 1](#step-one).
+
+Si los pasos anteriores no solucionaron el problema, le recomendamos que se comunique con el soporte o solicite ayuda en [nuestro foro Foro de soporte](https://discuss.newrelic.com/tag/dotnetagent).

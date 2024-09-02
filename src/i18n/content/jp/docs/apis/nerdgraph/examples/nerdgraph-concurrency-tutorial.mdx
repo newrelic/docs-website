@@ -1,0 +1,185 @@
+---
+title: 'NerdGraph チュートリアル: 同時実行制限の処理'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: Code examples for handling New Relic NerdGraph concurrency limits.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic の NerdGraph API では、 <DNT>**25 concurrent requests per user**</DNT>の制限が適用されます。 次のコード例は、これらの制限を回避したり、HTTP `429`ステータス コードを受信したりするための出発点として使用できます。 以下の 2 つの例はどちらも、多数の New Relic アカウントに対してクエリを並行して実行する同じユースケースに従っていますが、それでも NerdGraph の同時実行制限を超えています。
+
+## JavaScript
+
+同時実行性を処理する 1 つの方法は、ワーカー プールを使用することです。以下の例では、これを行うために[async モジュールを](https://caolan.github.io/async/v3/docs.html#queue)使用しています。同時実行制限が設定されたキューを作成し、リクエストをタスクとしてそのキューにプッシュし、すべてのタスクが完了するとキューを空にします。
+
+```node
+import got from 'got';
+import async from 'async';
+
+const API_KEY = '<key>' //GraphQL User Key
+const MAX_CONCURRENCY = 25; //Maximum amount of requests in queue at a given time
+
+const GRAPH_API = 'https://api.newrelic.com/graphql';
+const HEADERS = { 'Content-Type': 'application/json', 'Api-Key': API_KEY };
+
+
+async function main() {
+  let accounts = await getAccounts(); //All accounts to run a query against
+  var allResults = [];
+
+  //Queue initialization
+  const q = async.queue(async (task, cb) => {
+    let result = await makeRequest(task.acct)
+    allResults.push({'transactionCount': result[0].count, 'account': task.acct.id});
+    cb();
+  }, MAX_CONCURRENCY);
+
+  //Push requests on to the queue (one for each account)
+  accounts.forEach(acct => {
+    q.push({acct: acct});
+  });
+
+  await q.drain(); //Drain event listener when all tasks are complete
+
+  console.log(allResults);
+}
+
+async function makeRequest(acct) {
+  let nrql = `SELECT count(*) FROM Transaction`;
+  let gql = `{
+      actor {
+        account(id: ${acct.id}) {
+          nrql(query: "${nrql}", timeout: 90) {
+            results
+          }
+        }
+      }
+    }`;
+
+  let opts = {
+    url: GRAPH_API,
+    headers: HEADERS,
+    json: {'query': gql, 'variables': {}}
+  };
+
+  let response = await got.post(opts).json();
+  if (!response.errors) {
+    return response.data.actor.account.nrql.results;
+  } else {
+    console.log('Query Error');
+    console.log(response.errors);
+  }
+}
+
+async function getAccounts() {
+  var q = `{
+            actor {
+              accounts {
+                id
+                name
+              }
+            }
+          }`
+
+  var opts = {
+    url: GRAPH_API,
+    headers: HEADERS,
+    json: {'query': q, 'variables': {}}
+  }
+
+  let resp = await got.post(opts).json();
+  return resp.data.actor.accounts;
+}
+
+
+main();
+
+```
+
+## Python
+
+次のパッケージを利用して Python を使用して、非同期リクエストと同時実行性を処理することもできます。
+
+* [aiohttp](https://docs.aiohttp.org/en/stable/) - 非同期 http リクエストを行うために使用されます
+* [asyncio](https://docs.python.org/3/library/asyncio.html) - 同時実行性を処理するために使用されます
+
+以下では同時同時リクエスト数を管理する[セマフォ](https://docs.python.org/3/library/asyncio-sync.html?highlight=semaphore#asyncio.Semaphore)を設定します。次に、 `asyncio.gather()`を使用して複数のコルーチンを同時に実行し、それらの完了を待ちます。
+
+```
+import aiohttp
+import asyncio
+
+API_KEY = '<key>'
+MAX_CONCURRENCY = 25
+GRAPHQL_API = 'https://api.newrelic.com/graphql'
+HEADERS = {'Content-Type': 'application/json', 'Api-Key': API_KEY}
+
+
+async def main():
+    #All accounts to run a query against
+    accounts = await get_accounts()
+
+    # Semaphore for controlling concurrency
+    limit = asyncio.Semaphore(MAX_CONCURRENCY)
+
+    #Add all accounts to run a query against
+    tasks = [send_request(acct, limit) for acct in accounts]
+
+    #Schedule all tasks to run concurrently
+    allResults = await asyncio.gather(*tasks)
+
+    print(allResults)
+
+
+async def send_request(acct, limit):
+    nrql = "SELECT count(*) FROM Transaction"
+    gql = f'''
+    {{
+      actor {{
+        account(id: {acct['id']}) {{
+          nrql(query: "{nrql}", timeout: 90) {{
+            results
+          }}
+        }}
+      }}
+    }}
+    '''
+
+    async with limit:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(GRAPHQL_API, json={"query": gql, "variables":{}}, headers=HEADERS) as response:
+                    result = await response.json()
+                    return {'transactionCount': result['data']['actor']['account']['nrql']['results'][0]['count'], 'account': acct['id']}
+        except Exception as error:
+            print("Query Error")
+            raise error
+
+
+async def get_accounts():
+    gql = """
+    {
+      actor {
+        accounts {
+          id
+          name
+        }
+       }
+     }
+    """
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(GRAPHQL_API, json={"query": gql, "variables":{}}, headers=HEADERS) as response:
+            result = await response.json()
+            return result['data']['actor']['accounts']
+
+
+if __name__ == '__main__':
+    asyncio.run(main()) #Run event loop
+
+```
+
+NerdGraph の制限の詳細については、 [「NerdGraph の使用制限」](/docs/apis/nerdgraph/nerdgraph-usage-limits)を参照してください。

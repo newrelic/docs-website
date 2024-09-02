@@ -1,0 +1,350 @@
+---
+title: Monitor tus principales web Métricas
+tags:
+  - Browser
+  - Browser monitoring
+  - Guides
+metaDescription: A guide to monitor Google's core web vitals.
+freshnessValidatedDate: '2024-03-21T00:00:00.000Z'
+translationType: machine
+---
+
+Las métricas web principales son las métricas de Google que miden la experiencia global del usuario. Brindan información valiosa sobre cómo los usuarios ven su negocio, lo que puede influir en la clasificación SEO de su sitio. Al tener una puntuación que captura la experiencia del usuario, puede tomar medidas sobre problemas específicos en lugar de adivinar lo que necesita su sitio.
+
+## Objetivos [#objectives]
+
+Este tutorial lo guiará a través del uso de New Relic para desglosar sus principales web Métricas. Al final del tutorial, habrá completado estas tareas:
+
+* Encuentre core web vitals en New Relic.
+* Comprenda cómo los principales web de Métricas se traducen en el rendimiento del sitio.
+* Explore sus datos de New Relic para identificar qué contribuye a su puntuación.
+
+## Conoce los core web vitals [#learn]
+
+Google mide el rendimiento general del sitio web mediante estas tres métricas:
+
+* [Pintura de contenido más grande](https://web.dev/articles/lcp) (LCP): cuánto tiempo tarda en cargarse el contenido principal de una página. Por ejemplo, un usuario que llega a una página web con un LCP lento puede ver una pantalla en blanco durante varios segundos antes de que aparezca el contenido.
+* [Interacción con la siguiente pintura](https://web.dev/articles/inp) (INP): Cuánto tiempo tarda una página en responder a la interacción de un usuario. Por ejemplo, si un usuario hace clic en un botón, INP mide cuánto tiempo pasa entre el clic y la apertura de la siguiente página. Un INP alto refleja una experiencia de página web lenta y que no responde, lo que dificulta la participación del usuario.
+* [Cambio de diseño acumulativo](https://web.dev/articles/cls) (CLS): con qué frecuencia se producen cambios de diseño inesperados en una página mientras se carga. Por ejemplo, un usuario que está a punto de hacer clic en un botón puede encontrar que el contenido salta a un nuevo lugar en la pantalla, lo que podría hacer que haga clic en otra cosa accidentalmente. Un CLS alto puede hacer que una página web parezca torpe y difícil de interactuar.
+
+Cada web vital tiene el siguiente umbral para ayudarle a realizar un seguimiento del rendimiento y el SEO de su aplicación:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}/>
+
+      <th style={{ width: "200px" }}>
+        Bien
+      </th>
+
+      <th style={{ width: "275px" }}>
+        Necesita mejorar
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Pobre
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **Largest contentful paint**
+        </DNT>
+      </td>
+
+      <td>
+        2,5 segundos o menos
+      </td>
+
+      <td>
+        Entre 2,5 segundos y 4 segundos
+      </td>
+
+      <td>
+        Más de 4 segundos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Interaction to next paint**
+        </DNT>
+      </td>
+
+      <td>
+        Menos de 200 milisegundos
+      </td>
+
+      <td>
+        Entre 200 y 500 milisegundos
+      </td>
+
+      <td>
+        Más de 500 milisegundos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Cumulative layout shift**
+        </DNT>
+      </td>
+
+      <td>
+        Por debajo de 0,1
+      </td>
+
+      <td>
+        Entre 0,1 y 0,25
+      </td>
+
+      <td>
+        Por encima de 0,25
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  ### ¿Cómo se calcula la puntuación CLS?
+
+  La puntuación acumulativa de cambio de diseño es un valor sin unidades entre 0 e infinito, no una medida basada en el tiempo como los otros core web vitals. Refleja la suma del impacto de los cambios inesperados de diseño que ocurren durante el proceso de carga de una página web. Así es como se calcula la puntuación CLS:
+
+  * Puntuación de cambio de diseño: esto considera dos factores:
+
+    * Fracción de la ventana gráfica desplazada: qué parte del área visible de la página (ventana gráfica) se ve afectada por el cambio de diseño.
+    * Distancia del contenido movido: Qué tan lejos se desplazan los elementos que se movieron de su posición original.
+
+  * Múltiples cambios de diseño: la puntuación CLS considera todos los cambios de diseño que ocurren en un corto período de tiempo (ventana de sesión). La puntuación de la ventana de sesión más grande es el valor CLS final.
+</Callout>
+
+<DNT>**Good**</DNT> web vitals puede ayudar a su organización a ahorrar dinero y aumentar el SEO. <DNT>**Poor**</DNT> o <DNT>**Needs improvement**</DNT> pueden reflejar percepciones negativas de los usuarios sobre su organización, lo que podría generar clientes insatisfechos o pérdida de oportunidades comerciales.
+
+New Relic aprovecha [la biblioteca API`web-vitals` ](https://github.com/GoogleChrome/web-vitals)de Google para recopilar datos vitales web en su estado original, sin introducir cálculos adicionales. Para obtener más información sobre por qué son importantes los core web vitals y cómo se calculan, consulte el artículo de web.dev [rendimiento métrico centrado en el usuario](https://web.dev/articles/user-centric-performance-metrics).
+
+## Encuentre core web vitals en New Relic [#view-data-in-nr]
+
+Los core web vitals están integrados en muchas características New Relic , pero la mejor manera de ver web vitals en un alto nivel es:
+
+1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser**</DNT>.
+
+2. Seleccione una aplicación.
+
+3. En el menú de la izquierda, haga clic en <DNT>**Web vitals**</DNT>.
+
+   La página de **Web Vitals** muestra los promedios de Web Vitals para todo su sitio web. Desde esta vista, puede profundizar en páginas específicas o métricas para ver qué está impactando las puntuaciones.
+
+   <img
+     title="Track core web vitals site-wide, favorite key webpages, and filter by time period."
+     alt="overview of the web vitals page"
+     src="/images/browser_screenshot-full_web-vitals.gif"
+   />
+
+### Profundizar en páginas específicas [#drill-down]
+
+Si desea incluir información valiosa en una página importante (por ejemplo, una página de pago de comercio electrónico), búsquela en la tabla <DNT>**Page URL**</DNT> . Verá un desglose de lo que contribuye a los principales web de Métricas, que puede utilizar para comprender cómo el usuario final experimenta esas áreas de su sitio. Por ejemplo, si observa un patrón de rendimiento deficiente en el navegador Chrome, puede seleccionar mejoras futuras para esa base de usuarios.
+
+<img
+  title="Click on a page URL to see page-specific web vitals."
+  alt="Click on a page URL to see page-specific web vitals."
+  src="/images/browser_screenshot-full_page-url-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Monitor > Web vitals > (click on a page URL)**</DNT>: Vea un desglose de los principales web de Métricas para las páginas web más impactantes.
+</figcaption>
+
+### Filtrar por atributo clave [#key-attributes]
+
+Si desea investigar algo en particular, como cómo un cambio de backend o un problema de rendimiento afectó a los principales web de Métricas, puede utilizar la herramienta <DNT>**Filter by**</DNT> para filtrar cualquier atributo clave.
+
+<img
+  title="Use the filter tool to filter core web vitals by key attributes"
+  alt="Filter by key attributes"
+  src="/images/browser_screenshot-full_filtered-web-vitals.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Monitor > Web vitals > (add filters)**</DNT>: Utilice la herramienta de filtro para filtrar Métricas web principales por atributo clave.
+</figcaption>
+
+Aunque puede filtrar por casi cualquier atributo clave, siga leyendo para conocer algunos ejemplos útiles.
+
+<CollapserGroup>
+  <Collapser
+    id="device"
+    title="Por tipo de dispositivo"
+  >
+    Supongamos que desea comparar el rendimiento de la computadora de escritorio con el del dispositivo móvil y cómo las Métricas web principales difieren entre las dos plataformas. Para investigar esto en <DNT>**Web vitals**</DNT>:
+
+    1. En el campo
+
+       <DNT>
+         **Filter by**
+       </DNT>
+
+       , establezca
+
+       <DNT>
+         **Attribute**
+       </DNT>
+
+       en`deviceType` y
+
+       <DNT>
+         **Value**
+       </DNT>
+
+       en `desktop`.
+
+    2. En un browser duplicado, establezca
+
+       <DNT>
+         **Attribute**
+       </DNT>
+
+       en`deviceType` y
+
+       <DNT>
+         **Value**
+       </DNT>
+
+       en `mobile` y luego compare los resultados.
+  </Collapser>
+
+  <Collapser
+    id="user-info"
+    title="Por información del usuario"
+  >
+    Supongamos que un usuario final informó problemas de rendimiento en la página de pago de su sitio el 1 de noviembre, alrededor de las 12:00 p. m., y desea ver qué sucedió con este usuario. Para investigar esto en <DNT>**Web vitals**</DNT>:
+
+    1. Establezca el rango de tiempo al 1 de noviembre, entre las 11 a. m. y la 1 p. m.
+
+    2. En la tabla
+
+       <DNT>
+         **Page URL**
+       </DNT>
+
+       , haga clic en la URL de la página de pago.
+
+    3. En el campo
+
+       <DNT>
+         **Filter by**
+       </DNT>
+
+       , establezca
+
+       <DNT>
+         **Attribute**
+       </DNT>
+
+       en `userID` y
+
+       <DNT>
+         **Value**
+       </DNT>
+
+       en `user ID`.
+
+       <Callout
+         variant="tip"
+         title="Acerca del ID de usuario"
+       >
+         `userID` es un atributo personalizado que deberá configurar mediante la [API SPA del navegador](/docs/browser/new-relic-browser/browser-agent-spa-api/setcustomattribute-browser-agent-api/). Si `userID` no está disponible, también puede filtrar por otra información de usuario como `username` o `session`.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="resource"
+    title="Por recurso"
+  >
+    Supongamos que su organización actualizó recientemente imágenes en la página de inicio del sitio el 10 de noviembre a las 8 a. m. y desea ver si los cambios afectaron a Métricas web principales. Para investigar esto en <DNT>**Web vitals**</DNT>:
+
+    1. Establezca el rango de tiempo para el 10 de noviembre entre las 7 a. m. y las 9 a. m.
+
+    2. En la tabla
+
+       <DNT>
+         **Page URL**
+       </DNT>
+
+       , haga clic en la URL de la página de inicio.
+
+    3. En el campo
+
+       <DNT>
+         **Filter by**
+       </DNT>
+
+       , establezca
+
+       <DNT>
+         **Attribute**
+       </DNT>
+
+       en `elementTagName` y
+
+       <DNT>
+         **Value**
+       </DNT>
+
+       en `IMG`.
+  </Collapser>
+</CollapserGroup>
+
+## Obtén más contexto con el rastreo de sesión [#session-traces]
+
+New Relic captura datos sobre la sesión de un usuario en una página determinada. El rastreo de sesión se muestra aleatoriamente, lo que le permite ver cómo un usuario experimentó problemas de tiempo de carga de la página, eventos de JavaScript u otros errores.
+
+<img
+  title="Session traces in the New Relic UI"
+  alt="Session traces in Browser UI lets you look at real user sessions for a given page"
+  src="/images/browser_screenshot-crop_session-traces.gif"
+/>
+
+Recomendamos utilizar rastreo de sesión para encontrar patrones en diferentes sesiones de usuario. Si uno de sus puntajes principales web de Métricas podría mejorarse, una opción es mirar el rastreo de sesión para ver qué atributo común se comparte entre las diferentes sesiones de usuario. Aquí tienes un ejemplo de cómo el rastreo de sesión puede ayudarte a mejorar tu sitio:
+
+1. En la pestaña
+
+   <DNT>
+     **Web vitals**
+   </DNT>
+
+   , haga clic en la página que tiene un rendimiento deficiente. Usando la imagen de arriba como ejemplo, verá que su sitio tiene una buena puntuación LCP general, pero también notará que algunas de sus páginas individuales necesitan mejorar.
+
+2. Si observa la sección
+
+   <DNT>
+     **Page URLs**
+   </DNT>
+
+   de la página
+
+   <DNT>
+     **Web vitals**
+   </DNT>
+
+   , verá que la URL de su página de inicio tiene una puntuación LCP superior a cuatro segundos. ¿Se debe a un error que afecta a todos los usuarios o sólo afecta a un tipo de usuario? Por ejemplo, si nota que un usuario con una versión de Chrome o un determinado sistema operativo experimenta un tiempo de carga de la página lento, podrá solucionar mejor la causa específica del problema.
+
+3. Se abrirá una nueva ventana cuando haga clic en la URL que desea solucionar. Observa que su puntuación LCP es mucho más alta que la puntuación LCP general de su sitio. Al desplazarse a la sección
+
+   <DNT>
+     **Session traces**
+   </DNT>
+
+   en la parte inferior de esta página, verá varios ejemplos de sesiones de usuarios reales. Estas sesiones pueden brindarle detalles más granulares sobre cómo ese usuario experimentó solicitudes AJAX, problemas relacionados con la carga de DOM, eventos de JavaScript u otros errores.
+
+Los datos de sesiones aleatorias le ayudan a encontrar patrones en cientos o miles de interacciones de usuarios con una página web. Si aparece un patrón en estos datos seleccionados al azar, puede tener más confianza en que su plan para resolver un problema mejorará las puntuaciones de su página.
+
+<UserJourneyControls
+  nextStep={{"path":"/docs/tutorial-improve-site-performance/fixing-high-latency","title":"Próximo paso","body":"Encuentre problemas de latencia en sus servicios"}}
+  previousStep={{"path":"/docs/tutorial-improve-site-performance/improve-website-performance","title":"Paso anterior","body":"Instrumentado su sitio"}}
+/>

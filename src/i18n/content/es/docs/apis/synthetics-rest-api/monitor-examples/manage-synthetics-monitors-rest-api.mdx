@@ -1,0 +1,541 @@
+---
+title: API REST de sintéticos
+tags:
+  - APIs
+  - Synthetic monitoring REST API
+  - Monitor examples
+metaDescription: 'Use the New Relic synthetics REST API to create, delete, and manage synthetic monitors.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Utilice la API REST de sintéticos para crear y administrar [el monitor de monitoreo sintético](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#types-monitors).
+
+## Antes de que empieces [#before-you-start]
+
+Nuestra API REST de sintéticos es una forma de administrar su monitor de monitoreo sintético a través de API, pero la forma recomendada es usar [nuestra API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial).
+
+## Permisos [#permissions]
+
+Para utilizar la API REST de sintéticos, debe tener [permisos](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions) relacionados con el monitoreo sintético y un <InlinePopover type="userKey"/>.
+
+Puede [utilizar NRQL consulta para analizar cambios anteriores realizados a través de la API](/docs/synthetics/new-relic-synthetics/administration/audit-synthetics-account-changes).
+
+## Tipos de monitor en API [#api-names]
+
+Estos son los [tiposmonitor ](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#types-monitors)y cómo se denominan en la API REST de sintéticos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Tipo de monitor
+      </th>
+
+      <th>
+        Nombre de API
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Silbido
+      </td>
+
+      <td>
+        `SIMPLE`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Browser sencillo
+      </td>
+
+      <td>
+        `BROWSER`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Browser con script
+      </td>
+
+      <td>
+        `SCRIPT_BROWSER`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Prueba API
+      </td>
+
+      <td>
+        `SCRIPT_API`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Utilice la API [#use-api]
+
+Para utilizar la [API REST de monitoreo sintético](/docs/apis/synthetics-rest-api), debe tener la capacidad de administrar el monitor de monitoreo sintético y usar una [clave de usuario](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) (la clave de API REST no funcionará).
+
+Esta API se puede utilizar para todos los monitores de monitoreo sintético. (También hay disponibles métodos API adicionales para [browser con secuencias de comandos y monitores de prueba de API](#scripted-api-monitors-api) para actualizar las script asociadas con esos monitores). Todos los datos de monitoreo sintético están disponibles a través de la API. Los ejemplos de API muestran el comando curl.
+
+Para cuentas con sede en EE. UU., utilice el siguiente extremo:
+
+```
+https://synthetics.newrelic.com/synthetics/api
+```
+
+Para [cuentas basadas en la UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy), utilice el siguiente extremo:
+
+```
+https://synthetics.eu.newrelic.com/synthetics/api
+```
+
+<Callout variant="caution">
+  La API REST de monitoreo sintético limita la tasa de solicitudes de una cuenta a tres solicitudes por segundo. Las solicitudes realizadas que superen este umbral devolverán un código de respuesta `429` .
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="get-all-monitors"
+    title="Obtener todos los monitores"
+  >
+    Para ver una lista de todos los monitores en su cuenta New Relic, envíe una solicitud GET a `$API_ENDPOINT/v3/monitors`. Por ejemplo:
+
+    ```
+    curl -v \
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" $API_ENDPOINT/v3/monitors
+    ```
+
+    Una solicitud exitosa devolverá una respuesta `200 OK` . Los [datos devueltos](/docs/apis/synthetics-rest-api/monitor-examples/payload-attributes-synthetics-rest-api#api-attributes) serán un objeto JSON en el siguiente formato:
+
+    ```
+    {
+    	"monitors": [
+    		{
+    		"id": "2a1bc369-7654-489d-918e-f6g135h7i2jk",
+    		"name": "monitor1",
+    		"type": "BROWSER",
+    		"frequency": 60,
+    		"uri": "http://example.com",
+    		"locations": [
+    			"AWS_US_WEST_1"
+    				],
+    		"status": "DISABLED",
+    		"slaThreshold": 7,
+    		"options": {},
+    		"modifiedAt": "2016-09-26T23:12:46.981+0000",
+    		"createdAt": "2016-09-26T23:12:46.981+0000",
+    		"userId": 0,
+    		"apiVersion": "0.2.2"
+    		}
+    	],
+    	"count": 1
+    }
+    ```
+
+    Argumentos de consulta:
+
+    * `offset`: La compensación del recuento del monitor. El valor predeterminado es 0. Por ejemplo, si tiene 40 monitores y usa un valor de compensación de 20, devolverá el monitor 21-40.
+    * `limit`: El número de resultados por página, máximo 100. El valor predeterminado es 50.
+
+    Puede incluirlos en su comando curl de la siguiente manera:
+
+    ```
+    curl -v \
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" $API_ENDPOINT/v3/monitors \
+         -G -d 'offset=20&limit=100'
+    ```
+
+    Los encabezados incluyen un `Link` para ayudarle [a localizar fácilmente su monitor](/docs/apis/rest-api-v2/requirements/pagination-api-output). Por ejemplo:
+
+    ```
+    <https://synthetics.newrelic.com/synthetics/api/v3/monitors/?offset=0&limit=20>; rel="first", <https://synthetics.newrelic.com/synthetics/api/v3/monitors/?offset=40&limit=20>; rel="last"
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="get-specific-monitor"
+    title="Consigue un monitor específico"
+  >
+    Para ver un único monitor de monitoreo sintético, envíe una solicitud GET a `$API_ENDPOINT/v3/monitors/$MONITOR_ID`.
+
+    ```
+    curl -v \
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" $API_ENDPOINT/v3/monitors/$MONITOR_ID
+    ```
+
+    Una solicitud exitosa devolverá una respuesta `200 OK` . Los [datos devueltos](/docs/apis/synthetics-rest-api/monitor-examples/payload-attributes-synthetics-rest-api#api-attributes) serán un objeto JSON en el siguiente formato:
+
+    ```
+    {
+      "id": UUID,
+      "name": string,
+      "type": string,
+      "frequency": integer,
+      "uri": string,
+      "locations": array of strings,
+      "status": string,
+      "slaThreshold": double,
+      "userId": integer,
+      "apiVersion": string
+    }
+    ```
+
+    Una ID de monitor no válida devolverá `404 Not Found: The specified monitor doesn't exist`.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="create-monitor"
+    title="Crear un monitor"
+  >
+    Para agregar un nuevo monitor a su cuenta de monitoreo sintético, envíe una solicitud POST a `$API_ENDPOINT/v3/monitors` con una carga útil JSON que describa el monitor.
+
+    Todos los campos del siguiente ejemplo son obligatorios a menos que se indique lo contrario:
+
+    ```
+    {
+    "name": string [required],
+    "type": string (SIMPLE, BROWSER, SCRIPT_API, SCRIPT_BROWSER) [required],
+    "frequency": integer (minutes) [required, must be one of 1, 5, 10, 15, 30, 60, 360, 720, or 1440],
+    "uri": string [required for SIMPLE and BROWSER type],
+    "locations": array of strings [at least one required],
+    "status": string (ENABLED, DISABLED) [required],
+    "slaThreshold": double,
+    "options": {
+      "validationString": string [only valid for SIMPLE and BROWSER types],
+      "verifySSL": boolean (true, false) [only valid for SIMPLE and BROWSER types],
+      "bypassHEADRequest": boolean (true, false) [only valid for SIMPLE types],
+      "treatRedirectAsFailure": boolean (true, false) [only valid for SIMPLE types]
+      }
+    }
+    ```
+
+    Además, a <DNT>**add the script for a scripted monitor**</DNT> a través de la API REST se llama a [extremos de API adicionales](#scripted-api-monitors-api) para enviar el script para el monitor recién creado. Si está utilizando la ubicación privada con [la ejecución de script verificada](/docs/synthetics/new-relic-synthetics/private-locations/verified-script-execution-private-locations) habilitada, consulte [Ubicaciones de script con ejecución de script verificada](#scriptlocations).
+
+    Reemplace el [atributo de API REST de monitoreo sintético](/docs/apis/synthetics-rest-api/monitor-examples/payload-attributes-synthetics-rest-api) en el siguiente ejemplo con sus valores específicos:
+
+    ```
+    curl -v \
+         -X POST -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" \
+         -H 'Content-Type: application/json' $API_ENDPOINT/v3/monitors \
+         -d '{ "name" : "monitor1", "frequency" : 15, "uri" : "http://my-uri.com", "locations" : [ "AWS_US_WEST_1" ], "type" : "browser", "status" : "enabled", "slaThreshold" : "1.0"}'
+    ```
+
+    Una solicitud exitosa devolverá una respuesta `201 Created` , con el URI del monitor recién creado especificado en el encabezado `location` . Los posibles códigos de error incluyen:
+
+    * `400 Bad Request`: Uno o más de los valores del monitor no son válidos o el formato de la solicitud no es válido. Por ejemplo: la frecuencia está fuera de los límites o una o más de las ubicaciones especificadas no son válidas. (Consulte el mensaje de error en el cuerpo de la respuesta).
+    * `402 Payment Required`: La creación del monitor aumentará sus checks programados más allá del límite de checks comprados de su cuenta.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="update-monitor"
+    title="Actualizar un monitor existente"
+  >
+    Para actualizar un monitor existente en New Relic, envíe una solicitud PUT a `$API_ENDPOINT/v3/monitors/$MONITOR_ID`. Además, para monitores con script, siga los procedimientos para [actualizar el script codificado en BASE64](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitor-scripts-rest-api).
+
+    Todos los campos son obligatorios. Sin embargo, se cambiará el `TYPE` del monitor <DNT>**cannot**</DNT> .
+
+    Utilice un ID de monitor específico y reemplace el [atributo de API REST de monitoreo sintético](/docs/apis/synthetics-rest-api/monitor-examples/payload-attributes-synthetics-rest-api) con sus valores específicos.
+
+    ```
+    curl -v \
+         -X PUT -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" \
+         -H 'Content-Type: application/json' $API_ENDPOINT/v3/monitors/$MONITOR_ID \
+         -d '{ "name" : "updated monitor name", "type": "monitor type", "frequency" : 15, "uri" : "http://my-uri.com/", "locations" : [ "AWS_US_WEST_1" ], "status" : "enabled", "slaThreshold": "7.0" }'
+    ```
+
+    Las solicitudes PUT están destinadas a reemplazar la entidad objetivo, por lo que todos los atributos necesarios en la carga útil JSON al [crear un nuevo monitor](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitors-via-rest-api#add-simple-ping-monitor) también se requieren al actualizar un monitor existente.
+
+    Una solicitud exitosa devolverá una respuesta `204 No Content` con un cuerpo vacío. Los posibles códigos de error incluyen:
+
+    * `400 Bad Request`: Uno o más de los valores del monitor no son válidos o el formato de la solicitud no es válido. Por ejemplo, la frecuencia está fuera de los límites o una o más de las ubicaciones especificadas no son válidas. (Consulte el mensaje de error en el cuerpo de la respuesta).
+    * `404 Not Found`: El monitor especificado no existe.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="patch-monitor"
+    title="Parchear un monitor existente"
+  >
+    Para parchear un monitor existente en New Relic, envíe una solicitud PATCH a `$API_ENDPOINT/v3/monitors/$MONITOR_ID`.
+
+    Utilice un ID de monitor específico y reemplace el [atributo de API REST de monitoreo sintético](/docs/apis/synthetics-rest-api/monitor-examples/payload-attributes-synthetics-rest-api) con sus valores específicos.
+
+    ```
+    curl -v \
+         -X PATCH -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" \
+         -H 'Content-Type: application/json' $API_ENDPOINT/v3/monitors/$MONITOR_ID \
+         -d '{ "name" : "updated monitor name" }'
+    ```
+
+    Las solicitudes de PATCH están destinadas a actualizar un atributo individual de su monitor de monitoreo sintético en lugar de actualizar la entidad completa, por lo que puede proporcionar solo el atributo que desea actualizar.
+
+    Una solicitud exitosa devolverá una respuesta `204 No Content` con un cuerpo vacío. Los posibles códigos de error incluyen:
+
+    * `400 Bad Request`: Uno o más de los valores del monitor no son válidos o el formato de la solicitud no es válido. Por ejemplo, la frecuencia está fuera de los límites o una o más de las ubicaciones especificadas no son válidas. (Consulte el mensaje de error en el cuerpo de la respuesta).
+    * `404 Not Found`: El monitor especificado no existe.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="delete-monitor"
+    title="Eliminar un monitor existente"
+  >
+    Para eliminar un monitor existente en monitoreo sintético, envíe una solicitud DELETE al extremo`/v3/monitors/$MONITOR_ID`:
+
+    ```
+    curl -v \
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" \
+         -X DELETE $API_ENDPOINT/v3/monitors/$MONITOR_ID
+    ```
+
+    Una solicitud exitosa devolverá una respuesta `204 No Content` con un cuerpo vacío. Una solicitud fallida devolverá la respuesta `404 Not Found`: el monitor especificado no existe.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="list-locations"
+    title="Obtenga una lista de ubicaciones válidas"
+  >
+    Para recuperar la lista de ubicaciones válidas en su monitor de monitoreo sintético, use el siguiente comando:
+
+    ```
+    curl -v \
+         -X GET -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" $API_ENDPOINT/v1/locations
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## API script para browser con script y monitor de prueba de API [#scripted-api-monitors-api]
+
+Además de la API general, existen varios métodos API para el navegador con secuencias de comandos (`SCRIPT_BROWSER`) y el navegador de prueba API (`SCRIPT_API`). Estos ejemplos muestran el comando curl.
+
+<CollapserGroup>
+  <Collapser
+    id="get-all-monitors"
+    title="Obtener script de monitor"
+  >
+    Para ver el script asociado con un `SCRIPT_BROWSER` o `SCRIPT_API` específico en el monitor de monitoreo sintético de su cuenta, envíe una solicitud GET al extremo`/v3/monitors/$MONITOR_ID/script`. Por ejemplo:
+
+    ```
+    curl -v
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>"
+         $API_ENDPOINT/v3/monitors/$MONITOR_ID/script
+    ```
+
+    Una solicitud exitosa devolverá una respuesta `200 OK` . Los datos devueltos serán un objeto JSON en el siguiente formato:
+
+    ```
+    {
+      "scriptText": BASE64 encoded string
+    }
+    ```
+
+    Los posibles códigos de error incluyen:
+
+    * `403 Forbidden:` El monitor especificado no es de tipo script o script.
+    * `404 Not Found:` El monitor especificado no existe o el script asociado con el monitor no existe.
+  </Collapser>
+
+  <Collapser
+    id="procedure"
+    title="Agregar monitor con script"
+  >
+    Para agregar un nuevo monitor con script a sus monitores de monitoreo sintético con la API REST:
+
+    1. Siga [los procedimientos API estándar para agregar un nuevo monitor](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitors-rest-api#create-monitor) e identifique el `type` como `SCRIPT_BROWSER` o `SCRIPT_API`.
+
+    2. Actualice el nuevo monitor con una versión codificada en BASE64 del script hasta el extremo `$MONITOR_UUID/script` .
+
+       Para obtener más información, consulte el [ejemplo](#sample-script).
+
+       Si está utilizando la ubicación privada con [la ejecución de script verificada](/docs/synthetics/new-relic-synthetics/private-locations/verified-script-execution-private-locations) habilitada, consulte [Ubicaciones de script con ejecución de script verificada](#scriptlocations).
+  </Collapser>
+
+  <Collapser
+    id="update-monitor-script"
+    title="Actualizar scriptdel monitor"
+  >
+    Para actualizar el script asociado con un monitor `SCRIPT_BROWSER` o `SCRIPT_API` específico, envíe una solicitud PUT al extremo`/v3/monitors/$MONITOR_ID/script` con una carga útil JSON que contenga `scriptText` (obligatorio).
+
+    ```
+    scriptPayload='{"scriptText":BASE64 encoded string}'
+
+
+    curl -v -X PUT \
+         -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" \
+         -H 'Content-Type: application/json' \
+         $API_ENDPOINT/v3/monitors/$MONITOR_UUID/script \
+         -d $scriptPayload
+    ```
+
+    Si está utilizando la ubicación privada con [la ejecución de script verificada](/docs/synthetics/new-relic-synthetics/private-locations/verified-script-execution-private-locations) habilitada, consulte [Ubicaciones de script con ejecución de script verificada](#scriptlocations).
+
+    Una solicitud exitosa devolverá una respuesta `204 No Content` con un cuerpo vacío. Los posibles códigos de error incluyen:
+
+    * `400 Bad Request:` Cadena codificada en BASE64 no válida para `scriptText` o `hmac`.
+    * `403 Forbidden:` El monitor especificado no es del tipo `SCRIPT_BROWSER` o `SCRIPT_API`.
+    * `404 Not Found:` El monitor especificado no existe.
+  </Collapser>
+
+  <Collapser
+    id="scriptlocations"
+    title="Uso de scripts de ubicación privada con ejecución script verificada"
+  >
+    Al crear o actualizar un monitor para ubicación privada que tiene activada [la ejecución de script verificada](/docs/synthetics/new-relic-synthetics/private-locations/verified-script-execution-private-locations) , debe usar `scriptLocations` para establecer la contraseña:
+
+    ```
+    {
+      "scriptText": BASE64 encoded String,
+      "scriptLocations": [
+        {
+          "name": Location name,
+          "hmac" BASE64 encoded String of SHA256 HMAC for location
+        }
+      ]
+    }
+    ```
+
+    La contraseña utilizada para generar la cadena HMAC debe coincidir con la contraseña establecida para la ubicación privada. Si tiene varias ubicaciones con [la ejecución de script verificada](/docs/synthetics/new-relic-synthetics/private-locations/verified-script-execution-private-locations) habilitada, cada ubicación debe tener calculado el [HMAC](https://en.wikipedia.org/wiki/Hash-based_message_authentication_code) . Al generar la cadena HMAC, utilice el algoritmo SHA256 con el script y la contraseña.
+
+    Aquí hay un ejemplo del script:
+
+    ```
+    var assert = require('assert');
+    assert.equal('1', '1');
+    ```
+
+    Este ejemplo utiliza `password` como contraseña para `scriptLocation`:
+
+    ```
+    curl -v
+    	-X PUT -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>"
+    	-H 'content-type: application/json'
+    	$API_ENDPOINT}/v3/monitors/$MONITOR_ID/script
+    	-d '{ "scriptText": "dmFyIGFzc2VydCA9IHJlcXVpcmUoJ2Fzc2VydCcpOw0KYXNzZXJ0LmVxdWFsKCcxJywgJzEnKTs=","scriptLocations": [ { "name": "my_vse_enabled_location", "hmac": "MjhiNGE4MjVlMDE1N2M4NDQ4MjNjNDFkZDEyYTRjMmUzZDE3NGJlNjU0MWFmOTJlMzNiODExOGU2ZjhkZTY4ZQ=="} ]}'
+    ```
+
+    <Callout variant="important">
+      Debe eliminar el último carácter de nueva línea tanto del script como del valor HMAC calculado antes de codificar en BASE64.
+    </Callout>
+
+    Pasos de cálculo:
+
+    1. Calcule el valor HMAC del script. Una forma es utilizar: `cat script | openssl dgst -sha256 -hmac "password" > hmac`
+    2. Elimine el carácter de nueva línea si openssl agregó uno.
+    3. Codifique el HMAC en BASE64 sin saltos de línea.
+  </Collapser>
+</CollapserGroup>
+
+## Ejemplo browser con script
+
+A continuación se muestra un ejemplo del uso de la API REST de New Relic y el script bash para crear un script de monitor de navegador.
+
+<CollapserGroup>
+  <Collapser
+    id="sample-script"
+    title="Ejemplo de API browser con script"
+  >
+    El siguiente ejemplo muestra el comando curl para crear un script de monitor de navegador.
+
+    * En la parte superior del script, reemplace las variables con sus valores específicos.
+
+    * Para la variable `scriptfile` , identifique el nombre de archivo del script que se creará. A continuación se muestra un script de muestra que se puede guardar como `sample_synth_script.js` para utilizarlo en el ejemplo:
+
+      ```
+      var assert = require("assert");
+      $browser.get("http://example.com").then(function(){
+        // Check the H1 title matches "Example Domain"
+        return $browser.findElement($driver.By.css("h1")).then(function(element){
+          return element.getText().then(function(text){
+            assert.equal("Example Domain", text, "Page H1 title did not match");
+          });
+        });
+      }).then(function(){
+        // Check that the external link matches "http://www.iana.org/domains/example"
+        return $browser.findElement($driver.By.css("div > p > a")).then(function(element){
+          return element.getAttribute("href").then(function(link){
+            assert.equal("http://www.iana.org/domains/example", link, "More information link did not match");
+          });
+        });
+      });
+      ```
+  </Collapser>
+
+  <Collapser
+    id="bash-script"
+    title="Ejemplo de script bash"
+  >
+    Este ejemplo muestra el script bash que creará el monitor `SCRIPTED_BROWSER` .
+
+    <Callout variant="tip">
+      En algunos casos, es posible que desee utilizar `-w 0`, que deshabilitará el ajuste de línea: `base64 -w 0 $scriptfile`
+    </Callout>
+
+    ```
+    #!/bin/bash
+
+    # API key from your account settings
+    API_KEY=''
+    # Other attributes found at https://docs.newrelic.com/docs/apis/synthetics-rest-api/monitor-examples/attributes-synthetics-rest-api#api-attributes
+    monitorName='Test API Script'
+    monitorType='SCRIPT_BROWSER'
+    frequency=1440
+    locations='"AWS_US_WEST_1", "AWS_US_EAST_1"'
+    slaThreshold=7.0
+    # Location of the file with your script
+    scriptfile=sample_synth_script.js
+
+    # Test that the script file exists (does not validate content)
+    if [ -e "$scriptfile" ]
+    then
+      script=$(cat "$scriptfile")
+
+      payload="{  \"name\" : \"$monitorName\", \"frequency\" : $frequency,    \"locations\" : [ $locations ],   \"status\" : \"ENABLED\",  \"type\" : \"$monitorType\", \"slaThreshold\" : $slaThreshold, \"uri\":\"\"}"
+      echo "Creating monitor"
+
+      # Make curl call to API and parse response headers to get monitor UUID
+      shopt -s extglob # Required to trim whitespace; see below
+      while IFS=':' read key value; do
+        # trim whitespace in "value"
+        value=${value##+([[:space:]])}; value=${value%%+([[:space:]])}
+        case "$key" in
+            location) LOCATION="$value"
+                    ;;
+            HTTP*) read PROTO STATUS MSG <<< "$key{$value:+:$value}"
+                    ;;
+        esac
+      done < <(curl -sS -i  -X POST -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" -H 'Content-Type:application/json' https://synthetics.newrelic.com/synthetics/api/v3/monitors -d "$payload")
+
+      # Validate monitor creation & add script unless it failed
+      if [ $STATUS = 201 ]; then
+        echo "Monitor created, $LOCATION "
+        echo "Uploading script"
+          # base64 encode script
+          encoded=`echo "$script" | base64`
+          scriptPayload="{\"scriptText\":\"$encoded\"}"
+            curl -s -X PUT -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" -H 'Content-Type:application/json' "$LOCATION/script" -d $scriptPayload
+            echo "Script uploaded"
+      else
+        echo "Monitor creation failed"
+      fi
+
+    else
+      echo "script file not found, not creating monitor"
+    fi
+    ```
+  </Collapser>
+</CollapserGroup>

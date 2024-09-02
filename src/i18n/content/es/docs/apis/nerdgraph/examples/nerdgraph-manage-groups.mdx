@@ -1,0 +1,780 @@
+---
+title: 'Tutorial de NerdGraph: Administrar grupos de usuarios'
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: How to use New Relic's NerdGraph API to manage user groups and query information about groups.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar nuestra [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) para ver y administrar grupos de usuarios y a qué pueden acceder esos grupos. Para saber cómo hacer esto en la UI, consulte los [documentos de la UI de usuario de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks).
+
+Para usar NerdGraph para crear un usuario y ver su información, consulte [Administrar usuario con NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-manage-users).
+
+## Requisitos [#requirements]
+
+Algunos requisitos para gestionar usuarios y grupos a través de NerdGraph:
+
+* Se requiere [Pro o edición Enterprise](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) para personalizar grupos y roles de usuarios
+
+* Si está utilizando [el aprovisionamiento SCIM](/docs/accounts/accounts/automated-user-management/automated-user-provisioning-single-sign): para ese dominio de autenticación, no puede crear grupos ni agregar usuarios a los grupos, porque sus grupos y usuarios se administran a través de SCIM.
+
+* Debes ser un usuario de [nuestro modelo de usuario más nuevo](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models#determine-user-model). Otros requisitos relacionados con los permisos:
+
+  * [Tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) requerido: usuario principal o usuario de plataforma completa
+
+  * [Configuración de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings) requerida:
+
+    <DNT>
+      **Organization settings**
+    </DNT>
+
+    o
+
+    <DNT>
+      **Authentication domain settings**
+    </DNT>
+
+## Antes de que empieces [#concepts]
+
+Antes de usar NerdGraph para administrar usuarios:
+
+* Asegúrese de tener una comprensión adecuada de nuestros [conceptos de gestión de usuarios.](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#understand-concepts)
+
+* Si aún no lo ha hecho, le sugerimos que consulte la UI
+
+  <DNT>
+    **Access management**
+  </DNT>
+
+  para comprender mejor cómo funcionan los grupos y el acceso de los usuarios, y comprender los grupos que ya existen. Antes de hacer esto, le recomendamos crear un plan para el acceso del grupo que necesita crear: aquí hay [un ejemplo de hoja de cálculo de planificación](https://docs.google.com/spreadsheets/d/1FnguDXRUX9FGY14oV4Gx6O08v4vNC2Pv0GGCsU7Pxuw/edit?usp=sharing).
+
+* Tenga en cuenta que el [explorador NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#explorer) tiene documentos integrados que definen los campos utilizados en estas solicitudes.
+
+* Tenga en cuenta que puede [realizar un seguimiento de los cambios en su cuenta New Relic](/docs/data-apis/understand-data/event-data/query-account-audit-logs-nrauditevent).
+
+## Flujo de trabajo sugerido para la creación de grupos. [#flow]
+
+Puede utilizar estas consultas y mutaciones de varias maneras y en varios órdenes, pero aquí hay un flujo de trabajo común para configurar grupos:
+
+1. [Consulta la información de tu usuario](#query-users) y [los roles disponibles](#query-roles): este puede ser un primer lugar útil para comenzar a asegurarte de comprender qué usuario tienes en New Relic y los roles disponibles. Si recién está comenzando, es posible que aún no haya agregado un usuario y que solo tenga nuestros roles estándar.
+
+2. [Opcional: crear un grupo nuevo](#create-group):
+
+   <DNT>
+     **Not available if using SCIM provisioning.**
+   </DNT>
+
+   Puede utilizar grupos existentes o crear un grupo nuevo. Después de crear un grupo, debes otorgarle acceso a roles y cuentas. Tenga en cuenta que un grupo, por sí solo, no otorga ningún acceso a los usuarios de ese grupo: solo cuando tiene un rol y una cuenta asignados, el usuario puede acceder a New Relic.
+
+3. [Otorgar acceso a un grupo](#grant-access): esto es lo que asigna a los grupos acceso a roles y cuentas.
+
+Cuando haya terminado, si ya hay usuarios en el grupo que ha creado y ese grupo tiene acceso a al menos una función y cuenta, deberían tener acceso en unos minutos (aunque para [las cuentas New Relic de la región de la UE](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers), esto puede tomar hasta 20 minutos aproximadamente). Si su usuario aún no está en ese grupo (lo cual sería cierto si acaba de crear un grupo nuevo), puede [agregar un usuario a ese grupo](/docs/accounts/accounts-billing/new-relic-one-user-management/account-user-mgmt-tutorial#add-users).
+
+## Grupos de consulta [#query-groups]
+
+A continuación se muestra un ejemplo de consulta de grupos existentes en un dominio de autenticación determinado:
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(id: "YOUR_AUTHENTICATION_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                displayName
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Consultar roles existentes [#query-roles]
+
+A continuación se muestra un ejemplo de cómo devolver información sobre roles:
+
+```graphql
+{
+  actor {
+    organization {
+      authorizationManagement {
+        authenticationDomains {
+          authenticationDomains {
+            groups {
+              groups {
+                roles {
+                  roles {
+                    accountId
+                    displayName
+                    id
+                    name
+                    organizationId
+                    type
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Aquí hay un resultado de ejemplo:
+
+```graphql
+{
+  "data": {
+    "actor": {
+      "organization": {
+        "authorizationManagement": {
+          "authenticationDomains": {
+            "authenticationDomains": [
+              {
+                "groups": {
+                  "groups": [
+                    {
+                      "roles": {
+                        "roles": [
+                          {
+                            "accountId": "account-id",
+                            "displayName": "name",
+                            "id": "id",
+                            "name": "role-name",
+                            "organizationId": null,
+                            "type": "role-type"
+                          },
+                          {
+                            "accountId":null,
+                            "displayName": "name",
+                            "id": "id",
+                            "name": "role-name",
+                            "organizationId": "organization-id",
+                            "type": "role-type"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Consulta usuario [#query-users]
+
+### Consultar información del usuario [#query-user-info]
+
+A continuación se muestra un ejemplo de consulta de información sobre su usuario:
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains {
+          authenticationDomains {
+            groups {
+              groups {
+                users {
+                  users {
+                    id
+                    email
+                    name
+                    timeZone
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Aquí hay un resultado de ejemplo:
+
+```graphql
+{
+  "data": {
+    "actor": {
+      "organization": {
+        "userManagement": {
+          "authenticationDomains": {
+            "authenticationDomains": [
+              {
+                "groups": {
+                  "groups": [
+                    {
+                      "users": {
+                        "users": [
+                          {
+                            "email": "example@newrelic.com",
+                            "id": "123456789",
+                            "name": "Example Relic",
+                            "timeZone": "Etc/UTC"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Consulta las membresías del grupo de tus usuarios [#query-user-groups]
+
+A continuación se muestra un ejemplo de consulta de los grupos a los que pertenece su usuario:
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains {
+          authenticationDomains {
+            users {
+              users {
+                groups {
+                  groups {
+                    displayName
+                  }
+                }
+                email
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Aquí hay un ejemplo de respuesta:
+
+```graphql
+{
+  "data": {
+    "actor": {
+      "organization": {
+        "userManagement": {
+          "authenticationDomains": {
+            "authenticationDomains": [
+              {
+                "users": {
+                  "users": [
+                    {
+                      "email": "pete@example.com",
+                      "groups": {
+                        "groups": [
+                          {
+                            "displayName": "Admin"
+                          },
+                          {
+                            "displayName": "Basic Sub Account"
+                          }
+                        ]
+                      }
+                    },
+```
+
+## Crear un grupo [#create-group]
+
+A continuación se muestra un ejemplo de cómo crear un [grupo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#groups):
+
+```graphql
+mutation {
+  userManagementCreateGroup(createGroupOptions: {authenticationDomainId: "YOUR_AUTH_DOMAIN_ID", displayName: "GROUP_DISPLAY_NAME"}) {
+    group {
+      displayName
+      id
+    }
+  }
+}
+```
+
+Respuesta exitosa:
+
+```json
+{
+  "data": {
+    "userManagementCreateGroup": {
+      "group": {
+        "displayName": "GROUP_DISPLAY_NAME"
+	  "id": "GROUP_ID"
+      }
+    }
+  }
+}
+```
+
+## Actualizar grupo de usuarios [#update-group]
+
+A continuación se muestra un ejemplo de cómo actualizar un [grupo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#groups).
+
+```graphql
+mutation {
+  userManagementUpdateGroup(updateGroupOptions: {displayName: "YOUR_UPDATED_GROUP_NAME", id: "YOUR_GROUP_ID"}) {
+    group {
+      id
+      displayName
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "userManagementUpdateGroup": {
+      "group": {
+        "displayName": "YOUR_UPDATED_GROUP_NAME",
+        "id": "GROUP_ID"
+      }
+    }
+  }
+}
+```
+
+Respuesta ante el fracaso:
+
+```json
+{
+  "data": {
+    "userManagementUpdateGroup": null
+  },
+  "errors": [
+    {
+      "extensions": {
+        "errorClass": "SERVER_ERROR"
+      },
+      "locations": [
+        {
+          "column": 3,
+          "line": 2
+        }
+      ],
+      "message": "Group could not be found",
+      "path": [
+        "userManagementUpdateGroup"
+      ]
+    }
+  ]
+}
+```
+
+## Eliminar un grupo [#delete-group]
+
+A continuación se muestra un ejemplo de eliminación de un [grupo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#groups):
+
+```graphql
+mutation {
+  userManagementDeleteGroup(groupOptions: {id: "YOUR_GROUP_ID"}) {
+    group {
+      id
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "userManagementDeleteGroup": {
+      "group": {
+        "id": "GROUP_ID"
+      }
+    }
+  }
+}
+```
+
+Respuesta ante el fracaso:
+
+```json
+{
+  "data": {
+    "userManagementDeleteGroup": null
+  },
+  "errors": [
+    {
+      "extensions": {
+        "errorClass": "SERVER_ERROR"
+      },
+      "locations": [
+        {
+          "column": 3,
+          "line": 2
+        }
+      ],
+      "message": "Couldn't find Group with 'id'='ENTERED_GROUP_ID",
+      "path": [
+        "userManagementDeleteGroup"
+      ]
+    }
+  ]
+}
+```
+
+## Agregar usuario a grupos [#add-users]
+
+A continuación se muestra un ejemplo de cómo agregar usuarios a grupos:
+
+```graphql
+mutation {
+  userManagementAddUsersToGroups(addUsersToGroupsOptions: {groupIds: [FIRST_GROUP_ID, SECOND_GROUP_ID], userIds: [YOUR_USERS_IDS]}) {
+    groups {
+      displayName
+      id
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "userManagementAddUsersToGroups": {
+      "groups": [
+        {
+          "displayName": "GROUP_1_NAME",
+          "id": "GROUP_ID_1"
+        },
+        {
+          "displayName": "GROUP_NAME_2",
+          "id": "GROUP_ID_2"
+        }
+      ]
+    }
+  }
+}
+```
+
+Respuesta ante el fracaso:
+
+```json
+{
+  "data": {
+    "userManagementAddUsersToGroups": null
+  },
+  "errors": [
+    {
+      "extensions": {
+        "errorClass": "SERVER_ERROR"
+      },
+      "locations": [
+        {
+          "column": 3,
+          "line": 2
+        }
+      ],
+      "message": "The following ids were not found: group_ids: 'NON_EXISTENT_GROUP_ID'",
+      "path": [
+        "userManagementAddUsersToGroups"
+      ]
+    }
+  ]
+}
+```
+
+## Eliminar usuario de grupos [#remove-users]
+
+A continuación se muestra un ejemplo de cómo eliminar usuarios de grupos:
+
+```graphql
+mutation {
+  userManagementRemoveUsersFromGroups(removeUsersFromGroupsOptions: {groupIds: [YOUR_GROUP_IDS], userIds: [YOUR_USER_IDS]}) {
+    groups {
+      displayName
+      id
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "userManagementRemoveUsersFromGroups": {
+      "groups": [
+        {
+          "displayName": "YOUR_GROUP_NAME",
+          "id": "YOUR_GROUP_ID"
+        }
+      ]
+    }
+  }
+}
+```
+
+Respuesta ante el fracaso:
+
+```json
+{
+  "data": {
+    "userManagementRemoveUsersFromGroups": null
+  },
+  "errors": [
+    {
+      "extensions": {
+        "errorClass": "SERVER_ERROR"
+      },
+      "locations": [
+        {
+          "column": 3,
+          "line": 2
+        }
+      ],
+      "message": "The following ids were not found: user_ids: 'NON-EXISTENT_USER_ID'",
+      "path": [
+        "userManagementRemoveUsersFromGroups"
+      ]
+    }
+  ]
+}
+```
+
+## Conceder acceso a un grupo [#grant-access]
+
+A continuación se muestra un ejemplo de cómo otorgar acceso a un grupo a una función y una cuenta:
+
+```graphql
+mutation {
+  authorizationManagementGrantAccess(grantAccessOptions: {groupId: "YOUR_GROUP_ID", accountAccessGrants: {accountId: YOUR_ACCOUNT_ID, roleId: "YOUR_ROLE_ID"}}) {
+    roles {
+      displayName
+      accountId
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "authorizationManagementGrantAccess": {
+      "roles": [
+        {
+          "displayName": "ROLE_NAME_1",
+          "id": "ROLE_ID_1"
+        },
+        {
+          "displayName": "ROLE_NAME_2",
+          "id": "ROLE_ID_2"
+        },
+        {
+          "displayName": "ROLE_NAME_3",
+          "id": "ROLE_ID_3"
+        },
+        {
+          "displayName": "ROLE_NAME_4",
+          "id": "ROLE_ID_4"
+        }
+      ]
+    }
+  }
+}
+```
+
+Respuesta ante el fracaso:
+
+```json
+{
+  "data": {
+    "authorizationManagementGrantAccess": null
+  },
+  "errors": [
+    {
+      "extensions": {
+        "errorClass": "SERVER_ERROR"
+      },
+      "locations": [
+        {
+          "column": 3,
+          "line": 2
+        }
+      ],
+      "message": "Validation failed: Role must exist, Role can't be blank, Role scope does not match granted_on type",
+      "path": [
+        "authorizationManagementGrantAccess"
+      ]
+    }
+  ]
+}
+```
+
+## Buscar un ID de rol [#role-id]
+
+Para algunos casos de uso, como otorgar acceso a un grupo, es posible que necesite el ID de un rol: el ID numérico que representa ese rol en New Relic.
+
+A continuación se muestran algunos ID de nuestras [funciones](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles) predeterminadas y [configuraciones de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings):
+
+* <DNT>
+    **All product admin**
+  </DNT>
+
+  : `1254`.
+
+* <DNT>
+    **Standard user**
+  </DNT>
+
+  : `1253`.
+
+* <DNT>
+    **Read only**
+  </DNT>
+
+  : `1252`.
+
+* <DNT>
+    **Organization manager setting**
+  </DNT>
+
+  `1994`
+
+  * <DNT>
+      **Read only**
+    </DNT>
+
+    : `1995`
+
+* <DNT>
+    **Authentication domain setting**
+  </DNT>
+
+  :
+
+  * <DNT>
+      **Manage**
+    </DNT>
+
+    : `1996`
+
+  * <DNT>
+      **Read only**
+    </DNT>
+
+    : `1997`
+
+  * <DNT>
+      **Add users**
+    </DNT>
+
+    : `14517`
+
+  * <DNT>
+      **Read users**
+    </DNT>
+
+    : `14603`
+
+* <DNT>
+    **Group admin**
+  </DNT>
+
+  : `14516`
+
+Aquí hay una consulta para encontrar el ID de un rol personalizado:
+
+```graphql
+{
+  actor {
+    organization {
+      authorizationManagement {
+        authenticationDomains(id: "YOUR_AUTHENTICATION_DOMAIN_ID") {
+          authenticationDomains {
+            groups {
+              groups {
+                displayName
+                id
+                roles {
+                  roles
+
+{                     roleId                     name                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Revocar subvenciones del grupo [#revoke-grants]
+
+A continuación se muestra un ejemplo de cómo eliminar el acceso de un grupo:
+
+```graphql
+mutation {
+  authorizationManagementRevokeAccess(revokeAccessOptions: {accountAccessGrants: {accountId: YOUR_ACCOUNT_ID, roleId: "YOUR_ROLE_ID"}, groupId: "YOUR_GROUP_ID"}) {
+    roles {
+      accountId
+      displayName
+    }
+  }
+}
+```
+
+Respuesta para el éxito:
+
+```json
+{
+  "data": {
+    "authorizationManagementRevokeAccess": {
+      "roles": [
+         {
+          "displayName": "ROLE_NAME_1",
+          "id": "ROLE_ID_1"
+        },
+        {
+          "displayName": "ROLE_NAME_2",
+          "id": "ROLE_ID_2"
+        },
+        {
+          "displayName": "ROLE_NAME_3",
+          "id": "ROLE_ID_3"
+        }
+      ]
+    }
+  }
+}
+```

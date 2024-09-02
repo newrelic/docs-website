@@ -1,0 +1,189 @@
+---
+title: ドロップフィルターを使用して機密データを削除する
+metaDescription: Drop filters prompts AI monitoring to drop attributes containing sensitive data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+機密性の高い AI データを New Relic に送信する前に削除するには 2 つのオプションがあります。 このドキュメントでは、エージェントが収集するデータの種類をより適切に制御できるように、これら 2 つの方法について説明します。
+
+## ai.monitoring.record\_content.enabled を無効にする [#disable-event]
+
+`ai_monitoring.record_content.enabled`を無効にすると、エンドユーザーのプロンプトと AI 応答を含むイベント データは NRDB に送信されません。 エージェント設定の詳細については[、AIモニタリング設定のドキュメントを](/docs/ai-monitoring/customize-agent-ai-monitoring)ご覧ください。
+
+## ドロップフィルターの作成 [#create-filter]
+
+<Callout variant="caution">
+  データを削除する場合は注意が必要です。 削除したデータは回復できません。 この機能を使用する前に、[データ コンプライアンスの責任を確認してください](#responsibilities)。
+</Callout>
+
+1 つのドロップ フィルターは 1 つのイベント タイプ内の指定されたプロパティを対象としますが、1 つの AI インタラクションからの機密情報は複数のイベントに保存されます。 NRDB に入る前に情報をドロップするには、6 つの個別のドロップ フィルターが必要です。
+
+<img title="Create a set of drop filters by adding events you want to drop data from" alt="A gif displaying the workflow for creating a set of drop filters" src="/images/ai_screenshot-crop_drop-filter-modal.gif" />
+
+<figcaption>
+  <DNT>**[one.newrelic.com](https://one.newrelic.com) &amp;gt; All capabilities &amp;gt; AI monitoring &amp;gt; Drop filters**</DNT>から: ドロップ フィルターを作成するには、機密データが含まれる可能性のあるイベントを選択し、ドロップするデータのタイプに対応する正規表現を選択します。
+</figcaption>
+
+1. <DNT>**[one.newrelic.com](https://one.newrelic.com) &amp;gt; All capabilities &amp;gt; AI monitoring &amp;gt; Drop filters**</DNT>に移動し、 <DNT>**Create drop filter**</DNT>をクリックします。
+2. フィルター名を作成します。 「クレジットカード」、「電子メール」、「住所」など、ドロップされた情報に基づいて名前を作成することをお勧めします。
+3. 情報を削除するイベントを選択するか、すべてのイベントから削除することを選択します。
+4. ドロップ フィルターに正規表現を割り当てます。 ドロップ フィルターのセットを作成するときに複数のイベントを選択できますが、フィルターの作成ごとに選択できる正規表現タイプは 1 つだけであることに注意してください。
+5. 削除する他の種類の情報については、上記の手順を繰り返します。 たとえば、最初のセットに正規表現を割り当ててクレジットカード情報を削除した場合、次のセットでは別の種類の情報の属性を削除する必要があります。
+
+## ドロップフィルターの仕組み [#drop-rules-work]
+
+一般的な AI インタラクションでは、プロンプトまたはリクエストは特定のプロセス (埋め込みなど) を経て、個別のイベントとして記録されます。 たとえば、顧客がファイルに保存されている住所を要求したとします。 モデルはプロンプトを処理し、さまざまなサービスやデータベースを通じて追加のコンテキストを取得します。 AI アシスタントは、要求された情報を含む応答を返します。
+
+ドロップ フィルターには、次の 3 つの部分が含まれます。
+
+* **イベント**: システム内のインタラクションから保存された記録。
+* **Regex** : 情報の種類に対応する文字と演算子の文字列。
+* **一致基準**(オプション): ドロップ フィルターに詳細度を追加する NRQL 句。 たとえば、 `openai`からデータを削除するだけの場合は、 `vendor IN ('openai')`
+
+ドロップ フィルターは、データ取り込みパイプライン内でエージェントによって転送されたデータを評価し、機密情報をドロップできるようにします。
+
+### Regex
+
+エージェントのデフォルトの動作は、New Relic に送信する前にイベント データのすべての部分をキャプチャすることであるため、機密情報を正規表現と照合するように取り込みパイプラインに指示する必要があります。 正規表現を使用して属性をターゲットにすることで、データベースに機密情報を保存せずにイベント自体をキャプチャできます。
+
+最初のクエリの作成を開始するには、以下の正規表現を参照してください。
+
+<CollapserGroup>
+  <Collapser id="cahcn" title="カナダ健康保険証番号">
+    **表現：**
+
+    ```regex
+    (\d{10})
+    ```
+  </Collapser>
+
+  <Collapser id="caphin" title="カナダの個人健康/社会保険番号 (PHIN/SIN)">
+    **表現：**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{3}[-\s\.]?\d{3})
+    ```
+  </Collapser>
+
+  <Collapser id="email" title="電子メールアドレス">
+    **表現：**
+
+    ```regex
+    ([a-zA-Z0-9!#$'*+?^_`{|}~.-]+(?:@|%40)(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+)
+    ```
+  </Collapser>
+
+  <Collapser id="indiapanid" title="インドのPAN ID">
+    **表現：**
+
+    ```regex
+    ([a-zA-Z]){5}([0-9]){4}([a-zA-Z]){1}?
+    ```
+  </Collapser>
+
+  <Collapser id="indiaaadhaar" title="インド AADHAAR ID">
+    **表現：**
+
+    ```regex
+    ([2-9]{1}[0-9]{3}\s\d{4}\s\d{4})
+    ```
+  </Collapser>
+
+  <Collapser id="ipv4" title="IPアドレス（IPv4）">
+    **表現：**
+
+    ```regex
+    ([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})
+    ```
+  </Collapser>
+
+  <Collapser id="japanid" title="日本の国民識別番号（マイナンバー）">
+    **表現：**
+
+    ```regex
+    (d{4}\sd{4}\sd{4})
+    ```
+  </Collapser>
+
+  <Collapser id="spainnid" title="スペイン国民 ID (NIE/DNI/NIF)">
+    **表現：**
+
+    ```regex
+    ([a-zA-Z]?[-\s]?\d{7,8}[-\s]?[a-zA-Z])
+    ```
+  </Collapser>
+
+  <Collapser id="ssn" title="米国の社会保障番号">
+    **表現：**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{2}[-\s\.]?\d{4})
+    ```
+  </Collapser>
+
+  <Collapser id="uknino" title="英国国民保険番号 (NINO)">
+    **表現：**
+
+    ```regex
+    ([a-zA-Z]{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?[a-dA-D])
+    ```
+  </Collapser>
+
+  <Collapser id="usstreetaddress" title="米国の住所">
+    **表現：**
+
+    ```regex
+    \d{1,}(\s{1}\w{1,})(\s{1}?\w{1,})
+    ```
+  </Collapser>
+
+  <Collapser id="usphone" title="米国の電話番号">
+    **表現：**
+
+    ```regex
+    (^[\+]?[1]?[\W]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4})
+    ```
+  </Collapser>
+
+  <Collapser id="uspassport" title="米国のパスポート番号">
+    **表現：**
+
+    ```regex
+    ([a-zA-Z]?\d?\d{5,8})
+    ```
+  </Collapser>
+
+  <Collapser id="dob" title="米国の生年月日">
+    **表現：**
+
+    ```regex
+    ((?:\d{2})?\d\d(?:\\)?(?:\/)?\d\d(?:\\)?(?:\/)?\d{2}(?:\d{2})?)
+    ```
+  </Collapser>
+
+  <Collapser id="ccn" title="クレジットカード番号">
+    **表現：**
+
+    ```regex
+    ((?:(?:4\d{3})|(?:5[1-5]\d{2})|6(?:011|5[0-9]{2}))(?:-?|\040?)(?:\d{4}(?:-?|\040?)){3}|(?:3[4,7]\d{2})(?:-?|\040?)\d{6}(?:-?|\040?)\d{5})
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## データコンプライアンスの責任 [#responsibilities]
+
+New Relic は、この機能がデータ開示の問題を完全に解決することを保証できません。また、NRQL クエリを構築するためのサポートを提供することもできません。 以下のことをお勧めします:
+
+* ドロップ フィルターを確認し、ドロップするデータを正確に識別して破棄していることを確認します。
+* ドロップ フィルターを作成した後も、ドロップ フィルターが機密情報をドロップしていることを確認してください。
+
+ドロップ フィルターは、エンドユーザーに関する個人情報が NRDB に保存されないようにするのに役立ちますが、ルールの作成自体は、データやシステムの形式など、維持するデータの種類を暗黙的に示します。 特定の権限により、ユーザーは作成したルール内のすべての情報を表示および編集できるため、これは組織内の特定のユーザーの制御権限を決定するときに重要です。
+
+## 次は何ですか？ [#whats-next]
+
+顧客のデータを保護したので、AI モニタリングを探索できます。
+
+* [AI データの探索方法を学びましょう](/docs/ai-monitoring/view-ai-data)。
+* データの取り込みを調整したいですか? [AI モニタリングの構成方法について学びます](/docs/ai-monitoring/customize-agent-ai-monitoring)。
+* ログを有効にしましたか? ログから[機密情報を難読化する](/docs/logs/ui-data/obfuscation-ui)方法、または[機密情報が含まれている場合にログメッセージ全体を削除する](/docs/logs/ui-data/drop-data-drop-filter-rules)方法を学びます。

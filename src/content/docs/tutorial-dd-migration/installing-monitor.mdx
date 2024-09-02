@@ -1,0 +1,457 @@
+---
+title: "Start ingesting your data"
+metaDescription: "How to install an agent to begin monitoring your data in New Relic."
+redirects:
+  - /docs/journey-migration/migrating-infra/
+  - /docs/tutorial-dd-migration/migrating-infra/
+  - /docs/tutorial-dd-migration/migrating-apm/
+  - /docs/tutorial-dd-migration/migrating-logs/
+  - /docs/journey-migration/installing-monitor/
+freshnessValidatedDate: 2023-06-16
+---
+
+The first step to trying out New Relic for yourself is ingesting some data to monitor. The most useful places to start are an infrastructure agent, application monitor (APM), or log monitoring capabilities. Once you do, you can begin visualizing your data immediately using our automatically generated, highly granular dashboards. You can also setup premade dashboards and alerts, or begin using any of the other advanced features listed in the [final doc](/docs/tutorial-dd-migration/making-the-switch/#do-more) of this series.
+
+Nearly any feature you want to try will be available to you for free once you install a monitoring capability: just choose one an option below to get started!
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="infra">
+      Infrastructure
+    </TabsBarItem>
+
+    <TabsBarItem id="apm">
+      Application
+    </TabsBarItem>
+
+    <TabsBarItem id="logs">
+      Logs
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="infra">
+      <SideBySide>
+        <Side>
+          <img
+            title="infrastructure_dashboards"
+            alt="An image displaying New Relic's infrastructure monitoring dashboard"
+            src="/images/infrastructure_screenshot-crop_migration-dashboard.webp"
+          />
+        </Side>
+
+        <Side>
+          Monitoring your infrastructure can be daunting. Gathering the data from your servers, databases, cloud platforms, and hosted services is only the first task, and once you've set all that up, you still need to find ways to make sense of it all.
+
+          New Relic makes it easy for you to see what's going on inside your infrastructure, whether it runs in the cloud or dedicated hosts. In Datadog, you may be familiar with these capabilities as <DNT>**agents**</DNT>, and we call the same infrastructure capabilities <DNT>**agents**</DNT> at New Relic as well.
+        </Side>
+      </SideBySide>
+
+      Here's how we organize our infrastructure agents and integrations:
+
+      * Infrastructure agents for Linux, macOS, and Windows operating systems with guided and manual install options
+      * An agent for for [Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/)
+      * Cloud agents for Amazon AWS, Microsoft Azure, and Google Cloud Platform that you can install independently of our infrastructure agents
+      * On-host integration agents for services like MySQL, Apache, Docker, and Kafka that work together with our infrastructure agent to maximize your data reporting
+
+      As long as your system and on-host integrations meet our [minimum requirements](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent/), all you need to try is a [free New Relic account](https://newrelic.com/signup) and you can start right away.
+
+      ## Get started with New Relic infrastructure monitoring [#get-started-infra]
+
+      Your infrastructure data in New Relic is located in the [<DNT>**one.newrelic.com > Infrastructure**</DNT>](https://one.newrelic.com/infra) section of the UI, exactly the same as Datadog. The fastest way to get an infrastructure monitor up and running can be done through our [guided installation](https://one.newrelic.com/launcher/nr1-core.explorer?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGl2ZUNvbXBvbmVudCI6IlZUU09FbnZpcm9ubWVudCIsInBhdGgiOiJndWlkZWQifQ==) path, which you can find within [<DNT>**one.newrelic.com**</DNT>](https://one.newrelic.com) by selecting <DNT>**Integrations & Agents > All > Guided install**</DNT>.
+
+      <Tabs>
+        <TabsBar>
+          <TabsBarItem id="windows">
+            Windows
+          </TabsBarItem>
+
+          <TabsBarItem id="linux">
+            Linux
+          </TabsBarItem>
+
+          <TabsBarItem id="macos">
+            macOS
+          </TabsBarItem>
+
+          <TabsBarItem id="k8s">
+            Kubernetes
+          </TabsBarItem>
+
+          <TabsBarItem id="docker">
+            Docker
+          </TabsBarItem>
+        </TabsBar>
+
+        <TabsPages>
+          <TabsPageItem id="windows">
+            <SideBySide>
+              <Side>
+                <img
+                  title="Windows guided install"
+                  alt="An image displaying New Relic's guided installation for Windows"
+                  src="/images/infrastructure_screenshot-crop_guided-windows.webp"
+                />
+              </Side>
+
+              <Side>
+                <Steps>
+                  <Step>
+                    Select the New Relic account you want to monitor your infrastructure data.  
+
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Windows**</DNT> under the <DNT>**Auto-discovery**</DNT> section.
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Begin installation**</DNT>.
+                  </Step>
+                </Steps>
+
+                New Relic will provide a command for you to run on your Windows system. Just copy the command, open <DNT>**Powershell**</DNT> as an administrator, paste and run the command, and you're done!
+              </Side>
+            </SideBySide>
+          </TabsPageItem>
+
+          <TabsPageItem id="linux">
+            <SideBySide>
+              <Side>
+                <img
+                  title="Linux guided install"
+                  alt="An image displaying New Relic's guided installation for Linux"
+                  src="/images/infrastructure_screenshot-crop_guided-linux.webp"
+                />
+              </Side>
+
+              <Side>
+                <Steps>
+                  <Step>
+                    Select the New Relic account you want to monitor your infrastructure data.  
+
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Linux**</DNT> under the <DNT>**Auto-discovery**</DNT> section.
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Begin installation**</DNT>.
+                  </Step>
+                </Steps>
+
+                New Relic will provide a command for you to run on your Linux host. Just copy, paste, and run the command on your host, answer the prompts, and you're done!
+              </Side>
+            </SideBySide>
+          </TabsPageItem>
+
+          <TabsPageItem id="macos">
+            <SideBySide>
+              <Side>
+                <img
+                  title="macOS guided install"
+                  alt="An image displaying New Relic's guided installation for macOS"
+                  src="/images/infrastructure_screenshot-crop_guided-macOS.webp"
+                />
+              </Side>
+
+              <Side>
+                <Steps>
+                  <Step>
+                    Select the New Relic account you want to monitor your infrastructure data.  
+
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**macOS**</DNT> under the <DNT>**Auto-discovery**</DNT> section.
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Begin installation**</DNT>.
+                  </Step>
+                </Steps>
+
+                New Relic will provide a command for you to run on your macOS host. Just copy, paste, and run the command on your host, answer the prompts, and you're done!
+              </Side>
+            </SideBySide>
+          </TabsPageItem>
+
+          <TabsPageItem id="k8s">
+            <SideBySide>
+              <Side>
+                <img
+                  title="Kubernetes guided install"
+                  alt="An image displaying New Relic's guided installation for Kubernetes"
+                  src="/images/infrastructure_screenshot-crop_guided-kubernetes.webp"
+                />
+              </Side>
+
+              <Side>
+                <Steps>
+                  <Step>
+                    Select the New Relic account you want to monitor your infrastructure data.  
+
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Kubernetes**</DNT> under the <DNT>**Auto-discovery**</DNT> section.
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Begin installation**</DNT>.
+                  </Step>
+                </Steps>
+
+                The guided install will take you through the Kubernetes implementation process. Follow the prompts and you'll be all set. If you need any help, see our [Kubernetes installation guide](/install/kubernetes)
+              </Side>
+            </SideBySide>
+          </TabsPageItem>
+
+          <TabsPageItem id="docker">
+            <SideBySide>
+              <Side>
+                <img
+                  title="Docker guided install"
+                  alt="An image displaying New Relic's guided installation for Docker"
+                  src="/images/infrastructure_screenshot-crop_guided-docker.webp"
+                />
+              </Side>
+
+              <Side>
+                <Steps>
+                  <Step>
+                    Select the New Relic account you want to monitor your infrastructure data.  
+
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Docker**</DNT> under the <DNT>**Auto-discovery**</DNT> section.
+                  </Step>
+
+                  <Step>
+                    Select <DNT>**Begin installation**</DNT>.
+                  </Step>
+                </Steps>
+
+                New Relic will provide a command for you to run on your host. Copy, paste, and run the command, and you're done!  
+
+              </Side>
+            </SideBySide>
+          </TabsPageItem>
+        </TabsPages>
+      </Tabs>
+
+      New Relic also offers a whole suite of on-host integrations. From <DNT>**one.newrelic.com > Integrations & Agents > Infrastructure & OS**</DNT>, just select your desired integration from our list to get started.
+    </TabsPageItem>
+
+    <TabsPageItem id="apm">
+      <SideBySide>
+        <Side>
+          <img
+            title="APM overview"
+            alt="An image displaying New Relic's APM monitoring page"
+            src="/images/apm_screenshot-crop_journey-dash.webp"
+          />
+        </Side>
+
+        <Side>
+          You may be used to <DNT>**integrations**</DNT> in Datadog, but in New Relic, we call these capabilities APM <DNT>**agents**</DNT>. We've set up our agents to give you deep detail about your app's performance while still being easy to setup. At New Relic, our agents are focused around language and linking the data they collect to other entities you've installed.
+
+          For example, an installed Java agent will collect metrics about your Java app (as well as your logs, events, and traces), and links together with an installed Ruby agent which does the same for Ruby. They link up with your infrastructure agents to provide a comprehensive, real-time view of all the data across your entire system, no matter the source.
+        </Side>
+      </SideBySide>
+
+      Our agents let you:
+
+      * Monitor the performance and health of your apps in one central location
+      * Use New Relic with open source tools such as OpenTelemetry
+      * Automatically instrument metrics, events, and traces
+      * Ingest your logs automatically
+      * Manage service security without prior configuration
+
+      ## Get started with New Relic application monitoring [#get-started-apm]
+
+      Once the setup is complete, your APM data in New Relic is found in the <DNT>**APM and services**</DNT> section of the UI, which is the equivalent of the <DNT>**APM**</DNT> section in Datadog. You can follow a guided install for most of our agents at any time within [<DNT>**one.newrelic.com**</DNT>](https://one.newrelic.com) by selecting <DNT>**one.newrelic.com > Integrations & Agents > All > Guided install**</DNT>, then selecting your agent from the <DNT>**APM (Application Monitoring)**</DNT> section.
+
+      You can also install our APM agents directly by using any of the tiles below. Our guided install walks you through the setup procedures for any of our APM agents so that you can observe your data right away. All you need is a [free account](https://newrelic.com/signup) and an application to monitor and you're ready to begin!
+
+      <TechTileGrid>
+        <TechTile
+          name="Java agent"
+          icon="logo-java"
+          to="https://one.newrelic.com/nr1-core?state=f378c92c-1d6a-dc90-c26c-0c2ad930959a"
+        />
+
+        <TechTile
+          name=".NET agent"
+          icon="logo-dotnet"
+          to="https://one.newrelic.com/nr1-core?state=fcaeee53-614a-4c29-92ee-694e0b128368"
+        />
+
+        <TechTile
+          name="C agent"
+          icon="logo-c"
+          to="https://one.newrelic.com/nr1-core?state=4bb150a3-4e8a-0c89-56ba-32e99f6dadce"
+        />
+
+        <TechTile
+          name="Node.js agent"
+          icon="logo-nodejs"
+          to="https://one.newrelic.com/nr1-core?state=c872674f-2350-7ec3-125f-a4335255e180"
+        />
+
+        <TechTile
+          name="Go agent"
+          icon="logo-go"
+          to="https://one.newrelic.com/nr1-core?state=f310f9fd-96b5-7d5e-045e-b151331293ca"
+        />
+
+        <TechTile
+          name="PHP agent"
+          icon="logo-php"
+          to="https://one.newrelic.com/nr1-core?state=77aab820-3aaf-066b-c3fc-2f3437b403a8"
+        />
+
+        <TechTile
+          name="Python agent"
+          icon="logo-python"
+          to="https://one.newrelic.com/nr1-core?  state=1ed82004-2854-1a4a-2a91-69302832ccc0"
+        />
+
+        <TechTile
+          name="Ruby agent"
+          icon="logo-ruby"
+          to="https://one.newrelic.com/nr1-core?  state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+        />
+      </TechTileGrid>
+    </TabsPageItem>
+
+    <TabsPageItem id="logs">
+      <SideBySide>
+        <Side>
+          <img
+            title="log-dashboard"
+            alt="An image displaying New Relic's log monitoring dashboard"
+            src="/images/logs_screenshot-crop_journey-dash.webp"
+          />
+        </Side>
+
+        <Side>
+          Logs in the New Relic UI are found under the <DNT>**Logs**</DNT> section. The hard part with log data is usually figuring out what matters. But it's also important to connect what's happening in your logs with the rest of your system. So we surface relevant logs in APM, infrastructure, and elsewhere to help you troubleshoot.
+
+          You can automatically pinpoint events, errors, traces, and spans among your connected entities with just a single click, keeping you in one place and getting you to what you're looking for that much faster.
+        </Side>
+      </SideBySide>
+
+      Our log monitoring solution:
+
+      * Enables deep visibility into your entity data, letting you see how your system works together
+      * Helps reduce your mean time to resolution (MTTR), letting you respond to issues faster
+      * Gives you the ability to create curated charts, dashboards, and alerts, giving you as detailed a look into your data as you want
+      * Provides the ability to visualize, search, and troubleshoot performance issues in one central location without the need to switch between tools
+
+      ## Get started with New Relic log monitoring [#get-started-logs]
+
+      Once installed, your log monitoring is done in the <DNT>**Logs**</DNT> section of the UI, exactly like it is in Datadog. You can use our guided installations for logs after setting up any of our [infrastructure](/docs/journey-migration/migrating-infra/) or [APM](/docs/journey-migration/migrating-apm/) agents.
+
+      The steps for setting up logs varies depending on the data source, but no matter which you choose, you can rest assured knowing we'll guide you through every step of the process to make it as easy and straightforward as possible. You can see our list of guided installations for logs by selecting <DNT>**one.newrelic.com > Integrations & Agents > Logging**</DNT> in the New Relic UI.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Explore premade dashboards [#add-dashboard]
+
+Once your data ingestion is set up, you'll want to use our dashboards to begin observing it. You can set dashboards up yourself by checking out [this doc](/docs/tutorial-dd-migration/migrating-dashboards/), or you can learn about any of our premade options listed below. Just choose the option below based on what data agent you installed above to learn more.
+
+<CollapserGroup>
+  <Collapser
+    id="infra-dash"
+    title="Infrastructure dashboards"
+  >
+    <SideBySide>
+      <Side>
+        <img
+          title="Premade dashboards"
+          alt="An image displaying some of New Relic's premade infrastructure dashboards"
+          src="/images/infrastructure_screenshot-crop_journey-network-dash.webp"
+        />
+      </Side>
+
+      <Side>
+        New Relic provides out-of-the-box dashboards from the moment you set up an infrastructure integration. These dashboards are pre-configured, allowing you to begin visualizing your data with zero setup time.
+
+        Some of the most important areas that our infrastructure dashboards automatically cover are:
+
+        * Event data for your hosts, including metric data, the ability to filter by host, and notifications about your system health under the <DNT>**Hosts**</DNT> tab.
+        * Entries for any applications you choose to integrate under the <DNT>**Inventory**</DNT> tab.
+        * Granular details for each event under the <DNT>**Events**</DNT> tab, filterable by agents, alerts, and integrations with a single click.
+        * Access to your application based integrations, like AWS and Azure, accessible in one click from the sidebar.
+        * Easily open up the settings pages for your <DNT>**Agents**</DNT> and <DNT>**Alerts**</DNT> from the sidebar without having to leave the dashboard.
+      </Side>
+    </SideBySide>
+  </Collapser>
+
+  <Collapser
+    id="apm-dash"
+    title="Application dashboards"
+  >
+    <SideBySide>
+      <Side>
+        <img
+          title="Premade alerts"
+          alt="An image displaying some of New Relic's premade APM alerts"
+          src="/images/apm_screenshot-crop_journey-dash-two.webp"
+        />
+      </Side>
+
+      <Side>
+        Like with our infrastructure monitors, we give you access to out-of-the-box dashboards immediately upon setting up your APM integration. These dashboards are also pre-configured, giving you depth of information on a wide variety of data points.
+
+        Some of the most important areas that our APM dashboards automatically cover are:
+
+        * Details on your core web vitals, across any time range you need on the <DNT>**Summary**</DNT> page, making app monitoring easier and more straightforward.
+        * Data on any incidents, vulnerabilities, error rates on deploymants, and information on the health of your entire stack from the same <DNT>**Summary**</DNT> page.
+        * A <DNT>**Recommendations**</DNT> page that gives you insight on how to fix errors and improve the health of your stack.
+        * A <DNT>**Triage**</DNT> section providing access to errors, logs, and vulnerability management with a single click, letting you fix issues as they arise without hunting for what the issue is.
+        * Event data as detailed as you want it from the <DNT>**Events**</DNT> section, with information on issues, deployments, and a thread profiler.
+        * A host of reports for SLA, service levels, scalability, capacity, and performance from the <DNT>**Reports**</DNT> section.
+      </Side>
+    </SideBySide>
+  </Collapser>
+
+  <Collapser
+    id="logs-dash"
+    title="Logs dashboards"
+  >
+    <SideBySide>
+      <Side>
+        <img
+          title="Premade dashboards"
+          alt="An image displaying some of New Relic's premade infrastructure dashboards"
+          src="/images/logs_screenshot-crop_journey-dash-two.webp"
+        />
+      </Side>
+
+      <Side>
+        New Relic's log monitoring gives you a premade central location with a variety of information available from the moment you set up the integration. No setup time required: just install the monitor and begin finding the data you need quickly.
+
+        The logs UI has four key sections:
+
+        * An <DNT>**All logs**</DNT> summary page that displays all your ingested logs and gives you the option to sort, filter, and add them to dashboards for quicker future access.
+        * An <DNT>**Attributes**</DNT> section that lists all your log attributes to make querying your logs easier.
+        * A <DNT>**Patterns**</DNT> section that helps reveal issues with your stack and gives you a foundation to build alerts.
+        * Real-time log monitoring via the <DNT>**Live tail**</DNT> capability, letting you monitor your log data as it occurs.
+      </Side>
+    </SideBySide>
+  </Collapser>
+</CollapserGroup>
+
+## Add alerts [#alerts]
+
+For more on creating alerts, see our [alert conditions](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) doc.
+
+<UserJourneyControls
+  nextStep={{path: "/docs/tutorial-dd-migration/migrating-dashboards/", title: "Next step", body: "Learn how to create dashboards and alerts for your ingested data"}}
+  previousStep={{path: "/docs/tutorial-dd-migration/migrating-from-dd/", title: "Previous step", body: "Return to the migration overview"}}
+/>

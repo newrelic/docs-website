@@ -1,0 +1,246 @@
+---
+title: Monitor your core web vitals
+tags:
+  - Browser
+  - Browser monitoring
+  - Guides
+metaDescription: "A guide to monitor Google's core web vitals."
+redirects:
+- /docs/browser/new-relic-browser/guides/guide-to-monitoring-core-web-vitals/
+- /docs/browser/new-relic-browser/guides/guide-to-core-web-vitals
+- /docs/browser/new-relic-browser/guides/guide-to-monitoring-core-web-vitals/
+- /docs/journey-performance/guide-to-monitoring-core-web-vitals/
+- /docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/docs/browser/new-relic-browser/guides/guide-to-core-web-vitals
+- /docs/tutorial-site-performance/guide-to-monitoring-core-web-vitals
+- /docs/tutorial-app-performance/guide-to-monitoring-core-web-vitals/ 
+freshnessValidatedDate: 2024-03-21
+---
+
+Core web vitals are Google’s metrics that gauge overall user experience. They give valuable insight into how users view your business, which can influence your site’s SEO rankings. By having a score that captures user experience, you can take action on specific problems rather than guessing at what your site needs.
+
+## Objectives [#objectives]
+
+This tutorial walks you through using New Relic to break down your core web vitals. By the end of the tutorial, you'll have these tasks completed:
+
+* Find core web vitals in New Relic.
+* Understand how core web vitals translate into site performance.
+* Explore your New Relic data to identify what's contributing to your score.
+
+## Learn about core web vitals [#learn]
+
+Google measures overall website performance by these three metrics:
+
+* [Largest contentful paint](https://web.dev/articles/lcp) (LCP): how long it takes for the main content of a page to load. For example, a user who lands on a webpage with a slow LCP might see a blank screen for several seconds before the content appears.
+
+* [Interaction to next paint](https://web.dev/articles/inp) (INP): How long it takes for a page to respond to a user's interaction. For example, if a user clicks a button, INP measures how long it takes between the click and the next page opening. A high INP reflects a sluggish and unresponsive webpage experience, hindering user engagement.
+
+* [Cumulative layout shift](https://web.dev/articles/cls) (CLS): How often unexpected layout shifts occur on a page while loading. For example, a user who's about to click a button might find the content jumps to a new place on the screen, which could cause them to click something else accidentally. A high CLS can make a webpage feel clunky and difficult to interact with.
+
+Each web vital has the following thresholds to help you track your app's performance and SEO:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}/>
+
+      <th style={{ width: "200px" }}>
+        Good
+      </th>
+
+      <th style={{ width: "275px" }}>
+        Needs improvement
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Poor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **Largest contentful paint**
+        </DNT>
+      </td>
+
+      <td>
+        2.5 seconds or less
+      </td>
+
+      <td>
+        Between 2.5 seconds and 4 seconds
+      </td>
+
+      <td>
+        Longer than 4 seconds
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Interaction to next paint**
+        </DNT>
+      </td>
+
+      <td>
+        Less than 200 milliseconds
+      </td>
+
+      <td>
+        Between 200 and 500 milliseconds
+      </td>
+
+      <td>
+        Longer than 500 milliseconds
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Cumulative layout shift**
+        </DNT>
+      </td>
+
+      <td>
+        Below 0.1
+      </td>
+
+      <td>
+        Between 0.1 and 0.25
+      </td>
+
+      <td>
+        Above 0.25
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  ### How is the CLS score calculated?
+
+  The cumulative layout shift score is a unitless value between 0 and infinity, not a time-based measurement like the other core web vitals. It reflects the sum of the impact of unexpected layout shifts that occur during the loading process of a webpage. Here's how the CLS score is calculated:
+
+  * Layout shift score: This considers two factors:
+    * Fraction of viewport shifted: How much of the visible area of the page (viewport) is affected by the layout shift.
+    * Distance the content moved: How far the elements that moved are displaced from their original position.
+  * Multiple layout shifts: The CLS score considers all the layout shifts that happen within a short timeframe (session window). The largest session window's score is the final CLS value.
+</Callout>
+
+<DNT>**Good**</DNT> web vitals can help your organization save money and increase SEO. <DNT>**Poor**</DNT> or <DNT>**Needs improvement**</DNT> can reflect negative user perceptions of your organization, which could result in dissatisfied customers or lost business opportunities.
+
+New Relic leverages Google's [`web-vitals` API library](https://github.com/GoogleChrome/web-vitals) to gather web vitals in their raw state, without introducing additional calculations. To learn more about why core web vitals matter and how they're calculated, see the web.dev article [User-centric performance metrics](https://web.dev/articles/user-centric-performance-metrics).
+
+## Find core web vitals in New Relic [#view-data-in-nr]
+
+Core web vitals are embedded into many New Relic features, but the best way to view web vitals at a high level is:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser**</DNT>.
+2. Select an app.
+3. From the left-hand menu, click <DNT>**Web vitals**</DNT>.
+
+   The **Web vitals** page shows your web vital averages for your whole website. From this view, you can drill down into specific pages or metrics to see what's impacting the scores.
+
+   <img
+     title="Track core web vitals site-wide, favorite key webpages, and filter by time period."
+     alt="overview of the web vitals page"
+     src="/images/browser_screenshot-full_web-vitals.gif"
+   />
+
+### Drill down into specific pages [#drill-down]
+
+If you want insight into an important page — for example, an ecommerce checkout page — find it in the <DNT>**Page URL**</DNT> table. You'll see a breakdown of what's contributing to core web vitals, which you can use to understand how your end users are experiencing those areas of your site. For example, if you notice a pattern of poor performance from Chrome browsers, you can curate any future improvements to that user base.
+
+<img
+  title="Click on a page URL to see page-specific web vitals."
+  alt="Click on a page URL to see page-specific web vitals."
+  src="/images/browser_screenshot-full_page-url-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Monitor > Web vitals > (click on a page URL)**</DNT>: View a breakdown of core web vitals for the most impactful webpages.
+</figcaption>
+
+### Filter by key attributes [#key-attributes]
+
+If you want to investigate something particular, like how a backend change or performance issue impacted core web vitals, you can use the <DNT>**Filter by**</DNT> tool to filter any key attribute.
+
+<img
+  title="Use the filter tool to filter core web vitals by key attributes"
+  alt="Filter by key attributes"
+  src="/images/browser_screenshot-full_filtered-web-vitals.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Monitor > Web vitals > (add filters)**</DNT>: Use the filter tool to filter core web vitals by key attributes.
+</figcaption>
+
+Though you can filter by nearly any key attribute, read on for some useful examples.
+
+<CollapserGroup>
+  <Collapser
+    id="device"
+    title="By device type"
+  >
+    Let's say you want to compare desktop vs. mobile performance and how core web vitals differ between the two platforms. To investigate this in <DNT>**Web vitals**</DNT>:
+
+    1. In the <DNT>**Filter by**</DNT> field, set <DNT>**Attribute**</DNT> to`deviceType` and <DNT>**Value**</DNT> to `desktop`.
+    2. In a duplicate browser, set <DNT>**Attribute**</DNT> to`deviceType` and <DNT>**Value**</DNT> to `mobile`, then compare the results.
+  </Collapser>
+
+  <Collapser
+    id="user-info"
+    title="By user information"
+  >
+    Let's say an end-user reported performance issues on your site’s checkout page on November 1, around 12pm, and you want to see what happened for this user. To investigate this in <DNT>**Web vitals**</DNT>:
+
+    1. Set the time range to November 1, between 11am and 1pm.
+    2. In the <DNT>**Page URL**</DNT> table, click on the checkout page URL.
+    3. In the <DNT>**Filter by**</DNT> field, set <DNT>**Attribute**</DNT> to `userID` and <DNT>**Value**</DNT> to `user ID`.
+
+    <Callout
+      variant="tip"
+      title="About userID"
+    >
+      `userID` is a custom attribute you'll need to have set using the [browser SPA API](/docs/browser/new-relic-browser/browser-agent-spa-api/setcustomattribute-browser-agent-api/). If `userID` isn't available, you can also filter by other user information like `username` or `session`.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="resource"
+    title="By resource"
+  >
+    Let's say your organization recently updated images on the site’s home page on November 10 at 8am, and you want to see if the changes impacted core web vitals. To investigate this in <DNT>**Web vitals**</DNT>:
+
+    1. Set the time range to November 10 at between 7am and 9am.
+    2. In the <DNT>**Page URL**</DNT> table, click on the home page URL.
+    3. In the <DNT>**Filter by**</DNT> field, set <DNT>**Attribute**</DNT> to `elementTagName` and <DNT>**Value**</DNT> to `IMG`.
+  </Collapser>
+</CollapserGroup>
+
+## Get more context with session traces [#session-traces]
+
+New Relic captures data about a user's session on a given page. Session traces are randomly sampled, letting you view how a user experienced page load timing issues, JavaScript events, or other errors.
+
+<img
+  title="Session traces in the New Relic UI"
+  alt="Session traces in Browser UI lets you look at real user sessions for a given page"
+  src="/images/browser_screenshot-crop_session-traces.gif"
+/>
+
+We recommend using session traces to find patterns across different user sessions. If one of your core web vitals scores could be improved, one option is to look at session traces to see what common attributes are shared across different user sessions. Here's an example of how session traces can help you improve your site:
+
+1. From the <DNT>**Web vitals**</DNT> tab, click the page that's performing poorly. Using the above image as an example, you see that your site has a good overall LCP score, but you also notice some of your individual pages need improvement.
+2. Looking at the <DNT>**Page URLs**</DNT> section of the <DNT>**Web vitals**</DNT> page, you see that your homepage URL has an LCP score of greater than four seconds. Is this due to an error that affects all users, or is it only affecting one kind of user? For example, if you notice that users with one version of Chrome or a certain operating system are experiencing slow page load times, you can better troubleshoot the specific cause of an issue.
+3. A new window will populate when you click the URL you want to troubleshoot. You notice that your LCP score is much higher than your site's overall LCP score. Scrolling to the <DNT>**Session traces**</DNT> section at the bottom of this page, you see various samples of real user sessions. These sessions can give you more granular detail about how that user experienced AJAX requests, issues related to DOM loading, JavaScript events or other errors.
+
+Data from randomized sessions helps you find patterns across hundreds or thousands of user interactions with a web page. If a pattern appears in this randomly selected data, you can have more confidence that your plan to resolve an issue will improve your page scores.
+
+<UserJourneyControls
+  nextStep={{path: "/docs/tutorial-improve-site-performance/fixing-high-latency", title: "Next step", body: "Find latency issues across your services"}}
+  previousStep={{path: "/docs/tutorial-improve-site-performance/improve-website-performance", title: "Previous step", body: "Instrument your site"}}
+/>

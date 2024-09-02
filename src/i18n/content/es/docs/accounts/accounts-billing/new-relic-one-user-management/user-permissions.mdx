@@ -1,0 +1,232 @@
+---
+title: Permisos de usuario
+tags:
+  - Accounts
+  - New Relic One user management
+metaDescription: An explanation of New Relic user permissions and what they govern.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En un contexto de administración de usuarios de New Relic, un <DNT>**permission**</DNT> es algo granular que puede hacer con New Relic que hemos puesto a disposición para agregarlo a una función personalizada. Estos permisos también están adjuntos a nuestros [roles estándar](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#roles) precompilados. Ejemplos de permisos son: la capacidad de ver la configuración de la aplicación APM, modificar la condición de alerta o administrar la configuración de retención de datos.
+
+Para saber qué permisos tiene una función, vaya a la UI de administración de usuarios y vea una función específica. Para encontrar esta UI: desde <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, haga clic en el [menú de usuario](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings) en la parte inferior derecha y luego vaya a: <DNT>**Administration &gt; Access management &gt; Roles**</DNT>.
+
+## ¿Qué son los permisos? [#permissions-roles]
+
+Un usuario de la plataforma completa de New Relic sin limitaciones (por ejemplo, un usuario del grupo <DNT>**Admin**</DNT> ) puede utilizar todas las características de la plataforma. Algunas de las cosas que puedes hacer en New Relic las hemos puesto a disposición como <DNT>**permissions**</DNT>. Puede agregarlos o eliminarlos de una función personalizada y también utilizamos estos permisos para diferenciar entre nuestras [funciones estándar](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#roles). Los permisos que hemos hecho visibles y disponibles para su selección son aquellos que creemos que le resultarán más útiles para tareas comunes de administración de usuarios.
+
+Hay muchas funcionalidades de New Relic que <DNT>**don&apos;t**</DNT> hacemos visibles y disponibles para su selección. Por ejemplo, hay varias páginas de UI a las que puede acceder como cualquier usuario y que no están limitadas por los permisos que exponemos. Para otro ejemplo: un usuario en un grupo con <DNT>**Organization**</DNT> [configuración de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings) puede configurar ajustes a nivel de organización y ese poder no está disponible para agregarlo a una función personalizada.
+
+<Callout variant="tip">
+  A veces también se puede hacer referencia a los permisos como <DNT>**capabilities**</DNT>.
+</Callout>
+
+## Puntos importantes sobre los permisos [#important-points]
+
+Aquí hay algunos otros puntos importantes sobre los permisos:
+
+* <DNT>**A user&apos;s user type must also allow access.**</DNT> El acceso de un usuario a la característica New Relic se rige tanto por el tipo de usuario como por los roles asignados. Para obtener más información al respecto, consulte [Acceso de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+* <DNT>**Some permissions overlap in functionality.**</DNT> Es por eso que al seleccionar algunas casillas de permisos en la UI se marcarán o desmarcarán otras casillas automáticamente.
+* <DNT>**Permissions don&apos;t affect querying of data.**</DNT> La mayoría de los permisos se aplican a las experiencias de API y UI de New Relic y no a la consulta de datos. Por ejemplo, si sus permisos le impiden acceder a laUI <InlinePopover type="apm" />, aún puede consultar los datos de APM si tiene acceso a esa cuenta. Si necesita límites de datos más firmes para algunos proyectos o usuarios, puede segmentar sus datos en [diferentes cuentas](/docs/accounts/accounts-billing/account-structure/add-accounts).
+
+Para obtener más información sobre las principales formas en que se controlan los permisos de los usuarios, consulte [Conceptos de gestión de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+
+## Nuestros roles prediseñados [#pre-built-roles]
+
+Nuestros roles prediseñados tienen varios grupos de permisos. El funcionamiento de nuestros roles prediseñados es diferente según en cuál de nuestros [modelos de usuario](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models) se encuentre:
+
+* Nuestro modelo de usuario más nuevo (la mayoría de los usuarios): [obtenga información sobre los roles](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+* Nuestro modelo de usuario original: [aprenda sobre roles](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model).
+
+## Definiciones de permisos [#permission-definitions]
+
+Puede ir a la UI para ver los permisos para cada uno de nuestros roles prediseñados. En la esquina inferior izquierda de la [UI](https://one.newrelic.com) de usuario, haga clic en su nombre para abrir el menú de usuario y luego vaya a **Administration &gt; Access management &gt; Roles**. Hay listas de permisos disponibles para los siguientes roles:
+
+* Todos los administradores de productos
+* Usuario estándar
+* Solo lectura
+
+Para obtener más información sobre permisos específicos, seleccione una categoría a continuación o intente buscar en este documento el término específico que esté buscando.
+
+<CollapserGroup>
+  <Collapser id="alerts" title="Alerta">
+    Estos permisos pertenecen a nuestra [característica de alertalegacy ](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts), no a nuestros [permisos de inteligencia aplicada](#applied-intelligence) y [permisos de inteligencia de incidentes](#incident-intelligence).
+
+    Permisos:
+
+    * <DNT>**Channels**</DNT>: se relaciona con [alerta canal de notificación](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts).
+    * <DNT>**Conditions**</DNT>: se relaciona con [la condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions).
+    * <DNT>**Incidents**</DNT>: se relaciona con [incidente de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents) y [ver incidente de nuestros productos](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/view-alert-incidents-our-products).
+    * <DNT>**Lifecycle overrides**</DNT>: se relaciona con [las reglas de silenciamiento](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications).
+    * <DNT>**Policies**</DNT>: se relaciona con [la política de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy).
+  </Collapser>
+
+  <Collapser id="api-keys" title="Clave de API">
+    Estos permisos pertenecen a la creación y administración de nuestra [clave de API](/docs/apis/intro-apis/new-relic-api-keys):
+
+    * <DNT>**Browser keys**</DNT>: se relaciona con la [clavebrowser ](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys).
+    * <DNT>**License keys**</DNT>: se relaciona con la [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys).
+    * <DNT>**User API keys**</DNT>: se relaciona con la [clave de usuario](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys).
+  </Collapser>
+
+  <Collapser id="apm" title="APM">
+    Estos permisos pertenecen a nuestro [agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm) y la característica asociada:
+
+    * <DNT>**Application settings**</DNT>: se relaciona con la página UI de APM <DNT>**Application settings**</DNT>.
+    * <DNT>**Deployments**</DNT>: se relaciona con la [página UI de despliegue de APM](/docs/apm/new-relic-apm/maintenance/record-monitor-deployments).
+    * <DNT>**Embedded charts**</DNT>: se relaciona con la [característica<DNT>**Get chart link**</DNT> ](/docs/new-relic-solutions/new-relic-one/ui-data/basic-ui-features/#share).
+    * <DNT>**Errors (all)**</DNT>: se relaciona con [detalles de error en la traza](/docs/apm/apm-ui-pages/error-analytics/manage-error-data).
+    * <DNT>**Errors (individual)**</DNT>: se relaciona con [detalles de error en la traza](/docs/apm/apm-ui-pages/error-analytics/manage-error-data).
+    * <DNT>**Instrumentation**</DNT>: se relaciona con agregar [instrumentación personalizada](/docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation).
+    * <DNT>**Key transactions**</DNT>: se relaciona con [la clave de transacción](/docs/apm/transactions/key-transactions/introduction-key-transactions).
+    * <DNT>**Labels**</DNT>: se relaciona con [la etiqueta para datos APM](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data).
+    * <DNT>**Log settings**</DNT>: se relaciona con [el log de APM](/docs/logs/logs-context/disable-automatic-logging/#solution).
+    * <DNT>**Slow SQL**</DNT>: se refiere a [consulta lenta data](/docs/apm/apm-ui-pages/monitoring/view-slow-query-details).
+    * <DNT>**Thread profiles**</DNT>: se relaciona con el [hilo generador de perfiles](/docs/apm/apm-ui-pages/events/thread-profiler-tool).
+    * <DNT>**Transaction traces (all)**</DNT>: se relaciona con [la traza de la transacción](/docs/apm/transactions/transaction-traces/configure-transaction-traces).
+    * <DNT>**Transaction traces (individual)**</DNT>: se relaciona con [la traza de la transacción](/docs/apm/transactions/transaction-traces/configure-transaction-traces).
+  </Collapser>
+
+  <Collapser id="applied-intelligence" title="Inteligencia aplicada">
+    Estos permisos pertenecen a la característica [de inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence) :
+
+    * <DNT>**Anomaly detection configurations**</DNT>: se relaciona con [la detección de anomalías](https://docs-preview.newrelic.com/docs/expanded-anomaly-detection) (disponibilidad limitada).
+    * <DNT>**Channels**</DNT>: se relaciona con [el canal de notificación](/docs/alerts-applied-intelligence/notifications/intro-notifications).
+    * <DNT>**Comments**</DNT>: se relaciona con [comentarios post mortem](/docs/alerts-applied-intelligence/applied-intelligence/postmortems-applied-intelligence/#comment-event).
+    * <DNT>**Destinations**</DNT>: se relaciona con [destinos](/docs/alerts-applied-intelligence/notifications/destinations).
+    * <DNT>**Incident analysis**</DNT>: se relaciona con la parte de la [página<DNT>**Issues &amp; activity**</DNT> ](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/Issues-and-Incident-management-and-response)donde se muestran las señales doradas y el componente.
+    * <DNT>**Issue RCA**</DNT>: se relaciona con [el análisis de causa raíz](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence/#root-cause-analysis).
+    * <DNT>**Issues**</DNT>: se relaciona con [cuestiones de inteligencia de incidentes](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence).
+    * <DNT>**Issues configuration**</DNT>: se relaciona con [la configuración del problema](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents).
+    * <DNT>**Issues feed**</DNT>: se relaciona con [el feed de problemas](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#issues).
+    * <DNT>**Workflows**</DNT>: se relaciona con [el flujo de trabajo](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows).
+  </Collapser>
+
+  <Collapser id="browser" title="Browser">
+    Estos permisos pertenecen a [<InlinePopover type="browser" />](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring):
+
+    * <DNT>**Application settings**</DNT>: se relaciona con la configuración de la aplicación browser .
+    * <DNT>**Domain conditions**</DNT>: se relaciona con [las condiciones del dominio del navegador](/docs/browser/new-relic-browser/configuration/monitor-or-block-specific-domains-subdomains).
+    * <DNT>**Segment allow lists**</DNT>: se relaciona con la segmentación [de la lista de &apos;permitidos&apos;](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls).
+    * <DNT>**View session replays**</DNT>: se relaciona con [la visualización de repeticiones.](/docs/browser/browser-monitoring/browser-pro-features/session-replay).
+  </Collapser>
+
+  <Collapser id="dashboards" title="Panel">
+    * <DNT>**Live chart URL**</DNT>: se relaciona con la [característica de gráfico compartido](/docs/new-relic-solutions/new-relic-one/ui-data/basic-ui-features/#share) para gráficos generados a partir de la consulta NRQL.
+  </Collapser>
+
+  <Collapser id="data-platform" title="Plataforma de datos">
+    * <DNT>**Streaming export**</DNT>: se relaciona con [la exportación de streaming de datos](/docs/apis/nerdgraph/examples/nerdgraph-streaming-export).
+  </Collapser>
+
+  <Collapser id="data-retention" title="Retención de datos">
+    * <DNT>**Insights event retention**</DNT>: Esto rige la capacidad de gestionar los valores [de retención de datos](/docs/data-apis/manage-data/manage-data-retention) dentro de los límites de un contrato para espacios de nombres de datos específicos.
+  </Collapser>
+
+  <Collapser id="errors-inbox" title="Errors Inbox">
+    * <DNT>**Attribute analysis**</DNT>: se relaciona con la [pestaña de atributos](/docs/errors-inbox/errors-inbox/#attributes).
+  </Collapser>
+
+  <Collapser id="incident-intelligence" title="Inteligencia de incidentes">
+    Estos permisos pertenecen a [la inteligencia de incidentes](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence):
+
+    * <DNT>**Automatic inactivity closing policy**</DNT>: se refiere a la configuración del tiempo de vida para problemas inactivos/inactivos.
+    * <DNT>**Cartographer**</DNT>: se relaciona con [la configuración de topología](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#topology).
+    * <DNT>**Decisions**</DNT>: se relaciona con [decisiones de inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions).
+    * <DNT>**Destinations**</DNT>: se relaciona con un sistema de destino de inteligencia de incidentes obsoleto.
+    * <DNT>**Environments**</DNT>: se relaciona con [los ambientes](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#1-configure-environment).
+    * <DNT>**Grace period policy**</DNT>: se relaciona con [la configuración de la política del período de gracia](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/user-settings).
+    * <DNT>**Incidents**</DNT>: se relaciona con [el incidente](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence).
+    * <DNT>**Input source configuration**</DNT>: se relaciona con [fuentes de incidentes](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#1-configure-sources).
+    * <DNT>**Issues**</DNT>: se relaciona con [cuestiones de inteligencia de incidentes](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence).
+    * <DNT>**Pathways**</DNT>: se relaciona con la característica de vías de inteligencia de incidentes, en su mayoría obsoleta.
+    * <DNT>**Platforms**</DNT>: se relaciona con la característica plataforma de inteligencia de incidentes, en su mayoría obsoleta.
+    * <DNT>**Suggested decisions**</DNT>: se relaciona con [decisiones sugeridas por la inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#suggested-decisions).
+  </Collapser>
+
+  <Collapser id="incident-workflows" title="Incidente flujo de trabajo">
+    * <DNT>**Workflows**</DNT>: se relaciona con una característica preliminar de flujo de trabajo que probablemente quedará obsoleta en 2022.
+  </Collapser>
+
+  <Collapser id="infinite-tracing" title="Rastreo infinito">
+    * <DNT>**Trace observers**</DNT>: se relaciona con el [observador de traza](/docs/distributed-tracing/infinite-tracing/set-trace-observer).
+  </Collapser>
+
+  <Collapser id="infrastructure" title="Infraestructura">
+    * <DNT>**Cloud integrations**</DNT>: se relaciona con [la integración en la nube](/docs/infrastructure/infrastructure-integrations/get-started/introduction-infrastructure-integrations).
+    * <DNT>**Filter sets**</DNT>: se relaciona con [conjuntos de filtros](/docs/infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure/#filter-sets). Esta característica está en proceso de quedar obsoleta y solo está disponible en las páginas UI <DNT>**Events**</DNT> y <DNT>**Inventory**</DNT> de infraestructura.
+  </Collapser>
+
+  <Collapser id="insights" title="Insights">
+    <DNT>**Insights**</DNT> es el nombre original de un producto que tenía características relacionadas con la ingesta de datos personalizada, consulta personalizada, gráficos personalizados y panel personalizado. Los permisos incluyen:
+
+    * <DNT>**Any dashboard**</DNT>: se relaciona con la capacidad de eliminar cualquier dashboard de una cuenta.
+
+    * <DNT>**Data sources**</DNT>: se relaciona con una UI ahora obsoleta que permitía controlar qué datos se reportaban a New Relic.
+
+    * <DNT>**Events to metrics**</DNT>: esto rige:
+
+      * [Reglas y datos evento-to-métrica](/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics)
+      * [Indicadores y objetivos de nivel de servicio.](/docs/service-level-management/create-slm)
+
+    * <DNT>**Insert keys**</DNT>: se relaciona con nuestra [clave de inserción de Insights](/docs/apis/intro-apis/new-relic-api-keys/#insights-insert-key) , en su mayoría obsoleta (se prefiere una [clave de licencia](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) ).
+
+    * <DNT>**NRQL drop rules**</DNT>: se relaciona con [la eliminación de datos con reglas de eliminación](/docs/data-apis/manage-data/drop-data-using-nerdgraph).
+
+    * <DNT>**Query keys**</DNT>: se relaciona con nuestra [clave de consulta de Insights](/docs/apis/intro-apis/new-relic-api-keys/#insights-query-key) , en su mayoría obsoleta (se prefiere <InlinePopover type="userKey" />).
+  </Collapser>
+
+  <Collapser id="logs" title="Logs">
+    * <DNT>**Data partition rules**</DNT>: se relaciona con [particiones de datos](/docs/logs/ui-data/data-partitions).
+    * <DNT>**Live archives configuration**</DNT>: se relaciona con la configuración de la retención [Live Archives](/docs/logs/get-started/live-archives) para el log.
+    * <DNT>**Live archives query**</DNT>: se relaciona con la consulta del log almacenado en [Live Archives](/docs/logs/get-started/live-archives).
+    * <DNT>**Obfuscation rules**</DNT>: se relaciona con [la ofuscación de logs](/docs/logs/ui-data/obfuscation-ui).
+    * <DNT>**Parsing rules**</DNT>: se relaciona con [el análisis de logs](/docs/logs/ui-data/parsing).
+    * <DNT>**Pipeline configuration**</DNT>: se relaciona con la configuración de la canalización de datos log . Actualmente este rige a [los patrones de logs](/docs/logs/ui-data/find-unusual-logs-log-patterns).
+    * <DNT>**Public saved views**</DNT>: se relaciona con [vistas guardadas](/docs/logs/ui-data/use-logs-ui/#saved-views) que son públicas.
+  </Collapser>
+
+  <Collapser id="maps" title="Mapas">
+    * <DNT>**Service maps**</DNT>: se relaciona con [mapas de servicios](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/introduction-service-maps).
+  </Collapser>
+
+  <Collapser id="mobile" title="Móvil">
+    * <DNT>**Applications**</DNT>: se relaciona con [<InlinePopover type="mobile" />característica](/docs/mobile-monitoring/new-relic-mobile/get-started/introduction-mobile-monitoring) de tus aplicaciones de monitor.
+    * <DNT>**Crashes**</DNT>: se relaciona con [la característica de análisis de fallas](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes).
+  </Collapser>
+
+  <Collapser id="new-relic-one" title="New Relic">
+    Estos son varios permisos relacionados con características básicas de la [plataforma New Relic](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-one) (a veces denominada New Relic One):
+
+    * <DNT>**Entities**</DNT>: se relaciona con la creación y eliminación [de la entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic) New Relic-monitor.
+    * <DNT>**Entity relationships**</DNT>: se relaciona con [relaciones de entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities).
+    * <DNT>**Golden metrics**</DNT>: se relaciona con [métricas doradas](/docs/apis/nerdgraph/examples/golden-metrics-entities-nerdgraph-api-tutorial) (clave métrica) en la experiencia curada del usuario.
+    * <DNT>**Nerdpacks**</DNT>: se relaciona con [las aplicaciones New Relic](/docs/new-relic-solutions/new-relic-one/build-custom-new-relic-one-application).
+    * <DNT>**NRQL lookups**</DNT>: se relaciona con la capacidad de utilizar [la tabla de búsquedas](/docs/logs/ui-data/lookup-tables-ui).
+    * <DNT>**Pixie account link**</DNT>: esta capacidad permite la creación de una cuenta Pixie asociada al agregar Pixie a un clúster desde nuestra [instalación guiada](/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie).
+    * <DNT>**Pixie credentials**</DNT>: se relaciona con el acceso a cuentas Pixie vinculadas.
+    * <DNT>**Pixie live data**</DNT>: permite el acceso a datos de depuración en vivo en el [explorador del clúster de Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer).
+    * <DNT>**Repositories**</DNT>: se relaciona con la creación y eliminación del repositorio de monitores New Relic (utilizado por características como [New Relic CodeStream](/docs/codestream/start-here/what-is-codestream)).
+    * <DNT>**Tags**</DNT>: se relaciona con la plataforma [etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data).
+    * <DNT>**Workloads**</DNT>: se relaciona con [carga de trabajo](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster).
+  </Collapser>
+
+  <Collapser id="plugins" title="Enchufar">
+    * <DNT>**Configurations**</DNT>: se refiere a nuestra [característica obsoleta de complemento](https://discuss.newrelic.com/t/new-relic-plugin-eol-wednesday-june-16th-2021/127267).
+  </Collapser>
+
+  <Collapser id="synthetics" title="Sintético">
+    Estos permisos pertenecen al [monitoreo sintético](/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring):
+
+    * <DNT>**Configure private locations**</DNT>: se relaciona con [la ubicación privada](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations).
+    * <DNT>**Monitor downtimes**</DNT>: se refiere al [seguimiento del tiempo de inactividad](/docs/synthetics/synthetic-monitoring/using-monitors/monitor-downtimes-disable-monitoring-during-scheduled-maintenance-times).
+    * <DNT>**Monitor scripts**</DNT>: se relaciona con [el monitor con secuencia de comandos](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors) (monitor de navegador con secuencia de comandos y monitor de prueba de API con secuencia de comandos).
+    * <DNT>**Monitors**</DNT>: se relaciona con la capacidad de configurar [el monitor Sintético](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors) (por ejemplo, nombre, período y ubicaciones). El permiso de actualización masiva del tiempo de ejecución le permite realizar cambios en el tiempo de ejecución mediante la [UI de actualizaciones del tiempo de ejecución](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/).
+    * <DNT>**Secure credentials**</DNT>: se relaciona con [credenciales seguras](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests).
+  </Collapser>
+
+  <Collapser id="security" title="Seguridad">
+    * <DNT>**Vulnerabilities**</DNT>: se refiere a la capacidad de visualizar y gestionar vulnerabilidades detectadas en la entidad.
+  </Collapser>
+</CollapserGroup>

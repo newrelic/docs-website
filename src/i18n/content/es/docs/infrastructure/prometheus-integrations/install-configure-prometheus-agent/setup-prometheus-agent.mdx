@@ -1,0 +1,360 @@
+---
+title: Configurar el agente Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus Configurator
+metaDescription: Set up the Prometheus agent
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Configurar el agente Prometheus [#configure-prometheus-agent]
+
+Debe colocar los siguientes ejemplos en la sección `config` del agente. Consulte el [método de instalación](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent) que solía utilizar y cuál es el que corresponde a su caso.
+
+Para configurar el agente usando Helm, debe configurar su `values.yaml` de una de estas dos maneras:
+
+<Callout variant="tip">
+  Debes agregar tu New Relic <InlinePopover type="licenseKey"/>en el archivo `values.yaml`.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="nri-bundle"
+    title="Instalado usando nuestro paquete Helm"
+  >
+    ```yaml
+    global:
+      licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
+      cluster: _K8S_CLUSTER_NAME_
+
+    newrelic-prometheus-agent:
+      enabled: true
+      config:
+        # YOUR CONFIGURATION GOES HERE
+    ```
+  </Collapser>
+
+  <Collapser
+    id="standalone-helm-release"
+    title="Lanzamiento de Helm independiente"
+  >
+    Esta opción sólo se recomienda si eres un usuario avanzado.
+
+    ```yaml
+    licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
+    cluster: _K8S_CLUSTER_NAME_
+
+    config:
+      # YOUR CONFIGURATION GOES HERE. An example:
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Definir qué extremo raspar [#endpoints-scrape]
+
+De forma predeterminada, el agente New Relic Prometheus utiliza dos anotaciones para descubrir el objetivo: `newrelic.io/scrape: "true"` y `prometheus.io/scrape: "true"`.
+
+Todos los objetivos del clúster que están anotados con `newrelic.io/scrape: "true"` se descubren y eliminan de forma predeterminada. El objetivo anotado con `prometheus.io/scrape: "true"` se eliminará o no según la configuración.
+
+### Rasca métrica solo de Prometheus integración [#scrape-prometheus-integrations]
+
+El agente Prometheus se puede configurar para extraer métrica de la integración más popular en Kubernetes. Eche un vistazo a la [lista de integración](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) que contiene un conjunto de paneles y <InlinePopover type="alerts"/>para iniciar el monitoreo de forma inmediata.
+
+Esa lista se define en el archivo [value.yaml](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml) del gráfico de timón del agente Prometheus de New Relic. Puede modificar esta lista, pero es posible que algunos <InlinePopover type="dashboards"/>no funcionen de forma inmediata con etiquetas o valores personalizados.
+
+Al actualizar, es posible que haya nuevos filtros de integración disponibles. Por lo tanto, la cantidad de datos extraídos podría aumentar, según los servicios de su clúster, después de una actualización que involucre filtros de integración. Puede evitar esto guardando una lista fija de `app_values` en su archivo `values.yaml` . Por ejemplo:
+
+```yaml
+app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb"]
+```
+
+Además, puede suceder que una nueva versión de los filtros de integración haga que un objetivo que ya fue eliminado por un trabajo sea eliminado por segunda vez. Para recibir una notificación en caso de datos duplicados (y evitar por completo el scraping duplicado), puede crear una alerta basada en la siguiente consulta:
+
+```
+FROM Metric select uniqueCount(job) facet instance, cluster_name limit 10 since 2 minutes ago
+```
+
+Si algún valor es diferente de 1, entonces tiene dos o más trabajos extrayendo la misma instancia en el mismo clúster.
+
+### Raspe métrica de todo el objetivo. [#scrape-all-targets]
+
+Si necesita eliminar todo el objetivo anotado con `prometheus.io/scrape: "true"`, debe realizar una de las siguientes acciones, según el método de instalación que elija:
+
+* Si empleó la instalación guiada, seleccione la opción <DNT>**Scrape all Prometheus endpoints**</DNT> .<img title="Kubernetes Guided Install" alt="Kubernetes Guided Install" src="/images/infrastructure_screenshot-crop_prometheus-scrape-only-metrics.webp"/>
+
+* Si utilizó Helm, agregue los siguientes valores en su configuración del agente prometheus:
+
+  ```yaml
+  kubernetes:
+    integrations_filter:
+      enabled: false
+  ```
+
+### Descubrimiento de objetivos de Kubernetes [#k8s-target-discovery]
+
+Los trabajos Kubernetes descubren el objetivo y raspan el objetivo según la configuración `target_discovery`. Si dentro de la configuración `target_discovery`, configuras `pod` y `endpoints` en `true`, Prometheus creará reglas para descubrir cualquier pod o extremo en el clúster que tenga un puerto expuesto.
+
+Utilice el parámetro de configuración `target_discovery.filter` para filtrar el objetivo que Prometheus raspa. Utilice las etiquetas `label` y `annotations` para filtrar por condiciones actuales y el operador `AND` para todas las condiciones.
+
+El siguiente ejemplo solo extrae `Pods` y `Endpoints` con la anotación `newrelic.io/scrape: "true"` y la etiqueta `k8s.io/app` con `postgres` o `mysql` como valores. Para el extremo, la anotación debe estar presente en el servicio relacionado con ella. Las expresiones regulares están ancladas, es decir, si configura `scrape: 'true'`, Prometheus evalúa `true` como `^true$`. Para evitar eso, use `.*true.*` para que también coincida con `a-true-example`.
+
+```yaml
+kubernetes:
+  jobs:
+  - job_name_prefix: example
+    integrations_filter:
+      enabled: false
+    target_discovery:
+      pod: true
+      endpoints: true
+      filter:
+        annotations:
+          # <string>: <regex>
+          newrelic.io/scrape: 'true'
+        label:
+          # <string>: <regex>
+          k8s.io/app: '(postgres|mysql)'
+```
+
+<Callout variant="tip">
+  Si no agrega un valor para la etiqueta o anotación, el filtro solo verificará si existe.
+</Callout>
+
+## Configurar objetivo estático [#setup-static-targets]
+
+El agente prometheus define un trabajo objetivo estático para raspar autométrica de forma predeterminada, pero puede configurar un objetivo estático adicional al incluir trabajos adicionales.
+
+El siguiente ejemplo incluye un trabajo adicional para eliminar un servidor administrado por separado y el trabajo self-métrica para seguir informando el prometheus agente métrica, como se define [de forma predeterminada](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml).
+
+```yaml
+static_targets:
+  jobs:
+    - job_name: managed-exporter
+      targets:
+        - "managed_exporter.your-company.tld:5432"
+    - job_name: self-metrics
+      skip_sharding: true  # sharding is skipped to obtain self-metrics from all Prometheus servers.
+      targets:
+        - "localhost:9090"
+      extra_metric_relabel_config:
+        - source_labels: [__name__]
+          action: keep
+          regex: "\
+            prometheus_agent_active_series|\
+            prometheus_target_interval_length_seconds|\
+            prometheus_target_scrape_pool_targets|\
+            prometheus_remote_storage_samples_pending|\
+            prometheus_remote_storage_samples_in_total|\
+            prometheus_remote_storage_samples_retried_total|\
+            prometheus_agent_corruptions_total|\
+            prometheus_remote_storage_shards|\
+            prometheus_sd_kubernetes_events_total|\
+            prometheus_agent_checkpoint_creations_failed_total|\
+            prometheus_agent_checkpoint_deletions_failed_total|\
+            prometheus_remote_storage_samples_dropped_total|\
+            prometheus_remote_storage_samples_failed_total|\
+            prometheus_sd_kubernetes_http_request_total|\
+            prometheus_agent_truncate_duration_seconds_sum|\
+            prometheus_build_info|\
+            process_resident_memory_bytes|\
+            process_virtual_memory_bytes|\
+            process_cpu_seconds_total"
+```
+
+<Callout variant="caution">
+  Si modifica la sección `static_targets` y no incluye el trabajo autométrico, los agentes métricos no se reportan.
+</Callout>
+
+## Intervalo de raspado objetivo [#target-scrape-interval]
+
+De forma predeterminada, el agente Prometheus raspa todos los objetivos para métrica cada 30 segundos como se define en `common.scrape_interval` para todos los trabajos de raspado en la configuración. Puede cambiar esto usando la tecla `scrape_interval` en esa sección.
+
+Este ejemplo muestra dos trabajos de Kubernetes con diferentes intervalos de extracción:
+
+```yaml
+common:
+  scrape_interval: 30s
+kubernetes:
+  jobs:
+  # this job will use the default scrape_interval defined in common.
+  - job_name_prefix: default-targets-with-30s-interval
+    target_discovery:
+      pod: true
+      filter:
+        annotations:
+          newrelic.io/scrape: 'true'
+
+  - job_name_prefix: slow-targets-with-60s-interval
+    scrape_interval: 60s
+    target_discovery:
+      pod: true
+      filter:
+        annotations:
+          newrelic.io/scrape_slow: 'true'
+```
+
+## Transformaciones métricas y de etiquetas [#metric-label-transformations]
+
+Puedes aplicar transformaciones métricas y de etiquetas en cualquier sección de configuración, pero configurarlo en el nivel de escritura remota hace que el filtrado o las transformaciones sean más amplios.
+
+Si los configura en el nivel `newrelic_remote_write`, los filtros se aplican a todas las métricas que se envían a New Relic. Si los fijas en cualquier otra sección, se aplican a la métrica raspada por esa sección. El proceso de filtrado métrico ocurre después de que las métricas han sido raspadas del objetivo.
+
+Puede utilizar el parámetro `extra_metric_relabel_config` para aplicar los filtros, que agrega entradas del parámetro [metric_relabel_config](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config) . Este parámetro está presente en `static_targets.jobs`, `kubernetes.jobs` y el parámetro `extra_write_relabel_configs` para `newrelic_remote_write`.
+
+Aquí hay un ejemplo de cómo usarlo en diferentes partes del archivo de configuración YAML:
+
+```yaml
+static_targets:
+- name: self-metrics
+  urls:
+    - 'http://static-service:8181'
+  extra_metric_relabel_config:
+  # Drop metrics with prefix 'go_' for this target.
+  - source_labels: [__name__]
+    regex: 'go_.+'
+    action: drop
+
+newrelic_remote_write:
+  extra_write_relabel_configs:
+  # Drop all metrics with the specified name before sent to New Relic.
+  - source_labels: [__name__]
+    regex: 'metric_name'
+    action: drop
+```
+
+### Muestras de fragmentos de archivos YAML [#config-samples]
+
+Agregue uno de estos ejemplos en el archivo de configuración YAML desde la sección [de transformaciones de métricas y etiquetas](#metric-label-transformations) .
+
+#### Para filtrar métrica [#drop-keep-metrics]
+
+<CollapserGroup>
+  <Collapser
+    id="collapser-source"
+    title="Filtra métricas cuyo nombre comienza con 'prefix_'"
+  >
+    ```yaml
+    - source_labels: [__name__]
+      regex: 'prefix_.+'
+      action: drop
+    ```
+  </Collapser>
+
+  <Collapser
+    id="collapser-source"
+    title="Filtra métricas que tienen un 'k8s.io/app=appLabelValue' etiqueta Kubernetes"
+  >
+    ```yaml
+    - source_labels: [k8s_io_app]
+      regex: 'appLabelValue'
+      action: drop
+    ```
+  </Collapser>
+
+  <Collapser
+    id="collapser-source"
+    title="Filtra métricas cuyo nombre comienza con 'prefix_' y que tienen un 'k8s.io/app=appLabelValue' etiqueta Kubernetes"
+  >
+    ```yaml
+    - source_labels: [__name__,k8s_io_app]
+      regex: 'prefix_.+;appLabelValue'
+      action: drop
+    ```
+  </Collapser>
+
+  <Collapser
+    id="collapser-source"
+    title="Filtra todas las métricas excepto aquellas cuyo nombre comienza con 'prefix_'"
+  >
+    ```yaml
+    - source_labels: [__name__]
+      regex: 'prefix_.+'
+      action: keep
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### Para agregar o quitar etiquetas métricas [#filter-metric-labels]
+
+<Callout variant="important">
+  Los nombres de las etiquetas métricas deben cumplir con [Prometheus DataModel](https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="collapser-source"
+    title="Agregue las etiquetas 'new_label=newLabelValue' a los nombres métricos que comienzan con 'prefix_'"
+  >
+    ```yaml
+    - source_labels: [__name__]
+    regex: 'prefix_.+'
+    target_label: new_label
+    action: replace
+    replacement: newLabelValue
+    ```
+  </Collapser>
+
+  <Collapser
+    id="collapser-source"
+    title="Filtrar todas las métricas de la etiqueta 'label_name'"
+  >
+    Puede usarlo para reducir la cardinalidad, pero tenga en cuenta que eliminar etiquetas de identificación puede dificultar la garantía de una agregación métrica adecuada.
+
+    ```yaml
+    - regex: 'label_name'
+    action: labeldrop
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de autorización objetivo [#target-authorization-configuration]
+
+Algunos objetivos necesitan autorización de acceso para ser eliminados, como la base de datos No-SQL para recuperar datos a los que tiene acceso el usuario que se conecta, o exportadores que exponen datos sensibles en su extremo métrico. Todos los métodos de autorización admitidos por Prometheus se pueden configurar en las secciones `static_targets` y `kubernetes` .
+
+Como se explica en la [guía de instalación,](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent) creamos una configuración para Prometheus basada en nuestro YAML. Esta parte de la configuración pasó a Prometheus tal cual desde nuestro YAML, por lo que debe consultar la documentación de Prometheus:
+
+* [TLS](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#tls_config)
+* [OAuth2](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#oauth2)
+* [Encabezado de autorización](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)
+* Autenticación básica
+
+A continuación se muestran algunos ejemplos para tratar objetivos que necesitan autorización de acceso:
+
+```yaml
+kubernetes:
+  jobs:
+  - job_name_prefix: skip-verify-on-https-targets
+    target_discovery:
+      pod: true
+      filter:
+        annotations:
+          newrelic.io/scrape: 'true'
+  - job_name_prefix: bearer-token
+    target_discovery:
+      pod: true
+      filter:
+        label:
+          k8s.io/app: my-app-with-token
+    authorization:
+      type: Bearer
+      credentials_file: '/etc/my-app/token'
+
+startic_targets:
+  jobs:
+  - job_name: mtls-target
+    scheme: https
+    targets:
+    - 'my-mtls-target:8181'
+    tls_config:
+      ca_file: '/etc/my-app/client-ca.crt'
+      cert_file: '/etc/my-app/client.crt'
+      key_file: '/etc/my-app/client.key'
+
+  - job_name: basic-auth-target
+    targets:
+    - 'my-basic-auth-static:8181'
+    basic_auth:
+      password_file: '/etc/my-app/pass.htpasswd'
+```

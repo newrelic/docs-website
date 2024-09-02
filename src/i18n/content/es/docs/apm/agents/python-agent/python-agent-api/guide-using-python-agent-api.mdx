@@ -1,0 +1,467 @@
+---
+title: Guía para usar la API del agente Python
+tags:
+  - Agents
+  - Python agent
+  - API guides
+metaDescription: Use cases and examples of how to use the APM Python agent API.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La API del agente Python le permite personalizar y ampliar su monitoreo. Utilice la API del agente Python para:
+
+* Instrumente manualmente un framework no compatible o un sistema de terceros.
+* Agregue instrumentación para complementar el monitoreo predeterminado del agente.
+
+Este documento describe algunas de las [API de llamada de Python disponibles](/docs/agents/python-agent/python-agent-api). Para obtener una descripción de todas nuestras API disponibles, consulte [Introducción a las API](/docs/apis/getting-started/introduction-new-relic-apis).
+
+## Instrumentación personalizada o API [#custom-instrumentation]
+
+Si su objetivo es [la instrumentación personalizada](#instrumentation), considere usar el [método del archivo de configuración](/docs/agents/python-agent/custom-instrumentation/python-custom-instrumentation-config-file), que le permite agregar funciones y métodos de clase al archivo de configuración que el agente instrumentará automáticamente. El beneficio del método del archivo de configuración es que no requiere que cambie el código de su aplicación.
+
+Sin embargo, la API del agente Python es mucho más poderosa y es mejor para configurar instrumentación más compleja y personalizada. Para asegurarse de tener acceso a la funcionalidad API completa, actualice al [último agente de Python](/docs/release-notes/agent-release-notes/python-release-notes).
+
+## Monitor transacciones y segmentos [#transaction-segments]
+
+El agente Python es [compatible con la mayoría del marco web WSGI común](/docs/agents/python-agent/getting-started/compatibility-requirements-python-agent). Si el agente es compatible con su framework, las solicitudes web se capturarán automáticamente como [transacciones](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction) y se mostrarán en la UI de New Relic. Una transacción también puede tener segmentos a nivel de función que se capturan como parte de una [traza de la transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction-trace).
+
+Utilice estos métodos para monitor los segmentos de transacción web, transacción no web y transacción:
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Monitor transacciones web WSGI
+      </td>
+
+      <td>
+        El agente Python captura automáticamente las transacciones web para [el marco compatible](/docs/agents/python-agent/getting-started/compatibility-requirements-python-agent). Si no tiene un framework compatible, puede usar la función [`wsgi_application`](/docs/agents/python-agent/python-agent-api/wsgi_application) para monitor su punto de entrada WSGI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitor transacciones web ASGI
+      </td>
+
+      <td>
+        El agente Python captura automáticamente las transacciones web para [el marco compatible](/docs/agents/python-agent/getting-started/compatibility-requirements-python-agent). Si no tiene un framework compatible, puede usar la función [`asgi_application`](/docs/apm/agents/python-agent/python-agent-api/asgi_application) para monitor su punto de entrada ASGI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitor transacciones no web
+      </td>
+
+      <td>
+        El agente Python clasifica [las transacciones no web](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions) como tareas en segundo plano. Para capturar transacciones no web, utilice [`background_task`](/docs/agents/python-agent/python-agent-api/background_task).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Capture más detalles sobre una transacción
+      </td>
+
+      <td>
+        Si tu [traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces) no tiene el nivel de detalle que deseas:
+
+        * Utilice [`function_trace`](/docs/agents/python-agent/python-agent-api/function_trace) para capturar más detalles a nivel de función en la transacción.
+        * Utilice [`datastore_trace`](/docs/agents/python-agent/python-agent-api/datastore_trace) para capturar más detalles sobre las llamadas de almacenamiento de datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ignorar una transacción
+      </td>
+
+      <td>
+        Utilice cualquiera de estas opciones:
+
+        * Para ignorar una transacción por completo, utilice [`ignore_transaction`](/docs/agents/python-agent/python-agent-api/ignore_transaction).
+        * Para evitar que una transacción produzca una traza de la transacción, utilice [`suppress_transaction_trace`](/docs/agents/python-agent/python-agent-api/suppress_transaction_trace).
+        * Para finalizar una transacción antes de que el agente la finalice automáticamente, use [`end_of_transaction`](/docs/agents/python-agent/python-agent-api/end-of-transaction).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Agregar y editar metadatos de transacciones [#metadata]
+
+A veces el código al que apuntas es visible en nuestra UI, pero algunos detalles del método no son útiles. Por ejemplo:
+
+* El nombre predeterminado no es útil o está provocando un [problema de agrupación métrica](/docs/agents/manage-apm-agents/troubleshooting/metric-grouping-issues#video).
+* Quieres agregar [atributos personalizados](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes) a tu transacción para poder filtrarlos al realizar la consulta.
+
+Utilice estas llamadas cuando desee cambiar los metadatos de una transacción existente:
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Obtener referencia a la transacción actual
+      </td>
+
+      <td>
+        Para devolver un objeto que represente la transacción actual, utilice [`current_transaction`](/docs/agents/python-agent/python-agent-api/current_transaction). Esto es requerido por algunas otras llamadas API del agente Python.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cambiar el nombre de una transacción
+      </td>
+
+      <td>
+        Utilice [`set_transaction_name`](/docs/agents/python-agent/python-agent-api/set_transaction_name).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregar metadatos (como el nivel de suscripción de un cliente) a la transacción
+      </td>
+
+      <td>
+        Agregue [un atributo personalizado](/docs/new-relic-solutions/get-started/glossary/#attribute) a su transacción usando [`add_custom_attribute`](/docs/agents/python-agent/python-agent-api/add_custom_attribute) o use otra API de llamada para [informar datos personalizados](#custom-data).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Marcar una transacción como trabajo en segundo plano
+      </td>
+
+      <td>
+        Para convertir una transacción web en una tarea en segundo plano para que aparezca como una [transacción no web](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#non-web-transaction) en la UI, utilice [`set_background_task`](/docs/agents/python-agent/python-agent-api/set_background_task).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evite que una transacción afecte su [puntuación Apdex](/docs/apm/new-relic-apm/apdex/view-your-apdex-score)
+      </td>
+
+      <td>
+        Utilice [`suppress_apdex_metric`](/docs/agents/python-agent/python-agent-api/suppress_apdex_metric).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ver registro relacionado [#logs]
+
+Para ver el registro directamente dentro del contexto de los errores y la traza de su aplicación, utilice la llamada API [`get_linking_metadata`](/docs/apm/agents/python-agent/python-agent-api/getlinkingmetadata-python-agent-api/) para anotar su registro. Para obtener más información sobre cómo correlacionar los datos log con otros telemetry data, consulte nuestra documentación [de contexto de registro](/docs/logs/logs-context/configure-logs-context-python/) .
+
+## Reporte evento personalizado y métrica datos personalizados [#custom-data]
+
+El agente [reporta datos](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data) en dos formas principales:
+
+* Los datos métricos miden valores numéricos basados en el tiempo; por ejemplo, conexiones por minuto.
+* Los datos de eventos capturan información de eventos discreta. evento tienen valor principal atributo adjunto a ellos. Podrás analizar y [consultar datos de eventos](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data).
+
+Utilice estos métodos para crear nuevos datos de eventos y nuevos datos métricos:
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Envíe datos sobre un evento para utilizarlos al consultar sus datos.
+      </td>
+
+      <td>
+        Utilice [`record_custom_event`](/docs/agents/python-agent/python-agent-api/record_custom_event).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informe métrico basado en tiempo sobre el rendimiento de la aplicación.
+      </td>
+
+      <td>
+        * Para informar una sola métrica, utilice [`record_custom_metric`](/docs/agents/python-agent/python-agent-api/record_custom_metric).
+        * Para informar un conjunto de métricas, utilice [`record_custom_metrics`](/docs/agents/python-agent/python-agent-api/recordcustommetrics-python-agent-api).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informar una excepción como un error
+      </td>
+
+      <td>
+        De forma predeterminada, el agente Python solo informa excepciones no controladas. Para informar una excepción de Python como error, utilice [`notice_error`](/docs/agents/python-agent/python-agent-api/noticeerror-python-agent-api/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Parámetro de cadena de consulta de informe
+      </td>
+
+      <td>
+        Por razones de seguridad, los parámetros de cadena de consulta asociados a la transacción web están deshabilitados de forma predeterminada. Utilice [`capture_request_params`](/docs/agents/python-agent/python-agent-api/capture_request_params) para habilitarlos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Etiqueta evento con metadatos
+      </td>
+
+      <td>
+        Para agregar un atributo al evento para consultas más detalladas o análisis de errores, use [`add_custom_attribute`](/docs/agents/python-agent/python-agent-api/add_custom_attribute).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Generar métricas a partir de fuentes de datos y fábricas de datos.
+      </td>
+
+      <td>
+        Para generar métricas con una API de estilo pull en lugar de la API de estilo push implementada por `record_custom_metric()`, utilice estas API de llamada:
+
+        * [`register_data_source`](/docs/agents/python-agent/python-agent-api/register_data_source)
+        * [`data_source_generator`](/docs/agents/python-agent/python-agent-api/data_source_generator)
+        * [`data_source_factory`](/docs/agents/python-agent/python-agent-api/data_source_factory)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Llamadas relacionadas con mensajes [#messaging]
+
+Estas API de llamada le permiten recopilar datos de rendimiento en su arquitectura o servicio de paso de mensajes; por ejemplo, [RabbitMQ](https://www.rabbitmq.com/). Para utilizar estas llamadas, asegúrese de tener [la versión 2.88.0.72 o superior del agente](/docs/release-notes/agent-release-notes/python-release-notes) Python.
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Informar mensajes como una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction)
+      </td>
+
+      <td>
+        Utilice [`message_transaction`](/docs/agents/python-agent/python-agent-api/message_transaction).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informar detalles del mensaje como segmentos de traza de la transacción
+      </td>
+
+      <td>
+        Utilice [`message_trace`](/docs/agents/python-agent/python-agent-api/message-trace).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Implementar rastreo distribuido [#distributed-tracing]
+
+Estas API requieren que [rastreo distribuido esté habilitado](/docs/enable-distributed-tracing).
+
+Los servicios y el monitor de aplicaciones de nuestro agente se pasarán automáticamente el contexto de rastreo distribuido entre sí cuando se utilice un [frameworkcompatible](/docs/agents/python-agent/getting-started/instrumented-python-packages#web-frameworks). Cuando no utilice un framework compatible, deberá utilizar las API distribuidas por rastreo para aceptar manualmente este contexto.
+
+El marco web compatible (por ejemplo, Flask, Django, Tornado) llamará automáticamente `accept_distributed_trace_payload` al crear una transacción. [La biblioteca de servicios web externos admitidos](/docs/agents/python-agent/getting-started/instrumented-python-packages#external-web-services) llamará automáticamente `create_distributed_trace_payload` antes de realizar una llamada HTTP externa.
+
+Para obtener instrucciones generales sobre cómo utilizar las siguientes llamadas para implementar rastreo distribuido, consulte [Usar las API de rastreo distribuido](/docs/enable-distributed-tracing#agent-apis).
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cree una carga útil para enviarla a un servicio llamado.
+      </td>
+
+      <td>
+        Utilice [`create_distributed_trace_payload`](/docs/agents/python-agent/python-agent-api/create_distributed_trace_payload).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Aceptar una carga útil enviada desde el primer servicio; Esto unirá estos servicios en una traza.
+      </td>
+
+      <td>
+        Utilice [`accept_distributed_trace_payload`](/docs/agents/python-agent/python-agent-api/accept_distributed_trace_payload).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Configuración del agente, inicialización, apagado. [#mgmt]
+
+Estas llamadas lo ayudan a administrar el comportamiento del agente Python, como inicializar e integrar el agente y hacer referencia a o cambiar los ajustes [de configuración](/docs/agents/python-agent/installation-configuration/python-agent-configuration) :
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Inicializar el agente
+      </td>
+
+      <td>
+        Para inicializar el agente Python con un archivo de configuración específico como parte del [proceso de integración avanzado](/docs/agents/python-agent/installation-configuration/python-agent-integration#manual-integration), utilice [`initialize`](/docs/agents/python-agent/python-agent-api/initialize).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Obtener una referencia al objeto `application`
+      </td>
+
+      <td>
+        El objeto [`application`](/docs/agents/python-agent/python-agent-api/application) representa una aplicación de supervisión de agente y lo utilizan algunas llamadas a la API del agente de Python.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Obtener una referencia a los ajustes de configuración
+      </td>
+
+      <td>
+        Para controlar el comportamiento del agente Python, puede utilizar [los ajustes de configuración](/docs/agents/python-agent/installation-configuration/python-agent-configuration).
+
+        * Para obtener una referencia al archivo de configuración y la configuración de las variables de entorno y realizar cambios en ellos, utilice [`global_settings`](/docs/agents/python-agent/python-agent-api/global_settings).
+
+        * Para obtener una referencia a la configuración
+
+          <DNT>
+            **all**
+          </DNT>
+
+          , incluida [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/configure-agent#ssc) desde nuestra UI, utilice [`application_settings`](/docs/agents/python-agent/python-agent-api/application_settings).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cerrar el agente
+      </td>
+
+      <td>
+        Para cerrar forzosamente el agente en lugar de permitirle realizar el intento final estándar de cargar datos, utilice [`shutdown_agent`](/docs/agents/python-agent/python-agent-api/shutdown_agent).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Controlar el monitoreo del agente navegador [#browser]
+
+Puede [instalar el agente de monitoreo de navegador](/docs/browser/new-relic-browser/installation-configuration/add-apps-new-relic-browser) agregándolo automáticamente a sus páginas o implementándolo en páginas específicas copiando y pegando el fragmento de JavaScript del agente <InlinePopover type="browser"/>. También puede controlar el agente del navegador utilizando la API de llamada del agente APM. Para obtener más información, consulte [agente del navegador y el agente Python](/docs/agents/python-agent/supported-features/page-load-timing-python).
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Monitor vistas de páginas específicas
+      </td>
+
+      <td>
+        Para inyectar el fragmento de JavaScript del encabezado y pie de página del agente del navegador en las vistas que desea monitor, use [`get_browser_timing_header`](/docs/agents/python-agent/python-agent-api/get_browser_timing_header) y [`get_browser_timing_footer`](/docs/agents/python-agent/python-agent-api/get_browser_timing_footer).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Deshabilitar el monitoreo de vistas de páginas específicas
+      </td>
+
+      <td>
+        Para deshabilitar el monitoreo del navegador para visitas a páginas específicas, use [`disable_browser_autorum`](/docs/agents/python-agent/python-agent-api/disable_browser_autorum).
+      </td>
+    </tr>
+  </tbody>
+</table>

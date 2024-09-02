@@ -1,0 +1,88 @@
+---
+title: Alert conditions for APM and browser monitoring metrics
+tags:
+  - Alerts  
+  - Alert conditions
+metaDescription: How to create NRQL alert conditions for APM and browser monitoring metrics.
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/apm-metric-alert-conditions
+  - /docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/other-condition-types/apm-metric-alert-conditions
+freshnessValidatedDate: never
+---
+
+There are various ways to create alert conditions for New Relic <InlinePopover type="apm"/> and <InlinePopover type="browser"/> metrics, but we recommend using NRQL. Using a NRQL alert condition provides additional controls, improved detection time, and consistency across all data types.
+
+In 2021, we made it easier to create NRQL alert conditions from charts and queries throughout New Relic. See below an example of how to create an APM external service condition using NRQL.
+
+Setting up an APM or browser monitoring metric alert condition is a two-part process: First, you need to identify the entity, then you create the NRQL condition.
+
+## APM condition example
+
+Here's a procedure showing how you might set up a condition for an APM-monitored app.
+
+### First: identify the entity [#identity-entity]
+
+First, you'll identify the entity for which you'll set the alert condition:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM**</DNT> in the toolbar.
+2. Find the service you’d like to alert on.
+3. Click on the service.
+4. In the left navigation pane, click <DNT>**External services**</DNT>.
+5. Under <DNT>**Top 20 external services**</DNT>, find the service you want and click on it.
+
+   <img
+     title="top-twenty.png"
+     alt="Screen capture showing the list of the top 20 external services to choose from."
+     src="/images/accounts_screenshot-full_top-twenty.webp"
+   />
+6. On the right side of the page, where you see graphs for <DNT>**Response time**</DNT> and <DNT>**External calls per minute**</DNT> (throughput), decide which of these two options you would like to alert on.
+7. In the upper-right corner of the graph you choose, click the ellipsis icon <DNT>**...**</DNT> and select <DNT>**Create alert condition**</DNT>.
+
+   <Callout variant="tip">
+     If you don’t see the ellipsis icon <DNT>**...**</DNT>, ensure the <DNT>**Show new view**</DNT> option at the top of the page is enabled.
+   </Callout>
+
+   <img
+     title="external_service_graph.png"
+     alt="Screenshot showing the menu options."
+     src="/images/accounts_screenshot-full_external-service-graph.webp"
+   />
+8. This launches a modal with the NRQL alert condition builder, the query is pre-populated.
+
+   * If you choose response time, your query may look like this:
+
+     <img
+       title="response_time_query.png"
+       alt="Example showing a query for response time."
+       src="/images/accounts_screenshot-full_response-time-query.webp"
+     />
+   * If you choose external calls per minute, your query may look like this:
+
+     <img
+       title="external-calls-query.png"
+       alt="Example show an external calls query."
+       src="/images/accounts_screenshot-full_external-calls-query.webp"
+     />
+
+With your query pre-populated in the condition builder, you'll next create the NRQL alert condition.
+
+### Next: create the NRQL alert condition [#create-condition]
+
+In the modal, complete the following:
+
+1. Enter a condition name.
+2. In <DNT>**Define your signal**</DNT>, observe that any `LIMIT`, `SINCE...AGO`, and `TIMESERIES` clauses are removed so that the NRQL query syntax is valid.
+
+   <Callout variant="tip">
+     If no results are returned, ensure you are in the correct account by looking at the current account in the upper-left of the modal.
+     If it's not correct, you may need to close out of the modal and double-check that the correct account is selected in the account picker in the upper-left corner of the page.
+   </Callout>
+
+   <img
+     title="nrql_condition_builder_modal.png"
+     alt="Screenshot showing you the NRQL alert condition builder pre-populated with your query."
+     src="/images/accounts_screenshot-full_nrql-condition-builder-modal.webp"
+   />
+3. Fill out the remaining fields, select or create a policy near the bottom of the form, and save your condition.
+
+Optional: see [how to query APM metric timeslice data with NRQL](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-apm-metric-timeslice-data-nrql#timeslice-conversion).

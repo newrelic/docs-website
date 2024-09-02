@@ -1,0 +1,257 @@
+---
+title: 기본 SNMP 활용도 계산 이해
+tags:
+  - Integrations
+  - Network monitoring
+  - Troubleshooting
+metaDescription: Understanding how various utilization metrics are calculated in ktranslate.
+freshnessValidatedDate: '2023-10-30T00:00:00.000Z'
+translationType: machine
+---
+
+## 문제 [#problem]
+
+`ktranslate` 네트워크 모니터링 에이전트가 계산한 다양한 결과에 대해 질문이 있습니다.
+
+## 배경 [#background]
+
+`ktranslate` 다음 주의 사항과 함께 거의 모든 인스턴스에서 SNMP 폴링으로 수집된 원시 데이터를 반환합니다.
+
+* CPU 사용률 %
+* 메모리 활용률(%)
+* 인터페이스 활용률(%)
+* 인터페이스 오류 %
+* 구성에 `enum` 또는 `conversion` 함수가 적용된 다양한 측정항목
+
+## 해결책 [#solution]
+
+<CollapserGroup>
+  <Collapser
+    id="cpu-utilization"
+    title="CPU 활용률(%)"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.CPU`
+
+    CPU는 일반적으로 사용률을 나타내는 정수 또는 부동 소수점 값을 제공하는 직접 OID로 반환됩니다. 드문 경우지만 CPU 유휴에 대한 결과만 나오는데, 이는 다음 공식을 사용하여 [CPU로 변환](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L281-L285) 됩니다.
+
+    ```
+    CPU = 100 - CPU Idle
+    ```
+  </Collapser>
+
+  <Collapser
+    id="memory-utilization"
+    title="메모리 활용률(%)"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.MemoryUtilization`
+
+    CPU와 달리 메모리 사용률은 직접적인 OID 값으로 표시되는 경우가 거의 없습니다. 활용률을 계산하기 위해 [ktranslate는 다음 논리를 사용합니다](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L287-L317).
+
+    ```
+    If Memory Used and Memory Free are available:
+      Memory Utilization = ( Memory Used / (Memory Free + Memory Used) ) * 100
+
+    If Memory Total and Memory Free are available:
+      Memory Utilization = ( (Memory Total - Memory Free) / Memory Total ) * 100
+
+    If Memory Total and Memory Used are available:
+      Memory Utilization = ( Memory Used / Memory Total ) * 100
+
+    If Memory Total, Memory Buffer, and Memory Cache are available:
+      Memory Utilization = ( ( Memory Total - (Memory Buffer + Memory Cache ) ) / Memory Total ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="interface-utilization"
+    title="인터페이스 활용률(%)"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.IfInUtilization` \| `kentik.snmp.IfOutUtilization`
+
+    인터페이스 활용은 델타를 비트 단위로 계산하고 인터페이스의 구성된 속도와 마지막 수집 이후 시간 델타의 곱으로 나누는 업계 표준 접근 방식을 따릅니다.
+
+    예를 들어, 1이 이전 데이터 포인트이고 2가 가장 최근 데이터 포인트라고 가정합니다.
+
+    > ( ( ifHCInOctets_2 - ifHCInOctets_1 ) \* 8 \* 100 ) / ( (sysUptime_2 - sysUptime_1) \* ifSpeed )
+
+    ### 번역된 계산
+
+    분자의 경우:
+
+    * 최신 옥텟 수를 취하고 이전 샘플 값을 빼서 델타를 얻습니다.
+
+    * 옥텟을 비트로 변환하려면 결과에 8을 곱합니다.
+
+    * 백분율 계산을 설정하려면 비트에 100을 곱하십시오.
+
+      분모의 경우:
+
+    * `sysUptime` 의 최신 값을 취하고 이전 샘플의 값을 빼서 폴링 간격을 표시하는 델타를 얻습니다.
+
+    * 간격에 구성된 `ifSpeed` (비트 단위로 보고됨)을 곱합니다.
+
+      마지막으로:
+
+    * 분자를 분모로 나누어 활용률을 구합니다.
+
+      ### 소스 데이터
+
+      [Ktranslate](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/formats/nrm/nrm.go#L581-L623) 는 [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (수신) 또는 [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (전송) 값을 사용합니다. 필요에 따라 분모의 `ifSpeed` [ifHighSpeed](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.15) 값으로 바꿉니다.
+
+      <Callout variant="tip">
+        인터페이스 사용률이 부정확하게 나타나는 일반적인 이유는 장치에 구성된 인터페이스 속도가 실제 인터페이스 속도를 반영하지 않기 때문입니다. 예를 들어, 10GB 인터페이스의 1GB MPLS 회로는 실제 사용률의 10%에 불과한 비율을 표시합니다. 이 문제를 해결하려면 공급업체의 인터페이스 대역폭 설정 설명서를 참조하세요.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="interface-throughput"
+    title="인터페이스 처리량"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifHCInOctets` \| `kentik.snmp.ifHCOutOctets`
+
+    인터페이스 처리량은 [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (수신) 또는 [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (전송) 값을 사용합니다.
+
+    처리량을 쿼리할 때 찾고 있는 내용을 정확히 기록하는 것이 중요합니다.
+
+    * 1옥텟 = 1바이트
+
+    * 1옥텟 = 8비트
+
+      SNMP의 원시 측정은 옥텟을 계산하는 것인데, 이 문맥에서는 바이트와 동의어입니다. 별도의 변환 없이 보고된 지표를 통해 직접 바이트를 쉽게 계산할 수 있습니다.
+
+      초당 비트 수(bps)를 찾고 있다면 옥텟을 곱하고 최종 숫자를 '초당' 속도로 변환해야 합니다.
+
+      **예시**
+
+      ```sql
+      FROM Metric SELECT
+      max(kentik.snmp.ifHCInOctets) AS 'total_received_bytes',
+      max(kentik.snmp.ifHCOutOctets) AS 'total_sent_bytes',
+      rate(average(kentik.snmp.ifHCInOctets)*8, 1 SECOND) AS 'average_received_bps',
+      rate(average(kentik.snmp.ifHCOutOctets)*8, 1 SECOND) AS 'average_sent_bps'
+      FACET entity.name, if_interface_name
+      SINCE 1 WEEK AGO
+      TIMESERIES
+      ```
+  </Collapser>
+
+  <Collapser
+    id="interface-errors"
+    title="인터페이스 오류 %"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifInErrorPercent` \| `kentik.snmp.ifOutErrorPercent`
+
+    인터페이스 오류 비율은 [ifInErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.14) (수신) 또는 [ifOutErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.20) (전송) 값을 [ifHCInUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.7) (수신) 또는 [ifHCOutUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.11) (전송)로 나눈 값을 사용합니다. [ktranslate에서](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/interface_metrics.go#L255-L271) 공식은 다음과 같습니다:
+
+    ```
+    ( ifInErrors / ifHCInUcastPkts ) * 100
+    or
+    ( ifOutErrors / ifHCOutUcastPkts ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="snmp-conversions"
+    title="SNMP 변환"
+  >
+    <DNT>**Metric Name**</DNT>: 다양한
+
+    다른 SNMP 측정항목은 해당 [SNMP 프로필](https://github.com/kentik/snmp-profiles/blob/main/profiles/kentik_snmp/_template.yml) 에 있는 `enum` 및 `conversion` 함수의 존재 여부를 기반으로 변환됩니다.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "450px" }}>
+            프로필 설정
+          </th>
+
+          <th>
+            용법
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `tag`
+          </td>
+
+          <td>
+            `name` 속성을 재정의하고 내보낸 페이로드와 함께 전송될 식별 이름을 제공하는 데 사용됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enum:[]`
+          </td>
+
+          <td>
+            차원 메트릭의 정수 값을 차원 메트릭에 장식된 속성의 열거 값으로 변환하는(동일한 메트릭 이름 접미사 사용) SNMP 열거를 처리하는 데 사용됩니다. 일반적인 예는 [kentik.snmp.if_AdminStatus](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.7) 를 `up`, `down` 또는 `testing` 와 같은 [if_AdminStatus](https://github.com/kentik/snmp-profiles/blob/ccb1df47a5068a59fb3e3765746524e0286252e7/profiles/kentik_snmp/_general/if-mib.yml#L59-L66) 의 열거 값으로 변환하는 것입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoint: <current>: <desired>`
+          </td>
+
+          <td>
+            16진수 값을 정수 형식으로 변환하는 데 사용됩니다. <DNT>**current**</DNT> 에 대한 옵션: `LittleEndian` \| `BigEndian`. <DNT>**desired**</DNT> 에 대한 옵션: `uint16` \| `uint32` \| `uint64`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoip`
+          </td>
+
+          <td>
+            16진수 값을 4옥텟 IPv4 문자열로 변환하는 데 사용됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hwaddr`
+          </td>
+
+          <td>
+            16진수 값을 MAC 주소 문자열로 변환하는 데 사용됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: powerset_status`
+          </td>
+
+          <td>
+            `POWERNET-MIB` 에서 [upsBasicStateOutputState](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.318.1.1.1.11.1.1) ASCII 문자열을 열거하는 데 사용됩니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: regexp`
+          </td>
+
+          <td>
+            부분 문자열을 캡처하기 위해 OID 출력에 정규식 일치를 배치합니다. 따옴표로 묶어야 하고 백슬래시를 이스케이프 처리해야 합니다.<br/>OID 결과 예: `" 5 Secs ( 96.3762%) 60 Secs ( 62.8549%) 300 Secs ( 25.2877%)"`<br/>변환 예시: `"regexp:60 Secs.*?(\\d+)"`<br/>최종 결과: `62`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: to_one`
+          </td>
+
+          <td>
+            열거 옵션이 없는 숫자가 아닌 스칼라 OID를 폴링하기 위해 `1` 값으로 게이지 측정항목을 만드는 데 사용됩니다. 예를 들어 [DisplayString](https://www.circitor.fr/Mibs/Html/S/SNMPv2-TC.php#DisplayString) 유형의 값을 반환하는 [tlUpsTestResultsDetail](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.850.100.1.7.2) OID가 있습니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>

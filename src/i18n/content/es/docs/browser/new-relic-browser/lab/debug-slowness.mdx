@@ -1,0 +1,275 @@
+---
+title: 'Parte de laboratorio 4: depurar la lentitud del frontend en su aplicación'
+metaDescription: 'Part 4 of a multi-part lab on using New Relic browser monitoring to troubleshoot your site: Debug your frontend'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout
+  variant="course"
+  title="laboratorio"
+>
+  Este procedimiento es parte de un laboratorio que le enseña cómo solucionar problemas de su aplicación web con New Relic <InlinePopover type="browser"/>.
+
+  Cada procedimiento del laboratorio se basa en el anterior, así que asegúrese de haber completado el último procedimiento, [_Depurar errores en su aplicación_](/docs/browser/new-relic-browser/lab/debug-errors), antes de comenzar este.
+</Callout>
+
+Después de corregir los errores de JavaScript en su aplicación, usted y su equipo se sienten seguros. Listo para tu tiempo libre, te diriges a las redes sociales pero revisas Twitter y ves algunos clientes confundidos:
+
+<img
+  title="unhappy customers"
+  alt="unhappy customers"
+  src="/images/browser-lab-screenshot-tweet.webp"
+/>
+
+¡UH oh! Sus clientes no parecen felices. Es hora de utilizar el monitoreo del navegador New Relic para descubrir la fuente del retraso.
+
+<Callout variant="important">
+  Para poder ver tus datos en New Relic, necesitas habilitar el monitoreo del navegador para este procedimiento.
+
+  Si aún no lo has hecho, [instrumenta tu aplicación con nuestro agente del navegador](/docs/browser/new-relic-browser/lab/install-browser-agent).
+</Callout>
+
+## Depura la lentitud en tu aplicación
+
+<Steps>
+  <Step>
+    Desde la página de inicio de New Relic, navegue hasta <DNT>**Browser**</DNT> y elija su aplicación <DNT>**Relicstaurants**</DNT> .
+
+    <img
+      title="view relicstaurants"
+      alt="view relicstaurants"
+      src="/images/browser-lab-screenshot-view-relicstaurants.webp"
+    />
+  </Step>
+
+  <Step>
+    Aquí verá todos los datos relacionados con la aplicación de su browser , incluidos <DNT>**Page views with JavaScript errors**</DNT>, <DNT>**Core web vitals**</DNT>, <DNT>**User time on the site**</DNT>, <DNT>**Initial page load and route changes**</DNT> y otros.
+
+    <img
+      title="Relicstaurants summary"
+      alt="Relicstaurants summary"
+      src="/images/browser-lab-screenshot-relicstaurants-browser-app.webp"
+    />
+
+    Observe el <DNT>**largest contentful paint (LCP)**</DNT>.
+
+    <img
+      title="LCP"
+      alt="LCP"
+      src="/images/browser-lab-screenshot-LCP.webp"
+    />
+
+    La pintura de contenido más grande (LCP) representa la rapidez con la que se carga el contenido principal de una página web. Lo ideal es que el contenido no tarde más de uno o dos segundos en cargarse. Aquí verá que su sitio se carga en más de 5 segundos. ¡No es de extrañar que tus usuarios se quejen!
+
+    Pero ¿a qué se debe este retraso? parte trasera?
+  </Step>
+
+  <Step>
+    Desplácese hacia abajo y observe el gráfico <DNT>**Front end vs. back end**</DNT> .
+
+    <img
+      title="frontend vs backend graph"
+      alt="frontend vs backend graph"
+      src="/images/browser-lab-screenshot-frontend-vs-backend.webp"
+    />
+
+    Haga clic en <DNT>**Back end (time to first byte) (50%)**</DNT> para filtrar el gráfico y ver cuánto tiempo tarda en cargarse el backend.
+
+    <img
+      title="backend time consumption"
+      alt="backend time consumption"
+      src="/images/browser-lab-screenshot-backend.webp"
+    />
+
+    El gráfico indica que el backend tardó un máximo de 140 milisegundos en procesar la solicitud en el peor de los casos. ¿Significa esto que su interfaz está provocando retrasos?
+
+    Haga clic en <DNT>**Front end (Window load + AJAX) (50%)**</DNT>.
+
+    <img
+      title="frontend time consumption"
+      alt="frontend time consumption"
+      src="/images/browser-lab-screenshot-frontend.webp"
+    />
+
+    ¡Ahí está el problema! El gráfico indica que el retraso se produce en la interfaz.
+  </Step>
+
+  <Step>
+    Para delimitar lo que podría estar causando el retraso en la interfaz, observe más de cerca el gráfico <DNT>**Initial page load and route change**</DNT> .
+
+    <img
+      title="page load graph"
+      alt="page load graph"
+      src="/images/browser-lab-screenshot-page-load-graph.webp"
+    />
+  </Step>
+
+  <Step>
+    Haga clic en <DNT>**Initial page load (Window load + AJAX)**</DNT>.
+
+    <img
+      title="initial page load"
+      alt="initial page load"
+      src="/images/browser-lab-screenshot-initial-page-load.webp"
+    />
+
+    El gráfico indica que <DNT>**Initial page load (Window load + AJAX)**</DNT> está tardando entre 5 y 6 segundos, lo cual es alarmante.
+  </Step>
+
+  <Step>
+    Haga clic en <DNT>**Initial page load and route change**</DNT> para ver más detalles.
+
+    <img
+      title="page load details"
+      alt="page load details"
+      src="/images/browser-lab-screenshot-page-load-detail.webp"
+    />
+
+    Esto te llevará a <DNT>**Page views**</DNT>.
+
+    <img
+      title="page views"
+      alt="page views"
+      src="/images/browser-lab-screenshot-page-views.webp"
+    />
+  </Step>
+
+  <Step>
+    Ordene las páginas por <DNT>**Most time-consuming**</DNT>.
+
+    <img
+      title="sort page"
+      alt="sort page"
+      src="/images/browser-lab-screenshot-sort-pages.webp"
+    />
+
+    Observe que la página inicial tarda casi el 90% del tiempo en cargarse.
+
+    <img
+      title="most time consuming pages"
+      alt="most time consuming pages"
+      src="/images/browser-lab-screenshot-most-time-consuming-page.webp"
+    />
+
+    Haga clic en él para ver sus detalles.
+
+    <img
+      title="most time consuming page detail"
+      alt="most time consuming page detail"
+      src="/images/browser-lab-screenshot-most-time-consuming-page-detail.webp"
+    />
+
+    Esta página muestra <DNT>**Page view breakdown**</DNT>, <DNT>**Median initial page load time**</DNT> y otros detalles importantes. El gráfico <DNT>**Page view breakdown**</DNT> es especialmente importante aquí, ya que le ayuda a delimitar por qué y dónde su página tarda más. Al observar más de cerca este gráfico, verá que <DNT>**Page rendering**</DNT> tarda hasta 5000 milisegundos.
+
+    <img
+      title="page rendering"
+      alt="page rendering"
+      src="/images/browser-lab-screenshot-page-rendering.webp"
+    />
+
+    Ahora sabe que la página inicial tarda bastante en procesarse, lo que hace que su aplicación sea lenta. A continuación, observamos el <DNT>**Session traces**</DNT> para descubrir qué está ralentizando el proceso de renderizado.
+
+    Salga de esta vista haciendo clic en <DNT>**X**</DNT> en la esquina superior derecha.
+  </Step>
+
+  <Step>
+    Desde la navegación de la izquierda, navegue hasta <DNT>**Session traces**</DNT> y ordénelos en orden descendente de <DNT>**Page load**</DNT>.
+
+    <img
+      title="most time consuming pages"
+      alt="most time consuming pages"
+      src="/images/browser-lab-screenshot-session-traces.webp"
+    />
+  </Step>
+
+  <Step>
+    Aquí verá el rastreo de sesión ordenado en el orden de <DNT>**Page load**</DNT> tiempo.
+
+    <img
+      title="sorted session traces"
+      alt="sorted session traces"
+      src="/images/browser-lab-screenshot-sorted-session-traces.webp"
+    />
+  </Step>
+
+  <Step>
+    De la lista, haga clic en el primero.
+
+    <img
+      title="navigate to trace detail"
+      alt="trace detail"
+      src="/images/browser-lab-screenshot-navigate-to-trace-detail.webp"
+    />
+
+    ![imagen que muestra el rastreo de sesión ordenado](../../../images/nr-browser/navigate-to-trace-detail.webp)
+
+    Esto le llevará a la página de detalles <DNT>**Session traces**</DNT> .
+
+    Aquí puedes ver la traza completa de esa sesión en particular. Esta página también le muestra <DNT>**Backend**</DNT>, <DNT>**Dom Processing**</DNT>, <DNT>**Page Load**</DNT> y otra información relacionada con traza.
+
+    <img
+      title="full trace"
+      alt="full trace"
+      src="/images/browser-lab-screenshot-trace.webp"
+    />
+  </Step>
+
+  <Step>
+    Tenga en cuenta que <DNT>**Page load**</DNT> está tardando más de lo esperado. Necesita un cronograma detallado de la carga. Desplace el puntero hacia la izquierda y hacia la derecha para ajustar la línea de tiempo.
+
+    <img
+      title="adjust trace timeline"
+      alt="adjust trace timeline"
+      src="/images/browser-lab-screenshot-adjust-timeline.webp"
+    />
+  </Step>
+
+  <Step>
+    Desplácese por la traza para moverse por la ventana de tiempo y ver los detalles del evento individual durante esta sesión.
+
+    <img
+      title="adjust time window"
+      alt="adjust time window"
+      src="/images/browser-lab-screenshot-trace-time-window-detail.webp"
+    />
+  </Step>
+
+  <Step>
+    Observe que un evento en particular está tardando más de 5 segundos.
+
+    <img
+      title="image trace"
+      alt="image trace"
+      src="/images/browser-lab-screenshot-image-trace.webp"
+    />
+  </Step>
+
+  <Step>
+    Haga clic en el evento para ver sus detalles.
+
+    <img
+      title="image trace detail"
+      alt="image trace detail"
+      src="/images/browser-lab-screenshot-image-trace-detail.webp"
+    />
+
+    Note que es una imagen. En particular, es la imagen de fondo de su aplicación la que tarda entre 5 y 6 segundos en cargarse y provoca el retraso.
+  </Step>
+</Steps>
+
+Con base en estos hallazgos, usted plantea la hipótesis de que la imagen de fondo es la culpable. Las imágenes de alta resolución y no optimizadas son la razón más común detrás de la lentitud del sitio web. ¡Buenas noticias! Ahora que sabes el motivo, puedes solucionar el problema.
+
+## Resumen
+
+En resumen, observó lentitud en su aplicación y utilizó el monitoreo de navegador New Relic para:
+
+1. Observe las Métricas web principales de su sitio
+2. Limitar las fuentes de lentitud
+
+## Tarea
+
+¡Bien hecho! Ahora que ha comenzado con nuestro monitoreo, aquí hay algunos documentos que lo ayudarán a dar los siguientes pasos en su viaje.
+
+* [Introducción al monitoreo de navegador.](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/)
+* [Monitoreo de características del navegador](/docs/browser/new-relic-browser/browser-pro-features/intro-to-browser-pro-features)

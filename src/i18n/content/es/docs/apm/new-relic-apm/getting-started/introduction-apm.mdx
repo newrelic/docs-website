@@ -1,0 +1,141 @@
+---
+title: Mejore el rendimiento de su aplicación con APM
+tags:
+  - APM
+  - Getting started
+metaDescription: An overview of the features and functionality for application performance management in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro monitoreo del rendimiento de aplicaciones (APM) proporciona un servicio de monitoreo unificado para todas sus aplicaciones y microservicios. monitor todo, desde los cientos de dependencias de una stack moderna hasta el simple tiempo de transacción web y el rendimiento de una aplicación. Realice un seguimiento del estado de su aplicación en tiempo real monitoreando su métrica, evento, registro y transacción (MELT) a través de un panel prediseñado y personalizado.
+
+Nuestro servicio APM brinda la flexibilidad de monitor exactamente lo que necesita de su aplicación al instrumentar automáticamente su código cuando instala uno de nuestros agentes.
+
+* ¿Su software de acceso anticipado sigue siendo ligeramente inestable? monitor y resuelva proactivamente esos errores antes de que afecten a su usuario con Errors Inbox.
+* ¿Qué pasa si su usuario comenta con frecuencia qué tan rápida es su aplicación web y usted desea cuantificar esos comentarios? Mida su satisfacción monitoreando su Apdex de un vistazo.
+* ¿Necesita un lugar para guardar su registro? Nuestro agente los ingiere automáticamente.
+* ¿Qué pasa si su stack moderna tiene docenas o incluso cientos de dependencias de las que realizar un seguimiento? Puede realizar un seguimiento de ellos con mapas de relaciones y servicios externos.
+
+¿Quiere ahorrar tiempo con una solución de monitoreo única y unificada? Haga clic en un logotipo para comenzar con APM. ¡Solo toma unos minutos!
+
+<TechTileGrid>
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="https://one.newrelic.com/nr1-core?state=985d4005-ba90-a8c7-1da1-2af34539b03b"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="https://one.newrelic.com/nr1-core?state=80d18bcb-4919-1fcb-2b77-9406838eb916"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="https://one.newrelic.com/nr1-core?state=30e93090-6dfa-6b70-8e75-472f54414355"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="https://one.newrelic.com/marketplace/install-data-source?state=be2e62fa-cc3b-c428-27c4-8d662c9e80a1"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="https://one.newrelic.com/nr1-core?state=aa633b41-72d4-009c-3abf-55dcf64894fe"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="https://one.newrelic.com/nr1-core?state=20fda75b-58fb-a92a-f9e1-7b052035c6e8"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+  />
+</TechTileGrid>
+
+<img
+  title="APM overview"
+  alt="An image showing an example APM page."
+  src="/images/apm_screenshot-full_apm-summay-total-overview.webp"
+/>
+
+<figcaption>
+  Vea el estado de todos sus servicios de un vistazo con APM.
+</figcaption>
+
+## Como funciona todo [#how-works]
+
+New Relic instrumentó su aplicación a nivel de código mediante el uso de uno de nuestros muchos agentes de lenguaje. Estos agentes recopilan métricas de su aplicación y las envían a New Relic APM, lo que le permite monitor mediante un panel prediseñado.
+
+## Instalar APM [#get-started]
+
+Comience con APM en unos pocos pasos:
+
+1. [Regístrese](https://newrelic.com/signup/) para obtener una cuenta New Relic.
+2. Instale el agente de idioma para su aplicación:
+
+<TechTileGrid>
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="https://one.newrelic.com/nr1-core?state=f310f9fd-96b5-7d5e-045e-b151331293ca"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="https://one.newrelic.com/nr1-core?state=f378c92c-1d6a-dc90-c26c-0c2ad930959a"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="https://one.newrelic.com/nr1-core?state=fcaeee53-614a-4c29-92ee-694e0b128368"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="https://one.newrelic.com/nr1-core?state=c872674f-2350-7ec3-125f-a4335255e180"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="https://one.newrelic.com/nr1-core?state=77aab820-3aaf-066b-c3fc-2f3437b403a8"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="https://one.newrelic.com/nr1-core?state=1ed82004-2854-1a4a-2a91-69302832ccc0"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+  />
+</TechTileGrid>
+
+Ahora todo lo que tienes que hacer es generar tráfico a tu aplicación e log sesión en tu cuenta. ¡Deberías empezar a ver el flujo de datos en unos minutos!
+
+Si los datos no aparecen después de esperar unos minutos, siga los [consejos de resolución de problemas](/docs/agents/manage-apm-agents/troubleshooting/not-seeing-data) de su agente APM.
+
+¿Quiere estimar primero los costos antes de usar APM? Vea nuestro [recurso de estimación de costos](https://newrelic.com/blog/nerdlog/estimate-data-cost).
+
+## Cómo utilizar tus datos [#use-case]
+
+Monitor el estado básico de su aplicación en el momento en que New Relic reciba datos de su aplicación. Verá <InlinePopover type="dashboards"/>básico en la página <DNT>**APM Summary**</DNT> de la UI de New Relic, que puede utilizar para comprender rápidamente el rendimiento de su aplicación sin ninguna personalización.
+
+Utilice el [Explorador](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) para acceder y observar la stack completa de su software, incluidas sus aplicaciones, ver los datos de rendimiento y el estado de las alertas de un vistazo y comprobar las relaciones. Le proporcionamos una herramienta visual simple pero poderosa para monitor toda su [entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/), es decir, cualquier cosa que podamos identificar y que reporte datos. En el ecosistema New Relic, entidad incluye componentes básicos como aplicación, hosts, contenedor o servicio de base de datos, pero también puede referirse a agrupaciones personalizadas de dichos elementos. También puedes [crear tu propia entidad](https://github.com/newrelic/entity-definitions#entity-definitions).

@@ -1,0 +1,56 @@
+---
+title: Upgrade the iOS agent
+tags:
+  - Mobile monitoring
+  - New Relic Mobile iOS
+  - Installation
+metaDescription: 'To upgrade your mobile monitoring capabilities with the latest iOS agent, start here.'
+redirects:
+  - /docs/mobile-monitoring-installation/upgrading-new-relic-mobile-for-ios-apps
+  - /docs/mobile-monitoring/mobile-monitoring-installation/ios/upgrading-new-relic-mobiles-ios-sdk
+  - /docs/mobile-monitoring/new-relic-mobile-ios/install-configure/upgrading-new-relic-mobiles-ios-sdk
+  - /docs/mobile-monitoring/new-relic-mobile-ios/install-configure/upgrade-new-relic-mobiles-ios-sdk
+  - /docs/mobile-monitoring/mobile-monitoring-installation/ios/upgrading-new-relic-mobiles-ios-sdk-v4
+  - /docs/mobile-monitoring/mobile-monitoring-installation/ios/upgrading-new-relic-mobiles-ios-sdk-v1-0
+  - /docs/mobile-apps/ios-1-upgrade
+  - /docs/mobile-monitoring/mobile-monitoring-installation/ios/upgrading-new-relic-mobiles-ios-sdk-v1
+  - /docs/mobile-monitoring/new-relic-mobile-ios/install-configure/upgrading-new-relic-mobiles-ios-sdk-v4
+  - /docs/mobile-monitoring/new-relic-mobile-ios/install-configure/upgrade-new-relic-mobiles-ios-sdk-v4
+  - /docs/mobile-monitoring/new-relic-mobile-ios/installation/upgrade-new-relic-mobiles-ios-sdk-v4/
+  - /docs/mobile-monitoring/new-relic-mobile-ios/installation/upgrade-new-relic-mobiles-ios-sdk
+freshnessValidatedDate: 2024-02-01
+---
+
+For information about the latest version, refer to the [release notes](/docs/releases/ios).
+
+## Update with Swift Package Manager [#SPM]
+
+To update the New Relic iOS agent using Swift Package Manager:
+
+1. Navigate to the <DNT>**NewRelic**</DNT> agent in the Package Dependencies section of your Xcode project navigator.
+2. Right-click on the <DNT>**NewRelic**</DNT> agent.
+3. Select <DNT>**Update Package**</DNT>.
+
+<Callout variant="important">
+  Always check the [release notes](/docs/releases/ios) to make sure you're getting the most up-to-date agent version. Depending on how your Swift Package Manager rules are set up, you may need to change the `Up to Next Major` or `Branch` settings to include the new version.
+</Callout>
+
+## Update with Cocoa Pods [#Cocoa-Pods]
+
+To update the New Relic iOS agent using Cocoa Pods:
+
+1. Open the <DNT>**Terminal**</DNT> app and navigate to the directory with your PodFile.
+2. Run the following command:
+   ```shell
+   pod update NewRelicAgent
+   ```
+
+## Manually replace your iOS agent [#Manual]
+
+To download and manually install the New Relic iOS agent:
+
+1. Go to [https://download.newrelic.com/ios_agent/](https://download.newrelic.com/ios_agent/) and download the iOS agent you want to update to.
+2. Navigate to where the iOS agent was downloaded and unzip it.
+3. Open the Project Navigator in Xcode (CMD+1) and search for `NewRelic.xcframework`.
+4. Right-click or control-click `NewRelic.xcframework`, and select <DNT>**Show in Finder**</DNT>.
+5. Drag the newly downloaded iOS agent into the same folder as the old agent, and select to replace the old.

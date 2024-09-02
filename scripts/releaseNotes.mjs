@@ -1,6 +1,5 @@
 #! /usr/bin/env node
 
-import frontmatter from 'front-matter';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -12,14 +11,17 @@ import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import getEOLDate from '../src/utils/getEOLDate.js';
+import { frontmatter } from './utils/frontmatter.js';
 
 const program = new Command();
 program
   .description('generate agent release note JSON')
   .option('-u, --upload', 'upload resulting JSON to S3')
+  .option('-v, --validate, validate resulting JSON')
   .parse();
 const options = program.opts();
 const uploadToS3 = Boolean(options.upload);
+const validateJSON = Boolean(options.validate);
 
 const excerptify = async (body) => {
   const Compiler = (tree) => {
@@ -52,13 +54,38 @@ const excerptify = async (body) => {
 
 const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
 
+const INCLUDE_AGENTS = new Set([
+  '.net',
+  'android',
+  'browser',
+  'dotnet',
+  'go',
+  'infrastructure',
+  'ios',
+  'java',
+  'node',
+  'nodejs',
+  'php',
+  'python',
+  'ruby',
+  'sdk',
+]);
+
 const generateReleaseNoteObject = async (filePath) => {
   const file = await readFile(filePath, { encoding: 'utf8' });
   const slug = slugify(filePath);
-  const { attributes, body } = frontmatter(file);
+  const { attributes, body, error } = frontmatter(file);
+
+  if (error != null) {
+    console.log('❌ frontmatter error:');
+    console.log(filePath);
+    console.log(error.reason);
+    console.log(error.mark.snippet);
+    throw error;
+  }
 
   const output = {
-    agent: getAgentName(attributes.subject) ?? null,
+    agent: getAgentName(filePath) ?? null,
     date: attributes.releaseDate ?? null,
     downloadLink: attributes.downloadLink ?? null,
     version: attributes.version ?? null,
@@ -69,21 +96,84 @@ const generateReleaseNoteObject = async (filePath) => {
     slug,
   };
 
-  if (attributes.releaseDate) {
+  if (attributes.eolDate) {
+    output.eolDate = attributes.eolDate;
+  } else if (attributes.releaseDate) {
     output.eolDate = getEOLDate(attributes.releaseDate);
   }
 
   return output;
 };
-
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
 });
 
 const releaseNotes = (
-  await Promise.all(releaseNoteMdxs.map(generateReleaseNoteObject))
-).filter(({ date, agent }) => Boolean(date && agent));
+  await Promise.allSettled(releaseNoteMdxs.map(generateReleaseNoteObject))
+)
+  .filter(({ status }) => status === 'fulfilled')
+  .map(({ value }) => value)
+  .filter(
+    ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
+  );
 console.error('📦 release notes JSON generated');
+
+const validateReleaseNotesAgents = (releaseNotes) => {
+  // this set excludes 'sdk', 'node' and '.net' from the one above
+  const JSON_AGENTS = new Set([
+    'android',
+    'browser',
+    'dotnet',
+    'go',
+    'infrastructure',
+    'ios',
+    'java',
+    'nodejs',
+    'php',
+    'python',
+    'ruby',
+  ]);
+
+  const errors = [];
+
+  JSON_AGENTS.forEach((agent) => {
+    const agentsCount = releaseNotes.filter(
+      (note) => note.agent === agent
+    ).length;
+    if (agentsCount < 1) {
+      const message = `\n😵 No release notes found for ${agent}`;
+      errors.push(message);
+    } else {
+      console.error(`🕵️ Found ${agentsCount} release notes for ${agent}`);
+    }
+  });
+
+  const requiredData = [
+    'agent',
+    'date',
+    'version',
+    'description',
+    'slug',
+    'eolDate',
+  ];
+
+  releaseNotes.forEach((note) => {
+    requiredData.forEach((key) => {
+      if (!note[key]) {
+        const message = `\n😵 Missing ${key} data for: \n ${JSON.stringify(
+          note
+        )}`;
+        errors.push(message);
+      }
+    });
+  });
+  if (errors.length > 0) {
+    errors.forEach((error) => console.error(error));
+    process.exitCode = 1;
+  } else {
+    console.error(`✨ Release notes JSON validated`);
+  }
+};
 
 if (uploadToS3) {
   const client = new S3Client({ region: 'us-east-2' });
@@ -103,6 +193,8 @@ if (uploadToS3) {
       console.error('😵 failed to upload release notes to S3');
       console.error(err);
     });
+} else if (validateJSON) {
+  validateReleaseNotesAgents(releaseNotes);
 } else {
   console.log(JSON.stringify(releaseNotes));
 }

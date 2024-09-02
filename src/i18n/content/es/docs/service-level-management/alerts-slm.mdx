@@ -1,0 +1,204 @@
+---
+title: Alertando sobre nivel de servicio
+tags:
+  - Service Level Management
+  - SLI/SLO
+metaDescription: 'With New Relic, you can alert on SLI/SLOs.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Uno de los resultados prometidos al implementar el nivel de servicio es que podrá ajustar su política de alertas y reducir las notificaciones a aquellos problemas que realmente están dañando la experiencia de su cliente y representan un riesgo para su negocio.
+
+Cuando estableces objetivos de nivel de servicio, puedes configurar <InlinePopover type="alerts"/>que te informará en caso de que se agote tu presupuesto de errores antes de que finalice el período de cumplimiento. Estas alertas le mostrarán cuando ocurran incidentes de alto impacto comercial. Cuando se activan, se les debe dar prioridad y usted debe involucrar a los equipos relevantes para comenzar a diagnosticar el origen del problema.
+
+## Alertas sobre la tasa de consumo de presupuesto por errores [#alert-error-budget]
+
+La idea detrás de la alerta de tasa de grabación es que el presupuesto de error representa cuántos eventos malos puede permitirse durante el período de SLO; por definición, si gasta todo su presupuesto de errores a una tasa constante, su tasa de quema = 1. Entonces, cualquier tasa de quemado por encima de la tasa de quemado tolerable no sería sostenible porque habría quemado por completo el presupuesto de error antes de que finalice el período de SLO; por lo tanto, es posible que desee recibir una alerta si ese es el caso durante un período de tiempo continuo.
+
+### Crear alerta sobre la tasa de consumo de presupuesto de errores [#create-alert-error-budget]
+
+Encontrará la opción de crear alertas en las páginas de resumen de nivel de servicio y condición de alerta.
+
+<img
+  title="Alerts CTA"
+  alt="Create Alerts"
+  src="/images/slm_screenshot-full_alerts-cta.webp"
+/>
+
+<figcaption>
+  Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Service Levels > Choose a service level**</DNT> y luego haga clic en <DNT>**Alert conditions**</DNT> debajo de la opción <DNT>**Settings**</DNT> .
+</figcaption>
+
+Al hacer clic en él, se abrirá un panel lateral y verá la opción de alertar sobre la velocidad de grabación rápida en la parte superior de la lista y la de grabación lenta debajo de ella.
+
+<img
+  title="Alerts Recommended Options Fast Burn"
+  alt="Alerts Recommended Options Fast Burn"
+  src="/images/slm_screenshot-crop_fast-burn.webp"
+/>
+
+<figcaption>
+  Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Service Levels > Choose a service level**</DNT> y luego haga clic en <DNT>**Alert conditions**</DNT> debajo de la opción <DNT>**Settings**</DNT> . Haga clic en el botón <DNT>**Alert**</DNT> para abrir el panel lateral.
+</figcaption>
+
+La alerta de combustión rápida sigue la recomendación de Google para los porcentajes de consumo de presupuesto de SLO, específicamente para alertas de combustión rápida. Estas alertas te avisarán de un cambio repentino y significativo en el consumo que, de no corregirse, agotará tu presupuesto de errores muy pronto. Estableceremos un consumo de presupuesto de SLO del 2 % en 1 hora, lo que significa que el servicio consumiría el presupuesto de error por completo en 50 horas si no se alcanza.
+
+<img
+  title="Alerts Recommended Options Slow Burn"
+  alt="Alerts Recommended Options Slow Burn"
+  src="/images/slm_screenshot-crop_slow-burn.webp"
+/>
+
+<figcaption>
+  Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Service Levels > Choose a service level**</DNT> y luego haga clic en <DNT>**Alert conditions**</DNT> debajo de la opción <DNT>**Settings**</DNT> . Haga clic en el botón <DNT>**Alert**</DNT> para abrir el panel lateral.
+</figcaption>
+
+La alerta de combustión lenta sigue la recomendación de Google para los porcentajes de consumo del presupuesto de SLO, específicamente para alertas de combustión lenta. Estas alertas te avisarán de un cambio en el consumo que, de no modificarse, agotará tu presupuesto de errores antes de que finalice el periodo de cumplimiento. Estableceremos un consumo de presupuesto de SLO del 5 % en 6 horas, lo que significa que el servicio consumiría el presupuesto de error por completo en 5 días si no se alcanza.
+
+Deberá seleccionar una política de alertas existente o crear una nueva para continuar.
+
+Alternativamente, puede hacer clic en "Personalizar" y establecer su propio umbral.
+
+## Alertar sobre el consumo de presupuesto de error [#alert-consumption]
+
+Esta alerta le avisará una vez que haya consumido el 80% de su presupuesto de errores para el período.
+
+Para configurarlo, haga clic en <DNT>**Alert**</DNT> en las páginas de resumen de nivel de servicio o condición de alerta y seleccione la opción <DNT>**Error budget consumption**</DNT> .
+
+<img
+  title="Alerts error budget.png"
+  alt="Alerts Error Budget"
+  src="/images/slm_screenshot-crop_alerts-error-budget.webp"
+/>
+
+<figcaption>
+  Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Service Levels > Choose a service level**</DNT> y luego haga clic en <DNT>**Alert conditions**</DNT> debajo de la opción <DNT>**Settings**</DNT> . Haga clic en el botón <DNT>**Alert**</DNT> para abrir el panel lateral.
+</figcaption>
+
+Deberá seleccionar una política de alertas existente o crear una nueva para continuar.
+
+Si desea establecer un umbral diferente, haga clic en <DNT>**Customize**</DNT> y siga los pasos en la tarjeta de configuración de alerta.
+
+## Alertas sobre el cumplimiento de SLO
+
+Si desea configurar una alerta para cuando su SLO esté por debajo de su objetivo durante un período prolongado, puede seleccionar la opción <DNT>**SLO compliance**</DNT> .
+
+Si su SLI es volátil, este tipo de alerta podría tener baja precisión. Por lo tanto, debería utilizar una alerta de tasa de grabación para mitigarlo.
+
+## Configurar su propio umbral de tasa de consumo de presupuesto de errores
+
+Si no desea seguir la recomendación de Google para la alerta de grabación rápida, puede configurar su propio umbral.
+
+### Establece tu umbral de condición [#condition-thresholds]
+
+La tasa de quema del presupuesto de errores indica qué tan rápido el servicio consume el presupuesto de errores, teniendo en cuenta todo el período de SLO. Aquí tienes una fórmula para calcularlo:
+
+```sql
+critical burn rate = (tolerated budget consumption * SLO period [h]) / (evaluation period [h])
+```
+
+* Consumo de presupuesto tolerado: cuánto presupuesto tolera consumir en el período de evaluación.
+* Período de SLO: ventana de tiempo de su SLO (generalmente, en horas).
+* Período de evaluación: ventana de agregación que estamos tomando en consideración (puede usar 1 hora en la ventana de agregación de condición de alerta para simplificar).
+
+Sin embargo, considerando que la tasa máxima de errores que puede ocurrir es del 100%, significa que también hay una tasa de quemado máxima y por lo tanto la tasa de quemado crítica debe estar en el rango de:
+
+```sql
+0 < critical burn rate < maximum burn rate
+```
+
+Donde el valor máximo de la tasa de combustión se calcula de la siguiente manera:
+
+```sql
+maximum burn rate = 1 / (1 - SLO target)
+```
+
+Finalmente, para definir su umbral de alerta, multiplicará la tasa de grabación crítica por hora por el presupuesto de error:
+
+```sql
+threshold = error budget * critical burn rate
+```
+
+#### Ejemplo [#condition-thresholds-example]
+
+Veamos cómo funciona esto con un ejemplo para un SLO <DNT>**28 day**</DNT> con un objetivo <DNT>**99.9%**</DNT> .
+
+Para un SLO de 28 días, Google recomienda alertar sobre un <DNT>**2%**</DNT> consumo de presupuesto de SLO <DNT>**in the last hour**</DNT>. Eso significa que si sigue quemando el presupuesto al mismo ritmo, incumplirá su SLO en 50 horas (como resultado de `100% / 2%`).
+
+Entonces tenemos las siguientes variables:
+
+* Objetivo SLO: `99.9%`
+* Período de SLO: `28 days (28 * 24 hours)`
+* Consumo presupuestario tolerado: `2% (0.02)`
+* Periodo de evaluacion: `1 hour`
+
+Por lo tanto:
+
+```sql
+critical burn rate per hour = (0.02 * 28 * 24) / 1 = 13.44
+```
+
+Donde el valor máximo posible de velocidad de grabación para el SLO es:
+
+```sql
+maximum burn rate = 1 / (1 - 0.999) = 1000
+```
+
+Y finalmente:
+
+```sql
+threshold = 0.1 * 13.44 = 1.344
+```
+
+Este sería un valor que usaría como umbral de condición de alerta: abra un incidente cuando la consulta devuelva un valor superior al umbral (en este ejemplo, 1,344), al menos una vez en el período de evaluación (en este ejemplo, 60 minutos). .
+
+<img
+  title="Alerts threshold.png"
+  alt="Alerts threshold configuration"
+  src="/images/alerts_screenshot-full_condition-thresholds-slm.webp"
+/>
+
+<Callout variant="important">
+  Si edita el objetivo de SLO en el lado del nivel de servicio, recuerde editar el objetivo también en la condición de alerta.
+</Callout>
+
+### Ajustes [#extra-settings]
+
+Es importante ajustar el parámetro adicional de esta condición de alerta.
+
+Establezca la duración de la ventana en el período de evaluación. Siguiendo el ejemplo anterior, establecería <DNT>**60 minutes**</DNT>, lo que significa que el sistema de alerta agregaría 60 minutos de datos.
+
+<Callout variant="important">
+  El período de evaluación admite la agregación de hasta 2 horas de datos.
+</Callout>
+
+Puedes usar una diapositiva <DNT>**60 seconds**</DNT> por intervalo, para que cada minuto New Relic evalúe los 60 minutos de datos anteriores.
+
+<img
+  title="Alerts evaluation period"
+  alt="Alerts evaluation period"
+  src="/images/alerts_screenshot-crop_advanced-signal-settings-slm.webp"
+/>
+
+A continuación, conecte la condición a la política que determina cómo se gestionan las notificaciones.
+
+Por último, puede elegir cuándo cerrar automáticamente cualquier incidente abierto.
+
+## Comprender la política de alertas predeterminada del nivel de servicio [#alert-policy]
+
+Se introdujo la política de alertas predeterminada del nivel de servicio, a nivel de cuenta, para que el estado de salud del nivel de servicio se base en su presupuesto de error restante. Esto mejora su experiencia al utilizar otros productos New Relic, como New Relic Navigator y carga de trabajo.
+
+<img
+  title="SLM Alert policy"
+  alt="SLM Alert policy"
+  src="/images/slm-alert-policy.webp"
+/>
+
+Esta política de alertas no activará ninguna notificación y, en caso de que prefiera no tener el estado de la entidad en función de su consumo de presupuesto de errores, puede eliminar fácilmente esta política. Sin embargo, eliminar la política es permanente y afectará el nivel de servicio nuevo y existente para esa cuenta.
+
+<img
+  title="SLs without health"
+  alt="SLs without health"
+  src="/images/slm-missinghealth.webp"
+/>

@@ -1,0 +1,85 @@
+---
+title: start
+type: apiDoc
+shortDescription: A method used to start agent features when running in a deferred state
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser Agent
+metaDescription: A method used to start agent features when running in a deferred state
+redirects:
+freshnessValidatedDate: 2023-09-27
+---
+
+## Syntax
+
+```js
+newrelic.start()
+```
+
+Browser API used to start agent features when running in a deferred state.
+
+## Requirements
+
+* Browser Lite, Pro, or Pro+SPA agent (v1.239.0 or higher)
+
+  <Callout variant="important">
+    The configuration required to use this API is not currently connected to the larger deployment system within New Relic. As such, calling this API will only have an effect in copy/paste or npm browser installations until further changes are made.
+  </Callout>
+
+## Description
+
+Features can be loaded in a `deferred` state, which can be controlled by setting the appropriate features' `autoStart` property to `false` in the configuration block `NREUM.init.<feature>` used by the agent. This feature state means events will be observed and stored in the agent, but _will not be harvested to NR1 until told to do so_ with the `.start()` API method. See [Feature Names](#feature-names) for a list of feature names. See [Examples](#examples) for examples showing how to set features into a deferred state.
+
+Upon executing this function with a valid value, the browser agent will start the relevant features that have been deferred by the `autoStart: false` configuration. When called, the method will start all features that have been deferred.
+See [Feature names](#feature-names) for a list of feature names which can be started in a deferred state.
+
+## Feature Names
+
+* ajax
+* jserrors
+* metrics
+* generic_events
+* page_view_event
+* page_view_timing
+* session_replay
+* session_trace
+* spa
+
+  <Callout variant="important">
+    The response body of the `page_view_event` harvest contains critical information for running the other features. Deferring the start of `page_view_event` will cause all other features to wait until `.start()` is called.
+  </Callout>
+
+## Use Cases
+
+* You want to wait to harvest data until a user has consented with a modal on your site
+* You wish to wait to harvest data until your site has set custom attributes
+
+## Examples
+
+### Loading all features in a deferred state (copy/paste, NPM)
+
+```js
+// Change the init portion of the configuration block to add `autoStart: false` to any features desired to load in a deferred state
+NREUM.init = {
+  // feature configurations
+  ajax: {autoStart: false},
+  jserrors: {autoStart: false},
+  metrics: {autoStart: false},
+  generic_events: {autoStart: false},
+  page_view_event: {autoStart: false},
+  page_view_timing: {autoStart: false},
+  session_replay: {autoStart: false},
+  session_trace: {autoStart: false},
+  spa: {autoStart: false},
+  // other configurations
+  // ...
+}
+```
+
+### "Starting" all deferred features
+
+```js
+newrelic.start()
+// all deferred features in the agent will now start harvesting
+```

@@ -1,0 +1,232 @@
+---
+title: ユーザー許可
+tags:
+  - Accounts
+  - New Relic One user management
+metaDescription: An explanation of New Relic user permissions and what they govern.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic ユーザー管理コンテキストでは、 <DNT>**permission**</DNT>は New Relic で実行できる詳細な機能であり、カスタム ロールに追加できるようになりました。 これらの権限は、ビルド前の[標準ロール](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#roles)にも関連付けられています。 権限の例としては、APM アプリ設定の表示、アラート条件の変更、データ保持期間設定の管理などがあります。
+
+ロールにどのような権限があるかを確認するには、ユーザー管理 UI に移動し、特定のロールを表示します。 この UI を見つけるには: <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>から右下の[ユーザー メニューを](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings)クリックし、次に<DNT>**Administration &gt; Access management &gt; Roles**</DNT>に移動します。
+
+## 権限とは何ですか? [#permissions-roles]
+
+制限のない New Relic フル プラットフォーム ユーザー (たとえば、 <DNT>**Admin**</DNT>グループのユーザー) は、プラットフォームのすべての機能を使用できます。 New Relic で実行できることの一部は、 <DNT>**permissions**</DNT>として利用可能です。 これらをカスタム ロールに追加または削除できます。また、これらの権限を使用して[標準ロール](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#roles)を区別します。 表示されて選択できるようにした権限は、一般的なユーザー管理タスクに最も役立つと思われる権限です。
+
+New Relic の機能は多数あり、 <DNT>**don&apos;t**</DNT>表示され、選択できるようになります。 たとえば、任意のユーザーとしてアクセスでき、公開されている権限によって制限されていないさまざまな UI ページがあります。 別の例: <DNT>**Organization**</DNT> [管理設定を](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings)持つグループ内のユーザーは組織レベルの設定を構成できますが、その権限はカスタム ロールに追加するために使用できません。
+
+<Callout variant="tip">
+  権限は、 <DNT>**capabilities**</DNT>と呼ばれることもあります。
+</Callout>
+
+## 権限に関する注意事項 [#important-points]
+
+権限に関するその他の重要な点は次のとおりです。
+
+* <DNT>**A user&apos;s user type must also allow access.**</DNT> New Relic 機能へのユーザーのアクセスは、ユーザー タイプと割り当てられたロールの両方によって制御されます。 詳細については、 [「ユーザー アクセス」](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts)を参照してください。
+* <DNT>**Some permissions overlap in functionality.**</DNT> UI で一部の権限チェックボックスを選択すると、他のボックスが自動的にオンまたはオフになるのはこのためです。
+* <DNT>**Permissions don&apos;t affect querying of data.**</DNT> ほとんどの権限は New Relic UI および API エクスペリエンスに適用され、データのクエリには適用されません。 たとえば、権限によって<InlinePopover type="apm" /> UI へのアクセスが制限されている場合でも、そのアカウントにアクセスできれば APM データをクエリできます。 一部のプロジェクトまたはユーザーに対してより明確なデータ境界が必要な場合は、データを[異なるアカウント](/docs/accounts/accounts-billing/account-structure/add-accounts)にセグメント化できます。
+
+ユーザー権限を制御する主な方法の詳細については、 [「 ユーザー管理の概念 」](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts)を参照してください。
+
+## 事前に構築された役割 [#pre-built-roles]
+
+事前に構築されたロールには、さまざまな権限のグループがあります。事前に構築されたロールがどのように機能するかは、どの [ユーザー モデルを](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models) 使用しているかによって異なります。
+
+* 新しいユーザー モデル (ほとんどのユーザー): [役割について学習します](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts)。
+* オリジナルのユーザーモデル： [役割について学びます](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model)。
+
+## 権限の定義 [#permission-definitions]
+
+UI に移動して、事前に構築された各ロールの権限を表示できます。 [UI](https://one.newrelic.com)の左下隅で自分の名前をクリックしてユーザー メニューを開き、 **Administration &gt; Access management &gt; Roles**に移動します。 権限のリストは、次の役割で使用できます。
+
+* 全製品アドミン
+* 標準ユーザー
+* 読み取り専用
+
+特定の権限の詳細については、以下のカテゴリを選択するか、このドキュメントで探している特定の用語を検索してみてください。
+
+<CollapserGroup>
+  <Collapser id="alerts" title="アラート">
+    これらの権限は、 [適用されたインテリジェンス権限](#applied-intelligence) や [インシデント](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts) [インテリジェンス権限](#incident-intelligence) ではなく、従来の アラート機能 に関係します。
+
+    権限:
+
+    * <DNT>**Channels**</DNT>: [アラート通知チャネル](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts)に関連します。
+    * <DNT>**Conditions**</DNT>: [アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions)に関連します。
+    * <DNT>**Incidents**</DNT>: [アラートインシデント](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents)に関連し、 [当社の製品から発生したインシデントを表示します](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/view-alert-incidents-our-products)。
+    * <DNT>**Lifecycle overrides**</DNT>: [ミューティング ルール](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications)に関連します。
+    * <DNT>**Policies**</DNT>: [アラートポリシー](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy)に関連します。
+  </Collapser>
+
+  <Collapser id="api-keys" title="APIキー">
+    これらの権限は、 [API キーの](/docs/apis/intro-apis/new-relic-api-keys)作成と管理に関係します。
+
+    * <DNT>**Browser keys**</DNT>: [browserキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)に関連します。
+    * <DNT>**License keys**</DNT>:[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)に関連します。
+    * <DNT>**User API keys**</DNT>:[ユーザー キー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)に関連します。
+  </Collapser>
+
+  <Collapser id="apm" title="APM">
+    これらの権限は、 [APM エージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm) と関連機能に関係します。
+
+    * <DNT>**Application settings**</DNT>: APM <DNT>**Application settings**</DNT> UI ページに関連します。
+    * <DNT>**Deployments**</DNT>: [APM デプロイメント UI ページ](/docs/apm/new-relic-apm/maintenance/record-monitor-deployments)に関連します。
+    * <DNT>**Embedded charts**</DNT>: [<DNT>**Get chart link**</DNT>機能](/docs/new-relic-solutions/new-relic-one/ui-data/basic-ui-features/#share)に関連します。
+    * <DNT>**Errors (all)**</DNT>:[エラー トレースの詳細](/docs/apm/apm-ui-pages/error-analytics/manage-error-data)に関連します。
+    * <DNT>**Errors (individual)**</DNT>:[エラー トレースの詳細](/docs/apm/apm-ui-pages/error-analytics/manage-error-data)に関連します。
+    * <DNT>**Instrumentation**</DNT>:[カスタムインストゥルメンテーションの追加](/docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation)に関連します。
+    * <DNT>**Key transactions**</DNT>:[キー場面](/docs/apm/transactions/key-transactions/introduction-key-transactions)に関連します。
+    * <DNT>**Labels**</DNT>: [APM データのタグ](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data)に関連します。
+    * <DNT>**Log settings**</DNT>: [APM ログ](/docs/logs/logs-context/disable-automatic-logging/#solution)に関連します。
+    * <DNT>**Slow SQL**</DNT>:[スロー書き込みデータ](/docs/apm/apm-ui-pages/monitoring/view-slow-query-details)に関連します。
+    * <DNT>**Thread profiles**</DNT>:[スレッド プロファイラー](/docs/apm/apm-ui-pages/events/thread-profiler-tool)に関連します。
+    * <DNT>**Transaction traces (all)**</DNT>:[戦場トレース](/docs/apm/transactions/transaction-traces/configure-transaction-traces)に関連します。
+    * <DNT>**Transaction traces (individual)**</DNT>:[戦場トレース](/docs/apm/transactions/transaction-traces/configure-transaction-traces)に関連します。
+  </Collapser>
+
+  <Collapser id="applied-intelligence" title="応用インテリジェンス">
+    これらの権限は、 [適用されたインテリジェンス](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence) 機能に関係します。
+
+    * <DNT>**Anomaly detection configurations**</DNT>:[異常検出](https://docs-preview.newrelic.com/docs/expanded-anomaly-detection)に関連します (可用性が限定されています)。
+    * <DNT>**Channels**</DNT>:[通知チャネル](/docs/alerts-applied-intelligence/notifications/intro-notifications)に関連します。
+    * <DNT>**Comments**</DNT>: [事後コメント](/docs/alerts-applied-intelligence/applied-intelligence/postmortems-applied-intelligence/#comment-event)に関連します。
+    * <DNT>**Destinations**</DNT>:[宛先](/docs/alerts-applied-intelligence/notifications/destinations)に関連します。
+    * <DNT>**Incident analysis**</DNT>: [<DNT>**Issues &amp; activity**</DNT>ページ](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/Issues-and-Incident-management-and-response)のゴールデン シグナルとコンポーネントが表示される部分に関連します。
+    * <DNT>**Issue RCA**</DNT>: [根本原因の分析](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence/#root-cause-analysis)に関連します。
+    * <DNT>**Issues**</DNT>: [インシデント インテリジェンスの問題](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence)に関連します。
+    * <DNT>**Issues configuration**</DNT>: [問題設定](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents)に関連します。
+    * <DNT>**Issues feed**</DNT>: [問題フィード](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#issues)に関連します。
+    * <DNT>**Workflows**</DNT>: [ワークフロー](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows)に関連します。
+  </Collapser>
+
+  <Collapser id="browser" title="ブラウザ">
+    これらの権限は[<InlinePopover type="browser" />](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring)に関係します:
+
+    * <DNT>**Application settings**</DNT>: browserアプリケーションの設定に関連します。
+    * <DNT>**Domain conditions**</DNT>: [ブラウザのドメイン条件](/docs/browser/new-relic-browser/configuration/monitor-or-block-specific-domains-subdomains)に関係します。
+    * <DNT>**Segment allow lists**</DNT>: [「許可」リスト](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls)のセグメント化に関連します。
+    * <DNT>**View session replays**</DNT>:[リプレイの視聴に関連します。](/docs/browser/browser-monitoring/browser-pro-features/session-replay)
+  </Collapser>
+
+  <Collapser id="dashboards" title="ダッシュボード">
+    * <DNT>**Live chart URL**</DNT>: NRQL クエリから生成されたチャートの[共有チャート機能](/docs/new-relic-solutions/new-relic-one/ui-data/basic-ui-features/#share)に関連します。
+  </Collapser>
+
+  <Collapser id="data-platform" title="データプラットフォーム">
+    * <DNT>**Streaming export**</DNT>:[ストリーミングデータのエクスポート](/docs/apis/nerdgraph/examples/nerdgraph-streaming-export)に関連します。
+  </Collapser>
+
+  <Collapser id="data-retention" title="データ保持">
+    * <DNT>**Insights event retention**</DNT>: これは、特定のデータ領域の契約の範囲内で[データ保持期間](/docs/data-apis/manage-data/manage-data-retention)値を管理する機能を制御します。
+  </Collapser>
+
+  <Collapser id="errors-inbox" title="エラーの受信トレイ">
+    * <DNT>**Attribute analysis**</DNT>:[属性タブ](/docs/errors-inbox/errors-inbox/#attributes)に関連します。
+  </Collapser>
+
+  <Collapser id="incident-intelligence" title="インシデントインテリジェンス">
+    これらの権限は [インシデント インテリジェンス](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence)に関係します。
+
+    * <DNT>**Automatic inactivity closing policy**</DNT>: 非アクティブ/アイドル状態の問題の有効期間設定を指します。
+    * <DNT>**Cartographer**</DNT>: [トポロジ設定](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#topology)に関連します。
+    * <DNT>**Decisions**</DNT>: [アプライド インテリジェンスの決定](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions)に関連します。
+    * <DNT>**Destinations**</DNT>: 非推奨のインシデント インテリジェンス宛先システムに関連しています。
+    * <DNT>**Environments**</DNT>: [環境](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#1-configure-environment)に関連します。
+    * <DNT>**Grace period policy**</DNT>: [猶予期間ポリシー設定](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/user-settings)に関連します。
+    * <DNT>**Incidents**</DNT>: [インシデント](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence)に関連します。
+    * <DNT>**Input source configuration**</DNT>: [インシデント ソース](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#1-configure-sources)に関連します。
+    * <DNT>**Issues**</DNT>: [インシデント インテリジェンスの問題](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/use-incident-intelligence)に関連します。
+    * <DNT>**Pathways**</DNT>: ほとんどが非推奨となったインシデント インテリジェンス パスウェイ機能に関連しています。
+    * <DNT>**Platforms**</DNT>: ほとんどが廃止されたインシデント インテリジェンス プラットフォームの機能に関連します。
+    * <DNT>**Suggested decisions**</DNT>: [アプライドインテリジェンスによって提案された決定](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#suggested-decisions)に関連します。
+  </Collapser>
+
+  <Collapser id="incident-workflows" title="インシデントワークフロー">
+    * <DNT>**Workflows**</DNT>: 2022 年に廃止される可能性が高いプレビュー ワークフロー機能に関連しています。
+  </Collapser>
+
+  <Collapser id="infinite-tracing" title="無限のトレース">
+    * <DNT>**Trace observers**</DNT>:[トレース オブザーバー](/docs/distributed-tracing/infinite-tracing/set-trace-observer)に関連します。
+  </Collapser>
+
+  <Collapser id="infrastructure" title="インフラストラクチャー">
+    * <DNT>**Cloud integrations**</DNT>: [クラウドインテグレーション](/docs/infrastructure/infrastructure-integrations/get-started/introduction-infrastructure-integrations)に関連します。
+    * <DNT>**Filter sets**</DNT>: [フィルタ セット](/docs/infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure/#filter-sets)に関連します。 この機能は廃止予定であり、インフラストラクチャ<DNT>**Events**</DNT>および<DNT>**Inventory**</DNT> UI ページでのみ使用できます。
+  </Collapser>
+
+  <Collapser id="insights" title="インサイト">
+    <DNT>**Insights**</DNT> は、カスタム データの取り込み、カスタム クエリ、カスタム チャート、カスタム ダッシュボードに関連する機能を備えた製品の元の名前です。 権限には次のものが含まれます。
+
+    * <DNT>**Any dashboard**</DNT>: アカウント内のダッシュボードを削除する機能に関連します。
+
+    * <DNT>**Data sources**</DNT>: New Relic にレポートされるデータを制御できる、現在は非推奨になっている UI に関連しています。
+
+    * <DNT>**Events to metrics**</DNT>: これは以下を管理します:
+
+      * [イベントからメトリクスへのルールとデータ](/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics)
+      * [サービスレベルの指標と目的](/docs/service-level-management/create-slm)
+
+    * <DNT>**Insert keys**</DNT>: ほとんどが非推奨の[インサイト挿入キー](/docs/apis/intro-apis/new-relic-api-keys/#insights-insert-key)に関連しています ([ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)が推奨されます)。
+
+    * <DNT>**NRQL drop rules**</DNT>:[ドロップ ルールによるデータのドロップ](/docs/data-apis/manage-data/drop-data-using-nerdgraph)に関連します。
+
+    * <DNT>**Query keys**</DNT>: ほとんどが非推奨の[インサイト書き込みキー](/docs/apis/intro-apis/new-relic-api-keys/#insights-query-key)に関連します ( <InlinePopover type="userKey" />が推奨されます)。
+  </Collapser>
+
+  <Collapser id="logs" title="ログ">
+    * <DNT>**Data partition rules**</DNT>:[データ パーティション](/docs/logs/ui-data/data-partitions)に関連します。
+    * <DNT>**Live archives configuration**</DNT>: ログの[ライブ アーカイブ](/docs/logs/get-started/live-archives)保持の構成に関連します。
+    * <DNT>**Live archives query**</DNT>:[ライブ アーカイブ](/docs/logs/get-started/live-archives)に保存されているログのクエリに関連します。
+    * <DNT>**Obfuscation rules**</DNT>:[ログの難読化](/docs/logs/ui-data/obfuscation-ui)に関連します。
+    * <DNT>**Parsing rules**</DNT>:[ログ解析](/docs/logs/ui-data/parsing)に関連します。
+    * <DNT>**Pipeline configuration**</DNT>: ログ データ パイプラインの構成に関連します。 現在、これが[ログパターン](/docs/logs/ui-data/find-unusual-logs-log-patterns)を管理しています。
+    * <DNT>**Public saved views**</DNT>: 公開されている[保存されたビュー](/docs/logs/ui-data/use-logs-ui/#saved-views)に関連します。
+  </Collapser>
+
+  <Collapser id="maps" title="マップ">
+    * <DNT>**Service maps**</DNT>:[サービス マップ](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/introduction-service-maps)に関連します。
+  </Collapser>
+
+  <Collapser id="mobile" title="モバイル">
+    * <DNT>**Applications**</DNT>: モニター アプリの[<InlinePopover type="mobile" />機能](/docs/mobile-monitoring/new-relic-mobile/get-started/introduction-mobile-monitoring)に関連します。
+    * <DNT>**Crashes**</DNT>: [クラッシュ分析機能](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes)に関連します。
+  </Collapser>
+
+  <Collapser id="new-relic-one" title="New Relic One">
+    これらは、 [New Relic プラットフォーム](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-one) (New Relic One とも呼ばれる) の基本機能に関連するさまざまな権限です。
+
+    * <DNT>**Entities**</DNT>: New Relic- [monitorentities](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic)の作成と削除に関連します。
+    * <DNT>**Entity relationships**</DNT>: [エンティティ関係](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#related-entities)に関連します。
+    * <DNT>**Golden metrics**</DNT>: 厳選されたユーザー体験の[ゴールデンメトリクス](/docs/apis/nerdgraph/examples/golden-metrics-entities-nerdgraph-api-tutorial)(主要指標)に関連します。
+    * <DNT>**Nerdpacks**</DNT>: [New Relic アプリ](/docs/new-relic-solutions/new-relic-one/build-custom-new-relic-one-application)に関連します。
+    * <DNT>**NRQL lookups**</DNT>:[ルックアップテーブル](/docs/logs/ui-data/lookup-tables-ui)を使用する機能に関係します。
+    * <DNT>**Pixie account link**</DNT>: この機能により、[ガイド付きインストール](/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie)から Pixie をクラスターに追加するときに、関連付けられた Pixie アカウントを作成できます。
+    * <DNT>**Pixie credentials**</DNT>: リンクされた Pixie アカウントのアクセスに関連します。
+    * <DNT>**Pixie live data**</DNT>: [Kubernetesクラスタ エクスプローラ](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer)でライブ デバッグ データにアクセスできるようにします。
+    * <DNT>**Repositories**</DNT>: New Relic-Monitor リポジトリ ( [New Relic CodeStream](/docs/codestream/start-here/what-is-codestream)などの機能で使用) の作成と削除に関連します。
+    * <DNT>**Tags**</DNT>: プラットフォームの[タグ付け](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data)に関連します。
+    * <DNT>**Workloads**</DNT>: [ワークロード](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)に関連します。
+  </Collapser>
+
+  <Collapser id="plugins" title="プラグイン">
+    * <DNT>**Configurations**</DNT>: は[、非推奨のプラグイン機能](https://discuss.newrelic.com/t/new-relic-plugin-eol-wednesday-june-16th-2021/127267)を指します。
+  </Collapser>
+
+  <Collapser id="synthetics" title="シンセティックス">
+    これらの権限は、 [合成の監視](/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring)に関係します。
+
+    * <DNT>**Configure private locations**</DNT>: [プライベートロケーション](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations)に関連します。
+    * <DNT>**Monitor downtimes**</DNT>: [モニターのダウンタイム](/docs/synthetics/synthetic-monitoring/using-monitors/monitor-downtimes-disable-monitoring-during-scheduled-maintenance-times)に関係します。
+    * <DNT>**Monitor scripts**</DNT>:[スクリプト化されたモニター](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors)(スクリプト化ブラウザモニターおよびスクリプト化された API テスト モニター) に関連します。
+    * <DNT>**Monitors**</DNT>:[外形監視モニター](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors)を構成する機能(名前、期間、場所など)に関連します。 一括ランタイム アップグレード権限により[、ランタイム アップグレード UI](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/)を使用してランタイムの変更を行うことができます。
+    * <DNT>**Secure credentials**</DNT>: [安全な認証情報](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests)に関連します。
+  </Collapser>
+
+  <Collapser id="security" title="セキュリティ">
+    * <DNT>**Vulnerabilities**</DNT>: エンティティで検出された脆弱性を表示および管理する機能を指します。
+  </Collapser>
+</CollapserGroup>

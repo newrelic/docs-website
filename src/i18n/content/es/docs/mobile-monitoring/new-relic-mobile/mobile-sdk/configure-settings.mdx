@@ -1,0 +1,2626 @@
+---
+title: Configurar los ajustes de monitoreo de móviles
+type: apiDoc
+shortDescription: API para habilitar o deshabilitar la configuración de monitoreo de móviles.
+tags:
+  - Mobile monitoring
+  - Mobile SDK API
+  - Custom instrumentation
+metaDescription: New Relic mobile monitoring API to enable or disable mobile monitoring settings.
+freshnessValidatedDate: '2024-03-14T00:00:00.000Z'
+translationType: machine
+---
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="android">
+      Android
+    </TabsBarItem>
+
+    <TabsBarItem id="ios">
+      iOS
+    </TabsBarItem>
+
+    <TabsBarItem id="capacitor">
+      Capacitor
+    </TabsBarItem>
+
+    <TabsBarItem id="cordova">
+      Cordova
+    </TabsBarItem>
+
+    <TabsBarItem id="maui">
+      .NET MAUI
+    </TabsBarItem>
+
+    <TabsBarItem id="flutter">
+      Flutter
+    </TabsBarItem>
+
+    <TabsBarItem id="react">
+      React Native
+    </TabsBarItem>
+
+    <TabsBarItem id="unity">
+      Unidad
+    </TabsBarItem>
+
+    <TabsBarItem id="unreal">
+      Unreal Engine
+    </TabsBarItem>
+
+    <TabsBarItem id="xamarin">
+      Xamarin
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="android">
+      Utilice los métodos siguientes para cambiar la configuración predeterminada de monitoreo de móviles. Todas las configuraciones, incluida la llamada para invocar al agente, se llaman en el método `onCreate` de la clase `MainActivity` .
+
+      Para cambiar la configuración, tiene dos opciones (si la configuración lo admite):
+
+      * Cambie la configuración en su propia línea para cada condición específica. Por ejemplo:
+
+        ```java
+        NewRelic.disableFeature(FeatureFlag.DefaultInteractions);
+        NewRelic.enableFeature(FeatureFlag.CrashReporting);
+        NewRelic.withApplicationToken(<NEW_RELIC_TOKEN>).start(this.getApplication());
+        ```
+
+        O
+
+      * Cambie la configuración como parte de la llamada de inicio del agente utilizando el método `.with` . Por ejemplo:
+
+        ```java
+        NewRelic.withApplicationToken(<NEW_RELIC_TOKEN>)
+                .withDefaultInteractions(false)
+                .withCrashReportingEnabled(true)
+                .start(this.getApplication());
+        ```
+
+        ## Configuración de análisis
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la recopilación de datos de eventos. Estos eventos [pueden consultarse con NRQL](/docs/insights/explore-data/attributes/mobile-default-attributes-insights) y usarse en la [página<DNT>**Crash analysis**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes).
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              withAnalyticsEvents(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el informe de datos de eventos. El evento <DNT>**collection**</DNT> seguirá ocurriendo, pero los eventos no se enviarán a nuestro recopilador. Podrías decidir usar esto en lugar de `withAnalyticsEvents` si deseas deshabilitar la recopilación pero aún así poder ver lo que el agente estaba recopilando.
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.AnalyticsEvents(true)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de tiempo de lanzamiento de la aplicación [#applaunchtime]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de tiempo de lanzamiento de la aplicación (tiempo de frío y calor) a la [métrica](/docs/data-apis/understand-data/new-relic-data-types/#metrics):
+
+              * El tiempo de inicio en frío se refiere al inicio de una aplicación desde cero. Esto significa que el proceso de la aplicación no ha sido creado por el sistema hasta ese momento.
+
+              * La hora de inicio en caliente se refiere a cuando el proceso de su aplicación ya se está ejecutando en segundo plano.
+
+                El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.AppStartMetrics(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuraciones de la aplicación
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Establezca la versión de la aplicación como una cadena. El valor predeterminado es el número de versión establecido en `AndroidManifest.xml`.
+            </td>
+
+            <td>
+              ```java
+              withApplicationVersion("MY APP VERSION")
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establece la versión de la compilación como una cadena. El valor predeterminado es el ID de compilación establecido en `AndroidManifest.xml`.
+            </td>
+
+            <td>
+              ```java
+              withBuildVersion("MY BUILD VERSION")
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de informes de fallos y errores [#crash-error-reporting-settings]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Activa o desactiva [los informes de fallos diferidos](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-crash-reporting/#deferred-crash-reporting). El valor predeterminado es `false`.
+            </td>
+
+            <td>
+              ```java
+              withCrashReportingEnabled(true)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la grabación del evento de excepciones manejadas, que aparecen en la [página Excepción manejada](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/handled-exceptions-analyze-trends-prevent-crashes). El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.HandledExceptions(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el registro de fallas del tiempo de ejecución nativo, excepciones y condiciones de aplicación que no responde (ANR), que aparecen en la [página Análisis de fallas](/docs/mobile-monitoring/mobile-monitoring-ui/crashes). El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.NativeReporting(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## rastreo distribuido [#dt]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la adición de encabezados de rastreo distribuido a las solicitudes de red.
+
+              El valor predeterminado es `true`.
+
+              Consulte [Cómo funciona el rastreo distribuido de New Relic](/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works#browser-spans) para obtener más información sobre el rastreo distribuido en aplicaciones móviles.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.DistributedTracing(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de FedRamp [#fedrampenabled]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+
+              El valor predeterminado es `true` (a partir de la versión 6.11.0 del agente).
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.FedRampEnabled(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de interacción [#interaction-settings]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada.
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.InteractionTracing(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Activa o desactiva la interacción predeterminada. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto habilitará o deshabilitará la interacción predeterminada solo mientras la interacción personalizada permanezca habilitada.
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.DefaultInteractions(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de logging [#logging]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              withLoggingEnabled(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Las opciones incluyen:
+
+              * `ERROR` (menos detallado)
+
+              * `WARN`
+
+              * `INFO`
+
+              * `VERBOSE`
+
+              * `DEBUG`
+
+              * `AUDIT` (más detallado)
+
+                El valor predeterminado es `INFO`.
+            </td>
+
+            <td>
+              ```java
+              withLogLevel(AgentLog.ERROR)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Configuración de red [#networking]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento [MobileRequest](/docs/insights/nrql-new-relic-query-language/nrql-query-examples/insights-query-examples-new-relic-mobile#mobilerequest-examples) .
+
+              El valor predeterminado es `true` (a partir de la versión 5.15.2 del agente).
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.NetworkRequests(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de errores de solicitud HTTP y de red para el tipo de evento [MobileRequestError](/docs/insights/nrql-new-relic-query-language/nrql-query-examples/insights-query-examples-new-relic-mobile#mobilerequesterror-examples) . Disponible para la versión del agente Android 5.11.0 o superior.
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.NetworkErrorRequests(false)
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento [MobileRequestError](/docs/insights/nrql-new-relic-query-language/nrql-query-examples/insights-query-examples-new-relic-mobile#mobilerequesterror-examples) .
+
+              El valor predeterminado es `true`.
+            </td>
+
+            <td>
+              ```java
+              FeatureFlag.HttpResponseBodyCaptureEnabled(false)
+              ```
+            </td>
+          </tr>
+        </table>
+
+        ## Almacenamiento sin conexión [#android-offline-storage]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible.
+
+                Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage).
+              </td>
+
+              <td>
+                El almacenamiento sin conexión está deshabilitado de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+                ```java
+                NewRelic.enableFeature(FeatureFlag.OfflineStorage)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Reportes de antecedentes [#android-background-reporting]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+              </td>
+
+              <td>
+                Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+                ```java
+                NewRelic.enableFeature(FeatureFlag.BackgroundReporting)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Reportes de ApplicationExitInfo [#android-applicationexitinfo-reporting]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite los reportes ApplicationExitInfo.
+              </td>
+
+              <td>
+                Los reportes ApplicationExitInfo están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+                ```java
+                NewRelic.enableFeature(FeatureFlag.ApplicationExitReporting)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="ios">
+      El agente iOS de New Relic proporciona ajustes de configuración para cambiar el comportamiento predeterminado del agente. Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar las banderas características justo después de llamar al token de la aplicación. Por ejemplo:
+
+      * Objective-C:
+
+        ```objectivec
+        + [NewRelic startWithApplicationToken:]
+        ```
+
+      * Swift:
+
+        ```swift
+        NewRelic.start(withApplicationToken:)
+        ```
+
+        ## Activar o desactivar indicadores de características [#ios-feature-flags]
+
+        Para configurar indicadores de características, utilice el siguiente método definido en `NewRelic.h:`
+
+        <table>
+          <thead>
+            <tr>
+              <th width={150}>
+                idioma iOS
+              </th>
+
+              <th>
+                Procedimiento
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td id="enable-obj-c">
+                Objective-C
+              </td>
+
+              <td>
+                En Objective-C, estas características tienen máscara de bits, por lo que puede usar un `|` para habilitar o deshabilitar múltiples características al mismo tiempo.
+
+                Habilite una bandera de característica:
+
+                ```objectivec
+                +[NewRelic enableFeatures:(NRMAFeatureFlags)flags];
+                ```
+
+                Deshabilitar una bandera de característica:
+
+                ```objectivec
+                +[NewRelic disableFeatures:(NRMAFeatureFlags)flags];
+                ```
+
+                Aquí hay un ejemplo donde:
+
+                * Se habilita el seguimiento de interacciones y la instrumentación de redes experimentales.
+                * `NSURLSession` La instrumentación y los informes de fallos están deshabilitados.
+
+                ```objectivec
+                [NewRelic enableFeatures:NRFeatureFlag_SwiftInteractionTracing | NRFeatureFlag_FedRampEnabled];
+                [NewRelic disableFeatures:NRFeatureFlag_NSURLSessionInstrumentation | NRFeatureFlag_CrashReporting];
+                [NewRelic startWithApplicationToken:...];
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Swift
+              </td>
+
+              <td>
+                Habilite una bandera de característica:
+
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.[NRMAFeatureFlag])
+                ```
+
+                Deshabilitar una bandera de característica:
+
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.[NRMAFeatureFlag])
+                ```
+
+                Ejemplo para deshabilitar el seguimiento de interacción predeterminado:
+
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_DefaultInteractions)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Configuración de extremos de datos [#logging]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite los informes de fallos, que aparecen en la [página<DNT>**Crash analysis**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes).
+
+                Especifica el componente de autoridad URI del extremo de carga de datos de recolección. Este extremo también se utiliza para cargas de excepciones controladas.
+
+                Para reemplazar el extremo de datos que utilizará el agente al informar sobre la recopilación de datos, agregue `andCollectorAddress:` a su llamada al método `NewRelic.start(withApplicationToken:)` .
+
+                El valor predeterminado es `mobile-collector.newrelic.com`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.start(withApplicationToken:YOUR_APP_TOKEN
+                        andCollectorAddress:"harvest-upload.domain.com"
+                        andCrashCollectorAddress:"crash-upload.domain.com");
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Especifica el componente de autoridad del URI de carga de datos de fallos.
+
+                Para reemplazar el extremo de datos que usará el agente al informar fallas, agregue `andCrashCollectorAddress:` a su llamada de método `NewRelic.start(withApplicationToken:)` .
+
+                El valor predeterminado es `mobile-crash.newrelic.com`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.start(withApplicationToken:YOUR_APP_TOKEN
+                       andCollectorAddress:"harvest-upload.domain.com"
+                       andCrashCollectorAddress:"crash-upload.domain.com");
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Marca de característica de informe de fallas y errores [#crashes]
+
+        Si modifica cualquiera de las configuraciones de informes de fallas y errores a continuación, asegúrese de llamar al indicador de característica antes de que el agente de iOS inicie la llamada.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite los informes de fallas, que aparecen en la [página**de análisis de fallas** ](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes).
+
+                Especifica el componente de autoridad URI del extremo de carga de datos de recolección. Este extremo también se utiliza para cargas de excepciones controladas.
+
+                Para reemplazar el extremo de datos que utilizará el agente al informar sobre la recopilación de datos, agregue `.usingCollectorAddress()` a su llamada al método `NewRelic.withApplicationToken()` .
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_CrashReporting)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite globalmente la grabación del evento de excepciones manejadas, que aparecen en la [página Excepción manejada](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/handled-exceptions-analyze-trends-prevent-crashes).
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_HandledExceptionEvents)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## rastreo distribuido [#dt]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite la adición de encabezados de rastreo distribuido a las solicitudes de red. Consulte [Cómo funciona el rastreo distribuido de New Relic](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works/#no-sampling) para obtener más información sobre el rastreo distribuido en aplicaciones móviles.
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_DistributedTracing)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## interacción característica banderas [#interactions]
+
+        Si modifica cualquiera de las configuraciones de informes de fallas y errores a continuación, asegúrese de llamar al indicador de característica justo antes de que el agente iOS de New Relic comience la llamada.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite el seguimiento de interacción solo para clases y métodos instrumentados predeterminados. Se informará la interacción personalizada. La traza aparecerá en la [página<DNT>**Interactions**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/interactions-page).
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_DefaultInteractions)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilitar o deshabilitar globalmente las trazas de interacción, que aparecen en la [página<DNT>**Interactions**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/interactions-page).
+
+                El seguimiento de la interacción se desactivará una vez iniciado el agente. La interacción para cualquier actividad o método ejecutado antes de iniciar el agente aún puede aparecer en la página <DNT>**Interactions**</DNT> .
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_InteractionTracing)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                <Callout variant="caution">
+                  Antes de habilitar esta característica, consulte [Habilitar traza de interacción Swift](/docs/mobile-monitoring/new-relic-mobile-ios/install-configure/enable-swift-interaction-traces). Si no se toman las medidas adecuadas, habilitar esta característica puede causar inestabilidad.
+                </Callout>
+
+                Habilite o deshabilite el seguimiento de interacción para el código Swift. La traza aparece en la [página<DNT>**Interactions**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/interactions-page). Esta característica siempre estará deshabilitada si [`NRFeatureFlag_InteractionTracing`](#interactionTracing) está deshabilitado.
+
+                El valor predeterminado es `false`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_SwiftInteractionTracing)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite la instrumentación automática de WKWebView.
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_WebViewInstrumentation)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                <Callout variant="caution">
+                  Esta característica está obsoleta; habilitar esta llamada de bandera de característica puede disminuir la estabilidad de la aplicación. Evite su uso a menos que New Relic se lo indique.
+                </Callout>
+
+                Habilite o deshabilite la instrumentación automática de gestos.
+
+                El valor predeterminado es `false`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_GestureInstrumentation)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Banderas de características de red [#networking]
+
+        Si modifica alguna de las configuraciones a continuación, asegúrese de llamar al indicador de característica antes de que el agente iOS de New Relic comience la llamada.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                <Callout variant="caution">
+                  Esta característica está obsoleta; habilitar esta llamada de bandera de característica puede disminuir la estabilidad de la aplicación. Evite su uso a menos que New Relic se lo indique.
+                </Callout>
+
+                Habilite o deshabilite la instrumentación de redes experimental. Esto fuerza todas las `NSURLConnection` solicitudes de red a través del `NRMAURProtocol`.
+
+                El valor predeterminado es `false`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_ExperimentalNetworkingInstrumentation)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite la instrumentación de red para `NSURLSession`. Estas trazas de URL se envían a la página [de Solicitudes HTTP](/docs/mobile-monitoring/mobile-monitoring-ui/network-pages/http-requests-page) .
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_NSURLSessionInstrumentation)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite la instrumentación de red. Esto envía los datos de respuesta HTTP como evento [MobileRequest](/docs/insights/insights-data-sources/default-data/mobile-default-event-attributes-insights#mobilerequest-attributes) .
+
+                El valor predeterminado es `true` (a partir de la versión 6.0.0 del agente).
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_NetworkRequestEvents)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilita o deshabilita el error de solicitud HTTP en caso de generación de llamadas de red instrumentadas que resulten en un error o falla. Estos eventos se informan como evento [MobileRequestError](/docs/insights/insights-data-sources/default-data/mobile-default-event-attributes-insights#mobilerequesterror-attributes) .
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_RequestErrorEvents)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento `MobileRequestError` .
+
+                El valor predeterminado es `true`.
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.disableFeatures(NRMAFeatureFlags.NRFeatureFlag_HttpResponseBodyCapture)
+                ```
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                Habilite o deshabilite la instrumentación para sesiones de URL de espera asíncronas.
+
+                El valor predeterminado es `false` (a partir de la versión 7.4.5 del agente).
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_SwiftAsyncURLSessionSupport)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Configuración de tiempo de lanzamiento de la aplicación [#applaunchtime]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite la hora de inicio de la aplicación de informes (hora fría y caliente) como métrica:
+
+                * El tiempo frío se refiere al tiempo entre el inicio de la aplicación y el primer sorteo.
+
+                * El tiempo activo se refiere al tiempo que tarda una aplicación en reanudarse desde su ejecución en segundo plano hasta el primer sorteo.
+
+                  El valor predeterminado es `true` (a partir de la versión 7.4.0 del agente).
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_AppStartMetrics)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Configuración extrema de FedRAMP [#fedramp]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite el uso del extremo FedRAMP.
+
+                El valor predeterminado es `false` (a partir de la versión 7.4.5 del agente).
+              </td>
+
+              <td>
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_FedRampEnabled)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Almacenamiento sin conexión [#ios-offline-storage]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#ios).
+              </td>
+
+              <td>
+                El almacenamiento sin conexión está deshabilitado de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+                ```swift
+                NewRelic.enableFeatures(NRMAFeatureFlags.NRFeatureFlag_OfflineStorage)
+                ```
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ## Reportes de antecedentes [#ios-background-reporting]
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "800px" }}>
+                Descripción
+              </th>
+
+              <th>
+                Ejemplo
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+              </td>
+
+              <td>
+                Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+                ```swift
+                NewRelic.enableFeatures([NRMAFeatureFlags.NRFeatureFlag_BackgroundReporting])
+                ```
+
+                Requisitos previos en su proyecto de aplicación iOS para emplear instrumentación en segundo plano:
+
+                * Agregue la clave `Permitted background task scheduler identifiers` con una matriz que incluya un elemento que contenga el ID del paquete de aplicaciones.
+                * Habilite **Background Fetch** y **Background Processing** en la sección **Background Modes** de las capacidades del proyecto Xcode.
+
+                Nota: iOS solo garantiza que iOS recolectará datos en segundo plano una vez cada veinticuatro horas.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="capacitor">
+      El SDK del agente Capacitor le permite configurar ajustes predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`.
+
+      Aquí hay una configuración de muestra:
+
+      ```typescript
+      import { NewRelicCapacitorPlugin, NREnums, AgentConfiguration } from '@newrelic/newrelic-capacitor-plugin';
+      import { Capacitor } from '@capacitor/core';
+
+      var appToken;
+
+      if(Capacitor.getPlatform() === 'ios') {
+          appToken = '<IOS-APP-TOKEN>';
+      } else {
+          appToken = '<ANDROID-APP-TOKEN>';
+      }
+
+      let agentConfig : AgentConfiguration = {
+
+        analyticsEventEnabled: false,
+        crashReportingEnabled: false,
+        interactionTracingEnabled: false,
+        networkRequestEnabled: false,
+        networkErrorRequestEnabled: false,
+        httpResponseBodyCaptureEnabled: false,
+        loggingEnabled: false,
+        logLevel: NREnums.LogLevel.INFO,
+        webViewInstrumentation: false,
+        collectorAddress: "",
+        crashCollectorAddress: "",
+        sendConsoleEvents: false,
+        fedRampEnabled: false,
+        offlineStorageEnabled: false
+      }
+
+      NewRelicCapacitorPlugin.start({appKey:appToken, agentConfiguration:agentConfig})
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              (Solo Android) Habilite o deshabilite la recopilación de datos de eventos.
+            </td>
+
+            <td>
+              ```typescript
+              analyticsEventEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```typescript
+              crashReportingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada.
+            </td>
+
+            <td>
+              ```typescript
+              interactionTracingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```typescript
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```typescript
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```typescript
+              httpResponseBodyCaptureEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```typescript
+              loggingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```typescript
+              logLevel: NREnums.LogLevel.INFO
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              (Solo iOS) Habilitar/Deshabilitar la instrumentación automática de `WebViews`.
+            </td>
+
+            <td>
+              ```typescript
+              webViewInstrumentation: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```typescript
+              collectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```typescript
+              crashCollectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el envío del log de la consola JavaScript a New Relic.
+            </td>
+
+            <td>
+              ```typescript
+              sendConsoleEvents: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+            </td>
+
+            <td>
+              ```typescript
+              fedRampEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#capacitor).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              offlineStorageEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              backgroundReportingEnabled: true
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * En el archivo `Info.plist` de tu aplicación, agrega la clave "Identificador del programador de tareas en segundo plano permitido". Esta clave debe ser una matriz que contenga un único valor de cadena, que es el identificador del paquete de su aplicación.
+              * En la sección **Background Modes** de las capacidades del proyecto Xcode, habilite **Background Fetch** y **Background Processing**.
+
+              Nota: iOS solo garantiza que iOS recolectará datos en segundo plano una vez cada veinticuatro horas.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="cordova">
+      El SDK del agente Cordova le permite configurar ajustes predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`. 
+
+      Aquí hay una configuración de muestra:
+
+      ```typescript
+      # Disable Crash Reporting
+      cordova plugin add https://github.com/newrelic/newrelic-cordova-plugin.git
+      --variable IOS_APP_TOKEN="{ios-app-token}"
+      --variable ANDROID_APP_TOKEN="{android-app-token}"
+      --variable CRASH_REPORTING_ENABLED="false"
+      --variable OFFLINE_STORAGE_ENABLED="false"
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```typescript
+              CRASH_REPORTING_ENABLED = "true"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada.
+            </td>
+
+            <td>
+              ```typescript
+              INTERACTION_TRACING_ENABLED = "true"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```typescript
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```typescript
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```typescript
+              httpResponseBodyCaptureEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```typescript
+              LOGGING_ENABLED = "true"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```typescript
+              LOG_LEVEL = "INFO"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              (Solo iOS) Habilitar/Deshabilitar la instrumentación automática de `WebViews`.
+            </td>
+
+            <td>
+              ```typescript
+              WEB_VIEW_INSTRUMENTATION = "true"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```typescript
+              COLLECTOR_ADDRESS = "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```typescript
+              CRASH_COLLECTOR_ADDRESS = "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el envío del log de la consola JavaScript a New Relic.
+            </td>
+
+            <td>
+              ```typescript
+              sendConsoleEvents: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+            </td>
+
+            <td>
+              ```typescript
+              FEDRAMP_ENABLED = "false"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#cordova).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              OFFLINE_STORAGE_ENABLED = "false"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              BACKGROUND_REPORTING_ENABLED = "true"
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * En el archivo `Info.plist` de tu aplicación, agrega la clave "Identificador del programador de tareas en segundo plano permitido". Esta clave debe ser una matriz que contenga un único valor de cadena, que es el identificador del paquete de su aplicación.
+              * En la sección **Background Modes** de las capacidades del proyecto Xcode, habilite **Background Fetch** y **Background Processing**.
+
+              Nota: iOS solo garantiza que iOS recolectará datos en segundo plano una vez cada veinticuatro horas.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="maui">
+      El SDK del agente .NET MAUI le permite configurar valores predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`.
+
+      Aquí hay una configuración de muestra:
+
+      ```csharp
+      using NewRelic.MAUI.Plugin;
+      ...
+
+          public static MauiApp CreateMauiApp()
+      	{
+      		var builder = MauiApp.CreateBuilder();
+      		builder
+      			.UseMauiApp<App>()
+      			.ConfigureFonts(fonts =>
+      			{
+      				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+      				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+      			});
+
+              builder.ConfigureLifecycleEvents(AppLifecycle => {
+              #if ANDROID
+                  AppLifecycle.AddAndroid(android => android
+                     .OnCreate((activity, savedInstanceState) => StartNewRelic()));
+              #endif
+              #if IOS
+
+                   AppLifecycle.AddiOS(iOS => iOS.WillFinishLaunching((_,__) => {
+                      StartNewRelic();
+                      return false;
+                  }));
+              #endif
+              });
+      		return builder.Build();
+      	}
+
+          private static void StartNewRelic()
+          {
+
+            CrossNewRelic.Current.HandleUncaughtException();
+
+            // Set optional agent configuration
+            // Options are: crashReportingEnabled, loggingEnabled, logLevel, collectorAddress, crashCollectorAddress,analyticsEventEnabled, networkErrorRequestEnabled, networkRequestEnabled, interactionTracingEnabled, webViewInstrumentation, fedRampEnabled, offlineStorageEnabled, newEventSystemEnabled, backgroundReportingEnabled
+            // AgentStartConfiguration agentConfig = new AgentStartConfiguration(crashReportingEnabled:false);
+
+
+            if (DeviceInfo.Current.Platform == DevicePlatform.Android)
+            {
+              CrossNewRelic.Current.Start("<APP-TOKEN-HERE>");
+              // Start with optional agent configuration
+              // CrossNewRelic.Current.Start("<APP-TOKEN-HERE>", agentConfig);
+            } else if (DeviceInfo.Current.Platform == DevicePlatform.iOS)
+            {
+              CrossNewRelic.Current.Start("<APP-TOKEN-HERE>");
+              // Start with optional agent configuration
+              // CrossNewRelic.Current.Start("<APP-TOKEN-HERE", agentConfig);
+            }
+          }
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              (Solo Android) Habilite o deshabilite la recopilación de datos de eventos.
+            </td>
+
+            <td>
+              ```csharp
+              analyticsEventEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```csharp
+              crashReportingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```csharp
+              loggingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```csharp
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```csharp
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada. por defecto false
+            </td>
+
+            <td>
+              ```csharp
+              interactionTracingEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Activar/Desactivar la instrumentación automática de WebViews.
+            </td>
+
+            <td>
+              ```csharp
+              webViewInstrumentation: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+            </td>
+
+            <td>
+              ```csharp
+              fedRampEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```csharp
+              logLevel: NREnums.LogLevel.INFO
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```csharp
+              collectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```csharp
+              crashCollectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#maui).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```csharp
+              offlineStorageEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```csharp
+              backgroundReportingEnabled: true
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * En el archivo `Info.plist` de tu aplicación, agrega la clave "Identificador del programador de tareas en segundo plano permitido". Esta clave debe ser una matriz que contenga un único valor de cadena, que es el identificador del paquete de su aplicación.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="flutter">
+      El SDK del agente Flutter le permite configurar ajustes predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`.
+
+      Aquí hay una configuración de muestra:
+
+      ```dart
+      if (Platform.isAndroid) {
+        appToken = AppConfig.androidToken;
+      } else if (Platform.isIOS) {
+        appToken = AppConfig.iOSToken;
+      }
+
+      Config config = Config(
+          accessToken: appToken,
+          analyticsEventEnabled: false,
+          networkErrorRequestEnabled: false,
+          networkRequestEnabled: false,
+          crashReportingEnabled: false,
+          interactionTracingEnabled: false,
+          httpResponseBodyCaptureEnabled: false,
+          loggingEnabled: false,
+          webViewInstrumentation: false,
+          printStatementAsEventsEnabled: false,
+          httpInstrumentationEnabled: false,
+          offlineStorageEnabled: true);
+
+      // NewrelicMobile.instance.start(config, () {
+      //   runApp(MyApp());
+      // });
+
+      runZonedGuarded(() async {
+        WidgetsFlutterBinding.ensureInitialized();
+        FlutterError.onError = NewrelicMobile.onError;
+        await NewrelicMobile.instance.startAgent(config);
+        runApp(MyApp());
+      }, (Object error, StackTrace stackTrace) {
+        NewrelicMobile.instance.recordError(error, stackTrace);
+      });
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              (Solo Android) Habilite o deshabilite la recopilación de datos de eventos.
+            </td>
+
+            <td>
+              ```dart
+              analyticsEventEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```dart
+              crashReportingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada.
+            </td>
+
+            <td>
+              ```dart
+              interactionTracingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```dart
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```dart
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```dart
+              httpResponseBodyCaptureEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```dart
+              loggingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```dart
+              logLevel: NREnums.LogLevel.INFO
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              (Solo iOS) Habilitar/Deshabilitar la instrumentación automática de `WebViews`.
+            </td>
+
+            <td>
+              ```dart
+              webViewInstrumentation: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```dart
+              collectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```dart
+              crashCollectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el envío del log de la consola JavaScript a New Relic.
+            </td>
+
+            <td>
+              ```dart
+              sendConsoleEvents: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#flutter).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```dart
+              offlineStorageEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              backgroundReportingEnabled: true
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * En el archivo `Info.plist` de tu aplicación, agrega la clave "Identificador del programador de tareas en segundo plano permitido". Esta clave debe ser una matriz que contenga un único valor de cadena, que es el identificador del paquete de su aplicación.
+              * En la sección **Background Modes** de las capacidades del proyecto Xcode, habilite **Background Fetch** y **Background Processing**.
+
+              Nota: iOS solo garantiza que iOS recolectará datos en segundo plano una vez cada veinticuatro horas.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="react">
+      El SDK del agente React Native le permite configurar ajustes predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`.
+
+      Aquí hay una configuración de muestra:
+
+      ```javascript
+      import NewRelic from 'newrelic-react-native-agent';
+      import * as appVersion from './package.json';
+      import {Platform} from 'react-native';
+
+          let appToken;
+
+          if (Platform.OS === 'ios') {
+              appToken = '<IOS-APP-TOKEN>';
+          } else {
+              appToken = '<ANDROID-APP-TOKEN>';
+          }
+
+
+       const agentConfiguration = {
+       Config config = Config(
+          analyticsEventEnabled: false,
+          crashReportingEnabled: false,
+          interactionTracingEnabled: false,
+          networkRequestEnabled: false,
+          networkErrorRequestEnabled: false,
+          httpResponseBodyCaptureEnabled: false,
+          loggingEnabled: false,
+          logLevel: NREnums.LogLevel.INFO,
+          webViewInstrumentation: false,
+          collectorAddress: "",
+          crashCollectorAddress: "",
+          sendConsoleEvents: false,
+          fedRampEnabled: false,
+          offlineStorageEnabled:false
+        };
+
+
+      NewRelic.startAgent(appToken,agentConfiguration);
+      NewRelic.setJSAppVersion(appVersion.version);
+      AppRegistry.registerComponent(appName, () => App);
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              (Solo Android) Habilite o deshabilite la recopilación de datos de eventos.
+            </td>
+
+            <td>
+              ```javascript
+              analyticsEventEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```javascript
+              crashReportingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada.
+            </td>
+
+            <td>
+              ```javascript
+              interactionTracingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```javascript
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```javascript
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la captura de cuerpos de respuesta HTTP para traza de error HTTP y evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```javascript
+              httpResponseBodyCaptureEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```javascript
+              loggingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```javascript
+              logLevel: NREnums.LogLevel.INFO
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              (Solo iOS) Habilitar/Deshabilitar la instrumentación automática de `WebViews`.
+            </td>
+
+            <td>
+              ```javascript
+              webViewInstrumentation: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```javascript
+              collectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```javascript
+              crashCollectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el envío del log de la consola JavaScript a New Relic.
+            </td>
+
+            <td>
+              ```javascript
+              sendConsoleEvents: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+            </td>
+
+            <td>
+              ```javascript
+              fedRampEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#react).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              offlineStorageEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```typescript
+              backgroundReportingEnabled: true
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * En el archivo `Info.plist` de tu aplicación, agrega la clave "Identificador del programador de tareas en segundo plano permitido". Esta clave debe ser una matriz que contenga un único valor de cadena, que es el identificador del paquete de su aplicación.
+              * En la sección **Background Modes** de las capacidades del proyecto Xcode, habilite **Background Fetch** y **Background Processing**.
+
+              Nota: iOS solo garantiza que iOS recolectará datos en segundo plano una vez cada veinticuatro horas.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+
+    <TabsPageItem id="unity">
+      New Relic ofrece configuraciones predeterminadas para el monitoreo de aplicaciones móviles en Unity. Puede ajustar fácilmente estas configuraciones dentro del editor de Unity para satisfacer sus necesidades específicas.
+
+      Para configurar estos ajustes:
+
+      1. Inicie el Editor de Unity y abra su proyecto de Unity.
+
+      2. En la barra de menú, seleccione **Tools > New Relic > Getting Started > New Relic Configuration**.
+
+      3. La ventana del **Inspector** de la izquierda muestra una lista de configuraciones predeterminadas. Simplemente marque la casilla junto a una configuración para habilitarla o desmarque la casilla para deshabilitarla.
+
+         <img
+           title="Unity editor"
+           alt="Screenshot of the Unity editor to configure settings"
+           src="/images/mobile_screenshot-crop_Unity-editor-UI.webp"
+         />
+
+      4. Haga clic en **Add component**.
+    </TabsPageItem>
+
+    <TabsPageItem id="unreal">
+      New Relic ofrece configuraciones predeterminadas para el monitoreo de aplicaciones móviles en Unreal Engine. Puede ajustar fácilmente estas configuraciones dentro del editor Unreal para satisfacer sus necesidades específicas.
+
+      Para configurar estos ajustes:
+
+      1. Lanza el Unreal Editor y abre tu proyecto Unreal.
+      2. En la barra de menú, seleccione **Plugins > New Relic > **.
+
+         <img
+           title="Unreal editor"
+           alt="Screenshot of the Unreal editor to configure settings"
+           src="/images/newrelic_unreal_sdk_configuration.webp"
+         />
+    </TabsPageItem>
+
+    <TabsPageItem id="xamarin">
+      El SDK del agente de Xamarin le permite configurar valores predeterminados para cambiar el comportamiento del agente.
+
+      Si realiza algún cambio en la configuración predeterminada, asegúrese de agregar los indicadores característicos justo después de llamar `appToken`.
+
+      Aquí hay una configuración de muestra:
+
+      ```csharp
+      public App ()
+                  {
+                      InitializeComponent();
+
+                      MainPage = new MainPage();
+                      Application.Current.PageAppearing += OnPageAppearing;
+                      Application.Current.PageDisappearing += PageDisappearing;
+
+                      CrossNewRelicClient.Current.HandleUncaughtException();
+                      CrossNewRelicClient.Current.TrackShellNavigatedEvents();
+
+                  // Set optional agent configuration
+                  // Options are: crashReportingEnabled, loggingEnabled, logLevel, collectorAddress, crashCollectorAddress,analyticsEventEnabled, networkErrorRequestEnabled, networkRequestEnabled, interactionTracingEnabled,webViewInstrumentation, fedRampEnabled, offlineStorageEnabled
+                  AgentStartConfiguration agentConfig = new AgentStartConfiguration(crashReportingEnabled: false, offlineStorageEnabled: false);
+
+                 if (Device.RuntimePlatform == Device.Android)
+                      {
+                          //CrossNewRelicClient.Current.Start("<APP-TOKEN-HERE>");
+                          // Start with optional agent configuration
+                          CrossNewRelicClient.Current.Start("<APP-TOKEN-HERE", agentConfig);
+                      }
+                      else if (Device.RuntimePlatform == Device.iOS)
+                      {
+                          //CrossNewRelicClient.Current.Start("<APP-TOKEN-HERE>");
+                          // Start with optional agent configuration
+                          CrossNewRelicClient.Current.Start("<APP-TOKEN-HERE", agentConfig);
+                      }
+                  }
+              }
+      ```
+
+      ## Configuración disponible [#configurations]
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "800px" }}>
+              Descripción
+            </th>
+
+            <th>
+              Ejemplo
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              (Solo Android) Habilite o deshabilite la recopilación de datos de eventos.
+            </td>
+
+            <td>
+              ```csharp
+              analyticsEventEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de fallas.
+            </td>
+
+            <td>
+              ```csharp
+              crashReportingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el logging del agente.
+            </td>
+
+            <td>
+              ```csharp
+              loggingEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite la notificación de solicitudes HTTP exitosas al tipo de evento `MobileRequest` .
+            </td>
+
+            <td>
+              ```csharp
+              networkRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los informes de errores de solicitud HTTP y de red para el tipo de evento `MobileRequestError` .
+            </td>
+
+            <td>
+              ```csharp
+              networkErrorRequestEnabled: true
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Especifica el nivel de logs. Omita este campo para el nivel de logs predeterminado.
+
+              Las opciones incluyen: `ERROR` (menos detallado), `WARNING`, `INFO`, `VERBOSE`, `AUDIT` (más detallado).
+            </td>
+
+            <td>
+              ```csharp
+              logLevel: NREnums.LogLevel.INFO
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recolección específica para enviar datos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```csharp
+              collectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Establezca una dirección de recuperación de fallos específica para enviar fallos. Omita este campo para la dirección predeterminada.
+            </td>
+
+            <td>
+              ```csharp
+              crashCollectorAddress: "crash-upload-delegate.domain.com"
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el seguimiento de interacción. La instrumentación de trazas todavía se produce, pero no se recolecta ninguna traza. Esto deshabilitará la interacción predeterminada y personalizada. por defecto false
+            </td>
+
+            <td>
+              ```csharp
+              interactionTracingEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Activar/Desactivar la instrumentación automática de WebViews.
+            </td>
+
+            <td>
+              ```csharp
+              webViewInstrumentation: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los datos de informes usando diferentes extremos para clientes del gobierno de EE. UU.
+            </td>
+
+            <td>
+              ```csharp
+              fedRampEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite el almacenamiento de datos sin conexión cuando no haya conexión a Internet disponible. Para configurar la cantidad de almacenamiento sin conexión, consulte [Establecer el tamaño máximo de almacenamiento sin conexión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-offline-storage/#xamarin).
+            </td>
+
+            <td>
+              El almacenamiento sin conexión está habilitado de forma predeterminada. Para desactivarlo, agregue el siguiente indicador de característica:
+
+              ```csharp
+              offlineStorageEnabled: false
+              ```
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Habilite o deshabilite los reportes en segundo plano cuando la aplicación pase al estado en segundo plano.
+            </td>
+
+            <td>
+              Los reportes en segundo plano están deshabilitados de forma predeterminada. Para habilitarlo, agregue el siguiente indicador de característica:
+
+              ```csharp
+              backgroundReportingEnabled: true
+              ```
+
+              Para emplear instrumentación en segundo plano, necesitará lo siguiente en su proyecto de aplicación iOS:
+
+              * Agregue la clave `Permitted background task scheduler identifiers` con una matriz que incluya un elemento que contenga el ID del paquete de aplicaciones.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>

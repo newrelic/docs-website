@@ -1,0 +1,97 @@
+---
+title: La UIde carga de trabajo
+tags:
+  - New Relic
+  - Use New Relic
+  - Workloads
+metaDescription: 'In New Relic, use workloads to group together entities that make up a specific business service, making it easier to isolate and troubleshoot issues.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La UI de carga de trabajo le brinda varias vistas para comprender su carga de trabajo de New Relic a un alto nivel y con gran detalle.
+
+Para ver tu carga de trabajo, ve a <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT> y haz clic en <DNT>**Workloads**</DNT>.
+
+## Resumen [#health]
+
+La página <DNT>**Summary**</DNT> proporciona datos de estado relevantes que le ayudan a operar la carga de trabajo. Muestra el estado global de la carga de trabajo, así como el estado individual de todas las entidades que componen la carga de trabajo en cada momento.
+
+<img
+  title="Workload summary page"
+  alt="Workload summary page"
+  src="/images/workloads_screenshot-crop_workload-summary-page.webp"
+/>
+
+Comprende lo siguiente:
+
+1. La vista del navegador muestra las entidades que componen la carga de trabajo y proporciona controles para agruparlas y ordenarlas.
+2. El [estado de la carga de trabajo](/docs/new-relic-one/use-new-relic-one/workloads/workload-status-views-notifications/) informa sobre cómo se está desempeñando su carga de trabajo, según el estado de alerta de la entidad en su carga de trabajo. El estado a lo largo del tiempo muestra cómo ha cambiado el estado de la carga de trabajo en las últimas tres horas.
+3. Si la entidad está alerta, verá un recuento de críticas y advertencias y un resumen de las condiciones abiertas, lo que le ayudará a identificar y solucionar los problemas más importantes.
+
+## Guardar vistas de múltiples cargas de trabajo. [#save-views]
+
+Si necesita ver con frecuencia el estado de un determinado grupo de carga de trabajo, puede guardar vistas que contengan sólo esas cargas de trabajo.
+
+Para crear una vista:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Workloads**
+   </DNT>
+
+   .
+
+2. Clickea en el
+
+   <Icon name="fe-edit-2"/>
+
+   icono `Edit view` .
+
+3. Asigne a la vista un nombre significativo (como el nombre de un equipo o unidad de negocio) y seleccione una cuenta con la que asociar la vista.
+
+4. Selecciona la carga de trabajo que deseas incluir en la vista, por su nombre o etiqueta.
+
+Las vistas de estado son más útiles para equipos que son responsables de más de una carga de trabajo, roles de soporte y gerentes de unidades de negocios.
+
+## Actividad [#activity]
+
+La página <DNT>**Activity**</DNT> muestra datos de rendimiento relacionados con la entidad en la carga de trabajo, junto con el evento que podría explicar cualquier cambio en esas series de tiempo.
+
+<img
+  title="workload activity page"
+  alt="workload activity page"
+  src="/images/workloads_screenshot-crop_workload-activity-page.webp"
+/>
+
+Estas son algunas de las secciones más importantes:
+
+1. Panel vinculado. Desde aquí, puede agregar un panel relacionado a su carga de trabajo, incluidos enlaces a un panel prefiltrado.
+2. Métricas doradas. Estos son gráficos con las métricas más relevantes para cada tipo de entidad. Explore los gráficos para detectar correlaciones entre diferentes entidades (por ejemplo, dos aplicaciones) y diferentes capas stack (por ejemplo, aplicación y hosts). La métrica que ves se puede personalizar a nivel de cuenta o de carga de trabajo [a través de nuestra API NerdGraph](/docs/apis/nerdgraph/examples/golden-metrics-entities-nerdgraph-api-tutorial/#customize-golden-metrics).
+3. Últimas acciones. Incluye la hora de inicio y finalización del incidente y anomalía que se refieren a la entidad de carga de trabajo. También muestra otros tipos de eventos que pueden explicar un cambio en el estado o rendimiento de la carga de trabajo, como despliegue y cambios de configuración.
+
+## Ver mapas de carga de trabajo [#maps]
+
+Puede ver un mapa que muestra cómo las entidades de su carga de trabajo se relacionan y se afectan entre sí.
+
+<img
+  title="Workloads map"
+  alt="A screenshot of a workloads map"
+  src="/images/workloads_screenshot-crop_workload-map.webp"
+/>
+
+Para obtener más información sobre este mapa, consulte [Mapas en contexto](/docs/new-relic-solutions/new-relic-one/ui-data/maps-in-context).
+
+## Estado de salud [#health-status]
+
+Para obtener detalles sobre esta página, consulte [Configuración de estado](/docs/new-relic-solutions/new-relic-one/workloads/workload-status-configuration).
+
+## Configuración general [#general-settings]
+
+La página <DNT>**General settings**</DNT> le brinda información sobre el equipo responsable de la carga de trabajo. Contiene:
+
+* El equipo responsable de la carga de trabajo. Puedes incluir más de un equipo.
+* La descripción de la carga de trabajo. Comparta el propósito de la carga de trabajo y la lógica empresarial que representa: ¿Es una aplicación web? ¿Una API? ¿Un proceso backend ? Complete los detalles relevantes para su equipo o para otros equipos de su organización.
+* Información del contacto. En el menú desplegable, elija cómo prefiere que se comunique con su equipo.
+* Enlaces a los recursos más relevantes para operar la carga de trabajo. Aquí puede agregar enlaces a runbooks, repositorios de código, herramientas de productividad o cualquier otra cosa.

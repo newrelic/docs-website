@@ -1,0 +1,21 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2023-08-16'
+version: 5.4.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+Adds in home screen widgets for issues, synthetic monitors and service levels!!!
+
+### New features
+
+* New issues home screen widget
+* New synthetic monitors home screen widget
+* New service level entity detail page
+* New service level home screen widget
+
+### Improvements
+
+* Updates to support deep links to APM overview for specific entities
+* Fixes some transaction detail overview charts
+* Potential fix for a rare crash in synthetics monitor detail

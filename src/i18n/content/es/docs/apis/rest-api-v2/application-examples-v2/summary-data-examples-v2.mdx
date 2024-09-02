@@ -1,0 +1,238 @@
+---
+title: Ejemplos de datos resumidos (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: How to obtain summary data for applications and key transactions by using New Relic's REST API v2.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los datos resumidos provienen de varias fuentes y constan de datos que representan el estado actual de la aplicación, los hosts o la clave de transacción seleccionados.
+
+## Valores de datos resumidos
+
+No es lo mismo resumir datos que usar `summarize` para obtener un [promedio de valores métricos](/docs/apm/apis/requirements/calculating-average-metric-values-summarize). Los datos resumidos representan un promedio móvil del valor principal. La base de tiempo para este promedio puede variar según la fuente de datos. No se controla especificando un [rango de tiempo](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2) en la API de llamada REST de New Relic.
+
+Además, los datos presentados pueden corresponder a valores de datos de intervalo de tiempo de métrica específicos que pueden adquirirse por otros medios. Sin embargo, los datos resumidos no coincidirán con esos valores debido a la diferencia en la base de tiempo y la naturaleza del promedio móvil.
+
+## Ejemplos de resumen de aplicaciones [#app]
+
+New Relic proporciona información resumida para la aplicación como <DNT>**three- to four-minute average**</DNT> continuo.
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **To obtain summary data...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Para <DNT>**all**</DNT> aplicación para tu cuenta
+      </td>
+
+      <td>
+        ```bash
+        curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+             -H "Api-Key:$API_KEY" -i
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Para una aplicación <DNT>**specific**</DNT>
+      </td>
+
+      <td>
+        Incluye un `filter` con el nombre de la aplicación. Si el nombre incluye espacios (por ejemplo, "Mi página web"), reemplácelos con el símbolo `+` . Por ejemplo:
+
+        ```bash
+        curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+             -H "Api-Key:$API_KEY" -i \
+             -d 'filter[name]=My+Web+Page'
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Al utilizar el <DNT>**app ID**</DNT>
+      </td>
+
+      <td>
+        Reemplace `${APP_ID}` con el ID:
+
+        ```bash
+        curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID.json" \
+             -H "Api-Key:$API_KEY" -i
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Usando cualquiera de estos métodos, el resultado será similar a este:
+
+```json
+{
+  "applications": [
+    {
+      "id": 1129082,
+      "name": "My Web Page",
+      "language": "java",
+      "health_status": "green",
+      "reporting": true,
+      "last_reported_at": "2014-07-29T23:45:07+00:00",
+      "application_summary": {
+        "response_time": 304,
+        "throughput": 4570,
+        "error_rate": 0.0016,
+        "apdex_target": 523,
+        "apdex_score": 0.97
+      },
+      "end_user_summary": {
+        "response_time": 3.73,
+        "throughput": 0.333,
+        "apdex_target": 0,
+        "apdex_score": 1
+      },
+      "settings": {
+        "app_apdex_threshold": 0.5,
+        "end_user_apdex_threshold": 7,
+        "enable_real_user_monitoring": true,
+        "use_server_side_config": true
+      },
+      "links": {
+        "application_instances": [
+          2928655,
+          3941052,
+          3940275,
+          3944066,
+          3943114,
+          3943147
+        ],
+        "alert_policy": 41534,
+        "application_hosts": [
+          2927654,
+          3940051,
+          3943274,
+          3943065,
+          3943513,
+          3943146
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Ejemplos de resumen de claves de transacción [#key-transaction]
+
+New Relic proporciona información resumida para la clave de transacción como un <DNT>**ten minute average**</DNT> continuo.
+
+<Callout variant="important">
+  Sólo puede obtener datos resumidos para una transacción clave. Si desea obtener datos de intervalo de tiempo de métrica, utilice la transacción principal.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **To obtain summary data...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Por <DNT>**all**</DNT> clave de transacción para tu cuenta
+      </td>
+
+      <td>
+        ```bash
+        curl -X GET 'https://api.newrelic.com/v2/key_transactions.json' \
+             -H "Api-Key:$API_KEY" -i
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Para una transacción clave <DNT>**specific**</DNT>
+      </td>
+
+      <td>
+        Incluya un `filter` con el nombre de la transacción clave (por ejemplo, "clientes:Reacción"). New Relic utiliza una coincidencia de cadena simple para la cadena de caracteres que usted proporciona. No hay capacidades REGEXP disponibles. Por ejemplo::
+
+        ```bash
+        curl -X GET 'https://api.newrelic.com/v2/key_transactions.json' \
+             -H "Api-Key:$API_KEY" -i \
+             -d 'filter[name]=Customer:Reaction'
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Al utilizar el <DNT>**key transaction ID**</DNT>
+      </td>
+
+      <td>
+        Reemplace `${KT_ID}` con el ID. Por ejemplo:
+
+        ```bash
+        curl -X GET "https://api.newrelic.com/v2/key_transactions/$KT_ID.json" \
+             -H "Api-Key:$API_KEY" -i
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Usando cualquiera de estos métodos, el resultado será similar a este:
+
+```json
+{
+  "key_transaction": {
+    "id": 2247,
+    "name": "Customer:Reaction",
+    "transaction_name": "/ws/Reaction",
+    "application_summary": {
+      "response_time": 74.1,
+      "throughput": 98.3,
+      "error_rate": 0,
+      "apdex_target": 0,
+      "apdex_score": 1
+    },
+    "links": {
+      "application": 1128081
+    }
+  },
+  "links": {
+    "key_transaction.application": "/v2/applications/{application_id}"
+  }
+}
+```

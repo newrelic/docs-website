@@ -1,0 +1,257 @@
+---
+title: Noções básicas sobre cálculos de utilização SNMP padrão
+tags:
+  - Integrations
+  - Network monitoring
+  - Troubleshooting
+metaDescription: Understanding how various utilization metrics are calculated in ktranslate.
+freshnessValidatedDate: '2023-10-30T00:00:00.000Z'
+translationType: machine
+---
+
+## Problema [#problem]
+
+Você tem dúvidas sobre vários resultados calculados pelo `ktranslate` Monitoramento de rede agente.
+
+## Fundo [#background]
+
+`ktranslate` retorna os dados brutos coletados pela pesquisa SNMP em quase todas as instâncias com as seguintes ressalvas:
+
+* % de utilização da CPU
+* % de utilização de memória
+* % de utilização da interface
+* % de erro de interface
+* Várias métricas com as funções `enum` ou `conversion` aplicadas em sua configuração
+
+## Solução [#solution]
+
+<CollapserGroup>
+  <Collapser
+    id="cpu-utilization"
+    title="% de utilização da CPU"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.CPU`
+
+    A CPU geralmente é retornada em um OID direto que fornece um valor inteiro ou float representando a porcentagem de utilização. Em casos raros, há apenas um resultado para CPU ociosa, que é [traduzido para CPU](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L281-L285) usando esta fórmula:
+
+    ```
+    CPU = 100 - CPU Idle
+    ```
+  </Collapser>
+
+  <Collapser
+    id="memory-utilization"
+    title="% de utilização de memória"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.MemoryUtilization`
+
+    Ao contrário da CPU, a utilização da memória raramente é apresentada como um valor OID direto. Para calcular a porcentagem de utilização, [o ktranslate usa esta lógica](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/device_metrics.go#L287-L317):
+
+    ```
+    If Memory Used and Memory Free are available:
+      Memory Utilization = ( Memory Used / (Memory Free + Memory Used) ) * 100
+
+    If Memory Total and Memory Free are available:
+      Memory Utilization = ( (Memory Total - Memory Free) / Memory Total ) * 100
+
+    If Memory Total and Memory Used are available:
+      Memory Utilization = ( Memory Used / Memory Total ) * 100
+
+    If Memory Total, Memory Buffer, and Memory Cache are available:
+      Memory Utilization = ( ( Memory Total - (Memory Buffer + Memory Cache ) ) / Memory Total ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="interface-utilization"
+    title="% de utilização da interface"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.IfInUtilization` \| `kentik.snmp.IfOutUtilization`
+
+    A utilização da interface segue a abordagem padrão da indústria de calcular o delta em bits e dividir pelo produto da velocidade configurada da interface e o delta de tempo desde que a última coleta foi feita.
+
+    Por exemplo, assumindo que 1 é o ponto de dados anterior e 2 é o mais recente:
+
+    > ((ifHCInOctets_2 - ifHCInOctets_1) \* 8 \* 100) / ((sysUptime_2 - sysUptime_1) \* ifSpeed)
+
+    ### Cálculo traduzido
+
+    Para o numerador:
+
+    * Pegue a última contagem de octetos e subtraia o valor da amostra anterior para obter um delta.
+
+    * Multiplique o resultado por 8 para converter octetos em bits.
+
+    * Multiplique os bits por 100 para configurar o cálculo da porcentagem.
+
+      Para o denominador:
+
+    * Pegue o valor mais recente de `sysUptime` e subtraia o valor da amostra anterior para obter um delta que mostre o intervalo de sondagem.
+
+    * Multiplique o intervalo pelo `ifSpeed` configurado (que é relatado em bits).
+
+      Finalmente:
+
+    * Divida o numerador pelo denominador para encontrar a porcentagem de utilização.
+
+      ### Dados de origem
+
+      [Ktranslate](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/formats/nrm/nrm.go#L581-L623), usa o valor de [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (receber) ou [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (transmitir); substituindo `ifSpeed` no denominador pelo valor de [ifHighSpeed](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.15) conforme necessário:
+
+      <Callout variant="tip">
+        Um motivo comum para ver porcentagens imprecisas de utilização da interface é que a velocidade da interface configurada no dispositivo não reflete a velocidade real da interface. Por exemplo, um circuito MPLS de 1GB em uma interface de 10GB apresentaria percentuais de apenas 10% da utilização real. Para resolver isso, consulte a documentação do seu fornecedor sobre como configurar a largura de banda da interface.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="interface-throughput"
+    title="Interface taxas de transferência"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifHCInOctets` \| `kentik.snmp.ifHCOutOctets`
+
+    A interface taxas de transferência usa o valor de [ifHCInOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.6) (receber) ou [ifHCOutOctets](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.10) (transmitir).
+
+    É importante observar exatamente o que você procura ao consultar taxas de transferência.
+
+    * 1 octeto = 1 byte
+
+    * 1 octeto = 8 bits
+
+      A medida bruta no SNMP é a contagem de octetos, que neste contexto seria sinônimo de bytes. Você pode calcular bytes facilmente diretamente por meio da métrica relatada, sem necessidade de qualquer conversão.
+
+      Se você estiver procurando bits por segundo (bps), precisará multiplicar os octetos e converter o número final em uma taxa “por segundo”.
+
+      **Exemplo**
+
+      ```sql
+      FROM Metric SELECT
+      max(kentik.snmp.ifHCInOctets) AS 'total_received_bytes',
+      max(kentik.snmp.ifHCOutOctets) AS 'total_sent_bytes',
+      rate(average(kentik.snmp.ifHCInOctets)*8, 1 SECOND) AS 'average_received_bps',
+      rate(average(kentik.snmp.ifHCOutOctets)*8, 1 SECOND) AS 'average_sent_bps'
+      FACET entity.name, if_interface_name
+      SINCE 1 WEEK AGO
+      TIMESERIES
+      ```
+  </Collapser>
+
+  <Collapser
+    id="interface-errors"
+    title="% de erros de interface"
+  >
+    <DNT>**Metric Name**</DNT>: `kentik.snmp.ifInErrorPercent` \| `kentik.snmp.ifOutErrorPercent`
+
+    A porcentagem de erro de interface usa o valor de [ifInErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.14) (receber) ou [ifOutErrors](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.20) (transmitir), dividido por [ifHCInUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.7) (receber) ou [ifHCOutUcastPkts](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.31.1.1.1.11) (transmitir). [Em ktranslate](https://github.com/kentik/ktranslate/blob/72257357db05f36e05389b0a278b702a707a0941/pkg/inputs/snmp/metrics/interface_metrics.go#L255-L271), a fórmula é semelhante a esta:
+
+    ```
+    ( ifInErrors / ifHCInUcastPkts ) * 100
+    or
+    ( ifOutErrors / ifHCOutUcastPkts ) * 100
+    ```
+  </Collapser>
+
+  <Collapser
+    id="snmp-conversions"
+    title="Conversões SNMP"
+  >
+    <DNT>**Metric Name**</DNT>: Vários
+
+    Outras métricas SNMP são convertidas com base na existência das funções `enum` e `conversion` em seus respectivos [perfis SNMP](https://github.com/kentik/snmp-profiles/blob/main/profiles/kentik_snmp/_template.yml).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "450px" }}>
+            Configuração de perfil
+          </th>
+
+          <th>
+            Uso
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `tag`
+          </td>
+
+          <td>
+            Utilizado para sobrescrever o atributo `name` e apresentar um nome amigável que será enviado junto com a carga exportada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enum:[]`
+          </td>
+
+          <td>
+            Usado para lidar com enumerações SNMP que convertem o valor inteiro de uma métrica dimensional no valor enumerado em um atributo decorado na métrica dimensional (usando o mesmo sufixo de nome de métrica). Um exemplo comum é a conversão de [kentik.snmp.if_AdminStatus](https://oid-rep.orange-labs.fr/get/1.3.6.1.2.1.2.2.1.7) para o valor enumerado de [if_AdminStatus](https://github.com/kentik/snmp-profiles/blob/ccb1df47a5068a59fb3e3765746524e0286252e7/profiles/kentik_snmp/_general/if-mib.yml#L59-L66) como `up`, `down` ou `testing`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoint: <current>: <desired>`
+          </td>
+
+          <td>
+            Usado para converter valores hexadecimais em formato inteiro. Opções para <DNT>**current**</DNT>: `LittleEndian` \| `BigEndian`. Opções para <DNT>**desired**</DNT>: `uint16` \| `uint32` \| `uint64`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hextoip`
+          </td>
+
+          <td>
+            Usado para converter valores hexadecimais em strings IPv4 de 4 octetos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: hwaddr`
+          </td>
+
+          <td>
+            Usado para converter valores hexadecimais em sequências de endereços MAC.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: powerset_status`
+          </td>
+
+          <td>
+            Usado para enumeração da string ASCII [upsBasicStateOutputState](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.318.1.1.1.11.1.1) no `POWERNET-MIB`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: regexp`
+          </td>
+
+          <td>
+            Coloca uma correspondência de regex na saída do OID para capturar substrings; precisa ser colocado entre aspas e ter barras invertidas escapadas.<br/>Exemplo de resultado de OID: `" 5 Secs ( 96.3762%) 60 Secs ( 62.8549%) 300 Secs ( 25.2877%)"`<br/>Conversão de exemplo: `"regexp:60 Secs.*?(\\d+)"`<br/>Resultado final: `62`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `conversion: to_one`
+          </td>
+
+          <td>
+            Usado para criar uma métrica de medidor com o valor `1` para pesquisar OIDs escalares não numéricos que não possuem opções de enumeração. Um exemplo é o OID [tlUpsTestResultsDetail](https://oid-rep.orange-labs.fr/get/1.3.6.1.4.1.850.100.1.7.2) que retorna um valor do tipo [DisplayString](https://www.circitor.fr/Mibs/Html/S/SNMPv2-TC.php#DisplayString).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>

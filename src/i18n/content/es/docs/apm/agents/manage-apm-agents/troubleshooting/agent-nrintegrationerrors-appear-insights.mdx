@@ -1,0 +1,93 @@
+---
+title: Problema de discrepancia en la configuración del agente APM NrIntegrationError
+type: troubleshooting
+tags:
+  - Agents
+  - Manage APM agents
+  - Troubleshooting
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Se genera un [evento`NrIntegrationError` ](/docs/telemetry-data-platform/manage-data/nrintegrationerror)que tiene el siguiente mensaje:
+
+```
+Configuration mismatch: Agent configured harvest limit for EVENT TYPE 
+exceeds maximum limit; limit adjusted to LIMIT
+```
+
+## Solución
+
+Esto se debe a una discrepancia en la configuración con el agente. Consulte la solución del agente correspondiente para resolver su discrepancia en la configuración:
+
+<CollapserGroup>
+  <Collapser
+    id="go-request"
+    title="Go"
+  >
+    En tu `newrelic.Config`:
+
+    * Para evento de transacción, ajuste el valor de [`TransactionEvents.MaxSamplesStored`](/docs/agents/go-agent/configuration/go-agent-configuration#transaction-events-settings).
+
+      <Callout variant="tip">
+        Actualmente, el agente de Go no admite el ajuste de este valor para eventos personalizados.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="java-request"
+    title="Java"
+  >
+    En tu `newrelic.yml`:
+
+    * Para evento de transacción, ajuste el valor de `transaction_events.max_samples_stored`.
+    * Para evento personalizado, ajuste el valor de `custom_events.max_samples_stored`.
+  </Collapser>
+
+  <Collapser
+    id="net-request"
+    title=".NET"
+  >
+    En tu `newrelic.config`:
+
+    * Para el evento de transacción, ajuste el valor del atributo `maximumSamplesStored` debajo del elemento `transactionEvents` .
+    * Para un evento personalizado, ajuste el valor del atributo `maximumSamplesStored` debajo del elemento `customEvents` .
+  </Collapser>
+
+  <Collapser
+    id="node-request"
+    title="Node.js"
+  >
+    * Para el evento de transacción, en la sección `transaction_events: {` del `newrelic.js` de tu aplicación, ajusta el valor de `max_samples_per_minute`.
+    * Para un evento personalizado, en la sección `custom_insights_events: {` del `newrelic.js` de tu aplicación, ajusta el valor de `max_samples_stored`.
+  </Collapser>
+
+  <Collapser
+    id="python-request"
+    title="Python"
+  >
+    En tu `newrelic.ini`:
+
+    * Para evento de transacción, ajuste el valor de `event_harvest_config. harvest_limits.analytic_event_data`.
+    * Para evento personalizado, ajuste el valor de `event_harvest_config.harvest_limits.custom_event_data`.
+    * Para evento de error, ajuste el valor de `event_harvest_config.harvest_limits.error_event_data`.
+    * Para span evento, ajuste el valor de `event_harvest_config.harvest_limits.span_event_data`.
+  </Collapser>
+
+  <Collapser
+    id="ruby-request"
+    title="Ruby"
+  >
+    En tu `newrelic.yml`:
+
+    * Para evento de transacción, ajuste el valor de `analytics_events.max_samples_stored`.
+    * Para evento personalizado, ajuste el valor de `custom_events.max_samples_stored`.
+    * Para evento de error, ajuste el valor de `error_collector.max_event_samples_stored`.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  Este error no aplica al agente PHP.
+</Callout>

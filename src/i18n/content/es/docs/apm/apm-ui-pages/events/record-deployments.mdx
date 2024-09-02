@@ -1,0 +1,375 @@
+---
+title: Grabar y ver despliegue
+tags:
+  - APM
+  - Maintenance
+metaDescription: 'To set up deployment notifications for apps monitored by APM, use webhooks, APM agent-specific options, or New Relic''''s REST API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  Le recomendamos que utilice la característica [de seguimiento de cambios](/docs/change-tracking/change-tracking-introduction/) en lugar del antiguo marcador de despliegue. Si ha estado usando el marcador de despliegue característico, aún puede usarlo, pero tenga en cuenta que la característica de seguimiento de cambios está disponible para <InlinePopover type="browser"/>y <InlinePopover type="mobile"/>, así como para <InlinePopover type="apm"/>.
+</Callout>
+
+Implementar una aplicación puede ser un evento riesgoso: cuando la aplicación falla y la causa suele ser un mal despliegue. New Relic le permite realizar un seguimiento del despliegue para que pueda correlacionarlo con los cambios en el rendimiento de su aplicación. El seguimiento desplegable crea marcadores de despliegue que aparecen en los gráficos y el panel de APM.
+
+Vea cómo funciona el marcador de despliegue en este breve video (4:30 minutos):<Video id="HPeXZubcZ7o" type="youtube"/>
+
+## Opciones de seguimiento desplegado [#options]
+
+Puede utilizar la [API REST v2](/docs/apis/rest-api-v2/requirements/new-relic-rest-api-v2-getting-started) de New Relic para registrar nuevos despliegues y recuperar una lista de despliegues anteriores. Además, algunos agentes APM tienen métodos específicos del agente para registrar el despliegue automáticamente.
+
+Puede utilizar su integración [de Slack](https://slack.com/) con New Relic, o un simple webhook, para notificar a su equipo en tiempo real sobre el despliegue de la aplicación monitor por APM. Slack proporciona una URL de webhook que le permite publicar JSON genérico que aparecerá formateado en un canal de Slack elegido.
+
+Hay algunos lugares donde puedes ver el despliegue en la UI de New Relic después de que se hayan grabado:
+
+* En la fuente de actividad en las páginas [Resumen de APM](/docs/apm/applications-menu/monitoring/apm-overview-page-view-transaction-apdex-usage-data), Resumen de servicio y [Resumen de entidad](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer-view-performance-across-apps-services-hosts).
+* En gráficos de rendimiento de APM como marcadores de gráficos (líneas verticales con cabezas de alfiler).
+* En gráficos dashboard como marcadores de gráficos.
+* En la página [desplegable](/docs/apm/applications-menu/events/deployments-page-view-impact-your-app-users) para ver el resumen del rendimiento.
+
+<Callout variant="tip">
+  El marcador de despliegue no está disponible para la aplicación browser , pero puedes probar estas alternativas:
+
+  * Cambie del marcador de despliegue a la característica [de seguimiento de cambios](/docs/change-tracking/change-tracking-introduction) que le permite realizar un seguimiento de los cambios en la aplicación browser .
+  * Consulte [las versiones del navegador](/docs/browser/new-relic-browser/browser-agent-spa-api/add-release) para conocer una forma de etiquetar errores con las versiones de lanzamiento.
+</Callout>
+
+## Registro de implementación con la API REST [#api-instructions]
+
+Puede utilizar la API REST v2 de New Relic para registrar el despliegue y obtener una lista del despliegue anterior.
+
+* Los ejemplos de este documento utilizan `curl` como herramienta de línea de comando. Sin embargo, puede utilizar cualquier método para realizar sus solicitudes REST. También puedes crear y ver el despliegue con [API Explorer](https://rpm.newrelic.com/api/explore/application_deployments/create).
+
+* JSON utiliza comillas dobles `"` para los nombres de elementos y el contenido. El uso de comillas simples `'` provocará errores.
+
+* Los ejemplos usan `X-Api-Key` que se puede usar para una
+
+  <a href="/docs/apis/intro-apis/new-relic-api-keys/#user-api-key">
+    clave de usuario
+  </a>
+
+  o una
+
+  <a href="/docs/apis/intro-apis/new-relic-api-keys/#rest-api-key">
+    clave de API REST
+  </a>
+
+  . Las claves de usuario son ahora la forma preferida de acceder a nuestras API REST y puede utilizar encabezados `Api-Key` cuando las utilice.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="post-deployment"
+    title="Grabar un despliegue con POST"
+  >
+    Para grabar un nuevo despliegue, envíe una solicitud `POST` que incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) al extremo de despliegue. Adjunte la carga útil en formato JSON (consulte [Límites de caracteres y parámetro JSON](#deployment_limits)). Todos los parámetros de carga útil son opcionales excepto `revision`.
+
+    Por ejemplo:
+
+    ```bash
+    curl -X POST "https://api.newrelic.com/v2/applications/$APP_ID/deployments.json" \
+         -H "X-Api-Key:$API_KEY" \
+         -i \
+         -H "Content-Type: application/json" \
+         -d \
+    '{
+        "deployment": {
+            "revision": "REVISION",
+            "changelog": "Added: /v2/deployments.rb, Removed: None",
+            "description": "Added a deployments resource to the v2 API",
+            "user": "datanerd@example.com",
+            "timestamp": "2019-10-08T00:15:36Z"
+        }
+    }'
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="powershell"
+    title="Grabar un despliegue con PowerShell"
+  >
+    Para grabar un despliegue con PowerShell, envíe una solicitud `POST` que incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) al extremo de despliegue. Adjunte la carga útil en formato JSON (consulte [Límites de caracteres y parámetro JSON](#deployment_limits)). Todos los parámetros de carga útil son opcionales excepto `revision`.
+
+    Este ejemplo utiliza PowerShell versión 3 o superior:
+
+    ```powershell
+    Invoke-WebRequest -Uri https://api.newrelic.com/v2/applications/YOUR_APP_ID/deployments.json -Method POST -Headers @{'X-Api-Key'='$API_KEY'} -ContentType 'application/json' -Body '{
+        "deployment": {
+            "revision": "REVISION",
+            "changelog": "Added: /v2/deployments.rb, Removed: None",
+            "description": "Added a deployments resource to the v2 API",
+            "user": "datanerd@example.com",
+            "timestamp": "2019-10-08T00:15:36Z"
+        }
+    }'
+    ```
+
+    Este ejemplo utiliza PowerShell versión 2 (requiere .NET framework 3.5 o superior):
+
+    ```powershell
+    $encoding = [System.Text.Encoding]::GetEncoding("ASCII")
+    $data ='{
+        "deployment": {
+            "revision": "REVISION",
+            "changelog": "Added: /v2/deployments.rb, Removed: None",
+            "description": "Added a deployments resource to the v2 API",
+            "user": "datanerd@example.com",
+            "timestamp": "2019-10-08T00:15:36Z"
+        }
+    }'
+    $postData = $encoding.GetBytes($data)
+    $request = [System.Net.WebRequest]::Create('https://api.newrelic.com/v2/applications/$APP_ID/deployments.json')
+    $request.Method = 'POST'
+    $request.Headers.add('X-Api-Key','$API_KEY')
+    $request.ContentType='application/json'
+    $stream = $request.GetRequestStream()
+    $stream.Write($postData,0,$postData.Length)
+    $request.GetResponse()
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="get-list"
+    title="Ver una lista de despliegue con GET"
+  >
+    Para recuperar una lista de todo el despliegue anterior de su aplicación, envíe una solicitud `GET` que incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) al extremo de despliegue. solicitud GET no utiliza una carga útil JSON.
+
+    Por ejemplo:
+
+    ```bash
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/deployments.json" \
+         -H "X-Api-Key:$API_KEY" \
+         -i
+    ```
+
+    <CollapserGroup>
+      <Collapser
+        id="sample-get-output"
+        title="Salida de muestra de GET"
+      >
+        Este ejemplo solicita una lista de implementación para el ID de aplicación `9999999`:
+
+        ```bash
+        curl -X GET "https://api.newrelic.com/v2/applications/9999999/deployments.json" \
+             -H "X-Api-Key:ABCDEFGHIJKLMNOPQRSTUVWXabcdefghijklmnopqrstuvwx" \
+             -i
+        ```
+
+        La API devuelve esta lista de implementación:
+
+        ```json
+        HTTP/1.1 200 OK
+        ETag: "ABCDEFGHIJKabcdefghijk0123456789"
+        Cache-Control: max-age=0, private, must-revalidate
+        Content-Type: application/json
+        {
+          "deployments": [
+            {
+              "id": 1234567,
+              "revision": "1234123412341234123412341234123412341234",
+              "changelog": "Fixed the bugs for real this time",
+              "description": "Example description two",
+              "user": "Data Nerd",
+              "timestamp": "2016-02-24T10:09:27-08:00",
+              "links": {
+                "application": 9999999
+              }
+            },
+            {
+              "id": 2345678,
+              "revision": "7890789078907890789078907890789078907890",
+              "changelog": "Think I fixed all the bugs",
+              "description": null,
+              "user": "Dren Atad",
+              "timestamp": "2014-10-22T12:23:47-07:00",
+              "links": {
+                "application": 9999999
+              }
+            }
+          ],
+          "links": {
+            "deployment.agent": "/v2/applications/{application_id}"
+          }
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="deployment-limits"
+    title="Límites de caracteres y parámetro JSON"
+  >
+    La carga útil JSON puede incluir el siguiente parámetro.
+
+    <Callout variant="important">
+      Los caracteres UTF-8 de 4 bytes, como emojis y algunos glifos de idiomas no latinos, no se pueden utilizar en el texto desplegable.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "135px" }}>
+            Parámetro
+          </th>
+
+          <th style={{ width: "150px" }}>
+            Tipo de datos
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `revision`
+          </td>
+
+          <td>
+            Cadena, 127 caracteres máximo
+          </td>
+
+          <td>
+            <DNT>**Required**</DNT>. Un ID único para este despliegue, visible en la página [Resumen](/docs/apm/applications-menu/monitoring/apm-overview-page) y en la página [de despliegue](/docs/apm/applications-menu/events/deployments-page) . Puede ser cualquier cadena, pero suele ser un número de versión o una suma de comprobación de Git.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `changelog`
+          </td>
+
+          <td>
+            Cadena, 65535 caracteres máximo
+          </td>
+
+          <td>
+            <DNT>**Optional**</DNT>. Un resumen de lo que cambió en este despliegue, visible en la página [de despliegue](/docs/apm/applications-menu/events/deployments-page) cuando seleccionas <DNT>**(selected deployment) > Change log**</DNT>.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Cadena, 65535 caracteres máximo
+          </td>
+
+          <td>
+            <DNT>**Optional**</DNT>. Una descripción de alto nivel de este despliegue, visible en la página [Resumen](/docs/apm/applications-menu/monitoring/apm-overview-page) y en la página [de despliegue](/docs/apm/applications-menu/events/deployments-page) cuando selecciona un despliegue individual.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `user`
+          </td>
+
+          <td>
+            Cadena, máximo 31 caracteres
+          </td>
+
+          <td>
+            <DNT>**Optional**</DNT>. Un nombre de usuario para asociar con el despliegue, visible en la página [Resumen](/docs/apm/applications-menu/monitoring/apm-overview-page) y en la página [de despliegue](/docs/apm/applications-menu/events/deployments-page) .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            ISO 8601
+          </td>
+
+          <td>
+            <DNT>**Optional**</DNT>. Cuando se produjo el despliegue, hasta el segundo. Si no se especifica, el despliegue se registrará en el momento en que se recibió la llamada API. requisitos timestamp :
+
+            * Debe estar en hora UTC.
+            * Debe ser posterior a la timestamp de implementación más reciente.
+            * No puede ser en el futuro.
+            * Debe estar en formato ISO8601; por ejemplo, `"2019-10-08T00:15:36Z"`.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Grabar despliegue usando el agente New Relic [#agent]
+
+Algunos agentes tienen métodos adicionales para grabar el despliegue:
+
+* <DNT>
+    **All agents**
+  </DNT>
+
+  : Utilice la [API REST de New Relic v2](#api).
+
+* <DNT>
+    **C**
+  </DNT>
+
+  : No hay métodos específicos del SDK. Utilice la [API REST](#api).
+
+* <DNT>
+    **Go**
+  </DNT>
+
+  : No hay métodos específicos del agente. Utilice la [API REST](#api).
+
+* <DNT>
+    **Java**
+  </DNT>
+
+  : Llame al [agente de Java `jar`](/docs/agents/java-agent/instrumentation/recording-deployments-java-agent).
+
+* <DNT>
+    **.NET**
+  </DNT>
+
+  : Utilice [PowerShell y la API REST](#powershell).
+
+* <DNT>
+    **Node.js**
+  </DNT>
+
+  : No hay métodos específicos del agente. Utilice la [API REST](#api).
+
+* <DNT>
+    **PHP**
+  </DNT>
+
+  : Utilice un [script PHP](/docs/agents/php-agent/features/recording-deployments-using-php-script).
+
+* <DNT>
+    **Python**
+  </DNT>
+
+  : utilice el subcomando [`record-deploy`](/docs/agents/python-agent/installation-configuration/python-agent-admin-script#record-deploy) del script `newrelic-admin` .
+
+* <DNT>
+    **Ruby**
+  </DNT>
+
+  : Utilice una [receta de Capistrano](/docs/agents/ruby-agent/features/recording-deployments-ruby-agent#capistrano3).
+
+## Ver detalles del despliegue [#dep_procedures]
+
+Después de configurar la información de despliegue, puede ver y profundizar en los detalles en la UI. Para obtener sugerencias, consulte nuestro documento de seguimiento de cambios [Cómo ver y analizar sus cambios en New Relic](/docs/change-tracking/change-tracking-view-analyze).
+
+## Notifique a su equipo sobre el despliegue [#webhooks]
+
+Ya sea que esté realizando un seguimiento con la API REST o la [API GraphQL](/docs/change-tracking/change-tracking-introduction) más nueva, puede notificar a los miembros de su equipo mediante un webhook. Para obtener más información, consulte las [instrucciones del webhook](/docs/change-tracking/change-tracking-webhooks) de seguimiento de cambios.

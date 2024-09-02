@@ -1,0 +1,109 @@
+---
+title: Comience con New Relic nivel de servicio
+tags:
+  - Full-Stack Observability
+  - Observe everything
+  - Get started
+  - Service levels
+metaDescription: How to create and consume SLIs and SLOs with service level management in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nivel de servicio fueron popularizados por Google y se convirtieron en una de las mejores prácticas en la industria. nivel de servicio complementa el seguimiento existente añadiendo una perspectiva más centrada en el negocio y la experiencia del usuario.
+
+Con New Relic, puede definir y consumir indicadores de nivel de servicio (SLI) y objetivos de nivel de servicio (SLO) para su aplicación. Hay varias razones relevantes para configurar y seguir su nivel de servicio New Relic:
+
+* Fácil creación: facilita la creación de niveles de servicio con diferentes modos de complejidad, desde modos de un solo clic hasta modos avanzados totalmente personalizables para usuarios avanzados.
+
+* Integrado con experiencias de New Relic: visualiza y trabaja con nivel de servicio en Navigator, carga de trabajo, mini descripción general y a través de la mayoría de las herramientas de observabilidad de New Relic.
+
+* Alerta soporte: crea
+
+  <InlinePopover type="alerts"/>
+
+  que te avisen de cualquier degradación a la que debes prestar atención.
+
+* Herramientas de análisis: analiza el estado de confiabilidad de todos los sistemas de manera consistente. El modo de vista Período sobre Período le permite detectar cambios de tendencia en cualquier nivel de servicio. Además, cada vez que se infringe un nivel de servicio, la vista de resumen le permite verificar las posibles causas del problema.
+
+* [Planificación de capacidad](/docs/journey-demand/get-started): cree un nivel de servicio para encontrar su aplicación en la línea de base. Cuando se está preparando para un evento de máxima demanda, el nivel de servicio puede ayudar a su equipo a tener éxito.
+
+## ¿Qué son los SLI y los SLO? [#what-sli-slo]
+
+El nivel de servicio se utiliza para medir el desempeño de un servicio desde el punto de vista del usuario final (o aplicación cliente). Por ejemplo, un nivel de servicio puede representar si un video se cargó lo suficientemente rápido o si un servicio de indicaciones devolvió al menos una ruta posible entre dos puntos.
+
+<DNT>**Service level indicators are accurate quantitative measures of the user experience**</DNT> como lo describe un nivel de servicio. Representan una proporción de resultados exitosos y, por lo tanto, se expresan como porcentaje (%). Por ejemplo, un SLI puede medir la proporción de solicitudes que fueron más rápidas que algún umbral, o la proporción de registros que ingresan a una canalización y que resultaron en el valor correcto.
+
+Y aunque el usuario comprende que un vídeo puede tardar unos segundos más en cargarse, o que una aplicación puede devolver un error de vez en cuando, esto no debería suceder con frecuencia si no quiere perder su confianza. Por lo tanto, una vez que haya definido los SLI para los aspectos de rendimiento que son más relevantes para el usuario final de sus servicios, debe configurar los SLO para realizar un seguimiento de que el servicio cumple con sus expectativas. <DNT>**Service level objectives are defined as a target value that an SLI must meet**</DNT> durante un período de tiempo. Por ejemplo, los vídeos deben empezar a reproducirse en menos de 2 segundos el 99% del tiempo durante un período de una semana.
+
+<img
+  title="Example of several service levels.png"
+  alt="Example of several service levels"
+  src="/images/slm_screenshot-full_service-levels-overview.webp"
+/>
+
+Consulte la [guía de implementación de casos de uso de administración a nivel de servicio](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/slm-implementation-guide/) para obtener más información sobre cómo identificar los límites del servicio y desplegar la instrumentación en la que se basará su nivel de servicio.
+
+## Informes de nivel de servicio y APM SLA. [#slm-sla]
+
+New Relic ha proporcionado [informes automáticos de acuerdos de nivel de servicio (SLA) para servicios APM](/docs/apm/reports/service-level-agreements/apm-sla-reports/) durante mucho tiempo. Los informes basados en Apdex, que puede recibir en la bandeja de entrada de su correo electrónico los lunes, se generan automáticamente para los servicios que producen transacciones web y son útiles para ver tendencias a lo largo del tiempo.
+
+Además de los SLA, nuestra capacidad de niveles de servicio está mejor alineada con las mejores prácticas modernas de nivel de servicio, como las que promueve el [Manual de ingeniería de confiabilidad del sitio (SRE) de Google](https://sre.google/books/), y proporciona una funcionalidad nueva y mejorada:
+
+* Los SLI se pueden definir en cualquier evento NRDB que se informe a New Relic, no solo en
+
+  <InlinePopover type="apm"/>
+
+  transacción. Por lo tanto también puedes basar los SLI en tu propio evento personalizado.
+
+* Puedes decidir qué límites de servicio y qué métricas son relevantes para tu nivel de servicio, y puedes establecer tus propios objetivos.
+
+* Puede ver los resultados de SLO en sus cuentas y dentro de su [carga de trabajo](/docs/new-relic-one/use-new-relic-one/workloads/workloads-isolate-resolve-incidents-faster/).
+
+## ¿Que sigue? [#next]
+
+¿Listo para comenzar? Si aún no lo ha hecho, cree su cuenta New Relic gratuita a continuación para comenzar a monitorear sus datos hoy.
+
+<InlineSignup/>
+
+Puede encontrar el nivel de servicio en varios lugares de [nuestra UI](https://one.newrelic.com):
+
+* En
+
+  <DNT>
+    **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+  </DNT>
+
+* En las vistas previas de aquellas [entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/) que tengan definido un SLI.
+
+* En
+
+  <DNT>
+    **APM**
+  </DNT>
+
+  servicios,
+
+  <DNT>
+    **Browser**
+  </DNT>
+
+  aplicación o
+
+  <DNT>
+    **Synthetic**
+  </DNT>
+
+  monitor en la sección de informes.
+
+* Dentro de un
+
+  <DNT>
+    **workload**
+  </DNT>
+
+  , en la pestaña nivel de servicio.
+
+Continúe y lea nuestros documentos sobre cómo [crear](/docs/service-level-management/create-slm) y [consumir](/docs/service-level-management/consume-slm) SLI y SLO. También puedes consultar cómo [configurar el nivel de servicio a través de la API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-slm/).
+
+Para obtener consejos y mejores prácticas sobre cómo configurar y utilizar SLM, consulte nuestra [guía de madurez de observabilidad sobre la optimización de SLM](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide).
