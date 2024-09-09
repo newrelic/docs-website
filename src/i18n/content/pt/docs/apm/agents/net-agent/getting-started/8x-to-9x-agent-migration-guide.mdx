@@ -1,0 +1,437 @@
+---
+title: Guia de migração do agente .NET 8.x para 9.x
+tags:
+  - Agents
+  - NET agent
+  - Migration guides
+metaDescription: This guide helps New Relic .NET agent users migrate from 8.x versions to 9.x
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este guia descreve as principais alterações entre as versões 8.xe 9.x do agente .NET, os problemas que você pode encontrar durante a atualização e como migrar com êxito para a versão 9.x.
+
+As principais mudanças incluem:
+
+* Distributed tracing está ativado por padrão
+* Remoção da API pública obsoleta do agente
+* Remoção de configurações de agente configuráveis obsoletas
+
+## Distributed tracing ativado por padrão
+
+[distributed tracing](/docs/distributed-tracing/) é um recurso que existe no agente .NET desde julho de 2018. Ele substitui o rastreamento multiaplicativo (CAT) como a melhor maneira de entender rapidamente o que acontece com as solicitações à medida que elas trafegam por vários serviços em uma arquitetura de aplicativo distribuída. O CAT será descontinuado no agente .NET a partir da versão 9.0 e será removido em uma versão principal futura.
+
+Nas versões 8.x do agente .NET, o arquivo `newrelic.config` padrão instalado em um host por qualquer instalador do agente .NET teria o elemento `crossApplicationTracer` presente e definido como `enabled="true"`. O elemento `distributedTracing` não estava presente por padrão.
+
+Na versão 9.x, isso será revertido: `crossApplicationTracer` não estará presente por padrão e `distributedTracing` estará presente com o valor padrão de `enabled="true"`. Entretanto, o instalador do agente não substitui um arquivo `newrelic.config` existente ao atualizar de uma versão para outra. Portanto, se você estiver atualizando o agente da versão 8.x para a 9.x em um determinado host, o comportamento do agente nesse host não será alterado.
+
+<Callout variant="tip">
+  Se desejar adotar o novo comportamento de rastreamento padrão ao atualizar da versão 8.x para a 9.x, você precisará modificar a configuração do seu agente para ativar distributed tracing. A nova instalação do agente 9.x em um host terá distributed tracing habilitado por padrão.
+</Callout>
+
+## Remoção de API pública obsoleta dos métodos do agente
+
+Todos os métodos de API obsoletos possuem métodos de API de substituição com funcionalidade equivalente.
+
+<Callout variant="tip">
+  Se você estiver usando a API do agente .NET no código do seu aplicativo, recomendamos atualizar a referência do pacote em seu projeto para a versão 9.x mais recente do assembly da API do agente antes de atualizar o agente .NET para 9.x. Dessa forma, você obterá erros em tempo de compilação se seu código estiver usando qualquer um dos métodos de API removidos na versão 9.x.
+</Callout>
+
+<Callout variant="important">
+  Se você continuar a usar uma versão 8.x ou anterior do assembly da API e seu código usar qualquer uma das APIs obsoletas listadas abaixo, você não receberá erros em tempo de compilação. No entanto, se você instrumentar seu aplicativo com uma versão 9.x do agente, os métodos da API não terão efeito e você receberá mensagens de aviso em tempo de execução no arquivo de log do agente.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        API removida
+      </th>
+
+      <th>
+        API de substituição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`CreateDistributedTracePayload`](/docs/agents/net-agent/net-agent-api/itransaction/#createdistributedtracepayload)
+      </td>
+
+      <td>
+        [`InsertDistributedTraceHeaders`](/docs/agents/net-agent/net-agent-api/itransaction/#insertdistributedtraceheaders)
+
+        Cria cabeçalhos [W3C Trace Context](https://www.w3.org/TR/trace-context/) , bem como cabeçalhos distributed trace New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`AcceptDistributedTracePayload`](/docs/agents/net-agent/net-agent-api/itransaction/#acceptdistributedtracepayload)
+      </td>
+
+      <td>
+        [`AcceptDistributedTraceHeaders`](/docs/agents/net-agent/net-agent-api/itransaction/#acceptdistributedtraceheaders)
+
+        Aceita cabeçalhos [W3C Trace Context](https://www.w3.org/TR/trace-context/) , bem como cabeçalhos distributed trace New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`AddCustomParameter`](/docs/agents/net-agent/net-agent-api/addcustomparameter-net-agent-api/)
+      </td>
+
+      <td>
+        [`AddCustomAttribute`](/docs/agents/net-agent/net-agent-api/itransaction/#addcustomattribute)
+
+        `AddCustomAttribute` é um método da interface [ITransaction](/docs/agents/net-agent/net-agent-api/itransaction/) , portanto, é necessária uma referência à transação atual para usar esta API.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetBrowserTimingFooter`
+      </td>
+
+      <td>
+        [`GetBrowserTimingHeader`](/docs/agents/net-agent/net-agent-api/getbrowsertimingheader-net-agent-api/)
+
+        `GetBrowserTimingFooter` foi marcado como <DNT>**Obsolete**</DNT> desde a versão 3.x do agente.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Exemplos
+
+### CreateDistributedTracePayload
+
+Se você já tinha um código parecido com este:
+
+```cs
+// Create an external web request to another instrumented service
+HttpWebRequest requestMessage = (HttpWebRequest)WebRequest.Create("https://remote-address");
+
+// Create the trace payload 
+IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+ITransaction transaction = agent.CurrentTransaction;
+IDistributedTracePayload payload = transaction.CreateDistributedTracePayload();
+
+// Add the trace payload to the headers of the outgoing request
+requestMessage.Headers.Set(NewRelic.Api.Agent.Constants.DistributedTracePayloadKey, payload.HttpSafe());
+```
+
+substitua-o por isto:
+
+```cs
+// Create an external web request to another instrumented service
+HttpWebRequest requestMessage = (HttpWebRequest)WebRequest.Create("https://remote-address");
+
+// Insert the distributed trace headers to the message. The "setter"
+// action tells the API how to add headers to the "carrier", which
+// is the HttpWebRequest message in this example
+IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+ITransaction currentTransaction = agent.CurrentTransaction;
+var setter = new Action<HttpWebRequest, string, string>((carrier, key, value) =>
+{
+    carrier.Headers?.Set(key, value);
+});
+currentTransaction.InsertDistributedTraceHeaders(requestMessage, setter);
+```
+
+### AcceptDistributedTracePayload
+
+Se você já tinha um código parecido com este:
+
+```cs
+// Obtain the payload from the upstream request object
+HttpContext httpContext = HttpContext.Current;
+string payload = httpContext.Request.Headers[NewRelic.Api.Agent.Constants.DistributedTracePayloadKey];
+
+// Accept the payload
+IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+ITransaction transaction = agent.CurrentTransaction;
+transaction.AcceptDistributedTracePayload(payload, TransportType.HTTP);
+```
+
+substitua-o por isto:
+
+```cs
+HttpContext httpContext = HttpContext.Current;
+IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+ITransaction currentTransaction = agent.CurrentTransaction;
+
+// The "Getter" method defines how to get headers from the carrier, 
+// which is the HttpContext in this example 
+IEnumerable<string> Getter(HttpContext carrier, string key)
+{
+    string value = carrier.Request.Headers[key];
+    return value == null ? null : new string[] { value };
+}
+
+// Call the API
+currentTransaction.AcceptDistributedTraceHeaders(httpContext, Getter, TransportType.HTTP);
+```
+
+### AdicionarParâmetro Personalizado
+
+Se você já tinha um código parecido com este:
+
+```cs
+// Called in code that runs inside a transaction created by the
+// agent, for example an ASP.NET WebApi endpoint
+NewRelic.Api.Agent.NewRelic.AddCustomParameter("myCustomParameter", "myValue");
+```
+
+substitua-o por isto:
+
+```cs
+// Get the current transaction
+IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+ITransaction currentTransaction = agent.CurrentTransaction;
+
+// Add the custom attribute to the current transaction
+currentTransaction.AddCustomAttribute("myCustomParameter", "myValue");
+```
+
+## Remoção das definições de configuração do agente obsoleto
+
+As seguintes definições de configuração do agente estão sendo removidas do agente. Para tornar o caminho de atualização de 8.x para 9.x o mais tranquilo possível, não removeremos as configurações do esquema XML do arquivo `newrelic.config` . Porém, a lógica de configuração interna do agente será atualizada para ignorar essas configurações, e uma mensagem do log no arquivo de log do agente avisará que esses valores de configuração não terão mais efeito.
+
+Um pouco sobre notação: para facilitar a descrição, o restante desta seção descreverá os elementos de configuração com uma abreviação de “notação de ponto” em vez de XML completo.
+
+Por exemplo, um elemento de configuração que aparece no arquivo `newrelic.config` pode ter esta aparência:
+
+```xml
+<configuration>
+  <parameterGroups>
+    <identityParameters>
+      …
+    </identityParameters>
+  </parameterGroups>
+  …
+</configuration>
+```
+
+Neste exemplo, será escrito como `parameterGroups.IdentityParameters`. Como todos esses elementos de configuração são filhos do elemento `<configuration>` de nível superior, eles são omitidos por questões de brevidade.
+
+A maioria das opções de configuração removidas estão relacionadas à captura ou exclusão de dados de atributo. Os documentos a seguir são úteis para compreender o panorama geral da coleta de dados de atributo do agente e como ela é configurada:
+
+* [Atributo do agente](/docs/agents/manage-apm-agents/agent-data/agent-attributes/)
+* [Habilitar e desabilitar atributo (.NET)](/docs/agents/net-agent/attributes/enable-disable-attributes-net/)
+* [Exemplos de atributos .NET](/docs/agents/net-agent/attributes/net-attribute-examples/)
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Opção de configuração removida
+      </th>
+
+      <th>
+        Opção de configuração de substituição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `parameterGroups.identityParameters.*`
+      </td>
+
+      <td>
+        `attributes.include`
+
+        ```xml
+        <parameterGroups>
+          <identityParameter enabled="true"/>
+        </parameterGroups>
+        ```
+
+        é equivalente a
+
+        ```xml
+        <attributes enabled="true">
+          <include>identity.*</include>
+        </attributes>
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parameterGroups.customParameters.enabled`
+      </td>
+
+      <td>
+        `attributes.include`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parameterGroups.customParameters.ignore`
+      </td>
+
+      <td>
+        `attributes.exclude`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parameterGroups.requestHeaderParameters.enabled`
+      </td>
+
+      <td>
+        `attributes.include`
+
+        ```xml
+        <attributes>
+          <include>request.parameters.*</include>
+        </attributes>
+        ```
+
+        Incluirá todos os parâmetros da solicitação.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parameterGroups.requestHeaderParameters.ignore`
+      </td>
+
+      <td>
+        `attributes.exclude`
+
+        ```xml
+        <attributes>
+          <exclude>request.parameters.specificRequestParameter</exclude>
+        </attributes>
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parameterGroups.responseHeaderParameters.*`
+      </td>
+
+      <td>
+        Nenhum
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `requestParameters.enabled`
+      </td>
+
+      <td>
+        `attributes.include`
+
+        ```xml
+        <attributes>
+          <include>request.parameters.*</include>
+        </attributes>
+        ```
+
+        Incluirá todos os parâmetros da solicitação.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `requestParameters.ignore`
+      </td>
+
+      <td>
+        `attributes.exclude`
+
+        ```xml
+        <attributes>
+          <exclude>request.parameters.specificRequestParamter</exclude>
+        </attributes>
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `analyticsEvents.*`
+      </td>
+
+      <td>
+        `transactionEvents.*`
+
+        Todos os elementos de configuração filho e atributo de `analyticsEvents.*` também existem em `transactionEvents.*` e têm o mesmo significado, com exceção da opção obsoleta `transactionEvents.maximumSamplesPerMinute` .
+
+        Além disso, `transactionEvents.attributes*` oferece um controle mais preciso sobre a inclusão e exclusão de atributo personalizado em evento de transação.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transactionTracer.captureAttributes`
+      </td>
+
+      <td>
+        `transactionTracer.attributes.enabled`
+
+        `transactionTracer.attributes.include`/`exclude` oferece um controle mais preciso sobre qual atributo personalizado incluir no rastreamento da transação.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `errorCollector.captureAttributes`
+      </td>
+
+      <td>
+        `errorCollector.attributes.enabled`
+
+        `errorCollector.attributes.include`/`exclude` oferece um controle mais preciso sobre qual atributo personalizado incluir no evento de erro.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `browserMonitoring.captureAttributes`
+      </td>
+
+      <td>
+        `browserMonitoring.attributes.enabled`
+
+        `browserMonitoring.attributes.include`/`exclude` oferece um controle mais preciso sobre qual atributo personalizado incluir nos dados <InlinePopover type="browser" />.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `errorCollector.ignoreErrors`
+      </td>
+
+      <td>
+        `errorCollector.ignoreClasses`
+
+        Para obter mais informações, consulte a documentação [de configuração de coleta de erros](/docs/agents/net-agent/configuration/net-agent-configuration/#error_collector) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transactionEvents.maximumSamplesPerMinute`
+      </td>
+
+      <td>
+        Nenhum
+
+        Este elemento de configuração não estava sendo utilizado no agente.
+      </td>
+    </tr>
+  </tbody>
+</table>
