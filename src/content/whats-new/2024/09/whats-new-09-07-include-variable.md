@@ -14,7 +14,7 @@ Now, you have more flexibility when configuring variables with the **Include var
 
 ## How it works
 
-Previously, when you used variables in widgets, your queries were limited to the values defined for that variable, which could be limiting in certain scenarios, such as missing values. This could result in incomplete data being shown in charts, even if you used the **Select all** values. Alternatively, a variable may have a very large number of values. CChoosing to disable the variable by default will provide significant performance improvements.
+Previously, when you used variables in widgets, your queries were limited to the values defined for that variable, which could be limiting in certain scenarios, such as missing values. This could result in incomplete data being shown in charts, even if you used the **Select all** values. Alternatively, a variable may have a very large number of values. Choosing to disable the variable by default will provide significant performance improvements.
 
 Now, when you choose to exclude a variable, it's removed from the query and the condition is replaced with a neutral boolean value (either true or false). This ensures that your query remains valid and returns results for your dashboard. By excluding the variable, you can retrieve all values from the database.
 
@@ -22,7 +22,7 @@ Now, when you choose to exclude a variable, it's removed from the query and the 
 ## How to configure variable exclusion
 
 1. In your dashboard, click the edit <Icon name="fe-edit-2"/> button.
-2. Then select **+ Add variable** or click on a variable and select **Edit**<.
+2. Then select **+ Add variable** or click on a variable, and select **Edit**.
 3. Now, you'll be able to see a toggle option to **Include variable**.
 
 
