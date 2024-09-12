@@ -7,7 +7,7 @@ learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-e
 
 <Callout variant="important">
   New Relic has extended support for FID until December 31, 2024 to allow more time to transition to INP. The New Relic Browser agent will continue to report FID after Google ends support for FID on September 9, 2024.
-</Callout>
+  </Callout>
 
 ## What you need to do
 
@@ -39,7 +39,7 @@ Use the [`NrdbQuery` event](https://docs-preview.newrelic.com/docs/query-based-p
 
 Use the following [alerts-specific NerdGraph query](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) in your account to find whether FID is being used in a NRQL alert condition. 
 
-```
+```sql
 {
   actor {
     account(id: {account-id}) {
@@ -66,7 +66,7 @@ Use the following [browser monitoring and Service Levels-specific NerdGraph](htt
 
 1. Get the GUID of all the browser monitoring apps that have SLIs:
 
-```
+```sql
 {
   actor {
     entitySearch(
@@ -84,7 +84,7 @@ Use the following [browser monitoring and Service Levels-specific NerdGraph](htt
 
 2. For each of these browser monitoring apps, get the list of SLIs and check if in the `WHERE` clause of the query there is a reference to `firstInputDelay`:
 
-```
+```sql
 {
   actor {
     entity(guid: "<browser_guid>") {
