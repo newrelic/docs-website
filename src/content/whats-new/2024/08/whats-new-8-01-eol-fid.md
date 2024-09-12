@@ -6,7 +6,9 @@ learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-e
 ---
 
 <Callout variant="important">
-  New Relic has extended support for FID until December 31, 2024 to allow more time to transition to INP. The New Relic Browser agent will continue to report FID after Google ends support for FID on September 9, 2024.
+  To help ease customer transition, New Relic will try to extend the reporting of FID until January 15, 2025 in the browser agent.
+
+  While we will try to keep FID reporting for you, unplanned degradations may occur that cannot be resolved. As such, we strongly recommend working closely with your account team to update to use INP as soon as possible.
 </Callout>
 
 ## What you need to do
