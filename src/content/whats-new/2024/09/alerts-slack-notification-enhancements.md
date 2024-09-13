@@ -8,7 +8,7 @@ We are pleased to announce the release of two highly-requested features for impr
 
 **Slack channel broadcasting**
 
-While tracking multiple issues as individual threads in Slack, the details can easily get buried in your thread notifications - making it difficult to keep up with the latest developments of a particular issue. With our new broadcasting feature, automated replies to an issue will not only be added to the issue thread, but also sent to the entire channel. (This feature offers a similar functionality to the  “Also send to [channel]” checkbox that appears while adding to a thread in Slack.) This improves the visibility of each update and ensures everyone in the channel is informed with the latest information for an issue. 
+While tracking multiple issues as individual threads in Slack, the details can easily get buried in your thread notifications which makes it difficult to keep up with the latest developments of a particular issue. With our new broadcasting feature, automated replies to an issue will not only be added to the issue thread, but also sent to the entire channel. (This feature offers a similar functionality to the  “Also send to [channel]” checkbox that appears while adding to a thread in Slack.) This improves the visibility of each update and ensures everyone in the channel is informed with the latest information for an issue. 
 
 To use this feature, select the “Receive notification updates on the channel as well” checkbox while configuring your Slack notification channel.
 
