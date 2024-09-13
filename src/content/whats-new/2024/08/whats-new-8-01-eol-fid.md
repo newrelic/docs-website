@@ -15,13 +15,13 @@ On September 9, 2024, [Google is deprecating the FID metric](https://developers.
 
 To avoid inaccurate alerts, charts, and service levels, you must make the following changes **before September 9, 2024**:
 
-1. Edit all **custom dashboards** using FID from the PageViewTiming event and replace with INP. 
-2. Edit any NRQL **alert conditions** using FID from the PageViewTiming event and replace with INP. 
-3. Edit any **Service Levels** using FID from the PageViewTiming event and use INP.
+1. Edit all **custom dashboards** using FID from the `PageViewTiming` event and replace with INP. 
+2. Edit any NRQL **alert conditions** using FID from the `PageViewTiming` event and replace with INP. 
+3. Edit any **Service Levels** using FID from the `PageViewTiming` event and use INP.
 
 Resources for how you can identify which dashboards, alerts, and service levels use the FID metric can be found below. 
 
-Additionally, if you're using copy/paste browser instrumentation or are pinned to a version prior to [version 1227](https://docs.newrelic.com/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1227/), you must update the browser agent to version 1227 or higher to ensure that you have access to using the INP metric. To check which browser agent version you're on and for instructions on how to update your agent, please [see our documentation](https://docs.newrelic.com/docs/browser/new-relic-browser/installation/update-browser-agent/). If you're using version 1227 or higher, you do not need to update your browser agent for this EOL; however, we recommend that customers keep all agents up to date.
+Additionally, if you're using copy and paste browser instrumentation or are pinned to a version prior to [version 1227](https://docs.newrelic.com/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1227/), you must update the browser agent to version 1227 or higher to ensure that you have access to using the INP metric. To check which browser agent version you're on and for instructions on how to update your agent, please [see our documentation](https://docs.newrelic.com/docs/browser/new-relic-browser/installation/update-browser-agent/). If you're using version 1227 or higher, you do not need to update your browser agent for this EOL; however, we recommend that customers keep all agents up to date.
 
 ## Additional resources
 
