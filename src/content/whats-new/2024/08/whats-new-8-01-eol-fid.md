@@ -6,9 +6,7 @@ learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-e
 ---
 
 <Callout variant="important">
-  To help ease customer transition, New Relic will try to extend the reporting of FID until January 15, 2025 in the browser agent.
-
-  While we will try to keep FID reporting for you, unplanned degradations may occur that cannot be resolved. As such, we strongly recommend working closely with your account team to update to use INP as soon as possible.
+  New Relic will try to extend the reporting of FID until January 15, 2025 in the browser agent to help give customers more time to transition to INP. However, unexpected degradations may occur due to the Google FID EOL that occurred on September 9, 2024, and we recommend updating to use INP as soon as possible.
 </Callout>
 
 ## What you need to do
