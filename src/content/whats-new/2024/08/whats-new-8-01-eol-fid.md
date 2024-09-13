@@ -5,7 +5,9 @@ releaseDate: '2024-08-01'
 learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-endoflife-google-core-web-vital-fid' 
 ---
 
-**Important:** New Relic has extended support for FID until December 31, 2024 to allow more time to transition to INP. The New Relic Browser agent will continue to report FID after Google ends support for FID on September 9, 2024.
+<Callout variant="important">
+  New Relic will try to extend the reporting of FID until January 15, 2025 in the browser agent to help give customers more time to transition to INP. However, unexpected degradations may occur due to the Google FID EOL that occurred on September 9, 2024, and we recommend updating to use INP as soon as possible.
+</Callout>
 
 ## What you need to do
 
