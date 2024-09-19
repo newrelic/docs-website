@@ -14,4 +14,4 @@ In addition, we have added the **Mini Overview** widget to the Kubernetes deploy
 
 ![Logs in context view](/images/WhatsNewLogsInContextKubernetesDeployment.webp "A screenshot showing logs in context view for a kubernetes deployment")
 
-![LogsMiniOverviewWidget](/images/WhatsNewMiniOverviewWidgetInKubernetesDeploymentSummaryPage.webp "A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page")]
+![LogsMiniOverviewWidget](/images/WhatsNewMiniOverviewWidgetInKubernetesDeploymentSummaryPage.webp "A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page")
