@@ -1,7 +1,7 @@
 ---
 title: 'See logs in context in Kubernetes deployment views'
 summary: 'Explore your logs in the context of a kubernetes deployment'
-releaseDate: '2024-07-08'
+releaseDate: '2024-09-18'
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/#deployment-summary'
 getStartedLink: 'https://newrelic.com/signup'
 ---
