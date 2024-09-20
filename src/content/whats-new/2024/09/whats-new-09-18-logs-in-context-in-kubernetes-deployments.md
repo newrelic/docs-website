@@ -1,7 +1,7 @@
 ---
 title: 'See logs in context in Kubernetes deployment views'
 summary: 'Explore your logs in the context of a kubernetes deployment'
-releaseDate: '2024-07-08'
+releaseDate: '2024-09-18'
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/#deployment-summary'
 getStartedLink: 'https://newrelic.com/signup'
 ---
@@ -12,17 +12,6 @@ To get started, open a Kubernetes deployment view and click the **Logs** tab. A 
 
 In addition, we have added the **Mini Overview** widget to the Kubernetes deployment summary page, allowing you to view the total log count and the error log count associated with your Kubernetes deployment. This widget contains the **See logs** button, which opens up the logs in context view for that Kubernetes deployment.
 
-<img
-    title="A screenshot showing logs in context view for a kubernetes deployment"
-    alt="A screenshot showing logs in context view for a kubernetes deployment"
-    src={/images/WhatsNewLogsInContextKubernetesDeployment.webp}
-/>
-<figcaption>A screenshot showing logs in context view for a kubernetes deployment.</figcaption>
+![Logs in context view](/images/WhatsNewLogsInContextKubernetesDeployment.webp "A screenshot showing logs in context view for a kubernetes deployment")
 
-<img
-    title="A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page"
-    alt="A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page"
-    src={/images/WhatsNewMiniOverviewWidgetInKubernetesDeploymentSummaryPage.webp}
-/>
-<figcaption>A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page.</figcaption>
-
+![LogsMiniOverviewWidget](/images/WhatsNewMiniOverviewWidgetInKubernetesDeploymentSummaryPage.webp "A screenshot showing the LogsMiniOverviewWidget in the kubernetes deployment summary page")
