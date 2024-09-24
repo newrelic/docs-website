@@ -121,7 +121,6 @@ const MainLayout = ({ children, pageContext }) => {
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
@@ -159,82 +158,49 @@ const MainLayout = ({ children, pageContext }) => {
             >
               <div
                 css={css`
-                  height: ${navHeaderHeight};
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
                 `}
               >
-                <div
+                <Link
+                  to="/"
                   css={css`
                     display: flex;
-                    justify-content: space-between;
+                    justify-content: center;
                     align-items: center;
+                    text-decoration: none;
+                    color: var(--system-text-primary-dark);
+                    &:hover {
+                      color: var(--system-text-primary-dark);
+                    }
                   `}
                 >
-                  <Link
-                    to="/"
+                  <Logo
                     css={css`
-                      display: flex;
-                      justify-content: center;
-                      align-items: center;
-                      text-decoration: none;
-                      color: var(--system-text-primary-dark);
-                      &:hover {
-                        color: var(--system-text-primary-dark);
+                      .text-color {
+                        fill: var(--system-text-primary-dark);
                       }
-                    `}
-                  >
-                    <Logo
-                      css={css`
-                        .text-color {
-                          fill: var(--system-text-primary-dark);
-                        }
-                        ${!sidebar &&
-                        css`
-                          display: none;
-                        `}
+                      ${!sidebar &&
+                      css`
+                        display: none;
                       `}
-                    />
-                  </Link>
-                </div>
-                {sidebar && (
-                  <SearchInput
-                    placeholder={t('strings.home.search.placeholder')}
-                    value={searchTerm || ''}
-                    iconName={SearchInput.ICONS.SEARCH}
-                    isIconClickable
-                    alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onSubmit={() => {
-                      addPageAction({
-                        eventName: 'swiftypeSearchInput',
-                        category: 'SearchInput',
-                        searchTerm,
-                        searchLocation: 'sidebar',
-                      });
-                      navigate(`?q=${searchTerm || ''}`);
-                    }}
-                    css={css`
-                      margin: 1.5rem 0 2rem;
-                      svg {
-                        color: var(--primary-text-color);
-                      }
                     `}
                   />
-                )}
+                </Link>
               </div>
 
-              <>
-                <RootNavigation
-                  isStyleGuide={isStyleGuide}
-                  locale={locale}
-                  css={css`
-                    overflow-x: hidden;
-                    height: calc(
-                      100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        3rem
-                    );
-                  `}
-                />
-              </>
+              <RootNavigation
+                isStyleGuide={isStyleGuide}
+                locale={locale}
+                css={css`
+                  overflow-x: hidden;
+                  height: calc(
+                    100vh - ${navHeaderHeight} - var(--global-header-height) -
+                      3rem
+                  );
+                `}
+              />
             </Layout.Sidebar>
             <CSSTransition
               in={sidebar}
