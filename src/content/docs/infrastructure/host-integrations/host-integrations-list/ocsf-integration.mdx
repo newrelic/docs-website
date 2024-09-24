@@ -1,0 +1,104 @@
+---
+title: OCSF integration
+tags:
+  - New Relic integrations
+  - OCSF integration
+metaDescription: Use New Relic infrastructure agent to get a dashboard with metrics from your OCSF format data.
+freshnessValidatedDate: 2024-09-18
+---
+
+
+Use New Relic to seamlessly monitor Open Cybersecurity Schema Framework (OCSF) data. You'll get comprehensive visibility into security-related data from multiple sources to facilitate threat detection, incident response, and compliance.
+
+<img
+  title="OCSF dashboard"
+  alt="OCSF dashboard"
+  src="/images/infrastructure_screenshot-full_ocsf-dashboard.webp"
+/>
+
+<figcaption>
+After setting up our OCSF integration, see your data in a dashboard right out of the box.
+</figcaption>
+
+
+## Set up the OCSF integration [#set-up-ocsf]
+
+Complete the following steps to set up the OCSF integration:
+
+<Steps>
+    <Step>
+## Install the infrastructure agent [#infra-install]
+
+To use the OCSF integration, you need to also [install the infrastructure agent](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) on the same host. The infrastructure agent monitors the host itself, while the integration you'll install in the next step extends your monitoring with OCSF-specific data.
+    </Step>
+    <Step>
+
+## Enable the OCSF integration with `nri-flex` [#enable]
+
+1. Create a file named `nri-ocsf.yml` in the integrations directory:
+
+  ```shell
+  touch /etc/newrelic-infra/integrations.d/nri-ocsf.yml
+  ```
+
+2. Add the following snippet to your `nri-ocsf.yml` file to enable the agent to capture OCSF data:
+
+  ```yml
+  integrations:
+    - name: nri-flex
+      config:
+        name: ocsfExample
+        global:
+          base_url: http://ip-address:PORT
+          headers:
+            accept: application/json
+        apis:
+          - event_type: ocsfSampleEvent       # use this name to query the data
+            url: /customEndpoint               # endpoint with OCSF data
+          - event_type: ocsfCustomEvent1      
+            url: /customEndpoint2
+  ```
+    </Step>
+
+    <Step>
+
+## Restart the New Relic infrastructure agent [#restat-agent]
+
+Use the instructions in our [infrastructure agent docs](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) to restart your infrastructure agent. This is command that should work for most people:
+
+  ```shell
+  sudo systemctl restart newrelic-infra.service
+  ```
+
+    </Step>
+    <Step>
+
+## Find your data [#find-data]
+
+You can use our pre-built dashboard template to monitor your OCSF application metrics. Follow these steps to use our pre-built dashboard template:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > + Integrations & Agents**</DNT>.
+
+2. Select <DNT>**Dashboards**</DNT> to access the pre-built resources. 
+
+3. Search <DNT>**OCSF**</DNT> and select the dashboard.
+
+To instrument the OCSF quickstart and to see metrics and alerts, you can also follow our [OCSF quickstart page](https://newrelic.com/instant-observability/ocsf) by clicking on the <DNT>**Install now**</DNT> button.
+
+Here is an example NRQL query to view the OCSF master uptime:
+
+```sql
+SELECT * FROM ocsfSampleEvent
+``` 
+    </Step>
+</Steps>
+
+## What's next? [#whats-next]
+
+To learn more about building NRQL queries and generating dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to create basic and advanced queries.
+
+* [Introduction to dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to customize your dashboard and carry out different actions.
+
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) to adjust your <InlinePopover type="dashboards"/> display mode, or to add more content to your dashboard.
