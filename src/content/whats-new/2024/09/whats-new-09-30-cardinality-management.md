@@ -1,7 +1,7 @@
 ---
 title: 'Metric cardinality management made easy'
 summary: 'New admin interface to diagnose, solve, and manage metric cardinality issues.'
-releaseDate: '2024-09-30/'
+releaseDate: '2024-09-30'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/cardinality-management' 
 getStartedLink: 'https://https://one.newrelic.com/admin-portal/cardinality-management/home?'
 ---
