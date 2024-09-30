@@ -8,7 +8,7 @@ getStartedLink: 'https://https://one.newrelic.com/admin-portal/cardinality-manag
 
 We've released a new cardinality management UI that makes it easier to diagnose and solve metric cardinality issues, so that you can prevent visual data gaps in your charts and gain more control over cardinality. 
 
-The new feature allows you to easily:
+The new feature allows you to:
 - **View account usage over time:** See cardinality usage trends vs. budget within your account.
 - **Get a metric level breakdown:** Understand which metrics are driving the most usage.
 - **Prune high-cardinality metric attributes:** Dive deeper into a metric's attributes and prune (remove) specific attributes to free up cardinality budget.
