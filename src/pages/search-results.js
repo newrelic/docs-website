@@ -32,8 +32,7 @@ const SearchResultPageView = ({ pageContext }) => {
   const hasPrevPage = prevPage >= 1;
 
   const paginationRange = usePagination({
-    totalCount: totalPages,
-    pageSize: 5,
+    totalPageCount: totalPages,
     siblingCount: 1,
     currentPage: page,
   });
@@ -84,8 +83,8 @@ const SearchResultPageView = ({ pageContext }) => {
           <h2>
             {totalResults} results for "{query}"
           </h2>
-          {records.map((result) => (
-            <Result key={result.title} result={result} />
+          {records.map((result, i) => (
+            <Result key={`${i}-${result.title}`} result={result} />
           ))}
           <PaginationContainer>
             <Link
