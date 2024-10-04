@@ -181,9 +181,14 @@ const PageContainer = styled.div`
   justify-content: center;
   width: 100%;
   height: 100%;
+  padding-right: 3.5rem;
   h2 {
     font-weight: normal;
     margin-bottom: 1rem;
+  }
+
+  @media (max-width: 1240px) {
+    padding-right: 0;
   }
 `;
 
@@ -270,19 +275,9 @@ const Result = ({ result }) => {
 };
 
 SearchResultPageView.propTypes = {
-  location: PropTypes.shape({
-    state: PropTypes.shape({
-      results: PropTypes.arrayOf(
-        PropTypes.shape({
-          highlight: PropTypes.shape({
-            title: PropTypes.string,
-            body: PropTypes.string,
-          }),
-          url: PropTypes.string,
-        })
-      ).isRequired,
-    }),
-  }),
+  pageContext: PropTypes.shape({
+    slug: PropTypes.string,
+  }).isRequired,
 };
 
 export default SearchResultPageView;
