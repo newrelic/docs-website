@@ -18,10 +18,10 @@ import { usePagination, DOTS } from '../hooks/usePagination';
 const SearchResultPageView = ({ pageContext }) => {
   const { queryParams } = useQueryParams();
   const query = queryParams.get('query');
-  const page = Number(queryParams.get('page'));
+  const page = Number(queryParams.get('page') ?? 1);
   const locale = useLocale();
-  const [results, setResults] = useState({});
-  const { records, pageCount } = results;
+  const [results, setResults] = useState({ loading: true });
+  const { records, pageCount, loading, error } = results;
   const { slug } = pageContext;
 
   const totalPages = pageCount;
@@ -47,26 +47,34 @@ const SearchResultPageView = ({ pageContext }) => {
             `opensource-${locale.locale}`,
             `quickstarts`,
           ];
-      const results = await search({
-        searchTerm: query,
-        defaultSources,
-        filters: [
-          { type: 'source', defaultFilters: [] },
-          { type: 'searchBy', defaultFilters: [] },
-        ],
-        page,
-        perPage: 5,
-      });
-      setResults({
-        pageCount: results.info.page.num_pages,
-        records: results.records.page,
-      });
+      try {
+        const results = await search({
+          searchTerm: query,
+          defaultSources,
+          filters: [
+            { type: 'source', defaultFilters: [] },
+            { type: 'searchBy', defaultFilters: [] },
+          ],
+          page,
+          perPage: 5,
+        });
+        setResults({
+          pageCount: results.info.page.num_pages,
+          records: results.records.page,
+          loading: false,
+        });
+      } catch {
+        setResults({
+          error: 'Unable to get search results, an error has occurred',
+          loading: false,
+        });
+      }
     })();
   }, [locale, page, query]);
 
   return (
     <PageContainer>
-      {!records && (
+      {loading && (
         <LoadingContainer>
           <h2>Loading results</h2>
           <Spinner
@@ -157,6 +165,7 @@ const SearchResultPageView = ({ pageContext }) => {
           </PaginationContainer>
         </>
       )}
+      {error && !loading && <LoadingContainer>{error}</LoadingContainer>}
     </PageContainer>
   );
 };
