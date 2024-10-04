@@ -242,6 +242,9 @@ const Result = ({ result }) => {
         color: var(--primary-font-color);
         &:hover {
           color: var(--primary-font-color);
+          h3 {
+            text-decoration: underline;
+          }
         }
       `}
     >
