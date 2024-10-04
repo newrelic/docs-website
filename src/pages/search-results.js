@@ -12,6 +12,7 @@ import {
   useLocale,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
+import { navigate } from '@reach/router';
 
 import { usePagination, DOTS } from '../hooks/usePagination';
 
@@ -38,6 +39,9 @@ const SearchResultPageView = ({ pageContext }) => {
   });
 
   useEffect(() => {
+    if (!query) {
+      navigate('/');
+    }
     (async () => {
       const defaultSources = locale.isDefault
         ? ['developer', 'docs', 'opensource', 'quickstarts']
