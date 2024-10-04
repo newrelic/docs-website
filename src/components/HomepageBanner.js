@@ -78,7 +78,7 @@ const HomepageBanner = () => {
             searchTerm,
             searchLocation: 'homepage',
           });
-          if(searchTerm != '') {
+          if(searchTerm !== '') {
             navigate(`search-results/?query=${searchTerm}&page=1`);
           }
         }}
