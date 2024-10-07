@@ -1,0 +1,121 @@
+---
+title: Find help and get support
+tags:
+  - Using New Relic
+  - Welcome to New Relic
+  - Get started
+translate:
+  - jp
+metaDescription: "Here's an overview of ways to get help with the New Relic platform."
+redirects:
+  - /docs/site/new-relic-support-changes
+  - /docs/site/finding-help
+  - /docs/apm/new-relic-apm/getting-started/finding-help
+  - /docs/accounts-partnerships/education/finding-help/finding-help
+  - /docs/accounts-partnerships/education/getting-started-new-relic/finding-help
+  - /docs/accounts-partnerships/education/getting-started-new-relic/find-help-or-file-support-ticket
+  - /docs/accounts-partnerships/getting-started-new-relic/find-help-or-file-support-ticket
+  - /docs/accounts-partnerships/welcome-new-relic/getting-started/find-help-or-file-support-ticket
+  - /docs/using-new-relic/welcome-new-relic/getting-started/find-help-or-file-support-ticket
+  - /docs/using-new-relic/welcome-new-relic/getting-started/find-help-support-portal
+  - /docs/using-new-relic/welcome-new-relic/getting-started/find-help-use-support-portal
+  - /docs/using-new-relic/welcome-new-relic/get-started/find-help-use-support-portal
+  - /docs/new-relic-solutions/solve-common-issues/find-help-use-support-portal
+freshnessValidatedDate: 2024-08-27
+---
+
+New Relic offers a variety of support options, including online help, a troubleshooting tool, open source documentation with detailed procedures and troubleshooting tips, and support assistance in (and out) of the Platform.
+
+* [Access support resources in the our platform.](#nr-support)
+* [Ask in New Relic's Explorers Hub.](#nr-forum)
+* [Run the New Relic Diagnostics tool.](#diagnostics)
+* [Find answers in New Relic Docs and New Relic University.](#find-answers)
+* [Contribute to our documentation.](#docs-contribution)
+* [Don't find what you need? File a documentation issue.](#file-doc-issue)
+* [File a case in the platform.](#file-ticket)
+* [Check the status of our systems.](#check-status)
+* [Read about our licenses, data security, and compliance information.](#licenses-policies)
+
+## Access support resources in our platform [#nr-support]
+
+All [in-product support](https://one.newrelic.com/redirect/support) resources are accessible while navigating our platform: Just select the small <DNT>**?**</DNT> icon from the top right navigation menu.
+
+The in-product support view provides visibility into what's new with New Relic, our documentation, and our Explorers Hub. The support sidebar provides rapid access to all our support tools.
+
+<img
+  title="New Relic's in-product support"
+  alt="In-product support"
+  src="/images/solutions_screenshot-crop_product-support.webp"
+/>
+
+## Ask in Explorers Hub, our free support forum [#nr-forum]
+
+[New Relic's Explorers Hub](https://discuss.newrelic.com/) is our forum that's free for all users. New Relic users and employees engage every day in conversations to troubleshoot and solve issues, find workarounds, and discuss new features.
+
+## Run the New Relic Diagnostics tool [#diagnostics]
+
+[New Relic Diagnostics](/docs/using-new-relic/cross-product-functions/troubleshooting/new-relic-diagnostics) is our automated diagnostic tool for Linux, Windows, and Mac. If it detects a problem with any of our agents, it suggests solutions and saves troubleshooting logs that you can attach to tickets.
+
+## Find answers in New Relic Docs and New Relic University [#find-answers]
+
+New Relic's [docs site](https://docs.newrelic.com) contains helpful installation, configuration, and troubleshooting tips. From the [main page](http://docs.newrelic.com), select from frequently-used categories and topics, like [release notes](/docs/release-notes). Or, [search from any page](http://docs.newrelic.com/search).
+
+For a library of additional videos, webinars, and other information about using New Relic features, visit [New Relic University](https://learn.newrelic.com/) and [newrelic.com/resources](https://newrelic.com/resources/videos).
+
+## Contribute to our documentation [#docs-contribution]
+
+At the right-hand side of each [public doc](https://docs.newrelic.com) you'll find a feedback widget. Use it to tell us whether a page is helpful, create an issue, or edit the page.
+
+<img
+  src="/images/solutions_screenshot-crop_docs-feedback.webp"
+  style={{ width: '300px' }}
+  alt="New Relic Docs - Feedback"
+  title="New Relic Docs - Feedback"
+/>
+
+Our documentation is open source and available in [GitHub](https://github.com/newrelic/docs-website), and we encourage you to contribute! We really care about ensuring our docs are helpful, complete, and accurate. To edit a page, click the <DNT>**Edit page**</DNT> button in any document to create a pull request with the edit you think is needed. We don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting.
+
+### Don't find what you need? File a documentation issue [#file-doc-issue]
+
+If you can't find an answer in the documentation, you can file an issue to ask us for help. When you find places the docs could be better, let us know too! To do it, click the <DNT>**Create issue**</DNT> button in any document and we'll look into your problem to find a solution.
+
+## File a case in the platform [#file-ticket]
+
+If you can't find what you're looking for, and your subscription level includes technical support, file a support ticket right in the platform:
+
+1. If you're in an organization with multiple accounts, select your account in the top dropdown.
+
+2. Above your name in the lower left, click [<DNT>Help > Help & Support</DNT>](https://one.newrelic.com/redirect/support).
+
+   <img
+     src="/images/solutions_screenshot-crop_help-button.webp"
+     style={{ width: '300px' }}
+     alt="Help button"
+     title="Help button"
+   />
+
+3. Click **Create a Support Case**.
+
+    <img
+        title="Screenshot showing the tile to create a ticket"
+        alt="Screenshot showing the tile to create a ticket"
+        src="/images/solutions_screenshot-crop_create-ticket.webp"
+        style={{ width: '300px' }}
+    />
+
+4. Provide as many details as possible. Include the URL, if applicable, or select <DNT>**Attach file**</DNT> to include a log file, a New Relic diagnostics file, screenshots, or any other useful attachments.
+
+5. Click <DNT>**Submit**</DNT>.
+
+<Callout variant="important">
+  The ability to create a support case is based on your account's [Support Plan](/docs/licenses/license-information/general-usage-licenses/global-technical-support-offerings/).
+</Callout>
+
+## Check the status of our systems [#check-status]
+
+It's always a good idea to visit [status.newrelic.com](https://status.newrelic.com) to check the status of our systems. If there are open incidents, you'll be able to find more information.
+
+## Licenses and security information [#licenses-policies]
+
+* Review New Relic [licenses, attributions, and other notices](/docs/licenses).
+* Read about our [data security, privacy, and compliance policies](/docs/security).
