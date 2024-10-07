@@ -1,26 +1,28 @@
-const remove = require('unist-util-remove');
 const filter = require('unist-util-filter');
 const toString = require('mdast-util-to-string');
 const convert = require('unist-util-is/convert');
-const { cloneDeep, last } = require('lodash');
+const { last } = require('lodash');
 
-const CUSTOM_ID = /^#[\w-]+$/;
+const CUSTOM_ID = /\[#[\w].*\]+$/;
 const isIgnoredNode = convert(['image']);
 
 const getId = (node) => {
-  const { label } = last(node.children);
+  // `value` here looks like ' [#some-id]'
+  const { value } = last(node.children);
+  // capture group grabs everything between the `#` and the right bracket `]`
+  const id = [...value.matchAll(/\[#(.+)\]/g)]?.[0]?.[1];
 
-  return label.replace(/^#/, '');
+  return id;
 };
 
+/**
+ * Returns true for heading `node`s with a custom id.
+ * These look like `## some heading [#heading-id]`.
+ */
 const isHeadingWithCustomId = (node) => {
   const lastChild = last(node.children);
-
   return (
-    node.type === 'heading' &&
-    lastChild &&
-    lastChild.type === 'linkReference' &&
-    CUSTOM_ID.test(lastChild.label)
+    node.type === 'heading' && lastChild && CUSTOM_ID.test(lastChild?.value)
   );
 };
 
@@ -32,14 +34,7 @@ const parseHeading = (node) => {
   node = filter(node, (el) => !isIgnoredNode(el));
 
   if (isHeadingWithCustomId(node)) {
-    // make a copy of the node so that removing the linkReference does not
-    // mutate the original node object
-    const nodeCopy = cloneDeep(node);
-    const id = getId(nodeCopy);
-
-    remove(nodeCopy, 'linkReference');
-
-    return { id, text: toString(nodeCopy).trim() };
+    return getId(node);
   }
 
   return { id: null, text: toString(node) };
