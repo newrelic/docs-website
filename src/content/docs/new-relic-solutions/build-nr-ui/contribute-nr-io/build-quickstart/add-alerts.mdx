@@ -1,0 +1,246 @@
+---
+title: 'Add your alerts to the quickstart'
+metaDescription: 'Add your alerts to New Relic I/O'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. If you haven't already, checkout the [course introduction](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  As this procedure builds on top of the last ones in the lab, make sure you [create alerts](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) and [understand the directory structure of quickstart](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/understand-quickstart) before proceeding with this one.
+</Callout>
+
+In a previous procedure, you [created alerts](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) to notify you if there's any problem with FlashDB. Now, you add it to your quickstart so your users can use it too.
+
+<Steps>
+  <Step>
+    If you haven't already, fork the [New Relic quickstarts](https://github.com/newrelic/newrelic-quickstarts) repository and clone it to your local machine.
+  </Step>
+
+  <Step>
+    Open your Project in the IDE of your choice and navigate to `\_template` directory.
+  </Step>
+
+  <Step>
+    Here, copy `alert-policies/example-alert-policy` directory and its content to `alert-policies` directory at the root level. Rename the directory as `flashdb`.
+
+    This directory contains sample YAML files for static and baseline alerts to contribute the corresponding alerts to New Relic I/O. To help you populate your yaml files, you can use New Relic's [NerdGraph API explorer](https://api.newrelic.com/graphiql) to get a JSON representation of each alert condition.
+
+    <Callout variant="tip">
+      NerdGraph is New Relic's GraphQL API.
+    </Callout>
+  </Step>
+</Steps>
+
+## Populate your alert configurations with NerdGraph [#populate-alerts]
+
+NerdGraph allows you to query your existing alerts and helps you configure them in your quickstart. To populate your alert configurations with NerdGraph, you first need to look up its identifier.
+
+Under your alert policy, click on the condition to get its ID.
+
+With this identifier, you can now query your alert conditions and use the response to build out alert resources in your quickstart.
+
+### Query alert conditions in NerdGraph [#query-alert]
+
+<Steps>
+  <Step>
+    Open the NerdGraph explorer and select your key from the dropdown menu.
+  </Step>
+
+  <Step>
+    Building a query is simple in the explorer. You check the appropriate boxes to build a GraphQL query or copy the following GraphQL query and paste it in the center pane of the explorer to query a static alert condition.
+
+    ```js
+    {
+      actor {
+        account(id: REPLACE_ACCOUNT_ID) {
+          alerts {
+            nrqlCondition(id: REPLACE_CONDITION_ID) {
+              ... on AlertsNrqlStaticCondition {
+                id
+                name
+                nrql {
+                  query
+                }
+              }
+              terms {
+                operator
+                priority
+                threshold
+                thresholdDuration
+                thresholdOccurrences
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Here, you query `AlertsNrqlStaticCondition` for your condition's ID, name, query and more. These are the required fields you need to create the same alert in your quickstart.
+
+    <Callout variant="important">
+      Make sure you replace your account ID and condition ID in the above query.
+    </Callout>
+  </Step>
+
+  <Step>
+    Execute the query to get a JSON representation of the specified condition.
+
+    Next, use this response to add a static alert to your quickstart.
+
+    <Callout variant="tip">
+      Notice the checkboxes in the left-hand pane get checked when you paste the query in the explorer. This query returns the fields required to add an alert to the quickstart. If you've set custom fields or want to query more information, feel free to either edit the query in the center pane of the explorer or check the corresponding box in the left-hand pane.
+    </Callout>
+  </Step>
+
+  <Step>
+    From `alert-policies/flashdb` directory, rename `static-alert.yml` file to `SlowReadResponse.yml` and populate it with the data returned from above query.
+
+    ```yml
+    # Name of the alert
+    name: slow read response
+
+    # Description and details
+    details: |+
+      This alert is triggered when read operation takes longer than 0.8.
+
+    # Type of alert
+    type: STATIC
+
+    # NRQL query
+    nrql:
+      query: "SELECT average(fdb_read_responses) FROM Metric"
+
+    # Function used to aggregate the NRQL query value(s) for comparison to the terms.threshold (Default: SINGLE_VALUE)
+    valueFunction: SINGLE_VALUE
+
+    # List of Critical and Warning thresholds for the condition
+    terms:
+    - priority: CRITICAL
+      # Operator used to compare against the threshold.
+      operator: ABOVE
+      # Value that triggers a violation
+      threshold: 0.9
+      # Time in seconds; 120 - 3600
+      thresholdDuration: 300
+      # How many data points must be in violation for the duration
+      thresholdOccurrences: ALL
+
+    # Adding a Warning threshold is optional
+    - priority: WARNING
+      operator: ABOVE
+      threshold: 0.8
+      thresholdDuration: 300
+      thresholdOccurrences: ALL
+
+    # Duration after which a violation automatically closes
+    # Time in seconds; 300 - 2592000 (Default: 86400 [1 day])
+    violationTimeLimitSeconds: 259200
+    ```
+
+    Here, you added a static alert condition to the quickstart.
+  </Step>
+
+  <Step>
+    To query your baseline condition, copy the following GraphQL query and paste it in the center pane of the explorer.
+
+    ```js
+    {
+      actor {
+        account(id: 3014901) {
+          alerts {
+            nrqlCondition(id: 28068735) {
+              ... on AlertsNrqlBaselineCondition {
+                id
+                name
+                nrql {
+                  query
+                }
+                baselineDirection
+                terms {
+                  priority
+                  threshold
+                  thresholdDuration
+                  thresholdOccurrences
+                  operator
+                }
+                violationTimeLimitSeconds
+              }
+            }
+          }
+        }
+      }
+    }
+
+    ```
+
+    Here, you query `AlertsNrqlBaselineCondition` for your condition's name, query, `baselineDirection`, and other fields required to add the condition to your quickstart.
+
+    <Callout variant="important">
+      Make sure you replace your account ID and condition ID in the above query.
+    </Callout>
+  </Step>
+
+  <Step>
+    Execute the query to get the configuration data of your alert. Next, use this response to add a baseline alert to your quickstart.
+
+    <Callout variant="tip">
+      Notice the checkboxes in the left-hand pane get checked when you paste the query in the explorer. This query returns the fields required to add an alert to the quickstart. If you've set custom fields or want to query more information, feel free to either edit the query in the center pane of the explorer or check the corresponding box in the left-hand pane.
+    </Callout>
+  </Step>
+
+  <Step>
+    From `alert-policies/flashdb` directory, rename `baseline-alert.yml` file to `LowCacheHitRatio.yml` and populate it with the data returned from above query.
+
+    ```yml
+    # Name of the alert
+    name: low cache hit ratio
+
+    # Description and details
+    details: |+
+      This alert is triggered whenever the cache hit ratio deviates 2 standard deviations from the normal.
+
+    # Type of alert
+    type: BASELINE
+
+    # NRQL query
+    nrql:
+      # Baseline alerts can use an optional FACET
+      query: "SELECT sum(fdb_cache_hits)/sum(fdb_read_responses) FROM Metric"
+
+    # Direction in which baseline is set (Default: LOWER_ONLY)
+    baselineDirection: LOWER_ONLY
+
+    # List of Critical and Warning thresholds for the condition
+    terms:
+    - priority: CRITICAL
+      # Operator used to compare against the threshold.
+      operator: ABOVE
+      # Value that triggers a violation
+      threshold: 3
+      # Time in seconds; 120 - 3600, must be a multiple of 60 for Baseline conditions
+      thresholdDuration: 300
+      # How many data points must be in violation for the duration
+      thresholdOccurrences: ALL
+
+      # Adding a Warning threshold is optional
+    - priority: WARNING
+      operator: ABOVE
+      threshold: 2
+      thresholdDuration: 300
+      thresholdOccurrences: ALL 
+
+    # Duration after which a violation automatically closes
+    # Time in seconds; 300 - 2592000 (Default: 86400 [1 day])
+    violationTimeLimitSeconds: 259200
+
+    ```
+
+    Here, you added a baseline condition to the quickstart.
+  </Step>
+</Steps>
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. Continue on to next lesson: [add a data source](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-data-source).
+</Callout>

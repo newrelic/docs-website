@@ -1,0 +1,260 @@
+---
+title: Tutorial del explorador de API NerdGraph
+tags:
+  - APIs
+  - NerdGraph
+  - Get started
+metaDescription: How to use the New Relic NerdGraph API explorer.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+NerdGraph es nuestra API GraphQL que puedes utilizar para consultar datos y realizar cambios de configuración en la característica New Relic. Puede enviar GraphQL a la API NerdGraph de varias maneras: desde su código, con solicitudes curl o CLI, y en el explorador de la API NerdGraph. El explorador es una herramienta GUI GraphQL (basada en GraphiQL) donde puedes experimentar con consultas y mutaciones (cambios) en NerdGraph.
+
+Si es nuevo en GraphQL, familiarícese con la API GraphQL a través del explorador de API NerdGraph. Si necesita una descripción general de la API antes de comenzar este tutorial, consulte [Conozca NerdGraph: nuestra API GraphQL](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+
+<Steps>
+  <Step>
+    ## Configurar el explorador de API NerdGraph [#set-up]
+
+    1. Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Apps > [NerdGraph API explorer](https://api.newrelic.com/graphiql)**</DNT>.
+
+    2. En el menú desplegable clave de API, seleccione una [clave de usuario de API](/docs/apis/intro-apis/new-relic-api-keys/#user-key) existente o agregue una nueva.
+
+       <img
+         title="Screenshot of how to set API key in Nerdgraph"
+         alt="Screenshot of how to set API key in Nerdgraph"
+         src="/images/apis_screenshot-crop_Screenshot-API-key-in-NerdGraph.webp"
+       />
+  </Step>
+
+  <Step>
+    ## Cree una consulta para recuperar su nombre [#build-query]
+
+    Comencemos con una consulta simple de NerdGraph para buscar su nombre en la API GraphQL.
+
+    Si no ve la consulta predeterminada a continuación, borre todo en el editor de consultas y seleccione estos campos en el explorador de consultas en este orden: `actor`, `user`, `name`:
+
+    ```graphql
+    {
+      actor {
+        user {
+          name
+        }
+      }
+    }
+    ```
+
+    Con esta consulta, le pide a NerdGraph que recupere el campo `name` , que está anidado dentro del campo `user` . El campo `user` hace referencia al propietario de la [clave de usuario](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#user-api-key) y `user` está anidado dentro de `actor` (la entrada de nivel superior en todos los datos que se limita al nivel de acceso del usuario de API).
+  </Step>
+
+  <Step>
+    ## Ejecutar la consulta [#click-play]
+
+    Haga clic en el botón rojo <DNT>**Execute query**</DNT> . Tenga en cuenta que los resultados tienen casi la misma forma que la solicitud. Todos los campos del generador de consultas conforman el esquema GraphQL, que describe todos los tipos de datos disponibles y sus atributos. Para obtener más información sobre cada campo, haga clic en el icono de lupa al lado del campo.
+
+    <img
+      title="Screenshot showing a basic query"
+      alt="Screenshot showing a basic query"
+      src="/images/apis-and-data_screenshot-crop_NerdGraph-internal-docs.webp"
+    />
+  </Step>
+
+  <Step>
+    ## Añade más campos a tu consulta [#add-fields]
+
+    Ahora puede intentar agregar más campos a su consulta. La forma más sencilla es hacer clic en los campos del generador de consultas. El explorador sabe dónde colocar el atributo en la consulta. En el ejemplo, agregue los siguientes campos:
+
+    * Cuenta `id` (puede encontrar el valor de esto haciendo clic en su nombre en la esquina inferior izquierda y luego haciendo clic en
+
+      <DNT>
+        **API Keys**
+      </DNT>
+
+      )
+
+    * `email`
+
+      Cuando ejecuta la consulta, devuelve solo los datos que necesita, sin obtener datos excesivos ni insuficientes. Observe que el campo `id` tiene un argumento: pasar argumentos es una forma poderosa de personalizar su consulta NerdGraph. Cada campo y objeto puede contener argumentos, por lo que en lugar de ejecutar varias consultas, simplemente redacta la que necesitas.
+
+      ```graphql
+      {
+        actor {
+          user {
+            name
+            email
+          }
+          account(id: INSERT_YOUR_OWN_ACCOUNT_ID )
+        }
+      }
+      ```
+  </Step>
+
+  <Step>
+    ## Experimentar con mutaciones [#mutations]
+
+    En GraphQL, [las mutaciones](https://graphql.org/learn/queries/#mutations) son una forma de ejecutar consultas con efectos secundarios que pueden alterar los datos mediante la creación, actualización o eliminación de objetos (en las API REST, comúnmente se denominan operaciones CRUD).
+
+    ¿Listo para tu primera mutación?
+
+    1. Borra lo que hay en el editor.
+
+    2. Desplácese hacia abajo en el generador de consultas y expanda `mutation`.
+
+    3. Desplácese hacia abajo hasta `tagging` y seleccione `taggingAddTagsToEntity`.
+
+    4. Seleccione los siguientes campos:
+
+       * `guid!:` (Puede encontrar esto abriendo
+
+         <DNT>
+           **All entities**
+         </DNT>
+
+         , haciendo clic en el icono
+
+         <DNT>
+           **...**
+         </DNT>
+
+         en su registro de entidad y haciendo clic en
+
+         <DNT>
+           **See metadata & tags**
+         </DNT>
+
+         )
+
+       * `tags!:`
+
+         * `key!:`
+         * `values:`
+
+       * errores
+
+         * mensaje
+         * tipo
+
+       <img
+         title="Mutation example"
+         alt="Mutation example"
+         src="/images/apis-and-data_screenshot-full_NerdGraph-mutation-example.webp"
+       />
+
+       En este caso, agrega una etiqueta personalizada a una entidad. El editor se quejará si no selecciona `errors`: las mutaciones deben tener una forma de indicarle cómo se realizó la operación en el backend (las solicitudes fallidas dan como resultado respuestas nulas).
+
+       <Callout variant="tip">
+         A diferencia de REST, las API GraphQL como NerdGraph pueden devolver respuestas parciales. Por ejemplo, si intenta agregar una etiqueta a varias entidades, algunas mutaciones pueden fallar y otras tener éxito; Todo es iniciar sesión en la respuesta GraphQL que obtienes.
+       </Callout>
+  </Step>
+
+  <Step>
+    ## Pruebe su consulta NerdGraph en la terminal [#query-terminal]
+
+    Supongamos que ha creado una consulta NerdGraph con la que está satisfecho y desea probarla en otro lugar. Para capturar consultas y mutaciones listas para el código:
+
+    1. Seleccione el menú
+
+       <DNT>
+         **Tools**
+       </DNT>
+
+       .
+
+    2. Copie la consulta como una llamada curl o como un comando [CLI de New Relic](https://developer.newrelic.com/explore-docs/newrelic-cli) .
+
+       <img
+         title="NerdGraph tools menu"
+         alt="NerdGraph tools menu"
+         src="/images/apis-and-data_screenshot-crop_NerdGraph-tools-menu.webp"
+       />
+
+       ```bash
+       # curl version
+       curl https://api.newrelic.com/graphql \
+         -H 'Content-Type: application/json' \
+         -H 'Api-Key: API_KEY_REDACTED' \
+         --data-binary '{"query":"{\n  actor {\n    user {\n      name\n      email\n    }\n    account(id: 12345678)\n  }\n}\n", "variables":""}'
+
+       # New Relic CLI version
+       newrelic nerdgraph query '{
+         actor {
+           user {
+             name
+             email
+           }
+           account(id: 12345678)
+         }
+       }'
+       ```
+  </Step>
+</Steps>
+
+## Próximos pasos [#next-steps]
+
+Ahora ya conoces los conceptos básicos para redactar y probar la consulta NerdGraph, pero ¿cómo los conviertes en código de cliente o servidor? Soluciones como [GraphQL Code Generator](https://graphql-code-generator.com/) pueden ayudarlo a convertir la consulta NerdGraph en código para su implementación.
+
+Intente crear consultas más complejas haciendo clic en campos y expandiendo objetos en el generador de consultas (aunque tenga cuidado con las mutaciones, ya que podrían provocar cambios en su cuenta). Consulte algunas de las solicitudes de ejemplo en la sección siguiente.
+
+Para obtener más información sobre NerdGraph y explorar otros proyectos de la comunidad de desarrolladores, consulte [las publicaciones de Explorer's Hub](https://discuss.newrelic.com/search?q=nerdgraph).
+
+## Otras solicitudes de ejemplo [#more-examples]
+
+Aquí hay algunos otros ejemplos de solicitudes de NerdGraph que pueden resultar útiles:
+
+<CollapserGroup>
+  <Collapser
+    id="example-account-user"
+    title="Cuentas de consulta a las que puede acceder un usuario de New Relic"
+  >
+    Puede consultar el nombre de una cuenta a la que un `actor` (un usuario autorizado de New Relic) tiene acceso:
+
+    ```graphql
+    query {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          name
+        }
+      }
+    }
+    ```
+
+    La respuesta reflejará la estructura de consulta que definiste en la solicitud, lo que facilitará la solicitud de los datos específicos que deseas.
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "name": "Data Nerd"
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-multiple-requests"
+    title="Consultar usuario, cuenta y NRQL en una sola solicitud"
+  >
+    La estructura del gráfico muestra sus capacidades cuando la consulta se vuelve más compleja. Por ejemplo, puede consultar información del usuario, información de la cuenta y realizar una consulta NRQL con una sola solicitud. Con REST API, esto requeriría tres solicitudes diferentes a tres extremos diferentes.
+
+    ```graphql
+    query {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          name
+          nrql(query: "SELECT * FROM Transaction") {
+            results
+          }
+        }
+        user {
+          name
+          id
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

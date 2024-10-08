@@ -1,0 +1,105 @@
+---
+title: Configuraciones de la cuenta
+tags:
+  - Accounts
+  - Accounts and billing
+  - General account settings
+metaDescription: An introduction to New Relic account-management and user-management settings.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En la parte inferior izquierda de la UI de usuario de la plataforma New Relic, encontrará su menú de usuario, que le brinda acceso a características relacionadas con la administración de su organización y sus usuarios, la administración de sus datos y más.
+
+## Encuentra la configuración de tu cuenta [#find]
+
+Desde [one.newrelic.com](https://one.newrelic.com), Vaya a la parte inferior izquierda de la UI de New Relic y haga clic en su nombre. Esto abrirá las opciones del menú de usuario. Para obtener detalles sobre las opciones del menú de usuario, consulte [Menú de usuario](#user-menu).
+
+<img
+  title="the location of the New Relic user menu"
+  alt="the location of the New Relic user menu"
+  src="/images/accounts_screenshot-full_user-menu-location.webp"
+/>
+
+## Recorrido en vídeo por la UIusuario de administración [#video-tour]
+
+Aquí hay un video corto (2:30) con un recorrido por la UI de administración. Tenga en cuenta que esto es desde la perspectiva de un usuario de plataforma completa con todos los permisos.
+
+<Video
+  type="wistia"
+  id="og6og234xc"
+/>
+
+## Temas populares relacionados con la administración [#popular-topics]
+
+Estos son algunos de los temas más populares relacionados con la administración de New Relic:
+
+* [Administrar facturación](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui)
+* [Administrar usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/introduction-managing-users)
+* [Agregue una cuenta a su organización](/docs/accounts/accounts-billing/account-structure/add-accounts)
+* [Administrar datos](/docs/data-apis/manage-data/manage-your-data)
+* [Administrar clave de API](/docs/apis/intro-apis/new-relic-api-keys)
+
+## Detalles del menú de usuario [#user-menu]
+
+Aquí tenéis una imagen del menú de usuario. Siguiendo la imagen, te explicamos qué puedes hacer con las diferentes partes del menú.
+
+<img
+  title="image of the New Relic user menu"
+  alt="image of the New Relic user menu"
+  src="/images/accounts_screenshot-crop_user-menu.webp"
+/>
+
+<figcaption>
+  El menú de usuario de New Relic. (Si su menú de usuario es diferente, puede deberse a [factores de permisos](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data) o a que utiliza nuestro [modelo de usuario anterior](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models)).
+</figcaption>
+
+Aquí se detallan los contenidos del menú de usuario. <DNT>**Note that the user menu is subject to change: this was last updated March 9, 2023.**</DNT>
+
+1. Su nombre de usuario y correo electrónico, y su [tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type).
+
+2. <DNT>
+     **User preferences**
+   </DNT>
+
+   : la configuración de tu perfil, incluido tu nombre, tu [configuración de correo electrónico](/docs/accounts/accounts/account-maintenance/account-email-settings/) y tu [zona horaria](/docs/accounts/accounts-billing/general-account-settings/default-time-zone-setting).
+
+3. <DNT>
+     **API keys**
+   </DNT>
+
+   : administra tu [clave de API de New Relic](/docs/apis/intro-apis/new-relic-api-keys).
+
+4. <DNT>
+     **Manage your plan**
+   </DNT>
+
+   : lo lleva a la UI relacionada con su [facturación y uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing).
+
+5. <DNT>
+     **Administration**
+   </DNT>
+
+   : aquí es donde [administra su usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where), [administra su organización y cuentas](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure), y más. [Vea un recorrido en video de esta UI](#video-tour).
+
+6. <DNT>
+     **Theme**
+   </DNT>
+
+   : controles para la visualización del modo claro y del modo oscuro.
+
+7. <DNT>
+     **Manage your data**
+   </DNT>
+
+   : aprenda a [comprender, gestionar y controlar sus datos](/docs/data-apis/manage-data/manage-your-data).
+
+8. <DNT>
+     **Other users**
+   </DNT>
+
+   : si tiene [varios registros de usuario](/docs/accounts/accounts-billing/account-setup/multiple-logins-found), esto le permite cambiar entre ellos.
+
+## Añadir usuario [#add-users]
+
+En la parte inferior derecha, encima de tu nombre, hay un botón <DNT>**Add user**</DNT> . Utilice esto para [invitar al usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#add-users) a New Relic.

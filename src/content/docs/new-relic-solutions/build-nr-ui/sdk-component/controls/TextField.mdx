@@ -1,0 +1,410 @@
+---
+title: 'TextField'
+metaDescription: 'Learn how to work the TextField component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Forms allow a user to provide input to complete a task.
+
+### Usage
+
+```js
+import { TextField } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<TextField label="Username" placeholder="e.g. John Doe" />
+```
+
+#### With inline label
+
+```js
+<TextField label="Username" labelInline placeholder="e.g. John Doe" />
+```
+
+#### Search
+
+```js
+<TextField type={TextField.TYPE.SEARCH} placeholder="e.g. Placeholder" />
+```
+
+#### Password
+
+```js
+<TextField type={TextField.TYPE.PASSWORD} placeholder="e.g. Placeholder" />
+```
+
+#### Preformatted
+
+```js
+<TextField type={TextField.TYPE.PREFORMATTED} placeholder="npm run build" />
+```
+
+#### Loading
+
+```js
+<TextField loading placeholder="e.g Placeholder" />
+```
+
+#### Disabled
+
+```js
+<TextField defaultValue="Some value" disabled placeholder="e.g Placeholder" />
+```
+
+#### Read only
+
+```js
+<TextField defaultValue="Some value" readOnly placeholder="e.g Placeholder" />
+```
+
+#### With description
+
+```js
+<TextField description="Description value" placeholder="e.g Placeholder" />
+```
+
+#### With invalid message
+
+```js
+<TextField
+  invalid="Not enough text, needs more"
+  placeholder="e.g Placeholder"
+/>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a label for screen readers to describe this input. This is only required if the screen reader label should be different to the `label` prop, or if you are not providing a `label` prop at all.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaLabelledBy` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide the unique `id` of an element whose contents describe this input for screen readers. This is only required if the screen reader label should be different to the `label` prop, or if you are not providing a `label` prop at all. Use this or `ariaLabel`, not both.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `autoFocus` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the text field will autofocus on mount.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>string</h5>
+      </td>
+
+      <td>
+        Default value of the text field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Establishes whether the field can be editable or not.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `loading` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If loading a list of data or something else into a form field, indicate to the user that something is loading by using the loading state form.Used to inform that the field might load values dynamically. When set to `true`, shows a loading spinner; and when set to `false`, reserves some space in the UI so that the spinner can potentially be shown.Do not set the property (or set it to `undefined`) if the field is not expected to get loading at any given point in time.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `multiline` <h5>DEPRECATED</h5> <h5>boolean</h5>
+      </td>
+
+      <td>
+        <Callout
+          variant="caution"
+          title="Due January 1st, 2022"
+        >
+          The "multiline" prop is deprecated, use MultilineTextField component instead for multiline purposes.
+        </Callout>
+
+        Whether the input accepts one or more lines. This also affects the behavior of the [Enter] key, which will create a new line, as opposed to a no-op in a single-line field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onBlur` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the text field loses focus.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.FocusEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the text field value changes.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":"Event source of the callback. You can pull out the new value by accessing `event.target.value`."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onFocus` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the text field gets focus.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.FocusEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onKeyDown` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when a key is pressed.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.KeyboardEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onKeyUp` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when a key is released.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.KeyboardEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `placeholder` <h5>string</h5>
+      </td>
+
+      <td>
+        Hint displayed in the text field when it has no value.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `readOnly` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, makes the text field read only.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          TextField.SPACING_TYPE.EXTRA_LARGE,
+          TextField.SPACING_TYPE.LARGE,
+          TextField.SPACING_TYPE.MEDIUM,
+          TextField.SPACING_TYPE.NONE,
+          TextField.SPACING_TYPE.OMIT,
+          TextField.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spellCheck` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, enables the browser check for spelling errors.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        * Text — when a user inputs one line of text into a field
+        * Email — when you need a user to enter email address
+        * Search — when a user needs to search
+        * Preformatted — when a user needs to enter code content
+        * Password — when a user enters a password
+        * URL — when a user enters a URL
+
+          <OptionReference>
+            TextField.TYPE.EMAIL,
+            TextField.TYPE.PASSWORD,
+            TextField.TYPE.PREFORMATTED,
+            TextField.TYPE.SEARCH,
+            TextField.TYPE.TEXT,
+            TextField.TYPE.URL,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string</h5>
+      </td>
+
+      <td>
+        Value of the text field.This is required for a controlled component.
+      </td>
+    </tr>
+  </tbody>
+</table>

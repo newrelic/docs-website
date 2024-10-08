@@ -4,6 +4,16 @@
  * synthetics check that runs on the production site.
  * if you make updates, be sure to add them there as well.
  * https://staging.onenr.io/037jbB4Akjy
+ *
+ *
+ * To test locally:
+ * Run `yarn start`, and make sure the localhost testUrl
+ * matches the one where your site is running.
+ *
+ * Then run `yarn webdriver-desktop`. It is very slow.
+ *
+ * If you want to watch the webdriver run in a browser
+ * you can comment out the options on lines 25-27
  */
 
 import assert from 'assert';
@@ -23,15 +33,19 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
 
 const main = async () => {
+  console.log('\n🧪 Beginning desktop test...');
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
+
   const testUrl =
     process.env.WEBDRIVER_ENV === 'main'
-      ? 'https://docswebsitedevelop.gatsbyjs.io/'
+      ? 'https://develop--docs-website-netlify.netlify.app/'
       : 'http://localhost:8000/';
 
+  console.log('\n🔍 looking for site at', testUrl);
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
+  console.log('\n⏳ Waiting for kitchen sink page to load.');
   // Ensure page loads, 2000 ms wait
   await driver.sleep(SLEEP_TIME);
 
@@ -40,7 +54,9 @@ const main = async () => {
   await searchTest();
   await navTest();
 
+  console.log('\n⏳ Waiting for home page to load.');
   await driver.get(testUrl);
+
   // Ensure home page loads, 2000 ms wait
   await driver.sleep(SLEEP_TIME);
   await tileTest();
@@ -55,7 +71,7 @@ const collapserTest = async () => {
   );
 
   const { y: initialTop } = await secondCollapser.getRect();
-  console.log('clicking first collapser');
+  console.log('\nClicking first collapser');
   await firstCollapser.click();
   const { y: afterTop } = await secondCollapser.getRect();
   assert.notEqual(
@@ -66,12 +82,12 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
-  console.log('clicking Release Notes div');
+  console.log('\nClicking Release Notes div in the Nav');
   await releaseNotes.click();
   const [afterNextNode] = await waitForXPath(nextNodeXPath);
   assert.notEqual(
@@ -83,7 +99,7 @@ const navTest = async () => {
 
 const searchTest = async () => {
   const [searchInput] = await waitForXPath('//aside//input');
-  console.log('clicking search input');
+  console.log('\nClicking search input');
   await searchInput.click();
   const activeEl = await driver.executeScript('return document.activeElement');
   assert(
@@ -94,9 +110,7 @@ const searchTest = async () => {
 
 const tileTest = async () => {
   const initialUrl = await driver.getCurrentUrl();
-
-  console.log('clicking Homepage doctile');
-
+  console.log('\nClicking home page Doctile');
   // Added this xpath for the scroll function.
   // for some reason, when running in headless mode the site
   // header overlaps the tile we need to click

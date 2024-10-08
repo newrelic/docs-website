@@ -1,0 +1,283 @@
+---
+title: 'Streaming alerta: términos y conceptos clave'
+tags:
+  - Alerts
+  - Get started
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La plataforma de transmisión <InlinePopover type="alerts"/>busca incidentes en función de los datos presentes o faltantes en su flujo de datos o [señal](/docs/using-new-relic/welcome-new-relic/get-started/glossary#signal) que ingresa a New Relic.
+
+Puede utilizar [las condiciones NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/) para controlar sobre qué parte de la señal desea recibir notificaciones. Su condición NRQL filtra los datos que procesa el [algoritmo de transmisión](/docs/using-new-relic/welcome-new-relic/get-started/glossary#streaming-algorithm).
+
+Existen tres métodos para agregar los datos filtrados a través de su condición NRQL:
+
+* Flujo de eventos (predeterminado)
+* Temporizador de eventos
+* Cadencia
+
+<Video
+  type="wistia"
+  id="n6nei987ln"
+/>
+
+<figcaption>
+  Este breve video describe el método de tres agregaciones (5:31).
+</figcaption>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="flowchart"
+    title="Elija su método de agregación"
+  >
+    <img
+      title="Choose your aggregation method."
+      alt="A flowchart image that helps you decide what aggregation method you should use."
+      src="/images/accounts_diagram_streaming-alerts-aggregation-flowchart.webp"
+    />
+
+    <figcaption>
+      Si sus datos llegan de manera consistente y predecible, use <DNT>**event flow**</DNT>. Si sus datos llegan de manera inconsistente e impredecible, use <DNT>**event timer**</DNT>.
+    </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+## Por qué es importante [#why]
+
+Comprender cómo funciona la alerta de transmisión lo ayudará a ajustar sus condiciones NRQL para recibir notificaciones sobre lo que es importante para usted.
+
+<img
+  title="A diagram that demonstrates how data is streamed into New Relic."
+  alt="A diagram that demonstrates how data is streamed into New Relic."
+  src="/images/accounts_diagram_streaming-alerts.webp"
+/>
+
+<figcaption>
+  Solo se alertan los datos que coinciden con las condiciones de la cláusula NRQL WHERE. Para obtener más detalles sobre cada paso del proceso, consulte [Descripciones y proceso de alerta de transmisión](#streaming-table).
+</figcaption>
+
+A medida que los datos fluyen hacia New Relic, se filtran según la condición NRQL. Antes de evaluar los datos, deben cumplir los criterios definidos por la [cláusula `WHERE` de la consulta NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#sel-where). En lugar de evaluar esos datos inmediatamente para detectar incidentes, la condición de alerta NRQL recopila los datos durante un período de tiempo conocido como ventana de agregación. Un retraso/temporizador adicional permite que lleguen puntos de datos más lentos antes de que se agregue la ventana.
+
+Una vez transcurrido el tiempo de retraso/temporizador, New Relic agrega los datos en un único punto de datos. Alerta luego compara el punto de datos con los criterios de umbral de la condición para determinar si se debe abrir un incidente.
+
+Incluso si un punto de datos cumple con los criterios para un incidente, es posible que no se abra un incidente. Un incidente solo se abre cuando los puntos de datos cumplen consistentemente los criterios de umbral durante un período de tiempo. Esta es la duración del umbral. Si los puntos de datos superan el umbral de duración completo, le enviaremos una notificación según la configuración de su política.
+
+Todos estos retrasos configurables le brindan más control sobre cómo está alerta sobre datos esporádicos y faltantes.
+
+## Proceso y descripciones de Streaming Alerta [#streaming-table]
+
+<table class="alternate">
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Proceso
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Transmisión de datos
+      </td>
+
+      <td>
+        Todos los datos que llegan a New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        WHERE cláusula
+      </td>
+
+      <td>
+        Filtra todos los streaming de datos entrantes. Solo monitor las alertas sobre los datos que pasan por este filtro.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Métodos de agregación
+      </td>
+
+      <td>
+        Uno de los tres métodos que controlan cómo se recopilan los datos antes de evaluarlos.
+
+        Ellos son:
+
+        * Flujo de eventos (predeterminado)
+        * Temporizador de eventos
+        * Cadencia
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ventana de agregación
+      </td>
+
+      <td>
+        Los datos con marca de tiempo que se encuentren dentro de esta ventana se agregarán y luego se evaluarán.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ventanas correderas
+      </td>
+
+      <td>
+        Cuando está habilitado, hace que las ventanas de agregación se superpongan, creando gráficos más fluidos.
+
+        Utilice la duración de las ventanas deslizantes para establecer la cantidad de tiempo que se superponen las ventanas de agregación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Temporizador de retardo
+      </td>
+
+      <td>
+        Un retraso de tiempo para garantizar que todos los puntos de datos hayan llegado a la ventana de agregación antes de que se produzca la agregación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Datos agregados
+      </td>
+
+      <td>
+        Los datos de la ventana agregada se contraen en un único punto de datos para la evaluación de alerta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evaluación
+      </td>
+
+      <td>
+        El punto de datos se evalúa mediante la condición NRQL, que se activa con cada punto de datos agregados entrante.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duración del umbral
+      </td>
+
+      <td>
+        Una duración específica que determina si se crea un incidente. Si su condición NRQL especificada cumple con los criterios del umbral durante la duración del umbral, se produce un incidente.
+
+        Cuando un punto de datos carece de datos, se inserta un valor personalizado para llenar el vacío.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Elija su método de agregación [#aggregation-methods]
+
+Puede elegir entre tres métodos de agregación diferentes, según sus necesidades.
+
+[evento flow](#event-flow) (predeterminado) funciona mejor para datos que llegan con frecuencia y en su mayoría en orden.
+
+[evento timer](#event-timer) funciona mejor para datos que llegan con poca frecuencia en lotes, como datos de integración en la nube o logs de errores poco frecuentes.
+
+[La cadencia](#cadence) es nuestro método de agregación original e inferior. Agrega datos en intervalos de tiempo específicos detectados por el reloj de pared interno de New Relic, independientemente de la marca de tiempo de los datos.
+
+Aquí hay un video corto (5:35 minutos) que explica los métodos de agregación:
+
+<Video
+  id="jJ51qq3JGUI"
+  type="youtube"
+/>
+
+## Flujo de eventos [#event-flow]
+
+El flujo de eventos agrega una ventana de datos cuando el primer punto de datos llega a una ventana posterior. El retraso personalizado define qué datos de la ventana posterior comenzarán a completarse para activar la agregación de la ventana actual. Un retraso personalizado proporciona tiempo adicional para que lleguen los datos. Estos tiempos se basan en la marca de tiempo de los datos y no en el tiempo de reloj de New Relic.
+
+Por ejemplo, supongamos que está monitoreando el uso de la CPU en períodos de ventana de 1 minuto y un retraso de 3 minutos.
+
+Cuando un punto de datos de uso de CPU llega con una timestamp entre las 12:00 p. m. y las 12:01 p. m., el flujo de eventos no agregará esa ventana hasta que aparezca un punto de datos con una timestamp entre las 12:04 p. m. y las 12:05 p. m. Cuando el flujo de eventos recibe el primer punto de datos con una timestamp de 12:04 p. m. o más tarde, envía los datos de 12:00 a 12:01 para agregarlos.
+
+<Callout variant="caution">
+  Si espera que sus puntos de datos lleguen con más de 65 minutos de diferencia, utilice el método del temporizador de eventos que se describe a continuación.
+</Callout>
+
+## Temporizador de eventos [#event-timer]
+
+Al igual que el flujo de eventos, el temporizador de eventos solo agregará datos para una ventana determinada cuando lleguen datos para esa ventana. Cuando llega un punto de datos para una ventana de agregación, un temporizador dedicado a esa ventana comienza la cuenta regresiva. Si no llegan más datos antes de que el temporizador cuente atrás, se agregan los datos de esa ventana. Si llegan más puntos de datos antes de que el temporizador haya completado la cuenta regresiva, el temporizador se reinicia.
+
+Por ejemplo, supongamos que está monitoreando datos de CloudWatch que llegan con bastante poca frecuencia. Estás utilizando una duración de ventana de 1 minuto y un temporizador de 3 minutos.
+
+Cuando llega un punto de datos de CloudWatch con una timestamp entre las 12:00 p. m. y las 12:01 p. m., el temporizador comenzará la cuenta regresiva. Si no aparecen más puntos de datos para esa ventana de 12:00 a 12:01, la ventana se agregará 3 minutos más tarde.
+
+Si llega un nuevo punto de datos con una timestamp entre las 12:00 y las 12:01, el temporizador se reinicia. Se sigue reiniciando cada vez que llegan más puntos de datos para esa ventana. La ventana no se enviará para agregación hasta que el temporizador llegue a 0.
+
+Si el temporizador de un punto de datos posterior transcurre antes que un punto de datos anterior, el método del temporizador de eventos espera a que transcurra el temporizador anterior antes de agregar el punto de datos posterior.
+
+Para obtener mejores resultados, asegúrese de que su temporizador sea igual o mayor que el tiempo de duración de su ventana. Si el temporizador es menor que la duración de su ventana y su flujo de datos es inconsistente, entonces sus datos pueden evaluarse antes de que lleguen todos sus puntos de datos. Esto podría provocar que se le notifique incorrectamente.
+
+## Cadencia [#cadence]
+
+Le recomendamos que utilice uno de los otros dos métodos.
+
+La cadencia es nuestro antiguo método de agregación de streaming. Este método utiliza el tiempo de reloj de New Relic para determinar cuándo se agregan y evalúan los datos. No tiene en cuenta la marca de tiempo de los puntos de datos a medida que llegan.
+
+## Herramientas de alerta de transmisión [#tools]
+
+Streaming alerta proporciona un conjunto de herramientas para brindarle un mayor control sobre cómo se agregan sus datos antes de evaluarlos para reducir las notificaciones incorrectas que recibe. Ellos son:
+
+* Duración de la ventana
+* Temporizador de retardo
+* Pérdida de detección de señal.
+* Relleno de huecos
+
+<Callout variant="tip">
+  Este artículo cubre estas herramientas a nivel conceptual. Encontrará instrucciones directas sobre cómo utilizar estas herramientas en [Crear condición de alerta NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions).
+</Callout>
+
+### Duración de la ventana [#window-duration]
+
+Para hacer que la detección de pérdida de señal sea más efectiva y reducir las notificaciones innecesarias, puede personalizar las ventanas de agregación según la duración que necesite.
+
+Una [ventana de agregación](/docs/using-new-relic/welcome-new-relic/get-started/glossary#aggregation-window) es un bloque de tiempo específico. Reunimos puntos de datos en una ventana de agregación, antes de evaluar los datos. Una ventana de agregación más larga puede suavizar los datos, ya que un punto de datos de valor atípico tendrá más puntos de datos para agregar, lo que le dará menos influencia en el punto de datos agregado que se envía para evaluación. Cuando llega un punto de datos, se utiliza su timestamp para colocarlo en la ventana de agregación adecuada.
+
+Puede configurar su ventana de agregación en cualquier valor entre <DNT>**30 seconds**</DNT> y <DNT>**6 hours**</DNT>. El valor predeterminado es <DNT>**1 minute**</DNT>.
+
+### Temporizador de retardo [#delay-timer]
+
+La configuración de retardo/temporizador controla cuánto tiempo debe esperar la condición antes de agregar los datos en la ventana de agregación.
+
+Los métodos de flujo de eventos y cadencia utilizan retraso. El temporizador de eventos utiliza el temporizador.
+
+El retraso predeterminado es <DNT>**2 minutes**</DNT>. El valor predeterminado del temporizador es <DNT>**1 minute**</DNT>, tiene un valor mínimo de <DNT>**5 seconds**</DNT> y un valor máximo de <DNT>**20 minutes**</DNT>.
+
+### Pérdida de detección de señal. [#signal-loss]
+
+La pérdida de señal ocurre cuando ningún dato coincide con la condición NRQL durante un período de tiempo específico. Una pérdida de señal se debe a diferentes cosas. La cláusula `WHERE` en su consulta NRQL puede filtrar datos antes de evaluar su incidencia. También podría significar que un servicio o entidad está fuera de línea o que no se pudo ejecutar un trabajo periódico y no se envían datos a New Relic.
+
+Para evitar notificaciones innecesarias, puede elegir cuánto tiempo esperar antes de recibir una notificación sobre un incidente de pérdida de señal. Puede utilizar la detección de pérdida de señal para abrir incidentes y recibir una notificación cuando se pierda una señal. Como alternativa, puede utilizar una pérdida de señal para cerrar incidentes de servicios efímeros o datos esporádicos, como recuentos de errores.
+
+### Relleno de huecos [#gap-filling]
+
+El relleno de espacios le permite personalizar los valores que utilizará cuando sus señales no tengan ningún dato. Puede llenar los vacíos en sus flujos de datos con el último valor recibido, un valor estático, o no hacer nada y dejar el vacío allí. El valor predeterminado es `None`.
+
+Las brechas en la transmisión de datos pueden deberse a problemas de red o del host, una señal puede ser escasa o algunas señales, como los recuentos de errores, pueden tener solo datos cuando algo anda mal. Al llenar los espacios con valores conocidos, el proceso de evaluación de alerta puede procesar esos espacios y determinar cómo deberían afectar la pérdida de evaluación de la señal.
+
+<Callout variant="tip">
+  El sistema de alerta llena los vacíos en las señales reportadas activamente. Este historial de señal se elimina después de 2 horas de inactividad. Para llenar los vacíos, los puntos de datos recibidos después de este período de inactividad se tratan como nuevas señales.
+
+  Para obtener más información sobre la pérdida de señal y el llenado de espacios, consulte [esta publicación del foro de soporte](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401).
+</Callout>

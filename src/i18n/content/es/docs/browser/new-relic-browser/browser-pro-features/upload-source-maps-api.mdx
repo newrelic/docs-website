@@ -1,0 +1,276 @@
+---
+title: Cargar mapas fuente a través de API
+metaDescription: 'For New Relic browser monitoring, how to upload and use source maps with the browser API.'
+freshnessValidatedDate: '2024-01-02T00:00:00.000Z'
+translationType: machine
+---
+
+Nuestro <InlinePopover type="browser"/>admite la carga de [mapas de origen](/docs/new-relic-browser-source-maps), que se utilizan para eliminar el error de rastreo de la pila en la [página<DNT>**Errors**</DNT> ](/docs/errors-inbox/browser-tab). Este documento explica cómo utilizar la API para cargar mapas de origen utilizando la API del browser .
+
+## Prepárese para usar la API del mapa fuente [#questions]
+
+Para cargar mapas de origen al browser a través de la API, necesitará:
+
+* Una New Relic
+
+  <InlinePopover type="userKey"/>
+
+* El [ID de la aplicación](/docs/browser/new-relic-browser/installation-configuration/copy-browser-monitoring-license-key-app-id) New Relic para la aplicación desplegar
+
+* La [URL completa del archivo JavaScript](#what-url)
+
+* Opcionalmente, si la URL de JavaScript no tiene automáticamente información de la versión adjunta, el [nombre de la versión y el ID](#release-id)
+
+<CollapserGroup>
+  <Collapser
+    id="what-url"
+    title="¿Qué es la URL de JavaScript?"
+  >
+    Cada vez que el agente captura un error en su código, se asocia con la URL del JavaScript en el que ocurrió. Este es el atributo `src` de la etiqueta script en su HTML. Esta URL de JavaScript completa es necesaria al enviar mapas de origen al browser.
+
+    Puede encontrar la URL del archivo JavaScript de un error en browser, en la página <DNT>**JS errors**</DNT>. Consulte [monitoreo de mapas fuente del navegador](/docs/new-relic-browser-source-maps) para obtener más información sobre cómo encontrar estos errores en la UI.
+  </Collapser>
+
+  <Collapser
+    id="release-id"
+    title="¿Se requiere un nombre de lanzamiento y una identificación?"
+  >
+    Muchas organizaciones incluyen un número de versión o hash en la URL de JavaScript. Esto generalmente se agrega a los cachés "destruidos" para garantizar que su usuario obtenga la versión más reciente de su código. Este tipo de URL podría verse así:
+
+    * `https://example.com/assets/application-59.min.js`
+
+    * `https://example.com/assets/bundle-d6d031.min.js`
+
+    * `https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.js`
+
+      Si las URL de su aplicación tienen automáticamente la información de la versión adjunta, el agente del navegador tiene todo lo que necesita para hacer coincidir los errores con su código. Puede continuar y [generar mapas fuente](#generate).
+
+      Si esto <DNT>**doesn't**</DNT> se aplica a usted y las URL de JS **no** tienen información de versión adjunta, deberá ayudar al agente especificando un [nombre de versión y un ID con la API](/docs/browser-api-newrelicaddrelease).
+  </Collapser>
+
+  <Collapser
+    id="repo-url"
+    title="¿Se requiere una URL de repositorio o un hash de confirmación de compilación?"
+  >
+    Si está interesado en monitorear el rendimiento de su código desde su IDE usando New Relic CodeStream, se requiere la URL del repositorio. Si también desea investigar errores de su IDE, se recomienda el hash de confirmación de compilación, pero no es obligatorio.
+
+    Obtenga más información sobre [el monitoreo del desempeño](/docs/codestream/how-use-codestream/performance-monitoring) incorporando la observabilidad al IDE.
+  </Collapser>
+
+  <Collapser
+    id="limits"
+    title="¿Existen límites para la carga de mapas de origen?"
+  >
+    No hay límite para la cantidad total de mapas fuente que puede cargar. Sin embargo, la API tiene una tasa limitada por cuenta:
+
+    * Puede cargar un máximo de 1000 mapas fuente por minuto.
+
+    * Puede cargar un máximo de 15.000 mapas fuente por día.
+
+    * Solo se puede cargar o publicar un mapa de origen por solicitud de API.
+
+      Los archivos de mapas de origen pueden tener un tamaño máximo de 50 MB.
+  </Collapser>
+
+  <Collapser
+    id="app-id"
+    title="¿Qué ID de la aplicación se debe utilizar?"
+  >
+    Tanto `YOUR_NEW_RELIC_APP_ID` como `YOUR_APP_ID` son valores válidos para `applicationId`.
+  </Collapser>
+</CollapserGroup>
+
+## Enviar mapas de origen a New Relic [#publish]
+
+Ahora que tiene uno o más mapas fuente, está listo para publicarlos en browser. Puede utilizar cualquiera de estos métodos para enviar mapas de origen al browser:
+
+* Utilice el [módulo npm de New Relic](#npm) con la API a través de la línea de comando o mediante un script de compilación/desplegar JavaScript del lado del cliente como Gulp o Grunt.
+* Utilice [el comando API curl](#api).
+* Utilice la [UIde usuario del navegador](/docs/new-relic-browser-source-maps).
+
+## Utilice el módulo npm a través de la línea de comando o script del lado del cliente [#npm]
+
+La forma más sencilla y recomendada de cargar mapas fuente en browser es utilizar nuestro nuevo [módulo`@newrelic/publish-sourcemap` npm](https://www.npmjs.com/package/@newrelic/publish-sourcemap). Proporciona una herramienta de línea de comando y una API de Javascript para realizar esta tarea. Hay más documentación disponible en el repositorio de npm.
+
+A continuación se muestran algunos ejemplos del uso del módulo npm a través de la línea de comando.
+
+<Callout variant="important">
+  Los siguientes ejemplos son para cuentas de EE. UU. Para cuentas de la UE, el extremo es `https://sourcemaps.service.eu.newrelic.com`. Para obtener más información, consulte [Introducción al centro de datos de la región de la UE](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="npm-publish"
+    title="npm línea de comando: Publicar"
+  >
+    A continuación se muestra un ejemplo de cómo cargar mapas fuente usando el módulo npm a través de la línea de comando. Tenga en cuenta que el mapa fuente puede provenir de un archivo local o de una URL remota.
+
+    ```bash
+    npm install -g @newrelic/publish-sourcemap
+    publish-sourcemap PATH_TO_SOURCE_MAP_FILE (local or remote) PATH_TO_ORIGINAL_FILE --apiKey=YOUR_NEW_RELIC_USER_KEY --applicationId=YOUR_NEW_RELIC_APP_ID --repoUrl=GITHUB_REPOSITORY_URL --buildCommit=GIT_BUILD_COMMIT_HASH
+    ```
+  </Collapser>
+
+  <Collapser
+    id="npm-list"
+    title="npm línea de comando: Listar mapas publicados"
+  >
+    A continuación se muestra un ejemplo de cómo enumerar mapas fuente publicados:
+
+    ```bash
+    list-sourcemaps --applicationId=YOUR_APP_ID --apiKey=YOUR_NEW_RELIC_USER_KEY
+    [output]
+    [output] Options:
+    [output]   --applicationId  Browser application id
+    [output]   --apiKey         New Relic user API key
+    ```
+  </Collapser>
+
+  <Collapser
+    id="npm-delete"
+    title="npm línea de comando: Eliminar"
+  >
+    A continuación se muestra un ejemplo de cómo eliminar un mapa de origen:
+
+    ```bash
+    delete-sourcemap --applicationId=YOUR_APP_ID --apiKey=YOUR_NEW_RELIC_USER_API_KEY --sourcemapId=YOUR_SOURCE_MAP_ID
+    [output] 
+    [output] Options:
+    [output]   --applicationId  Browser application id
+    [output]   --apiKey         New Relic user API key
+    [output]   --sourcemapId    Unique id generated for a source map
+    ```
+  </Collapser>
+</CollapserGroup>
+
+A continuación se muestran algunos ejemplos del uso del módulo npm para publicar desde JavaScript del lado del cliente:
+
+<CollapserGroup>
+  <Collapser
+    id="npm-client-publish"
+    title="npm a través del script Node.js: Publicar"
+  >
+    A continuación se muestra un ejemplo de publicación de un mapa fuente mediante un script Node.js:
+
+    ```js
+    var publishSourcemap = require('@newrelic/publish-sourcemap').publishSourcemap;
+
+    publishSourcemap({
+      sourcemapPath: 'SOURCE_MAP_FULL_PATH',
+      javascriptUrl: 'JS_URL',
+      applicationId: YOUR_NEW_RELIC_APP_ID,
+      apiKey: 'YOUR_NEW_RELIC_USER_API_KEY',
+      repoUrl: 'GITHUB_REPOSITORY_URL',
+      buildCommit: 'GIT_BUILD_COMMIT_HASH'
+    }, function(err) { console.log(err || 'Sourcemap upload done'); });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="npm-client-list"
+    title="npm a través del script Node.js: lista de mapas publicados"
+  >
+    A continuación se muestra un ejemplo de cómo enumerar todos los mapas fuente publicados:
+
+    ```js
+    var listSourcemaps = require('@newrelic/publish-sourcemap').listSourcemaps;;
+
+    listSourcemaps({
+      applicationId: YOUR_NEW_RELIC_APP_ID,
+      apiKey: 'YOUR_NEW_RELIC_USER_API_KEY',
+      limit: MAX_NUMBER_OF_RESULTS_TO_RETURN || 20,
+      offset: NUMBER_OF_RESULTS_TO_SKIP_BEFORE_RETURNING || 0,
+    }, function(err, res) { console.log(err || res.sourcemaps); });
+    ```
+  </Collapser>
+
+  <Collapser
+    id="npm-client-delete"
+    title="npm a través del script Node.js: Eliminar"
+  >
+    A continuación se muestra un ejemplo de cómo eliminar un archivo de mapa fuente mediante un script Node.js:
+
+    ```js
+    var deleteSourcemap = require('@newrelic/publish-sourcemap').deleteSourcemap;
+
+    deleteSourcemap({
+      sourcemapId: 'SOURCE_MAP_ID',
+      applicationId: YOUR_NEW_RELIC_APP_ID,
+      apiKey: 'YOUR_NEW_RELIC_USER_API_KEY',
+    }, function(err) { console.log(err || 'Deleted source map'); });
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Cuando haya terminado, vaya a la [página<DNT>**JS errors**</DNT> ](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-examining-errors-over-time)en el navegador, seleccione una agrupación de errores y vea si el rastreo de la pila de errores no se ha minimizado.
+
+## Usar API a través de curl [#api]
+
+A continuación se muestran algunos ejemplos del uso de curl para publicar, enumerar y eliminar mapas de origen:
+
+<CollapserGroup>
+  <Collapser
+    id="curl-post"
+    title="curl: Subir mapas"
+  >
+    Un ejemplo del uso de API mediante curl para publicar mapas en el browser:
+
+    ```bash
+    curl -H "Api-Key: YOUR_NEW_RELIC_USER_API_KEY" \ 
+        -F "sourcemap=@SOURCE_MAP_PATH" \ 
+        -F "javascriptUrl=JS_URL" \ 
+        -F "releaseId=YOUR_RELEASE_ID" \ 
+        -F "releaseName=YOUR_UI_PAGE" \
+
+    https://sourcemaps.service.newrelic.com/v2/applications/YOUR_NEW_RELIC_APP_ID/sourcemaps
+    ```
+
+    ```bash
+    curl -H "Api-Key: YOUR_NEW_RELIC_USER_API_KEY" \ 
+        -F "sourcemap=@SOURCE_MAP_PATH" \ 
+        -F "javascriptUrl=JS_URL" \ 
+        -F "releaseId=YOUR_RELEASE_ID" \ 
+        -F "releaseName=YOUR_UI_PAGE" \
+        -F "repoUrl=GITHUB_REPOSITORY_URL" \
+        -F "buildCommit=GIT_BUILD_COMMIT_HASH" \
+
+    https://sourcemaps.service.newrelic.com/v2/applications/YOUR_NEW_RELIC_APP_ID/sourcemaps
+    ```
+  </Collapser>
+
+  <Collapser
+    id="curl-list"
+    title="curl: enumerar mapas existentes"
+  >
+    A continuación se muestra un ejemplo de cómo obtener una lista de mapas fuente previamente cargados en New Relic a través de curl. New Relic devuelve el `SOURCEMAP_ID` único del mapa fuente y sus componentes:
+
+    ```bash
+    curl \ 
+        -H "Api-Key: YOUR_NEW_RELIC_USER_API_KEY" \ 
+    https://sourcemaps.service.newrelic.com/v2/applications/YOUR_NEW_RELIC_APP_ID/sourcemaps
+    ```
+  </Collapser>
+
+  <Collapser
+    id="curl-delete"
+    title="curl: eliminar mapa"
+  >
+    Para eliminar un mapa de origen:
+
+    1. Utilice el extremo GET para enumerar los mapas fuente existentes y localizar el `SOURCEMAP_ID`.
+
+    2. Ejecute el siguiente comando mediante curl:
+
+       ```bash
+       curl -X DELETE \
+           -H "Api-Key: YOUR_NEW_RELIC_USER_API_KEY" \
+       https://sourcemaps.service.newrelic.com/v2/applications/YOUR_NEW_RELIC_APP_ID/sourcemaps/SOURCEMAP_ID
+       ```
+  </Collapser>
+</CollapserGroup>
+
+Cuando haya terminado, vaya a la [página<DNT>**JS errors**</DNT> ](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-examining-errors-over-time)en el navegador, seleccione una agrupación de errores y vea si el rastreo de la pila de errores no se ha minimizado.
+
+## Solucionar problemas de mapas de origen [#troubleshoot]
+
+Si tiene problemas para generar mapas fuente desde su sistema de compilación, o si sus errores en el navegador permanecen minimizados, consulte la documentación [sobre resolución de problemas de mapas fuente](/docs/new-relic-browser-source-maps#troubleshoot) .

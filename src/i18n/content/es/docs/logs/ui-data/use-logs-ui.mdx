@@ -1,0 +1,521 @@
+---
+title: Usar UI de logs
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How to use the New Relic logs UI to explore your data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Utilice nuestra UI de registro para:
+
+* Encuentra patrones interesantes o significativos en tu registro.
+* Examine más contexto en torno a una línea log en particular.
+* Explore y manipule sus datos de registro con filtros y reglas de análisis.
+* consulte sus datos para crear visualizaciones personalizadas o agréguelas al panel
+* Organice los datos log de su organización y optimice el rendimiento de las consultas con particiones de datos.
+* Configure la condición de alerta para los problemas que desee prevenir.
+
+Para mantenerse actualizado con nuevas capacidades y mejoras, suscríbase a nuestro [canal RSS para obtener notas de la versión del registro](/docs/release-notes/logs-release-notes).
+
+<img
+  title="Logs UI with details"
+  alt="Screenshot of logs UI with details"
+  src="/images/logs_screenshot-full_logs-ui.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DNT>: Para explorar y administrar su registro, use el browser izquierdo. Para ver información detallada, haga clic en cualquier línea log .
+</figcaption>
+
+## Encuentra la UI de logs [#find-ui]
+
+Para encontrar la UI del registro, desde <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, seleccione <DNT>**Logs**</DNT>.
+
+## Explora tus datos log [#ui-workflow]
+
+Utilice la navegación izquierda en la UI de registro como un flujo de trabajo sencillo a través de todos los registros, atributos, patrones, registros de cola en vivo y consultas. Administre sus datos log eliminando o analizando datos, creando particiones de datos y configurando alertas. Hash o enmascarar cualquier dato sensible en su registro con [expresión de ofuscación y reglas](/docs/logs/ui-data/obfuscation-ui). Obtenga más detalles sobre registros específicos y sus atributos desde el centro de navegación.
+
+Para explorar sus datos de registro, siga este flujo de trabajo básico.
+
+<CollapserGroup>
+  <Collapser
+    id="workflow-path"
+    title="1. Vaya a la UI de registro."
+  >
+    Vaya a nuestra UI de registro en <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DNT>.
+
+    Si utiliza nuestro [centro de datos de la región de la UE](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers/), vaya a <DNT>**[one.eu.newrelic.com](https://one.eu.newrelic.com) > Logs**</DNT>.
+
+    Si no ha [personalizado su barra de navegación de New Relic](/docs/new-relic-one/use-new-relic-one/ui-data/basic-ui-features/#custom-navigation), vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, haga clic en <DNT>**Browse data**</DNT> y seleccione <DNT>**Logs**</DNT>.
+  </Collapser>
+
+  <Collapser
+    id="workflow-patterns"
+    title="2. Busque patrones."
+  >
+    <img
+      title="Logs patterns UI"
+      alt="Screenshot of Log patterns UI"
+      src="/images/logs_screenshot-crop_patterns.webp"
+    />
+
+    * Para detectar picos o caídas sospechosas en el mensaje de registro, haga clic en
+
+      <DNT>
+        **[Patterns](/docs/logs/ui-data/find-unusual-logs-log-patterns/)**
+      </DNT>
+
+      en el browser izquierdo.
+
+    * Para ver el registro de un período de tiempo específico, haga clic en ese punto (o haga clic y arrastre un área) en el gráfico, o use el selector de tiempo.
+  </Collapser>
+
+  <Collapser
+    id="workflow-focus"
+    title="3. Limita tu enfoque."
+  >
+    El browser izquierdo incluye opciones para ayudarle a limitar el enfoque de sus resultados de búsqueda iniciales o para encontrar rápidamente valor atípico.
+
+    * Si no está seguro de por dónde empezar, haga clic en
+
+      <DNT>
+        **Attributes**
+      </DNT>
+
+      en el browser izquierdo y luego seleccione valores adicionales según sea necesario. Por ejemplo, si un host que figura bajo el atributo `hostname` genera muchos más mensajes de error que los demás, seleccione ese valor para aplicarlo a su búsqueda.
+
+    * Para que su mensaje de registro sea más fácil de consultar y comprender, utilice nuestras [reglas de análisis integradas](/docs/logs/ui-data/built-log-parsing-rules/) o [cree sus propias reglas de análisis](/docs/logs/ui-data/parsing/) para atributos que coincidan con un valor particular.
+
+    * Para administrar la cantidad de datos log recopilados y almacenar menos registros, cree [reglas de filtrado de caída](/docs/logs/ui-data/drop-data-drop-filter-rules/) que eviten recopilar datos que no necesita.
+  </Collapser>
+
+  <Collapser
+    id="workflow-details"
+    title="4. Examinar los detalles log ."
+  >
+    <img
+      title="Logs details UI"
+      alt="Screenshot of Log details UI including severity level"
+      src="/images/logs_screenshot-crop_log-details.webp"
+    />
+
+    Si corresponde, el mensaje de registro indica un nivel de gravedad (`INFO`, `DEBUG`, etc.). Seleccione un mensaje de log para ver sus detalles como una tabla de atributos o como JSON.
+
+    * Para ver qué atributos se incluyen en un mensaje de registro, haga clic en la línea log .
+    * Para ayudar a solucionar problemas relacionados con un valor específico en los detalles log , [muestre el registro circundante](/docs/logs/troubleshooting/find-issues-cause-or-impact-surrounding-logs) para obtener los detalles del atributo.
+    * Para obtener más detalles en mensajes extremadamente largos, expanda los datos almacenados como [blobs](/docs/logs/ui-data/long-logs-blobs/).
+  </Collapser>
+
+  <Collapser
+    id="workflow-search"
+    title="5. consulta y búsqueda."
+  >
+    De forma predeterminada, la UI de registro muestra todo su registro, pero también puede buscar con palabras clave o frases para encontrar los resultados que desea. Por ejemplo:
+
+    ```
+    process failed
+    ```
+
+    También puede utilizar el campo de búsqueda con escritura anticipada desplegable para seleccionar un atributo, operador y valor. Por ejemplo:
+
+    ```
+    service_name equals my service
+    ```
+
+    Para ayudar a que su consulta se centre en los detalles que necesita, agregue o elimine un atributo realizando cualquiera de las siguientes acciones:
+
+    * En el panel de navegación izquierdo, seleccione <DNT>**Attributes**</DNT>, seleccione los valores que desee y luego haga clic en <DNT>**Query logs**</DNT>.
+
+    * En la tabla de registro, haga clic en el icono <DNT>**+**</DNT> para agregar un atributo y luego haga clic en él para agregarlo a la consulta.
+
+      Para cambiar de la barra de búsqueda de sintaxis de Lucene a una consulta NRQL, haga clic en el botón <DNT>**NRQL**</DNT> al lado de la barra de búsqueda. No existe una equivalencia directa entre NRQL y Lucene, y esto significa que la consulta NRQL a menudo será más simple y no tan compleja, pero esto le brinda un comienzo útil para crear una consulta con los mismos datos.
+
+      Para obtener más información sobre cómo consultar su registro, consulte los [documentos de sintaxis de consulta de registros](/docs/logs/ui-data/query-syntax-logs/).
+  </Collapser>
+
+  <Collapser
+    id="query-builder"
+    title="7. Análisis log avanzado con el generador de consultas NRDB."
+  >
+    <img
+      title="Advanced log analysis with NRDB query builder"
+      alt="Screenshot of link to NRDB query builder"
+      src="/images/logs_screenshot-crop_nrql-button.webp"
+    />
+
+    Puede escribir consultas NRQL en el registro de eventos sin perder sus filtros con el [generador de consultas NRDB](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/). Haga clic en el botón <DNT>**NRQL**</DNT> a la derecha de la barra de búsqueda de registros y luego comience a realizar la consulta.
+  </Collapser>
+
+  <Collapser
+    id="workflow-related"
+    title="8. Obtenga el registro relacionado."
+  >
+    Centrarse en el registro más útil puede ayudarle con:
+
+    * <DNT>
+        **Optimizing performance:**
+      </DNT>
+
+      Para organizar los datos dentro de una cuenta y optimizar el rendimiento de la consulta, cree [reglas de partición de datos](/docs/logs/ui-data/data-partitions/).
+
+    * <DNT>
+        **Reviewing deployments:**
+      </DNT>
+
+      Para ver inmediatamente cómo responde su sistema al despliegue u otros cambios en la aplicación, habilite [el registro de cola en vivo](/docs/logs/troubleshooting/view-log-messages-real-time-live-tail).
+
+    * <DNT>
+        **Bypassing unrelated details:**
+      </DNT>
+
+      Para ver todo el registro de un valor específico, revise la lista de atributos en
+
+      <DNT>
+        **Log details**
+      </DNT>
+
+      para el log seleccionado y luego continúe agregando o eliminando atributos según sea necesario.
+
+    * <DNT>
+        **Finding the root cause:**
+      </DNT>
+
+      Para ayudar a identificar la causa raíz de un problema antes de que ocurriera o su impacto después de un evento, haga clic en
+
+      <DNT>
+        **...**
+      </DNT>
+
+      en
+
+      <DNT>
+        **Log details**
+      </DNT>
+
+      para [mostrar el registro circundante](/docs/logs/troubleshooting/find-issues-cause-or-impact-surrounding-logs).
+
+    * <DNT>
+        **Getting more context:**
+      </DNT>
+
+      Para ver el registro relacionado con otros telemetry data para sus aplicaciones y hosts, use [logs en el contexto](/docs/logs/logs-context/logs-in-context).
+  </Collapser>
+
+  <Collapser
+    id="traces-in-context-overview"
+    title="9. Sumérgete en rastreo distribuido."
+  >
+    Una vez que haya reducido el conjunto de registros con filtros y luego haya abierto un log específico, podrá ver el rastreo distribuido relacionado. Siempre que haya configurado rastreo distribución y haya trazas de muestra relacionadas con el registro, verá una opción para verlas. Esta es una forma rápida de ver información de traza sin tener que ir a la página principal de rastreo distribuido.
+
+    Si abre el panel <DNT>**Log details**</DNT> y ve una sección <DNT>**Distributed trace**</DNT> , tiene dos opciones para ver la traza del tramo en una vista en cascada:
+
+    * Haga clic directamente en el nombre de la traza o haga clic en el icono con una flecha a la derecha, que abre la vista de enfoque en cascada que resalta los tramos de la traza con errores.
+
+      <img
+        style={{ align: "left",width: "85%" }}
+        title="Screenshot showing how to reach the log details page"
+        alt="Screenshot showing how to reach the log details page"
+        src="/images/logs_screenshot-crop_traces-in-context.webp"
+      />
+
+    * Alternativamente, puede hacer clic en <DNT>**Explore**</DNT> para abrir una cascada sin filtrar donde puede hacer clic en todos los tramos.
+
+      <Callout variant="tip">
+        Si necesita ayuda para utilizar la cascada de traza, consulte [Comprender y utilizar la UI de rastreo distribuida](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/).
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="share"
+    title="10. Comparte tus hallazgos."
+  >
+    Utilice cualquiera de las funciones principales UI de New Relic para [explorar sus datos](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) (cuenta específica, rango de tiempo, métrica y evento, generador de consultas, etc.) y compartir los datos con gráficos, agregarlos al panel, etc. Para obtener más información, consulte los [ejemplos](#examples) de este documento.
+  </Collapser>
+</CollapserGroup>
+
+## Exportar [#export]
+
+Para exportar un subconjunto de su registro para compartir, los usuarios pueden aprovechar nuestra característica de exportación dedicada en la UI del registro. Esta característica permitirá exportar hasta 5000 log en formato CSV o JSON. Los log se descargarán localmente en su máquina en la carpeta `/Downloads/` de su browser actual.
+
+<img
+  title="Logs Export UI with details"
+  alt="Screenshot of Export UI with details"
+  src="/images/logs_export.webp"
+/>
+
+## Permisos [#permissions]
+
+Para obtener detalles sobre los permisos por tipo de usuario, consulte [Tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type/#logs-capabilities).
+
+Puede crear una función personalizada que restrinja la capacidad `NRQL drop rules` y limite la creación de filtros de eliminación. Si es necesario, también puede agregar la restricción al usuario básico. [Obtenga más información sobre las reglas de eliminación](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#capability-definitions).
+
+## Guarda tus vistas [#saved-views]
+
+Puede guardar su consulta de registro, configuración de tabla, rango de tiempo y agrupación de atributos en una vista guardada, para poder regresar rápidamente a ella más tarde. Para guardar una vista de análisis log después de haber configurado la vista:
+
+1. Desde cualquiera de las páginas UI en la sección
+
+   <DNT>
+     **Your logs**
+   </DNT>
+
+   , haga clic en
+
+   <DNT>
+     **Saved views**
+   </DNT>
+
+   a la derecha y luego haga clic en
+
+   <DNT>
+     **Create new**
+   </DNT>
+
+   .
+
+2. Asigne un nombre a la vista actual.
+
+3. Seleccione qué aspectos de la vista actual desea guardar.
+
+4. Seleccione permisos para el acceso de los miembros de su equipo.
+
+## Ejemplos [#examples]
+
+A continuación se muestran algunos ejemplos de cómo puede utilizar nuestra UI de logs para obtener información detallada.
+
+<CollapserGroup>
+  <Collapser
+    id="alert"
+    title="Cree una alerta a partir de datos log ."
+  >
+    Puede crear una condición de alerta directamente en la UI del registro:
+
+    1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DNT>.
+
+    2. Busque resultados sobre los que desee recibir alertas; por ejemplo, `service_name:"your service" "fatal error"`.
+
+    3. Haz clic en la campana <Icon name="fe-bell-off"/> icono al lado de la barra de consulta.
+
+    4. Completa el procedimiento
+
+    5. Revise la consulta NRQL que activará la condición de alerta.
+
+       Después de guardar la condición de alerta, podrá verla en laUI <InlinePopover type="alerts"/>, donde podrá realizar cambios adicionales según sea necesario.
+  </Collapser>
+
+  <Collapser
+    id="dashboard"
+    title="Agregue gráficos log a un dashboard."
+  >
+    Desde la UI <DNT>**Logs**</DNT>, puede agregar datos log como un [widget de tabla](/docs/query-your-data/explore-query-data/use-charts/chart-types/#widget-table) a un dashboard. También puedes crear tablas log con métrica y evento o el generador de consultas en New Relic.
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+       </DNT>
+
+       .
+
+    2. A la derecha, haga clic en
+
+       <DNT>
+         **Saved views**
+       </DNT>
+
+       y seleccione una vista guardada. O busque los resultados que desea trazar; por ejemplo, `service_name:"checkout service" "process failed"`.
+
+    3. Haga clic en
+
+       <DNT>
+         **Add to dashboard**
+       </DNT>
+
+       y luego complete los detalles para agregar el gráfico log como una tabla a un dashboard nuevo o existente.
+
+       Luego, desde tu dashboard podrás:
+
+    * Utilice dashboard widget funciones estándar , como copiar, editar, eliminar y más.
+
+    * Haga clic en cualquier fila log para mostrar detalles al respecto.
+
+    * Actualice su consulta para agregar más columnas.
+
+    * Consulta datos log de otras cuentas disponibles y agrega más gráficos (por ejemplo, como datos comparativos) a tu dashboard.
+
+    * Haga clic en
+
+      <DNT>
+        **Open in logs**
+      </DNT>
+
+      para ir directamente a la UI
+
+      <DNT>
+        **Logs**
+      </DNT>
+
+      para obtener una resolución adicional de problemas.
+  </Collapser>
+
+  <Collapser
+    id="troubleshoot-error"
+    title="Solucionar un error (logs en el contexto)."
+  >
+    Para comprender mejor lo que estaba sucediendo en el host en el momento en que ocurrió un error en su aplicación, debe poder ver [el logs en el contexto](/docs/logs/logs-context/configure-logs-context-apm-agents/). Luego, para solucionar errores relacionados:
+
+    1. Vaya a <DNT>**APM > Errors inbox**</DNT> o <DNT>**APM > (select an app) > Events > Error analytics**</DNT> y seleccione una traza de error.
+
+    2. Desde los detalles de la traza del error, haga clic en <DNT>**Open in logs**</DNT>.
+
+    3. Explore los detalles log relacionado.
+
+    4. Para identificar el host que genera el error, haga clic en <DNT>**...**</DNT> para su elección y luego haga clic en <DNT>**Show surrounding logs**</DNT>.
+
+       <img
+         title="APM errors inbox UI with logs"
+         alt="Screenshot of APM errors inbox UI with logs"
+         src="/images/logs_screenshot-crop_surrounding-logs.webp"
+       />
+  </Collapser>
+
+  <Collapser
+    id="troubleshoot-latency"
+    title="Solucionar problemas de latencia (logs en el contexto)"
+  >
+    Para solucionar problemas de latencia de esta manera, debe poder ver [el logs en el contexto](/docs/logs/logs-context/configure-logs-context-apm-agents/). Luego, para comprender mejor cómo funcionaban sus sistemas cuando el rendimiento disminuyó notablemente:
+
+    1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app)**</DNT>.
+
+    2. En la página <DNT>**Summary**</DNT> de la aplicación, haga clic en <DNT>**Distributed tracing**</DNT> y luego seleccione una traza particularmente lenta.
+
+    3. Desde la traza <DNT>**Details**</DNT>, haga clic en <DNT>**Logs**</DNT>.
+
+       <img
+         title="APM distributed tracing UI with logs"
+         alt="Screenshot of APM distributed tracing UI with logs"
+         src="/images/logs_screenshot-full_dt-logs.webp"
+       />
+  </Collapser>
+</CollapserGroup>
+
+## Enlaces para iniciar sesión en New Relic [#links]
+
+Dependiendo de su suscripción a New Relic, puede acceder a su registro desde varios lugares en la UI de New Relic. Para algunas de estas opciones, debes poder ver [el logs en el contexto](/docs/logs/logs-context/configure-logs-context-apm-agents/).
+
+<Callout variant="tip">
+  Permita que el <InlinePopover type="apm"/>agente de su aplicación reenvíe los datos log directamente a New Relic con [el logs en el contexto de APM](/docs/apm/new-relic-apm/getting-started/get-started-logs-context). ¡No es necesario instalar ni mantener software adicional de terceros!
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "175px" }}>
+        Para ver el registro...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Directamente desde la UI de Logs
+      </td>
+
+      <td>
+        * Vaya a
+
+          <DNT>
+            **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+          </DNT>
+
+          .
+
+        * Centro de datos de la región de la UE [(si está disponible)](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers/): vaya a
+
+          <DNT>
+            **[one.eu.newrelic.com/](https://one.eu.newrelic.com) > Logs**
+          </DNT>
+
+          .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Desde tu aplicación en APM
+      </td>
+
+      <td>
+        Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM**</DNT>, seleccione una aplicación y luego use cualquiera de estas opciones:
+
+        * <DNT>
+            **Triage > Logs**
+          </DNT>
+        * <DNT>
+            **Triage > Errors inbox > (select an error) > Logs**
+          </DNT>
+        * <DNT>
+            **Events > Errors > (select an error) > See logs**
+          </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Del rastreo distribuido
+      </td>
+
+      <td>
+        Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Distributed tracing > (select a trace) > Logs**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Desde un host en su infraestructura
+      </td>
+
+      <td>
+        Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure**</DNT>, seleccione un host y luego haga clic en <DNT>**Logs**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Desde Kubernetes
+      </td>
+
+      <td>
+        En la UI de Kubernetes, seleccione un clúster y luego haga clic en <DNT>**Logs**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        De una entidad
+      </td>
+
+      <td>
+        Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities > (select an entity) > Logs**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Desde tu IDE
+      </td>
+
+      <td>
+        [Instale la extensión CodeStream de New Relic](/docs/codestream/start-here/install-codestream) para ver el registro en su IDE.
+      </td>
+    </tr>
+  </tbody>
+</table>

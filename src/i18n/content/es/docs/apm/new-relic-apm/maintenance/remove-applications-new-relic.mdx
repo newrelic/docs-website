@@ -1,0 +1,246 @@
+---
+title: Quitar aplicación de New Relic
+tags:
+  - APM
+  - Maintenance
+metaDescription: 'Learn how to stop an application from sending data to New Relic, and how to remove it from the UI.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La aplicación se elimina automáticamente de New Relic después de 93 días sin enviar datos a nuestra plataforma. También puedes eliminar una aplicación usando la UI, una vez que haya dejado de enviar datos. Key métrica seguirá estando disponible a través de la [API REST de New Relic](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2), y el nombre de la aplicación permanecerá reservado.
+
+Para obtener más información, consulte nuestras [pautas de retención de datos](/docs/accounts/accounts/data-management/overview-data-retention-components#apm).
+
+## Antes de intentar eliminar una aplicación [#requirements]
+
+Antes de intentar eliminar el monitor de una aplicación mediante New Relic <InlinePopover type="apm"/>, <InlinePopover type="browser"/>o <InlinePopover type="mobile"/>de la UI, tenga en cuenta lo siguiente:
+
+* Puede [degradar su organización New Relic](/docs/accounts/accounts-billing/account-setup/downgradecancel-account) para pagar menos o hacerla completamente gratuita.
+* La capacidad de eliminar una aplicación de la UI puede depender de [los permisos](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data/#user-permissions).
+* Si un agente todavía envía datos desde una aplicación, no puede eliminar esa aplicación.
+
+## Eliminar una aplicación de New Relic [#remove]
+
+Antes de poder eliminar un monitor de aplicación mediante New Relic APM, monitoreo de navegador o monitoreo de móviles, la aplicación primero debe dejar de informar datos. Para ello, deshabilite el agente (se explica a continuación) o [desinstale el agente por completo](/docs/agents/manage-apm-agents/installation/uninstall-agent).
+
+<CollapserGroup>
+  <Collapser
+    id="remove-apm-apps"
+    title="Aplicación APM"
+  >
+    1. Deshabilite un agente APM siguiendo estas instrucciones:
+
+       * <DNT>
+           [**Go**](/docs/agents/go-agent/instrumentation/go-agent-configuration#enabled)
+         </DNT>
+
+         : establezca `Enabled` en `false`.
+
+       * <DNT>
+           [**Java**](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-agent_enabled)
+         </DNT>
+
+         : establezca `agent_enabled` en `false`.
+
+       * <DNT>
+           [**.NET**](/docs/agents/net-agent/installation-configuration/net-agent-configuration#app-cfg-agent-enabled)
+         </DNT>
+
+         : establezca `Newrelic.AgentEnabled` en `false`.
+
+       * <DNT>
+           [**Node.js**](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#enabled)
+         </DNT>
+
+         : establezca `agent_enabled` en `false`.
+
+       * <DNT>
+           [**PHP**](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-enabled)
+         </DNT>
+
+         : elimine o deshabilite los componentes `newrelic.so` y [`newrelic-daemon`](/docs/agents/php-agent/getting-started/new-relic-daemon-processes) . Establezca `newrelic.enabled` en `false`.
+
+       * <DNT>
+           [**Python**](/docs/agents/python-agent/installation-configuration/python-agent-configuration#monitor_mode)
+         </DNT>
+
+         : establezca `monitor_mode` en `false`.
+
+       * <DNT>
+           [**Ruby**](/docs/agents/ruby-agent/installation-configuration/ruby-agent-configuration#agent_enabled)
+         </DNT>
+
+         : establezca `agent_enabled` en `false`.
+
+    2. Reinicie el servidor de aplicaciones y espere hasta diez minutos. Verifique que el [estado de salud](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#health-status) codificado por colores de la aplicación se haya vuelto gris y ya no informe datos.
+
+    3. Para eliminar la aplicación APM de la UI (y cualquier [aplicación asociada en el monitoreo del navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#select-apm-app)), siga los siguientes pasos:
+
+       * <DNT>
+           **Delete the app from the UI.**
+         </DNT>
+
+         Vaya a
+
+         <DNT>
+           **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app/service) > Settings > Application**
+         </DNT>
+
+         y haga clic en el botón
+
+         <DNT>
+           **Delete application**
+         </DNT>
+
+         .
+  </Collapser>
+
+  <Collapser
+    id="remove-browser-apps"
+    title="Browser"
+  >
+    Si ha utilizado el [método de copiar y pegar para instalar el agente del navegador](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#copy-paste-app), elimine el fragmento de JavaScript de las páginas de su aplicación.
+
+    Después de 93 días, esa aplicación se eliminará de la UI. Si desea eliminarlo antes, tiene varias opciones:
+
+    * <DNT>
+        **Delete an associated APM app.**
+      </DNT>
+
+      Si su aplicación de navegador está [vinculada a una aplicación APM](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#select-apm-app), al eliminar la aplicación APM también se elimina la aplicación de navegador. Consulte las [instrucciones para eliminar una aplicación APM](#remove-apm-apps).
+
+    * <DNT>
+        **Delete it from the UI.**
+      </DNT>
+
+      Vaya a
+
+      <DNT>
+        **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Settings > Application settings**
+      </DNT>
+
+      y haga clic en el botón
+
+      <DNT>
+        **Delete application**
+      </DNT>
+
+      .
+  </Collapser>
+
+  <Collapser
+    id="remove-mobile-apps"
+    title="Móvil"
+  >
+    Elimine todas las referencias/dependencia al SDK/framework de monitoreo de móviles de New Relic y luego reconstruya la aplicación. Para obtener más información, consulte los documentos de instalación [de iOS](/docs/mobile-monitoring/new-relic-mobile-ios/installation) y [Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure) .
+
+    Después de 93 días, la aplicación se eliminará de la UI. Si desea eliminarlo antes, tiene varias opciones:
+
+    * <DNT>
+        **Remove it using the UI.**
+      </DNT>
+
+      Vaya a
+
+      <DNT>
+        **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Settings > Application**
+      </DNT>
+
+      y haga clic en
+
+      <DNT>
+        **Delete application**
+      </DNT>
+
+      .
+
+    * <DNT>
+        **Use NerdGraph to delete an entity.**
+      </DNT>
+
+      Si ha hecho lo anterior y todavía ve esa aplicación en la UI, puede [usar NerdGraph para eliminar la entidad relevante](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/#delete-entities). Para saber cómo encontrar ID de entidad, consulte [Entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#find).
+  </Collapser>
+</CollapserGroup>
+
+## Resolución de problemas [#troubleshooting]
+
+Si tiene problemas para eliminar una aplicación, aquí hay algunas causas posibles y soluciones sugeridas:
+
+<CollapserGroup>
+  <Collapser
+    id="not-owner-admin"
+    title="Te faltan permisos"
+  >
+    Si no tiene [los permisos](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data) pertinentes, no podrá eliminar una aplicación.
+  </Collapser>
+
+  <Collapser
+    id="wait-longer"
+    title="No has esperado lo suficiente"
+  >
+    Todos los datos de la aplicación deben dejar de informarse a New Relic antes de que puedas eliminar esa entidad de New Relic. En la mayoría de los casos, esto lleva entre 10 y 15 minutos. En casos raros, puede tardar entre 12 y 24 horas.
+  </Collapser>
+
+  <Collapser
+    id="agents-not-disabled"
+    title="No todos los agentes están deshabilitados"
+  >
+    Si tiene varios datos de informes de agentes bajo el mismo nombre UI , debe asegurarse de desactivar o desinstalar <DNT>**all**</DNT> del agente asociado con esa entidad.
+  </Collapser>
+
+  <Collapser
+    id="php-issues"
+    title="Tienes problemas para eliminar tu aplicación PHP"
+  >
+    Si tiene una aplicación PHP y no puede eliminarla de la UI, las posibles causas incluyen:
+
+    * No ha deshabilitado ambos componentes del agente PHP. Debe detener o desinstalar `newrelic.so` y `newrelic-daemon` para poder eliminar una aplicación PHP. Para obtener más información, consulte [Procesos del daemon New Relic](/docs/agents/php-agent/getting-started/new-relic-daemon-processes).
+    * Ha configurado el monitoreo por directorio de su aplicación PHP y se informan datos PHP inesperados como la aplicación PHP predeterminada en la UI de New Relic. Para solucionar este problema, cambie el [nombre predeterminado de la aplicación en la configuración del agente PHP](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-appname).
+  </Collapser>
+
+  <Collapser
+    id="name-confusion"
+    title="No sabes de dónde vienen los datos de la aplicación"
+  >
+    Si no sabes de dónde provienen los datos de una aplicación, puede deberse a que [se cambió el nombre de la aplicación](/docs/agents/manage-apm-agents/app-naming/rename-your-application). Cuando se cambia el nombre de una aplicación en la UI, no cambia el nombre de la aplicación subyacente que se informa; solo cambia la forma en que aparece el nombre de la aplicación en la UI.
+
+    Para ver si hay una diferencia entre el nombre reportado y el nombre mostrado:
+
+    1. Desde <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, seleccione <DNT>**APM**</DNT> y luego seleccione una aplicación.
+
+    2. Desplácese hacia abajo hasta <DNT>**Settings**</DNT> y seleccione <DNT>**Application.**</DNT>
+
+    3. Compare el nombre en el campo <DNT>**Application alias**</DNT> con el nombre en el mensaje <DNT>**Your application still reports as**</DNT> directamente debajo de él.
+
+       Para obtener información del host sobre una aplicación con la que no está familiarizado:
+
+    4. Desde <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, seleccione <DNT>**APM**</DNT> y luego seleccione una aplicación.
+
+    5. Desde la vista de resumen, revise la lista <DNT>**Servers**</DNT> .
+
+       Una vez que haya identificado de dónde provienen los datos de la aplicación, puede eliminar la aplicación de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="browser-reporting"
+    title="Los datos del navegador todavía están reportándose"
+  >
+    Para eliminar una aplicación de New Relic, todos los datos deben haber dejado de informarse, incluido el monitoreo de datos del navegador. Para verificar que ha deshabilitado o desinstalado el agente APM asociado con la aplicación:
+
+    1. Asegúrese de que [el monitoreo del navegador esté deshabilitado](/docs/browser/new-relic-browser/installation-configuration/browser-settings-ui-options-browser-monitoring#disabling).
+
+       * Si el agente APM inserta el script de monitoreo de navegador, desactívelo desde dentro de la UI, en el archivo de configuración del agente o en ambos.
+       * Si copió y pegó el fragmento de JavaScript de monitoreo en ciertas páginas, elimine ese fragmento de JavaScript manualmente.
+
+    2. Asegúrese de que se hayan borrado todos los cachés que utiliza la aplicación, como cachés de host, CDN o cualquier otra cosa que almacene en caché páginas creadas.
+
+    3. Opcional: para ver un recuento de cuántas páginas vistas reportan de cada dominio, use esta [consulta NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql):
+
+       ```sql
+       SELECT count(*) FROM PageView WHERE appName = 'YOUR_BROWSER_APP_NAME' FACET domain
+       ```
+
+       Si estos pasos no resuelven el problema, es probable que se deba a que la memoria caché del browser del usuario final aún no se ha borrado. Espere hasta que esos cachés se borre. Si su aplicación tiene un usuario interno, es posible que pueda identificar al usuario y borrar esos cachés.
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,118 @@
+---
+title: setName (SPA API)
+type: apiDoc
+shortDescription: Establece el nombre y el desencadenante de la interacción browser de un SPA que no es un cambio de ruta o de URL.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser to set the name and trigger of a browser interaction that is not a route change or URL change.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.interaction().setName(string $name[, string $trigger])
+```
+
+Establece el nombre y el desencadenante de la interacción browser de un SPA que no es un cambio de ruta o de URL.
+
+## Requisitos
+
+* Browser Pro+SPA agente (v963 o superior)
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar la característica `spa` al crear una instancia de la clase `BrowserAgent` . En la matriz `features` , agregue lo siguiente:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  Para obtener más información, consulte la [documentación de instalación del navegador npm](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+Este método de monitoreo de SPA establece el nombre y el desencadenante de una interacción browser . El nombre se expondrá como el atributo [`browserInteractionName`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#interaction-name) en el evento `BrowserInteraction` . También se utilizará para agrupar en la UI.
+
+De forma predeterminada, `browserInteractionName` lleva el nombre de una URL o ruta asociada. Utilice `setName()` cuando desee registrar una interacción que no sea un cambio de ruta o de URL.
+
+El método [`setCurrentRouteName()`](/docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicsetcurrentroutename) también nombra la ruta actual. Cuando usas ambos:
+
+* `setName()` tiene prioridad para nombrar la interacción.
+* Los atributos `previousRouteName` y `targetRouteName` todavía están configurados con valores pasados a `setCurrentRouteName()`.
+
+El uso conjunto de estos métodos permite muchas opciones para filtrar y agrupar en la UI. Por ejemplo, puedes:
+
+* Filtre hasta interacción de un tipo determinado, como `LikeButtonClick`.
+* Luego, agrupe por `targetRouteName` para ver qué rutas tienen la mayor `LikeButtonClick` interacción.
+
+<Callout variant="tip">
+  Esta llamada API se aplica a los datos de [las vistas de páginas SPA](/docs/browser/single-page-app-monitoring/get-started/introduction-single-page-app-monitoring) en el navegador y al tipo de evento [`BrowserInteraction`](/docs/insights/insights-data-sources/default-data/browser-default-events-attributes-insights#browserinteraction-attributes) . Para establecer un nombre personalizado para las vistas de página estándar y el tipo de evento <DNT>**PageView**</DNT> , consulte [`setPageViewName`](/docs/browser/new-relic-browser/browser-agent-spa-api/set-pageview-name). Se recomienda utilizar ambas llamadas juntas.
+</Callout>
+
+## Parámetros
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$name`
+
+        _cadena_
+      </td>
+
+      <td>
+        Requerido. Si es nulo, el nombre se establecerá utilizando el [atributo`targetGroupedUrl` ](/docs/insights/explore-data/attributes/browser-default-attributes-insights#target-groupedurl).
+
+        Si no es nulo, esto establecerá el atributo [`browserInteractionName`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#interaction-name) en el evento `BrowserInteraction` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$trigger`
+
+        _cadena_
+      </td>
+
+      <td>
+        Opcional. Si no es nulo, esto establecerá el atributo [`TRIGGER`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#trigger) en el evento `BrowserInteraction` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Valores de retorno
+
+Este método devuelve el mismo objeto API creado por `interaction()`.
+
+## Ejemplos
+
+```js
+document.getElementById('subscribe').addEventListener('submit', () => {
+  newrelic.interaction().setName('createSubscription');
+  createSubscription();
+});
+```

@@ -1,0 +1,293 @@
+---
+title: Logs en el contexto del agente Node.js
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Logs in context for Node.js
+  - Winston
+  - Pino
+metaDescription: 'For apps monitored by the Node.js agent, learn how to link log data with related data across the rest of the New Relic platform.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con nuestro agente APM de Node.js, puede obtener <InlinePopover type="apm"/>log in context, lo que le permite ver el registro de su aplicación en el contexto de sus otros datos New Relic . Para obtener información general sobre esta característica, consulte [logs en el contextoAPM ](/docs/apm/new-relic-apm/getting-started/get-started-logs-context).
+
+<Callout variant="tip">
+  ¿Tienes muchos registros de Node.js? Consulte nuestro [tutorial sobre cómo optimizarlos y administrarlos](/docs/tutorial-large-logs/get-started-managing-large-logs/).
+</Callout>
+
+## Opciones de logs en el contexto automático [#automatic]
+
+Con el registro de aplicaciones, su agente APM recopila y contextualiza automáticamente su registro.
+
+Si está utilizando un framework compatible, tiene tres opciones para configurar el logs en el contexto APM para enviar el registro de su aplicación y vincular metadatos automáticamente a New Relic.
+
+El marco soportado para el inicio de logs en el contexto automático incluye:
+
+* [Winston](https://github.com/winstonjs/winston) 3.0.0 o mas alto.
+* [Pino](https://github.com/pinojs/pino) 7.0.0 o superior.
+* [Bunyan](https://www.npmjs.com/package/bunyan) 1.8.12 o superior (desde la versión del agente 9.3.0)
+
+Si no está utilizando un framework compatible, puede utilizar el método API de reenvío de registros del agente para realizar su propia instrumentación. Para obtener más información, consulte los [documentos de la API del agente de Node.js.](https://newrelic.github.io/node-newrelic/API.html#recordLogEvent)
+
+<Callout variant="important">
+  Las versiones de agente 8.16.0 y superiores tienen esta característica habilitada en el archivo de configuración de agente de forma predeterminada.
+
+  El agente reenvío de registros provocará un aumento en el consumo de datos cuando se detecte un [framework compatible](/docs/logs/logs-context/node-configure-logs-context-all#automatic) . La cantidad depende de la aplicación y de la cantidad de tronco que produzca. Esta característica se puede desactivar. Consulte [Desactivar el registro automático](/docs/logs/logs-context/disable-automatic-logging/) para obtener más información sobre sus opciones.
+
+  Si ya cuenta con una solución de reenvío de registros, debe desactivar esta característica.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="1-agent"
+    title="Opción 1 (la más simple): deja que el agente decore y reenvíe tu registro."
+  >
+    Este es el enfoque más simple y es una excelente opción para desarrolladores que quizás no tengan acceso o interés en configurar un reenviador de registros, o para cuentas que quieran ver el poder de los registros y otros metadatos de enlace en el contexto de sus aplicaciones. sin muchos gastos generales.
+
+    Al usar esta opción, el agente informa su log completo y agrega nuestro atributo `span.id`, `trace.id`, `hostname`, `entity.guid` y `entity.name`. Estos atributos vinculan su registro a tramos, trazas y otros tipos de telemetría, lo que facilita la resolución de problemas.
+
+    Todo lo que necesita hacer es instalar una versión del agente con capacidades de reenvío de registros ([Node.js agente 8.11.0 o superior](/docs/release-notes/agent-release-notes/nodejs-release-notes/)). Si el reenvío está deshabilitado, puede usar esta configuración:
+
+    newrelic.js:
+
+    ```js
+    application_logging: {
+      forwarding: {
+        enabled: true
+      }
+    }
+    ```
+
+    Variable ambiental:
+
+    ```
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=true
+    ```
+
+    Esta opción está activada de forma predeterminada desde la versión 8.16.0 del agente.
+
+    <DNT>
+      **Optional adjustments:**
+    </DNT>
+
+    Una vez que esto esté habilitado, también tendrá control sobre la cantidad máxima de registros enviados a New Relic cada minuto. El valor predeterminado es 10.000. Si se reciben más de 10 000 registros en un período de 60 segundos, se comenzará a muestrear su registro.
+
+    Configúrelo en un número más alto para recibir más registros. Configúrelo en un número más bajo para recibir menos registros. Cualquier número entero hasta 100.000 es válido. Aumentar este valor puede aumentar la utilización de CPU y RAM por parte del agente.
+
+    newrelic.js:
+
+    ```js
+    application_logging: {
+      forwarding: {
+        max_samples_stored: 10000
+      }
+    }
+    ```
+
+    Variable ambiental:
+
+    ```
+    NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED: 10000
+    ```
+
+    Si ya tiene una solución de reenvío de logs y está actualizando su agente para usar el logs en el contexto automático, asegúrese de <DNT>**disable your manual log forwarder**</DNT>. De lo contrario, su aplicación enviará líneas log dobles. Dependiendo de su cuenta, esto podría resultar en una doble facturación. Para obtener más información, siga los procedimientos para desactivar su [reenviador de logs específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+  </Collapser>
+
+  <Collapser
+    id="2-decorate"
+    title="Opción 2: deja que el agente decore tu tronco."
+  >
+    ¿Ya tienes un reenviador de logs que te gusta? ¡Te tenemos cubierto! Language Agent puede decorar su registro con los metadatos de enlace necesarios para proporcionar acceso a la característica de contexto de inicio de sesión automático.
+
+    Esta opción no debe usarse con el reenvío dentro del agente. El uso de un [reenviador de registros externo](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding) para enviar registros a New Relic mientras el reenvío en el agente está habilitado hará que su registro se envíe dos veces a New Relic. Dependiendo de su cuenta, esto puede resultar en una facturación doble.
+
+    Esta opción tampoco debe usarse con [el formateador de decoración log manual](#3-old-formatter). Si tiene referencias al formateador manual en su base de código, elimínelas antes de habilitar esta opción.
+
+    1. Si desea utilizar esta opción, asegúrese de tener desactivada la opción de configuración de reenvío en el agente.
+
+       newrelic.js:
+
+       ```js
+       application_logging: {
+         forwarding: {
+           enabled: false
+         }
+       }
+       ```
+
+    2. Habilite la decoración log en su configuración, luego reinicie el agente para comenzar a decorar su tronco.
+
+       newrelic.js:
+
+       ```js
+       application_logging: {
+         local_decorating: {
+           enabled: true
+         }
+       }
+       ```
+
+       Variable ambiental:
+
+       ```
+       NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED=true
+       ```
+
+       Nuestro decorador agrega cinco atributos a cada mensaje de registro: `entity.guid`, `entity.name`, `hostname`, `trace.id` y `span.id`. Ejemplo:
+
+       ```
+       This is my log message. NR-LINKING|{entity.guid}|{hostname}|{trace.id}|{span.id}|{entity.name}|
+       ```
+
+       Algunos atributos pueden estar vacíos si el log ocurrió fuera de una transacción o si no son aplicables al contexto de su aplicación.
+
+       Recomendamos esta opción en lugar del uso manual de uno de nuestros enriquecedores log .
+  </Collapser>
+
+  <Collapser
+    id="3-old-formatter"
+    title="Opción 3: utilizar el proceso manual para reenviar y decorar el registro."
+  >
+    Antes de que Language Agent tuviera la capacidad de reenviar y decorar registros, podía habilitar el framework inicio logs en el contexto actualizando su aplicación para utilizar un enriquecimiento específico . Esta opción todavía se admite, pero ya no se recomienda. Para obtener instrucciones sobre cómo utilizar este enfoque, consulte [Opción de logs en el contexto manual](#configure-nodejs).
+
+    Además, este método requiere que instale un reenviador de registros antes de habilitar el logs en el contexto. Si no tiene un reenviador de registros, la New Relic UI le indicará que utilice nuestro [agente de infraestructura](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/).
+
+    Si decide utilizar su solución de reenvío de registros existente y luego decide actualizar su agente para usar el logs en el contexto automático, asegúrese de <DNT>**disable your manual log forwarder**</DNT>. De lo contrario, su aplicación enviará líneas log dobles. Dependiendo de su cuenta, esto podría resultar en una doble facturación. Para obtener más información, siga los procedimientos para desactivar su [reenviador de registros específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## Asegure sus datos [#obfuscation]
+
+Su registro puede incluir información confidencial protegida por HIPAA u otros protocolos de cumplimiento. De forma predeterminada, ofuscamos los patrones numéricos que parecen corresponder a elementos como tarjetas de crédito o números de Seguro Social, pero es posible que deba aplicar hash o enmascarar información adicional.
+
+Para más información, consulta nuestra documentación sobre [expresión de ofuscación y reglas](/docs/logs/ui-data/obfuscation-ui/). Puede hash o enmascarar sus log datos utilizando la New Relic UI o utilizando NerdGraph, nuestra GraphQL.API
+
+## Explora tus datos [#view-ui]
+
+Para aprovechar al máximo sus datos de registro:
+
+* En la [páginaAPM](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data)
+
+  <DNT>
+    [**Summary**](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data)
+  </DNT>
+
+  [](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data), haga clic en su gráfico
+
+  <DNT>
+    **Web transaction time**
+  </DNT>
+
+  para ver el registro asociado con un momento específico.
+
+* Verifique
+
+  <DNT>
+    [**Errors inbox**](/docs/errors-inbox/errors-inbox)
+  </DNT>
+
+  de su aplicación para ver el registro asociado con sus errores.
+
+* Utilice [rastreo distribuido](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui) para ver el registro asociado a la traza individual.
+
+* Explore más datos de registro en su plataforma con nuestra [UI de logs](/docs/logs/log-management/ui-data/use-logs-ui/).
+
+* Configure [alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/) basadas en la salida log y la gravedad.
+
+* [consulte sus datos](/docs/logs/ui-data/query-syntax-logs/) utilizando nuestra UI especializada para registrar datos y [cree un panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) con los resultados.
+
+## Consejos de resolución de problemas [#troubleshooting]
+
+Normalmente, su registro comenzará a aparecer menos de un minuto después de habilitar el inicio de <InlinePopover type="apm"/>logs en el contexto. Consulta la sección <DNT>**Triage > Logs**</DNT> de tu aplicación. Allí también comenzará a ver [patrones de registros](/docs/logs/ui-data/find-unusual-logs-log-patterns) relacionados con el error.
+
+Si no ve ningún registro de errores o traza, es posible que no haya ninguno para su aplicación. Intente actualizar la página UI o cambie el [período de tiempo seleccionado](/docs/new-relic-one/ui-data/basic-ui-features/#data-analysis).
+
+## Deshabilitar el registro automático [#disable-automatic]
+
+El logs en el contexto APM reenvía automáticamente los datos log de APM del agente. Está habilitado de forma predeterminada. Si habilita el registro de aplicaciones, puede tener un impacto negativo en su seguridad, cumplimiento, facturación o rendimiento del sistema. Para obtener más información, o si necesita ajustar la configuración predeterminada, siga los procedimientos para [desactivar el registro automático](/docs/logs/logs-context/disable-automatic-logging).
+
+## Opción de logs en el contexto manual [#configure-nodejs]
+
+Para habilitar el logs en el contexto para el monitor de aplicaciones <InlinePopover type="apm"/>de Node.js, puede utilizar nuestra opción de instalación manual.
+
+1. Asegúrate de haber [configurado el inicio de sesión en New Relic](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/enable-log-management-new-relic/). Esto incluye la configuración de un reenviador de registros compatible que recopile su registro de aplicación y extienda los metadatos que se reenvían a New Relic.
+
+2. [Instale](/docs/agents/nodejs-agent/installation-configuration/update-nodejs-agent/) o [actualice](/docs/agents/nodejs-agent/installation-configuration/update-nodejs-agent/) a la última versión de Node.js agente y [habilite rastreo distribuido](/docs/distributed-tracing/enable-configure/quick-start/). Utilice [Node.js agente versión 6.2.0 o superior](/docs/release-notes/agent-release-notes/nodejs-release-notes/) para logs en el contexto.
+
+3. Instale [un framework compatible](#automatic) para enriquecer sus datos log o utilice directamente [la API de reenvío de registros del agente](https://newrelic.github.io/node-newrelic/API.html#recordLogEvent).
+
+4. En la configuración de su agente, establezca `application_config.enabled` en `false`. (De lo contrario, el agente automáticamente instrumentará su logger y llamar a estos enriquecedores usted mismo no hará nada).
+
+5. Configure el logs en el contexto para Node.js utilizando la extensión log adecuada.
+
+   <CollapserGroup>
+     <Collapser
+       id="nodejs-winston"
+       title="Configuración de Node.js con Winston"
+     >
+       1. Para instalar el enriquecedor log de Winston, ingrese el siguiente comando en su terminal o interfaz de línea de comando:
+
+          ```bash
+          npm install @newrelic/winston-enricher
+          ```
+
+       2. En el código de su aplicación, actualice su configuración de registro para agregar `newrelicFormatter`:
+
+          ```js
+          // index.js
+          require('newrelic')
+          const winston = require('winston')
+          const newrelicFormatter = require('@newrelic/winston-enricher')(winston)
+          ```
+
+          El Formateador de New Relic se puede utilizar individualmente o combinado con otros formateadores como formato final.
+
+          ```js
+          format: winston.format.combine(
+            winston.format.label({label: 'test'}),
+            newrelicFormatter()
+          )
+          ```
+     </Collapser>
+
+     <Collapser
+       id="nodejs-pino"
+       title="Configuración de Node.js con Pino"
+     >
+       1. Para instalar Pino log enricher, ingrese el siguiente comando en su terminal o interfaz de línea de comando:
+
+          ```bash
+          npm install @newrelic/pino-enricher
+          ```
+
+       2. En el código de su aplicación, actualice su configuración de registro para agregar el complemento New Relic Pino:
+
+          ```js
+          // index.js
+          require('newrelic')
+          const nrPino = require('@newrelic/pino-enricher')
+          const pino = require('pino')
+          const logger = pino(nrPino())
+          ```
+
+          El Formateador de New Relic se puede utilizar individualmente o combinado con otros formateadores como formato final.
+     </Collapser>
+   </CollapserGroup>
+
+6. Para verificar que haya configurado el agregador log correctamente, ejecute su aplicación, luego verifique sus [datos de registro en New Relic](/docs/logs/log-management/ui-data/use-logs-ui/) usando el operador de consulta `has:span.id has:trace.id`.
+
+Si todo está configurado correctamente y sus datos se reenvían a New Relic con los metadatos enriquecidos, su registro ahora debería emitirse como JSON y contener los campos `trace.id` y `span.id`. Si no ve los datos log en la UI, siga los [procedimientos de resolución de problemas](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui/). Si desea ver un ejemplo funcional de logs en el contexto, eche un vistazo a nuestra [aplicación de ejemplo](https://github.com/newrelic/newrelic-node-examples/blob/main/logs-in-context/README.md).
+
+## ¿Que sigue? [#what-next]
+
+Después de configurar el inicio de <InlinePopover type="apm"/>logs en el contexto, aproveche al máximo sus datos de registro:
+
+* Explore los datos de registro en su plataforma con nuestra [UI de logs](/docs/logs/log-management/ui-data/use-logs-ui/).
+* Vea su logs en el contexto del rendimiento de su aplicación en la [APM UI](/docs/logs/log-management/ui-data/use-logs-ui/#links). Solucionar [errores](/docs/apm/apm-ui-pages/error-analytics/errors-page-find-fix-verify-problems/) con [rastreo distribuido](/docs/apm/distributed-tracing/ui-data/understand-use-distributed-tracing-data), rastreo del stack, registro de aplicación y más.
+* Obtenga una visibilidad más profunda de los datos de rendimiento de su aplicación y de su plataforma enviando sus logs a nuestro [agente de infraestructura](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/forward-your-logs-using-infrastructure-agent/). Revise su [log de infraestructura](/docs/logs/log-management/ui-data/use-logs-ui/#links) en la UI.
+* Configurar [alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+* [Consulta tus datos](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) y [crea un panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).

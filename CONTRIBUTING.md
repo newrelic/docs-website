@@ -20,7 +20,7 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
+    - [Deploy previews with Netlify](#deploy-previews-with-netlify)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -42,8 +42,8 @@ The Documentation Team and Developer Enablement Team at New Relic welcome contri
 There are several ways you can contribute:
 
 - If you wish to make documentation edits or add new
-documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
-- If you'd like to to make code contributions, or make content contributions locally, follow the contribution guidelines below.
+  documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
+- If you'd like to make code contributions, or make content contributions locally, follow the contribution guidelines below.
 
 ## Getting started
 
@@ -59,11 +59,11 @@ yarn start
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
-The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take significantly less time afterward.
 
 ### Dependencies
 
-Node v16 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
+Node v18 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
 
 ### Unit tests
 
@@ -105,8 +105,9 @@ If the workflows are enabled and running, you will want to disable them. You can
 2. Make your changes.
 3. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
-5. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
-6. And you are done!
+5. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
+6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+7. And you are done!
 
 ### Submitting a PR from a cloned repo
 
@@ -116,8 +117,9 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Make your changes.
 4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 5. Submit a `Pull Request` to this project with your changes.
-6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
-7. And you are done!
+6. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
+7. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+8. And you are done!
 
 ### Using the `develop` branch
 
@@ -133,7 +135,7 @@ If you plan on coordinating changes across several people, and feel your code is
 use a shared working branch strategy.
 
 1. create a new branch to collaborate with others via GIT and push that branch up to the remote repository. `git checkout -b shared-branch`
-2. share that branch with others you are collaborating with. They'll need to run:  `git pull origin shared-branch`
+2. share that branch with others you are collaborating with. They'll need to run: `git pull origin shared-branch`
 3. All contributors should keep that branch up to date by running `git pull origin develop` frequently.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
@@ -149,7 +151,7 @@ The `develop` and `main` branches have "Branch Protection" enabled in Github. In
 
 You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
 
-![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png "branch-protection-workflow")
+![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png 'branch-protection-workflow')
 
 ### Draft PRs
 
@@ -205,9 +207,15 @@ Feat is for major functional changes or additions to code.
 git commit -m "feat(errors inbox): add new documents"
 ```
 
-### Deploy previews with Gatsby Cloud
+### Deploy previews with Netlify
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
+PRs that are opened from a branch in this repo will generate preview links on Netlify automatically.
+
+`netlify bot` will leave a comment on your PR. You can monitor the progress via the comment details which include:
+
+- The status of the preview build. (`processing`, `ready`, or `failed`)
+- The commit that is being built or has failed.
+- Once the build succeeds, the comment will update with a link to view the preview site.
 
 ## Reusable components
 
@@ -287,7 +295,7 @@ if you face issues in contributing.
 
 ### General Install, compile or build issues
 
-Many of the common errors you'll face can be resolve by the following:
+Many of the common errors you'll face can be resolved by the following:
 
 1. Ensure you are using `yarn` not `npm`
 2. Always run `git pull` whenever you intend to create a new working branch

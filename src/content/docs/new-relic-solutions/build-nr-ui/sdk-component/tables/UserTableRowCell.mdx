@@ -1,0 +1,129 @@
+---
+title: 'UserTableRowCell'
+metaDescription: 'Learn how to work the UserTableRowCell component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Renders a row table cell showing a particular user. This cell takes the user object as its children, which is in turn compatible with the NerdGraph user object (needing, at the very least, the `name` and `gravatar` fields).
+
+### Usage
+
+```js
+import { UserTableRowCell } from 'nr1'
+```
+
+### Examples
+
+#### Example 1
+
+```js
+function render() {
+  const items = [
+    {
+      name: 'John Doe',
+      gravatar:
+        'https://secure.gravatar.com/avatar/79988df068cb4d952284a3395412dc4f',
+    },
+  ];
+
+
+  return (
+    <Table items={items}>
+      <TableHeader>
+        <TableHeaderCell>User</TableHeaderCell>
+      </TableHeader>
+
+
+      {({ item }) => (
+        <TableRow>
+          <UserTableRowCell value={item} />
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the table cell.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.Linked `TableRowCell`s are unstyled and will not show icons for external links. If the same styling as the Link component is what is desired, then use a `Link` instead as a child component within the cell.<h3>shape</h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>REQUIRED</h5> <h5>shape</h5>
+      </td>
+
+      <td>
+        User object, that requires (at least), the `name` and `gravatar` fields. This object matches with the user structure obtained from NerdGraph.
+        <h3>shape</h3>
+
+        `name` <h5>REQUIRED</h5><h5>string</h5>
+
+        `gravatar` <h5>REQUIRED</h5><h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

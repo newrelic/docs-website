@@ -1,0 +1,75 @@
+---
+title: Recolector OpenTelemetry para procesamiento de datos
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Use the OpenTelemetry Collector as a general purpose telemetry data processing tool
+freshnessValidatedDate: '2024-05-13T00:00:00.000Z'
+translationType: machine
+---
+
+El [recolector OpenTelemetry ](https://opentelemetry.io/docs/collector/)es una herramienta independiente del proveedor para recibir, procesar y exportar telemetry data. Se recomienda ejecutar el recolector en su pipeline de observabilidad. Si bien los requisitos y la configuración del recolector varían, es común enrutar [los datosAPM OpenTelemetry ](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro)a través de un recolector. Esto elimina la sobrecarga de la aplicación y proporciona un lugar para enriquecer la telemetría con datos de contexto del entorno adicionales, filtros y transformaciones, y más. También es común usar el recolector para monitoreo de infraestructura, pero esta documentación se enfoca en casos de uso de procesamiento de datos. Ver [recolector de monitoreo de infraestructura](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro) para más información.
+
+Aquí hay un ejemplo del recolector como puerta de enlace, pero también puede configurar el recolector como un agente que se ejecuta en el mismo host que su aplicación:
+
+<img style={{align: "left"}} title="Diagram of OTLP with Collector" alt="Diagram showing OpenTelemetry using the OpenTelemetry Collector and New Relic's OTLP endpoint." src="/images/opentelemetry_diagram_native-otlp-with-collector.webp" />
+
+El recolector tiene un amplio conjunto de receptores, procesadores, exportadores, extensiones y conectores. Estos componentes están incluidos en [distribuciones](https://opentelemetry.io/docs/collector/distributions/) preconstruidas. Sin embargo, es posible crear componentes personalizados para satisfacer requisitos específicos y crear una [distribución de recolector personalizada](https://opentelemetry.io/docs/collector/custom-collector/) para empaquetar un conjunto específico de componentes.
+
+Si bien la configuración varía según los requisitos, los recolectores que envían datos a New Relic deben tener ciertas cosas en común:
+
+## Exportador OTLP [#otlp-exporter]
+
+El recolector OpenTelemetry admite la exportación de datos mediante el [exportador OTLP/HTTP](https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter). Cerciorar de que la configuración del exportador coincida con [los requisitos OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+Nota: Si bien se admite el [exportador OTLP gRPC](https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlpexporter) , recomendamos emplear el protocolo OTLP/HTTP para enviar telemetry data en lugar de OTLP/gRPC.
+
+## Procesador por lotes [#batch-processor]
+
+Configure el recolector para emplear el [procesador por lotes](https://github.com/open-telemetry/opentelemetry-collector/tree/main/processor/batchprocessor) para exportar registros en lotes. Cerciorar de que el tamaño y la frecuencia del lote estén [configurados para coincidir con los requisitos de OTLP de New Relic](/docs/opentelemetry/best-practices/opentelemetry-otlp/#payload-limits).
+
+## Ejemplo mínimo [#minimal-example]
+
+Para instalar el recolector, siga la [documentaciónOpenTelemetry ](https://opentelemetry.io/docs/collector/installation/).
+
+Ejecute el recolector con la siguiente configuración, cerciorar de reemplazar lo siguiente:
+
+* Reemplace `<INSERT_NEW_RELIC_OTLP_ENDPOINT>` con el [extremo OTLP New Relic ](/docs/opentelemetry/best-practices/opentelemetry-otlp/#endpoint-port-protocol)apropiado.
+* Reemplace `<INSERT_NEW_RELIC_LICENSE_KEY>` con su [clave de licencia](/docs/opentelemetry/best-practices/opentelemetry-otlp/#endpoint-port-protocol/#prereqs).
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  otlphttp:
+    endpoint: <INSERT_NEW_RELIC_OTLP_ENDPOINT>
+    headers:
+      api-key: <INSERT_NEW_RELIC_LICENSE_KEY>
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+```
+
+Para ver un ejemplo práctico, consulte el [New Relic OpenTelemetry repositorio de](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/nr-config) ejemplos .
+
+Para ejemplos adicionales de recolectores, consulte [recolector para monitoreo de infraestructura](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro).

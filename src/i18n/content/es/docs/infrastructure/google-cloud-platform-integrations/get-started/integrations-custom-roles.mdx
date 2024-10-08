@@ -1,0 +1,196 @@
+---
+title: Integración y roles personalizados
+tags:
+  - Integrations
+  - Google Cloud Platform integrations
+  - Get started
+metaDescription: How to use Google Cloud Platform roles in your New Relic integration to grant New Relic permission to monitor your GCP services.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para leer los datos relevantes de su cuenta de Google Cloud Platform (GCP), New Relic utiliza la API de Google Stackdriver y también otras API de servicios específicos. Para acceder a estas API en su proyecto de Google Cloud, a la cuenta autorizada de New Relic se le debe otorgar un determinado conjunto de permisos; GCP utiliza roles para otorgar estos permisos.
+
+## Rol recomendado [#recommended]
+
+De forma predeterminada, <DNT>**highly recommend**</DNT> usamos la función primitiva de GCP `Role Viewer`, que otorga "[permisos para acciones de solo lectura que no afectan el estado de su infraestructura de la nube, como ver (pero no modificar) recursos o datos existentes".](https://cloud.google.com/iam/docs/understanding-roles) Esta función es administrada automáticamente por Google y se actualiza cuando se lanzan o modifican nuevos servicios de Google en la nube.
+
+## Rol opcional [#optional]
+
+Como alternativa, puedes crear tu propia función personalizada según la [lista de permisos](/docs/integrations/google-cloud-platform-integrations/get-started/integrations-custom-roles#list-permissions), que especifica el conjunto mínimo de permisos necesarios para obtener datos de cada integración de GCP. Esto le permitirá tener más control sobre los permisos establecidos para la cuenta autorizada de New Relic.
+
+<Callout variant="important">
+  New Relic no tiene forma de identificar problemas relacionados con los permisos personalizados. Si elige crear una función personalizada, es su responsabilidad mantenerla y garantizar que se recopilen los datos adecuados.
+</Callout>
+
+Para personalizar su rol necesita:
+
+1. Crea un rol personalizado de Google Cloud IAM en cada uno de los proyectos de GCP que quieras monitor con New Relic.
+2. En cada rol personalizado, agregue los permisos que se requieren específicamente para los servicios en la nube que desea monitor de acuerdo con la siguiente lista.
+3. Asigne los roles personalizados a la cuenta autorizada de New Relic.
+
+### Lista de permisos [#list-permissions]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="permissions-all"
+    title="Permisos comunes"
+  >
+    Toda integración necesita el siguiente permiso:
+
+    * `monitoring.timeSeries.list`
+    * `serviceusage.services.use`
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="permissions-services"
+    title="Permisos específicos del servicio"
+  >
+    Para algunas integraciones de GCP, New Relic también necesitará los siguientes permisos, principalmente para recopilar etiquetas y otros atributos.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            integracion
+          </th>
+
+          <th>
+            Permisos
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            [Google AppEngine](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-app-engine-monitoring-integration)
+          </td>
+
+          <td>
+            n/a; Google App Engine no requiere permisos adicionales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google BigQuery](/docs/google-bigquery-integration)
+          </td>
+
+          <td>
+            * `bigquery.datasets.get`
+            * `bigquery.tables.get`
+            * `bigquery.tables.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud Functions](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-cloud-functions-monitoring-integration)
+          </td>
+
+          <td>
+            * `cloudfunctions.functions.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud Load Balancing](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-cloud-load-balancing-monitoring-integration)
+          </td>
+
+          <td>
+            n/a; Google Cloud Load Balancing no requiere permisos adicionales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud Pub/Sub](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-cloud-pubsub-monitoring-integration)
+          </td>
+
+          <td>
+            * `pubsub.subscriptions.get`
+            * `pubsub.subscriptions.list`
+            * `pubsub.topics.get`
+            * `pubsub.topics.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud Spanner](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-cloud-spanner-monitoring-integration)
+          </td>
+
+          <td>
+            * `spanner.instances.list`
+            * `spanner.databases.list`
+            * `spanner.databases.getDdl`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud SQL](/docs/google-cloud-sql-monitoring-integration)
+          </td>
+
+          <td>
+            `cloudsql.instances.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Cloud Storage](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-cloud-storage-monitoring-integration)
+          </td>
+
+          <td>
+            `storage.buckets.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Compute Engine](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-app-engine-monitoring-integration)
+          </td>
+
+          <td>
+            * `compute.instances.list`
+            * `compute.disks.get`
+            * `compute.disks.list`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            [Google Kubernetes Engine](/docs/integrations/google-cloud-platform-integrations/gcp-integrations-list/google-kubernetes-engine-monitoring-integration)
+          </td>
+
+          <td>
+            `container.clusters.list`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="permissions-UI"
+    title="Permisos para vincular proyectos a través de la UI"
+  >
+    Para poder ver la lista de proyectos que puede vincular a New Relic a través de la UI, su cuenta de servicio autorizado de New Relic necesita los siguientes permisos:
+
+    * `resourcemanager.projects.get`
+
+    * `monitoring.monitoredResourceDescriptors.list`
+
+      Si no desea otorgar a la cuenta autorizada de New Relic los permisos necesarios para el proceso de vinculación a través de la UI, tiene las siguientes opciones:
+
+    * Asigne inicialmente el rol `Role Viewer` o `Monitoring Viewer` a la cuenta autorizada para vincular proyectos de Google Cloud a New Relic a través de la UI. Una vez vinculados los proyectos, asigne una función personalizada de Google Cloud a la cuenta autorizada.
+
+    * Utilice [New Relic NerdGraph](/docs/apis/graphql-api/get-started/introduction-new-relic-nerdgraph) para vincular proyectos de Google Cloud a New Relic. Esto no implica enumerar los proyectos visibles. Sin embargo, debes conocer el `id` del proyecto que deseas monitor. Para obtener más información, consulte el [tutorial de integración API de NerdGraph GraphiQL en la nube](/docs/apis/graphql-api/tutorials/nerdgraph-graphiql-cloud-integrations-api-tutorial).
+  </Collapser>
+</CollapserGroup>

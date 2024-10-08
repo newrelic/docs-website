@@ -1,4 +1,8 @@
-const { frontmatter, validateFreshnessDate } = require('../frontmatter');
+const {
+  frontmatter,
+  validateFreshnessDate,
+  validateReleaseDate,
+} = require('../frontmatter');
 
 const mdxString = `---
 howdy: cowboy 🤠
@@ -126,6 +130,78 @@ describe('freshness frontmatter field', () => {
 
     const expectedError =
       'freshnessValidatedDate field missing from frontmatter';
+
+    expect(error.message).toEqual(expectedError);
+  });
+});
+
+const happyReleaseDateMdxString = `---
+howdy: cowboy 🤠
+list:
+  - item 1
+  - item 2
+releaseDate: '2021-12-02'
+---
+some content!
+`;
+
+const invalidReleaseDateMdxString = `---
+howdy: cowboy 🤠
+list:
+  - item 1
+  - item 2
+releaseDate: '23-12-02'
+---
+some content!
+`;
+const badFormatReleaseDateMdxString = `---
+howdy: cowboy 🤠
+list:
+  - item 1
+  - item 2
+releaseDate: 2023
+---
+some content!
+`;
+
+const missingReleaseDateMdxString = `---
+howdy: cowboy 🤠
+list:
+  - item 1
+  - item 2
+---
+some content!
+`;
+
+describe('releaseDate frontmatter field', () => {
+  it('should pass the check with valid "never" value', () => {
+    const error = validateReleaseDate(happyReleaseDateMdxString);
+
+    expect(error).toBeFalsy;
+  });
+
+  it('should throw error for invalid date value', () => {
+    const error = validateReleaseDate(invalidReleaseDateMdxString);
+
+    const expectedError =
+      "releaseDate is not a valid value. Must be date string formatted like 'YYYY-MM-DD' wrapped in single quotes";
+
+    expect(error.message).toEqual(expectedError);
+  });
+
+  it('should throw error for valid date but wrong format', () => {
+    const error = validateReleaseDate(badFormatReleaseDateMdxString);
+
+    const expectedError =
+      "releaseDate is not a valid value. Must be date string formatted like 'YYYY-MM-DD' wrapped in single quotes";
+
+    expect(error.message).toEqual(expectedError);
+  });
+
+  it('should throw error missing releaseDate field', () => {
+    const error = validateReleaseDate(missingReleaseDateMdxString);
+
+    const expectedError = 'releaseDate field missing from frontmatter';
 
     expect(error.message).toEqual(expectedError);
   });

@@ -1,0 +1,607 @@
+---
+title: Guía de mejores prácticas de monitoreo del navegador
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: Best practices to help you find problems faster and deliver a better experience to your customers with New Relic's browser monitoring solution.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Saque más provecho de [<InlinePopover type="browser"/>](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring), con una mayor visibilidad de sus sitios web y de su usuario. A continuación se presentan las mejores prácticas para ayudarlo a encontrar problemas más rápido y brindar una mejor experiencia a sus clientes con monitoreo de usuarios reales.
+
+## 1. Utilice el agente SPA browser [#spa]
+
+<DNT>
+  **Use the browser SPA agent for deeper visibility**
+</DNT>
+
+Los sitios web modernos son complejos, con contenido dinámico y lógica sofisticada. Para ver más profundamente la interacción de su usuario, habilite el [agente de aplicación de página única (SPA)](/docs/browser/single-page-app-monitoring/get-started/introduction-single-page-app-monitoring) y obtenga visibilidad de las acciones de su usuario y del evento de la página web subyacente detrás de ellas.
+
+Este agente independiente framework no es solo para marcos de aplicaciones de una sola página como React, Angular, Ember o Backbone, sino también para marcos personalizados y cualquier otra página con contenido dinámico. Los análisis de sincronización avanzados brindan más granularidad en los subtiempos [de la API de especificación de sincronización de navegación](/docs/browser/new-relic-browser/page-load-timing-resources/instrumentation-browser-monitoring) más allá de la representación de páginas o el procesamiento DOM, con un filtrado detallado de datos de rendimiento útil para comprender todos los ciclos de vida de las páginas.
+
+### Cómo hacerlo
+
+El monitoreo de SPA del navegador está habilitado de forma predeterminada para las nuevas [instalaciones del agente del navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent). Para editar esta configuración, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Settings > Application settings**</DNT>.
+
+## 2. Utilice la instrumentación automática APM [#auto-instrument]
+
+<DNT>
+  **Use APM automatic instrumentation over copy/paste**
+</DNT>
+
+Si también utiliza [APM](https://newrelic.com/application-monitoring), le recomendamos habilitar [la instrumentación automática](/docs/browser/new-relic-browser/installation-configuration/add-apps-new-relic-browser) siempre que sea posible, ya que esto inyectará automáticamente el agente JavaScript de monitoreo del navegador en su interfaz. El agente del navegador no solo permanecerá actualizado automáticamente con este enfoque, sino que el uso conjunto de estos productos ayuda a unificar la visibilidad del frontend al backend.
+
+Por ejemplo, podría vincular llamadas AJAX de frontend a su correspondiente transacción de backend y alinear los datos de frontend y backend en un dashboard.
+
+<Callout variant="tip">
+  Dependiendo de su framework de backend o estrategia de CDN, un enfoque de copiar y pegar puede ser la mejor estrategia. Solo recuerda que requerirá actualizaciones periódicas.
+</Callout>
+
+### Cómo hacerlo
+
+Consulte [Habilitar el monitoreo del navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent).
+
+## 3. Revisar las páginas instrumentadas [#review-pages]
+
+Revise las aplicaciones y páginas browser para asegurarse de que todo lo que espera informar a New Relic realmente lo esté haciendo.
+
+### Cómo hacerlo
+
+Revise la pestaña <DNT>**Page Views**</DNT> en la UI de monitoreo de navegador o ejecute la siguiente consulta NRQL:
+
+```
+SELECT uniques(pageUrl) from PageView LIMIT MAX 
+```
+
+Si obtiene demasiados resultados, intente filtrar las URL que contienen el ID de la solicitud o el ID del cliente.
+
+## 4. Agrupa tus datos [#segment-allowlist]
+
+<DNT>
+  **Group your data into meaningful categories**
+</DNT>
+
+Asegúrese de que los segmentos browser se capturen correctamente para que el rendimiento de la experiencia del usuario se pueda medir tanto en la UI de New Relic como a nivel agregado al realizar consultas a través de NRQL.
+
+Un segmento es el texto entre dos `/` en una URL o entre `.` de un nombre de dominio. Por ejemplo, en la URL `website.com/product/widget-name`, los segmentos son:
+
+* `website`
+* `.com`
+* `product`
+* `widget-name`
+
+Cuando hay muchas URL con muchos segmentos, las URL se pueden abreviar, de modo que `website.com/product/widget-name` se convierta en `website.com/` <DNT>**or**</DNT> `website.com/product/`. En este ejemplo, la primera URL abreviada no es particularmente útil, pero la segunda puede ser una forma útil de agregar datos sobre la experiencia de los clientes para el producto.
+
+¿No estás seguro de por dónde empezar con la configuración? Intente utilizar el [dashboard de investigación de segmentos del navegador](https://newrelic.com/instant-observability/browser-segment-investigation/eb24e234-90aa-4908-972d-64d6d56b557e).
+
+<img
+  title="browser segment investigation dashboard"
+  alt="A screenshot of the browser segment investigation dashboard"
+  src="/images/browser_screenshot-full_browser-segment-investigation-dashboard.webp"
+/>
+
+Si los datos generados por la agrupación predeterminada son de un nivel demasiado alto, la creación de una agrupación de URL desagregará los datos y le brindará mayor granularidad para hacerlos más útiles. Por ejemplo, podrías agrupar por:
+
+* Diferentes tipos de páginas: páginas de productos versus páginas de búsqueda
+* Diferentes formularios, API o agrupaciones de usuarios
+* Autenticado versus no autenticado
+* Diferentes redes de entrega de contenido (CDN)
+
+### Cómo hacerlo [#how-grouping]
+
+Una vez que haya identificado qué segmentos agregar, puede agregarlos mediante programación usando [GraphQL](/docs/apis/nerdgraph/examples/browser-monitoring-config-nerdgraph), o puede usar la lista de segmentos 'permitidos' en la UI de monitoreo de navegador de New Relic:
+
+1. En la UI de monitoreo de navegador, seleccione
+
+   <DNT>
+     **Settings > Segment allow lists**
+   </DNT>
+
+   .
+
+2. En la sección
+
+   <DNT>
+     **Allow listed segments**
+   </DNT>
+
+   , haga clic en el icono
+
+   <DNT>
+     **+**
+   </DNT>
+
+   .
+
+3. Escriba los segmentos de URL que desea que aparezcan en agrupaciones en las páginas vistas y en las páginas AJAX.
+
+Para obtener más detalles sobre los segmentos, consulte [Agrupar datos del navegador por URL](/docs/browser/new-relic-browser/configuration/url-whitelists-grouping-browser-metrics).
+
+## 5. Obtenga los datos correctos [#domain-conditions]
+
+<DNT>
+  **Make sure you get data only from the right sources**
+</DNT>
+
+Los datos del navegador se generan desde cualquier lugar donde esté instrumentado su agente JavaScript, aunque las copias de su agente pueden duplicarse, como a través de desarrollo, prueba u otros entornos. Esto da como resultado que se incluyan datos adicionales de estas fuentes con los que no desearía mezclarlos. sus datos de producción. Puede utilizar [las condiciones de dominio](/docs/browser/new-relic-browser/configuration/monitor-or-block-specific-domains) para permitir o denegar datos de los diferentes dominios del sitio web que desea monitorear.
+
+### Cómo hacerlo
+
+1. En la UI de monitoreo de navegador, seleccione
+
+   <DNT>
+     **Settings > Domain conditions**
+   </DNT>
+
+   .
+
+2. Si no existen condiciones de dominio vigentes, seleccione
+
+   <DNT>
+     **Enable domain conditions**
+   </DNT>
+
+   . Si existen condiciones, seleccione
+
+   <DNT>
+     **Next, Choose your setting**
+   </DNT>
+
+   .
+
+3. Seleccione
+
+   <DNT>
+     **Deny only**
+   </DNT>
+
+   o
+
+   <DNT>
+     **Allow only**
+   </DNT>
+
+   para identificar los datos que desea recopilar del dominio que desea monitorear. Luego seleccione
+
+   <DNT>
+     **Next, Create conditions.**
+   </DNT>
+
+4. Ingrese las condiciones de cadena de dominio que desea denegar o permitir la recopilación de datos (máximo 10 condiciones).
+
+5. Revise y confirme la configuración de condiciones de su dominio.
+
+<img
+  title="Browser monitoring domain conditions UI"
+  alt="A screenshot of the browser monitoring domain conditions UI"
+  src="/images/browser_screenshot-full_domain-conditions.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > Settings > Domain conditions**
+  </DNT>
+</figcaption>
+
+## 6. Cargar mapas fuente [#source-maps]
+
+Es probable que su JavaScript de producción se vea muy diferente del JavaScript que usted y su equipo escribieron, debido a la optimización y minificación del rendimiento que ocurrió durante el proceso de compilación. Cargue los archivos JavaScript originales para poder ver en qué parte del código original ocurren los errores.
+
+### Cómo hacerlo
+
+1. Utilice nuestra [API de mapas fuente](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api/) para cargar su JavaScript.
+2. Agregue un paso adicional en su proceso de CI para actualizar los mapas de origen cada vez que actualice JavaScript.
+
+## 7. Crear nivel de servicio [#service-levels]
+
+Establezca el nivel de servicio para sus datos de rendimiento web. nivel de servicio te ayuda a:
+
+1. Determine los niveles de rendimiento normales o deseados para su aplicación web.
+2. Comparta los niveles de rendimiento esperados y objetivos con su equipo, propietarios de productos y gerentes.
+3. Comparta el rendimiento real versus el esperado durante diferentes períodos de tiempo con su equipo, propietarios de productos y gerentes.
+
+### Cómo hacerlo
+
+<img
+  title="Browser monitoring service levels UI"
+  alt="A screenshot of the browser monitoring service levels UI"
+  src="/images/browser_screenshot-full_service-level-choose-app.webp"
+/>
+
+<figcaption>
+  Filtre por aplicaciones browser y elija su aplicación.
+</figcaption>
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Service levels**
+   </DNT>
+
+   .
+
+2. Haga clic en
+
+   <DNT>
+     **Add a service level**
+   </DNT>
+
+   .
+
+3. Filtre el tipo de entidad a "browser".
+
+4. Seleccione una aplicación browser .
+
+5. Elija para qué SLI establecer el nivel de servicio. Como mínimo, debe crear un nivel de servicio para lograr la tasa de éxito y el mayor contenido posible. Deberá crear un nivel de servicio independiente para cada SLI.
+
+6. Siga el símbolo para establecer el umbral, el porcentaje de cumplimiento y el plazo. Los valores predeterminados basados en el historial pasado se calculan automáticamente, pero puedes cambiarlos si lo deseas.
+
+<img
+  title="Metrics for the browser monitoring service levels UI"
+  alt="A screenshot of metrics for the browser monitoring service levels UI"
+  src="/images/browser_screenshot-full_service-level-configure-query.webp"
+/>
+
+<figcaption>
+  Elija para qué métrica desea crear objetivos de nivel de servicio (SLO).
+</figcaption>
+
+## 8. Crear alerta [#alerts-policies]
+
+<DNT>
+  **Create and evaluate alert policies**
+</DNT>
+
+¿Qué pasa si tus Métricas web principales exceden tu umbral? Desea recibir una alerta cada vez que esto suceda, para poder investigar la causa del problema antes de perder clientes.
+
+New Relic proporciona [alertas unificadas](/docs/alerts-applied-intelligence/overview/#concepts-terms) en todos nuestros productos, incluido el monitoreo del navegador, para que siempre esté informado. Recomendamos configurar <InlinePopover type="alerts"/>para monitor sus principales web de Métricas, junto con estas alertas de ejemplo para comenzar:
+
+* <DNT>
+    **Core web vitals:**
+  </DNT>
+
+  Alerta si la interacción con la siguiente pintura o la pintura con contenido más grande está por encima del umbral `Needs improvement` .
+
+* <DNT>
+    **Page load time:**
+  </DNT>
+
+  Alerta si el tiempo medio de carga de la página es superior a 10 segundos durante 5 minutos. (Si el tiempo medio de carga de la página comienza a aumentar, esto sugiere que algo puede estar mal con su página web, lo que hace que se ralentice significativamente. Esto complementa las alertas sobre su puntuación Apdex).
+
+* <DNT>
+    **JS errors:**
+  </DNT>
+
+  Alerta si la tasa de errores es superior al 5% durante 5 minutos. (Si la tasa de errores de su interfaz comienza a aumentar, particularmente después de un despliegue, es posible que haya introducido un JavaScript incorrecto en su interfaz que debería corregirse).
+
+### Cómo hacerlo [#how]
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alerts conditions (Policies)**
+   </DNT>
+
+   .
+
+2. Seleccione
+
+   <DNT>
+     **(+) New alert policy**
+   </DNT>
+
+   para crear una nueva política de alertas y asígnele un nombre significativo.
+
+3. Haga clic en
+
+   <DNT>
+     **Create a condition**
+   </DNT>
+
+   para crear su primera condición, luego seleccione
+
+   <DNT>
+     **Browser**
+   </DNT>
+
+   para su producto y
+
+   <DNT>
+     **Metric**
+   </DNT>
+
+   para la condición (que debería ser la predeterminada). Luego haga clic en
+
+   <DNT>
+     **Next, select entities**
+   </DNT>
+
+   .
+
+4. Haga clic en la casilla de verificación de la aplicación sobre la que desea alertar y haga clic en
+
+   <DNT>
+     **Next, define thresholds**
+   </DNT>
+
+   .
+
+5. Elija la métrica de interés y su umbral que determine cuándo activar una alerta.
+
+<img
+  title="Alerts UI"
+  alt="A screenshot of the alerts UI"
+  src="/images/browser_screenshot-full_browser-metric-alert.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alerts conditions (Policies) > New alert policy**
+  </DNT>
+</figcaption>
+
+## 9. Utilice alerta de anomalía [#alerts-anomalies]
+
+<DNT>
+  **Alert on anomalous behaviors and events**
+</DNT>
+
+Si bien algunas métricas se pueden rastrear fácilmente con respecto a un umbral específico, otros tipos de datos pueden ser más cíclicos o tener rangos variables para lo que se considera saludable. El rendimiento del tráfico es un buen ejemplo de esto; puede tener ciclos significativamente variables, pero las grandes caídas o picos de tráfico pueden ser indicadores importantes de una falla que impide el tráfico de usuarios o un ataque DDoS que está aumentando el tráfico. [anomalía alerta](/docs/alerts/new-relic-alerts/defining-conditions/create-anomaly-alert-conditions) puede ser útil para crear una "banda" esperada de actividad normal para crear más señal a ruido en sus alertas.
+
+### Cómo hacerlo
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alerts conditions (Policies)**
+   </DNT>
+
+   .
+
+2. Seleccione
+
+   <DNT>
+     **(+) New alert policy**
+   </DNT>
+
+   para crear una nueva política de alertas y asígnele un nombre significativo.
+
+3. Haga clic en
+
+   <DNT>
+     **Create a condition**
+   </DNT>
+
+   para crear su primera condición, luego seleccione
+
+   <DNT>
+     **Browser**
+   </DNT>
+
+   para su producto y
+
+   <DNT>
+     **Metric anomaly**
+   </DNT>
+
+   para la condición (que debería ser la predeterminada). Luego haga clic en
+
+   <DNT>
+     **Next, select entities**
+   </DNT>
+
+   .
+
+4. Haga clic en la casilla de verificación de la aplicación sobre la que desea alertar y haga clic en
+
+   <DNT>
+     **Next, define thresholds**
+   </DNT>
+
+   .
+
+5. Elija el
+
+   <DNT>
+     **Page view throughput**
+   </DNT>
+
+   y defina el rango normal en el que desea activar la alerta.
+
+<img
+  title="Anomaly alerts UI"
+  alt="A screenshot of the UI for anomaly alerts"
+  src="/images/browser_screenshot-full_alerts-page-throughput.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert conditions (Policies) > New alert policy**
+  </DNT>
+</figcaption>
+
+## 10. Agregar alerta al flujo de trabajo [#alerts-notifications]
+
+<DNT>
+  **Integrate your alerts into your workflows**
+</DNT>
+
+Con las diferentes políticas de alerta que está configurando, querrá asegurarse de aprovechar los diferentes [canales de notificación de alerta](/docs/alerts/new-relic-alerts/managing-notification-channels/notification-channels-controlling-where-send-alerts) disponibles para que se integren en el flujo de trabajo del equipo. Después de todo, ¿de qué sirven las alerta si nadie sabe de ellas?
+
+Puede enrutar la alerta a través de Slack, PagerDuty, webhooks, correo electrónico y más. También tiene la oportunidad de alinear la notificación de alerta con sus procesos de respuesta, como la integración con ChatOps o [vincular runbooks](/docs/alerts/new-relic-alerts/defining-conditions/provide-runbook-instructions-alert-activity) a sus alertas. Asegúrese de evaluar la política de alertas periódicamente para asegurarse de que siempre sean válidas.
+
+### Cómo hacerlo
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert conditions (Policies) > New alert**
+   </DNT>
+
+   .
+
+2. En
+
+   <DNT>
+     **Issue Creation Preference**
+   </DNT>
+
+   , configure diferentes [canales de notificación](/docs/alerts/new-relic-alerts/managing-notification-channels/notification-channels-controlling-where-send-alerts), que luego se pueden utilizar dentro de diferentes [políticas de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy).
+
+## 11. Crear panel [#insights-dashboards]
+
+<DNT>
+  **Create your own dashboards**
+</DNT>
+
+El monitoreo del navegador proporciona automáticamente una experiencia seleccionada para clasificar rápidamente los problemas, pero también puede crear [un panel](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards) personalizado con los datos de su interfaz utilizando el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
+
+El equipo de New Relic ha creado una [colección de paneles de navegador populares](https://newrelic.com/instant-observability/browser-examples/721fd258-326d-41f4-8f5d-0d5538ac7487) que puedes descargar con solo unos pocos clics para comenzar.
+
+<img
+  title="Dashboards UI"
+  alt="A screenshot of the dashboards UI"
+  src="/images/browser_screenshot-full_imported-browser-dashboard.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Dashboards > Browser examples (imported from [https://newrelic.com/instant-observability/browser-examples](https://newrelic.com/instant-observability/browser-examples))**
+  </DNT>
+</figcaption>
+
+### Cómo hacerlo
+
+Comience con el <DNT>**browser examples quickstart**</DNT>
+
+1. Vaya al [inicio rápido de ejemplos del navegador](https://newrelic.com/instant-observability/browser-examples/721fd258-326d-41f4-8f5d-0d5538ac7487).
+
+2. Haga clic en
+
+   <DNT>
+     **install now**
+   </DNT>
+
+   .
+
+3. Siga el símbolo para instalar el tablero.
+
+4. Edite el panel de ejemplo o utilice la consulta para inspirarse.
+
+Alternativamente, puedes crear tus propios gráficos de datos del navegador desde cero:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Query builder**
+   </DNT>
+
+   .
+
+2. En la pestaña NRQL del generador de consultas, pegue la consulta en la barra de consulta
+
+   <DNT>
+     **NRQL>**
+   </DNT>
+
+   y haga clic en
+
+   <DNT>
+     **Run**
+   </DNT>
+
+   .
+
+3. Escriba un
+
+   <DNT>
+     **widget title**
+   </DNT>
+
+   y agréguelo a un dashboard nuevo o existente.
+
+4. Vaya a la UI
+
+   <DNT>
+     **Dashboards**
+   </DNT>
+
+   para ver su nuevo dashboard.
+
+Para obtener más información, consulte nuestros documentos sobre [consulta de datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) y [panel de control](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards).
+
+## 12. Agregue valor a sus datos del navegador agregando un atributo personalizado [#custom-attributes]
+
+<DNT>
+  **Break down performance across your users, business, and more**
+</DNT>
+
+Al aprovechar [las API de New Relic](/docs/apis/get-started/intro-apis/introduction-new-relic-apis#browser-api), puede agregar un contexto vital a sus datos de rendimiento en relación con su tecnología, su usuario y su negocio. Todas nuestras herramientas de monitoreo envían sus datos a New Relic, lo que permite una gran personalización y extensibilidad en su panel de control. Solo asegúrese de estandarizar la denominación del evento personalizado y el atributo en diferentes fuentes de datos (como entre browser y el dispositivo móvil) para lograr una participación omnicanal.
+
+A continuación se muestran algunos ejemplos de lo que puede medir:
+
+* <DNT>
+    **Build id**
+  </DNT>
+
+  : Pase un número de compilación a la Prueba A/B de diferencias entre versiones.
+
+* <DNT>
+    **User id:**
+  </DNT>
+
+  Administre a sus clientes VIP y realice un seguimiento de su experiencia.
+
+* <DNT>
+    **Cart value:**
+  </DNT>
+
+  Comprenda cuántos ingresos están en riesgo cuando se producen errores durante el pago.
+
+* <DNT>
+    **Content type:**
+  </DNT>
+
+  Realice un seguimiento del tipo de contenido que está viendo su usuario.
+
+* <DNT>
+    **Video playback:**
+  </DNT>
+
+  Vea cómo los usuarios consumen su contenido multimedia.
+
+Las posibilidades son infinitas. Y como puede ver, este tipo de informes crea un contexto sobre cómo el rendimiento de la aplicación afecta al resto del negocio.
+
+### Cómo hacerlo
+
+* Utilice [nuestras API](/docs/apis/get-started/intro-apis/introduction-new-relic-apis#browser-api) para pasar datos personalizados sobre personas, cosas, dinero y más a New Relic.
+
+* Visita
+
+  <DNT>
+    **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+  </DNT>
+
+  y consulta sobre los datos personalizados que ahora están disponibles.
+
+Para obtener más información, consulte nuestros documentos sobre [consulta de datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) y [panel de control](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards).
+
+## 13. Alinearse con el negocio utilizando el panel de madurez de observabilidad [#observability-dashboards]
+
+El rendimiento web es clave para la experiencia del usuario, pero a veces se pasa por alto. Para marcar la diferencia en la experiencia de su usuario, necesita:
+
+1. Agrupe los datos de rendimiento tal como los ve el usuario. Los usuarios no experimentan promedios ni agregados: una sesión de usuario está vinculada a una región y un tipo de dispositivo. Los usuarios normalmente acceden solo a una parte del sitio a medida que completan uno o más viajes de usuario durante su sesión.
+2. Cree un lenguaje compartido con la empresa en torno al rendimiento del usuario para que pueda colaborar en prioridades y objetivos.
+
+### Cómo hacerlo
+
+* Inicie la conversación con nuestra [guía de bases de calidad](/docs/new-relic-solutions/observability-maturity/customer-experience/customer-experience-quality-foundation-guide).
+* Concéntrese en generar resultados para los usuarios con [el análisis de embudos más bajo](/docs/new-relic-solutions/observability-maturity/customer-experience/bottom-funnel-analysis-customer-journey-guide).
+
+## ¿Quieres más consejos para el usuario? [#more-tips]
+
+* Vea videos de capacitación en [New Relic University](https://learn.newrelic.com/).
+* Lea nuestra [documentación sobre monitoreo de navegador](/docs/browser).
+* Haga una pregunta en nuestro foro comunitario, el [Foro de soporte de New Relic](https://forum.newrelic.com/).
+* ¿Quiere ver el monitoreo del navegador en acción? Descubra cómo reducir la latencia y encontrar errores de JavaScript con nuestro tutorial [Mejore el rendimiento de su sitio web](/docs/journey-performance/improve-website-performance) .

@@ -1,0 +1,40 @@
+---
+title: Cambie el alias de su aplicación (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: 'How to use the New Relic REST API (v2) to set an alias for your application, in lieu of the primary app name set in the agent configuration.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El nombre de la aplicación que ve en la interfaz de usuario de New Relic es un [alias](/docs/agents/manage-apm-agents/app-naming/rename-your-application#app-alias) legible por humanos para el nombre principal asignado en sus ajustes de configuración. Si lo cambia, el nombre de su aplicación se actualiza en todas partes de la plataforma, incluidos <InlinePopover type="apm"/>, <InlinePopover type="browser"/>, etc.
+
+De forma predeterminada, el alias es el mismo que el nombre utilizado en el archivo de configuración del agente. Cambiar el alias no afecta el nombre configurado del agente y los datos aún se informan usando ese nombre.
+
+## Establecer el alias de la aplicación y modificar el umbral de Apdex [#set_app_alias]
+
+Para cambiar el alias del nombre de la aplicación desde la API REST de New Relic (v2), utilice este comando. También puede cambiar el alias de la aplicación desde [el Explorador de API](/docs/apis/rest-api-v2/api-explorer-v2/getting-started-new-relics-api-explorer) de New Relic seleccionando [<DNT>**Applications > Update**</DNT>](https://rpm.newrelic.com/api/explore/applications/update).
+
+* Deberá proporcionar el `${APP_ID}`, `${API_KEY}` y el alias `name` con el que desea que se muestre la aplicación en la UI de New Relic.
+* También debes proporcionar `APP_APDEX_THRESHOLD`, `BROWSER_APDEX_THRESHOLD` y el monitoreo habilitado `BOOLEAN` (`true` o `false`) incluso si no se están modificando.
+
+```bash
+curl -X PUT "https://api.newrelic.com/v2/applications/${APP_ID}.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -H 'Content-Type: application/json' \
+     -d \
+'{
+  "application": {
+    "name": "name",
+    "settings": {
+      "app_apdex_threshold": APP_APDEX_THRESHOLD,
+      "end_user_apdex_threshold": BROWSER_APDEX_THRESHOLD,
+      "enable_real_user_monitoring": BOOLEAN
+    }
+  }
+}'
+```
+
+Esto es el equivalente a usar la [UIde APM](/docs/agents/manage-apm-agents/app-naming/rename-your-application) para cambiar el nombre de la aplicación mostrada. Esto **no** cambiará el [nombre del identificador de la aplicación](/docs/agents/manage-apm-agents/app-naming/rename-your-application#app-identifier) bajo el cual se recopilarán sus datos. Solo cambiará el nombre de la aplicación que aparece en la interfaz de usuario de New Relic.

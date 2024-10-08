@@ -1,0 +1,467 @@
+---
+title: Avance seu painel com NRQL
+tags:
+  - NRQL tutorial
+  - 'NRQL: New Relic query language'
+  - Get started
+  - Tutorial
+metaDescription: Learn how to use NRQL to improve your dashboarding
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esperamos que ver exemplos de consultas e explicações no contexto de seus próprios dados ajude você a entender melhor como transformar dados com conceitos mais avançados, como taxa de mudança e agregação. Neste tutorial, você desenvolverá os conceitos encontrados nos [fundamentos do uso de NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-tutorial/) e [do controle de seus dados com NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-tutorial-control-your-data/) com conceitos mais avançados.
+
+Você aprenderá como aprimorar seu painel usando facetas por caso, funções avançadas de agregação, a palavra-chave `EXTRAPOLATE` , funções de filtragem de agregação e substituição de valores. Especificamente, você aprenderá como usar:
+
+* Funções de agregação avançadas como `filter()`, `apdex()`, `rate()funnel()`, `histogram()`.
+* As cláusulas `EXTRAPOLATE` .
+* `FACET CASES()`, incluindo como usar valores de atributo e correspondência de grupo.
+* `filter()` para combinar tipos de eventos.
+* Substituindo valores, quando necessário.
+
+Você não pode usar essas funções e recursos em todos os dashboard, mas certamente serão úteis ao lidar com problemas e requisitos específicos. Vamos começar!
+
+### Use agregador avançado
+
+<Steps>
+  <Step>
+    #### Taxa de cálculo
+
+    Vamos começar com a função `rate()` . Ele permite visualizar a frequência do evento ao longo do tempo, o que ajuda a ver a frequência do evento durante pequenos períodos em janelas de tempo maiores.
+
+    No exemplo abaixo, você pode ver a frequência média de solicitações a cada 5 minutos na última hora em comparação com a frequência média de 5 minutos da hora anterior. Observe que a consulta usa `SINCE 1 hour ago`. Esta é a janela de tempo geral em que você está calculando a taxa.
+
+    <SideBySide>
+      <Side>
+        ```sql
+        SELECT rate(count(*), 5 minutes) 
+        FROM Public_APICall 
+        SINCE 1 hour ago 
+        COMPARE WITH 1 hour ago
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Calculate range"
+          alt="A screenshot of a query using Since and Compare to capture data within a time range"
+          src="/images/queries-nrql_screenshot-crop-tutorial2-1.webp"
+        />
+      </Side>
+    </SideBySide>
+
+    Você pode usar `rate()` para calcular solicitações por minuto ou solicitações por segundo definindo o intervalo de tempo como 1 minuto ou 1 segundo.
+  </Step>
+
+  <Step>
+    #### Entenda o comportamento do usuário final com gráficos Funis
+
+    Os gráficos Funis rastreiam a ocorrência de um valor de atributo em vários registros e muitas pessoas os usam para entender o comportamento do usuário final. Você pode usá-los frequentemente para visualizar o sucesso do progresso do usuário através de caminhos definidos, e especialmente ao usar atributo personalizado.
+
+    Você pode usar a função agregadora `funnel()` para visualizar quantos usuários visitam uma página específica antes de passar para outra página. O primeiro parâmetro é o atributo de identificação das entradas exclusivas que você está contando. Nesse caso, a New Relic atribui e retém um atributo `session ID` para cada usuário do seu site (sujeito à ativação dos cookies). Você também pode definir seu próprio ID de sessão usando atributo personalizado.
+
+    Os parâmetros restantes determinam como cada etapa do funis é calculada, escrita no formato `, WHERE attr OP value`. Neste caso, você tem dois: um que mostra quantas sessões de usuários visitaram a página inicial, depois outro que mostra quantos deles também navegaram para outras páginas. Tente uma consulta como esta em seus próprios dados e veja o que você obtém!
+
+    <SideBySide>
+      <Side>
+        ```sql
+        SELECT funnel(awsAPI, WHERE http.url LIKE '%.amazonaws.com', WHERE http.url LIKE '%.us-west%.amazonaws.com') 
+        FROM Public_APICall 
+        SINCE 1 week ago 
+        UNTIL now
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Funnel Charts"
+          alt="A screenshot displaying the funnel charts functionality"
+          src="/images/queries-nrql_screenshot-crop-tutorial2-2.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+
+  <Step>
+    #### Filtros agregadores
+
+    `filter()` é uma ferramenta poderosa que permite agregar vários pontos de dados em uma única consulta, oferecendo mais controle sobre qual evento o resultado da função retorna. Neste exemplo, você usa `filter()` para retornar os valores separados para total transação, total transação da web e total transação fora da web:
+
+    ```sql
+    SELECT count(*) AS 'All Transactions', filter(count(*), WHERE awsAPI = 'dynamodb') AS 'DynamoDB', filter(count(*), WHERE awsAPI = 'sqs') AS 'SQS' 
+    FROM Public_APICall SINCE 1 day ago
+    ```
+
+    <img
+      title="Aggregator filters"
+      alt="A screenshot displaying the aggregator filter functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-3.webp"
+    />
+
+    Como ele retorna um número, você também pode realizar operações matemáticas nos resultados da consulta. Por exemplo, você pode dividir o total de chamadas de API por todas as chamadas de API para ver qual porcentagem delas era DynamoDB:
+
+    <SideBySide>
+      <Side>
+        ```sql
+        SELECT filter(count(*), WHERE awsAPI = 'dynamodb') / count(*) AS 'Percent of APIs that are DynamoDB' 
+        FROM Public_APICall 
+        SINCE 1 day ago
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Aggregator filters divided"
+          alt="A screenshot showing the aggregator filters divided"
+          src="/images/queries-nrql_screenshot-crop-tutorial2-4.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+
+  <Step>
+    #### Histograma
+
+    Histograma permitem visualizar melhor a distribuição de seus dados. Isso ajuda você a entender o agrupamento de pontos de dados por frequência, não apenas por médias. A função `histogram()` aceita três argumentos:
+
+    1. O atributo que você deseja plotar (como duração).
+    2. O valor máximo do intervalo que você deseja considerar (como "1" por 1 segundo ou menos).
+    3. O número de buckets nos quais você deseja agrupar os dados. Neste exemplo, você cria um gráfico `histogram()` para todos os valores de duração entre 0 e 1 segundo, agrupando-os em intervalos de 50 ms. Você faz isso especificando "20" para o número de buckets. Todas as durações maiores que 1 segundo são agrupadas no último intervalo.
+
+       <SideBySide>
+         <Side>
+           ```sql
+           SELECT histogram(duration, 1, 20) 
+           FROM Public_APICall 
+           SINCE 1 day ago
+           ```
+         </Side>
+
+         <Side>
+           <img
+             title="Histograms"
+             alt="A screenshot showing the histogram functionality"
+             src="/images/queries-nrql_screenshot-crop-tutorial2-5.webp"
+           />
+         </Side>
+       </SideBySide>
+  </Step>
+
+  <Step>
+    #### Apdex
+
+    A função `apdex()` calcula uma pontuação Apdex em qualquer valor numérico (como duração). Você pode calcular o Apdex de uma ou mais transações específicas para contabilizar valores de atributo personalizado. Você pode até fornecer seu próprio valor Apdex-T sem interferir nas configurações do aplicativo. Neste exemplo, você fornece à função um atributo de "duração" e um valor Apdex-T de 0,01, reportando-o como "Apdex of Duration":
+
+    ```sql
+    SELECT apdex(duration, 0.1) AS 'Apdex Of Duration' 
+    FROM Public_APICall 
+    SINCE 1 week ago
+    ```
+
+    <img
+      title="Apdex"
+      alt="A screenshot showing the apdex functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-6.webp"
+    />
+
+    Você também pode adicionar o operador `TIMESERIES` para representar graficamente os dados ao longo do tempo. Observe que isso também representa o limite satisfeito, tolerado e frustrado do Apdex.
+
+    <SideBySide>
+      <Side>
+        ```sql
+        SELECT apdex(duration, 0.1) AS 'Apdex Of Duration' 
+        FROM Public_APICall 
+        SINCE 1 week ago 
+        TIMESERIES
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Apdex time series"
+          alt="A screenshot showing an apdex time series"
+          src="/images/queries-nrql_screenshot-crop-tutorial2-7.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+</Steps>
+
+Agora você explorou um conjunto totalmente novo de visualizações com `funnel()` e `histogram()`. Você também aprendeu como `filter()` pode ajudá-lo a ser mais específico na consulta com cláusulas `WHERE` e como `rate()` pode exibir a taxa de um atributo ao longo do tempo.
+
+Essas consultas aumentam ainda mais sua capacidade de NRQL. Apdex é um padrão da indústria e se aplica a muitos cenários. Os funis podem acompanhar o progresso através dos caminhos desejados enquanto o histograma visualiza a distribuição clara dos dados. Por fim, os filtros permitem que você seja extremamente específico com os valores retornados. A seguir, você aprenderá sobre `EXTRAPOLATE`.
+
+### Use extrapolar para grandes quantidades de dados
+
+O banco de dados New Relic (NRDB) recebe e processa grandes quantidades de dados todos os dias na velocidade da luz! Quando o APM registra uma grande quantidade de dados de eventos, o agente New Relic implementa uma técnica de amostragem para continuar coletando dados significativos e, ao mesmo tempo, reduzindo o impacto potencial em seu aplicativo. Isso geralmente só acontece quando um único evento em um aplicativo ou serviço lida com volumes extremamente altos de solicitações.
+
+Se você tiver vários agentes espalhados por várias instâncias de um serviço com balanceamento de carga, talvez nunca observe esse limite. Vamos descobrir o que você pode fazer quando isso acontecer. O operador `EXTRAPOLATE` instrui o New Relic a compensar matematicamente os efeitos da amostragem, retornando assim resultados que representam mais de perto a atividade no seu sistema. Você pode armazenar um valor extra para registrar quantos eventos semelhantes ocorreram acima do limite, o que permite fornecer resultados estatisticamente precisos.
+
+```sql
+SELECT count(*) 
+FROM Transaction 
+SINCE 60 minutes ago 
+FACET appName 
+TIMESERIES 1 minute 
+EXTRAPOLATE
+```
+
+<img
+  title="Extrapolate"
+  alt="A screenshot showing the extrapolate functionality"
+  src="/images/queries-nrql_screenshot-crop-tutorial2-8.webp"
+/>
+
+Você pode pensar que pode atingir o limite ao fazer isso. Tente remover `EXTRAPOLATE` da consulta e veja se sua contagem muda. Caso contrário, provavelmente você não atingiu o limite.
+
+Quando você inclui `EXTRAPOLATE` em uma consulta, calculamos a proporção entre o evento relatado e o evento total. Em seguida, usamos essa proporção para extrapolar uma aproximação de dados não amostrados. Lembre-se de que apenas algumas consultas suportam esse uso. Quando incluída numa consulta NRQL que não a suporta ou que não utiliza dados amostrados, não tem efeito.
+
+Dados homogêneos, como taxas de transferência, aproveitam ao máximo a função `EXTRAPOLATE` . Tem menos efeito ao tentar extrapolar uma contagem de coisas distintas (como `uniqueCount()` ou `uniques()`). Portanto, `EXTRAPOLATE` só funciona com consultas NRQL que utilizam uma das seguintes funções agregadoras:
+
+* apdex
+* média
+* count
+* histogram
+* sum
+* percentage
+* avaliar
+* stddev
+
+Com `EXTRAPOLATE` concluído, vamos usar casos de atributos.
+
+### Use casos de faceta
+
+<Steps>
+  <Step>
+    Como você aprendeu anteriormente, `FACET` segmenta seus dados e ajuda a entendê-los a partir de perspectivas agrupadas de forma diferente (como ver o tempo médio de resposta com base em diferentes códigos de resposta). Quando você usa `FACET`, o NRDB organiza os dados em grupos com base nos valores do atributo fornecido. Mas e se você quisesse agrupar valores diferentes, como os códigos de resposta HTTP 200 e 201.
+
+    `FACET CASES()` resolve esse problema, permitindo que você escolha como os buckets de facetas serão divididos. O operador aceita qualquer número de parâmetros no formato `WHERE attr OP value`. No exemplo abaixo, você categoriza todas as transações com `http.url` começando com "amazon", "google" e "microsoft" em um bucket. Você também pode fazer isso para coisas como códigos de resposta a erros para agrupar nossos dados de maneira a aumentar a legibilidade e nos ajudar a entender o que está acontecendo em nossos aplicativos.
+
+    ```sql
+    SELECT count(*) 
+    FROM Public_APICall 
+    FACET CASES(WHERE http.url LIKE '%amazon%', WHERE http.url LIKE '%google%', WHERE http.url LIKE '%microsoft%')
+    ```
+
+    <img
+      title="Facet cases"
+      alt="A screenshot showing the facet cases functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-9.webp"
+    />
+  </Step>
+
+  <Step>
+    Como você pode ver, esses agrupamentos têm valor, mas você pode ter dificuldade em lê-los. Vamos limpá-los usando algo que aprendemos em um [tutorial anterior](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-tutorial-control-your-data/):
+
+    ```sql
+    SELECT count(*) 
+    FROM Public_APICall 
+    FACET CASES(WHERE http.url LIKE '%amazon%' AS 'Amazon', WHERE http.url LIKE '%google%' AS 'Google', WHERE http.url LIKE '%microsoft%' AS 'Microsoft')
+    ```
+
+    <img
+      title="Facet cases groupings"
+      alt="A screenshot showing the grouping functionality of facet cases"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-10.webp"
+    />
+  </Step>
+</Steps>
+
+`FACET CASES()` permite combinar e agrupar atributos com valores diferentes que você deseja combinar. Essa funcionalidade tem muitos usos e também é ainda mais poderosa quando você tag dados personalizados em seus dados de transação. Isso permite mais granularidade e controle na navegação e agrupamento de dados. A seguir, você examinará mais detalhadamente a filtragem, desta vez por tipo de evento.
+
+### Filtrar por tipo de evento
+
+<Steps>
+  <Step>
+    Agora você explorará algo que poucos clientes da New Relic conhecem: filtragem por tipos de eventos! Até agora, você fez consultas que extraem dados de uma única fonte. Mas e se você quiser plotar 2 pontos de dados armazenados como dois tipos de eventos diferentes? A consulta de dados NRDB não tem limites para um único tipo de evento, e você pode consultar diferentes tipos de eventos separando-os com vírgulas.
+
+    <SideBySide>
+      <Side>
+        ```sql
+        SELECT count(*) AS 'Combined Events' 
+        FROM NrdbQuery, NrDailyUsage 
+        SINCE 1 day ago
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Filter event type"
+          alt="A screenshot showing the filter event type functionality"
+          src="/images/queries-nrql_screenshot-crop-tutorial2-11.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+
+  <Step>
+    Para tornar isso ainda mais útil, a função `eventType()` informa de qual tipo de evento vem o registro. Você pode usar isso para controlar a saída de dados. Neste exemplo, você pode ver o número total de eventos `Transaction` e `PageView` combinados, bem como os totais apenas de `Transaction` e `PageView`.
+
+    ```sql
+    SELECT count(*) as 'Combined Events', filter(count(*), WHERE eventType() = 'PageView') as 'Page Views', filter(count(*), WHERE eventType()='Transaction') as 'Transactions' 
+    FROM Transaction, PageView 
+    SINCE 1 day ago
+    ```
+
+    <img
+      title="Event type with transaction and pageview"
+      alt="A screenshot showing the event type functionality with transactions and pageview"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-12.webp"
+    />
+  </Step>
+
+  <Step>
+    Vejamos isso com mais detalhes: `count(*)` mostra o número total de eventos `Transaction` e `PageView` . No entanto, você pode usar a função agregadora `filter()` que aprendeu recentemente para fazer algo único. A consulta possui `WHERE eventType()='PageView'`, que invoca a função de filtro para observar o tipo de evento como parte do conjunto total de resultados. Em seguida, ele filtra para exibir apenas aqueles eventos específicos. Você pode até adicionar `TIMESERIES` para visualizar dois pontos de dados diretamente comparáveis em um gráfico de linhas.
+
+    ```sql
+    SELECT count(*) as 'Combined Events', filter(count(*), WHERE eventType() = 'PageView') as 'Page Views', filter(count(*), WHERE eventType()='Transaction') as 'Transactions'
+    FROM Transaction
+    SINCE 1 day ago 
+    TIMESERIES max
+    ```
+
+    <img
+      title="Event type with count and time series"
+      alt="A screenshot showing the event type functionality with count and time series"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-13.webp"
+    />
+  </Step>
+</Steps>
+
+Agora você localizou, retornou e representou graficamente dados de dois tipos de eventos diferentes. Este exemplo mostra como o NRQL pode permitir que você navegue por quaisquer dados necessários de forma rápida e sucinta; não são necessárias declarações complexas de junção ou junção! A seguir, aprenderemos como usar valores de substituição.
+
+### Substituir valores
+
+<Steps>
+  <Step>
+    #### Contando valores NULL
+
+    Às vezes, os dados simplesmente não são reportados no formato que você precisa. Por exemplo, às vezes os números inteiros retornam como strings, mas você precisa deles como números inteiros para realizar operações matemáticas. Ou talvez você obtenha um resultado `NULL` , mas no seu caso `NULL` na verdade significa 0. Não se preocupe! Ouvimos você e adicionamos funcionalidades para ajudar a corrigir isso.
+
+    `NULL` os valores em atributo podem aparecer tanto em dados prontos para uso quanto em dados personalizados. Ao usar agregadores como `count()` e `average()`, o NRQL remove automaticamente os valores `NULL` do cálculo, executando a função apenas no evento sem valores `NULL` . NRQL permite contabilizar valores `NULL` inesperados em cálculos usando a cláusula `OR value` . Por exemplo, se você quiser ter certeza de que os valores `NULL` para um atributo `cartValue` contam como 0, você poderá usar `cartValue OR 0` em sua consulta.
+
+    Neste exemplo, executando `count()` em "http.url" conta apenas o número de vezes "http.url" tem um valor. Mas se você adicionar `OR 'Null'` à consulta, poderá contar todas as transações onde "http.url" existe, e também esses têm um valor `NULL` .
+
+    ```sql
+    SELECT count(duration) AS 'Events With Durations', count(http.url OR 'Null') AS 'Events With and Without URL' 
+    FROM Public_APICall 
+    SINCE 1 day ago
+    ```
+
+    <img
+      title="Null values"
+      alt="A screenshot showing the null values functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-14.webp"
+    />
+  </Step>
+
+  <Step>
+    Você quase aprendeu tudo o que precisa para ajudá-lo a aprimorar seu painel! A seguir, você aprenderá como usar a coerção.
+
+    #### Coerção
+
+    NRQL não aplica coerção automaticamente. Isso significa que tratamos um float armazenado como uma string como faríamos com qualquer outra string, e você não pode usá-los com funções matemáticas como `sum()` ou `average()`. Para substituir esse comportamento, use `boolean()` ou `numeric()` para converter argumentos em valores booleanos ou numéricos. Neste exemplo, uma função `average()` em "duração" não fornece valor, pois esse atributo é uma string. Mas se você converter o atributo em um número usando `numeric(duration)`, poderá usar a função `average()` com sucesso.
+
+    ```sql
+    SELECT average(numeric(duration)) AS 'Ensuring stored value is treated as numeric', average(duration) AS 'Non-Converted Attribute' 
+    FROM Public_APICall 
+    SINCE 1 day ago
+    ```
+
+    <img
+      title="Coercion"
+      alt="A screenshot showing the coercion functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-15.webp"
+    />
+  </Step>
+
+  <Step>
+    Outro exemplo comum são os valores `BOOLEAN` (TRUE ou FALSE), que geralmente são formatados incorretamente como strings. Quando isso acontece, você pode alterar a forma como a origem envia os dados para torná-los um booleano adequado. Ou você pode usar a função `boolean()` . O exemplo de consulta abaixo retorna o mesmo resultado, mas apenas porque você usa um valor enviado pelo agente como `BOOLEAN`. Se o seu atributo fosse uma string "TRUE", `boolean()` o converteria em um formato booleano adequado, permitindo que a consulta fosse executada conforme o esperado.
+
+    ```sql
+    SELECT count(boolean(sampleDataSet)), count(sampleDataSet)  
+    FROM Public_APICall 
+    SINCE 24 hours ago
+    ```
+
+    <img
+      title="Coercion with boolean"
+      alt="A screenshot showing the coercion functionality with the boolean function"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-16.webp"
+    />
+  </Step>
+
+  <Step>
+    Você também pode converter valores booleanos e numéricos em strings usando a função `string()` . Com valores numéricos como números de ponto flutuante, você pode usar o argumento opcional `precision` para limitar o número de casas decimais da string. Esta consulta retorna o valor da duração como uma string limitada a três casas decimais.
+
+    ```sql
+    SELECT string(duration, precision: 3) 
+    FROM Public_APICall 
+    SINCE 24 hours ago
+    ```
+
+    <img
+      title="Coercion with precision"
+      alt="A screenshot showing the coercion functionality with precision"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-17.webp"
+    />
+  </Step>
+</Steps>
+
+Aqui nós lhe damos o poder de controlar seus formatos de dados e dizer ao NRQL como você deseja que ele atue. O NRQL opera da maneira que consideramos mais lógica, mas se isso não for adequado ao seu cenário específico, você poderá usar as funções exploradas nesta lição para substituir esses valores. Você só tem uma coisa a aprender: concatenação de strings.
+
+### Use concatenação de strings para acrescentar argumentos
+
+<Steps>
+  <Step>
+    Pode haver alguns casos em que você precise acrescentar e/ou acrescentar texto ao valor retornado de um atributo. Você pode conseguir isso usando a função `concat()` . Você pode fornecer até 20 argumentos para a função `concat()` concatenar em uma string.
+
+    ```sql
+    SELECT concat('The duration of ', http.url, ' is ', duration, ' seconds') 
+    FROM Public_APICall
+    ```
+
+    <img
+      title="Concatenation"
+      alt="A screenshot showing the concatenation functionality"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-18.webp"
+    />
+  </Step>
+
+  <Step>
+    Você pode limitar o número de casas decimais usadas para quaisquer números de ponto flutuante nos valores do atributo concatenado. Para fazer isso, use o argumento opcional `precision:` como último valor. Neste exemplo, você acrescenta 's' para indicar segundos e limita o valor a 3 casas decimais.
+
+    ```sql
+    SELECT http.url, concat(duration, 's', precision: 3) 
+    FROM Public_APICall
+    ```
+
+    <img
+      title="Concatenation with precision"
+      alt="A screenshot showing the concatenation functionality with precision"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-19.webp"
+    />
+  </Step>
+
+  <Step>
+    Os valores que começam com `http(s)` são exibidos automaticamente como links nos quais você pode clicar para abrir uma nova página, o que significa que você pode criar integração para soluções onde um URL dinâmico pode abrir uma página relacionada a uma entidade. O exemplo a seguir demonstra um URL de exemplo onde você define os valores dos parâmetros da consulta pelos valores dos atributos.
+
+    ```sql
+    SELECT http.url, concat('https://www.example.com/?appId=', api, '&error=', error) AS 'URL' 
+    FROM Public_APICall
+    ```
+
+    <img
+      title="Concatenation with URLs"
+      alt="A screenshot showing the concatenation functionality with a URL"
+      src="/images/queries-nrql_screenshot-crop-tutorial2-20.webp"
+    />
+
+    Você pode usar a função `concat()` para combinar valores, como cidade e país para localização, e acrescentar ou acrescentar strings adicionais para apresentar os dados conforme necessário.
+  </Step>
+</Steps>
+
+Neste tutorial, você explorou funcionalidades NRQL específicas e poderosas. Essas habilidades serão úteis na próxima vez que você trabalhar com NRQL, mergulhando nos detalhes de seus dados.
+
+Você concluiu o terceiro tutorial de NRQL! Quando estiver pronto, temos ainda mais recursos e funções que queremos mostrar no próximo e último tutorial desta série: [Funções avançadas de NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-tutorial-advanced-functions/).

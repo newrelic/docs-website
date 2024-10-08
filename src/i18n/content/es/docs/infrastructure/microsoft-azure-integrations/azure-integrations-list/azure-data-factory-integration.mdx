@@ -1,0 +1,414 @@
+---
+title: Integración de monitoreo de Azure Data Factory
+tags:
+  - Integrations
+  - Microsoft Azure integrations
+  - Azure integrations list
+metaDescription: 'New Relic''s Microsoft Azure Database for PostgreSQL integration: what data it reports and how to enable it.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New Relic monitoreo de infraestructura](/docs/infrastructure/integrations-getting-started/getting-started/introduction-infrastructure-integrations) proporciona una integración para reportar sus datos [Microsoft Azure Data Factory](https://azure.microsoft.com/en-us/services/data-factory/) a New Relic. Aquí te explicamos cómo activar la integración y qué datos se pueden reportar.
+
+## Característica
+
+New Relic recopila datos de DataFactory y Factory de su servicio Azure Data Factory. Puede monitor y alertar sobre sus datos de Azure Data Factory desde New Relic, y puede crear consultas personalizadas y paneles de gráficos personalizados.
+
+## Activar la integración [#activate]
+
+Para habilitar la integración, siga los procedimientos estándar para [activar su servicio Azure en New Relic](/docs/infrastructure/microsoft-azure-integrations/getting-started/activate-azure-integrations).
+
+## Configuración y sondeo [#polling]
+
+Puede cambiar la frecuencia de sondeo y filtrar datos usando [las opciones de configuración](/docs/integrations/new-relic-integrations/getting-started/configure-polling-frequency-data-collection-cloud-integrations).
+
+Información [de sondeo](/docs/infrastructure/microsoft-azure-integrations/getting-started/azure-integration-polling) predeterminada para la integración de Azure Data Factory:
+
+* Intervalo de sonda: 5 minutos
+
+## Buscar y utilizar datos [#find-data]
+
+Para encontrar sus datos de integración, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Azure**</DNT> y seleccione la integración <DNT>**Data Factory**</DNT> .
+
+Los datos se adjuntan a los siguientes [tipos de eventos](/docs/data-apis/understand-data/new-relic-data-types/#event-data):
+
+<table>
+  <thead>
+    <tr>
+      <th width="150px">
+        Entidad
+      </th>
+
+      <th>
+        Tipo de evento
+      </th>
+
+      <th>
+        Proveedor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        DataFactory
+      </td>
+
+      <td>
+        `AzureDataFactoryDataFactorySample`
+      </td>
+
+      <td>
+        `AzureDataFactoryDataFactory`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Fábrica
+      </td>
+
+      <td>
+        `AzureDataFactoryFactorySample`
+      </td>
+
+      <td>
+        `AzureDataFactoryFactory`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener más información sobre cómo utilizar sus datos, consulte [Comprender y utilizar los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos [#metrics]
+
+Para ver las métricas reportadas por la integración Data Factory, consulte la entidad a continuación. Para obtener información métrica detallada, consulte la documentación [métrica admitida por Azure](https://docs.microsoft.com/en-us/azure/azure-monitor/platform/metrics-supported#microsoftdocumentdbdatabaseaccounts) .
+
+Esta integración recopila datos de Azure Data Factory para `DataFactory` y `Factory`.
+
+### `DataFactory` datos
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th style={{ width: "90px" }}>
+        Unidad
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `failedRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Ejecuciones fallidas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `successfulRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Ejecuciones fallidas
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### `Factory` datos
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th style={{ width: "90px" }}>
+        Unidad
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `pipelineFailedRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Métricas de ejecuciones de pipeline fallidas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `pipelineSucceededRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Métricas de ejecuciones de pipeline exitoso
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `pipelineCancelledRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Métricas de ejecuciones de pipeline canceladas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `activityFailedRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Actividad fallida se ejecuta métrica
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `activitySucceededRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        La actividad realizada con éxito se ejecuta métrica
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `activityCancelledRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        La actividad cancelada corre métrica
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `triggerFailedRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        El gatillo fallido funciona métricamente
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `triggerSucceededRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        El gatillo realizado con éxito funciona métricamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `triggerCancelledRuns`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Gatillo cancelado corre métrica
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationRuntimeCpuPercentagePercent`
+      </td>
+
+      <td>
+        Por ciento
+      </td>
+
+      <td>
+        Utilización de CPU en tiempo de ejecución de integración
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationRuntimeAvailableMemoryBytes`
+      </td>
+
+      <td>
+        Bytes
+      </td>
+
+      <td>
+        Integración runtime memoria disponible
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationRuntimeAverageTaskPickupDelaySeconds`
+      </td>
+
+      <td>
+        Segundos
+      </td>
+
+      <td>
+        Duración de la cola del tiempo de ejecución de integración
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationRuntimeQueueLength`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Longitud de la cola del tiempo de ejecución de integración
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationRuntimeAvailableNodeNumber`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Recuento de nodos disponibles en tiempo de ejecución de integración
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `maxAllowedResourceCount`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Recuento máximo de entidades permitido
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `maxAllowedFactorySizeInGbUnits`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Tamaño máximo permitido de fábrica (unidad GB)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourceCount`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Recuento total de entidades
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `factorySizeInGbUnits`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Tamaño total de fábrica (unidad GB)
+      </td>
+    </tr>
+  </tbody>
+</table>

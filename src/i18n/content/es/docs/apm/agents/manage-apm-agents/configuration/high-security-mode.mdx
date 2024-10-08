@@ -1,0 +1,424 @@
+---
+title: Modo de alta seguridad
+tags:
+  - Agents
+  - Manage APM agents
+  - Configuration
+metaDescription: An overview of New Relic's high-security mode feature for APM agents.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra configuración predeterminada del agente APM proporciona un alto nivel de seguridad. Sin embargo, es posible que deba garantizar que incluso si se anula la configuración predeterminada del agente APM para que sea más permisiva, el agente APM nunca informará datos confidenciales a New Relic. Si este es el caso, entonces querrás activar el modo de alta seguridad APM (también conocido como modo de seguridad empresarial).
+
+Para obtener más información sobre nuestras medidas de seguridad predeterminadas, consulte nuestra [documentación de seguridad y privacidad](/docs/using-new-relic/new-relic-security/security/security-matters-data-privacy-new-relic) o visite el [sitio web de seguridad de New Relic](https://newrelic.com/security).
+
+## Requisitos [#requirements]
+
+El modo de alta seguridad requiere [la edición Enterprise](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions).
+
+El modo de alta seguridad es una configuración por cuenta, no por organización. Esto significa que si su [organización contiene varias cuentas](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure), debe habilitar este modo para cada cuenta.
+
+¿Tiene preguntas sobre el acceso a esta característica? Hable con su representante de cuenta de New Relic.
+
+## Versiones [#overview]
+
+Hay dos versiones del modo de alta seguridad. [La versión 1](#version1description) está obsoleta y está disponible solo si ya la tiene. Si habilita el modo de alta seguridad por primera vez, la única opción es la versión 2 (v2). Para obtener detalles sobre la compatibilidad del agente para la versión 2, consulte [compatibilidad con la versión](#version-support).
+
+## Habilitar el modo de alta seguridad (versión 2) [#version2enabled]
+
+Para habilitar la alta seguridad, debe actualizar la configuración local en su servidor <DNT>**and**</DNT> la configuración remota en la UI.
+
+Antes de hacer esto, tenga en cuenta que:
+
+* Una vez que habilite la alta seguridad para una cuenta,
+
+  <DNT>
+    **high security cannot be turned off**
+  </DNT>
+
+  sin asistencia del [soporte de New Relic](https://support.newrelic.com).
+
+* Esta es una [configuración por cuenta](#requirements), lo que significa que debe configurarla para cada cuenta a la que desee otorgar el modo de alta seguridad.
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        <DNT>
+          **Setting location**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Establecer en UI
+      </td>
+
+      <td>
+        * Para usuarios de [nuestro modelo de usuario más nuevo](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-changes-pricing-user-model/#user-model) (casi todos los clientes): obtenga el [ID de cuenta](/docs/accounts/accounts-billing/account-structure/account-id) para la cuenta que desea habilitar. Luego utilícelo para ir a esta URL: `https://one.newrelic.com/admin-portal/apm-agents/hsm?account=YOUR_ACCOUNT_ID`. En esa página, puede configurar el modo de alta seguridad.
+
+        * Para usuarios de [nuestro modelo de usuario original](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model): solo el propietario de la cuenta puede configurar esto. Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, haga clic en el [menú de usuario](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings) y haga clic en <DNT>**Administration**</DNT>. En esa página, seleccione <DNT>**High-security mode**</DNT>.
+
+          Si el agente está configurado para alta seguridad a través de la UI pero no localmente, las conexiones del agente se rechazan y el agente se cerrará. Sin embargo, esto no cerrará su aplicación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Local, a través de agente
+      </td>
+
+      <td>
+        Habilite el modo de alta seguridad en el archivo de configuración de su agente. El modo de alta seguridad está deshabilitado de forma predeterminada y el procedimiento exacto para habilitarlo varía según el agente:
+
+        * [Go](/docs/agents/go-agent/instrumentation/go-agent-configuration#high_security)
+
+        * [Java](/docs/java/java-agent-configuration#cfg-enable_high_security)
+
+        * [.NET](/docs/dotnet/dotnet-agent-configuration#high_security_mode)
+
+        * [Node.js](/docs/nodejs/customizing-your-nodejs-config-file#high_security)
+
+        * [PHP](/docs/php/php-agent-phpini-settings#inivar-high-security)
+
+        * [Python](/docs/python/python-agent-configuration#high_security)
+
+        * [Ruby](/docs/ruby/ruby-agent-configuration#high_security)
+
+          Si el agente está configurado para alta seguridad localmente pero no a través de la UI, las conexiones del agente se rechazarán y el agente se cerrará. Esto no cerrará su aplicación.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Resultados de habilitar el modo de alta seguridad (versión 2) [#version2description]
+
+Una vez habilitado, el modo de alta seguridad (v2) garantiza lo siguiente para su cuenta:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Feature**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Requiere que el agente utilice una conexión segura (HTTPS)
+      </td>
+
+      <td>
+        El modo de alta seguridad requiere una conexión segura (HTTPS). Se rechazarán los intentos de conexión no segura. La última versión de todos los agentes New Relic admite HTTPS. Si la configuración no se establece correctamente, el agente anulará la propiedad para garantizar que todos los datos en tránsito cumplan con los últimos estándares de la industria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de parámetros HTTP
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite que los parámetros HTTP, que pueden contener datos confidenciales de los clientes, se envíen al recolector de New Relic. Si el agente está configurado para enviar parámetros HTTP localmente o mediante [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration), el modo de alta seguridad anulará la configuración para nunca capturar parámetros HTTP.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de parámetros de cola de mensajes
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite que los parámetros de la cola de mensajes, que pueden contener datos confidenciales de los clientes, se envíen al recolector de New Relic. Si el agente está configurado para enviar parámetros de la cola de mensajes localmente o mediante [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration), entonces el modo de alta seguridad anulará la configuración para nunca capturar los parámetros de la cola de mensajes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de declaraciones de consulta sin formato
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite que se capturen declaraciones de consulta de la base de datos sin procesar, que pueden contener datos confidenciales de los clientes. Si el agente está configurado para capturar consultas sin procesar localmente o mediante [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration), entonces el modo de alta seguridad anulará la configuración para nunca capturar consultas sin procesar.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Impide la captura de atributos del usuario.
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite capturar conjuntos de atributos utilizando la API de cada agente, ya que estos pueden contener datos confidenciales de los clientes.
+
+        Por ejemplo, en el agente de Java, se bloqueará el atributo pasado a través de las siguientes llamadas API del agente `NewRelic` :
+
+        ```java
+        NewRelic.addCustomParameter(String key, String value)
+        ```
+
+        ```java
+        NewRelic.addCustomParameter(String key, Number value)
+        ```
+
+        ```java
+        NewRelic.setUserName(String name)
+        ```
+
+        ```java
+        NewRelic.setAccountName(String name)
+        ```
+
+        ```java
+        NewRelic.setProductName(String name)
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de `noticeError` atributo
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite capturar el conjunto de atributos que utilizan la llamada API `noticeError` de cada agente, ya que pueden contener datos confidenciales de los clientes.
+
+        Por ejemplo, en el agente de Java, se bloqueará el atributo pasado a través de las siguientes llamadas API del agente `NewRelic` :
+
+        ```java
+        NewRelic.noticeError(String message, Map<String, String> params)
+        ```
+
+        ```java
+        NewRelic.noticeError(Throwable throwable, Map<String, String> params)
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene evento personalizado
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite crear eventos personalizados utilizando la API del agente, ya que estos pueden contener datos confidenciales de los clientes.
+
+        Por ejemplo, en el agente .NET, se bloqueará la llamada API `RecordCustomEvent` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evita el reenvío de registros de eventos en el agente
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite que el registro de eventos se reenvíe a APM usando la opción de configuración `application_logging.forwarding.enabled` ya que el mensaje de registro puede contener datos confidenciales de los clientes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Impide desplegar instrumentación personalizada vía [CIE](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation)
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite desplegar instrumentación personalizada cuando se utiliza el [Editor de instrumentación personalizada](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation). Si tiene habilitado el modo de alta seguridad, debe [exportar la instrumentación](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation#manual-deploy) e importarla manualmente a su servidor de aplicaciones.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Soporte de la versión 2 [#version-support]
+
+A continuación se detallan las versiones del agente que admiten la versión 2 del modo de alta seguridad:
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        <DNT>
+          **Agent**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Version 2 support**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [Go](/docs/agents/go-agent/instrumentation/go-agent-configuration#high_security)
+      </td>
+
+      <td>
+        Todas las versiones
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Java](/docs/java/java-agent-configuration#cfg-enable_high_security)
+      </td>
+
+      <td>
+        3.7 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [.NET](/docs/dotnet/dotnet-agent-configuration#high_security_mode)
+      </td>
+
+      <td>
+        3.3 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Node.js](/docs/nodejs/customizing-your-nodejs-config-file#high_security)
+      </td>
+
+      <td>
+        1.7.0 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [PHP](/docs/php/php-agent-phpini-settings#inivar-high-security)
+      </td>
+
+      <td>
+        4.9 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Python](/docs/python/python-agent-configuration#high_security)
+      </td>
+
+      <td>
+        2.22.0.0 o superior
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Ruby](/docs/ruby/ruby-agent-configuration#high_security)
+      </td>
+
+      <td>
+        3.9.1 o superior
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Resultados de habilitar el modo de alta seguridad v1 (obsoleto) [#version1description]
+
+La versión 1 del modo de alta seguridad está obsoleta y solo está disponible si la habilitó antes de que la versión 2 estuviera disponible. La versión 1 del modo de alta seguridad garantiza lo siguiente para su cuenta:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Feature**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Requiere que el agente utilice una conexión segura (HTTPS)
+      </td>
+
+      <td>
+        El modo de alta seguridad requiere una conexión cifrada (HTTPS). Se rechazarán los intentos de conexión no segura. La última versión de todos los agentes New Relic admite HTTPS. Si la configuración no se establece correctamente, el agente anulará la propiedad para garantizar que todos los datos en tránsito estén cifrados según los últimos estándares de la industria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de parámetros HTTP
+      </td>
+
+      <td>
+        El agente configurado para capturar parámetros HTTP, que pueden contener datos confidenciales de los clientes, no puede conectarse a New Relic. Si la configuración local está configurada para capturar el parámetro de solicitud, entonces el recolector de New Relic rechazará la conexión y el agente se cerrará.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Previene la captura de declaraciones de consulta sin formato
+      </td>
+
+      <td>
+        El agente configurado para capturar declaraciones sin procesar de consulta de la base de datos, que pueden contener datos confidenciales del cliente, no puede conectarse a New Relic. Si el agente está configurado para capturar consultas sin procesar localmente o mediante [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration), el recolector de New Relic rechazará la conexión y el agente se cerrará.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Impide desplegar instrumentación personalizada vía [CIE](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation)
+      </td>
+
+      <td>
+        El modo de alta seguridad no permite desplegar instrumentación personalizada cuando se utiliza el [Editor de instrumentación personalizada](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation). Si tiene habilitado el modo de alta seguridad, debe [exportar la instrumentación](/docs/agents/java-agent/custom-instrumentation/custom-instrumentation-editor-quickly-customize-your-java-instrumentation#manual-deploy) e importarla manualmente a su servidor de aplicaciones.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Migrar de la versión 1 a la versión 2 [#migrating]
+
+Estas son las principales diferencias entre las dos versiones de alta seguridad:
+
+* Para que la alta seguridad sea aún más segura, se debe habilitar la alta seguridad en la interfaz de usuario de New Relic
+
+  <DNT>
+    **and**
+  </DNT>
+
+  en el archivo de configuración local de New Relic. La versión 1 de alta seguridad solo requería que se estableciera alta seguridad en la UI de New Relic.
+
+* El atributo de usuario, el atributo `noticeError` y el parámetro de cola de mensajes están desactivados con alta seguridad en la versión 2, pero no en la versión 1.
+
+Para actualizar de v1 a v2, agregue `high_security: true` al archivo de configuración de su agente local.

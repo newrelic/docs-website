@@ -1,0 +1,154 @@
+---
+title: Guía de migración del agente Ruby 6.x a 7.x
+tags:
+  - Agents
+  - Ruby agent
+  - Getting started
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Resumen [#summary]
+
+Esta guía cubre los principales cambios entre las series 6.x y 7.x del agente Ruby, los problemas que pueden surgir durante la actualización y cómo migrar exitosamente a la versión 7.x.
+
+Los principales cambios incluyen:
+
+* [Se elimina el soporte para Ruby 2.0 y 2.1](#ruby-2-dropped)
+* [Se elimina el paquete de certificado SSL](#ssl-cert-removed)
+* [Varias API que quedaron obsoletas en varias versiones 6.x ahora se eliminaron](#deprecated-apis)
+* [La instrumentación automática se antepone por defecto al método cadena](#prepend-instrumentation)
+* [La instrumentación automática obtiene un atributo de configuración consistente](#modernized-auto-instrumentation)
+
+Consulte el [hito de la versión objetivo 7.0](https://github.com/newrelic/newrelic-ruby-agent/pulls?q=is%3Apr+label%3Aversion%3A7.0.0+) para obtener más información.
+
+## Se elimina el soporte para Ruby 2.0 y 2.1 [#ruby-2-dropped]
+
+Ruby 2.0 y 2.1 alcanzaron [el EOL en febrero de 2016](https://www.ruby-lang.org/en/news/2016/02/24/support-plan-of-ruby-2-0-0-and-2-1/), y New Relic está haciendo lo mismo al dejar de admitir estas versiones en la versión 7.0. No se conocen cambios que impidan inherentemente que estas versiones sigan funcionando, pero ya no garantizamos que el agente Ruby continúe funcionando sin problemas en el futuro. Si necesita Ruby 2.0 o 2.1, continúe usando 6.15.0, que es la última versión publicada para admitir estas versiones de Ruby.
+
+## Anteponer configuración de instrumentación [#prepend-instrumentation]
+
+Solicitud de extracción relevante \[la]: [anteponer instrumentación n.º 565](https://github.com/newrelic/newrelic-ruby-agent/pull/565).
+
+<DNT>**Potential issue:**</DNT> El agente no puede inicializarse ni comenzar a informar datos. En el registro se informa un mensaje de error de nivel stack demasiado profundo.
+
+<DNT>**Solution:**</DNT> Nuestro mecanismo de configuración y detección de dependencia ahora se puede controlar mediante la configuración. Por defecto todas las gemas/biblioteca auto-instrumentadas se activan con la estrategia anteponer. La configuración predeterminada para estas bibliotecas en ausencia de ninguna configuración que aparezca en el archivo de configuración es `auto`, que elegirá la mejor estrategia. En el caso de un conflicto conocido con estrategias de prefijo, `auto` indica al agente que recurra a la cadena de métodos cuando se detecten dichos conflictos. A continuación se muestra una explicación completa de nuestros cambios en la sección de configuración para la instrumentación automática usando sidekiq como ejemplo.
+
+```yml
+instrumentation:
+    sidekiq: chain
+```
+
+<Callout variant="tip">
+  El caso de uso para esto es cuando se descubre que una gema desconocida está en conflicto. El usuario puede volver a la cadena de métodos para solucionar el conflicto hasta que el agente pueda actualizarse para detectar y gestionar automáticamente el conflicto.
+</Callout>
+
+Para desactivar la instrumentación por completo:
+
+```yml
+instrumentation:
+    sidekiq: disable
+```
+
+En algunos casos, es posible que sepamos que gemas específicas entran en conflicto con anteponer. Para facilitarlo, ofrecemos de forma predeterminada una opción de configuración automática, que se degrada automáticamente a cadena en tales casos.
+
+La configuración predeterminada en la mayoría de los casos es la siguiente:
+
+```yml
+instrumentation:
+    sidekiq: auto
+```
+
+Es posible forzar el uso de la estrategia anteponer especificándola en el archivo de configuración:
+
+```yml
+instrumentation:
+    sidekiq: prepend
+```
+
+<Callout variant="tip">
+  El caso de uso para esto es cuando se lanza una versión más nueva de la gema en conflicto y se sabe que ya no entra en conflicto con la estrategia de anteponer.
+</Callout>
+
+Si encuentra errores de nivel de pila demasiado profundos, consulte nuestra [guía de resolución de problemas](/docs/apm/agents/ruby-agent/troubleshooting/systemstackerror-stack-level-too-deep) sobre cómo resolver estos problemas. Después de trabajar en esta guía de resolución de problemas, puede informarnos sobre el conflicto de antepuesto que encuentre comentando este [problema de GitHub](https://github.com/newrelic/newrelic-ruby-agent/issues/731). Agradecemos sus comentarios para que podamos detectar y recurrir automáticamente a la cadena de métodos en tales escenarios.
+
+## Estrategia de instrumentación automática modernizada [#modernized-auto-instrumentation]
+
+Ruby introdujo prepend como una forma de insertar definiciones de métodos anteriormente en la stack de resolución de métodos en Ruby 2.0 (lanzado en 2013) con la intención de que prepend elimine la necesidad de hacer método-cadena como un medio para parchear las implementaciones originales de la biblioteca de gemas con traza/ lógica de observabilidad.
+
+Mezclar anteponer con método-cadena (también conocido como método_alias parche de mono) puede conducir a un escenario de nivel stack conocido demasiado profundo, como se describe en [nuestra publicación de blog](https://blog.newrelic.com/engineering/ruby-agent-module-prepend-alias-method-chains/) sobre el tema.
+
+New Relic ha actualizado previamente muchas bibliotecas auto-instrumentadas a lo largo de los años para utilizar la estrategia de anteponer. La versión 7.0 hace que la estrategia predeterminada de elección se anteponga a instrumento automático en lugar de cadena de métodos, excepto cuando existen escenarios conocidos que provocarían errores demasiado profundos en el nivel stack . Se hizo un gran esfuerzo para identificar gemas externas en conflicto que llevarían a este escenario, pero es probable que haya otras en la naturaleza que no hemos identificado.
+
+En el pasado, solo teníamos una forma de autoinstrumento para la mayoría de las gemas y era el método de cadena. Con la versión 7.0, podemos instrumentar la mayoría de las gemas usando el método cadena o anteponer y nuestra configuración de todas las gemas auto-instrumentadas se ha actualizado para reflejar esto.
+
+Con la modernización de nuestra instrumentación automática, también hemos introducido una nueva funcionalidad en nuestro mecanismo de detección de dependencia para identificar gemas externas en conflicto y cambiar automáticamente de estrategia de prefijo a cadena de método. Esto significa que ya no tendrá que depender de los mantenedores de otras gemas para realizar cambios en su biblioteca de gemas para facilitar el uso del agente Ruby junto con esas gemas. Sin embargo, no somos conscientes de dichos conflictos hasta que nuestro usuario nos los informa, por lo que solo algunos de nuestra biblioteca auto-instrumentada pueden detectar automáticamente estos conflictos y cambiar automáticamente a estrategias de cadena de métodos. Necesitamos su ayuda para conocer estos escenarios y agregar la detección automática a futuras versiones del agente Ruby.
+
+## Se elimina el paquete de certificado SSL [#ssl-cert-removed]
+
+En los primeros días de Ruby (1.8, 1.9, etc.), la integración con OpenSSL y la realización de conexiones HTTPS no se manejaban bien. Para garantizar que los clientes pudieran realizar conexiones HTTPS de manera consistente con los servidores recolectores de New Relic, se incluyó y distribuyó una selección de certificados SSL CA con el agente Ruby. Con el tiempo, el ecosistema Ruby se ha estabilizado y ahora admite certificados de CA instalados en el sistema de una manera estándar que deja obsoleta en gran medida la necesidad de agrupar y distribuir el paquete de certificados. La gran mayoría de los certificados agrupados han caducado o están a punto de caducar, por lo que hemos decidido eliminar esta dependencia del agente. Si está implementando una aplicación Ruby y un agente en un contenedor o servidor que no tiene certificados CA instalados, deberá asegurarse de que ahora estén instalados para las versiones 7.0+ del agente para realizar conexiones HTTPS exitosas con los servidores New Relic.
+
+Para obtener más información, consulte [Eliminar el paquete de certificados n.º 478](https://github.com/newrelic/newrelic-ruby-agent/issues/478).
+
+<DNT>**Potential issue:**</DNT> Si está implementando en un host que no tiene OpenSSL ni certificados CA del sistema instalados, puede experimentar problemas para conectarse a los servidores New Relic y perder datos APM.
+
+<DNT>**Solution:**</DNT> Los servidores New Relic requieren HTTPS, que utiliza certificados CA para iniciar conexiones exitosas. Estos pueden instalarse, y dependiendo de su host, de varias maneras. Los siguientes son enlaces útiles para probar la preparación de su host e instalar certificados de CA:
+
+* [Resolución de problemas certificado SSL Errores](https://bundler.io/v2.0/guides/rubygems_tls_ssl_troubleshooting_guide.html#troubleshooting-certificate-errors)
+* [Verificación SSL automatizada](https://bundler.io/v2.0/guides/rubygems_tls_ssl_troubleshooting_guide.html#automated-ssl-check)
+* [Instalación de certificados de CA](https://superuser.com/questions/437330/how-do-you-add-a-certificate-authority-ca-to-ubuntu/719047#719047)
+* [Cómo manejar certificados en docker](https://serverfault.com/questions/975775/how-to-handle-certificates-in-dockerfile)
+
+Si es necesario, el agente se puede configurar para utilizar cualquier paquete de CA proporcionando la ruta al archivo del paquete de CA a través de la configuración: `:ca_bundle_path`. Consulte [Certificado SSL personalizado para Ruby](/docs/agents/ruby-agent/configuration/custom-ssl-certificates-ruby/) para obtener más información.
+
+## API obsoletas y atributo de configuración [#deprecated-apis]
+
+Todas las API obsoletas tienen API de reemplazo que amplían el alcance y/o mejoran la solidez de la API obsoleta.
+
+Las solicitudes de extracción \[la] relevantes son:
+
+* [Eliminar referencias a `whitelist` y `blacklist` en la base de código #479](https://github.com/newrelic/newrelic-ruby-agent/issues/479)
+* [Eliminar las opciones de configuración `ActiveRecord` obsoletas #480](https://github.com/newrelic/newrelic-ruby-agent/issues/480)
+* [Eliminar `httpResponseCode` atributo #481](https://github.com/newrelic/newrelic-ruby-agent/issues/481)
+* [Eliminar la opción obsoleta de `notice_error` API #597](https://github.com/newrelic/newrelic-ruby-agent/issues/597)
+* [Eliminar los métodos API obsoletos de rastreo distribuido #598](https://github.com/newrelic/newrelic-ruby-agent/issues/598)
+
+### Listas permitidas y denegadas habilitadas [#lists-enabled]
+
+<DNT>**Potential issue:**</DNT> El atributo listado en blanco y negro ya no funciona.
+
+<DNT>**Solution**</DNT> : Cambie `black` a `denied` y `white` a `allowed` en su configuración o configuración de variables de entorno.
+
+[https://docs.newrelic.com/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_constants](https://docs.newrelic.com/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_constants)
+
+* `:autostart.blacklisted_constants` => [`:autostart.denylisted_constants`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_constants)
+* `:autostart.blacklisted_executables` => [`:autostart.denylisted_executables`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_executables)
+* `:autostart.blacklisted_rake_tasks` => [`:autostart.denylisted_rake_tasks`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_rake_tasks)
+* `:strip_exception_messages.whitelist` => [`:strip_exception_messages.allowed_classes`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#strip_exception_messages-allowed_classes)
+
+### Registro activo [#active-record]
+
+<DNT>**Potential issue:**</DNT> Deshabilitar versiones anteriores de Active Record ya no funciona.
+
+<DNT>**Solution:**</DNT> Cambie los siguientes ajustes de configuración:
+
+* `:disable_active_record_4` => [`:disable_active_record_notifications`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#disable_active_record_notifications)
+* `:disable_active_record_5` => [`:disable_active_record_notifications`](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#disable_active_record_notifications)
+
+### httpResponseCode [#http-response-code]
+
+<DNT>**Potential issue:**</DNT> El atributo `httpResponseCode` ya no aparece en UI en la traza reportada.
+
+<DNT>**Solution:**</DNT> `httpResponseCode` fue reemplazado por [`http.statusCode`](/docs/agents/ruby-agent/attributes/ruby-agent-attributes/#attributes).
+
+### Notice Error (trace_only) [#notice-error]
+
+<DNT>**Potential issue:**</DNT> Pasar la opción `:trace_only` a `NewRelic::Agent.notice_error` ya no funciona.
+
+<DNT>**Solution:**</DNT> Reemplace `:trace_only` con el atributo [`:expected`](/docs/agents/ruby-agent/api-guides/sending-handled-errors-new-relic/) .
+
+### API de rastreo distribuidas [#distributed-tracing-apis]
+
+<DNT>**Potential issue:**</DNT> Se generan errores en el código de la aplicación al llamar a los métodos de API `create_distributed_trace_payload` y `accept_distributed_trace_payload`.
+
+<DNT>**Solution:**</DNT> En su lugar, consulte [`insert_distributed_trace_headers`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/DistributedTracing#insert_distributed_trace_headers-instance_method) y [`accept_distributed_trace_headers`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/DistributedTracing#accept_distributed_trace_headers-instance_method), respectivamente.

@@ -1,0 +1,260 @@
+---
+title: Improvements to NRQL percentile()
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: A closer look at how New Relic calculates percentile().
+freshnessValidatedDate: never
+---
+
+In telemetry, percentile is an important statistical measurement with many applications. However, it also presents a challenge for those working with large data sets. This is because the standard method for computing percentile is also technically "expensive" due to the need to sort data.
+
+The new `percentile()` function works on arbitrarily large data sets, with minimal cost. It is also excellent for long tail distributions. Its relative error consistency is guaranteed across the board for percentiles from 0% to 100%.
+
+As a user, you don’t need to do anything to get the new algorithm. All your `percentile()` calls are automatically executed using it. But if you’d like to learn more about how the new `percentile()` function was developed and how it is superior to the previous method used, read on for a deep dive on New Relic’s changes and rationale.
+
+## Error types and impacts on reported data [#heading_name]
+
+Until recently, New Relic has relied on the method described in [Quantiles over Data Streams: An Experimental Study](http://dimacs.rutgers.edu/%7Egraham/pubs/papers/nquantiles.pdf). This method uses rank error, and with New Relic’s parameters applied, results in 0.3% rank error. But because rank error is calculated differently than relative or absolute error, this means there may be much wider variation between actual and reported values than is desirable.
+
+To better understand the impact of different error types, it’s helpful to take a closer look at error types in the context of percentile calculation `percentile(p) = x`. The table shows how error type impacts lower and upper bound of reported value.
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        <DNT>
+          **Error type**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Lower bound of reported_x**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Upper bound of reported_x**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        absolute error
+      </td>
+
+      <td>
+        actual_x - absolute_error
+      </td>
+
+      <td>
+        actual_x + absolute_error
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        relative error
+      </td>
+
+      <td>
+        actual_x \* (1 - relative_error)
+      </td>
+
+      <td>
+        actual_x \* (1 + relative_error)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        rank error
+      </td>
+
+      <td>
+        percentile \* (p - rank error)
+      </td>
+
+      <td>
+        percentile \* (p + rank error)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+As you can see in the table, for absolute error, reported value is within +/- range of actual value, and for relative error, reported value is within +/- percent of actual value.
+
+Rank error works a bit differently and is best described with a concrete example: If you request the 99th percentile of a data set and the reported value is 500 with 0.3% rank error, it means that the reported value is within the range of 98.7 and 99.3 percentile for the data set.
+
+Why is this important? Because, since the rank error is calculated relative to the percentile _p_ and not the value _x_, there is no guarantee that the reported value will be particularly close to the actual value. In long tail telemetry distributions, the difference between actual and reported values may in fact be quite large. For example, when the value corresponding to 98.7 percentile is 1000, but the value corresponding to 99.3 percentile is 2000, any value reported between 1000 and 2000 meets the 0.3% rank error specification, creating a pretty large margin of error.
+
+As you can see from the example, the accuracy of the old method depends on how much the value varies within the percentile. While this method is usually adequate for the median (50%) and up to 90%, it often falls short for long tail distribution above 99%.
+
+## Making percentile calculations more accurate
+
+In July 2020, New Relic rolled out a new way of calculating `percentile()` that uses a proprietary algorithm in what is known as the logarithmic scale equal-width histogram family. Like other methods in this family, it provides relative error guarantee.
+
+The typical relative error of the new method for most datasets is about 3%.This means that, regardless of the percentile you ask for being 1%, 99%, or 99.99%, the reported value is guaranteed to be within 3% of the actual value. This is particularly good for long tail tracking. No matter what percentile you ask for, the same 3% relative error holds.
+
+### Contrast ratio and relative error
+
+Contrast ratios are calculated by dividing the largest number in the input data set by the smallest non-zero number in the input data set. If input has negative numbers, contrast ratio is computed separately on the positive number set and on the absolute values of the negative number set. The final contrast ratio is the larger of the positive and negative numbers’ contrast ratio. When the contrast of the data set is higher, the relative error is also higher.
+
+To control how "costly" the computations are in terms of data handling, the new algorithm limits the number of histogram buckets, with relative error at about 3% for data sets within the 1,000 to 1 million contrast ratio bucket. This should cover use cases for most customers. The table below shows how contrast ranges below 1,000 and above 1 million impact relative error and, for scale, the time duration a contrast ratio can represent.
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        <DNT>
+          **Contrast ratio**
+        </DNT>
+      </th>
+
+      <th width={150}>
+        <DNT>
+          **Relative error**
+        </DNT>
+      </th>
+
+      <th width={250}>
+        <DNT>
+          **Duration range example**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        32 to 1K
+      </td>
+
+      <td>
+        1.5635%
+      </td>
+
+      <td>
+        1 millisecond to 1 second
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        1K to 1M
+      </td>
+
+      <td>
+        3.125%
+      </td>
+
+      <td>
+        1 millisecond to 16 minutes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        1M to 1T (2^40, about 10^12)
+      </td>
+
+      <td>
+        6.25%
+      </td>
+
+      <td>
+        1 millisecond to 31 years
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        1T to 2^80 (about 10^24)
+      </td>
+
+      <td>
+        12.5%
+      </td>
+
+      <td>
+        1 nanosecond to 31 million years
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Negative numbers and zero
+
+The new method covers any mixture of positive numbers, zero, and negative numbers. Relative error for negative numbers is defined based on absolute values. Zero is excluded in contrast calculation.
+
+### Stable measurement
+
+The new method returns stable measurement. When changes in the measured data set is within error margin, the method returns the same number. This provides a clear signal to the user: If the number does not change, then there is no measurable change. If the number changes, there is measurable change.
+
+In comparison, the old method may return a different number even when there is no statistically significant change in the data set. The burden is on the user to determine if the difference in returned numbers represents a measurable change. A change is significant only when the difference is greater than the error margin.
+
+## Viewing relative error
+
+The relative error of a `percentile()` call is returned in JSON results of NRQL queries via the `relativeError` field. If you are using a graphic UI, you will need to switch to JSON format to see the result metadata.
+
+Here’s an example of result metadata showing 3.125% relative error.
+
+```json
+"contents": [
+{
+  "function": "percentile",
+  "attribute": "wallClockTime",
+  "relativeError": 0.03125,
+  "thresholds": [
+    50,
+    99
+  ]
+}
+```
+
+## Result verification
+
+To verify the accuracy of the new method, you can run the `histogram()` NRQL function to get an overall picture of the distribution. Looking at the histogram, you can tell if a reported percentile makes sense. For example, you can visually estimate if the population above a reported 99% percentile is close to the expected 1%. Be cautious when running percentile queries on data sets with _null_ attributes. These _null_ rows are ignored by percentile function, but counted in total population in the percentage function. Any `where` filter in the percentile query should also be copied into the validation query.
+
+For precise verification of a percentile value and its relative error, you can use the following method (assuming positive numbers).
+
+Let the reported value be _r_, and the true value be _t_. Then relative error _e_ can be defined as:
+
+```
+e = absolute(r - t) / t
+```
+
+Using the formula above, we can express the range of _r_ using _t_, then express the range of _t_ using _r_ as below:
+
+```
+r > t * (1 - e) => t < r / (1 - e)
+
+r < t * (1 + e) => t > r / (1 + e)
+```
+
+Using _r_ and _e_ reported from a percentile query, we can compute the lower and upper bound of _t_, using a `percentage()` query like below. This is possible because the `percentage()` function does not use approximation. It always returns the exact result.
+
+```sql
+FROM myEventType SELECT percentage(count(*), where wallClockTime < 188 / (1 + 0.03125)) 
+AS 'lower', percentage(count(*), WHERE wallClockTime < 188 / (1 - .03125)) AS 'upper' 
+WHERE wallClockTime is not null
+```
+
+In this example, 188 is the reported percentile of `wallClockTime` at 90%. Relative error is .03125. The query result returned is:
+
+```
+lower: 89.54, upper: 90.23
+```
+
+The result shows that 90% indeed falls within the range. In other words, the requested 90% percentile is within error margin. This verifies the accuracy of the reported value.
+
+<Callout variant="tip">
+  The same algorithm is used for the distribution metric type in [events to metrics service](/docs/accounts/accounts/data-management/events-metrics-create-metrics). So whether you are directly querying events or querying via distribution metrics, your results will be equally accurate.
+</Callout>

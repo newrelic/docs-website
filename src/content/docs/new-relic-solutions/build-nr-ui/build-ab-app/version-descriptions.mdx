@@ -1,0 +1,154 @@
+---
+title: 'Add version descriptions'
+metaDescription: 'Add version descriptions'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. If you haven't already, check out the Overview.
+
+  Each lesson in the course builds upon the last, so make sure you've completed the last lesson, Add chart headings, before starting this one.
+</Callout>
+
+With your charts organized and descriptive headings above each one, your New Relic application is becoming more usable. In this lesson, you'll continue that trend by creating descriptions for each design version in your A/B test.
+
+<Steps>
+  <Step>
+    Change to the _add-version-descriptions/ab-test_ directory of the [coursework repository](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-version-descriptions/ab-test
+    ```
+  </Step>
+
+  <Step>
+    In `nerdlets/ab-test-nerdlet`, add a new Javascript file named `description.js`:
+
+    ```sh
+    touch description.js
+    ```
+  </Step>
+
+  <Step>
+    In this new file, create a new React component, called `VersionDescription`, which uses a `HeadingText` and a `BlockText` to render a version description that you pass, using the `description` prop:
+
+    ```js
+    import React from 'react';
+    import { BlockText, HeadingText } from 'nr1';
+
+    export default class VersionDescription extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return (
+                <div>
+                    <HeadingText className="versionHeader">
+                        Version {this.props.version}
+                    </HeadingText>
+                    <BlockText className="versionText">
+                        {this.props.description}
+                    </BlockText>
+                </div>
+            )
+        }
+    }
+    ```
+
+    You'll use this one class to create a version description for each design version in your A/B test.
+  </Step>
+
+  <Step>
+    In your Nerdlet's `index.js` file, import `VersionDescription`, create descriptions for each design version, and create a new `GridItem` component for each design version:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='a' /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='b' /></GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    Here, you've created two `VersionDescription` components. You passed the `description` and `version` props, which correspond to a design version.
+
+    You also added a horizontal rule to visually separate the descriptions from the charts in your app. For this, you added a `GridItem` with a `columnSpan` of 12, to stretch the rule the full width of the grid.
+  </Step>
+
+  <Step>
+    Navigate to the root of your Nerdpack at `nru-programmability-course/add-version-descriptions/ab-test`.
+  </Step>
+
+  <Step>
+    Generate a new UUID for your Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Because you cloned the coursework repository that contained an existing Nerdpack, you need to generate your own unique identifier. This UUID maps your Nerdpack to your New Relic account.
+  </Step>
+
+  <Step>
+    Serve your application locally:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Go to [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local), and view your application under **Apps > Your apps**.
+
+    When you're finished, stop serving your New Relic application by pressing `CTRL+C` in your local server's terminal window.
+  </Step>
+</Steps>
+
+Now, you've added descriptions for your competing designs and your charts. In the next lesson, you'll create a new section of your application from user interface components. This section will be used to end the A/B test with the click of a button.
+
+<Callout variant="course">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the next lesson: Add a section to end your test.
+</Callout>

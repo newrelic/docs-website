@@ -1,0 +1,240 @@
+---
+title: 'NrAuditEvent: consulta del registro de auditoría de cuentas'
+metaDescription: 'To view audit logs that show changes in your New Relic account for a selected time frame, query the NrAuditLog event.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Como medida de seguridad adicional para usar y administrar New Relic, puede usar el evento `NrAuditEvent` para ver el registro de auditoría que muestra los cambios en su organización de New Relic.
+
+## ¿Qué es el `NrAuditEvent`? [#attributes]
+
+El `NrAuditEvent` se crea para registrar algunos tipos importantes de cambios de configuración que usted y su usuario realizan en su organización New Relic. Los datos recopilados incluyen el tipo de cambio de cuenta, qué actor realizó el cambio, una descripción legible por humanos de la acción realizada y una timestamp para el cambio. La información reportada incluye:
+
+* Usuario agregado o eliminado
+* Cambios de permisos de usuario
+* Cambios de cuenta realizados a través de API
+* [Sintético monitorea cambios](/docs/synthetics/new-relic-synthetics/administration/audit-synthetics-account-changes)
+* Eliminación dashboard
+* Cambios en la configuración de la carga de trabajo
+
+Para ver todos los atributos reportados por este evento, consulte [`NrAuditEvent`](/attribute-dictionary/?event=NrAuditEvent).
+
+Para recibir notificaciones sobre este tipo de cambios, puedes utilizar [alerta](/docs/alerts/new-relic-alerts/getting-started/alerting-new-relic).
+
+## Advertencias y detalles sobre el uso `NrAuditEvent` [#retention]
+
+Todas las cuentas de New Relic pueden consultar hasta 13 meses de cambios de cuenta.
+
+Si su organización y sus cuentas de New Relic se crearon utilizando la [API de asociación](/docs/new-relic-partnerships/partner-integration-guide/partner-account-maintenance/partner-api), `NrAuditEvent` no devolverá información sobre la creación o edición de cuentas.
+
+El registro de auditoría es diferente a configurar [el modo de auditoría](/docs/agents/manage-apm-agents/configuration/log-audit-all-data-your-new-relic-agent-transmits) para un agente <InlinePopover type="apm"/>. El modo de auditoría APM registra información sobre todos los datos que se transmiten desde su aplicación.
+
+## Ejemplo de consulta [#default-attributes]
+
+A continuación se muestran algunos ejemplos de cómo consultar `NrAuditEvent` usando [NRQL](/docs/insights/nrql-new-relic-query-language/nrql-resources/nrql-syntax-components-functions#sel-since).
+
+Tenga en cuenta que el generador de consultas en la UI solo puede consultar una cuenta a la vez. Si tiene los permisos adecuados, puede ejecutar una consulta entre cuentas con [NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/#cross-account-query).
+
+### Cambios generales de cuenta [#examples-any]
+
+<CollapserGroup>
+  <Collapser
+    id="all-changes"
+    title="¿Qué cambios se han realizado en la cuenta New Relic?"
+  >
+    Para ver todos los cambios en su cuenta New Relic durante un período de tiempo específico, ejecute esta consulta NRQL básica:
+
+    ```sql
+    SELECT * 
+    FROM NrAuditEvent 
+    SINCE 1 day ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="what-changed"
+    title="¿Qué tipo de cambio de cuenta se realizó más?"
+  >
+    Para consultar qué tipo de cambio en el usuario de la cuenta se realizó con mayor frecuencia durante un período de tiempo específico, incluya el [atributo`actionIdentifier` ](#actorIdentifier)en su consulta. Por ejemplo:
+
+    ```sql
+    SELECT count(*) AS Actions 
+    FROM NrAuditEvent 
+    FACET actionIdentifier 
+    SINCE 1 week ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="accounts-created"
+    title="¿Qué cuentas se agregaron a nuestra organización?"
+  >
+    Para consultar información sobre las cuentas creadas y quién las creó, puede usar algo como:
+
+    ```sql
+    SELECT actorEmail, actorId, targetId 
+    FROM NrAuditEvent 
+    WHERE actionIdentifier = 'account.create' 
+    SINCE 1 month ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="graph-changes"
+    title="¿Qué tendencias aparecen en los cambios de cuentas?"
+  >
+    Cuando incluye `TIMESERIES` en una consulta NRQL, los resultados se muestran como un gráfico de líneas. Por ejemplo:
+
+    ```sql
+    SELECT count(*) 
+    FROM NrAuditEvent 
+    TIMESERIES facet actionIdentifier since 1 week ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="user-mgmt"
+    title="¿Qué cambios en la gestión de usuarios se han realizado?"
+  >
+    Tenga en cuenta que [el modelo de usuario](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models) de sus usuarios afectará estas consultas. Si tus usuarios están en nuestro modelo de usuario original, solo podrás realizar consultas por cuenta. Si sus usuarios están en nuestro modelo de usuario más nuevo, debe consultar la cuenta de nivel superior en su [organización New Relic](/docs/accounts/accounts-billing/new-relic-one-pricing-users/new-relic-account-structure).
+
+    Para ver todos los cambios realizados en usuario, puedes usar:
+
+    ```sql
+    SELECT * 
+    FROM NrAuditEvent 
+    WHERE targetType = 'user' 
+    SINCE this month
+    ```
+
+    Si desea limitar eso para ver los cambios en [el tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type), puede usar:
+
+    ```sql
+    SELECT * FROM NrAuditEvent 
+    WHERE targetType = 'user' 
+      AND actionIdentifier IN ('user.self_upgrade', 'user.change_type') 
+    SINCE this month
+    ```
+  </Collapser>
+
+  <Collapser
+    id="synth-changes"
+    title="Monitoreo sintético: ¿Qué cambios se han realizado en un monitor?"
+  >
+    Para consultar actualizaciones para tu monitor Sintético durante un período de tiempo específico, incluye el atributo [`actionIdentifier`](/attribute-dictionary/?event=NRAuditEvent/actionIdentifier) en tu consulta. Por ejemplo:
+
+    ```sql
+    SELECT count(*) FROM NrAuditEvent 
+    WHERE actionIdentifier = 'synthetics_monitor.update_script' 
+    FACET actionIdentifier, description, actorEmail 
+    SINCE 1 week ago LIMIT 1000
+    ```
+
+    Para obtener más información sobre esta característica de monitoreo sintético, consulte [logde auditoría de monitoreo sintético](/docs/synthetics/new-relic-synthetics/administration/audit-synthetics-account-changes).
+  </Collapser>
+
+  <Collapser
+    id="workload-changes"
+    title="Cargas de trabajo: ¿Qué cambios se realizaron en cualquier configuración de carga de trabajo?"
+  >
+    Para consultar qué cambios de configuración se realizaron en cualquier carga de trabajo, utilice la consulta a continuación. El atributo `targetId` contiene el GUID de la carga de trabajo que se modificó, que puede utilizar para búsquedas. Dado que los cambios en la carga de trabajo suelen estar automatizados, es posible que desee incluir el atributo `actorType` para saber si el cambio lo realizó directamente un usuario a través de la UI o de la API.
+
+    ```sql
+    SELECT timestamp, actorEmail, actorType, description, targetId 
+    FROM NrAuditEvent 
+    WHERE targetType = 'workload' 
+    SINCE 1 week ago LIMIT MAX
+    ```
+  </Collapser>
+
+  <Collapser
+    id="target-type"
+    title="¿Qué tipos de objetivos hay en mi cuenta?"
+  >
+    El atributo `targetType` describe el objeto que cambió, como cuenta, rol, usuario, condición de alerta o notificación y registro. Para generar una lista de `targetType` valores para su cuenta, ejecute la siguiente consulta. Tenga en cuenta que esta consulta solo mostrará `targetTypes` que hayan sido tocados.
+
+    ```sql
+    SELECT uniques(targetType)
+    FROM NrAuditEvent
+    SINCE 90 days ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Cambios realizados por usuario específico [#examples-who]
+
+<CollapserGroup>
+  <Collapser
+    id="events-users"
+    title="¿Qué cambios de cuenta ha realizado algún usuario?"
+  >
+    Para ver información detallada sobre cualquier usuario que haya realizado cambios en la cuenta durante un período de tiempo específico, incluya [`actorType = 'user'`](#actorType) en la consulta. Por ejemplo:
+
+    ```sql
+    SELECT actionIdentifier, description, actorEmail, actorId, targetType, targetId 
+    FROM NrAuditEvent 
+    WHERE actorType = 'user' 
+    SINCE 1 week ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="who-changed"
+    title="¿Qué cambios de cuenta ha realizado un usuario específico?"
+  >
+    Para consultar las actividades de la cuenta realizadas por una persona específica durante el período de tiempo seleccionado, debe conocer su [`actorId`](#actorId). Por ejemplo:
+
+    ```sql
+    SELECT actionIdentifier 
+    FROM NrAuditEvent 
+    WHERE actorId = 829034 SINCE 1 week ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="most-changes"
+    title="¿Quién realizó más cambios en la cuenta?"
+  >
+    Para identificar quién ([`actorType`](#actorType)) ha realizado la mayor cantidad de cambios en la cuenta, incluya el [atributo`actorEmail` ](#actorEmail)en su consulta. Por ejemplo:
+
+    ```sql
+    SELECT count(*) as Users 
+    FROM NrAuditEvent 
+    WHERE actorType = 'user' 
+    FACET actorEmail SINCE 1 week ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="synth-user"
+    title="Monitoreo sintético: ¿Qué monitores fueron creados por un usuario específico?"
+  >
+    Para consultar actualizaciones de tu monitor Sintético realizadas por un usuario específico, incluye el atributo [`actionIdentifier`](/attribute-dictionary/?event=NRAuditEvent&attribute=actionIdentifier) y [`actorEmail`](/attribute-dictionary/?event=NRAuditEvent&attribute=actorEmail) en tu consulta. Por ejemplo:
+
+    ```sql
+    SELECT count(*) FROM NrAuditEvent 
+    WHERE actionIdentifier = 'synthetics_monitor.update_script' 
+    FACET actorEmail, actionIdentifier, description 
+    SINCE 1 week ago LIMIT 1000
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Cambios realizados usando la API [#examples-api]
+
+<CollapserGroup>
+  <Collapser
+    id="events-api-key"
+    title="¿Qué cambios de cuenta se han realizado utilizando una clave de API?"
+  >
+    Para ver información detallada sobre los cambios en la cuenta que se realizaron utilizando una clave de API durante un período de tiempo específico, incluya [`actorType = 'api_key'`](#actorType) en la consulta. Por ejemplo:
+
+    ```sql
+    SELECT actionIdentifier, description, targetType, targetId, actorAPIKey, actorId, actorEmail 
+    FROM NrAuditEvent 
+    WHERE actorType = 'api_key' 
+    SINCE 1 week ago
+    ```
+  </Collapser>
+</CollapserGroup>

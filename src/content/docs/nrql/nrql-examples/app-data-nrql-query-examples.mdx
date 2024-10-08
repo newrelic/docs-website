@@ -1,0 +1,55 @@
+---
+title: App data NRQL query examples
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: Basic examples of using NRQL to query app data collected by New Relic products.
+redirects:
+  - /docs/insights/nrql-new-relic-query-language/nrql-query-examples/app-data-query-examples-using-nrql
+  - /docs/query-data/nrql-new-relic-query-language/nrql-query-examples/app-data-query-examples-using-nrql
+  - /docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/app-data-nrql-query-examples
+freshnessValidatedDate: never
+---
+
+You can use NRQL to query the application data collected by [<InlinePopover type="apm"/>](/docs/apm/), [<InlinePopover type="browser"/>](/docs/browser/), and [mobile monitoring](/docs/mobile-monitoring/). You can then use this data to answer a variety of questions. Here are some basic examples.
+
+## Unique users [#unique-users]
+
+How many unique user sessions did you have in the last week?
+
+```
+<a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#state-select">SELECT</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#func-uniqueCount">uniqueCount</a>(session) <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-from">FROM</a> <a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#browser-defaults">PageView</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-since">SINCE</a> 1 week ago
+```
+
+## Unique user trends [#unique-users-trends]
+
+Were your unique user sessions up or down last week compared to the week before?
+
+```
+<a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#state-select">SELECT</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#func-uniqueCount">uniqueCount</a>(session) <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-from">FROM</a> <a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#browser-defaults">PageView</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-since">SINCE</a> 1 week ago <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-compare">COMPARE WITH</a> 1 week ago
+```
+
+## Pageview trends [#pageview-trend-graphs]
+
+How can I graph the number of unique users yesterday compared to the day before?
+
+```
+<a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#state-select">SELECT</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#func-count">count</a>(*) <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-from">FROM</a> <a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#browser-defaults">PageView</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-since">SINCE</a> 1 day ago <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-compare">COMPARE WITH</a> 1 day ago <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-timeseries">TIMESERIES</a> AUTO
+```
+
+## OS version [#os-version-example]
+
+How many of your mobile users are on the latest OS version?
+
+```
+<a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#state-select">SELECT</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#func-uniqueCount">uniqueCount</a>(<a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#uuid">uuid</a>) <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-from">FROM</a> MobileSession <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-facet">FACET</a> <a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#mob-osversion">osVersion</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-since">SINCE</a> 7 days ago
+```
+
+## Key account Apdex [#key-acct-apdex]
+
+What is the [Apdex score](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction) for a particularly important customer? If you have [defined some custom attributes](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes), you can query to monitor how this customer experiences your app from a performance standpoint:
+
+```
+<a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#state-select">SELECT</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#func-apdex">apdex</a>(<a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#txn-duration">duration</a>, <a href="/docs/apm/new-relic-apm/getting-started/glossary#apdex_t">t</a>: 0.4) <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-from">FROM</a> <a href="/docs/insights/new-relic-insights/decorating-events/insights-attributes#transaction-defaults">Transaction</a> <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-where">WHERE</a> customerName='ReallyImportantCustomer' <a href="/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#sel-since">SINCE</a> 1 day ago
+```

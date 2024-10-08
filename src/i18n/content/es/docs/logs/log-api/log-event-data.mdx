@@ -1,0 +1,115 @@
+---
+title: Registro de datos del evento
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: A summary of log data storage in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Log de evento son registros almacenados como cualquier otro evento enviado a New Relic. Como mínimo el registro debe incluir:
+
+* `timestamp`: un número entero que representa milisegundos de la época de Unix
+* Al menos un atributo que contenga datos, como un campo `message`
+
+Normalmente, los registros tienen un campo `message` y un nivel o gravedad, pero no tenemos requisitos fijos sobre lo que puede enviar a New Relic.
+
+## Almacenamiento de datos [#events]
+
+Los registros log se almacenan de forma predeterminada en el tipo de evento `Log`. Puede crear tipos de eventos adicionales definiendo una partición de datos personalizada en nuestra UI de registro. Los tipos resultantes siempre irán precedidos de `Log_`. Para obtener información detallada, consulte nuestra [documentación sobre particiones de datos](/docs/logs/ui-data/data-partitions/).
+
+<DNT>
+  **Attributes:**
+</DNT>
+
+* Atributo máximo: 255
+* Nombre: máximo 255 caracteres
+* Valor buscable: Los primeros 4.094 caracteres de datos almacenados en un atributo se pueden consultar directamente en la UI.
+
+<DNT>
+  **Additional storage:**
+</DNT>
+
+* Cualquier atributo con más de 4094 caracteres tendrá hasta 128 KB de datos almacenados en un &quot;blob&quot; en el backend de New Relic.
+* El almacenamiento de blobs no permite realizar búsquedas, pero puede [acceder a los datos almacenados en blobs](/docs/logs/ui-data/long-logs-blobs).
+* Los datos que superen los 128 KB se truncarán.
+
+## Restricciones [#attributes]
+
+Algunos atributos específicos tienen restricciones adicionales:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Atributo
+      </th>
+
+      <th>
+        Restricciones
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `accountId`
+      </td>
+
+      <td>
+        Este es un nombre de atributo reservado. Si está incluido, se eliminará durante la ingesta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `eventType`
+      </td>
+
+      <td>
+        Este es un nombre de atributo reservado. Si está incluido, se eliminará durante la ingesta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <span class="children-nowrap">`entity.guid`</span> <span class="children-nowrap">`entity.name`</span> <span class="children-nowrap">`entity.type`</span>
+      </td>
+
+      <td>
+        Estos atributos se utilizan internamente para identificar la entidad. Cualquier valor enviado con estas claves en la sección de atributos de un punto de datos métrico puede causar un comportamiento indefinido, como la falta de entidad en la UI o que la telemetría no se asocie con la entidad esperada.
+
+        Para obtener más información, consulte nuestra documentación sobre [síntesis de entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp`
+      </td>
+
+      <td>
+        Este valor debe ser un número entero que represente milisegundos desde la época de Unix. También se admiten segundos desde la época.
+
+        La carga con marca de tiempo anterior a 48 horas puede eliminarse.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <span class="children-nowrap">`instrumentation.name`</span> <span class="children-nowrap">`instrumentation.provider`</span> <span class="children-nowrap">`instrumentation.version`</span>
+      </td>
+
+      <td>
+        Estos atributos están reservados para uso interno mediante nuestra integración móvil y browser .
+
+        <Callout variant="important">
+          Si emplea alguna de estas integraciones, entonces no debe confiar ni hacer uso de estos atributos de instrumentación.
+        </Callout>
+      </td>
+    </tr>
+  </tbody>
+</table>

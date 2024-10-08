@@ -1,0 +1,249 @@
+---
+title: Componentes de integração do Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Kubernetes components
+metaDescription: Learn what components are deployed after installing the Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A integração New Relic Kubernetes oferece total observação da integridade e do desempenho do seu cluster, esteja você executando Kubernetes no local ou na nuvem. Dá visibilidade ao namespace, implantação, replicasets, nós, pod e contêiner Kubernetes .
+
+O [gráfico`newrelic-infrastructure` ](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)é o principal componente da integração. Conheça [aqui](#architecture) sua arquitetura.
+
+O [gráfico`nri-bundle` ](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)agrupa gráficos individuais para a integração, incluindo `newrelic-infrastructure`, que permite instalar e atualizar facilmente a integração usando apenas um gráfico. Saiba mais sobre os componentes padrão e opcionais que você pode instalar com este gráfico [aqui](#components).
+
+## Arquitetura [#architecture]
+
+Existem três componentes no gráfico `newrelic-infrastructure` : `nrk8s-ksm`, `nrk8s-kubelet` e `nrk8s-controlplane`. O primeiro é uma implantação e os próximos dois são DaemonSets.
+
+Cada um dos componentes possui 2 contêineres:
+
+1. Um contêiner para a integração, responsável pela coleta de métricas.
+2. Um contêiner com o agente New Relic Infrastructure , que é usado para enviar a métrica para New Relic.
+
+### Componente Kube-state-métrica [#nrk8s-ksm]
+
+Construímos nossa métrica de estado cluster com base no projeto OSS[`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics), que está alojado na própria organização Kubernetes .
+
+Uma implantação específica `nrk8s-ksm` se encarrega de localizar o KSM e extraí-lo. Como este pod é único e de longa duração, ele pode usar com segurança um informador de endpoint para localizar o IP do pod KSM e raspá-lo. O informante armazena automaticamente em cache a lista de informantes no cluster localmente e procura por novos, evitando invadir o servidor API com solicitações para descobrir onde o pod estava localizado.
+
+os clientes deverão permitir a monitorização de qualquer destino métrica no KSM caso essas métricas não estejam habilitadas por defeito. Por exemplo, KSM v2+ desabilita rótulos e anotações métricas por padrão. os clientes podem permitir que os rótulos de destino e métricas de anotações sejam monitorados usando as opções `metric-labels-allowlist` ou `metric-annotations-allowlist` descritas [aqui](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/developer/cli-arguments.md) em seu cluster do Kubernetes.
+
+Consulte [Traga seu próprio KSM](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/README.md#bring-your-own-ksm) para obter mais informações sobre as versões suportadas do KSM.
+
+<Callout variant="important">
+  Use `customAttributes` para adicionar um atributo a amostras relacionadas à entidade que não estão estritamente vinculadas a um nó específico: `K8sNamespaceSample`, `K8sDeploymentSample`, `K8sReplicasetSample`, `K8sDaemonsetSample`, `K8sStatefulsetSample`, `K8sServiceSample` e `K8sHpaSample`.
+</Callout>
+
+### Componente Kubelet [#nrk8s-kubelet]
+
+O Kubelet é o “agente Kubernetes ”, um serviço que roda em todos os nós Kubernetes e é responsável por criar o contêiner conforme instruções do plano de controle. Por ser o Kubelet quem faz parceria estreita com o contêiner Runtime, é a principal fonte de infraestrutura métrica para nossa integração, como uso de CPU, memória, disco, rede, etc. Embora não esteja totalmente documentada, a API Kubelet é a fonte de fato para a maioria das métricas Kubernetes .
+
+A raspagem do Kubelet normalmente é uma operação com poucos recursos. Diante disso, e nossa intenção de minimizar o tráfego entre nós sempre que possível, `nrk8s-kubelet` é executado como um DaemonSet onde cada instância coleta métricas do Kubelet rodando no mesmo nó que está.
+
+`nrk8s-kubelet` se conecta ao Kubelet usando o Node IP. Se esse processo falhar, `nrk8s-kubelet` retornará para alcançar o nó por meio do proxy do API Server. Esse mecanismo de fallback ajuda você com clusters muito grandes, pois o proxy de muitos kubelets pode aumentar a carga no servidor API . Você pode verificar se o API Server está sendo usado como proxy procurando uma mensagem como esta no log:
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### Componente do plano de controle [#nrk8s-controlplane]
+
+Como principais distribuições Kubernetes , implantamos `nrk8s-controlplane` como um DaemonSet com `hostNetwork: true`. A configuração está estruturada para suportar descoberta automática e endpoint estático. Para ser compatível com uma ampla variedade de distribuições prontas para uso, fornecemos uma ampla variedade de padrões conhecidos como entradas de configuração. Fazer isso na configuração em vez do código permite ajustar a descoberta automática de acordo com suas necessidades.
+
+Existe a possibilidade de ter vários endpoints por seletor e adicionar um mecanismo de investigação que detecta automaticamente o correto. Isso permite que você experimente configurações diferentes, como portas ou protocolos, usando o mesmo seletor.
+
+A configuração de raspagem para o componente etcd CP se parece com o seguinte, onde a mesma estrutura e recurso se aplicam a todos os componentes:
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+Se `staticEndpoint` estiver definido, o componente tentará extraí-lo. Se não conseguir atingir o endpoint, a integração falhará, portanto não haverá erros silenciosos quando o endpoint manual for configurado.
+
+Se `staticEndpoint` não estiver definido, o componente irá iterar nas entradas de descoberta automática procurando o primeiro pod que corresponda ao `selector` no `namespace` especificado e, opcionalmente, estará em execução no mesmo nó do DaemonSet (se `matchNode` está definido como `true`). Depois que um pod é descoberto, o componente investiga, emitindo uma solicitação http `HEAD`, o endpoint listado em ordem e coleta o primeiro testado com sucesso usando o tipo de autorização selecionado.
+
+Embora mostremos acima um trecho de configuração para o componente `etcd` , a lógica de extração é a mesma para outros componentes.
+
+Para obter instruções mais detalhadas sobre como configurar o monitoramento do plano de controle, consulte a página [de monitoramento do plano de controle](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) .
+
+### Gráficos do Helm [#helm-charts]
+
+Helm é o principal meio que oferecemos para implantar nossa solução em seu cluster. O gráfico Helm gerencia uma implantação e dois DaemonSets onde cada um possui configurações ligeiramente diferentes. Isso lhe dá mais flexibilidade para adaptar a solução às suas necessidades, sem a necessidade de aplicar patches manuais no topo do gráfico e nos manifestos gerados.
+
+Alguns dos novos recursos que nosso novo gráfico Helm expõe são estes:
+
+* Controle total do `securityContext` para todos os pods
+* Controle total do pod `labels` e `annotations` para todos os pods
+* Capacidade de adicionar variáveis de ambiente extras, `volumes` e `volumeMounts`
+* Controle total sobre a configuração de integração, incluindo quais endpoints são alcançados, comportamento de autodescoberta e intervalos de raspagem
+* Melhor alinhamento com idiomas e padrões do Helm
+
+Você pode ver todos os detalhes de todas as opções que podem ser alternadas no [gráfico`README.md` ](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md).
+
+## Componentes [#components]
+
+Ao instalar a integração do Kubernetes usando `nri-bundle`, estes dois componentes são instalados por padrão:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Componente
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [newrelic-infrastructure](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)
+      </td>
+
+      <td>
+        Envia métricas sobre nós, objetos cluster (por exemplo, implantação, pod) e plano de controle para New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-metadata-injection](https://github.com/newrelic/k8s-metadata-injection/tree/main/charts/nri-metadata-injection)
+      </td>
+
+      <td>
+        Enriquece o aplicativo instrumentado New Relic (APM) com informações Kubernetes .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Estes são componentes opcionais que você pode instalar usando `nri-bundle` ou separadamente:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Componente
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [kube-state-metrics](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics)
+      </td>
+
+      <td>
+        Necessário para que o newrelic-infrastructure colete métricas em nível de cluster .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-kube-events](https://github.com/newrelic/nri-kube-events/tree/main/charts/nri-kube-events)
+      </td>
+
+      <td>
+        Relata o evento Kubernetes para o New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-infra-operator](https://github.com/newrelic/newrelic-infra-operator/tree/main/charts/newrelic-infra-operator)
+      </td>
+
+      <td>
+        (Beta) Usado com ambientes Fargate ou Serverless para injetar newrelic-infrastructure como sidecar em vez do DaemonSet usual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-k8s-metrics-adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter/tree/main/charts/newrelic-k8s-metrics-adapter)
+      </td>
+
+      <td>
+        (Beta) Fornece uma fonte de dados para escalonadores automáticos de pod horizontais (HPA) com base em uma consulta NRQL da New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-logging](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging)
+      </td>
+
+      <td>
+        Envia o log dos componentes e da carga de trabalho Kubernetes em execução no cluster para o New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-prometheus](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
+      </td>
+
+      <td>
+        Envia métrica do aplicativo expondo a métrica do Prometheus para o New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-prometheus-configurator](https://github.com/newrelic/newrelic-prometheus-configurator/tree/master/charts/newrelic-prometheus-agent)
+      </td>
+
+      <td>
+        Configura a instância do Prometheus no modo agente para enviar métricas ao New Relic do endpoint Prometheus.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-pixie](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-pixie)
+      </td>
+
+      <td>
+        Conecta-se à API Pixie e ativa o plug-in New Relic no Pixie. O plug-in permite exportar dados do Pixie para New Relic para retenção de dados de longo prazo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Duende](https://docs.pixielabs.ai/installing-pixie/install-schemes/helm/#3.-deploy)
+      </td>
+
+      <td>
+        Uma ferramenta de observabilidade de código aberto para aplicativo Kubernetes que utiliza eBPF para capturar automaticamente dados de telemetria sem a necessidade de instrumentação manual.
+      </td>
+    </tr>
+  </tbody>
+</table>

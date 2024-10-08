@@ -1,0 +1,132 @@
+---
+title: Índice del monitor Sintético
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Pages
+metaDescription: You can view a summary of your monitors' uptime and average performance and to access monitor details in New Relic's synthetic monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En nuestra herramienta de monitoreo sintético, el índice de monitores enumera su monitor Sintético y le brinda una instantánea del rendimiento de cada monitor durante las últimas 24 horas. Seleccione un monitor específico para ver una [página<DNT>**Summary**</DNT> ](/docs/synthetics/new-relic-synthetics/dashboards/synthetics-overview-dashboard-view-monitors-performance)y obtener información más profunda y valiosa sobre su rendimiento. O [filtre la lista](#search-monitors) para comparar rápidamente el rendimiento de un monitor similar.
+
+## Ver el índice del monitor [#viewing]
+
+Para ver una lista de su monitor Sintético, vaya a <DNT>**[one.newrelic.com > Synthetic monitoring](https://one.newrelic.com/synthetics-nerdlets)**</DNT>.
+
+<img
+  title="Entitiy monitor list"
+  alt="entitiy_ping_monitor_page.png"
+  src="/images/synthetic_screenshot-full_index-page.webp"
+/>
+
+## Entender el monitor métrico [#understanding]
+
+Utilice el índice del monitor para acceder a su monitor y ver una instantánea del rendimiento monitor . El índice incluye las siguientes métricas:
+
+* <DNT>
+    [**Alert status**](/docs/alerts/new-relic-alerts/configuring-alert-policies/identify-entities-without-alert-policies)
+  </DNT>
+
+  : Indica el estado de cualquier alerta en el monitor:
+
+  * Verde: Ningún incidente abierto
+  * Rojo: incidente crítico en curso
+  * Gris: No hay condición de alerta definida con alertas
+
+* <DNT>
+    **Monitor status**
+  </DNT>
+
+  : Indica que se ha aplicado un estado al monitor, como
+
+  <DNT>
+    **Mute**
+  </DNT>
+
+  o
+
+  <DNT>
+    **Disabled**
+  </DNT>
+
+  .
+
+* <DNT>
+    **Success rate**
+  </DNT>
+
+  : el porcentaje de comprobaciones del monitor que finalizan con éxito. Un monitor de varios pasos que no completa todos los pasos se considera una falla.
+
+* <DNT>
+    **[Locations failing](/docs/synthetics/new-relic-synthetics/using-monitors/adding-editing-monitors#setting-location)**
+  </DNT>
+
+  : la cantidad de ubicaciones que fallaron durante el período de tiempo determinado.
+
+* <DNT>
+    **[Period](/docs/synthetics/new-relic-synthetics/using-monitors/adding-editing-monitors#setting-frequency)**
+  </DNT>
+
+  : Con qué frecuencia se ejecutan las comprobaciones del monitor.
+
+* <DNT>
+    **[Monitor type](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#setting-type)**
+  </DNT>
+
+  : El tipo de monitor seleccionado.
+
+## Usar funciones de índice [#using]
+
+El índice del monitor admite las siguientes características:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **If you want to...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="sort-monitors">
+      <td>
+        Ordenar la lista monitor
+      </td>
+
+      <td>
+        Seleccione una etiqueta de columna para ordenar la lista según esa [métrica](#understanding). Seleccione la etiqueta nuevamente para cambiar el orden de clasificación de ascendente a descendente.
+      </td>
+    </tr>
+
+    <tr id="search-monitors">
+      <td>
+        Filtrar la lista monitor
+      </td>
+
+      <td>
+        Escriba su palabra clave en el cuadro de búsqueda para filtrar por nombre, [etiqueta](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor) o tipo [de entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) .
+      </td>
+    </tr>
+
+    <tr id="create-monitors">
+      <td>
+        Agregar a los favoritos
+      </td>
+
+      <td>
+        Para marcar un monitor como favorito, seleccione el icono <DNT>**star _star_ icon**</DNT> . El monitor favorito aparece en la parte superior de la lista monitor . Para eliminar un monitor de sus favoritos, seleccione el ícono <DNT>**star**</DNT> nuevamente.
+      </td>
+    </tr>
+  </tbody>
+</table>

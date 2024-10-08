@@ -1,0 +1,419 @@
+---
+title: Cómo ver y analizar tus cambios en New Relic
+tags:
+  - APM
+  - APM UI pages
+  - Events
+metaDescription: 'Here''s how you can view and analyze the effects of recent changes on Apdex scores, response times, throughput, and errors.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cuando usas la característica de seguimiento de cambios en New Relic, puedes ver cómo los cambios recientes, como el despliegue, afectan tu usuario final. Por ejemplo, puede ver las puntuaciones Apdex del servidor de aplicaciones, el tiempo de respuesta, el rendimiento y los errores. Puede ver y profundizar en los detalles, utilizar opciones de búsqueda y clasificación, ocultar o eliminar el error, compartirlo con otras personas o presentar un ticket al respecto.
+
+Antes de entrar en detalles aquí sobre cómo ver y analizar el impacto de los cambios, asegúrese de haber designado los cambios que desea monitor usando GraphQL, nuestra CLI o una integración CI/CD. Una vez que haya designado qué cambios realizar un seguimiento, estará listo para ver los resultados de toda su stack de varias maneras:
+
+* <DNT>**Charts in APM and dashboards:**</DNT> En los gráficos de series temporales aparece una línea vertical con la cabeza de un alfiler. Este marcador representa el cambio registrado y, si hace clic en la cabeza del alfiler, puede comenzar a profundizar en el impacto que tuvo el cambio en la salud y la calidad de la entidad.
+
+  <img
+    style={{ align: 'left',maxWidth: '100%' }}
+    title="A screenshot showing a change in a time series chart"
+    alt="A screenshot showing a change in a time series chart"
+    src="/images/tracking_screenshot-crop_deployment-in-timeseries-chart.webp"
+  />
+
+  <Callout variant="tip">
+    Si llega a un dashboard o a una página de resumen de entidad y no ve el cambio registrado que espera, verifique su selección de selector de tiempo. Puede que esté fuera de la ventana que estás mirando.
+  </Callout>
+
+* <DNT>**Entity sidebar:**</DNT> Para ver una tabla de cambios, haga clic en <DNT>**Change tracking**</DNT> para cualquier entidad que haya registrado cambios. Tiene como característica un selector de rango de tiempo y opciones de filtrado y clasificación de tablas. Utilícelos para limitar el campo de cambios o para encontrar un cambio específico. <Callout variant="tip">Tenga en cuenta que es posible que deba ajustar el rango de tiempo seleccionado en esta página para ver los cambios registrados. Además, de forma predeterminada, la tabla solo cargará de forma diferida hasta 2000 cambios. Tenga esto en cuenta mientras filtra, busca y ajusta su rango de tiempo.</Callout>
+
+* <DNT>**New Relic <InlinePopover type="alerts"/>& Detection:**</DNT> Si su cambio está relacionado con un problema, lo verá en la sección <DNT>**Root Cause Analysis**</DNT> de la página <DNT>**Issues**</DNT> .
+
+  <img
+    style={{ align: 'left',maxWidth: '100%' }}
+    title="A screenshot showing the root cause analysis page in the UI"
+    alt="A screenshot showing the root cause analysis page in the user interface"
+    src="/images/tracking_screenshot-crop_root-cause-analysis.webp"
+  />
+
+* <DNT>**Activity stream component:**</DNT> Puede ver los cambios registrados en el feed de actividades en el panel plegable derecho en varias páginas de la UI de New Relic.
+
+  <img
+    style={{ align: 'left',maxWidth: '100%' }}
+    title="A screenshot showing the activity stream in the right pane of the UI"
+    alt="A screenshot showing the activity stream in the right pane of the UI"
+    src="/images/tracking_screenshot-crop_activity-stream-example.webp"
+  />
+
+## Analiza el impacto de tu cambio [#impact]
+
+¿Cómo han afectado sus cambios a sus sistemas? Ofrecemos varias formas de analizar los efectos de los cambios que está rastreando.
+
+### Cambiar página de detalles [#change-details]
+
+Cuando haces clic en un cambio del que estás realizando un seguimiento en New Relic, como en un gráfico o en la página <DNT>**Issues**</DNT> , abrirás una página <DNT>**Change details**</DNT> . Contiene los datos que envió cuando registró el cambio más una gran cantidad de información sobre su impacto.
+
+Obtendrá información valiosa sobre cómo este cambio pudo haber afectado la salud, el desempeño y la calidad de esta entidad. Esta información valiosa se basa en errores, tendencias clave métricas y de atributos log , anomalías, problemas y más. Esta página también presenta potentes herramientas de comparación y alcance para ayudarle a ver y comprender aún más contexto sobre los cambios en curso. Por ejemplo, puede ver cómo se compara su cambio actual con el anterior.
+
+<img
+  title="A screenshot showing and example of the change details page"
+  alt="A screenshot showing and example of the change details page"
+  src="/images/tracking_screenshot-crop_deployment-details.webp"
+/>
+
+<figcaption>
+  La página <DNT>**Change details**</DNT> .
+</figcaption>
+
+Aquí hay información útil y valiosa que puede obtener registrando cambios y aprovechando otras características de New Relic:
+
+* Impactos netos calculados del cambio en señales clave de la entidad, como rendimiento, tasa de errores, tiempo de transacción y más. Puede ver el impacto neto en una señal encima de cada gráfico de serie temporal (normalmente se muestra como un porcentaje). Tenga en cuenta que estos impactos netos generalmente se calculan comparando promedios o alguna otra función de la señal antes y después del cambio (pase el cursor sobre las cifras de impacto neto para ver los promedios antes/después, etc.).
+
+  Puede ajustar el período antes/después utilizado en estos cálculos y que se muestra en los gráficos de series temporales mediante el selector de tiempo en la esquina superior derecha de la página de detalles del cambio.
+
+  <Callout variant="tip">
+    Preste mucha atención al período de tiempo seleccionado antes/después mientras analiza el impacto de un cambio. Si el período es demasiado corto o demasiado largo para sus necesidades específicas, simplemente ajústelo. Tenga en cuenta que la UI no calculará los impactos netos si el tiempo transcurrido desde el cambio es menor que el período antes/después seleccionado porque al hacerlo se obtienen resultados sesgados y generalmente inútiles.
+  </Callout>
+
+* Los hallazgos facetados de una variedad de productos New Relic, incluida Errors Inbox, el monitoreo log , AIOps (problemas, incidentes y anomalías) y más, muestran cómo este cambio ha afectado o se relaciona con registros de análisis y resolución de problemas cruciales. La información valiosa que se presenta aquí y cómo se filtran los datos variará según el tipo de entidad. Pase el cursor sobre los títulos de las secciones de las páginas para obtener más información sobre cómo presentamos información valiosa aquí.
+
+  <img
+    style={{ align: 'left',maxWidth: '100%' }}
+    title="A screenshot showing some faceted findings since your change"
+    alt="A screenshot showing some faceted findings since your change"
+    src="/images/tracking_screenshot-crop_faceted-findings.webp"
+  />
+
+  <Callout variant="tip">
+    El selector de tiempo a nivel de página también afecta la faceta de información valiosa de otros productos New Relic. Intente concentrarse en el período de tiempo posterior al cambio que más le importe.
+  </Callout>
+
+* Un enlace (<DNT>**See all changes on this entity**</DNT>) a una página que contiene la página de lista desplegable filtrada para esta entidad. Úselo para alejar rápidamente y ver todos los cambios recientes en esta parte de su sistema.
+
+* Enlaces a entidades relacionadas con la entidad de este cambio. Esto le ayuda a moverse por su stack mientras busca el origen de un problema o mide el impacto de los cambios derivados de este cambio.
+
+* Todos los datos proporcionados cuando se registró el cambio, lo que ayuda a cualquier persona a comprender rápidamente el contexto, independientemente de si realizaron el cambio o no. <Callout variant="tip">Cuando registre un cambio, intente enviar una URL para el atributo de registro de cambios. La UI lo presentará como un enlace en el que se puede hacer clic y que sirve como un punto de partida conveniente para su sistema de gestión de repositorio de origen.</Callout>
+
+### Cambiar el período de comparación antes/después [#change-window]
+
+La página <DNT>**Change details**</DNT> se basa en la idea de que los registros y señales generados durante un período de tiempo previo a este cambio se comparan con un período de igual duración después de este cambio. Puedes cambiar la duración de ese período usando un selector de tiempo en la esquina superior derecha. Tenga en cuenta que esto afectará tanto a los gráficos de series temporales como a otros elementos UI característicos impulsados por datos información valiosa.
+
+<img
+  style={{ align: 'left',maxWidth: '100%' }}
+  title="A screenshot showing how to change the time window for the comparison"
+  alt="A screenshot showing how to change the time window for the comparison"
+  src="/images/tracking_screenshot-crop_comparison-window.webp"
+/>
+
+<Callout variant="tip">
+  Recuerde que la relevancia del impacto neto y los valores promedio depende de la selección del selector de tiempo. Por ejemplo, si se produjo un cambio hace 30 minutos y estás comparando la hora anterior con la hora posterior, la relevancia de alguna información valiosa puede ser un poco cruda, por así decirlo, y en algunos casos la UI ni siquiera intentará para mostrar el resultado.
+</Callout>
+
+### Comparar un cambio con otro [#compare-deployments]
+
+Junto al selector de tiempo en la esquina superior derecha de la página <DNT>**Change details**</DNT> , verá <DNT>**compared with**</DNT> junto a un menú desplegable. Usando ese menú desplegable, puede seleccionar otro cambio registrado. Esto cambiará la página a un modo comparativo.
+
+<img
+  style={{ align: 'left',maxWidth: '100%' }}
+  title="A screenshot showing how to compare with another change"
+  alt="A screenshot showing how to compare with another change"
+  src="/images/tracking_screenshot-crop_compare-deployments.webp"
+/>
+
+Cuando comparas los cambios:
+
+* Cada gráfico de serie temporal mostrará una curva para ESTE cambio y ESE cambio, lo que le ayudará a comparar el rendimiento relativo de cada cambio.
+
+  <img
+    title="Screenshot showing comparison curves"
+    alt="Screenshot showing comparison curves"
+    src="/images/tracking_screenshot-crop_comparison-curves.webp"
+  />
+
+* Otros cálculos en esta página se actualizarán para ayudarlo a comprender la diferencia entre ESTE cambio y ESE cambio. Pueden mostrar aumentos/disminuciones en porcentajes de tasas o recuentos (por ejemplo, +11) cuando tenga sentido hacerlo.
+
+* Puede abrir hasta cinco vistas apiladas de cambios relacionados.
+
+### Ver los efectos de los cambios en métrica y evento [#trend-boards]
+
+Para ver cómo un cambio, como un despliegue, afecta la métrica y el evento de una entidad, puede crear paneles de tendencias personalizados. Tiene la opción de crear hasta tres tableros para ayudarlo a tomar decisiones sobre su cambio reciente.
+
+¿Qué puedes ver con estos tableros de tendencias personalizados? Puede seleccionar entre cualquier métrica o evento disponible para su entidad y luego aplicarle una función de agregación. Por ejemplo, podrías crear tableros de tendencias personalizados que respondan este tipo de preguntas:
+
+* ¿Cómo ha cambiado el tiempo de respuesta promedio de las páginas vistas antes y después de este cambio?
+* ¿Cómo ha cambiado el tiempo de respuesta máximo de visualización de la página antes y después de este cambio?
+
+A diferencia de los gráficos dashboard normal, estos paneles de tendencias personalizados son gráficos que están completamente integrados con la ventana de tiempo y la configuración <DNT>**compared with**</DNT> en la página <DNT>**Change details**</DNT>. Incluso puede exportarlos al panel de control y todos están vinculados a una entidad específica y a su cuenta de usuario.
+
+<img
+  title="Screenshot showing a custom trend board on change details page"
+  alt="Screenshot showing a custom trend board on change details page"
+  src="/images/tracking_screenshot-crop_custom-charts-on-deployment-page.webp"
+/>
+
+<figcaption>
+  A continuación se muestra un ejemplo de un único tablero de tendencias personalizado para un cambio registrado. A este cambio se podrían añadir dos tableros más.
+</figcaption>
+
+Para agregar un tablero de tendencias personalizado:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com](https://one.newrelic.com/) > All Entities**
+   </DNT>
+
+   y seleccione su entidad.
+
+2. Haga clic en
+
+   <DNT>
+     **Change tracking**
+   </DNT>
+
+   en el panel de navegación izquierdo y seleccione un cambio.
+
+3. Debajo de los gráficos de
+
+   <DNT>
+     **Key impacts**
+   </DNT>
+
+   , haga clic en
+
+   <DNT>
+     **Add any metric or event**
+   </DNT>
+
+   .
+
+4. Haga clic en
+
+   <DNT>
+     **What do you want to track**
+   </DNT>
+
+   y seleccione una métrica o evento.
+
+5. Haga clic en
+
+   <DNT>
+     **How do you want to aggregate that?**
+   </DNT>
+
+   y seleccione una función.
+
+### Vea los efectos de los cambios en la transacción web [#web-transactions]
+
+Con el seguimiento de cambios, puede ver detalles sobre cómo las transacciones web se vieron afectadas por un cambio en la aplicación APM. Cuando realice un seguimiento de los cambios en la aplicación APM, verá el encabezado <DNT>**Web transaction impacts**</DNT>. La tabla de esta sección muestra indicadores de rendimiento para hasta diez de las transacciones web que más tiempo consumen de la aplicación:
+
+<img
+  title="Screenshot showing where to view the impacts to web transactions"
+  alt="Screenshot showing where to view the impacts to web transactions"
+  src="/images/tracking_screenshot-crop_impacts_to_web-transactions.webp"
+/>
+
+Para controlar lo que muestra la tabla:
+
+* Utilice el menú desplegable
+
+  <DNT>
+    **Metric**
+  </DNT>
+
+  para ver cómo varias métricas se vieron afectadas por este cambio registrado.
+
+* A medida que cambia la ventana de tiempo antes y después en la tabla, tenga en cuenta que si el rango de tiempo después del cambio finaliza en el futuro, es posible que vea datos de transacción incompletos.
+
+* Para que la tabla muestre una comparación en paralelo con otro cambio registrado, seleccione otro cambio en
+
+  <DNT>
+    **compared with**
+  </DNT>
+
+  .
+
+* Si pasa el cursor sobre un valor en la columna
+
+  <DNT>
+    **Transaction name**
+  </DNT>
+
+  , verá una información sobre herramientas que resume el rendimiento de las cinco métricas de esa transacción. La información sobre herramientas también tiene enlaces a los detalles de la transacción de APM para que pueda profundizar en datos detallados a nivel de transacción.
+
+## Consulta cambiar datos [#query-deployments]
+
+También puede consultar los datos de cambio a través de NRQL (el lenguaje de consulta para la base de datos de New Relic) o mediante NerdGraph (la API GraphQL de New Relic).
+
+Eche un vistazo a las secciones NRQL y GraphQL a continuación para ver algunos ejemplos, o si necesita más ayuda para usar las herramientas de consulta, consulte [Introducción a NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/), [Introducción a New Relic NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) o [Tutorial de API de entidad NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/).
+
+### NRQL [#nrql-markers]
+
+Después de crear un marcador usando GraphQL, puede usar NRQL en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) para crear gráficos de series temporales, dibujar curvas para una señal de telemetría durante un período de tiempo y representar cambios como marcadores.
+
+Pruebe estos ejemplos o cree su propia consulta:
+
+<Callout variant="tip">
+  Para obtener detalles sobre la estructura de datos y las definiciones de atributos, consulte nuestro [diccionario de datos](/attribute-dictionary/?dataSource=Change+tracking).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="nrql-example-one"
+    title="Ejecute una consulta básica para obtener cambios de los últimos treinta días."
+  >
+    ```sql
+    SELECT *
+    FROM Deployment
+    SINCE 30 days ago
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="nrql-one"
+    title="Listar errores de transacciones del último mes"
+  >
+    ```sql
+    SELECT count(*)
+    FROM TransactionError
+    WHERE  appName = 'INSERT_YOUR_APP_NAME' AND http.statusCode > 300
+    SINCE 1 month ago TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="nrql-two"
+    title="Listar los detalles de la transacción de la semana pasada"
+  >
+    ```sql
+    SELECT count(*)
+    FROM Transaction
+    WHERE appName = 'INSERT_YOUR_APP_NAME'
+    FACET name
+    LIMIT  MAX
+    SINCE 1 week ago TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### NerdGraph (GraphQL) [#graphql-markers]
+
+Pruebe estas consultas de NerdGraph en nuestro [explorador NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer#find):
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="query-one"
+    title="Versión de lista, guid de entidad y timestamp"
+  >
+    ```graphql
+    {
+      actor {
+        entity(guid: "INSERT_YOUR_GUID_HERE") {
+          deploymentSearch(
+            filter: {
+              timeWindow: {
+                endTime: INSERT_MS_EPOCH_TIMESTAMP,
+                startTime: INSERT_MS_EPOCH_TIMESTAMP
+              }
+            }
+          )
+          {
+            results {
+              version
+              entityGuid
+              timestamp
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="query-two"
+    title="Enumerar una variedad de campos por un usuario específico"
+  >
+    ```graphql
+    {
+      actor {
+        entity(guid: "INSERT_YOUR_GUID_HERE") {
+          deploymentSearch(
+            filter: {
+              timeWindow: {
+                endTime: INSERT_MS_EPOCH_TIMESTAMP,
+                startTime: INSERT_MS_EPOCH_TIMESTAMP
+              },
+              query: "user = 'Test User'"
+            }
+          )
+          {
+            results {
+              version
+              entityGuid
+              timestamp
+              changelog
+              commit
+              deepLink
+              deploymentId
+              description
+              deploymentType
+              groupId
+              user
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="query-three"
+    title="Enumere una variedad de campos por una versión específica y tipo de cambio"
+  >
+    ```graphql
+    {
+      actor {
+        entity(guid: "INSERT_YOUR_GUID_HERE") {
+          deploymentSearch(
+            filter: {
+              timeWindow: {
+                endTime: INSERT_MS_EPOCH_TIMESTAMP,
+                startTime: INSERT_MS_EPOCH_TIMESTAMP
+              },
+              query: "((user = 'Test User' AND version = '1.0') OR deploymentType in ('BLUE_GREEN', 'CANARY'))", limit: 200
+            }
+          )
+          {
+            results {
+              changelog
+              commit
+              deepLink
+              deploymentId
+              deploymentType
+              description
+              entityGuid
+              groupId
+              timestamp
+              user
+              version
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## ¿Que sigue? [#what-next]
+
+Considere configurar un webhook para notificar a su equipo sobre los cambios que está siguiendo. Consulte [Notificar a su equipo sobre los cambios](/docs/change-tracking/change-tracking-webhooks).

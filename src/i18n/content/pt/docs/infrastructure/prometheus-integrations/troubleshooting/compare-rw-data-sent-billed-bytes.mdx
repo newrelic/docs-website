@@ -1,0 +1,125 @@
+---
+title: Compare os bytes enviados e cobrados dos dados de gravação remota do Prometheus
+tags:
+  - Telemetry Data Platform
+  - Prometheus remote write
+  - Sent bytes vs billed bytes
+  - Prometheus integration
+metaDescription: Explanation for the difference in bytes sent versus bytes stored and billed for Prometheus remote write data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O tamanho dos bytes cobrados da gravação remota do Prometheus pode ser maior que os bytes enviados para o New Relic. Para ter certeza de que você não ficará surpreso com a diferença, recomendamos que você analise como a compactação de dados afeta os bytes faturados.
+
+## Entenda a compactação de dados e o faturamento [#data-compression]
+
+Os dados de gravação remota do Prometheus são enviados para o New Relic [compactados](https://prometheus.io/docs/prometheus/latest/storage/#remote-storage-integrations) para uma transmissão mais rápida e sem perdas. Quando ingeridos, esses dados são descompactados e decorados para que possam ser utilizados adequadamente com recursos New Relic , como [síntese de entidade](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis). Embora você deva esperar uma diferença na taxa de bytes compactados e não compactados, a diferença de potencial para dados de gravação remota do Prometheus é importante devido ao [modelo de cobrança](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#usage-calculation) da New Relic.
+
+Você é cobrado com base no esforço computacional necessário para ingerir seus dados, bem como no tamanho dos dados armazenados no New Relic. O processo de descompactação e as transformações de dados podem resultar em bytes descompactados finais armazenados com cerca de 15x o tamanho de sua contraparte compactada.
+
+Por exemplo, com base em uma amostragem de dados de série temporal que coletamos ao simular o tráfego do mundo real, você poderá ver algo assim:
+
+```
+~124 GB/day compressed data sent = ~1.86TB uncompressed data stored
+```
+
+Abaixo está uma simulação das mudanças na taxa de bytes à medida que os dados de leitura e gravação do Prometheus se movem pelo nosso sistema. Nesse caso, as métricas foram geradas pela ingestão de um scrape de gravação remota de um servidor Prometheus local de um exportador de nó local.
+
+<img
+  title="Byte rate estimate total comparison"
+  alt="Byte rate estimate total comparison"
+  src="/images/infrastructure_screenshot-crop_byte-rate-estimate.webp"
+/>
+
+Observe como a taxa de bytes enviada pelo Prometheus se aproxima da contagem de bytes compactados de gravação remota que registramos antes de descompactar o(s) ponto(s) de dados. Podemos atribuir o aumento da variação da taxa de bytes comprimidos de gravação remota à natureza do processamento dos dados através de nossos sistemas distribuídos:
+
+<img
+  title="Sent vs. compressed bytes comparison"
+  alt="Sent vs. compressed bytes comparison"
+  src="/images/infrastructure_screenshot-crop_sent-vs-compressed-chart.webp"
+/>
+
+À medida que os pontos de dados são descompactados, o fator de expansão de 5 a 10x é refletido na diferença entre a taxa de bytes de dados compactados de gravação remota e a taxa de bytes descompactados de gravação remota, que são medições feitas logo antes e depois da descompactação de dados.
+
+<img
+  title="Uncompressed vs. compressed bytes comparison"
+  alt="Uncompressed vs. compressed bytes comparison"
+  src="/images/infrastructure_screenshot-crop_uncompressed-vs-compressed-chart.webp"
+/>
+
+Por fim, à medida que os dados são transformados e os enriquecimentos são realizados, a diferença entre os bytes descompactados de gravação remota e o [`bytecountestimate()`](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts/#byte-count-estimate) pode ser vista abaixo. O `bytecountestimate()` listado é uma medida da contagem de bytes do estado final dos dados antes de serem armazenados.
+
+<img
+  title="Bytecountestimate() vs. uncompressed bytes comparison"
+  alt="Bytecountestimate() vs. uncompressed bytes comparison"
+  src="/images/infrastructure_screenshot-crop_count-estimate-vs-uncompressed-chart.webp"
+/>
+
+Para dar uma melhor compreensão das possíveis transformações/adições de dados pelas quais os dados de leitura e gravação do Prometheus podem passar, aqui está uma comparação da métrica `prometheus_remote_storage_bytes_total` , uma medida relatada pelo servidor Prometheus.
+
+A primeira é uma representação fornecida pelo Prometheus e a segunda é a contraparte da consulta NRQL.
+
+Representação do servidor Prometheus:
+
+```
+"prometheus_remote_storage_bytes_total" {
+	"instance=""localhost:9090"
+	"job=""prometheus"
+	"remote_name=""5dfb33"
+	"url=""https://staging-metric-api.newrelic.com/prometheus/v1/write?prometheus_server=foobarbaz"
+}
+23051
+```
+
+Representação de consulta NRQL
+
+```
+"endTimestamp": 1631305327668,
+"instance:" "localhost:9090",
+"instrumentation.name": "remote-write"
+"instrumentation.provider": "prometheus",
+"instrumentation.source": "foobarbaz",
+"instrumentation.version": "0.0.2",
+"job": "prometheus",
+"metricName": "prometheus_remote_storage_bytes_total",
+"newrelic.source": "prometheusAPI",
+"prometheus_remote_storage_bytes_total",
+"newrelic.source": "prometheusAPI",
+"prometheus_remote_storage_bytes_total": {
+	"type": "count",
+	"count": 23051
+},
+"prometheus_server": "foobarbaz",
+"remote_name": "5dfb33",
+"timestamp": 1631305312668,
+"url": "https://staging-metric-api.newrelic.com/prometheus/v1/write?prometheus_server=foobarbaz"
+}
+```
+
+<Callout variant="tip">
+  O exemplo acima é uma comparação simplificada destinada a ilustrar os conceitos subjacentes, tornando o uso mais leve do que a média da rotulagem e das métricas apresentadas. As versões do mundo real parecerão um pouco diferentes porque têm mais complexidade.
+</Callout>
+
+## Use NRQL para consultar sua contagem de dados [#nrql-queries]
+
+Verifique a seguinte [consultaNRQL ](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/)para coletar informações de contagem de bytes.
+
+Para visualizar a contagem estimada de bytes armazenados na New Relic:
+
+```
+FROM Metric SELECT rate(bytecountestimate(), 1 minute) AS 'bytecountestimate()' WHERE prometheus_server = INSERT_PROMETHEUS_SERVER_NAME SINCE 1 hour ago TIMESERIES AUTO
+```
+
+Para monitor bytes do Prometheus enviados para o New Relic:
+
+```
+FROM Metric SELECT rate(sum(prometheus_remote_storage_bytes_total), 1 minute)  AS 'Prometheus sent bytes rate' WHERE prometheus_server = INSERT_PROMETHEUS_SERVER_NAME SINCE 1 hour ago TIMESERIES  AUTO 
+```
+
+## Referências externas [#references]
+
+Aqui estão alguns links externos para documentos do Prometheus e GitHub que esclarecem compactação e codificação.
+
+* [Prometheus fazendo referência ao Snappy Compression sendo usado na codificação](https://prometheus.io/docs/prometheus/latest/storage/#overview): os protocolos de leitura e gravação usam uma codificação de buffer de protocolo compactado rapidamente sobre HTTP. Os protocolos ainda não são considerados API estáveis e podem mudar para usar gRPC sobre HTTP/2 no futuro, quando todos os saltos entre o Prometheus e o armazenamento remoto puderem ser assumidos com segurança como compatíveis com HTTP/2.
+* [Referência do Protobuf Prometheus](https://github.com/prometheus/prometheus/blob/main/prompb/types.proto#L58-L64).

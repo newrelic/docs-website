@@ -1,0 +1,110 @@
+---
+title: Evento reportado por monitoreo de navegador
+metaDescription: Events and attributes reported by browser monitoring in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro [<InlinePopover type="browser"/>](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring)informa [datos de eventos](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) que se muestran en nuestra UI y que están disponibles para [consultas y gráficos](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+Seleccione un nombre de evento en la siguiente tabla para ver su atributo.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        evento
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`PageView`](/attribute-dictionary/?event=PageView)
+      </td>
+
+      <td>
+        `PageView` rastrea datos geográficos y de tiempo para cada carga de página browser .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`PageViewTiming`](/attribute-dictionary/?event=PageViewTiming)
+      </td>
+
+      <td>
+        `PageViewTiming` envía cada punto de datos como un evento separado tan pronto como esté disponible. Esto es útil para páginas asincrónicas y dinámicas.
+
+        Para utilizar este evento, debe tener la versión 1149 o superior del agente del navegador. Para obtener más información, consulte los [`PageViewTiming` ejemplos de consulta](/docs/browser/new-relic-browser/page-load-timing-resources/pageviewtiming-async-or-dynamic-page-details).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`PageAction`](/attribute-dictionary/?event=PageAction)
+      </td>
+
+      <td>
+        `PageAction` El evento rastrea datos sobre cada acción realizada en una página. Su atributo proporciona datos geográficos y de aplicaciones, así como datos sobre las dimensiones del browser del usuario, ID de sesión y URL de página y de referencia.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`BrowserInteraction` (SPA)](/attribute-dictionary/?event=BrowserInteraction)
+      </td>
+
+      <td>
+        `BrowserInteraction` contiene varios atributos PageView y atributos específicos de aplicaciones de una sola página (SPA)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`AjaxRequest`](/attribute-dictionary/?attribute_name=&events_tids%5B%5D=8302&event=AjaxRequest)
+      </td>
+
+      <td>
+        Se crea un evento `AjaxRequest` cada vez que se realiza una llamada Ajax. Cuando se produce una llamada Ajax durante un evento `BrowserInteraction`, se adorna con un atributo adicional relacionado con la interacción del browser . El atributo de evento rastrea información geográfica y browser .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`BrowserTiming` (SPA)](/attribute-dictionary/?event=BrowserTiming)
+      </td>
+
+      <td>
+        `BrowserTiming` es un evento personalizado que captura datos de tiempo de SPA para la interacción del navegador iniciada utilizando el método API de SPA [createTracer](/docs/browser/new-relic-browser/browser-agent-spa-api/createtracer-browser-spa-api) personalizado. `BrowserTiming` contiene muchos de los mismos atributos utilizados por otros eventos, especialmente `AjaxRequest`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`JavaScriptError`](/attribute-dictionary/?event=JavaScriptError)
+      </td>
+
+      <td>
+        Cuando se produce un error de JavaScript, se crea un evento `JavaScriptError` . `JavaScriptError` captura datos de errores de JavaScript, así como datos de interacción browser . Para obtener más información, consulte la [página de errores de JS](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-examine-errors-over-time) en la UI de usuario del navegador y el [ejemplo de consulta NRQL](/docs/insights/nrql-new-relic-query-language/nrql-query-examples/insights-query-examples-new-relic-browser-single-page-app-data#javascriptError-example) para navegador y evento SPA.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`Span`](/attribute-dictionary/?event=Span)
+      </td>
+
+      <td>
+        `Span` los datos se notifican para [el rastreo distribuido](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener detalles sobre cuánto tiempo se conservan estos datos, consulte [retención de datos](/docs/data-apis/manage-data/manage-data-retention).

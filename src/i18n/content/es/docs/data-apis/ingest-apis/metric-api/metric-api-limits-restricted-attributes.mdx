@@ -1,0 +1,473 @@
+---
+title: Límites API métrica y atributo restringido
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+metaDescription: 'Rate limits and restricted keywords for the New Relic Metric API, and what to do if you reach their limits.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este documento describe los requisitos de datos para la [API métrica](/docs/new-relic-metric-api), incluyendo:
+
+* Límites máximos
+* Atributo restringido
+* Valores métricos restringidos
+
+## Límites máximos [#requirements]
+
+Los siguientes límites predeterminados se aplican a todos los datos métricos:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Condición
+      </th>
+
+      <th>
+        Límite
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Rango de edad para valores timestamp
+      </td>
+
+      <td>
+        Métrica reportados con una timestamp anterior a 48 horas o posterior a 24 horas desde el momento en que se informan se eliminan.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Puntos de datos máximos por minuto (DPM)
+      </td>
+
+      <td>
+        3-15 millones de DPM [(más información)](#additional-considerations)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Máximo de series temporales únicas (cardinalidad) por cuenta y día
+      </td>
+
+      <td>
+        1-15 millones [(más información)](#additional-considerations)
+
+        Una serie temporal es una combinación única y única de un nombre de métrica y cualquier atributo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Máximo de series temporales únicas (cardinalidad) por nombre de métrica por día
+      </td>
+
+      <td>
+        100k
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Carga máxima por minuto
+      </td>
+
+      <td>
+        100k [(más información)](#additional-considerations)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Atributo máximo por métrica
+      </td>
+
+      <td>
+        100
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Longitud máxima del nombre del atributo de métrica
+      </td>
+
+      <td>
+        255 caracteres
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Caracteres máximos para una clave de atributo
+      </td>
+
+      <td>
+        255 caracteres
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Longitud máxima del valor del atributo de métrica
+      </td>
+
+      <td>
+        4096 caracteres
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Protocolos HTTP permitidos
+      </td>
+
+      <td>
+        Solo HTTPS
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Valores largos numéricos que quedan fuera de los valores largos mínimos o máximos de Java
+      </td>
+
+      <td>
+        Se rechazarán los valores largos numéricos que queden fuera del valor largo mínimo o máximo de Java.
+
+        * Si el número está en el bloque común, se eliminará todo el bloque.
+        * Si el número está en un punto de datos métrico, entonces se eliminará el punto de datos métrico en el que reside.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Valores dobles numéricos que quedan fuera de los valores dobles mínimos o máximos de Java
+      </td>
+
+      <td>
+        Se rechazarán los valores dobles numéricos que queden fuera del valor doble mínimo o máximo de Java.
+
+        * Si el número está en el bloque común, se eliminará todo el bloque.
+        * Si el número está en un punto de datos métrico, entonces se eliminará el punto de datos métrico en el que reside.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Valores numéricos dobles que requieren redondeo para convertirse en un número de coma flotante de doble precisión.
+      </td>
+
+      <td>
+        Se rechazarán los valores numéricos dobles que requieran redondeo para convertirlos en un número de coma flotante de doble precisión.
+
+        Un ejemplo de esto es `1.12345678901234567E18`. Un doble puede contener un valor tan grande pero no tiene suficiente precisión para representarlo con exactitud (habría que redondearlo a `1.12345678901234573E18`).
+
+        * Si el número está en el bloque común, se eliminará todo el bloque.
+        * Si el número está en un punto de datos métrico, entonces se eliminará el punto de datos métrico en el que reside.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tamaño de carga útil
+      </td>
+
+      <td>
+        Tamaño o longitud máxima total: <DNT>**1MB (10^6 bytes) maximum per POST**</DNT>. Recomendamos encarecidamente utilizar compresión.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Formato de carga útil
+      </td>
+
+      <td>
+        La carga útil debe codificarse como <DNT>**UTF-8**</DNT>.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sintaxis de nomenclatura de atributos
+      </td>
+
+      <td>
+        Los nombres de atributos pueden ser una combinación de caracteres alfanuméricos, dos puntos (`:`), puntos (`.`) y guiones bajos (`_`).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Los siguientes límites predeterminados se aplican solo a los datos recopilados a través de la integración de escritura remota de Prometheus:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Condición
+      </th>
+
+      <th>
+        Límite
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Serie temporal máxima única de recuento y resumen (cardinalidad) por cuenta en un intervalo de 5 minutos
+      </td>
+
+      <td>
+        1-15 millones [(más información)](#additional-considerations)
+
+        Una serie temporal es una combinación única y única de un nombre de métrica y cualquier atributo. Las series temporales recibidas por encima de este límite se eliminan. Este límite se aplica antes y además de los límites métricos estándar.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Condiciones adicionales de la cuenta [#additional-considerations]
+
+Los límites de API de métrica se aplican a nivel de cuenta individual. Los límites predeterminados para DPM y cardinalidad van desde 3 millones para organizaciones en nuestra [edición gratuita](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions), hasta 10,2 millones para algunas organizaciones de pago. Para comprender los límites de su organización, consulte la [UIde límites](/docs/data-apis/manage-data/view-system-limits). El DPM y la cardinalidad se pueden aumentar a 15 millones a petición de la organización que paga. La carga máxima por minuto se puede ajustar por encima de 100k según el caso. Para solicitar cambios en los límites de su tasa métrica, comuníquese con su representante de cuenta de New Relic o visite nuestro [portal de soporte](http://support.newrelic.com/).
+
+## Incidencia límite de tarifa [#rate-limit-incidents]
+
+Esta sección describe cómo se comporta la API de métrica cuando se exceden los límites de velocidad y cómo responder si se exceden los límites.
+
+<CollapserGroup>
+  <Collapser
+    id="incident-dpm-exceeded"
+    title="Puntos de datos máximos por minuto (DPM)"
+  >
+    Los puntos de datos por minuto se refieren a la velocidad por minuto a la que se envían los valores métricos individuales al API métrico.
+
+    Cuando se excede el límite máximo de DPM para una cuenta, la API métrica de New Relic devuelve una respuesta `429` durante el resto del minuto. La respuesta incluirá un encabezado `Retry-After` que indica cuánto tiempo esperar en segundos antes de volver a enviar o enviar nuevos datos.
+
+    Para resolver este problema, reduzca la cantidad de puntos de datos que envía o solicite un cambio en el límite de velocidad. Los cambios de suscripción posteriores no afectan los límites de tarifas modificados. Si un cambio de cuenta afecta su límite de tarifa, debe notificarnos para ajustar su límite de tarifa.
+
+    Para solicitar cambios en el límite de tarifas, comuníquese con su representante de cuenta de New Relic o visite nuestro [portal de soporte](http://support.newrelic.com).
+  </Collapser>
+
+  <Collapser
+    id="incident-unique-timeseries"
+    title="Máximo de series temporales únicas por cuenta y día"
+  >
+    Una serie temporal es una combinación única y única de un nombre de métrica y cualquier atributo asignado a esa métrica. Por ejemplo, si una `CPU utilization` métrica con un solo atributo `hostname` se envía desde diez hosts diferentes, esto equivale a diez valores distintos para el atributo `hostname` y diez series temporales de métricas únicas.
+
+    Si se excede el límite de serie temporal (cardinalidad) métrica única por cuenta y por día durante un período de 24 horas, el extremo continuará recibiendo y almacenando datos métricos sin procesar. Sin embargo, New Relic dejará de crear resúmenes agregados adicionales (1 minuto, 5 minutos, etc.) durante el resto del período de 24 horas. (Estos resúmenes se utilizan de forma predeterminada para consultar períodos de tiempo superiores a 60 minutos).
+
+    Puede continuar consultando sus datos cuando ocurra un incidente de este tipo especificando una ventana de tiempo de 60 minutos o menos o especificando la palabra clave RAW (para obtener más información al respecto, consulte [Alta cardinalidad métrica](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics)). Esto puede resultar útil para identificar las posibles causas del incidente.
+  </Collapser>
+
+  <Collapser
+    id="incident-unique-timeseries"
+    title="Máximo de series temporales únicas por nombre de métrica por día"
+  >
+    Una serie temporal es una combinación única y única de un nombre de métrica y cualquier atributo asignado a esa métrica. Por ejemplo, si una `CPU utilization` métrica con un solo atributo `hostname` se envía desde diez hosts diferentes, esto equivale a diez valores distintos para el atributo `hostname` y diez series temporales de métricas únicas.
+
+    Si se excede el límite de serie temporal (cardinalidad) métrica única por día y nombre por métrica durante un período de 24 horas, el extremo continuará recibiendo y almacenando datos métricos sin procesar. Sin embargo, New Relic dejará de crear resúmenes agregados adicionales (1 minuto, 5 minutos, etc.) durante el resto del período de 24 horas. (Estos resúmenes se utilizan de forma predeterminada para consultar períodos de tiempo superiores a 60 minutos).
+
+    Puede continuar consultando sus datos cuando ocurra un incidente de este tipo especificando una ventana de tiempo de 60 minutos o menos o especificando la palabra clave RAW (para obtener más información al respecto, consulte [Alta cardinalidad métrica](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics)). Esto puede resultar útil para identificar las posibles causas del incidente.
+  </Collapser>
+
+  <Collapser
+    id="incident-payloads"
+    title="Carga máxima por minuto"
+  >
+    Si realiza más de 100.000 solicitudes POST a los extremos métricos de API en un minuto, el extremo devolverá una respuesta `429` durante el resto del minuto. La respuesta incluirá un encabezado `Retry-After` que indica cuánto tiempo esperar en segundos antes de volver a enviar o enviar nuevos datos.
+
+    En general, si alcanzas este límite, considera crear una carga mayor. Para hacer esto, combine más puntos de datos en cada solicitud para reducir la cantidad de POST necesarios.
+
+    Si esta no es una opción, puede solicitar un aumento del límite de tarifa comunicándose con su representante de cuenta de New Relic o visitando nuestro [portal de soporte](http://support.newrelic.com/).
+  </Collapser>
+</CollapserGroup>
+
+## Atributo restringido [#send-metric-data]
+
+Estos atributos están restringidos por la plataforma New Relic. Cualquier valor enviado con estas claves en la sección de atributos de un punto de datos métrico hará que el punto de datos se elimine, o que el valor se omita o se sobrescriba:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Atributo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `newrelic.source`
+      </td>
+
+      <td>
+        Esto se restablece al valor `metricAPI`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metricName`
+      </td>
+
+      <td>
+        Esto se restablece al valor `name` pasado a cada punto de datos. Esto permite que `name` sea una clave de atributo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `endTimestamp`
+      </td>
+
+      <td>
+        `timestamp` y `interval.ms` se convertirá en `endTimestamp` para el punto de datos.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Estos atributos se utilizan internamente para identificar la entidad. Cualquier valor enviado con estas claves en la sección de atributos de un punto de datos métrico puede causar un comportamiento indefinido, como la falta de entidad en la UI o la telemetría que no se asocia con la entidad esperada. Para obtener más información, consulte la [síntesis de entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis):
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Atributo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `entity.guid`
+      </td>
+
+      <td>
+        Identificador único asignado a una entidad por New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.name`
+      </td>
+
+      <td>
+        Nombre legible por humanos de una entidad, que a menudo se usa para identificar una entidad en la UI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.type`
+      </td>
+
+      <td>
+        Se utiliza para diferenciar entre diferentes tipos de entidades, como hosts, aplicaciones, etc.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Las restricciones adicionales incluyen:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Restricción
+      </th>
+
+      <th>
+        Comentarios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Nombres métricos y de atributos
+      </td>
+
+      <td>
+        No puede pasar el mismo valor para el nombre de la métrica y el nombre del atributo.
+
+        En el siguiente ejemplo, la métrica no es válida porque la métrica se llama `service.errors.all` y hay un atributo `service.errors.all`.
+
+        <DNT>
+          **Example: Metric value used as an attribute (invalid)**
+        </DNT>
+
+        ```json
+        [
+          {
+            "metrics": [
+              {
+                "name": "service.errors.all",
+                "type": "count",
+                "value": 15,
+                "timestamp": 1531414060739,
+                "interval.ms": 10000,
+                "attributes": {
+                  "service.response.statuscode": "400",
+                  "service.errors.all": "test",
+                  "service.name": "foo"
+                }
+              }
+            ]
+          }
+        ]
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Palabras reservadas
+      </td>
+
+      <td>
+        Evite el uso [de palabras reservadas](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits#reserved-words), como `accountId`, `appId` y `eventType`. También debe evitar el uso de términos de sintaxis NRQL a menos que los escriba (``` `` ```).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Claves dentro de la métrica JSON
+      </td>
+
+      <td>
+        Todas las claves utilizadas dentro del JSON métrico no pueden ser claves de atributo. Esto incluye `interval.ms`, `timestamp`, `value`, `common`, `min`, `max`, `count`, `sum` y `metrics`.
+
+        <DNT>**Exception:**</DNT> Puede utilizar `name` como clave de atributo.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Valores métricos restringidos [#restricted-metric-values]
+
+Cualquier dato de métrica enviado a la API de métrica con un `value` igual a `NaN` (no un número), `positive infinity` o `negative infinity` se eliminará.

@@ -1,0 +1,254 @@
+---
+title: コンテナ化されていないLambda関数を設計する
+metaDescription: Instrument your non-containerized Lambda function
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New RelicAWSAWSとNew Relic アカウントを正常にリンクしたら、 Lambda レイヤーを追加して、コンテナ化されていない Lambda 関数を実装できます。これにより、New Relic エージェントが統合され、関数が呼び出されるたびに自動監視が可能になります。
+
+<img
+  title="non-containerized"
+  alt="a diagram depicting non-containerized lambda function instrumentation"
+  src="/images/serverless_diagram_non-containerized-lambda-function.webp"
+/>
+
+## あなたが始める前に [#begin]
+
+* [New RelicとAWSアカウントをリンクする](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#link)
+* [さまざまなインストゥルメンテーション方法を確認する](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#method)
+
+## インストゥルメンテーション方法 [#instrumentation]
+
+New Relic包括的な監視のためにAWS Lambda 関数をプランニングするためのいくつかの方法を提供しています。
+
+* **コマンドラインインターフェース (CLI)** : AWS CLI を使用して、 New Relicレイヤーを Lambda 関数にすばやく追加します。
+* **サーバーレス フレームワーク**: New Relicインストゥルメンテーションをサーバーレス エンタープライズにシームレスに統合します。
+* **CloudFormation/SAM** : インフラストラクチャ コード テンプレートにNew Relicレイヤーを含めます。
+* **Terraform** : New Relicインストゥルメンテーションを他のインフラストラクチャ リソースと一緒に簡単に管理します。
+* **手動インストゥルメント** : よりきめ細かな制御を行うには、 コンソールからNew Relic AWS Lambdaレイヤーを直接追加します。
+
+選択した方法に関係なく、New Relic レイヤーは関数に New Relic エージェントを追加します。 このエージェントは、呼び出し時に関数を自動的にインストゥルメントし、ペイロード `NR_LAMBDA_MONITORING` を生成して、 New Relic Lambda 拡張機能を介してNew Relicに送信します。
+
+ニーズに応じて、拡張機能をバイパスして CloudWatch でテレメトリーのみを表示するか、CloudWatch をバイパスするか、CloudWatch をフォールバックとして使用するかを選択できます。 このドキュメントの最後にある[CloudWatch](#CloudWatch-only)セクションで、各オプションについて説明します。
+
+<CollapserGroup>
+  <Collapser
+    id="cli"
+    title="New Relic CLI"
+  >
+    `newrelic-lambda` CLI クイックスタートを使用して Lambda 関数を計算できます。
+
+    New Relicインストゥルメンテーション レイヤーをインストールまたはアップグレードするには、次のコマンドを実行します。
+
+    ```shell
+    newrelic-lambda layers install --nr-account-id YOUR_NR_ACCOUNT_ID --function my-function --upgrade
+    ```
+
+    このコマンドは、Lambdaのリージョンとランタイムに合わせて、利用可能な最新のレイヤーを自動的に見つけます。
+
+    このコマンドは、 New Relicインストゥルメントを迅速に開始する方法を提供し、 CI/CDパイプラインに簡単に統合できます。 ただし、既存の Lambda 関数リソースが変更されるため、更新されたコードを再デプロイすると、インストゥルメンテーションが誤って削除される可能性があります。 継続的な監視を確実に行うには、各インストーラの後にコマンドを再実行するか、可能であれば、 New Relicレイヤーと設定をインストーラ プロセスに直接組み込みます。
+
+    CLIはバッチで多くの関数を操作できることに注意してください。 `--function all` 、 `--function installed` 、または`--function not-installed`を使用して、リージョン内のすべての関数を操作するか、既存のNewRelicインストルメンテーションの有無にかかわらず関数のみを操作します。
+  </Collapser>
+
+  <Collapser
+    id="cloudformation"
+    title="CloudFormation / SAM テンプレート"
+  >
+    AWSのサーバーレスアプリケーションモデル（SAM）は、CloudFormationテンプレートの一種であり、機能を依存するリソースに関連づけたり、アプリケーション全体のライフサイクルを管理したりすることを容易にします。私たちはLambdaのサンプル関数のほとんどにSAMとCloudFormationを使用しており、他の多くのツールはCloudFormationテンプレートの上に構築され、抽象化の追加レイヤーを提供しています。
+
+    CloudFormation は、 AWSリソースのプロビジョニングと管理を簡素化するAWSサービスです。 YAML または JSON テンプレートでリソースの望ましい状態を定義することにより、CloudFormation は基盤となるAPIコールを自動的に処理し、必要に応じてリソースを作成、更新、または削除します。 この宣言型アプローチにより、インフラストラクチャ管理が自動化され、一貫性と再現性が確保されます。
+
+    Node.jsLambda関数の単純なCloudFormationテンプレートの例を次に示します。
+
+    ```yaml
+    AWSTemplateFormatVersion: '2010-09-09'
+    Transform: AWS::Serverless-2016-10-31
+    Description: And example of a simple instrumented Node.js Lambda
+
+    Resources:
+      NewRelicExample:
+        Type: AWS::Serverless::Function
+        Properties:
+          # In this example, we're using the SAM CLI to package and deploy our lambda. SAM will transform this value during the publish step.
+          CodeUri: newrelic-example-node/
+          # The handler for your function needs to be the one provided by the instrumentation layer, below.
+          Handler: newrelic-lambda-wrapper.handler
+          Runtime: nodejs12.x
+          Environment:
+            Variables:
+              # For the instrumentation handler to invoke your real handler, we need this value
+              NEW_RELIC_LAMBDA_HANDLER: YOUR_PATH_TO_INITIAL_LAMBDA_HANDLER
+              # Distributed tracing needs your account ID, and your trusted account ID
+              NEW_RELIC_ACCOUNT_ID: YOUR_ACCOUNT_ID_HERE
+              # If your New Relic account has a parent account, this value should be that account ID. Otherwise, just
+              # your account id.
+              NEW_RELIC_TRUSTED_ACCOUNT_KEY: YOUR_PARENT_ACCOUNT_ID_HERE
+          Layers:
+            # This layer includes the New Relic Lambda extension, a sidecar process that sends telemetry,
+            # as well as the New Relic agent for Node.js, and a handler wrapper that makes integration easy.
+            - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:451483290750:layer:NewRelicNodeJS12X:34
+          Policies:
+            # This policy allows the lambda to know the value of the New Relic license key. We need this so
+            # that we can send telemetry back to New Relic
+            - AWSSecretsManagerGetSecretValuePolicy:
+                SecretArn: !ImportValue NewRelicLicenseKeySecret-NewRelic-LicenseKeySecretARN
+    ```
+
+    通常、関数とそのリソースを記述する`template.yaml`という名前のファイルがあります。
+  </Collapser>
+
+  <Collapser
+    id="serverless"
+    title="サーバーレスフレームワーク"
+  >
+    Serverless フレームワークは、サーバーレス アプリケーション向けの人気のある開発およびデプロイメント ツールです。 これは AWS 向けに Node.js で記述されており、主に CloudFormation テンプレート上の高レベルの抽象化として機能します。 Node、Python、Ruby、Java、.NET 関数に適しています。
+
+    New Relic では、Serverless Framework アプリケーションのインスツルメンテーションを簡素化するために、 [Serverless Framework Plugin](https://github.com/newrelic/serverless-newrelic-lambda-layers) を提供しています。
+
+    プラグインをインストールするには、次のコマンドを実行します。
+
+    ```bash
+    npm install --save-dev serverless-newrelic-lambda-layers
+    ```
+
+    または、代わりに次のコマンドを実行することもできます。
+
+    ```bash
+    yarn add --dev serverless-newrelic-lambda-layers
+    ```
+
+    次に、 [New RelicアカウントID](/docs/accounts/install-new-relic/account-setup/account-id)と[New Relic個人APIキー](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key)を見つけます。
+
+    次に、 `serverless.yaml`ファイルに次のコードを追加します。
+
+    ```yaml
+    plugins:
+      - serverless-newrelic-lambda-layers
+    custom:
+      newRelic:
+        accountId: your-new-relic-account-id-here
+        apiKey: your-new-relic-personal-api-key-here
+        linkedAccount: your-new-relic-integration-account-name-here
+    ```
+  </Collapser>
+
+  <Collapser
+    id="terraform"
+    title="テラフォーム"
+  >
+    Terraform は、コード ツールとしての一般的なインフラストラクチャとして人気の高いツールです。 AWS リソースの管理に使用できます。 Terraform スクリプトを使用して インストゥルメントされた Lambda 関数のデプロイの [例をいくつか](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/terraform) 紹介します。New Relic
+
+    [New Relic Terraform プロバイダーを](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/cloud_aws_integrations)使用して、 AWSインテグレーションをセットアップできます。
+  </Collapser>
+
+  <Collapser
+    id="console"
+    title="AWSマニュアル インストゥルメンテーション"
+  >
+    上記の方法よりもエラーが発生しやすく、手間がかかりますが、AWS LambdaコンソールからNew Relicを使用するようにLambda関数の設定を手動で変更することができます。Node.jsの場合、 Python、Ruby、Java。
+
+    New Relicランタイムに LambdaRuby を実装する方法の例を次に示します。
+
+    1. AWS ウェブコンソールの**Lambda**サービスセクションに移動します。 そこから、 New Relicに接続する Lambda関数 を見つけます。
+
+    2. デフォルトの**Code** \[コード]タブで、 **Layers** \[レイヤー]セクションまで下にスクロールし、 **Add a layer** \[レイヤーの追加]ボタンをクリックします。
+
+    3. **Create layer** \[レイヤーの作成]ボタンをクリックします。
+
+    4. **Choose a layer** \[レイヤーの選択]に移動し、 **Specify an ARN** \[ARN の指定]オプションを選択します。
+
+    5. [New Relicのレイヤーリスト](https://layers.newrelic-external.com/)に移動し、ドロップダウンリストを使用して、Lambda 関数がホストされているAWSリージョンを選択します。 そこから、Lambda 関数のRubyバージョンとアーキテクチャに一致する ARN を見つけます。 オプションは X86 と ARM64 の 2 つあります。 **Copy to clipboard** \[クリップボードにコピー]ボタンを使用するか、ARN 文字列を手動でコピーします。
+
+    6. AWS コンソールフォームの**Specify an ARN** \[ARN の指定]セクションで、New Relic Lambda レイヤーの ARN を貼り付けます。
+
+    7. AWSコンソールフォームで、 **Add** \[追加]ボタンをクリックして、Lambda 関数にレイヤーを追加します。
+
+    8. Lambda関数のページで、デフォルトの**Code** \[コード]タブを選択した状態で、**Runtime settings** \[ランタイム設定]セクションまで下にスクロールし、**Edit** \[編集]ボタンをクリックします。
+
+    9. 既存の**Handler** \[ハンドラー]値の安全なコピーを作成します。 後の手順で必要になります。
+
+    10. **Handler**\[ハンドラー]の値を`newrelic_lambda_wrapper.handler`に変更し、 **Save** \[保存]をクリックします。
+
+    11. Lambda関数のページの**Configuration** \[設定]タブに切り替えます。
+
+    12. **Environment variables** \[環境変数]サブタブを選択します。
+
+    13. 次の環境変数を定義します。
+
+        * `NEW_RELIC_ACCOUNT_ID`: New Relic[アカウント ID](/docs/accounts/install-new-relic/account-setup/account-id)に設定します。
+
+        * `NEW_RELIC_LAMBDA_HANDLER`: 先ほどコピーした関数の元のハンドラ値に設定します。
+
+          * `NEW_RELIC_LICENSE_KEY`: New Relicライセンスキーに設定します。
+          * `NEW_RELIC_LOG_ENDPOINT`: [https://log-api.newrelic.com/log/v1](https://log-api.newrelic.com/log/v1) に設定します。
+          * `NEW_RELIC_TELEMETRY_ENDPOINT`: [https://cloud-collector.newrelic.com/aws/lambda/v1](https://cloud-collector.newrelic.com/aws/lambda/v1) に設定します。
+
+    14. Lambda 関数のログ (関数が STDOUT に書き込むすべての内容を含む) をNew Relicに送信する場合は、必ず `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS` 環境変数を `true` に設定してください。
+
+    15. 実行ロールを変更して、 New Relicシークレットにアクセスできるようにします。
+
+        * `NEW_RELIC_LICENSE_KEY`という名前のシークレットの ARN を見つけます。
+        * 関数の実行ロールに、以下のコードのような新しいインライン ポリシーを追加します。 `SECRET_ARN`を上記で見つけた値に置き換えます。
+          ```json
+          "Statement": [
+            {
+              "Action": [
+                "secretsmanager:GetSecretValue"
+              ],
+              "Resource": "SECRET_ARN",
+              "Effect": "Allow"
+            }
+          ]
+          ```
+
+        <Callout variant="tip">
+          New Relicレイヤーは、 New Relic Rubyエージェントを自動的に配信し、Lambda 関数の呼び出し前にRuby `require` を介してロードされます。 競合を避けるため、Ruby エージェントのコピーを他の場所に含めないでください。 エージェントの存在を活用するために、関数内で必要なNew Relic RubyエージェントAPI呼び出しを自由に実行してください。
+        </Callout>
+
+        Java、Python、Node.js、および .Net ランタイムは、 Rubyと同じインストゥルメンテーション フローに従いますが、ハンドラーがいくつか異なります。 関数のコンソールで新しくアタッチされたレイヤーを指すように関数のハンドラーを更新する方法は次のとおりです。
+
+    * Javaです。
+
+      * `RequestHandler` 実装: `com.newrelic.java.HandlerWrapper::handleRequest` 。
+      * `RequestStreamHandlerWrapper` 実装: `com.newrelic.java.HandlerWrapper::handleStreamsRequest` 。
+
+    * Python: `newrelic_lambda_wrapper.handler` (アンダースコア)。
+
+    * ノード: `newrelic-lambda-wrapper.handler` (ハイフン)。
+
+    * .Net の場合、ハンドラーを設定する必要はありません。
+
+      Go の場合、Lambda関数を計装するにはソースコードを変更する必要があることに注意してください。 設定変更だけでは十分ではありません。
+  </Collapser>
+</CollapserGroup>
+
+## 輸送方法
+
+<CollapserGroup>
+  <Collapser
+    id="extension"
+    title="拡張機能のみで計装"
+  >
+    各エージェント レイヤーには、CloudWatch をバイパスしてログとペイロードを New Relic に送信するための拡張機能も含まれています。 これにより、レイテンシとコストを削減できます。 ただし、関数のパフォーマンスと信頼性に影響を及ぼすリスクがあります。
+
+    New Relic Lambda レイヤーを追加すると、拡張機能が有効になり、ログ配布はデフォルトで無効になります。
+
+    New Relic で関数ログを表示する場合は、環境変数を使用して関数ログの拡張機能の送信を有効にする必要があります。
+
+    関数ログは、関数の呼び出し中に関数によって記録されたログにすぎないことに注意することが重要です。 拡張機能は、 `START` 、 `END` 、 `REPORT`行などの Lambda ランタイム ログを送信しません。
+  </Collapser>
+
+  <Collapser
+    id="fallback"
+    title="CloudWatch のみと CloudWatch フォールバック"
+  >
+    データを CloudWatch のみに送信するか、フォールバックとして送信するかを選択できます。詳細については、 [CloudWatch フォールバックのドキュメント](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/cloudwatch-fallback)をご覧ください。
+  </Collapser>
+</CollapserGroup>
+
+## 次は何ですか？ [#find-data]
+
+* これらの手順を完了すると、 [Lambda 監視UI](/docs/lambda-monitoring-ui)にデータレポートが表示されます。
+* データが見つからない場合は、 [「Lambda 有効化のトラブルシューティング」](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda#troubleshoot)を参照してください。

@@ -1,0 +1,84 @@
+---
+title: Obtenga el rendimiento promedio de una aplicación (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: How to use New Relic's REST API (v2) to get throughput values (similar to the Throughput chart on your APM Summary page) for web or non-web apps.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar la API REST de New Relic (v2) para obtener el rendimiento promedio de su aplicación, incluido el rendimiento [de aplicaciones web](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#transaction) y [no web](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#non-web-transaction) . Estos valores aparecen en el [gráfico de rendimiento](/docs/apm/applications-menu/monitoring/apm-overview-page-view-transaction-apdex-usage-data#overview_charts) en la página <DNT>**APM Summary**</DNT> de su aplicación:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app)**
+   </DNT>
+
+   .
+
+2. Haga clic en el título
+
+   <DNT>
+     **Transaction time chart**
+   </DNT>
+
+   de la aplicación y luego seleccione su elección.
+
+## Rendimiento de la aplicación web [#api-call]
+
+Para encontrar el valor promedio de rendimiento de la aplicación web durante un período de tiempo, use un solo comando para obtener la métrica `HttpDispatcher`:`requests_per_minute`. Este ejemplo muestra el rango de tiempo para un período específico de 24 horas.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=HttpDispatcher&values[]=requests_per_minute&from=2014-02-21T23:59:00+00:00&to=2014-02-22T23:59:00+00:00&summarize=true'
+```
+
+* Asegúrese de reemplazar `${APPID}` y `${APIKEY}` con su [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y [clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key) de la cuenta.
+* Para cambiar el [intervalo de tiempo](/docs/apm/apis/requirements/extracting-metric-data), incluya los valores `from` y `to` .
+* Para mantener el [período de tiempo predeterminado](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2) de los últimos 30 minutos, omita los valores `from` y `to` .
+* Para devolver una serie de valores de rendimiento en lugar de un [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize), omita `summarize`.
+
+## Rendimiento de la aplicación web (un solo host) [#api-call-web-single]
+
+Para encontrar el rendimiento promedio de un solo host, durante un período de tiempo determinado, use un solo comando para obtener la métrica `HttpDispatcher`:`requests_per_minute` y especifique el valor numérico `${HOST}`. Para identificar el host, utilice la [UI o la API REST](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id).
+
+Este ejemplo muestra el rango de tiempo para un período específico de 24 horas.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/hosts/${HOST}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=HttpDispatcher&:values[]=requests_per_minute&from=2014-02-21T23:59:00+00:00&to=2014-02-22T23:59:00+00:00&:summarize=true'
+```
+
+## Rendimiento de aplicaciones no web [#api-call]
+
+Para encontrar el valor promedio de rendimiento de aplicaciones no web para un período de tiempo determinado, use un solo comando para obtener la métrica `OtherTransaction/all`:`requests_per_minute`.
+
+Este ejemplo muestra el rango de tiempo para un período específico de 24 horas.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=OtherTransaction/all&values[]=requests_per_minute&;from=2014-02-21T23:59:00+00:00&to=2014-02-22T23:59:00+00:00&summarize=true'
+```
+
+* Asegúrese de reemplazar `${APPID}` y `${APIKEY}` con su [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y [clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key) de la cuenta.
+* Para cambiar el [rango de tiempo](/docs/apm/apis/requirements/extracting-metric-data) (como se muestra en este ejemplo), incluya los valores `from` y `to` .
+* Para mantener el [período de tiempo predeterminado](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2) (últimos 30 minutos), omita los valores `from` y `to` .
+* Para devolver una serie de valores de rendimiento en lugar de un [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize), omita `summarize`.
+
+## Rendimiento de aplicaciones no web (host único) [#api-call-non-web-single]
+
+Para obtener el rendimiento promedio de una aplicación no web desde un único host, durante un período de tiempo determinado, utilice un único comando para obtener la métrica `OtherTransaction`:`requests_per_minute` y especifique el valor numérico `${HOST}`. Para identificar el host, utilice la [UI o la API REST](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id).
+
+Este ejemplo muestra el rango de tiempo para un período específico de 24 horas.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/hosts/${HOST}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=OtherTransaction/all&:values[]=requests_per_minute&from=2014-02-21T23:59:00+00:00&to=2014-02-22T23:59:00+00:00&:summarize=true'
+```

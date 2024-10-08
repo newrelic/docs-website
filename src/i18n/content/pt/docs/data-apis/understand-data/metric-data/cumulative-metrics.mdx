@@ -1,0 +1,78 @@
+---
+title: Métricas cumulativas (OTel e Prometheus)
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: How New Relic handles cumulative metrics from OpenTelemetry and Prometheus.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+ano const de exportação = 2023; exportar const gaDate = '4 de abril'; exportar const gaDateAndYear = gaDate + ', ' + ano;
+
+Se você relatar métricas cumulativas de [nossa integração OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction) ou de nossa [integração de gravação remota Prometheus](/docs/infrastructure/prometheus-integrations/install-configure-remote-write/set-your-prometheus-remote-write-integration), isso ajudará você a entender como a New Relic lida com esses dados (por exemplo, como os convertemos em medições delta). Isso ajudará você a entender as visualizações da interface do New Relic, a consultar seus dados e a entender os problemas do relatório de dados.
+
+## Cumulativo e delta métrico explicado [#explained]
+
+Ao coletar dados métricos de uma aplicação, é importante considerar _como_ esses dados foram medidos ao decidir como usá-los e interpretá-los no momento da consulta. O [tipo de métrica](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) é um fator importante, com certas funções de agregação do New Relic funcionando com alguns tipos e não com outros. Mas outro fator importante é o <DNT>**temporality**</DNT> da métrica.
+
+As duas temporalidades são <DNT>**delta**</DNT> e <DNT>**cumulative**</DNT>. `Delta` indica que as medições são redefinidas entre os intervalos de relatório. `Cumulative` indica que não há reinicialização e que as medições são acumuladas. O Prometheus é um exemplo comum de coletor métrico cumulativo ([documentos do Prometheus sobre tipos de dados](https://prometheus.io/docs/concepts/metric_types)), e o OpenTelemetry também define maneiras de coletar métrica cumulativa ([documentos do OpenTelemetry sobre temporalidade](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#temporality)).
+
+A New Relic oferece suporte a dados cumulativos do Prometheus e do OpenTelemetry e realizará a conversão delta na ingestão para torná-los mais alinhados com outras métricas em nossa plataforma e mais fácil de interagir com esses dados via [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language). Os contadores cumulativos são armazenados como uma New Relic [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) e o histograma cumulativo é armazenado como uma New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types).
+
+## Suporte para gravação remota do Prometheus [#prom-support]
+
+Para obter mais informações, consulte [Integração de gravação remota do Prometheus](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic).
+
+## Suporte OpenTelemetry [#otel-support]
+
+Para obter mais informações sobre o suporte do OpenTelemetry, consulte [Métrica OpenTelemetry: Melhores práticas](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics).
+
+## Detalhes de conversão cumulativa para delta [#delta-conversion]
+
+Em um alto nível, a conversão delta é realizada pegando dois pontos de dados sequenciais no tempo do evento e calculando uma diferença. No entanto, as coisas nunca são tão simples na prática. Aqui estão alguns cenários comuns que antecipamos e como lidamos com eles.
+
+### Reinicializações [#resets]
+
+Se o valor dos dados de uma [série temporal](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#timeseries-model) diminuir repentinamente, trataremos isso como uma redefinição e emitiremos essa nova medição como seu próprio valor delta (em outras palavras, como se ela fosse precedida por uma medição `0` ).
+
+[A OpenTelemetry também define](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#resets-and-gaps) situações em que uma diminuição no valor é inesperada, e fazemos o nosso melhor para detectar esses casos e notificá-lo através de [erros de integração da New Relic](/docs/data-apis/manage-data/nrintegrationerror) (veja [resolução de problemas](#troubleshooting) abaixo).
+
+### Reordenando dados [#reorder-data]
+
+Entendemos que muitas coisas podem fazer com que os pontos de dados cheguem fora de serviço à New Relic. Dessa forma, armazenaremos os pontos de dados em buffer e os reordenaremos se detectarmos uma lacuna inesperada na série temporal do relatório. As lacunas são inferidas por um intervalo de relatório esperado determinado pela taxa com que recebemos dados para uma determinada série temporal. O buffer é limitado e eventualmente consideraremos um ponto de dados "tarde demais para novo sequenciamento". Neste caso, um delta é calculado através da lacuna detectada e o processamento da série temporal continua.
+
+### Dados desatualizados [#stale-data]
+
+Como a conversão delta é uma operação com estado, devemos estar cientes das séries temporais que podem parar de relatar e, eventualmente, abandonar seu estado. Se uma série temporal não relatou nenhum novo ponto de dados para <DNT>**5 minutes**</DNT>, liberaremos o estado que temos, incluindo deltas computacionais em quaisquer lacunas armazenadas em buffer. Isso significa que se um ponto de dados chegar em um momento posterior, ele será tratado como se fosse o início daquela série temporal, perdendo efetivamente o delta entre o último ponto de dados antes da liberação e o primeiro ponto de dados após a liberação. . Isso significa que os intervalos de relatórios métricos devem ser menores que <DNT>**5 minutes**</DNT> para obter o benefício da conversão delta.
+
+### Nota especial sobre somas cumulativas [#cumulative-sums]
+
+Mesmo que os dados tenham sido registrados pelo seu aplicativo e enviados como uma sequência de valores crescentes monotonicamente, chamar `sum()` neles os tratará como se fossem uma sequência de valores delta; não há necessidade de calcular nenhum `derivative()`!
+
+Ao converter uma soma em delta, o New Relic também emitirá o valor cumulativo junto com o delta para manter a capacidade de você consultar o valor cumulativo mais recente. Para acessar o valor cumulativo, você pode usar [getField()](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-getfield) (veja [Como consultar métrica](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics/#query) para exemplos).
+
+Observe que os pontos de dados são plotados em seus `timestamps` associados, que são o início de um intervalo. No entanto, os valores cumulativos estão associados ao `endTimestamp` do ponto de dados, portanto, talvez seja necessário considerar a largura de um ponto de dados ao interpretar a consulta cumulativa.
+
+## Resolução de problemas [#troubleshooting]
+
+Em alguns casos, reportaremos um [erro de integração do New Relic](/docs/data-apis/manage-data/nrintegrationerror) como resultado do processo de conversão cumulativo para delta. Aqui estão alguns motivos comuns.
+
+### Erros de tradução [#translation-errors]
+
+A conversão delta envolve a suposição de que dois pontos de dados sequenciais no tempo do evento terão valores cumulativos crescentes monotonicamente. O único momento em que se espera que essa suposição seja quebrada é quando o processo que está sendo monitorado é reiniciado. Se a monotonicidade for quebrada por qualquer outro motivo, ainda trataremos isso como uma redefinição, mas tentaremos notificá-lo gerando um evento [de erro de integração do New Relic](/docs/data-apis/manage-data/nrintegrationerror) em sua conta. Isso é possível fazer para dados do OpenTelemetry <DNT>**but not Prometheus**</DNT>, porque o OpenTelemetry inclui mais informações que podem ser usadas para detectar tais situações. A causa mais comum para uma quebra inesperada na monotonicidade é quando o aplicativo do lado do cliente atinge os limites de cardinalidade e descarta dados para aliviar a pressão da memória. Em certos casos, isso funciona como uma redefinição inesperada e pode resultar em uma diminuição inesperada nos valores enviados para a New Relic. É recomendado que você procure uma instância disso em seu log OTLP:
+
+```
+Instrument % has exceeded the maximum allowed accumulations (2000)
+```
+
+O OpenTelemetry SDK permite [configurar seus limites de cardinalidade](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#cardinality-limits). OpenTelemetry também fornece uma maneira de reduzir a cardinalidade do lado do cliente usando [<DNT>**Views**</DNT>](https://opentelemetry.io/docs/reference/specification/metrics/sdk/#view) e é o caminho recomendado para corrigir esses problemas. Outra opção é explorar a exportação de sua [métrica OTLP usando temporalidade Delta](https://opentelemetry.io/docs/reference/specification/metrics/sdk_exporters/otlp/#additional-configuration) , o que pode ajudar a economizar memória.
+
+### Limites de cardinalidade [#card-limits]
+
+Durante a tradução, também aplicamos limites de cardinalidade métrica baseados em seus direitos de métrica como proteção do sistema. Em vez de impor o limite [por dia, como fazemos com rollups](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes/#incident-unique-timeseries), esse limite é aplicado como o número de séries temporais simultâneas que estão sendo rastreadas. Quando houver muitas [séries temporais métricas exclusivas](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/#what-why) simultâneas, descartaremos as novas séries temporais recebidas até que uma antiga expire (consulte [Dados obsoletos](#stale-data)).
+
+### Reinicializações métricas cumulativas [#cumulative-resets]
+
+As redefinições métricas cumulativas normalmente ocorrem quando o serviço ou aplicativo que as reporta é reiniciado. Ao consultar uma métrica que foi redefinida, pode parecer que o valor da métrica diminuiu. No entanto, esse é o comportamento esperado, conforme descrito na [especificação da métrica OpenTelemetry](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#resets-and-gaps). Para diferenciar entre redefinições métricas normais e uma métrica problemática que <DNT>**is**</DNT> diminui inesperadamente, verifique se há [erros de integração do New Relic](/docs/data-apis/manage-data/nrintegrationerror) em sua conta . Caso não sejam reportados erros de integração em relação à métrica com valores decrescentes, é provável que sua aplicação que reporta a métrica cumulativa esteja reiniciando e zerando o valor da métrica.

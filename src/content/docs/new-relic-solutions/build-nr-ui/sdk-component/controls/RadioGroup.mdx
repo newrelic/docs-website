@@ -1,0 +1,256 @@
+---
+title: 'RadioGroup'
+metaDescription: 'Learn how to work the RadioGroup component'
+freshnessValidatedDate: 2024-06-03
+---
+
+A group of `<Radio>` buttons. The `<Radio>` buttons may either be direct children or descendants of the radio group. `<Radio>` buttons inside a radio group must have a unique `value` assigned.
+
+Once a radio group is established, selecting any `<Radio>` in that group automatically deselects any currently-selected `<Radio>` in the group.
+
+**Note**: Setting `value` will override `defaultValue` as it puts the `RadioGroup` into a controlled state. `value` will not override `Radio` components that have `checked` set, as `RadioGroup` will take control of uncontrolled `Radio` components and can't override controlled ones.
+
+The `onChange` event handler for `RadioGroup` will fire after any `onChange` event handler set on individual `Radio` components. However, it is highly recommended to only set one event handler for the whole group in a controlled `RadioGroup`.
+
+### Usage
+
+```js
+import { RadioGroup } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<RadioGroup defaultValue="2">
+  <Radio label="Radio 1" value="1" />
+  <Radio label="Radio 2" value="2" />
+  <Radio label="Radio 3" value="3" />
+</RadioGroup>
+```
+
+#### With label and info
+
+```js
+<RadioGroup label="Radio Group" info="Info value" defaultValue="2">
+  <Radio label="Radio 1" value="1" />
+  <Radio label="Radio 2" value="2" />
+  <Radio label="Radio 3" value="3" />
+</RadioGroup>
+```
+
+#### With inline label
+
+```js
+<RadioGroup label="Radio Group" labelInline defaultValue="2">
+  <Radio label="Radio 1" value="1" />
+  <Radio label="Radio 2" value="2" />
+  <Radio label="Radio 3" value="3" />
+</RadioGroup>
+```
+
+#### With description
+
+```js
+<RadioGroup
+  label="Radio Group"
+  description="Description value"
+  defaultValue="2"
+>
+  <Radio label="Radio 1" value="1" />
+  <Radio label="Radio 2" value="2" />
+  <Radio label="Radio 3" value="3" />
+</RadioGroup>
+```
+
+#### With invalid message
+
+```js
+<RadioGroup
+  label="Radio Group"
+  invalid="Invalid message value"
+  defaultValue="2"
+>
+  <Radio label="Radio 1" value="1" />
+  <Radio label="Radio 2" value="2" />
+  <Radio label="Radio 3" value="3" />
+</RadioGroup>
+```
+
+#### Controlled component
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      selectedValue: '2',
+    };
+
+
+    this.onChange = this.onChange.bind(this);
+  }
+
+
+  onChange(event, value) {
+    this.setState((state) => {
+      return { selectedValue: value };
+    });
+  }
+
+
+  render() {
+    return (
+      <RadioGroup value={this.state.selectedValue} onChange={this.onChange}>
+        <Radio label="Radio 1" value="1" />
+        <Radio label="Radio 2" value="2" />
+        <Radio label="Radio 3" value="3" />
+      </RadioGroup>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Content of the RadioGroup.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>any</h5>
+      </td>
+
+      <td>
+        Default value of the radio group. The `<Radio>` with the matching value will be selected.Useful when you don't want to use a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the radio group value changes (a `<Radio>` in the group is selected).
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"react.ChangeEvent","description":"Event source of the callback."},{"name":"value","type":"any","description":"The value of the selected radio button."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>any</h5>
+      </td>
+
+      <td>
+        Value of the radio group. The radio button with the matching value will be selected.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+  </tbody>
+</table>

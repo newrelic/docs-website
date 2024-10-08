@@ -1,0 +1,154 @@
+---
+title: Identificar servicios externos lentos y dependencia.
+metaDescription: Improve app performance by troubleshooting your third party services with the New Relic external services UI.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Objetivos [#objectives]
+
+<SideBySide>
+  <Side>
+    Al final de este tutorial, podrá:
+
+    * Comprender cómo utilizar la UIde servicios externos
+    * Identifique cualquier servicio externo lento, como la API de llamadas.
+    * Revisar el rendimiento a nivel de transacción
+  </Side>
+
+  <Side>
+    <img
+      title="Screenshot showing the opening map for external services"
+      alt="Screenshot showing the opening map for external services"
+      src="/images/apm_screenshot-crop_external-service-intro.webp"
+      style={{ maxWidth: '50%' }}
+    />
+  </Side>
+</SideBySide>
+
+## ¿Por qué buscar servicios externos? [#why]
+
+La característica de servicios externos le permite observar la actividad ascendente y descendente de un servicio. Esos servicios externos ascendentes o descendentes pueden ser sus propios servicios que usted instrumente o servicios de terceros y llamada API. Cuando estos servicios externos tienen un tiempo de respuesta lento, retrasan la aplicación y provocan lentitud.
+
+## Identificar servicios externos lentos [#identify]
+
+Echemos un vistazo a cómo identificar servicios externos lentos:
+
+<Steps>
+  <Step>
+    Navegue a la UI de usuario de servicios externos: vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com/nr1-core?filters=(domain%3D'APM'ANDtype%3D'APPLICATION')) > (select an app) > Monitor > External services**</DNT>. Alterna <DNT>**Show new view**</DNT> en la parte superior izquierda si aún no está habilitado y luego haz clic en <DNT>**Map**</DNT> en la parte superior derecha.
+
+    La dependencia de su aplicación, también conocida como dependencia ascendente, se enumera a la izquierda. A la derecha están los servicios que dependen de su aplicación, conocidos como servicios descendentes. Puede ver qué servicios están en buen estado, así como el rendimiento y el consumo de tiempo de cada servicio. Puede seleccionar un servicio para ver información más detallada sobre ese servicio.
+
+    Pase el cursor sobre todas sus dependencias upstream e intente identificar aquellas que tengan un tiempo de respuesta o un recuento de trazas elevado. Preste especial atención a cualquiera que tenga picos significativos en su historia reciente. Si encuentra un servicio sospechoso, profundice pasando el cursor sobre él y seleccionando el botón <DNT>**View traces**</DNT> . Este nuevo panel muestra información sobre esa traza de la transacción, que registra las llamadas a funciones disponibles, llamadas a base de datos y llamadas externas de esa transacción.
+  </Step>
+
+  <Step>
+    Hay varias formas de utilizar la información proporcionada por esta página, así que siéntete libre de explorar. A continuación se muestra un flujo de trabajo de ejemplo:
+
+    1. Busque la línea más gruesa y oscura en el mapa y sígala hasta su servicio ascendente o descendente.
+
+    2. Haga clic en el vértice aguas arriba o aguas abajo.
+
+    3. Vea un desglose de la transacción entre los dos servicios.<img title="Screenshot showing calls to various endpoints in downstream service" alt="Screenshot showing calls to various endpoints in downstream service" src="/images/apm_screenshot-crop_external-services-downstream.webp"/>
+
+       <figcaption>
+         En este ejemplo, uno de los bordes (líneas) más gruesos va desde el servicio Order-Composer hasta el extremo del almacén en el servicio Order Status.
+       </figcaption>
+
+    4. Si decide que una transacción en particular está tomando más tiempo, haga clic en esa transacción para centrarse específicamente en su dependencia.<img title="Screenshot showing the transaction between the Order-Composer service and the warehouse endpoint in the Order-Status service" alt="Screenshot showing the transaction between the Order-Composer service and the warehouse endpoint in the Order-Status service" src="/images/apm_screenshot-crop_external-services-specific-transaction.webp"/>
+
+       <figcaption>
+         En esta vista detallada, puede ver la transacción entre el servicio Order-Composer y el extremo del almacén en el servicio Order-Status.
+       </figcaption>
+
+    5. Desde cualquier punto de este flujo, consulte los gráficos de rendimiento de respaldo, que muestran los cambios a lo largo del tiempo.
+
+    6. Si llega a un punto en el desglose donde desea ver el rastreo distribuido, haga clic en <DNT>**List**</DNT> en la esquina superior derecha y luego haga clic en <DNT>**Traces**</DNT> en la tabla.<img title="Screenshot showing the trace link in the table view" alt="Screenshot showing the trace link in the table view" src="/images/apm_screenshot-crop_external-services-link-table.webp"/>
+
+       <Callout variant="tip">
+         Los mapas de servicios, como el que se usó anteriormente, son poderosos para comprender las relaciones complejas dentro de su sistema. Cuantos más servicios haya instrumentado, más observabilidad desbloqueará en su sistema. [Obtenga más información sobre los mapas de servicios](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/introduction-service-maps/).
+       </Callout>
+  </Step>
+
+  <Step>
+    La vista de mapa de los pasos anteriores es excelente para obtener una vista visual de su sistema, pero si tiene dificultades para identificar su servicio externo problemático, la vista de lista puede ser más útil al proporcionar datos en gráficos y tablas.
+
+    Primero navegue a la vista de lista seleccionando <DNT>**List**</DNT> en la parte superior derecha. Esta página muestra varias tablas y gráficos que puede utilizar para identificar servicios externos lentos. Utilizará esta página para clasificar sus servicios:
+
+    1. Eche un vistazo al gráfico
+
+       <DNT>
+         **Response time**
+       </DNT>
+
+       . Esto muestra sus cinco servicios externos más lentos. Tenga en cuenta que, si bien estos son los más lentos, solo lo son en relación con el resto de sus servicios. Es posible que no sean lo suficientemente lentos como para causar interrupciones en su aplicación.
+
+    2. Eche un vistazo al
+
+       <DNT>
+         **Traced error count**
+       </DNT>
+
+       . ¿Hay una gran cantidad de errores? Si es así, ¿de qué servicio provienen?
+
+    3. En la tabla inferior, ordene los servicios por
+
+       <DNT>
+         **% change**
+       </DNT>
+
+       . Esto mostrará sus servicios clasificados según cuánto ha cambiado recientemente su duración o traza de llamadas. ¿Hay algún servicio que haya experimentado un repunte drástico recientemente?
+
+       Profundice en los servicios identificados anteriormente seleccionando <DNT>**View traces**</DNT> junto al nombre de ese servicio en la tabla inferior. Utilice esta información para reemplazar esos servicios, optimizar la API de llamadas o distribuir cargas entre sus servicios.
+  </Step>
+</Steps>
+
+## Revisa tu trabajo [#check-work]
+
+Ya ha analizado el problema; ahora es el momento de identificar una solución. La solución será específica para su problema, pero aquí hay algunos ejemplos:
+
+* Te das cuenta de que estás llamando a una API dos veces por accidente. Elimina la llamada duplicada a la mitad de tu tiempo total de respuesta.
+* Una llamada API específica comienza a acelerarse cada día alrededor del mediodía y te das cuenta de que alcanzas los límites gratuitos de la API a esa hora todos los días. Encuentre una API alternativa o actualice su acceso.
+* Bajo una carga pesada, accede a otro servicio interno más allá de sus límites, lo que genera un tiempo de respuesta lento. Distribuya esta carga entre más servicios o encuentre una manera de reducir u optimizar su carga.
+
+Envíe su solución al desarrollo y luego ejecute una prueba de carga típica para tener una idea de cómo se ejecutará su aplicación en producción.
+
+Mientras monitor sus servicios externos, vigile de cerca sus gráficos:
+
+* ¿Sus servicios externos están alcanzando un tiempo de respuesta aceptable? ¡Ya terminaste!
+* ¿Mejoraron? Utilice lo que ha aprendido para descubrir por qué mejoraron más allá de lo normal.
+* ¿Sigues viendo un tiempo de respuesta lento? Tal vez haya un problema con la base de datos, o tal vez su transacción esté funcionando lentamente:
+
+<DocTiles numbered>
+  <DocTile
+    title="Prepare to triage your application"
+    path="/docs/journey-app-slow/root-causes"
+  />
+
+  <DocTile
+    title="Identify problematic transactions"
+    path="/docs/journey-app-slow/problematic-transactions"
+  />
+</DocTiles>
+
+<DocTiles>
+  <DocTile
+    title="Identify slow database queries"
+    number="3"
+    path="/docs/journey-app-slow/slow-database-queries"
+  />
+
+  <DocTile
+    title="Identify slow external services"
+    number="4"
+    label={{text: 'Current doc', color: '#FCD672'}}
+    path="/docs/journey-app-slow/external-services"
+  />
+
+  <DocTile
+    title="Create performance benchmarks"
+    number="5"
+    path="/docs/journey-app-slow/create-benchmarks/"
+  />
+</DocTiles>

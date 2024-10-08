@@ -1,0 +1,138 @@
+---
+title: Introduction to OpenTelemetry and New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: A high-level overview of OpenTelemetry and New Relic.
+redirects:
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/introduction-opentelemetry-new-relic
+  - /docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration
+  - /docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/opentelemetry-exporter
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-exporter
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/introduction-opentelemetry
+  - /docs/integrations/open-source-telemetry-integrations/opencensus/opencensus-exporter
+  - /docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opencensus-integration
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/introduction-opentelemetry-new-relic
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/
+  - /docs-website/src/content/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-ref-architecture/
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-comparison
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction
+freshnessValidatedDate: 2024-09-10
+---
+
+OpenTelemetry is a toolkit to gather telemetry from applications, infrastructure (hosts, Kubernetes, etc.), and more. By integrating OpenTelemetry with New Relic, you can leverage a wide range of platform capabilities to analyze the data and diagnose problems.
+
+This documentation provides a foundational understanding of OpenTelemetry and its integration with New Relic. For practical guidance on implementing common use cases, such as Application Performance Monitoring (APM) and infrastructure monitoring, see [Get started with OpenTelemetry and New Relic](/docs/opentelemetry/get-started/opentelemetry-get-started-intro/). 
+
+To delve deeper into how New Relic processes and ingests OpenTelemetry data, explore the following pages:
+* [OpenTelemetry data in New Relic](/docs/opentelemetry/best-practices/opentelemetry-data-overview/): Learn how New Relic receives, processes, and ingests OpenTelemetry data
+* [New Relic OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/): Configure our OTLP endpoint to send data to New Relic
+
+
+## Benefits of OpenTelemetry [#benefits]
+
+OpenTelemetry is a vendor-neutral open standard for instrumenting and exporting telemetry data. The project scope is quite extensive, including:
+
+* A [specification](https://opentelemetry.io/docs/specs/otel/) of language agnostic APIs for instrumenting the core pillars of observability (traces, metrics, logs), and SDKs for configuring how telemetry is exported out of process, with implementations exist in [11+ languages](https://opentelemetry.io/docs/languages/). There is a substantial catalog of instrumentation available built on top of these APIs.
+* [OTLP](https://opentelemetry.io/docs/specs/otlp/), a general-purpose telemetry data delivery protocol.
+* [Semantic conventions](https://opentelemetry.io/docs/specs/semconv/) describing the shape of telemetry data for common domains (HTTP servers, messaging systems, and many more).
+* The [Collector](https://opentelemetry.io/docs/collector/), a highly configurable and extensible data collection and processing pipeline used to monitor infrastructure and enrich, filter, and otherwise transform telemetry.
+
+These components work together to create distinct advantages described in the table below.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Feature
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Language agnostic
+      </td>
+
+      <td>
+        OpenTelemetry reduces the cognitive load of polyglot teams by providing one vocabulary and one toolkit.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Open standard
+      </td>
+
+      <td>
+        As an open standard with an open governance structure, no single vendor controls the direction of OpenTelemetry.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Full control of observability data
+      </td>
+
+      <td>
+        The highly configurable and extensible nature of language SDKs and the Collector offer unparalleled control over your telemetry data pipeline.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rich instrumentation ecosystem
+      </td>
+
+      <td>
+        One of the goals of OpenTelemetry is for the APIs to ultimately be used directly in upstream libraries and frameworks. To bridge the gap, OpenTelemetry provides a large catalog of instrumentation contributed from engineers all over the world. There is more collective instrumentation effort in OpenTelemetry than any one vendor can provide on their own.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Future proof
+      </td>
+
+      <td>
+        While OpenTelemetry has already come a long way, it seems poised to grow in adoption thanks to its large active community, industry support, and open governance model. While we can't see into the future, OpenTelemetry is the most likely open source winner in the observability industry.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## OpenTelemetry or New Relic instrumentation? [#choice]
+
+In many cases, there is overlap between features and components available from OpenTelemetry and from New Relic. For example, [OpenTelemetry APM monitoring](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro/) mirrors [New Relic APM agents](/docs/apm/new-relic-apm/getting-started/introduction-apm/), and [infrastructure monitoring with the OpenTelemetry Collector](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro/) mirrors the capabilities of the [New Relic infrastructure agent](/docs/infrastructure/infrastructure-monitoring/get-started/get-started-infrastructure-monitoring/).
+
+We recommend that you explore both New Relic and OpenTelemetry options. With New Relic instrumentation, there are inherent advantages to developing instrumentation and platform features which work together, and New Relic integrations tend to work better out of the box. On the other side, OpenTelemetry offers an unparalleled degree of flexibility and control, but this sometimes requires additional research and effort to achieve the desired outcome.
+
+## OpenTelemetry is continually evolving [#emerging-standard]
+
+The OpenTelemetry project has a large scope which has grown over the years. While many core components have reached stability (including OTLP, the trace APIs and SDKs, the metric APIs and SDKs, the log bridge APIs and SDKs, HTTP semantic conventions, and many language implementations), there are naturally pieces which are at various other stages of maturity.
+
+New Relic aims to have first-class support for OpenTelemetry, including ingesting all OTLP data into our general purpose observability platform and building user experiences on top of OpenTelemetry data to help drive insights from the data out of the box. As components emerge and develop, our platform capabilities will evolve alongside. However, please be cognizant of the maturity status of any OpenTelemetry components you're integrating with. While we try to stay on top of changes, it can be challenging to build around breaking changes of experimental components.
+
+## OpenTelemetry reference architecture [#reference-architecture]
+
+With such a wide variety of components and configuration options, it can be difficult to know where to start with OpenTelemetry.
+
+The diagram below showcases a reference architecture that provides a high-level overview of how various OpenTelemetry components interact and integrate with New Relic. This visual guide is valuable for software developers, DevOps engineers, architects, and managers seeking to align on key concepts. 
+
+The architecture illustrates applications instrumented with a diverse set of tools, including New Relic APM agents, OpenTelemetry APM instrumentation, Jaeger, and Prometheus. These tools collect telemetry data, which is then exported to New Relic, potentially passing through an optional, intermediate OpenTelemetry Collector. The Collector understands a wide variety of protocols, and can process, filter, and enrich telemetry data before exporting on to one or more destinations. For working code examples demonstrating these integrations, see [Get started with OpenTelemetry and New Relic](/docs/opentelemetry/get-started/opentelemetry-get-started-intro/).
+
+<img
+  title="Diagram showing a reference architecture for OpenTelemetry and New Relic"
+  alt="Diagram showing a reference architecture for OpenTelemetry and New Relic"
+  src="/images/more-integrations_diagram_otel-ref-arch.webp"
+/>
+
+For additional reading, familiarize yourself with the [OpenTelemetry demo](https://opentelemetry.io/docs/demo/), a project maintained by the OpenTelemetry community which illustrates various OpenTelemetry concepts through a fictitious ecommerce system driven by a series of microservices.
+
+

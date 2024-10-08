@@ -1,0 +1,245 @@
+---
+title: Instrumentação personalizada via atributo (.NET)
+tags:
+  - Agents
+  - NET agent
+  - Custom instrumentation
+metaDescription: How to collect data from uninstrumented parts of your code by using New Relic's .NET agent API for custom instrumentation.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O agente .NET da New Relic oferece diversas opções para [instrumentação personalizada](/docs/agents/net-agent/instrumentation/net-custom-instrumentation). A instrumentação personalizada permite instrumentar partes do seu aplicativo que não são instrumentadas automaticamente. Este documento descreve como instrumentar seu aplicativo decorando os métodos no código do seu aplicativo com atributo.
+
+* Use o atributo `Transaction` para criar uma transação personalizada. Você também pode marcar a transação personalizada como uma transação da web com a propriedade `Web` do atributo.
+* Use o atributo `Trace` para adicionar instrumentação personalizada a métodos invocados em uma transação preexistente.
+
+## Requisitos e recomendações [#requirements]
+
+Os requisitos incluem:
+
+* Agente .NET versão [6.16.178.0](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-6161780) ou superior.
+* Você deve estar disposto a modificar seu código-fonte. Se você não pode ou não deseja modificar seu código-fonte, use [instrumentação personalizada via XML](/docs/agents/net-agent/custom-instrumentation/custom-instrumentation-xml-net).
+* Seu projeto deve ter uma referência a `NewRelic.Api.Agent.dll` (por exemplo, instalar o pacote e colocar `using NewRelic.Api.Agent;` em seu código). Este pacote está na [galeria do NuGet](https://www.nuget.org/packages/NewRelic.Agent.Api/).
+* O atributo `Transaction` e `Trace` devem ser aplicados a implementações concretas de métodos. Eles não podem ser aplicados em interfaces ou definições de métodos de superclasses.
+
+## Transação chamada transação dentro [#tx-vs-trace]
+
+Os métodos decorados com o atributo `[Transaction]` só criarão uma nova transação quando ainda não existir uma. Quando um método decorado com `[Transaction]` é chamado a partir de <DNT>**within**</DNT> uma transação iniciada anteriormente, ele será tratado como o atributo `[Trace]` e fornecerá mais informações sobre a transação existente.
+
+<CollapserGroup>
+  <Collapser
+    id="example-tx-vs-trace"
+    title={<>Exemplo: Chamando <InlineCode>
+      Transaction
+    </InlineCode> em uma transação já iniciada</>}
+  >
+    Durante a execução deste aplicativo de console, `OuterMethod` será chamado primeiro e criará uma nova transação. O `InnerMethod` é chamado de dentro da transação iniciada por `OuterMethod`, portanto não criará uma nova transação. Em vez disso, as informações sobre a execução de `InnerMethod` serão rastreadas como se o atributo `[Trace]` tivesse sido aplicado.
+
+    ```cs
+    static void Main(string[] args)
+    {
+        OuterMethod();
+    }
+
+    [Transaction]
+    public void OuterMethod()
+    {
+        InnerMethod();
+    }
+
+    [Transaction]
+    public void InnerMethod()
+    {
+        // inner method code
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Crie uma nova transação fora da web [#create-background-txn]
+
+Para iniciar uma transação fora da web (também conhecida como solicitação em segundo plano) com o atributo `Transaction` :
+
+```cs
+[Transaction]
+public void Run()
+{
+    // your background task
+}
+```
+
+Para obter detalhes sobre por que usar web ou não-web, consulte [Classificar como web ou não-web](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation#web-background).
+
+## Crie uma nova transação da web [#create-web-txn]
+
+Para instruir o agente a marcar uma tarefa que não seja da Web como uma transação do browser da Web, use uma destas opções:
+
+* Defina a propriedade `Web` do atributo `Transaction` como `true`.
+* Defina o URI da transação com [`SetTransactionUri()`](/docs/agents/net-agent/net-agent-api).
+
+```cs
+[Transaction(Web = true)]
+public void Run()
+{
+    var uri = new Uri("https://www.mydomain.com/path");
+    NewRelic.Api.Agent.NewRelic.SetTransactionUri(uri);
+
+    // your web task
+}
+```
+
+Quando usado dentro de uma [transação iniciada anteriormente](#tx-vs-trace), será tratado como um atributo `[Trace]` .
+
+Para obter detalhes sobre por que usar web ou não-web, consulte [Classificar como web ou não-web](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation#web-background).
+
+## Adicione detalhes à transação existente com `Trace` [#add-trace]
+
+Se o seu trace da transação mostrar grandes blocos de tempo não instrumentado e você quiser incluir métodos adicionais no trace, você poderá usar o atributo `Trace`:
+
+```cs
+[Trace]
+protected void MethodWithinTransaction()
+{
+    // your app code
+}
+```
+
+<Callout variant="important">
+  Se alguns dos seus métodos não aparecerem no rastreamento depois de adicionar o atributo `[Trace]` , desative o método embutido para esses métodos com `[MethodImpl(MethodImplOptions.NoInlining)]`.
+</Callout>
+
+<Callout variant="important">
+  Executar seu aplicativo no Visual Studio no modo <DNT>**debug**</DNT> pode impedir que alguns métodos apareçam no rastreamento do New Relic. Para garantir que os métodos apareçam no New Relic, execute o aplicativo no modo de liberação por meio da linha de comando.
+</Callout>
+
+## Propriedades para `Transaction` [#properties]
+
+O atributo `Transaction` oferece suporte às seguintes propriedades:
+
+<CollapserGroup>
+  <Collapser
+    id="trace-dispatcher"
+    title={<InlineCode>Rede</InlineCode>}
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Boleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Padrão:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Se `true`, o agente inicia uma transação da web quando atinge este atributo `Transaction` . Se uma transação estiver em andamento, essa transação continuará.
+
+    Se `false` (padrão), o agente inicia uma transação fora da web quando atinge esse atributo `Transaction` . Por exemplo:
+
+    ```cs
+    [Transaction(Web = true)]
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Exemplo: instrumento quatro métodos [#example-app]
+
+<CollapserGroup>
+  <Collapser
+    id="example-app"
+    title="Aplicativo de exemplo"
+  >
+    ```cs
+    namespace Test
+    {
+        class Program
+        {
+            static void Main(string[] args)
+            {
+                var test = new MyClass();
+                test.Method1(); // Creates a transaction named Method1 in the Web category.
+                test.Method2(); // Creates a transaction named Method2 in the Custom category.
+                test.Method3(); // Creates a transaction named Method3 in the Custom category.
+
+                // Method4 won't create a new transaction, 
+                // only add a segment to an existing transaction
+                test.Method4();
+            }
+        }
+
+        public class MyClass
+        {
+            // The agent creates a Web transaction that includes an external service 
+            // request in its transaction traces.
+            [Transaction(Web = true)]
+            public void Method1()
+            {
+                new WebClient().DownloadString("https://www.google.com/");
+            }
+
+            // Creates a Custom transaction containing one segment.
+            [Transaction]
+            public void Method2()
+            {
+                // The Method3 segment will be created
+                Method3();
+
+                // The Method4 segment will contain your SQL query inside of it and 
+                // possibly an execution plan.
+                Method4();
+            }
+
+            // Method3 will be appear as a segment when called in Method2()
+            // but will create a transaction when called directly in Main()
+            [Transaction]
+            public void Method3()
+            {
+                Thread.Sleep(1000);
+            }
+
+            // When Method4 is called directly in Main() the agent will not create a transaction.
+            // However, when Method4 is called from Method2, Method4 will 
+            // appear as a segment containing its SQL query.
+            [Trace]
+            public void Method4()
+            {
+                using (var connection = new SqlConnection(ConnectionStrings["MsSqlConnection"].ConnectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand("SELECT * FROM table", connection))
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                    }
+                }
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Leia postagens do fórum sobre instrumentação [#discuss-posts]
+
+Para recomendações mais específicas, confira estas postagens em nossa comunidade do Fórum de Suporte:
+
+* [Solucionar problemas de instrumentação personalizada baseada em atributo](https://discuss.newrelic.com/t/relic-solution-troubleshooting-attribute-based-custom-instrumentation-issues/68726)
+* [Construir instrumentação personalizada tracer factorys from .NET agent arquivo de log](https://discuss.newrelic.com/t/building-custom-instrumentation-tracer-factories-from-net-agent-log-files/39363)
+
+## Use outras funções da API [#other-api]
+
+Para obter mais informações sobre a API do agente .NET e sua funcionalidade, consulte [o guia da API do agente .NET](/docs/agents/net-agent/api-guides/guide-using-net-agent-api) da New Relic. Para instrumentação personalizada sem modificar seu código-fonte, consulte [Criar transação via XML](/docs/agents/net-agent/instrumentation/net-custom-transactions) e [Adicionar detalhes à transação via XML](/docs/agents/net-agent/custom-instrumentation/add-detail-transactions-xml-net).

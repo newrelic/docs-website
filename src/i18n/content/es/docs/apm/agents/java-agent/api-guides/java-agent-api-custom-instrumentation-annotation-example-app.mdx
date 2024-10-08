@@ -1,0 +1,342 @@
+---
+title: 'Agente de Java API: Instrumentación personalizada con anotación de una aplicación de ejemplo'
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: An example Java app that uses the New Relic Java agent API.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La [API New Relic agente de Java](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html) le permite configurar instrumentación personalizada para su aplicación Java. Este documento muestra un ejemplo del uso de instrumentación personalizada con anotaciones en una aplicación imaginaria.
+
+<Callout variant="important">
+  Para obtener mejores resultados al utilizar la API, asegúrese de tener la [última versión del agente de Java](/docs/release-notes/agent-release-notes/java-release-notes).
+</Callout>
+
+## Aplicación de ejemplo completa usando API [#all]
+
+A continuación se muestra un ejemplo del servlet de una aplicación de tienda imaginaria que utiliza la API del agente de Java.
+
+<Callout variant="tip">
+  Si copia y pega código de ejemplo, asegúrese de utilizar el espacio adecuado en su línea de comando.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="complete-api-example"
+    title="Ejemplo completo de llamada API"
+  >
+    ```java
+    <a href="#import-packages">package test;</a>
+
+    import java.io.IOException;
+    import java.io.PrintWriter;
+    import java.util.Random;
+    import javax.servlet.ServletException;
+    import javax.servlet.http.HttpServlet;
+    import javax.servlet.http.HttpServletRequest;
+    import javax.servlet.http.HttpServletResponse;
+    // Java agent API imports
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+
+    <a href="#set-annotation">public class TestServlet extends HttpServlet {</a>
+        // instrumentation via annotation
+        @Trace(dispatcher = true)
+        protected void
+        processRequest(HttpServletRequest req,
+        HttpServletResponse resp)
+            throws ServletException, IOException {
+
+            saveNewRelicInfo(req);
+            doRequestWork(req);
+            writeResponse(resp);
+        }
+
+        <a href="#name-transactions">private void saveNewRelicInfo(HttpServletRequest req) {</a>
+            String storeId = req.getParameter("storeId");
+            if (storeId != null) {
+            // set the name of the Transaction
+            NewRelic.setTransactionName(null, "/store");
+
+        <a href="#ignore-apdex">if (storeId.equals("betaStore")) {
+    </a>        // prevent the method from contributing to the Apdex score
+            NewRelic.ignoreApdex();
+            }
+        }
+
+        <a href="#record-user-id">String userId = req.getParameter("userId");</a>
+            if (userId != null) {
+                // Tracks the user ID to the current transaction by setting the enduser.id agent attribute 
+                NewRelic.setUserId(userId);
+                // set the user name to associate with the RUM JavaScript footer 
+                // for the current web transaction
+                NewRelic.setUserName(userId);
+                // add a key/value pair to the current transaction
+                NewRelic.addCustomParameter("userId", userId);
+            }
+
+        <a href="#get-custom-metric">String promotionId = req.getParameter("promotionId");</a>
+            if (promotionId != null) {
+                // increment the metric counter for the given name
+                NewRelic.incrementCounter("Custom/Promotion");
+            }
+        }
+
+        <a href="#control-handler">protected void
+        doRequestWork(HttpServletRequest req) {</a>
+        try {
+            long millisToSleep  = new Random().nextInt(5000);
+            Thread.sleep(millisToSleep);
+            // record a response time in milliseconds for the given metric name
+            NewRelic.recordResponseTimeMetric("Custom/RandomSleep",
+            millisToSleep);
+            } catch (InterruptedException e) {
+                // report a handled exception
+                NewRelic.noticeError(e, false);
+            }
+        }
+
+        protected void
+        writeResponse(HttpServletResponse resp)
+            throws IOException {
+
+        <a href="#include-browser">resp.setContentType("text/html;charset=UTF-8");</a>
+        PrintWriter out = resp.getWriter();
+        out.println("<html>");
+        out.println("<head>");
+
+        // get the RUM JavaScript header for the current web transaction
+        out.println(NewRelic.getBrowserTimingHeader());
+        out.println("<title>NewRelic API example servlet</title>");
+        out.println("</head>");
+        out.println("<body>");
+        out.println("<h1>API example</h1>");
+        // get the RUM JavaScript footer for the current web transaction
+        out.println(NewRelic.getBrowserTimingFooter());
+        out.println("</body>");
+        out.println("</html>");
+        out.close();
+        }
+        <a href="#complete-response">protected void doGet(HttpServletRequest req,</a>
+        HttpServletResponse resp)
+            throws ServletException, IOException {
+            processRequest(req, resp);
+            }
+        protected void doPost(HttpServletRequest req,
+        HttpServletResponse resp)
+            throws ServletException, IOException {
+            processRequest(req, resp);
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cómo utiliza el ejemplo la API [#app-broken-down]
+
+Aquí está la misma aplicación de ejemplo dividida en secciones que describen cómo se usa la API:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="import-packages"
+    title="Importar los paquetes necesarios"
+  >
+    Esta parte del ejemplo muestra las importaciones necesarias para la aplicación de ejemplo y la API del agente de Java.
+
+    ```java
+    package test;
+
+    import java.io.IOException;
+    import java.io.PrintWriter;
+    import java.util.Random;
+    import javax.servlet.ServletException;
+    import javax.servlet.http.HttpServlet;
+    import javax.servlet.http.HttpServletRequest;
+    import javax.servlet.http.HttpServletResponse;
+    // Java agent API imports 
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="set-annotation"
+    title="Establecer @Trace para trazar la transacción"
+  >
+    Esta parte de la llamada API proporciona instrucciones para instrumentar esta llamada utilizando la anotación traza `@Trace` de New Relic. Cualquier solicitud que llegue a `processRequest` ahora mostrará un segmento en [el gráfico de llamadas de traza de la transacción](/docs/apm/transactions/transaction-traces/viewing-transaction-traces) de APM.
+
+    ```java
+    public class TestServlet extends HttpServlet {
+        // instrumentation via annotation
+        @Trace(dispatcher = true)
+        protected void
+    processRequest(HttpServletRequest req,
+    HttpServletResponse resp)
+        throws ServletException, IOException {
+        saveNewRelicInfo(req);
+        doRequestWork(req);
+        writeResponse(resp);
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="name-transactions"
+    title="Crear nombres personalizados para transacciones web"
+  >
+    Esta parte de la llamada API indica a la transacción web que contiene un valor `storeId` que aparezca en [la página<DNT>**Transactions**</DNT> ](/docs/apm/applications-menu/monitoring/transactions-dashboard)de APM con el nombre de transacción personalizado que configuró. Una solicitud a cualquier tienda aparecerá bajo el mismo nombre agregado.
+
+    ```java
+    private void
+    saveNewRelicInfo(HttpServletRequest req) {
+        String storeId = req.getParameter("storeId");
+        if (storeId != null) {
+            // set the name of the Transaction
+            NewRelic.setTransactionName(null, "/store");
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ignore-apdex"
+    title="Omita Apdex al recopilar datos no públicos"
+  >
+    Esta parte de la llamada API excluye que la versión beta no pública `storeID` afecte la [puntuación Apdex](/docs/apm/new-relic-apm/apdex/view-your-apdex-score).
+
+    ```java
+    if (storeId.equals("betaStore")) {
+        // prevent the method from contributing to the Apdex score 
+        NewRelic.ignoreApdex();
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="record-user-id"
+    title="Registre la identificación del usuario"
+  >
+    Esta parte de la llamada API inserta metadatos adicionales en la solicitud [de tiempo de carga de la página](/docs/browser/new-relic-browser/page-load-timing-resources/page-load-timing-process) para que las trazas del navegador puedan vincularse con `userId`. También registra el `userId` como parámetro personalizado en la transacción para que aparezca en los [detalles del parámetro de una traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page). (El tiempo de carga de la página a veces se denomina monitoreo de usuarios reales o RUM).
+
+    ```java
+    String userId = req.getParameter("userId");
+        if (userId != null) {
+            // set the user name to associate with the RUM JavaScript footer 
+            // for the current web transaction 
+            NewRelic.setUserName(userId); 
+            // add a key/value pair to the current transaction 
+            NewRelic.addCustomParameter("userId", userId);     
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="get-custom-metric"
+    title="Recopilar datos de promoción"
+  >
+    Esta parte de la llamada API registra la cantidad de veces que se vio una promoción para que la métrica pueda aparecer en un tablero personalizado.
+
+    <Callout variant="important">
+      Para las métricas que desea graficar en [el panel personalizado](/docs/dashboards/new-relic-dashboards/custom-dashboards/creating-custom-dashboards), asegúrese de anteponer `Custom/` al nombre de la métrica; por ejemplo, `Custom/Promotion`.
+    </Callout>
+
+    ```java
+    String promotionId = req.getParameter("promotionId");
+        if (promotionId != null) {
+            // increment the metric counter for the given name
+            NewRelic.incrementCounter("Custom/Promotion");
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="control-handler"
+    title="Enviar instrucciones al manejador."
+  >
+    Esta parte de la llamada API envía un conjunto de instrucciones al controlador para procesar solicitudes y manejar excepciones.
+
+    ```java
+    protected void
+    doRequestWork(HttpServletRequest req) {
+        try {
+            long millisToSleep  = new Random().nextInt(5000);
+            Thread.sleep(millisToSleep);
+            // record a response time in milliseconds for the given metric name
+            NewRelic.recordResponseTimeMetric("Custom/RandomSleep",
+    millisToSleep);
+            } catch (InterruptedException e) {
+                // report a handled exception
+                NewRelic.noticeError(e, false);
+            }
+        }
+    protected void
+    writeResponse(HttpServletResponse resp)
+        throws IOException {
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="include-browser"
+    title="Incluir código de sincronización de carga de página en la respuesta HTTP"
+  >
+    Esta parte de la llamada API define qué incluir en `HttpServletResponse`. Para [la instrumentación manual de <InlinePopover type="browser"/>](/docs/agents/java-agent/instrumentation/page-load-timing-java)para monitor el tiempo de carga de la página (a veces denominado monitoreo de usuarios reales o RUM):
+
+    * Establezca el encabezado después de la etiqueta &lt;head>.
+
+    * Establezca el pie de página al final de la etiqueta &lt;body>.
+
+      ```java
+      resp.setContentType("text/html;charset=UTF-8");
+          PrintWriter out = resp.getWriter();
+          out.println("<html>");
+          out.println("<head>");
+          // get the RUM JavaScript header for the current web transaction
+          out.println(NewRelic.getBrowserTimingHeader());
+          out.println("<title>NewRelic API example servlet</title>");
+          out.println("</head>");
+          out.println("<body>");
+          out.println("<h1>API example</h1>");
+          // get the RUM JavaScript footer for the current web transaction
+          out.println(NewRelic.getBrowserTimingFooter());
+          out.println("</body>");
+          out.println("</html>");
+          out.close();
+      }
+      ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="complete-response"
+    title="Complete la respuesta HTTP"
+  >
+    Esta parte de la llamada API define la información restante que se incluirá en la respuesta `HttpServletResponse` .
+
+    ```java
+    protected void
+    doGet(HttpServletRequest req,
+    HttpServletResponse resp)
+        throws ServletException, IOException {
+        processRequest(req, resp);
+        }
+    protected void
+    doPost(HttpServletRequest req,
+    HttpServletResponse resp)
+        throws ServletException, IOException {
+        processRequest(req, resp);
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,708 @@
+---
+title: Tutorial da API SCIM
+tags:
+  - Accounts
+  - Accounts and billing
+  - Automated user management
+  - New Relic user management
+metaDescription: 'New Relic SCIM API tutorial: automated user management of groups and users using the SCIM API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este tutorial irá guiá-lo através de alguns procedimentos comuns para gerenciar usuários por meio de nossa API SCIM. A API SCIM permite visualizar, criar, atualizar e excluir usuários e grupos de forma programática, fora da [interface de gerenciamento de usuários](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where).
+
+## Requisitos [#requirements]
+
+Este tutorial se aplica a usuários em nosso [modelo de usuário mais recente](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models) e não em nosso modelo de usuário original.
+
+Antes de usar este tutorial, recomendamos que você leia:
+
+* Os [requisitos para gerenciamento automatizado de usuários e uso da API SCIM](/docs/accounts/accounts/automated-user-management/automated-user-provisioning-single-sign).
+* [Conceitos importantes de gerenciamento de usuários](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#understand-concepts)
+* [A principal referência da API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management/)
+
+Outros recursos relacionados:
+
+* Alguns documentos SCIM 2.0 RFC da Internet Engineering Task Force que são mais relevantes: [RFC 7643 - SCIM Core Resources and Extensions](https://datatracker.ietf.org/doc/html/rfc7643#section-4), [RFC 7643 - JSON Representation](https://datatracker.ietf.org/doc/html/rfc7643#section-8) e [RFC 7644 - SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644).
+
+## Visão geral [#overview]
+
+Este tutorial mostra como realizar algumas das tarefas mais comuns necessárias para adicionar usuários ao New Relic a partir de um serviço de provedor de identidade e gerenciá-los a partir daí. Destina-se a complementar nosso principal [recurso da API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management).
+
+Observe que usar o gerenciamento automatizado de usuários significa que seus grupos de usuários serão importados para o New Relic. Isso significa que você não pode usar nossa interface de gerenciamento de usuários para adicionar usuários a grupos. Os grupos são criados e gerenciados pelo seu provedor de identidade.
+
+Quando terminar de colocar seus grupos de usuários no New Relic, você deverá usar nossa interface de usuário <DNT>**Access management**</DNT> para conceder a esses grupos acesso a funções e contas. Para obter mais informações, consulte [Conceitos de gerenciamento de usuários](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#understand-concepts).
+
+## Configure seu domínio de autenticação para SCIM [#configure-scim]
+
+Antes de poder usar a API SCIM, você deve primeiro [ativar o SCIM para seu domínio de autenticação](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#source-users). Observe que o token de acesso da API é exibido apenas uma vez após você salvar a configuração, portanto, salve-o em algum lugar seguro para o usuário posterior.
+
+<Callout variant="tip">
+  Se você precisar visualizar um token ao portador posteriormente, a única maneira de fazer isso é gerar um novo, e isso invalidará o antigo e qualquer integração usando o token antigo.
+</Callout>
+
+## Crie usuários e grupos de usuários em seu sistema [#create-in-idp]
+
+A API SCIM normalmente é usada por script para importar usuários e grupos para o New Relic a partir de um banco de dados ou de um provedor de identidade de terceiros que não tenha configurações pré-configuradas para o New Relic.
+
+Se você quiser usar o aplicativo personalizado da API SCIM ou para solicitações ad hoc, aprenda como se conectar à API SCIM.
+
+## Conecte-se à API SCIM [#connect]
+
+A API SCIM está disponível em `https://scim-provisioning.service.newrelic.com/scim/v2` e esse URL pode ser visualizado na página de configurações do domínio de autenticação. Para acessar a API SCIM, seu cliente deve incluir um <DNT>**bearer token**</DNT> em cada solicitação. O token é exibido após salvar a configuração do seu domínio de autenticação.
+
+Se você estiver usando um provedor de identidade de terceiros, configure-o para usar <DNT>**Bearer token authorization**</DNT> e conecte seu token de acesso à API. Consulte a documentação do seu provedor de identidade para obter ajuda na configuração. Uma vez configurado, você está pronto para importar usuários e grupos.
+
+Em vez de ler todas as RFCs do protocolo SCIM, há três seções específicas que você pode achar valiosas: Consulte [RFC 7643 - Recursos e extensões principais do SCIM](https://datatracker.ietf.org/doc/html/rfc7643#section-4) e [RFC 7643 - Representação JSON](https://datatracker.ietf.org/doc/html/rfc7643#section-8) para obter detalhes. Consulte [RFC 7644 – Protocolo SCIM](https://datatracker.ietf.org/doc/html/rfc7644) para obter mais informações sobre o protocolo usado neste tutorial.
+
+Para todas as solicitações à API SCIM, você deve fornecer o token do portador em um cabeçalho `Authorization` . Aqui está um exemplo com `curl`:
+
+```
+curl -X 'GET' -H 'Accept: application/json' -H "Authorization: Bearer $TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users'
+```
+
+Qualquer solicitação no restante deste tutorial receberá uma resposta <DNT>**401 Unauthorized**</DNT> se o token de acesso à API estiver ausente ou for inválido.
+
+Exemplo de resposta:
+
+<Collapser title="401 não autorizado">
+  ```
+  {
+    "schemas": [
+      "urn:ietf:params:scim:api:messages:2.0:Error"
+    ],
+    "detail": "invalid authentication token",
+    "status": "401"
+  }
+  ```
+</Collapser>
+
+## Crie um usuário no seu domínio de autenticação [#create-users]
+
+Você pode usar a API SCIM para enviar uma solicitação `POST` a `/scim/v2/Users` para criar um usuário. Os seguintes atributos de usuário são <DNT>**required**</DNT>:
+
+* `userName` Este identificador
+
+  <DNT>
+    **must**
+  </DNT>
+
+  será exclusivo dentro de um domínio de autenticação. Use o endereço de e-mail do usuário.
+
+* `emails` O mesmo que `userName`. O endereço de e-mail do usuário. (Apesar de ser chamado `emails`, para este procedimento insira apenas um.)
+
+* `active` Booleano que indica se o usuário deve ou não estar ativo ou inativo no New Relic.
+
+Recomendamos fornecer o seguinte atributo para a melhor experiência do usuário:
+
+* `name.givenName` O nome próprio ou próprio do usuário.
+* `name.familyName` O sobrenome ou sobrenome do usuário.
+* `timezone` O fuso horário do usuário no formato de banco de dados de fuso horário da IANA.
+
+```
+curl -X 'POST' -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users' --data-binary @- <<EOF
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "userName": "bjensen@example.com",
+  "name": {
+    "familyName": "Jensen",
+    "givenName": "Barbara"
+  },
+  "emails": [
+    {
+      "primary": true,
+      "value": "bjensen@example.com"
+    }
+  ],
+  "active": true,
+  "timezone": "America/Los_Angeles"
+}
+EOF
+```
+
+<Callout variant="important">
+  Anote o usuário retornado `id`. Para atualizar um usuário no futuro, você precisará fornecer o mesmo ID da solicitação.
+</Callout>
+
+### Exemplos de respostas
+
+<CollapserGroup>
+  <Collapser title="201 Criado">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User",
+      ],
+      "id": "5a1d580f-323c-450c-8c62-479b5c9085d6",
+      "externalId": null,
+      "userName": "bjensen@example.com",
+      "name": {
+        "familyName": "Jensen",
+        "givenName": "Barbara"
+      },
+      "emails": [
+        {
+          "value": "bjensen@example.com",
+          "primary": true
+        }
+      ],
+      "timezone": "America/Los_Angeles",
+      "active": true,
+      "meta": {
+        "resourceType": "User",
+        "created": "2021-07-20T21:32:58.167Z",
+        "lastModified": "2021-07-20T21:32:58.167Z"
+      },
+      "groups": []
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="400 Solicitação incorreta">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "invalidValue",
+      "detail": "Validation failed: Username can't be blank",
+      "status": "400"
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="409 Conflito">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "uniqueness",
+      "detail": "Resource already exists",
+      "status": "409"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Crie grupos no seu domínio de autenticação [#create-groups]
+
+Você pode usar a API SCIM para enviar uma solicitação `POST` a `/scim/v2/Groups` para criar um grupo. O único atributo de grupo <DNT>**required**</DNT> é:
+
+* `displayName` O nome do grupo.
+
+```
+curl -X 'POST' -H 'Content-Type: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Groups' --data-binary @- <<EOF
+{
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+    "displayName": "Example Group"
+}
+EOF
+```
+
+<Callout variant="important">
+  Anote o grupo retornado `id`. Para atualizar um grupo ou seus membros no futuro, você precisará fornecer o mesmo ID na solicitação.
+</Callout>
+
+### Exemplos de respostas
+
+<CollapserGroup>
+  <Collapser title="201 Criado">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:Group"
+      ],
+      "id": "df2b9a04-0426-4a3e-bf5f-54d5341f4e5b",
+      "displayName": "Example Group",
+      "meta": {
+        "resourceType": "Group",
+        "created": "2021-07-20T22:41:50.414Z",
+        "lastModified": "2021-07-20T22:41:50.414Z"
+      },
+      "members": []
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="400 Solicitação incorreta">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "invalidValue",
+      "detail": "Validation failed: Display name can't be blank",
+      "status": "400"
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="409 Conflito">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "uniqueness",
+      "detail": "Resource already exists",
+      "status": "409"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Visualize usuários e grupos em seu domínio de autenticação [#view]
+
+Depois de criar alguns usuários e grupos, você os verá na [interface de gerenciamento de usuários](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where). Você também pode recuperá-los da API SCIM.
+
+Neste tutorial, você procurará usuários e grupos específicos, mas essa não é a única maneira de visualizar usuários e grupos. Consulte a [referência da API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management/) e [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) para todas as opções de consulta disponíveis.
+
+Para recuperar um usuário por email, envie uma solicitação `GET` para `/scim/v2/Users` com um parâmetro de consulta `filter` . O parâmetro `filter` deve ser codificado por URL.
+
+```
+curl -X 'GET' -H 'Accept: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users' --get --data-urlencode 'filter=userName eq "bjensen@example.com"'
+```
+
+Exemplo de resposta:
+
+<Collapser title="200 OK">
+  ```
+  {
+    "totalResults": 1,
+    "schemas": [
+      "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+    ],
+    "Resources": [
+      {
+        "schemas": [
+          "urn:ietf:params:scim:schemas:core:2.0:User",
+        ],
+        "id": "5a1d580f-323c-450c-8c62-479b5c9085d6",
+        "externalId": null,
+        "userName": "bjensen@example.com",
+        "name": {
+          "familyName": "Jensen",
+          "givenName": "Barbara"
+        },
+        "emails": [
+          {
+            "value": "bjensen@example.com",
+            "primary": true
+          }
+        ],
+        "timezone": "America/Los_Angeles",
+        "active": true,
+        "meta": {
+          "resourceType": "User",
+          "created": "2021-07-20T21:32:58.167Z",
+          "lastModified": "2021-07-20T21:32:58.167Z"
+        },
+        "groups": []
+      }
+    ]
+  }
+  ```
+</Collapser>
+
+Da mesma forma, envie uma solicitação `GET` para `/scim/v2/Groups` com um parâmetro de consulta `filter` para recuperar um grupo por nome.
+
+```
+curl -X 'GET' -H 'Accept: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Groups' --get --data-urlencode 'filter=displayName eq "Example Group"'
+```
+
+Exemplo de resposta:
+
+<Collapser title="200 OK">
+  ```
+  {
+    "totalResults": 1,
+    "schemas": [
+      "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+    ],
+    "Resources": [
+      {
+        "schemas": [
+          "urn:ietf:params:scim:schemas:core:2.0:Group"
+        ],
+        "id": "df2b9a04-0426-4a3e-bf5f-54d5341f4e5b",
+        "displayName": "Example Group",
+        "meta": {
+          "resourceType": "Group",
+          "created": "2021-07-20T22:41:50.414Z",
+          "lastModified": "2021-07-20T22:41:50.414Z"
+        },
+        "members": []
+      }
+    ]
+  }
+  ```
+</Collapser>
+
+## Atualizar o atributo de um usuário [#update-user]
+
+A API SCIM oferece suporte aos métodos `PUT` e `PATCH` para atualização do usuário. Consulte as [ações suportadas pela API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management/#supported-actions) e [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) para obter detalhes sobre como usar `PATCH`. Este tutorial demonstra a atualização do atributo de um usuário com o método `PUT` .
+
+O New Relic **não** exige que todos os atributos do usuário sejam incluídos no corpo da solicitação, apenas os atributos que você deseja atualizar são necessários. Envie uma solicitação `PUT` para `/scim/v2/Users/${ID}` para atualizar o usuário.
+
+```
+curl -X 'PUT' -H 'Content-Type: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users/5a1d580f-323c-450c-8c62-479b5c9085d6' --data-binary @- <<EOF
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+  "timezone": "America/Chicago"
+}
+EOF
+```
+
+### Exemplos de respostas
+
+<CollapserGroup>
+  <Collapser title="200 OK">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User",
+      ],
+      "id": "5a1d580f-323c-450c-8c62-479b5c9085d6",
+      "externalId": null,
+      "userName": "bjensen@example.com",
+      "name": {
+        "familyName": "Jensen",
+        "givenName": "Barbara"
+      },
+      "emails": [
+        {
+          "value": "bjensen@example.com",
+          "primary": true
+        }
+      ],
+      "timezone": "America/Chicago",
+      "active": true,
+      "meta": {
+        "resourceType": "User",
+        "created": "2021-07-20T21:32:58.167Z",
+        "lastModified": "2021-07-21T02:12:05.348Z"
+      },
+      "groups": []
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="409 Conflito">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "uniqueness",
+      "detail": "Resource already exists",
+      "status": "409"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Atualizar os membros de um grupo [#update-group]
+
+A API SCIM oferece suporte aos métodos `PUT` e `PATCH` para atualização de grupos. Este tutorial mostrará como atualizar os membros de um grupo com o método `PATCH` . Consulte as [ações suportadas pela API SCIM](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management/#supported-actions) e [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) para obter detalhes sobre como usar `PUT`.
+
+`PATCH` é conveniente para adicionar ou remover membros do grupo sem a necessidade de especificar a lista completa de membros na solicitação. Para adicionar um usuário a um grupo, use o seguinte parâmetro de operação:
+
+* `op` definido como `Add`
+* `path` definido como `members`
+* `value` definido como uma lista de `{"value": "${USER_ID}"}` com cada ID de usuário para adicionar ao grupo
+
+Envie uma solicitação `PATCH` para `/scim/v2/Groups/${ID}` para atualizar os membros do grupo.
+
+```
+curl -X 'PATCH' -H 'Content-Type: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Groups/df2b9a04-0426-4a3e-bf5f-54d5341f4e5b' --data-binary @- <<EOF
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "Operations": [{
+    "op": "Add",
+    "path": "members",
+    "value": [{
+      "value": "5a1d580f-323c-450c-8c62-479b5c9085d6"
+    }]
+  }]
+}
+EOF
+```
+
+Exemplo de resposta:
+
+<Collapser title="200 OK">
+  ```
+  {
+    "schemas": [
+      "urn:ietf:params:scim:schemas:core:2.0:Group"
+    ],
+    "id": "df2b9a04-0426-4a3e-bf5f-54d5341f4e5b",
+    "displayName": "Example Group",
+    "meta": {
+      "resourceType": "Group",
+      "created": "2021-07-20T22:41:50.414Z",
+      "lastModified": "2021-07-20T22:41:50.414Z"
+    },
+    "members": [
+      {
+        "type": "User",
+        "value": "5a1d580f-323c-450c-8c62-479b5c9085d6"
+      }
+    ]
+  }
+  ```
+</Collapser>
+
+Para remover um usuário de um grupo, use o seguinte parâmetro de operação:
+
+* `op` definido como `Remove`
+* `path` definido como `members`
+* `value` definido como uma lista de `{"value": "${USER_ID}"}` com cada ID de usuário para remover do grupo
+
+```
+curl -X 'PATCH' -H 'Accept: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Groups/df2b9a04-0426-4a3e-bf5f-54d5341f4e5b' --data-binary @- <<EOF
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "Operations": [{
+    "op": "Remove",
+    "path": "members",
+    "value": [{
+      "value": "5a1d580f-323c-450c-8c62-479b5c9085d6"
+    }]
+  }]
+}
+EOF
+```
+
+Exemplo de resposta:
+
+<Collapser title="200 OK">
+  ```
+  {
+    "schemas": [
+      "urn:ietf:params:scim:schemas:core:2.0:Group"
+    ],
+    "id": "df2b9a04-0426-4a3e-bf5f-54d5341f4e5b",
+    "displayName": "Example Group",
+    "meta": {
+      "resourceType": "Group",
+      "created": "2021-07-20T22:41:50.414Z",
+      "lastModified": "2021-07-20T22:41:50.414Z"
+    },
+    "members": []
+  }
+  ```
+</Collapser>
+
+## Excluir usuário e grupos [#delete]
+
+Para remover um usuário de um domínio de autenticação, envie uma solicitação `DELETE` para `/scim/v2/Users/${ID}`.
+
+```
+curl -X 'DELETE' -H 'Accept: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users/d0f4d8e3-5413-4894-a8f9-de709994e18c'
+```
+
+Exemplo de resposta:
+
+```
+204 No Content
+```
+
+Da mesma forma, para remover um grupo do seu domínio de autenticação, envie uma solicitação `DELETE` para `/scim/v2/Groups/${ID}`.
+
+```
+curl -X 'DELETE' -H 'Accept: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Groups/df2b9a04-0426-4a3e-bf5f-54d5341f4e5b'
+```
+
+Exemplo de resposta:
+
+```
+204 No Content
+```
+
+## Próximos passos [#next-steps]
+
+Assim que sua integração for concluída, as próximas etapas possíveis incluem:
+
+* Por padrão, seu usuário New Relic começará como [usuário básico](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) e você terá a opção de atualizá-lo. Para obter mais informações, consulte [Gerenciar tipo de usuário](#manage-user-type).
+* [Configure o SSO SAML](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#saml).
+* Depois que seus grupos de usuários estiverem no New Relic, você precisará atribuir a eles funções e contas específicas. [Saiba mais sobre como funciona o acesso do usuário.](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#understand-concepts)
+
+## Opcional: Gerenciar tipo de usuário [#manage-user-type]
+
+Depois que a integração da API SCIM for concluída, todos os usuários trazidos para o New Relic começarão como usuários básicos. Você pode usar nosso método padrão para gerenciar [o tipo de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type), que é usando a [interface de gerenciamento de usuários](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where). Opcionalmente, você pode usar nossa API SCIM. Para fazer isso, você pode definir a atualização da configuração do domínio de autenticação para [Delegar o controle do tipo de usuário](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#user-upgrade) ao seu provedor de identidade ou aplicativo personalizado.
+
+O atributo type do usuário é definido no [esquema customizado](/docs/accounts/accounts/automated-user-management/scim-support-automated-user-management#user-type) `urn:ietf:params:scim:schemas:extension:newrelic:2.0:User`. Inclua esse esquema e o atributo de string `nrUserType` em sua solicitação de criação ou atualização para definir o tipo de usuário.
+
+Os valores válidos para `nrUserType` incluem:
+
+* `Full User`
+* `Core User`
+* `Basic User`
+
+Para criar um novo `Basic user` envie uma solicitação `POST` `/scim/v2/Users` e inclua a extensão de esquema New Relic personalizada:
+
+```
+curl -X 'POST' -H 'Content-Type: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users' --data-binary @- <<EOF
+{
+    "schemas": [
+      "urn:ietf:params:scim:schemas:core:2.0:User",
+      "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User"
+    ],
+    "userName": "jbenson@example.com",
+    "name": {
+        "givenName": "James",
+        "familyName": "Benson"
+    },
+    "emails": [{
+        "primary": true,
+        "value": "jbenson@example.com",
+        "type": "work"
+    }],
+    "active": true,
+    "timezone": "America/Chicago",
+    "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User": {
+      "nrUserType": "Basic User"
+    }
+}
+EOF
+```
+
+### Exemplos de respostas
+
+<CollapserGroup>
+  <Collapser title="200 OK">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User",
+        "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User"
+      ],
+      "id": "8ab6c464-983c-4bb4-9507-720f28763a43",
+      "externalId": null,
+      "userName": "jbenson@example.com",
+      "name": {
+        "familyName": "Benson",
+        "givenName": "James"
+      },
+      "emails": [
+        {
+          "value": "jbenson@example.com",
+          "primary": true
+        }
+      ],
+      "timezone": "America/Chicago",
+      "active": true,
+      "meta": {
+        "resourceType": "User",
+        "created": "2021-07-21T19:53:33.470Z",
+        "lastModified": "2021-07-21T19:53:33.470Z"
+      },
+      "groups": [],
+      "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User": {
+        "nrUserType": "Basic User"
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="409 Conflito">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "uniqueness",
+      "detail": "Resource already exists",
+      "status": "409"
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="400 Solicitação incorreta">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "invalidValue",
+      "detail": "Validation failed: Username can't be blank",
+      "status": "400"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para atualizar o tipo de um usuário, envie uma `PUT` solicitação `scim/v2/Users/${ID}` e inclua a extensão de esquema personalizada do New Relic:
+
+```
+curl -X 'PUT' -H 'Content-Type: application/json' -H "Authorization: Bearer $YOUR_TOKEN" 'https://scim-provisioning.service.newrelic.com/scim/v2/Users' --data-binary @- <<EOF
+{
+    "schemas": [
+      "urn:ietf:params:scim:schemas:core:2.0:User",
+      "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User"
+    ],
+    "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User": {
+      "nrUserType": "Full User"
+    }
+}
+EOF
+```
+
+### Exemplos de respostas
+
+<CollapserGroup>
+  <Collapser title="200 OK">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User",
+        "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User"
+      ],
+      "id": "8ab6c464-983c-4bb4-9507-720f28763a43",
+      "externalId": null,
+      "userName": "jbenson@example.com",
+      "name": {
+        "familyName": "Benson",
+        "givenName": "James"
+      },
+      "emails": [
+        {
+          "value": "jbenson@example.com",
+          "primary": true
+        }
+      ],
+      "timezone": "America/Chicago",
+      "active": true,
+      "meta": {
+        "resourceType": "User",
+        "created": "2021-07-21T19:53:33.470Z",
+        "lastModified": "2021-07-21T20:15:56.718Z"
+      },
+      "groups": [],
+      "urn:ietf:params:scim:schemas:extension:newrelic:2.0:User": {
+        "nrUserType": "Full User"
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser title="400 Solicitação incorreta">
+    ```
+    {
+      "schemas": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "scimType": "invalidValue",
+      "detail": "Validation failed: invalid nrUserType value provided",
+      "status": "400"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
