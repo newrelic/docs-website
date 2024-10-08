@@ -86,6 +86,7 @@ const readFile = async (filePath) => {
   }
   const excludeFromFreshnessRegex = [
     'src/content/docs/release-notes/',
+    'src/content/eol/',
     'src/content/whats-new/',
     'src/content/docs/style-guide/',
     'src/content/docs/security/new-relic-security/security-bulletins/',
