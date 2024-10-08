@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
+import { navigate } from '@reach/router';
 import {
   Link,
   search,
+  SearchInput,
   Spinner,
   Surface,
   useLocale,
@@ -17,10 +19,11 @@ const SearchResultPageView = () => {
   const page = Number(queryParams.get('page') ?? 1);
   const locale = useLocale();
   const [results, setResults] = useState({ loading: true });
-  const { records, pageCount, loading, error } = results;
+  const [nraiResults, setNraiResults] = useState({ nraiLoading: true });
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const totalPages = pageCount;
-  const totalResults = totalPages * 5;
+  const { records, loading, error } = results;
+  const { nraiStuff, nraiLoading } = nraiResults;
 
   useEffect(() => {
     (async () => {
@@ -54,35 +57,87 @@ const SearchResultPageView = () => {
           loading: false,
         });
       }
+      fetch('http://localhost:3000/query', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+        method: 'POST',
+      })
+        .then((res) => res.json())
+        .then((json) =>
+          setNraiResults({ nraiStuff: json.matches, nraiLoading: false })
+        );
     })();
   }, [locale, page, query]);
 
   return (
     <PageContainer>
-      {loading && (
-        <LoadingContainer>
-          <h2>Loading results</h2>
-          <Spinner
-            size="2rem"
-            css={css`
-              margin-top: 1rem;
-              height: 50px;
-            `}
-          />
-        </LoadingContainer>
-      )}
+      <SearchInput
+        size={SearchInput.SIZE.MEDIUM}
+        value={searchTerm || ''}
+        iconName={SearchInput.ICONS.SEARCH}
+        isIconClickable
+        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onSubmit={() => {
+          navigate(`?query=${searchTerm || ''}`);
+        }}
+        css={css`
+          max-width: 880px;
+          width: 80%;
+          svg {
+            color: var(--primary-text-color);
+          }
+        `}
+      />
       <CompareContainer>
-        {records && (
-          <ResultContainer>
-            <h2>
-              {totalResults} results for "{query}"
-            </h2>
-            {records.map((result, i) => (
-              <Result key={`${i}-${result.title}`} result={result} />
-            ))}
-          </ResultContainer>
-        )}
-        <ResultContainer>hello</ResultContainer>
+        <ResultContainer>
+          <>
+            <h2>Swiftype results</h2>
+            {loading && (
+              <LoadingContainer>
+                <h2>Loading results</h2>
+                <Spinner
+                  size="2rem"
+                  css={css`
+                    margin-top: 1rem;
+                    height: 50px;
+                  `}
+                />
+              </LoadingContainer>
+            )}
+            {records &&
+              records.map((result, i) => (
+                <Result key={`${i}-${result.title}`} result={result} />
+              ))}
+          </>
+        </ResultContainer>
+
+        <ResultContainer>
+          <>
+            <h2>NR AI results</h2>
+            {nraiLoading && (
+              <LoadingContainer>
+                <h2>Loading results</h2>
+                <Spinner
+                  size="2rem"
+                  css={css`
+                    margin-top: 1rem;
+                    height: 50px;
+                  `}
+                />
+              </LoadingContainer>
+            )}
+            {nraiStuff &&
+              nraiStuff.map((nraiResult, i) => (
+                <AIResult
+                  key={`${i}-nrai-${nraiResult.metadata.file_url}`}
+                  result={nraiResult.metadata}
+                />
+              ))}
+          </>
+        </ResultContainer>
       </CompareContainer>
       {error && !loading && <LoadingContainer>{error}</LoadingContainer>}
     </PageContainer>
@@ -131,7 +186,6 @@ const Result = ({ result }) => {
       to={result.url}
       css={css`
         em {
-          color: #00ac69;
           font-style: normal;
         }
         margin-bottom: 1rem;
@@ -152,7 +206,7 @@ const Result = ({ result }) => {
           font-size: 0.875rem;
         `}
       >
-        {result.url.replace('https://docs.newrelic.com/docs/', '')}
+        {result.url.replace('https://docs.newrelic.com/', '')}
       </p>
       <h3
         css={css`
@@ -161,7 +215,45 @@ const Result = ({ result }) => {
         `}
         dangerouslySetInnerHTML={{ __html: result.highlight.title }}
       />
-      <p dangerouslySetInnerHTML={{ __html: result.highlight.body }} />
+    </Surface>
+  );
+};
+
+const AIResult = ({ result }) => {
+  return (
+    <Surface
+      as={Link}
+      to={result.file_url}
+      css={css`
+        margin-bottom: 1rem;
+        box-shadow: none;
+        color: var(--primary-font-color);
+        &:hover {
+          color: var(--primary-font-color);
+          h3 {
+            text-decoration: underline;
+          }
+        }
+      `}
+    >
+      <p
+        css={css`
+          margin-bottom: 0;
+          color: var(--secondary-text-color);
+          font-size: 0.875rem;
+        `}
+      >
+        {result.file_url.replace('https://docs.newrelic.com/', '')}
+      </p>
+      <h3
+        css={css`
+          margin-bottom: 0;
+          font-weight: 500;
+        `}
+        dangerouslySetInnerHTML={{
+          __html: result.title || result.headingText || 'no title',
+        }}
+      />
     </Surface>
   );
 };
