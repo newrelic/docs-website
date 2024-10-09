@@ -22,7 +22,7 @@ AI-Driven Insights: Fully integrated AI alerting and anomaly detection for real-
 
 Pathpoint is available as a New Relic open-source project, distributed under the Apache 2.0 license, and is included in our all-in-one observability usage-based pricing platform.
 
-Check out our blog, or click here and start turning your data into business insights.
+Check out our [blog](https://newrelic.com/blog/how-to-relic/real-time-business-insights-with-new-relic-pathpoint), or click [here](https://onenr.io/0oQDP60y7Qy) and start turning your data into business insights.
 
 
 
