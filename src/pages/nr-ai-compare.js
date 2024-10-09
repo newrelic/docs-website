@@ -57,6 +57,10 @@ const SearchResultPageView = () => {
           loading: false,
         });
       }
+      fetch('http://localhost:8888/nrAiApi', {
+        method: 'POST',
+        body: JSON.stringify('test'),
+      });
       fetch('http://localhost:3000/query', {
         headers: {
           'Content-Type': 'application/json',
