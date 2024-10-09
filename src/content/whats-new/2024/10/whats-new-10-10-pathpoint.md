@@ -17,7 +17,7 @@ Import/export with audit trails: Easily move journeys between instances with an 
 Automatically identify instrumentation gaps: Close blind spots and have a more complete view of your digital business processes.
 AI-Driven Insights: Fully integrated AI alerting and anomaly detection for real-time insights and fast root cause analysis.
 
-![Pathpoint image](./images/pathpoint.png "Pathpoint screenshot")
+![Pathpoint image](/images/pathpoint.webp "Pathpoint screenshot")
 
 
 Pathpoint is available as a New Relic open-source project, distributed under the Apache 2.0 license, and is included in our all-in-one observability usage-based pricing platform.
