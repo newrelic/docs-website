@@ -110,7 +110,7 @@ const Eol = ({ data, location }) => {
     <ErrorBoundary eventName="eolOverview">
       <SEO
         location={location}
-        title="End-of-life announcements"
+        title="End-of-liffe announcements"
         type={TYPES.EOL_PAGE}
         disableSwiftype
       />
