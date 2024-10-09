@@ -10,12 +10,12 @@ New Relic has released a new version of Pathpoint, built on an entirely new code
 
 New features include:
 
-Intuitive UX: No-code, entity-centric UX that allows you to instantly add any signal, alert, and service levels to your business flows to simplify business analysis (no need for custom NRQL).
-Multiple journey modeling: The ability to model multiple business journeys per instance for deeper insights in complex environments.
-Playback mode: Instantly track the state of your business stages over time for proactive issue resolution and to track improvements.
-Import/export with audit trails: Easily move journeys between instances with an audit log for less toil and better version control.
-Automatically identify instrumentation gaps: Close blind spots and have a more complete view of your digital business processes.
-AI-Driven Insights: Fully integrated AI alerting and anomaly detection for real-time insights and fast root cause analysis.
+* **Intuitive UX:** No-code, entity-centric UX that allows you to instantly add any signal, alert, and service levels to your business flows to simplify business analysis (no need for custom NRQL).
+* **Multiple journey modeling:** The ability to model multiple business journeys per instance for deeper insights in complex environments.
+* **Playback mode:** Instantly track the state of your business stages over time for proactive issue resolution and to track improvements.
+* **Import/export with audit trails:** Easily move journeys between instances with an audit log for less toil and better version control.
+* **Automatically identify instrumentation gaps:** Close blind spots and have a more complete view of your digital business processes.
+* **AI-Driven Insights:** Fully integrated AI alerting and anomaly detection for real-time insights and fast root cause analysis.
 
 ![Pathpoint image](/images/pathpoint.webp "Pathpoint screenshot")
 
