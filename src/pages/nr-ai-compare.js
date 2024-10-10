@@ -181,15 +181,20 @@ const LoadingContainer = styled.div`
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  margin-top: 4rem;
 `;
 
 const CompareContainer = styled.div`
-  display: flex;
-  justify-content: space-evenly;
+  display: grid;
+  gap: 1rem 2rem;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: min-content repeat(10, 1fr);
 `;
 
 const ResultContainer = styled.div`
-  width: 50%;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: 1 / -1;
 `;
 
 const Result = ({ result }) => {
@@ -214,6 +219,7 @@ const Result = ({ result }) => {
     >
       <p
         css={css`
+          line-height: 1.1;
           margin-bottom: 0;
           color: var(--secondary-text-color);
           font-size: 0.875rem;
@@ -251,6 +257,7 @@ const AIResult = ({ result }) => {
     >
       <p
         css={css`
+          line-height: 1.1;
           margin-bottom: 0;
           color: var(--secondary-text-color);
           font-size: 0.875rem;
