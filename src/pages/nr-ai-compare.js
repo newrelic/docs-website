@@ -57,16 +57,10 @@ const SearchResultPageView = () => {
           loading: false,
         });
       }
-      fetch('http://localhost:8888/nrAiApi', {
+
+      fetch('/.netlify/functions/nrAiApi', {
         method: 'POST',
-        body: JSON.stringify('test'),
-      });
-      fetch('http://localhost:3000/query', {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-        method: 'POST',
+        body: JSON.stringify(query),
       })
         .then((res) => res.json())
         .then((json) =>
@@ -90,6 +84,7 @@ const SearchResultPageView = () => {
         css={css`
           max-width: 880px;
           width: 80%;
+          margin-bottom: 1rem;
           svg {
             color: var(--primary-text-color);
           }
