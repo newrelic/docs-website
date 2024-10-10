@@ -15,7 +15,7 @@ import {
 
 const SearchResultPageView = () => {
   const { queryParams } = useQueryParams();
-  const query = queryParams.get('query');
+  const query = queryParams.get('query') || 'nrql';
   const page = Number(queryParams.get('page') ?? 1);
   const locale = useLocale();
   const [results, setResults] = useState({ loading: true });
@@ -23,7 +23,7 @@ const SearchResultPageView = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const { records, loading, error } = results;
-  const { nraiStuff, nraiLoading } = nraiResults;
+  const { nraiStuff, nraiLoading, nraiError } = nraiResults;
 
   useEffect(() => {
     (async () => {
@@ -58,14 +58,22 @@ const SearchResultPageView = () => {
         });
       }
 
-      fetch('/.netlify/functions/nrAiApi', {
-        method: 'POST',
-        body: JSON.stringify(query),
-      })
-        .then((res) => res.json())
-        .then((json) =>
-          setNraiResults({ nraiStuff: json.matches, nraiLoading: false })
-        );
+      try {
+        fetch('/.netlify/functions/nrAiApi', {
+          method: 'POST',
+          body: JSON.stringify(query),
+        })
+          .then((res) => res.json())
+          .then((json) =>
+            setNraiResults({ nraiStuff: json.matches, nraiLoading: false })
+          );
+      } catch (err) {
+        console.log(err);
+        setNraiResults({
+          nraiError: 'Unable to get search results, an error has occurred',
+          nraiLoading: false,
+        });
+      }
     })();
   }, [locale, page, query]);
 
@@ -106,6 +114,8 @@ const SearchResultPageView = () => {
                 />
               </LoadingContainer>
             )}
+            {error && !loading && <LoadingContainer>{error}</LoadingContainer>}
+
             {records &&
               records.map((result, i) => (
                 <Result key={`${i}-${result.title}`} result={result} />
@@ -128,6 +138,10 @@ const SearchResultPageView = () => {
                 />
               </LoadingContainer>
             )}
+            {nraiError && !nraiLoading && (
+              <LoadingContainer>{nraiError}</LoadingContainer>
+            )}
+
             {nraiStuff &&
               nraiStuff.map((nraiResult, i) => (
                 <AIResult

@@ -1,8 +1,9 @@
 export default async (req) => {
   const results = await req
     .json()
-    .then((query) =>
-      fetch(
+    .then((query) => {
+      console.log('QUERY', query);
+      return fetch(
         'https://nerd-completion.staging-service.nr-ops.net/v1/embeddings',
         {
           method: 'POST',
@@ -15,11 +16,12 @@ export default async (req) => {
             model: 'text-embedding-ada-002',
           }),
         }
-      )
-    )
+      );
+    })
     .then((firstResponse) => firstResponse.json())
-    .then((json) =>
-      fetch(
+    .then((json) => {
+      console.log('FIRST RESPONSE', json);
+      return fetch(
         'https://nerd-completion.staging-service.nr-ops.net/pinecone/query',
         {
           method: 'POST',
@@ -35,9 +37,9 @@ export default async (req) => {
             include_metadata: true,
           }),
         }
-      )
-    )
+      );
+    })
     .then((secondResponse) => secondResponse.json());
-
+  console.log('RESULTS', results);
   return new Response(JSON.stringify(results));
 };
