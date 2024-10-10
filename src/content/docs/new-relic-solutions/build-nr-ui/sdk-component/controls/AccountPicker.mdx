@@ -1,0 +1,211 @@
+---
+title: 'AccountPicker'
+metaDescription: 'Learn how to work the AccountPicker component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Retrieves all accounts and allows account selection through dropdown and search. To capture the currently selected account, you can use the `onChange` listener.
+
+Note that the platform already contains its own account picker, which is located in the header of it. This one can be configured to be shown using the `nerdlet.setConfig` API (passing `{ accountPicker: true }`), and its value can be read using `<PlatformStateContext.Consumer>`. For full reference, please check these APIs.
+
+### Usage
+
+```js
+import { AccountPicker } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = { accountId: null };
+
+
+    this.onChangeAccount = this.onChangeAccount.bind(this);
+  }
+
+
+  onChangeAccount(_, value) {
+    alert(`Selected account: ${value}`);
+
+
+    this.setState({ accountId: value });
+  }
+
+
+  render() {
+    return (
+      <AccountPicker
+        value={this.state.accountId}
+        onChange={this.onChangeAccount}
+      />
+    );
+  }
+}
+```
+
+#### With inline label
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = { accountId: null };
+
+
+    this.onChangeAccount = this.onChangeAccount.bind(this);
+  }
+
+
+  onChangeAccount(_, value) {
+    alert(`Selected account: ${value}`);
+
+
+    this.setState({ accountId: value });
+  }
+
+
+  render() {
+    return (
+      <AccountPicker
+        label="Account"
+        labelInline
+        value={this.state.accountId}
+        onChange={this.onChangeAccount}
+      />
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a descriptive label for this control, e.g. "Accounts".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `crossAccount` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Shows an option at the top named "All accounts". When selected, the value provided by the `onChange` callback is `AccountPicker.CROSS_ACCOUNT`. This is useful when you have functionality that can operate on multiple accounts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the dropdown is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired every time the user clicks an account from the list.
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""},{"name":"value","type":"number","description":"Id of the account selected."}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+        <OptionReference array>AccountPicker.SPACING_TYPE.EXTRA_LARGE,
+        AccountPicker.SPACING_TYPE.LARGE,
+        AccountPicker.SPACING_TYPE.MEDIUM,
+        AccountPicker.SPACING_TYPE.NONE,
+        AccountPicker.SPACING_TYPE.OMIT,
+        AccountPicker.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>number|enum</h5>
+      </td>
+
+      <td>
+        Id of the selected account.
+      </td>
+    </tr>
+  </tbody>
+</table>

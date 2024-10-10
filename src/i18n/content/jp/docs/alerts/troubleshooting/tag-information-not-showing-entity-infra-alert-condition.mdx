@@ -1,0 +1,26 @@
+---
+title: Infraアラートの状態でエンティティのタグ情報が表示されない
+type: troubleshooting
+tags:
+  - Alerts
+  - Troubleshooting
+metaDescription: Tags from events not indexed by New Relic do not appear.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 問題
+
+[カスタムのインシデント説明タグは、](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/alert-custom-incident-descriptions#example) イベントの値に置き換えられません。
+
+## 解決
+
+タグは、New Relic がインデックスを作成しているイベントに対してのみ有効です。
+
+イベントがインデックスに登録されているかどうかを確認する最も簡単な方法は、クエリ `SELECT nr.entityType FROM ${EventSampleName}`を実行し、 `${EventSampleName}` を問題のイベントの名前に置き換えることです。
+
+結果の列 `nr.entity Type` に値がある場合、イベントにはインデックスが付けられます。そうでなければそうではありません。
+
+## 原因
+
+New Relic にインデックスされていないサンプルには、説明を追加することはできません。

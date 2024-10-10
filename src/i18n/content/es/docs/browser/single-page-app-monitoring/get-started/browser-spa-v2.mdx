@@ -1,0 +1,93 @@
+---
+title: Monitoreo de Browser SPA 2.0
+metaDescription: The new browser SPA monitoring capability is a streamlined way to monitor your users' experience and app performance.
+freshnessValidatedDate: '2024-09-04T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout variant="important">
+  Esta función está en vista previa pública. Con el tiempo, reemplazará la experiencia SPA browser existente.
+</Callout>
+
+Para los clientes que monitorean browser de la aplicación de página única (SPA), nos complace anunciar una revisión de nuestra funcionalidad de monitoreo de SPA, destinada a abordar numerosos puntos problemáticos:
+
+* Últimas versiones inutilizables: los conflictos frecuentes con bibliotecas de terceros y la captura de interacciones poco confiable plagaron el agente existente, lo que a menudo hacía que la última versión fuera inutilizable.
+* Soluciones de parcheo: abordar un problema con parches SPA a menudo generaba otro, lo que creaba un ciclo frustrante de correcciones y regresiones.
+* Conflictos con bibliotecas de terceros: el ajuste global, particularmente alrededor de `Promises`, a menudo interrumpía la funcionalidad del código debido a conflictos con otras bibliotecas.
+* Cuello de botella: Los conflictos con el código que emplea temporizadores, RAF y cadena de promesas provocaron problemas de rendimiento, desde ralentizaciones hasta bloqueos.
+
+La experiencia de monitoreo SPA actualizada está diseñada para eliminar estos problemas y proporcionar una experiencia de monitoreo significativamente mejorada. Los cambios clave incluyen:
+
+* Ejecución sin envolver: al no envolver los elementos globales principales, la nueva experiencia de SPA libera mejoras en la velocidad de ejecución de su aplicación.
+
+* Alineado con la heurística de navegación suave: la nueva experiencia adopta la navegación suave de Google Chrome, proporcionando un seguimiento de la interacción más preciso y una mejor alineación con el comportamiento browser .
+
+* Determinación de interacción simplificada: las interacciones ahora se definen como un evento UI (clic/pulsación de tecla/enviar -&gt; cambio de ruta -&gt; modificación DOM ), lo que ofrece un enfoque de captura más claro y eficiente.
+  * Posible disociación de eventos: es posible que observe que los eventos `AjaxRequest` y `JavascriptError` previamente asociados se disocien de la interacción, lo que refleja el enfoque en la interacción impulsada por UI .
+
+* Centrar en las métricas clave: si bien los datos informados permanecen prácticamente sin cambios, la nueva experiencia ya no rastrea la ejecución de JavaScript ni la duración de la devolución de llamada dentro de la interacción, lo que agiliza la información informada.
+
+* Duraciones de interacción reducidas: espere duraciones de interacción significativamente más cortas, particularmente para cambios de ruta. Las cargas iniciales de la página experimentarán una ligera reducción.
+
+* Actualizaciones de API:
+
+  * Se agregó nuevo argumento opcional `.interaction({waitForEnd: true})` a la función [`.interaction()`](/docs/browser/new-relic-browser/browser-apis/interaction/) : esto permite personalizar el tiempo de finalización de la interacción del usuario. La funcionalidad `.interaction()` existente permanece sin cambios.
+  * API obsoleta: La función [`createTracer`](/docs/browser/new-relic-browser/browser-apis/createtracer/): Si bien sigue siendo funcional, la función `createTracer` está obsoleta porque ya no mantiene abierta la interacción ni multiplica las devoluciones de llamadas. Nota: Si continúa empleando `createTracer` con la nueva experiencia de SPA, no se creará el evento `BrowserTiming` .
+
+## Pruebe la nueva experiencia de monitoreo de SPA browser [#enable-feature]
+
+<Steps>
+  <Step>
+    ### Revisa los requisitos [#review-requirements]
+
+    Esta función está probada y cuenta con soporte de acuerdo con nuestra [declaración de soporte de browser ](https://docs.newrelic.com/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/#support-statement)estándar.
+  </Step>
+
+  <Step>
+    ### Agregar la bandera característica [#add-feature-flag]
+
+    Si su agente se instaló con el método APM , comunicar con nuestro equipo de soporte y habilitaremos la función en su cuenta.
+
+    Si su agente se instaló con NPM o con el método de copiar y pegar basado en UI , agregue el siguiente indicador de característica al código de su agente en browser :
+
+    1. Encuentre el código del agente del New Relic browser en el HTML de su sitio web.
+
+    2. En el objeto de configuración `init` , agregue el indicador de característica `soft_nav` . He aquí un ejemplo:
+
+       ```js
+       <script type="text/javascript"> ;window.NREUM||(NREUM={});init={ …, feature_flags: ['soft_nav'] }:
+       ```
+
+    3. Desplegar tu aplicación.
+
+    ¿Necesitas desactivar esta función? Simplemente elimine la bandera característica.
+  </Step>
+
+  <Step>
+    ### Confirmar que los datos se están enviando a New Relic [#confirm-data]
+
+    Primero, verifique que su interacción siga la heurística: hacer clic/pulsar tecla/enviar -&gt; cambio de ruta -&gt; modificación DOM .
+
+    A continuación, verifique la pestaña de red en las herramientas de desarrollo de su browser . Filtrar para solicitudes dirigidas a `/events/1/`. Debe haber algunos para los cuales la carga comience con `bel.7;1`, lo que indica que su interacción está siendo capturada y enviada.
+
+    Finalmente, los datos de interacción deben seguir fluyendo hacia el panel de entidades y los gráficos de su browser .
+  </Step>
+</Steps>
+
+## Problemas conocidos [#known-issues]
+
+* Uso de API:
+
+  * `newrelic.interaction().end()` Solución alternativa: si anteriormente empleó esto para abordar problemas de cierre de interacción, es posible que ahora vea una interacción adicional e innecesaria. Revise su uso para garantizar resultados óptimos.
+  * `createTracer()` Cambio de funcionalidad: `createTracer()` ya no mantiene abierta la interacción ni programa la devolución de llamada. Si confió en esto para rastrear el código JavaScript, explore enfoques alternativos.
+
+* `AjaxRequest` asociación:
+
+  * Posible exclusión de la interacción: las solicitudes Ajax que se iniciaron cerca del final de la interacción anterior ahora podrían quedar excluidas debido a la duración más corta de la interacción.
+  * Extensión manual: si necesita que una solicitud sea atributo de una interacción específica, use el argumento `.interaction({waitForEnd: true})` agregado a la función [`.interaction()`](/docs/browser/new-relic-browser/browser-apis/interaction/) para mantener la interacción abierta hasta que se active la solicitud, luego `.end()` la interacción. Esto asociará la solicitud a la interacción.
+
+## Deja un comentario [#feedback]
+
+[Envíe un problema de GitHub](https://github.com/newrelic/newrelic-browser-agent/issues) para informar cualquier error, solicitud de funciones o mejoras de rendimiento.
+
+Para cualquier otro comentario, comparta sus ideas y sugerencias enviando un email `browser-agent@newrelic.com` con una línea de asunto que comience con `[SoftNav]: `.

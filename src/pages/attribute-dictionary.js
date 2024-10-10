@@ -2,7 +2,6 @@ import React, { memo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import {
-  ContributingGuidelines,
   Layout,
   Link,
   Tag,
@@ -23,7 +22,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 
 import events from '../data/attribute-dictionary.json';
 
-const AttributeDictionary = ({ pageContext, location }) => {
+const AttributeDictionary = ({ location }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
@@ -150,10 +149,6 @@ const AttributeDictionary = ({ pageContext, location }) => {
         >
           <DataDictionaryFilter events={events} location={location} />
           <ComplexFeedback pageTitle="Attribute dictionary" />
-          <ContributingGuidelines
-            fileRelativePath={pageContext.fileRelativePath}
-            issueLabels={['feedback', 'feedback-issue']}
-          />
         </Layout.PageTools>
       </div>
     </ErrorBoundary>
@@ -161,7 +156,6 @@ const AttributeDictionary = ({ pageContext, location }) => {
 };
 
 AttributeDictionary.propTypes = {
-  pageContext: PropTypes.object.isRequired,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,
   }).isRequired,

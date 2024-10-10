@@ -1,0 +1,135 @@
+---
+title: 'Create a Nerdpack'
+metaDescription: 'Create a Nerdpack'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. If you haven't already, check out the Overview.
+
+  Each lesson in the course builds upon the last, so make sure you've completed the last lesson, Install and configure the New Relic One CLI, before starting this one.
+</Callout>
+
+A Nerdpack is a package that contains all the files that make up a New Relic application or visualization. Nerdpacks include files for metadata, Nerdlets, assets, and more. To create a Nerdpack, use the New Relic One CLI:
+
+```bash
+nr1 create --type nerdpack
+```
+
+When `nr1` prompts for a component name, use "ab-test" and watch the tool create the foundations of your Nerdpack. Once it's finished, explore the files it created for you.
+
+## Root directory [#root]
+
+At the root level, you have a directory called `ab-test`. Everything inside this directory is part of the Nerdpack:
+
+```bash
+ls ab-test
+[output] README.md         {blue}nerdlets{plain}          nr1.json          package.json
+[output] {blue}launchers         node_modules{plain}      package-lock.json
+```
+
+`Readme.md` provides instructions for creating Nerdpack elements and serving your application locally. This and `nr1 --help` are useful if you forget how to interact with your Nerdpack using the command line tool.
+
+### Javascript files [#javascript]
+
+`package.json`, `package-lock.json`, and _node_modules_ are important for running your JavaScript application, but aren't unique to Nerdpacks. You can learn about these modules from JavaScript courses should you need to tweak them. For now, take a look at `nr1.json`, one of the most relevant files in this directory.
+
+### Metadata file [#metadata]
+
+`nr1.json` is the Nerdpack's metadata file, containing a schema type, unique identifier, a display name, and a description. Since you're building a New Relic application for running and analyzing A/B tests, update the package's `displayName` to "A/B Test" and set the description to "A/B test your application using New Relic One":
+
+```json
+fileName=nr1.json
+{
+    "schemaType": "NERDPACK",
+    "id": "311bcd0c-f7eb-4285-afed-4219179bf91d",
+    "displayName": "A/B Test",
+    "description": "A/B test your application using New Relic One."
+}
+```
+
+It's good to describe your application's purpose, especially if you're going to publish your application for others to use.
+
+Next, look at the `launchers` and `nerdlets` subdirectories.
+
+## Launchers [#launchers]
+
+`launchers` is a directory because you can create multiple launchers for your New Relic application. `nr1 create` only created one launcher for your Nerdpack and called it "ab-test-launcher". Inside its directory, there are two files:
+
+* `icon.png` is an image that represents the application
+* `nr1.json` is the launcher's metadata file
+
+Use "A/B Test Launcher" for the launcher's `displayName` and "Open the A/B test Nerdlet" for the `description` in _nr1.json_:
+
+```json
+fileName=launchers/ab-test-launcher/nr1.json
+{
+    "schemaType": "LAUNCHER",
+    "id": "ab-test-launcher",
+    "displayName": "A/B Test Launcher",
+    "description": "Open the A/B test Nerdlet",
+    "rootNerdletId": "ab-test-nerdlet"
+}
+```
+
+Notice that the launcher has a `rootNerdletId`. This identifies the Nerdlet that the launcher opens when it's selected. This Nerdpack has only one Nerdlet, called `ab-test-nerdlet`, but some Nerdpacks may have multiple. Make sure that you set the `rootNerdletId` to the Nerdlet you want the launcher to open.
+
+## Nerdlets [#nerdlets]
+
+The `nerdlets` directory contains all the Nerdlets that make up your New Relic application. Since `ab-test-nerdlet` is the only Nerdlet in this Nerdpack, there is only one subdirectory. In `nerdlets/ab-test-nerdlet`, there are three files:
+
+* `index.js` is the JavaScript file that contains your Nerdlet component
+* `styles.scss` holds the Sass stylesheet for your Nerdlet
+* `nr1.json` contains the Nerdlet's metadata
+
+Update your Nerdlet's `displayName` to "A/B Test" and `description` to "Control and view results of your A/B test":
+
+```json fileName=nerdlets/ab-test-nerdlet/nr1.json
+{
+    "schemaType": "NERDLET",
+    "id": "ab-test-nerdlet",
+    "displayName": "A/B Test",
+    "description": "Control and view results of your A/B test"
+}
+```
+
+Now, you've customized your Nerdpack, Nerdlet, and launcher with informative display names and descriptions, but what does your application actually do? Check out `index.js` to see what your default Nerdlet looks like:
+
+```js fileName=nerdlets/ab-test-nerdlet/index.js
+import React from 'react';
+
+export default class AbTestNerdletNerdlet extends React.Component {
+    render() {
+        return <h1>Hello, ab-test-nerdlet Nerdlet!</h1>;
+    }
+}
+```
+
+Here, you have `AbTestNerdletNerdlet`, which `nr1` created for you. It's a React component that renders a first-level welcome heading. Because this is the root Nerdlet, as specified in your launcher's `nr1.json` file, when you click on your launcher in the New Relic platform, the launcher will open a view that displays this heading.
+
+<Callout variant="tip">
+  In this lesson, you used `nr1 create` to create a Nerdpack, complete with a launcher and a Nerdlet. If you want to create another Nerdlet or Launcher in your Nerdpack, you can also do that with `nr1 create`:
+
+  ```sh
+  nr1 create --type nerdlet
+  nr1 create --type launcher
+  ```
+
+  You can even skip the `--type` flag and select an option from a list:
+
+  ```sh
+  nr1 create
+  [output] {green}?{plain} What kind of component do you want to create? {muted}› - Use arrow-keys. Return to submit.
+  [output]     nerdpack
+  [output] {green}❯   nerdlet{muted} - create a/an Nerdlet Nerdpack item inside your Nerdpack.
+  [output]     launcher
+  [output]     catalog
+  [output]     visualization
+  ```
+</Callout>
+
+In the next lesson, you'll learn how to serve your Nerdpack locally and see your app in action!
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the next lesson: Serve your New Relic application.
+</Callout>

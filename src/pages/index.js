@@ -61,7 +61,6 @@ const HomePage = ({ data }) => {
         layout={layout}
         css={css`
           border: none;
-          background: var(--tertiary-background-color);
           max-width: 1440px;
           margin: 2rem auto 0;
           padding: 0 calc(5% + 8px); // to match the product tiles outer edges

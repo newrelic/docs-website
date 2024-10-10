@@ -1,0 +1,84 @@
+---
+title: 'Add a data source to the quickstart'
+metaDescription: 'Add a data source to your quickstart'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. If you haven't already, checkout the [course introduction](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  As this procedure builds on top of the last ones in the lab, make sure you[create a dashboard](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-a-dashboard) and [create alerts](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) before proceeding with this one.
+</Callout>
+
+Data sources represent a single type of instrumentation, such as an agent, attributes on a transaction, a cloud provider integration, a third-party integration, etc.
+
+There are two types of data sources:
+
+* CORE
+* COMMUNITY
+
+The CORE data sources are provided by New Relic One and do not exist within this repository, the COMMUNITY data sources are defined within the quickstart repository.
+
+COMMUNITY data sources live in the `data-sources/` directory. In this procedure, you learn how to add a data source to your quickstart.
+
+<Steps>
+  <Step>
+    If you haven't already, fork the [New Relic quickstarts](https://github.com/newrelic/newrelic-quickstarts) repository and clone it to your local machine.
+  </Step>
+
+  <Step>
+    Open your Project in the IDE of your choice and navigate to `\_template` directory.
+  </Step>
+
+  <Step>
+    Here, copy `data-sources/example-data-source` directory and it's content to `data-sources` directory at the root level. Rename the directory as `flashdb`.
+
+    This directory contains sample YAML file to create a data source.
+  </Step>
+
+  <Step>
+    Navigate to `datasources/flashdb/config.yml` file and add details of your data source. For your reference, flashdb data source should be similar to following:
+
+    ```yml
+
+    id: flashdb
+    displayName: FlashDB
+    description: |
+      FlashDB is the fastest and lightest database in the universe. First, it can handle a large number of concurrent users without slowing down. Second, it has a very low latency, so queries are processed quickly. And finally, it scales easily as your data grows.
+      This quickstart allows users to monitor their database to ensure peak performance. It also notifies you if there's any problem the database. 
+  
+      The flashdb quickstart includes: 
+      ## a dashboard 
+        where users can easily monitor:
+        - Database methods
+        - Average response time
+        - Errors
+        - Database size
+        - Cache hits
+        - Keys
+      ## alert conditions
+        where users are notified on:
+        - slow read responses
+        - low cache hit 
+    icon: logo.svg
+    install:
+      primary:
+        link:
+          url: https://www.newrelic.com
+    keywords:
+      - infrastructure
+      - database
+    categoryTerms:
+      - database
+
+    ```
+  </Step>
+
+  <Step>
+    Add a logo for your data source. It can be either `.svg` or `.png`.
+  </Step>
+</Steps>
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. Continue on to next lesson: [contribute your quickstart](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/contribute-quickstart).
+</Callout>

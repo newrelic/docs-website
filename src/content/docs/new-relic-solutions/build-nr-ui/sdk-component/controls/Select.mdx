@@ -1,0 +1,276 @@
+---
+title: 'Select'
+metaDescription: 'Learn how to work the Select component'
+freshnessValidatedDate: 2024-06-03
+---
+
+The `<Select>` component is a variant of the `<Dropdown>` one, especially targeted to be used in form components. The main differences are:
+
+* It can only work in declarative mode, i.e. it cannot be virtualized by passing a child function.
+* Every `<SelectItem>` accepts a `value` prop, that will be matched against the `value` passed to `<Select>`, and the right option will be selected. As opposed to a traditional `<SELECT>` DOM element, any reference can be used as a value, both primitives and objects.
+* Items do not accept an `onClick`. Instead, you will get the value of the selected option by receiving it from an `onChange` method.
+
+The component is always controlled, meaning you have to update its `value` from an `onChange` callback for it to reflect the newly selected property.
+
+### Usage
+
+```js
+import { Select } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Select onChange={(evt, value) => alert(value)}>
+  <SelectItem value="a">Value is "a"</SelectItem>
+  <SelectItem value="b">Value is "b"</SelectItem>
+  <SelectItem value="c">Value is "c"</SelectItem>
+</Select>
+```
+
+#### With label and info
+
+```js
+<Select label="Items" info="Info value" onChange={(evt, value) => alert(value)}>
+  <SelectItem value="a">Value is "a"</SelectItem>
+  <SelectItem value="b">Value is "b"</SelectItem>
+  <SelectItem value="c">Value is "c"</SelectItem>
+</Select>
+```
+
+#### With inline label
+
+```js
+<Select label="Items" labelInline onChange={(evt, value) => alert(value)}>
+  <SelectItem value="a">Value is "a"</SelectItem>
+  <SelectItem value="b">Value is "b"</SelectItem>
+  <SelectItem value="c">Value is "c"</SelectItem>
+</Select>
+```
+
+#### With description
+
+```js
+<Select description="Description value" onChange={(evt, value) => alert(value)}>
+  <SelectItem value="a">Value is "a"</SelectItem>
+  <SelectItem value="b">Value is "b"</SelectItem>
+  <SelectItem value="c">Value is "c"</SelectItem>
+</Select>
+```
+
+#### With invalid message
+
+```js
+<Select invalid="Invalid message value" onChange={(evt, value) => alert(value)}>
+  <SelectItem value="a">Value is "a"</SelectItem>
+  <SelectItem value="b">Value is "b"</SelectItem>
+  <SelectItem value="c">Value is "c"</SelectItem>
+</Select>
+```
+
+#### Controlled component
+
+```js
+class ControlledSelect extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      value: null,
+    };
+
+
+    this._onChange = this._onChange.bind(this);
+  }
+
+
+  _onChange(event, value) {
+    this.setState({ value });
+  }
+
+
+  render() {
+    return (
+      <Select onChange={this._onChange} value={this.state.value}>
+        <SelectItem value="1">Item 1</SelectItem>
+        <SelectItem value="2">Item 2</SelectItem>
+        <SelectItem value="3">Item 3</SelectItem>
+      </Select>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a descriptive label for this control, e.g. "Accounts".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        List of options expressed as a set of `<SelectItem>`s.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the select is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the value of the select is changed.You can get the value back as the second argument of the `onChange` event.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""},{"name":"value","type":"any","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Select.SPACING_TYPE.EXTRA_LARGE,
+          Select.SPACING_TYPE.LARGE,
+          Select.SPACING_TYPE.MEDIUM,
+          Select.SPACING_TYPE.NONE,
+          Select.SPACING_TYPE.OMIT,
+          Select.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>any</h5>
+      </td>
+
+      <td>
+        Value matching the item selected.
+      </td>
+    </tr>
+  </tbody>
+</table>

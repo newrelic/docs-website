@@ -79,13 +79,9 @@ module.exports = {
         background_color: '#663399',
         theme_color: '#663399',
         display: 'minimal-ui',
-        icon: 'src/images/favicon.png', // This path is relative to the root of the site.
+        icon: 'static/images/favicon.png', // This path is relative to the root of the site.
       },
     },
-    // this (optional) plugin enables Progressive Web App + Offline functionality
-    // To learn more, visit: https://gatsby.dev/offline
-    // `gatsby-plugin-offline`,
-    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -226,7 +222,7 @@ module.exports = {
           },
           {
             resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
-          }
+          },
         ],
       },
     },
@@ -325,19 +321,9 @@ module.exports = {
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-
+    'gatsby-plugin-eol-rss',
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    {
-      resolve: 'gatsby-plugin-gatsby-cloud',
-      options: {
-        allPageHeaders: [
-          'Referrer-Policy: no-referrer-when-downgrade',
-          'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'Cache-Control: no-cache',
-        ],
-      },
-    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
@@ -442,7 +428,7 @@ module.exports = {
             'md',
             'java',
             'razor',
-            'hcl'
+            'hcl',
           ],
         },
         newrelic: {

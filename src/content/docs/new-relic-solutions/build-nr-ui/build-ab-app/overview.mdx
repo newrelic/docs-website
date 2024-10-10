@@ -1,0 +1,21 @@
+---
+title: 'Build an A/B test application'
+metaDescription: 'Build an A/B test application to try out New Relic.'
+freshnessValidatedDate: never
+---
+
+Imagine you've developed a website and instrumented it with New Relic's Browser monitoring. New Relic's core feature set provides a lot of information, but you want something custom. You want to decide if a new design for your site will better engage your users. In other words, you want to A/B test a design and make a decision based on the data.
+
+For this task, you could create a New Relic application, using React, the New Relic One software development kit, and the limitless power of modern web technologies.
+
+New Relic applications are built with one of web development's most popular JavaScript libraries: React. Because you have freedom when writing React code, you can customize your app logic, design your own components, or take advantage of the abundance of open source component libraries. So, for your A/B test app, if you want to write custom logic to end the test based on results, you can do so.
+
+The New Relic One software development kit (SDK) allows you to create, serve, publish, and deploy applications to the New Relic platform. It also provides a host of React components for gathering data, presenting information, handling user interactions, and more. You use components like `Button` and `Dropdown` to create an interactive experience that looks and feels native to New Relic. You use `Table` and `Chart` components to display data from your New Relic account or elsewhere. When building your A/B test application, you'd use the SDK's `NrqlQuery` component to fetch Browser data from your account.
+
+With custom React code, SDK components, and the wide world of open source libraries, you can create your A/B test application in New Relic. But before you create one for yourself, you might want to check the app catalog to see if someone has beaten you to it! If the catalog already had an app for that, you could add it to your account with a couple clicks, another benefit of creating apps in New Relic.
+
+Throughout this course, you're going to build a real-world New Relic application for running and managing A/B tests. You'll visualize Browser data for your competing designs, see historical data from past tests, and even choose a winning design and end the test, all from your New Relic application! But before you get into the weeds of building charts and making http requests, you need to learn what New Relic applications are made of.
+
+<Callout variant="course">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the first lesson: Spin up your demo services.
+</Callout>

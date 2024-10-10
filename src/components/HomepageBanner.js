@@ -8,7 +8,7 @@ import {
   useTranslation,
   addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
-import bannerBackground from '../images/bannerBackground.svg';
+import bannerBackground from 'images/bannerBackground.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '250px';
@@ -73,8 +73,10 @@ const HomepageBanner = () => {
         onChange={(e) => setSearchTerm(e.target.value)}
         onSubmit={() => {
           addPageAction({
-            eventName: 'defaultViewSearch',
+            eventName: 'swiftypeSearchInput',
             category: 'SearchInput',
+            searchTerm,
+            searchLocation: 'homepage',
           });
           navigate(`?q=${searchTerm || ''}`);
         }}
