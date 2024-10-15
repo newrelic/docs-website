@@ -49,7 +49,7 @@ export default async (req) => {
           // ids look like
           // `nr-docs:src/content/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics.mdx:0`
           .map((match) => ({ ...match, id: match.id.split(':').at(1) }))
-          .filter((match) => !match.id.contains('whats-new'))
+          .filter((match) => !match.id.includes('whats-new'))
           .filter((match) => {
             if (matches.has(match.id)) {
               return false;
