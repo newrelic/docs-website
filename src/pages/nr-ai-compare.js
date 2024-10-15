@@ -1,27 +1,31 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import {
-  Link,
   search,
   SearchInput,
   Spinner,
   Surface,
   useLocale,
 } from '@newrelic/gatsby-theme-newrelic';
+import cx from 'classnames';
 
 const SearchResultPageView = () => {
   const locale = useLocale();
+  const [hovered, setHovered] = useState(null);
   const [results, setResults] = useState({ loading: true });
   const [nraiResults, setNraiResults] = useState({ nraiLoading: true });
   const [searchTerm, setSearchTerm] = useState('nrql');
-  const [termToSubmit, setTermToSubmit] = useState('');
+  const [termToSubmit, setTermToSubmit] = useState('nrql');
 
   const { records, loading, error } = results;
   const { nraiStuff, nraiLoading, nraiError } = nraiResults;
 
   useEffect(() => {
+    setResults((r) => ({ ...r, loading: true }));
+    setNraiResults((r) => ({ ...r, nraiLoading: true }));
+
     (async () => {
       const defaultSources = locale.isDefault
         ? ['developer', 'docs', 'opensource', 'quickstarts']
@@ -110,8 +114,15 @@ const SearchResultPageView = () => {
             {error && !loading && <LoadingContainer>{error}</LoadingContainer>}
 
             {records &&
+              !loading &&
               records.map((result, i) => (
-                <Result key={`${i}-${result.title}`} result={result} />
+                <Result
+                  hovered={i === hovered}
+                  key={`${i}-${result.title}`}
+                  onHover={() => setHovered(i)}
+                  onLeave={() => setHovered(null)}
+                  result={result}
+                />
               ))}
           </>
         </ResultContainer>
@@ -136,9 +147,13 @@ const SearchResultPageView = () => {
             )}
 
             {nraiStuff &&
+              !nraiLoading &&
               nraiStuff.map((nraiResult, i) => (
                 <AIResult
+                  hovered={i === hovered}
                   key={`${i}-nrai-${nraiResult.metadata.file_url}`}
+                  onHover={() => setHovered(i)}
+                  onLeave={() => setHovered(null)}
                   result={nraiResult.metadata}
                 />
               ))}
@@ -185,16 +200,20 @@ const CompareContainer = styled.div`
 `;
 
 const ResultContainer = styled.div`
+  counter-reset: results;
   display: grid;
   grid-template-rows: subgrid;
   grid-row: 1 / -1;
 `;
 
-const Result = ({ result }) => {
+const Result = ({ result, hovered, onHover, onLeave }) => {
   return (
     <Surface
-      as={Link}
-      to={result.url}
+      as="a"
+      className={cx({ hovered })}
+      href={result.url}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
       css={css`
         em {
           font-style: normal;
@@ -202,11 +221,35 @@ const Result = ({ result }) => {
         margin-bottom: 1rem;
         box-shadow: none;
         color: var(--primary-font-color);
+        position: relative;
+        padding: 0.75rem;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+        &.hovered {
+          background: color-mix(
+            in srgb,
+            var(--primary-text-color),
+            transparent 95%
+          );
+        }
         &:hover {
+          background: color-mix(
+            in srgb,
+            var(--primary-text-color),
+            transparent 95%
+          );
           color: var(--primary-font-color);
           h3 {
             text-decoration: underline;
           }
+        }
+        &::before {
+          counter-increment: results;
+          content: counter(results);
+          position: absolute;
+          top: 0.75rem;
+          left: -1.25rem;
+          line-height: 1;
         }
       `}
     >
@@ -231,20 +274,51 @@ const Result = ({ result }) => {
   );
 };
 
-const AIResult = ({ result }) => {
+const AIResult = ({ result, hovered, onHover, onLeave }) => {
   return (
     <Surface
-      as={Link}
-      to={result.file_url}
+      as="a"
+      className={cx({ hovered })}
+      href={result.file_url}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
       css={css`
         margin-bottom: 1rem;
         box-shadow: none;
         color: var(--primary-font-color);
+        padding: 0.75rem;
+        position: relative;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+        margin-left: -2rem;
+        padding-left: 2rem;
+
+        &.hovered {
+          background: color-mix(
+            in srgb,
+            var(--primary-text-color),
+            transparent 95%
+          );
+        }
         &:hover {
+          background: color-mix(
+            in srgb,
+            var(--primary-text-color),
+            transparent 95%
+          );
           color: var(--primary-font-color);
           h3 {
             text-decoration: underline;
           }
+        }
+
+        &::before {
+          counter-increment: results;
+          content: counter(results);
+          position: absolute;
+          top: 0.75rem;
+          left: -0.25rem;
+          line-height: 1;
         }
       `}
     >
