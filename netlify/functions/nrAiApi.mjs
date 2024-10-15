@@ -32,7 +32,7 @@ export default async (req) => {
           body: JSON.stringify({
             index: 'new-relic-internal-docs-testing',
             vector: json.data[0].embedding,
-            top_k: 10,
+            top_k: 5,
             namespace: 'nr-docs',
             include_metadata: true,
           }),

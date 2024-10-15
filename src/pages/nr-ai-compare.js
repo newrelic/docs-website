@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
-import { navigate } from '@reach/router';
 import {
   Link,
   search,
@@ -10,17 +9,14 @@ import {
   Spinner,
   Surface,
   useLocale,
-  useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 
 const SearchResultPageView = () => {
-  const { queryParams } = useQueryParams();
-  const query = queryParams.get('query') || 'nrql';
-  const page = Number(queryParams.get('page') ?? 1);
   const locale = useLocale();
   const [results, setResults] = useState({ loading: true });
   const [nraiResults, setNraiResults] = useState({ nraiLoading: true });
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('nrql');
+  const [termToSubmit, setTermToSubmit] = useState('');
 
   const { records, loading, error } = results;
   const { nraiStuff, nraiLoading, nraiError } = nraiResults;
@@ -37,14 +33,13 @@ const SearchResultPageView = () => {
           ];
       try {
         const results = await search({
-          searchTerm: query,
+          searchTerm,
           defaultSources,
           filters: [
             { type: 'source', defaultFilters: [] },
             { type: 'searchBy', defaultFilters: [] },
           ],
-          page,
-          perPage: 10,
+          perPage: 5,
         });
         setResults({
           pageCount: results.info.page.num_pages,
@@ -61,7 +56,7 @@ const SearchResultPageView = () => {
       try {
         fetch('/.netlify/functions/nrAiApi', {
           method: 'POST',
-          body: JSON.stringify(query),
+          body: JSON.stringify(searchTerm),
         })
           .then((res) => res.json())
           .then((json) =>
@@ -75,20 +70,18 @@ const SearchResultPageView = () => {
         });
       }
     })();
-  }, [locale, page, query]);
+  }, [locale, searchTerm]);
 
   return (
     <PageContainer>
       <SearchInput
         size={SearchInput.SIZE.MEDIUM}
-        value={searchTerm || ''}
+        value={termToSubmit || ''}
         iconName={SearchInput.ICONS.SEARCH}
         isIconClickable
         alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => {
-          navigate(`?query=${searchTerm || ''}`);
-        }}
+        onChange={(e) => setTermToSubmit(e.target.value)}
+        onSubmit={() => setSearchTerm(termToSubmit)}
         css={css`
           max-width: 880px;
           width: 80%;
