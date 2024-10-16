@@ -8,6 +8,7 @@ import jpJson from '../../data/popovers_jp.json';
 import krJson from '../../data/popovers_kr.json';
 import esJson from '../../data/popovers_es.json';
 import ptJson from '../../data/popovers_pt.json';
+import frJson from '../../data/popovers_fr.json';
 
 import { TwoButton } from './layouts';
 
@@ -26,6 +27,7 @@ const InlinePopover = ({ type }) => {
     if (locale === 'jp') return jpJson;
     if (locale === 'es') return esJson;
     if (locale === 'pt') return ptJson;
+    if (locale === 'fr') return frJson;
     return enJson;
   })();
 
