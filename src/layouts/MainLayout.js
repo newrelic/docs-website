@@ -27,7 +27,7 @@ const MainLayout = ({ children, pageContext }) => {
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [sidebar, setSidebar] = useState(true);
-  const navHeaderHeight = '100px';
+  const navHeaderHeight = '55px';
   const isStyleGuide =
     slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
   const addTrailingSlash = (path) => {
