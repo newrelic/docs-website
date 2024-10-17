@@ -4,7 +4,14 @@ summary: 'Our updated global in-app help gives contextual help and access to our
 releaseDate: '2024-10-21'
 ---
 
-New Relic has released an update to it's in-app help. This new global in-app help combines contextual in-app help, a link to your support cases, our Docs site, useful keyboard shortcuts, and What's New posts all in one place.
+New Relic has released an update to it's in-app help. This new global in-app help combines all of these things in one place:
+
+* Contextual in-app help
+* In-app support case and forum search
+* Your support cases
+* Our docs site
+* Useful keyboard shortcuts
+* What's New posts
 
 ![In-app help](/images/whats-new-in-app-help.webp "A screenshot of our in-app help on the APM summary page")
 
