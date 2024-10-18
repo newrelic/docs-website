@@ -176,12 +176,10 @@ const uploadFiles = async (batches, translationsPerLocale) => {
     let successCount = 0;
 
     const translations = translationsPerLocale[batch.locale];
+    const uploadFileForBatch = uploadFile(batch.locale, batch.batchUid);
     for (const translation of translations) {
       try {
-        const fileUploadResponse = await uploadFile(
-          batch.locale,
-          batch.batchUid
-        )(translation);
+        const fileUploadResponse = await uploadFileForBatch(translation);
 
         if (fileUploadResponse.code === 'ACCEPTED') {
           await Database.updateTranslation(translation.id, {
