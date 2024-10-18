@@ -1,10 +1,16 @@
 #! /usr/bin/env node
 
 import fs from 'fs/promises';
+import { extname } from 'path';
 import { program } from 'commander';
 
+// MDX <--> HTML
 import serializeMDX from './actions/serialize-mdx.mjs';
 import deserializeHTML from './actions/deserialize-html.mjs';
+
+// YAML <--> JSON
+import serializeYaml from './actions/serialize-yaml.mjs';
+import deserializeJson from './actions/deserialize-json.mjs';
 
 const cantOpenPath = (path) => () => {
   console.error(`😵 unable to open path ${path}`);
@@ -17,33 +23,88 @@ const assertPathIsNotEmpty = (path) => {
   }
 };
 
-const serializeMdxToHtml = async (path, outputPath) => {
-  const mdx = await fs.readFile(path).catch(cantOpenPath(path));
-  const html = await serializeMDX(mdx).catch((err) => {
-    console.error('❌ error serializing MDX');
+const serialize = async (path, { output: outputPath }, extension) => {
+  const inputString = await fs
+    .readFile(path, 'utf-8')
+    .catch(cantOpenPath(path));
+
+  let serializer;
+  switch (extension) {
+    case '.mdx':
+      serializer = serializeMDX;
+      break;
+    case '.yml':
+    case '.yaml':
+      serializer = serializeYaml;
+      break;
+    default:
+      console.error(
+        `❌ unknown file type '${extension}' trying to serialize ${path}`
+      );
+      process.exit(1);
+  }
+
+  const result = await serializer(inputString).catch((err) => {
+    const fileType = extensionToFileType(extension);
+    console.error(`❌ error serializing ${fileType}`);
     console.error(err);
     process.exit(1);
   });
 
   if (outputPath) {
-    fs.writeFile(outputPath, html, 'utf-8');
+    fs.writeFile(outputPath, result, 'utf-8');
   } else {
-    console.log(html);
+    console.log(result);
   }
 };
 
-const deserializeHtmlToMdx = async (path, outputPath) => {
-  const html = await fs.readFile(path, 'utf-8').catch(cantOpenPath(path));
-  const mdx = await deserializeHTML(html).catch((err) => {
-    console.error('❌ error deserializing HTML');
+const deserialize = async (path, { output: outputPath }, extension) => {
+  const inputString = await fs
+    .readFile(path, 'utf-8')
+    .catch(cantOpenPath(path));
+
+  let deserializer;
+  switch (extension) {
+    case '.html':
+      deserializer = deserializeHTML;
+      break;
+    case '.json':
+      deserializer = deserializeJson;
+      break;
+    default:
+      console.error(
+        `❌ unknown file type '${extension}' trying to deserialize ${path}`
+      );
+      process.exit(1);
+  }
+
+  const result = await deserializer(inputString).catch((err) => {
+    const fileType = extensionToFileType(extension);
+    console.error(`❌ error serializing ${fileType}`);
     console.error(err);
     process.exit(1);
   });
 
   if (outputPath) {
-    fs.writeFile(outputPath, mdx, 'utf-8');
+    fs.writeFile(outputPath, result, 'utf-8');
   } else {
-    console.log(mdx);
+    console.log(result);
+  }
+};
+
+const extensionToFileType = (extension) => {
+  switch (extension) {
+    case '.html':
+      return 'HTML';
+    case '.json':
+      return 'JSON,';
+    case '.mdx':
+      return 'MDX';
+    case '.yml':
+    case '.yaml':
+      return 'YAML';
+    default:
+      return 'unknown';
   }
 };
 
@@ -53,22 +114,24 @@ const serde = program
 
 serde
   .command('serialize')
-  .description('serialize an MDX file to HTML')
+  .description('serialize an MDX file to HTML or a YAML file to JSON')
   .option('-o, --output [path]', 'write to given path instead of stdout')
   .argument('[path]')
   .action((path, options) => {
     assertPathIsNotEmpty(path);
-    serializeMdxToHtml(path, options.output);
+    const extension = extname(path);
+    serialize(path, options, extension);
   });
 
 serde
   .command('deserialize')
-  .description('deserialize an HTML file to MDX')
+  .description('deserialize an HTML file to MDX or a JSON file to YAML')
   .option('-o, --output [path]', 'write to given path instead of stdout')
   .argument('[path]')
   .action((path, options) => {
     assertPathIsNotEmpty(path);
-    deserializeHtmlToMdx(path, options.output);
+    const extension = extname(path);
+    deserialize(path, options, extension);
   });
 
 program.parse();
