@@ -4,9 +4,9 @@ import {
   deleteJob,
   deleteTranslation,
 } from './translation_workflow/database.js';
-import { getAccessToken, vendorRequest } from './utils/vendor-request';
+import { getAccessToken, vendorRequest } from './utils/vendor-request.mjs';
 import fetch from 'node-fetch';
-import { configuration } from './configuration';
+import { configuration } from './configuration.js';
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
