@@ -99,7 +99,7 @@ const navTest = async () => {
 
 const searchTest = async () => {
   const [searchInput] = await waitForXPath(
-    './/*[substring(@class,string-length(@class)-(string-length("GlobalHeader")-1))="GlobalHeader"]//input'
+    './/input[@placeholder="Search docs"]'
   );
   console.log('\nClicking search input');
   await searchInput.click();
