@@ -13,6 +13,28 @@ import yaml from 'js-yaml';
 const serializeYaml = async (yamlString) => {
   const result = yaml.safeLoad(yamlString, { schema: yaml.JSON_SCHEMA });
   // TODO: add Smartling keys to configure translations
+  result.smartling = {
+    translate_paths: [
+      {
+        path: 'title',
+      },
+      {
+        path: 'metaDescription',
+      },
+      {
+        path: 'appInfo/label',
+      },
+      {
+        path: 'appInfo/placeholder',
+      },
+      {
+        path: 'appInfo/placeholder',
+      },
+      {
+        path: 'appInfo/options/displayName',
+      },
+    ],
+  };
 
   return JSON.stringify(result, null, 2);
 };

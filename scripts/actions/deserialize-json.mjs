@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
  */
 const deserializeJson = async (jsonString) => {
   const result = JSON.parse(jsonString);
-  // TODO: remove Smartling keys
+  delete result.smartling;
   const yamlString = yaml.dump(result, { schema: yaml.JSON_SCHEMA });
 
   return yamlString;
