@@ -16,7 +16,10 @@ export default async (req) => {
             model: 'text-embedding-ada-002',
           }),
         }
-      );
+      ).catch((err) => {
+        console.error(err);
+        console.error(err.message);
+      });
     })
     .then((firstResponse) => firstResponse.json())
     .then((json) => {
@@ -38,7 +41,10 @@ export default async (req) => {
             include_metadata: true,
           }),
         }
-      );
+      ).catch((err) => {
+        console.error(err);
+        console.error(err.message);
+      });
     })
     .then((secondResponse) => secondResponse.json())
     .then((results) => {
