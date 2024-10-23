@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Command } = require('commander');
 const {
   addFilesToTranslationQueue,
@@ -28,7 +29,8 @@ const main = async () => {
 
   if (filesString) {
     const fileNames = parseFilesString(filesString);
-    await addFilesToTranslationQueue(fileNames, options);
+    const results = await addFilesToTranslationQueue(fileNames, options);
+    console.log(results);
   }
   process.exit(0);
 };

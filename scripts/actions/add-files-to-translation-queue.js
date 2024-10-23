@@ -59,6 +59,7 @@ const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
 const excludeFiles = (fileData) => {
   const exclusions = getExclusions();
 
+  // TODO: maybe add "exclude from all" capability to i18n-exclusions YAML
   return fileData.filter(({ filename, locale, contentType }) => {
     return (
       !exclusions.excludePath[locale]?.some((path) =>
@@ -81,25 +82,37 @@ const getProjectId = (translateFM) => (locale) => {
     : machineTranslatedProjectID;
 };
 
-const getLocalizedFileData = (mdxFile) => {
-  const contents = fs.readFileSync(path.join(process.cwd(), mdxFile));
-  const { attributes, error } = frontmatter(contents);
-  if (error != null) {
-    console.log('❌ frontmatter error:');
-    console.log(mdxFile);
-    console.log(error.reason);
-    console.log(error.mark.snippet);
-    return null;
-  }
-  const checkLocale = getProjectId(attributes.translate);
-  const contentType = attributes.type;
+const getLocalizedFileData = (filepath) => {
+  const contents = fs.readFileSync(path.join(process.cwd(), filepath));
+  const extension = path.extname(filepath);
 
-  return Object.keys(LOCALE_IDS).map((locale) => ({
-    filename: mdxFile,
-    contentType,
-    locale: LOCALE_IDS[locale],
-    project_id: checkLocale(locale),
-  }));
+  if (extension === '.mdx') {
+    const { attributes, error } = frontmatter(contents);
+    if (error != null) {
+      console.log('❌ frontmatter error:');
+      console.log(filepath);
+      console.log(error.reason);
+      console.log(error.mark.snippet);
+      return null;
+    }
+    const checkLocale = getProjectId(attributes.translate);
+    const contentType = attributes.type;
+
+    return Object.keys(LOCALE_IDS).map((locale) => ({
+      filename: filepath,
+      contentType,
+      locale: LOCALE_IDS[locale],
+      project_id: checkLocale(locale),
+    }));
+  }
+
+  if (extension === '.yaml' || extension === '.yml') {
+    return Object.keys(LOCALE_IDS).map((locale) => ({
+      filename: filepath,
+      locale: LOCALE_IDS[locale],
+      project_id: machineTranslatedProjectID,
+    }));
+  }
 };
 
 const addFilesToTranslationQueue = async (fileNames, options) => {
@@ -130,7 +143,7 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     includedFiles
   ).filter(filterByLocaleOption);
 
-  await Promise.all(
+  return Promise.all(
     fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
       addTranslation({
         slug: filename,
@@ -158,6 +171,7 @@ const main = async () => {
     );
 
     mdxFileData = prFileData
+      // TODO: fix this for yaml
       .filter((file) => path.extname(file.filename) === '.mdx')
       .filter((f) => f.status !== 'removed')
       .map(prop('filename'));
