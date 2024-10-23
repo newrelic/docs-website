@@ -1,23 +1,32 @@
 ---
-title: 'Kubernetes agent operator'
+title: 'Kubernetes APM Auto-attach (aka agent operator)'
 tags:
     - Integrations
     - Kubernetes integration
     - Agent Operator
-metaDescription: "Learn how to use the Kubernetes agent operator to automatically manage your APM agents."
+    - APM Auto-attach
+metaDescription: "Learn how to use the Kubernetes APM Auto-attach to automatically manage your APM agents."
 freshnessValidatedDate: 2024-06-28
 ---
 
-<Callout title="preview">
+<Callout title="PREVIEW">
   We're still working on this feature, but we'd love for you to try it out!
 
   This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-The Kubernetes agent operator streamlines full-stack observability for Kubernetes environments by automating APM instrumentation alongside Kubernetes agent deployment. By enabling APM auto instrumentation, developers no longer need to manually manage [APM agents](/docs/apm/new-relic-apm/getting-started/introduction-apm/). The Kubernetes agent operator will automatically install, upgrade and remove APM agents.
+The Kubernetes APM Auto-attach streamlines full-stack observability for Kubernetes environments by automating APM instrumentation alongside Kubernetes agent deployment. By enabling APM auto instrumentation, developers no longer need to manually manage [APM agents](/docs/apm/new-relic-apm/getting-started/introduction-apm/). The Kubernetes APM Auto-attach will automatically install, upgrade and remove APM agents.
 
 It currently [supports](#k8s-supported-versions) Java, .NET, Node.js, Python, and Ruby with additional languages (PHP and Go) on the way.
-It has been tested on EKS and on-premise clusters running AMD nodes.
+
+## How it works [#howitworks]
+
+<img
+  title="Diagram showing how APM agents are auto injected"
+  alt="Diagram showing how APM agents are auto injected"
+  src="/images/kubernetes_diagram_apm_auto_attach.svg"
+/>
+
 
 ## Before you begin [#before-begin]
 
@@ -27,7 +36,7 @@ Before installing the operator, check the following:
 
 * [Kubectl](https://kubernetes.io/docs/tasks/tools/): You have to configure it to communicate with your cluster.
 
-## Installation of the Kubernetes agent operator [#install-k8s-operator]
+## Installation [#install-k8s-operator]
 
 Depending on what you need, you can choose to install the agent operator independently or together with our K8s integrations.
 
@@ -35,7 +44,7 @@ We strongly recommend to install it together with the Kubernetes integration to 
 
 ### Bundle installation in addition to the Kubernetes integration (recommended) [#bundle-installation]
 
-The Kubernetes agent operator chart is integrated as part of the [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) chart, which manages the installation of all the components needed to enable a full Kubernetes observability.
+The Kubernetes APM Auto-attach chart is integrated as part of the [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) chart, which manages the installation of all the components needed to enable a full Kubernetes observability.
 
 Add the `k8s-agents-operator.enabled=true` parameter to your helm command or include it in a [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) file.
 
@@ -72,61 +81,178 @@ helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operat
 
 For a complete list of configuration options, see the [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) chart.
 
-## Monitored namespaces [#monitored-namespaces]
+## Configure auto-instrumentation
 
-A Kubernetes secret will automatically be replicated from the operator's namespace into all namespaces that monitor a pod. Inside the CRD YAML file, specify which APM agents you want to instrument. All available APM agent docker images and corresponding tags are listed on DockerHub:
+Once APM Auto-attach is installed in the cluster we just need to deploy the configurations needed to make it work.
+For that we require at least one instrumentation CR applied in the cluster.
 
+The instrumentation CR enables you to define the following:
+   * Name of the instrumentation CR
+   * Where the instrumentation CR is going to be applied (thanks to podLabelSelector and namespaceLabelSelector)
+   * APM agent (one per CR)
+   * APM agent version 
+   * APM config parameters (env vars)
+   * License Key (optional)
+
+The manifest file needs to injected in the same namespace (newrelic by default) where APM auto-attach was installed
+```shell
+kubectl apply -f ./values.yaml -n newrelic
+```
+
+### How to use Selectors [#selectors]
+
+To determine when the instrumentation CR is going to inject APM Agents we need to use selectors.
+There are 2 label selectors available that can be used together (they act as a logical AND (&&) operator.) or by separate depending on your needs.
+
+* PodLabelSelector defines at the pod level which pods are going to be auto-instrumented.
+
+Example using matchLabel (select pods containing 
+```yaml
+  ...
+  podLabelSelector:
+    matchLabels:
+      app.kubernetes.io/name: flask-hello-world
+   ...
+```
+
+* NameSpaceLabelSelector defines at the namespace level which pods are going to be auto-instrumented.
+
+Example using matchExpressions (select namespace containing the tag 'kubernetes.io/metadata.name' with the value `backend`)
+```yaml
+  ...
+  namespaceLabelSelector:
+    matchExpressions:
+      - key: "kubernetes.io/metadata.name"
+        operator: "In"
+        values: ["backend"]
+   ...
+```
+
+    <Callout variant="TIP">
+      Notice that by using `kubernetes.io/metadata.name` label is the equivalent as filtering by the name of the namespace
+    </Callout>
+
+Both selectors support `matchLabel` and `matchExpressions`.
+
+<CollapserGroup>
+  <Collapser
+    id="label-selectors"
+    title="How to use matchLabel and matchExpressions"
+  >
+
+  `matchExpressions` is a more expressive label selector in Kubernetes and supports support set-based matching unlike the `matchLabels` which can only be used for exact matching. This can be used with or without the matchLabels selector.
+  
+  ```yaml
+    ...
+    selector:
+      matchLabels:
+        tier: frontend
+      matchExpressions:
+        - {key: name, operator: In, values: [payroll, web]}
+        - {key: environment, operator: NotIn, values: [dev]}
+     ...
+  ```
+  
+  Additional expressions to the selector can be added. As in the example, each expression must contain a key, an operator, and possibly (depending on the operator) a list of values. There are four valid operators:
+  
+  * In— Label’s value must match one of the specified values.
+  * NotIn— Label’s value must not match any of the specified values.
+  * Exists— Pod must include a label with the specified key (the value isn’t important). When using this operator, the values field should not be specified.
+  * NotIn— Label’s value must not match any of the specified values.
+  * Exists— Pod must include a label with the specified key (the value isn’t important). When using this operator, the values field should not be specified.
+  * DoesNotExist— Pod must not include a label with the specified key. The values property must not be specified.
+
+  If multiple expressions are specified, all those expressions must evaluate to true for the selector to match a pod. If both matchLabels and matchExpressions are specified, all the labels must match and all the expressions must evaluate to true for the pod to match the selector.
+
+  </Collapser>
+</CollapserGroup>
+
+### APM agent [#apm-agent]
+
+APM agent and version to be injected needs to be defined in the instrumentation CR.
+We recommend using the latest version to take advantage of the newest features available.
+
+| image  | language + version          |
+| ------ | ----------------------------|
+| dotnet | newrelic-dotnet-init:latest |
+| java   | newrelic-java-init:latest   |
+| nodejs | newrelic-node-init:latest   |
+| python | newrelic-python-init:latest |
+| ruby   | newrelic-ruby-init:latest   |
+
+Versions available for each agent:
     * [Java](https://hub.docker.com/repository/docker/newrelic/newrelic-java-init/general)
     * [Node](https://hub.docker.com/repository/docker/newrelic/newrelic-node-init/general)
     * [Python](https://hub.docker.com/repository/docker/newrelic/newrelic-python-init/general)
     * [.NET](https://hub.docker.com/repository/docker/newrelic/newrelic-dotnet-init/general)
     * [Ruby](https://hub.docker.com/repository/docker/newrelic/newrelic-ruby-init/general)
 
-For .NET:
-
+Example
 ```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-dotnet
+...
 spec:
   agent:
     language: dotnet
     image: newrelic/newrelic-dotnet-init:latest
-    # env: ...
+...
 ```
-For Java:
+### APM config parameters [#apm-config-parameters]
+
+The instrumentation CR provides the capability to inject environment variables in the pod to streamline the configuration of the APM agents.
+
+Example
+```yaml
+...
+spec:
+    env:
+    # Example overriding the appName configuration by using a label of the pod
+      - name: NEW_RELIC_APP_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.labels['app.kubernetes.io/name']
+...
+```
+
+
+In the example above, we show how you can configure the agent settings globally using environment variables. See each agent's configuration documentation for available configuration options:
+* [Java](https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [Node](https://docs.newrelic.com/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+* [Python](https://docs.newrelic.com/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
+* [.NET](https://docs.newrelic.com/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
+* [Ruby](https://docs.newrelic.com/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
+
+    <Callout variant="important">
+      These environment variables can also be injected in the app deployment manifest.
+    </Callout>
+
+### License keys (optional)
+
+The license key used by default was created at installation time, if you need to send the APM telemetry to a different account these are the steps needed.
+
+1. Create a secret containing a new license key
+
+```shell
+kubectl create secret generic newrelic-key-secret \
+  --namespace my-monitored-namespace \
+  --from-literal=new_relic_license_key=<NEW RELIC INGEST LICENSE KEY>
+```
+
+2. Reference the secret from the instrumentation CR
 
 ```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-java
-  namespace: newrelic
+...
 spec:
-  agent:
-    language: java
-    image: newrelic/newrelic-java-init:latest
-    # env: ...
+  licenseKeySecret: the-name-of-the-custom-secret
+...
 ```
 
-For Node.js:
+## Instrumentation CR examples [#cr-examples]
 
-```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-nodejs
-  namespace: newrelic
-spec:
-  agent:
-    language: nodejs
-    image: newrelic/newrelic-node-init:latest
-    # env: ...
-```
-
-For Python:
-
+<CollapserGroup>
+  <Collapser
+    id="label-selector-dotnet"
+    title="Python agent auto-instrumenting pods with a specific label and value and overriding app name"
+  >
 ```yaml
 apiVersion: newrelic.com/v1alpha2
 kind: Instrumentation
@@ -137,11 +263,45 @@ spec:
   agent:
     language: python
     image: newrelic/newrelic-python-init:latest
-    # env: ...
+    env:
+       - name: NEW_RELIC_APP_NAME
+         valueFrom:
+           fieldRef:
+             fieldPath: metadata.labels['app']
+  podLabelSelector:
+    matchExpressions:
+      - key: "app"
+        operator: "In"
+        values: ["flask-hello-world","flask-hello-world-v2"]
 ```
+  </Collapser>
 
-For Ruby:
+  <Collapser
+    id="label-selector-java"
+    title="Java agent auto-instrumenting pods of a specific namespace"
+  >
+```yaml
+apiVersion: newrelic.com/v1alpha2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation-java
+  namespace: newrelic
+spec:
+  agent:
+    language: java
+    image: newrelic/newrelic-java-init:latest
+  namespaceLabelSelector:
+    matchExpressions:
+      - key: "kubernetes.io/metadata.name"
+        operator: "In"
+        values: ["java"]
+```
+  </Collapser>
 
+  <Collapser
+    id="label-selector-ruby"
+    title="Ruby agent auto-instrumenting in any namespace containing the Rubylabel and sending data to a different account"
+  >
 ```yaml
 apiVersion: newrelic.com/v1alpha2
 kind: Instrumentation
@@ -150,109 +310,17 @@ metadata:
   namespace: newrelic
 spec:
   agent:
-    language: ruby
+    language: java
     image: newrelic/newrelic-ruby-init:latest
-    # env: ...
-```
-
-For environment specific configurations:
-
-```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-lang
-  namespace: newrelic
-spec:
-  agent:
-    env:
-    # Example New Relic agent supported environment variables
-      - name: NEW_RELIC_LABELS
-        value: "environment:auto-injection"
-    # Example setting the pod name based on the metadata
-      - name: NEW_RELIC_POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-    # Example overriding the appName configuration
-      - name: NEW_RELIC_APP_NAME
-        value: "$(NEW_RELIC_LABELS)-$(NEW_RELIC_POD_NAME)"
-```
-
-Targeting everything in a specific namespace with a label:
-
-```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-lang
-  namespace: newrelic
-spec:
-  #agent: ...
   namespaceLabelSelector:
     matchExpressions:
-      - key: "app.newrelic.instrumentation"
-        operator: "In"
-        values: ["java"]
-```
-
-Targeting a pod with a specific label:
-
-```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-lang
-  namespace: newrelic
-spec:
-  # agent: ...
-  podLabelSelector:
-    matchExpressions:
-      - key: "app.newrelic.instrumentation"
-        operator: "In"
-        values: ["dotnet"]
-```
-
-Using a secret with a non-default name:
-
-```yaml
-apiVersion: newrelic.com/v1alpha2
-kind: Instrumentation
-metadata:
-  name: newrelic-instrumentation-lang
-  namespace: newrelic
-spec:
-  # agent: ...
+      - key: "Ruby"
+        operator: "Exists"
   licenseKeySecret: the-name-of-the-custom-secret
 ```
+  </Collapser>
+</CollapserGroup>
 
-In the example above, we show how you can configure the agent settings globally using environment variables. See each agent's configuration documentation for available configuration options:
-* [Java](https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
-* [Node](https://docs.newrelic.com/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
-* [Python](https://docs.newrelic.com/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
-* [.NET](https://docs.newrelic.com/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
-* [Ruby](https://docs.newrelic.com/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
-
-### cert-manager
-
-The K8s Agents Operator supports the use of [`cert-manager`](https://github.com/cert-manager/cert-manager) if preferred.
-
-Install the [`cert-manager`](https://github.com/cert-manager/cert-manager) Helm chart:
-```shell
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --set crds.enabled=true
-```
-
-In your `values.yaml` file, set `admissionWebhooks.autoGenerateCert.enabled: false` and `admissionWebhooks.certManager.enabled: true`. Then install the chart as normal.
-
-## Available Chart Releases
-
-To see the available charts:
-```shell
-helm search repo k8s-agents-operator
-```
 
 ## Upgrade APM instrumentation in applications [#upgrade-apm-instrumention]
 
@@ -262,9 +330,11 @@ Once an application is monitored, it's not automatically upgraded to a newer ver
 
 ## Remove APM instrumentation in applications [#remove-apm-instrumentation]
 
-To remove the APM instrumentation in an application, you must remove the matching label selector inside either the `podLabelSelector` or `namespaceLabelSelector` used by the Kubernetes agent operator, then restart the deployment. In a few seconds, you will see that the APM agents have been automatically removed.
+To remove the APM instrumentation in an application, you must remove the matching label selector inside either the `podLabelSelector` or `namespaceLabelSelector` used  or simply delete the instrumentation CR, then restart the deployment. 
 
-## Updating the Kubernetes agent operator [#upgrading-k8s-operator]
+In a few seconds, you will see that the APM agents have been automatically removed.
+
+## Updating the Kubernetes APM Auto-attach [#upgrading-k8s-operator]
 
 ### Bundle installation
 
@@ -282,7 +352,7 @@ Run the `helm upgrade` command to update to a newer version of the Kubernetes ag
 helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
 ```
 
-## Uninstalling the Kubernetes agent operator [#uninstall-k8s-operator]
+## Uninstalling the Kubernetes APM Auto-attach [#uninstall-k8s-operator]
 
 ### Bundle installation
 
@@ -305,6 +375,28 @@ helm uninstall k8s-agents-operator -n newrelic
 * Get insights of your applications and resolve incidents using the [APM summary](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/) page.
 
 * Check out the [Kubernetes summary](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) page. It provides Kubernetes insights in the context of your monitored applications.
+
+## Certificates
+
+The K8s APM Auto-attach can support [cert-manager](https://github.com/cert-manager/cert-manager) if preferred.
+
+
+1. Install the [`cert-manager`](https://github.com/cert-manager/cert-manager) Helm chart:
+```shell
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true
+```
+
+2. In your `values.yaml` file, set `admissionWebhooks.autoGenerateCert.enabled: false` and `admissionWebhooks.certManager.enabled: true`. Then install the chart as normal.
+
+## Available Chart Releases
+
+To see the available charts:
+```shell
+helm search repo k8s-agents-operator
+```
 
 ## Frequently Asked Questions [#faq]
 
@@ -367,11 +459,10 @@ If your applications are not instrumented, you should check the following:
 
 * Please be sure to redeploy or deploy new applications after the operator has been installed. Please be advised that the operator only auto-instruments new applications deployed in the cluster.
 
-* Check that the secret and the instrumentation CRD are installed in the app's namespace.
+* Check that the secret is installed in the app's namespace.
 
   ```shell
   kubectl get secrets -n NAMESPACE
-  kubectl get instrumentation -n NAMESPACE
   ```
 
 * Check that the pod has the required labels that enable automatic instrumentation through CR when using `podLabelSelector`. Similarly, check that the namespace has the required labels when using `namespaceLabelSelector` inside the CR.
@@ -391,6 +482,14 @@ If your applications are not instrumented, you should check the following:
   ```shell
   kubectl describe pod POD_NAME -n NAMESPACE
   ```
+
+## How to migrate from previous versions that required annotations [#migrate]
+
+From version 0.14 we don't require anymore annotations in the app deployment manifest to select the pods to be monitored.
+
+We recommend uninstalling versions prior to 0.14 and installing the latest.
+By configuring label selectors inside the instrumentation CR you will be able to define where to inject APM agents without the need of adding annotations.
+
 
 ## Support [#support]
 
