@@ -223,7 +223,7 @@ const uploadFile = (locale, batchUid) => async (translation) => {
   const form = new FormData();
   form.append('fileType', serializedFileType);
   form.append('localeIdsToAuthorize[]', locale);
-  form.append('fileUri', serializedFilename);
+  form.append('fileUri', translation.slug);
   form.append('file', fs.createReadStream(filepath));
 
   const url = new URL(
@@ -245,7 +245,7 @@ const uploadFile = (locale, batchUid) => async (translation) => {
 
   if (code === 'ACCEPTED' && resp.ok) {
     console.log(`[*] Successfully uploaded ${serializedFilename}.`);
-    await sendPageContext(serializedContents, accessToken);
+    // await sendPageContext(serializedContents, accessToken);
   } else {
     console.error(
       `[!] Unable to upload ${serializedFilename}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`
