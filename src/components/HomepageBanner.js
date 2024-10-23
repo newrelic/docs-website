@@ -78,7 +78,9 @@ const HomepageBanner = () => {
             searchTerm,
             searchLocation: 'homepage',
           });
-          navigate(`?q=${searchTerm || ''}`);
+          if (searchTerm !== '') {
+            navigate(`search-results/?query=${searchTerm}&page=1`);
+          }
         }}
         css={css`
           max-width: 880px;
@@ -116,19 +118,19 @@ const HomepageBanner = () => {
         `}
       >
         <p>{t('strings.home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">
+        <Link to="/search-results/?query=nrql&page=1">
           {t('strings.home.search.popularSearches.options.0')},
         </Link>
-        <Link to="?q=logs">
+        <Link to="/search-results/?query=logs&page=1">
           {t('strings.home.search.popularSearches.options.1')},
         </Link>
-        <Link to="?q=alert">
+        <Link to="/search-results/?query=alert&page=1">
           {t('strings.home.search.popularSearches.options.2')},
         </Link>
-        <Link to="?q=best practices">
+        <Link to="/search-results/?query=best practices&page=1">
           {t('strings.home.search.popularSearches.options.3')},
         </Link>
-        <Link to="?q=kubernetes">
+        <Link to="/search-results/?query=kubernetes&page=1">
           {t('strings.home.search.popularSearches.options.4')}
         </Link>
       </div>
