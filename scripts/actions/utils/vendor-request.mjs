@@ -8,6 +8,7 @@ import NodeCache from 'node-cache';
 
 import { LOCALE_IDS } from './constants.js';
 import serializeMDX from '../serialize-mdx.mjs';
+import serializeYaml from '../serialize-yaml.mjs';
 
 const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
@@ -186,28 +187,43 @@ const sendPageContext = async (fileUri, accessToken) => {
  */
 const uploadFile = (locale, batchUid) => async (translation) => {
   const accessToken = await getAccessToken();
-  const mdx = fs.readFileSync(path.join(process.cwd(), translation.slug));
-  const html = await serializeMDX(mdx);
-
-  const page = {
-    file: translation.slug,
-    html,
-  };
+  const extension = path.extname(translation.slug);
+  let serialize;
+  let serializedFileType;
+  switch (extension) {
+    case '.mdx':
+      serialize = serializeMDX;
+      serializedFileType = 'html';
+      break;
+    case '.yaml':
+    case '.yml':
+      serialize = serializeYaml;
+      serializedFileType = 'json';
+      break;
+    default:
+      const error = new Error(
+        `unknown file type ${extension} for ${translation.slug}`
+      );
+      console.error(error.message);
+      throw error;
+  }
+  const contents = fs.readFileSync(path.join(process.cwd(), translation.slug));
+  const serializedContents = await serialize(contents);
 
   const localeKey = Object.keys(LOCALE_IDS).find(
     (key) => LOCALE_IDS[key] === locale
   );
 
-  const filename = `${Buffer.from(localeKey + page.file).toString(
-    'base64'
-  )}.html`;
-  const filepath = path.join(process.cwd(), filename);
-  fs.writeFileSync(filepath, page.html, 'utf8');
+  const serializedFilename = `${Buffer.from(
+    localeKey + translation.slug
+  ).toString('base64')}.${serializedFileType}`;
+  const filepath = path.join(process.cwd(), serializedFilename);
+  fs.writeFileSync(filepath, serializedContents, 'utf8');
 
   const form = new FormData();
-  form.append('fileType', 'html');
+  form.append('fileType', serializedFileType);
   form.append('localeIdsToAuthorize[]', locale);
-  form.append('fileUri', page.file);
+  form.append('fileUri', serializedFilename);
   form.append('file', fs.createReadStream(filepath));
 
   const url = new URL(
@@ -228,11 +244,11 @@ const uploadFile = (locale, batchUid) => async (translation) => {
   const { code } = response;
 
   if (code === 'ACCEPTED' && resp.ok) {
-    console.log(`[*] Successfully uploaded ${page.file}.`);
-    await sendPageContext(page.file, accessToken);
+    console.log(`[*] Successfully uploaded ${serializedFilename}.`);
+    await sendPageContext(serializedContents, accessToken);
   } else {
     console.error(
-      `[!] Unable to upload ${page.file}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`
+      `[!] Unable to upload ${serializedFilename}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`
     );
   }
 
