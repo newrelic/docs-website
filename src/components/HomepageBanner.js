@@ -1,20 +1,13 @@
 import React, { useState } from 'react';
-import { navigate } from '@reach/router';
 
 import { css } from '@emotion/react';
-import {
-  Link,
-  SearchInput,
-  useTranslation,
-  addPageAction,
-} from '@newrelic/gatsby-theme-newrelic';
+import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import bannerBackground from 'images/bannerBackground.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '200px';
   const mobileBreakpoint = '450px';
   const { t } = useTranslation();
-  const [searchTerm, setSearchTerm] = useState('');
 
   return (
     <section
