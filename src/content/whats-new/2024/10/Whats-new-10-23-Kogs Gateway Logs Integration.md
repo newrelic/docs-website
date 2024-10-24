@@ -26,7 +26,7 @@ Follow these steps:
 
 **Step 1: Install the New Relic Kubernetes logging integration**
 
-Before configuring the File Log plugin, ensure you have the New Relic Kubernetes logging integration installed. Follow the [instructions](/docs.newrelic.com/docs/logs/forward-logs/kubernetes-plugin-log-forwarding/) to set this up.
+Before configuring the File Log plugin, ensure you have the New Relic Kubernetes logging integration installed. Follow the [instructions](https:/docs.newrelic.com/docs/logs/forward-logs/kubernetes-plugin-log-forwarding/) to set this up.
 
 **Step 2: Install and configure Kong File Log plugin**
 
@@ -70,5 +70,4 @@ By forwarding Kong Gateway logs to New Relic, organizations can effectively moni
 1. [Read our tutorial](https://docs.newrelic.com/docs/tutorial-manage-large-log-volume/get-started-managing-large-logs/)
 2. [Review our docs page](https://docs.newrelic.com/docs/logs/forward-logs/kong-gateway/)
 3. [Explore our Logs UI overview](https://docs.newrelic.com/docs/logs/ui-data/use-logs-ui/)
-
 
