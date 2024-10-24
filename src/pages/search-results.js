@@ -242,7 +242,7 @@ const Result = ({ result }) => {
           color: #00ac69;
           font-style: normal;
         }
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
         box-shadow: none;
         color: var(--primary-font-color);
         &:hover {
