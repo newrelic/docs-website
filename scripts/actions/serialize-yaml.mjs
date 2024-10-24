@@ -12,31 +12,35 @@ import yaml from 'js-yaml';
  */
 const serializeYaml = async (yamlString) => {
   const result = yaml.safeLoad(yamlString, { schema: yaml.JSON_SCHEMA });
-  // TODO: add Smartling keys to configure translations
-  result.smartling = {
-    translate_paths: [
-      {
-        path: 'title',
-      },
-      {
-        path: 'metaDescription',
-      },
-      {
-        path: 'appInfo/label',
-      },
-      {
-        path: 'appInfo/placeholder',
-      },
-      {
-        path: 'appInfo/placeholder',
-      },
-      {
-        path: 'appInfo/options/displayName',
-      },
-    ],
+  // doing it this way because `smartling` MUST be the first key
+  // in the JSON file for Smartling to parse it.
+  const serialized = {
+    smartling: {
+      translate_paths: [
+        {
+          path: 'title',
+        },
+        {
+          path: 'metaDescription',
+        },
+        {
+          path: 'appInfo/label',
+        },
+        {
+          path: 'appInfo/placeholder',
+        },
+        {
+          path: 'appInfo/placeholder',
+        },
+        {
+          path: 'appInfo/options/displayName',
+        },
+      ],
+    },
+    ...result,
   };
 
-  return JSON.stringify(result, null, 2);
+  return JSON.stringify(serialized, null, 2);
 };
 
 export default serializeYaml;
