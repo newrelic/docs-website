@@ -131,7 +131,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
