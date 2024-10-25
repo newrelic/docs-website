@@ -7,7 +7,7 @@ import { globSync } from 'glob10';
 import { join } from 'path';
 
 import { ERROR_TYPES } from './error-types.mjs';
-import { verifyImages, verifyMDX } from './verify-mdx.mjs';
+import { verifyMDX } from './verify-mdx.mjs';
 
 const __dirname = import.meta.dirname;
 
@@ -34,13 +34,6 @@ const main = async (paths) => {
     paths = paths.flatMap((path) =>
       lstatSync(path).isDirectory() ? globSync(join(path, '**/*.mdx')) : path
     );
-  }
-
-  // const imageErrors = verifyImages(paths);
-  const imageErrors = [];
-
-  if (imageErrors.length > 0) {
-    process.exitCode = 1;
   }
 
   console.log(

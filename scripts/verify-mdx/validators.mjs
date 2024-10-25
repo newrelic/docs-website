@@ -111,6 +111,7 @@ export const validateTabs = (mdxAST) => {
       const barItemIdAttrs = barItems
         .flatMap((barItem) => barItem.attributes)
         .filter((attribute) => attribute.name === 'id');
+
       const barItemIdMap = new Map(
         barItemIdAttrs.map((attribute) => [attribute.value, attribute])
       );
@@ -124,9 +125,9 @@ export const validateTabs = (mdxAST) => {
 
       const barItemUniqIds = new Set(barItemIdMap.keys());
       const pageItemUniqIds = new Set(pageItemIdMap.keys());
+
       const missingPageItemIds = barItemUniqIds.difference(pageItemUniqIds);
       const missingBarItemIds = pageItemUniqIds.difference(barItemUniqIds);
-      console.log('AAAAAAAAA', barItemUniqIds, pageItemUniqIds);
 
       missingPageItemIds.forEach((id) => {
         const nodeInfo = tabs.position?.start ?? {};

@@ -12,29 +12,6 @@ import { ERROR_TYPES } from './error-types.mjs';
 import { validators } from './validators.mjs';
 
 /**
- * Given an array of file paths, determine if any image imports are unused
- * or reference images that don't exist in the repo.
- */
-const verifyImages = (filePaths) => {
-  const imageErrors = verifyImageImports(filePaths);
-
-  if (imageErrors.length > 0) {
-    console.error(
-      colors.yellow(`\n\n❌ Found ${imageErrors.length} image import errors`)
-    );
-    imageErrors.forEach((error, i) =>
-      console.error(colors.magenta(`\n\nError ${i + 1}: `) + `${error}`)
-    );
-    console.error('\n\n-------------------------- ');
-    process.exitCode = 1;
-  } else {
-    console.log('\n\n🎉 No image import issues found');
-  }
-
-  return imageErrors;
-};
-
-/**
  * Given a file path, attempt to parse the MDX content to an AST
  * and run our custom validators against it.
  *
@@ -69,8 +46,7 @@ const verifyMDX = (filePath) => {
     (excludedPath) => filePath.includes(excludedPath)
   );
 
-  const includeInReleaseDateRegex =
-    /src\/(?!i18n).*(\/security-bulletins\/|\/release-notes\/|\/whats-new\/).*(?<!index)(.mdx|.md)/;
+  const includeInReleaseDateRegex = /src\/(?!i18n).*(\/security-bulletins\/|\/release-notes\/|\/whats-new\/).*(?<!index)(.mdx|.md)/;
 
   const shouldValidateReleaseDate = includeInReleaseDateRegex.test(filePath);
 
@@ -114,4 +90,4 @@ const excludeFromFreshnessPaths = [
   'src/i18n/content/',
 ];
 
-export { verifyImages, verifyMDX };
+export { verifyMDX };
