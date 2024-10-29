@@ -6,7 +6,7 @@ import toVfile from 'to-vfile';
 import path from 'path';
 import fetch from 'node-fetch';
 
-import deserializedHtml from './deserialize-html.mjs';
+import deserializeHtml from './deserialize-html.mjs';
 import createDirectories from './utils/create-directories.js';
 import { getAccessToken } from './utils/vendor-request.mjs';
 import { LOCALE_IDS } from './utils/constants.js';
@@ -14,6 +14,7 @@ import {
   trackTranslationError,
   TRACKING_TARGET,
 } from './utils/translation-monitoring.js';
+import deserializeJson from './deserialize-json.mjs';
 
 const { writeSync } = toVfile;
 
@@ -139,14 +140,9 @@ const extractFiles = (locale) => {
    */
   return (zip) => {
     return zip.getEntries().map((entry) => {
-      const filepath = entry.entryName.replace(
-        `${locale}/src/content/docs`,
-        ''
-      );
-      const slug = filepath.replace(`.mdx`, '');
       return {
-        path: slug,
-        html: zip.readAsText(entry, 'utf8'),
+        path: entry.entryName,
+        content: zip.readAsText(entry, 'utf8'),
       };
     });
   };
@@ -160,33 +156,65 @@ const deserializeHtmlToMdx = (locale) => {
    * @param {HtmlFile} file
    * @returns {Promise<SlugStatus>}
    */
-  return async ({ path: contentPath, html }) => {
+  return async ({ path: contentPath, content }) => {
+    // TODO: will need to strip the stuff that
+    // used to get stripped, like the bit of code below
+    // used to do in `extractFiles`.
+    // const filepath = entry.entryName.replace(
+    //   `${locale}/src/content/docs`,
+    //   ''
+    // );
+
+    // TODO: this will be different for MDX and YAML files
     const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
+
     const localeKey = Object.keys(LOCALE_IDS).find(
       (key) => LOCALE_IDS[key] === locale
     );
+    const extension = path.extname(contentPath);
+
+    // TODO: this will be different for MDX and YAML files
+    const localePath = path.join(
+      `src/i18n/content/${localeKey}/docs/`,
+      contentPath
+    );
+
+    let tempFile;
+    let ok = true;
 
     try {
-      const localePath = path.join(
-        `src/i18n/content/${localeKey}/docs/`,
-        contentPath
-      );
-      const mdx = await deserializedHtml(html);
+      switch (extension) {
+        case '.mdx':
+          {
+            const mdx = await deserializeHtml(content);
 
-      const temp = vfile({
-        contents: mdx,
-        path: localePath,
-        extname: '.mdx',
-      });
+            tempFile = vfile({
+              contents: mdx,
+              path: localePath,
+              extname: '.mdx',
+            });
+          }
+          break;
+        case '.yml':
+        case '.yaml':
+          {
+            const yml = await deserializeJson(content);
+            tempFile = vfile({
+              contents: yml,
+              path: localePath,
+              extname: '.yaml',
+            });
+          }
+          break;
+        default:
+          console.error(
+            `Unknown extension '${extension}' for ${contentPath}, unable to deserialize`
+          );
+          break;
+      }
 
-      createDirectories([temp]);
-      writeFilesSync([temp]);
-
-      return {
-        ok: true,
-        slug: completePath,
-        locale,
-      };
+      createDirectories([tempFile]);
+      writeFilesSync([tempFile]);
     } catch (ex) {
       await trackTranslationError({
         ...defaultTrackingMetadata,
@@ -196,11 +224,16 @@ const deserializeHtmlToMdx = (locale) => {
         error: ex,
         errorMessage: `Failed to deserialize: ${contentPath}`,
       });
-      console.log(`Failed to deserialize: ${contentPath}`);
-      console.log(ex);
-
-      return { ok: false, slug: completePath, locale };
+      console.error(`Failed to deserialize: ${contentPath}`);
+      console.error(ex);
+      ok = false;
     }
+
+    return {
+      ok,
+      slug: completePath,
+      locale,
+    };
   };
 };
 
