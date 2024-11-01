@@ -1,9 +1,7 @@
 ---
 title: 'Deprecation notice: Kubernetes'
 subject: Kubernetes integration
-releaseDate: '2020-05-15'
-redirects:
-  - /docs/release-notes/platform-release-notes/kubernetes-integration-release-notes/deprecation-notice-kubernetes-v17-or-lower
+publishDate: '2020-05-15'
 ---
 
 Effective Wednesday, 12 August 2020, Kubernetes integration v1.7 or lower will be deprecated. To avoid losing data, [upgrade to the latest version](https://docs.newrelic.com/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#update). For more information, read this note or contact your account team.
