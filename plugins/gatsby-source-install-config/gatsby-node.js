@@ -1,5 +1,7 @@
 const { pick } = require('lodash');
 
+const locale = process.env.BUILD_LANG;
+
 exports.sourceNodes = ({
   actions,
   createNodeId,
@@ -8,7 +10,12 @@ exports.sourceNodes = ({
 }) => {
   const { createNode } = actions;
 
-  const configYamlNodes = getNodesByType('ConfigYaml');
+  const configYamlNodes =
+    locale === 'en'
+      ? getNodesByType('ConfigYaml')
+      : getNodesByType(
+          `${locale.charAt(0).toUpperCase() + locale.slice(1)}Yaml`
+        );
 
   configYamlNodes.forEach((configYamlNode) => {
     const {
@@ -138,7 +145,7 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: async (source, _args, context) => {
           const { nodeModel } = context;
 
-          const { entries: allMdx } = await nodeModel.findAll({
+          const { entries: allEnglishMdx } = await nodeModel.findAll({
             type: 'Mdx',
             query: {
               filter: {
@@ -149,6 +156,18 @@ exports.createResolvers = ({ createResolvers }) => {
             },
           });
 
+          const { entries: allTranslatedMdx } = await nodeModel.findAll({
+            type: 'Mdx',
+            query: {
+              filter: {
+                fileAbsolutePath: {
+                  regex: `/src/i18n/install/${locale}/${source.agentName.toLowerCase()}/`,
+                },
+              },
+            },
+          });
+
+          const allMdx = locale === 'en' ? allEnglishMdx : allTranslatedMdx;
           const mdxFiles = Array.from(allMdx);
 
           const steps = source.steps.map((step) =>
