@@ -1,7 +1,8 @@
 ---
 title: 'Deprecation notice: Kubernetes'
 subject: Kubernetes integration
-releaseDate: '2024-10-29'
+publishDate: '2024-10-29'
+eolEffectiveDate: '2024-10-19'
 ---
 
 Effective Tuesday, October 29, 2024, our Kubernetes integration drops support for Kubernetes v1.26 and lower. The Kubernetes integration v3.30.0 and higher will only be compatible with Kubernetes versions 1.27 and higher. For more information, read this note or contact your account team.
@@ -12,7 +13,7 @@ Enabling compatibility with the latest Kubernetes versions and adding new featur
 
 ## What's happening [#whats-happening]
 
-* Most major Kubernetes cloud providers have already deprecated v1.26 and lower.
+- Most major Kubernetes cloud providers have already deprecated v1.26 and lower.
 
 ## What do you need to do [#what-to-do]
 
