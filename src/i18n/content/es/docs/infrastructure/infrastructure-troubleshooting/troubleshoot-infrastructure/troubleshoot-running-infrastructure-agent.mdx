@@ -1,0 +1,105 @@
+---
+title: Solucionar problemas de un agente de infraestructura en ejecución
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Manage your agent
+metaDescription: 'To troubleshoot a running New Relic''s infrastructure agent, use the binary newrelic-infra-ctl.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede solucionar problemas de nuestro agente de infraestructura utilizando nuestra utilidad `newrelic-infra-ctl` . Este binario también se incluye en el paquete de instalación, en el mismo directorio que el binario predeterminado `newrelic-infra` .
+
+Al recibir el comando `newrelic-infra-ctl`, el agente:
+
+* Habilita [el registro detallado](/docs/infrastructure/new-relic-infrastructure/troubleshooting/generate-logs-troubleshooting-infrastructure) durante un período de cinco minutos y luego revierte el nivel de registros a su configuración anterior.
+* Registre todas las opciones de configuración del agente.
+* Registre todas las opciones de configuración de integración.
+* Ejecuta una verificación de estado para cada integración cargada. (Una verificación de estado es una ejecución inmediata de la integración con registro adicional y validación de salida).
+
+## Linux `newrelic-infra-ctl` [#binary-ctl-linux]
+
+En sistemas Linux, la resolución de problemas binarios es `/usr/bin/newrelic-infra-ctl`, disponible tanto en el [administrador de paquetes](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux) como en el método de instalación [asistida por tarball](/docs/infrastructure/install-configure-infrastructure/linux-installation/assisted-install-infrastructure-linux) .
+
+<Callout variant="important">
+  Cuando se ejecuta en Linux, `newrelic-infra-ctl` debe ser ejecutado por el [usuario root o por el mismo usuario](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes) que ejecuta el proceso `newrelic-infra` .
+</Callout>
+
+El binario `newrelic-infra-ctl` puede detectar automáticamente el proceso del agente que se ejecuta en el host. También puede detectar si el agente se está ejecutando dentro de un contenedor.
+
+Para cambiar la configuración predeterminada de `newrelic-infra-ctl`:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Cambiar...
+      </th>
+
+      <th>
+        Ejecutar
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`pid`](/docs/infrastructure/install-configure-infrastructure/linux-installation/manual-install-infrastructure-linux#change-pid)
+      </td>
+
+      <td>
+        `newrelic-infra-ctl -pid 14580`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cid` (cuando se utiliza una versión en contenedor del agente)
+      </td>
+
+      <td>
+        `newrelic-infra-ctl -cid 8fddbcbb101c`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`docker-api-version`](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings#docker-api-version)
+      </td>
+
+      <td>
+        `newrelic-infra-ctl -docker-api-version 1.24`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `container-runtime` (`docker` (predeterminado) o `containerd`)
+      </td>
+
+      <td>
+        `newrelic-infra-ctl -container-runtime containerd`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `containerd-namespace` (Namespace donde se ejecuta el agente contenedor)
+      </td>
+
+      <td>
+        `newrelic-infra-ctl -containerd-namespace default`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Windows `newrelic-infra-ctl` [#binary-ctl-windows]
+
+En Windows, utilizando el instalador MSI, la resolución de problemas binarios es `C:\Program Files\New Relic\newrelic-infra\newrelic-infra-ctl.exe`.
+
+<Callout variant="important">
+  En Windows, el proceso del agente siempre se detecta automáticamente. No depende del `pid` ni del `cid`.
+</Callout>

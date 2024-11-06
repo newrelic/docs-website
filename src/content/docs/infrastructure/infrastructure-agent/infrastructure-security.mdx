@@ -1,0 +1,514 @@
+---
+title: Infrastructure agent security
+tags:
+  - Infrastructure
+  - Infrastructure monitoring
+  - Infrastructure and security
+metaDescription: "For New Relic's infrastructure agent: our safeguards for secure communication between your hosts and the agent."
+redirects:
+    - /docs/windows-server-monitoring/windows-security-considerations
+    - /docs/servers/new-relic-servers-windows/getting-started/windows-security-considerations
+    - /docs/servers/new-relic-servers-windows/getting-started/servers-windows-security-considerations
+    - /docs/infrastructure/new-relic-infrastructure/getting-started/infrastructure-security
+    - /docs/infrastructure/new-relic-infrastructure/infrastructure-security/infrastructure-security
+    - /docs/infrastructure/infrastructure-monitoring/infrastructure-security/infrastructure-security
+freshnessValidatedDate: never
+---
+
+New Relic's [infrastructure agent](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent) runs on your hosts and provides comprehensive data, especially when running with administrator privileges. What follows is an overview of our infrastructure agent's security and some recommendations.
+
+## Secure agent communication [#communication]
+
+Every piece of information exchanged between your hosts and the [infrastructure agent](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) is delivered securely. All communication from the agent occurs over HTTPS, using [Transport Layer Security (TLS)](https://en.wikipedia.org/wiki/Transport_Layer_Security). To ensure secure communication, the infrastructure agent was designed with the following protective measures:
+
+* All communication is established directly from the agent to the service.
+* The agent does not require any incoming ports to be opened.
+* The agent is read-only and cannot make changes to your system.
+
+The infrastructure agent does not support [high-security mode](/docs/agents/manage-apm-agents/configuration/high-security-mode).
+
+For more information about New Relic's security measures, see our [security and privacy documentation](/docs/using-new-relic/new-relic-security/security/security-matters-data-privacy-new-relic), or visit the [New Relic security website](https://newrelic.com/security).
+
+## Running modes [#root]
+
+New Relic is committed to the security of your data. All data derived while running the [infrastructure agent](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) is protected, and used only to deliver information related to your infrastructure back to you.
+
+### Linux
+
+You can run the infrastructure Linux agent in three different modes:
+
+<CollapserGroup>
+  <Collapser
+    id="linux-root"
+    title="Run as root"
+  >
+    When the agent runs as the root user it has total access to all the system metrics and inventory.
+  </Collapser>
+
+  <Collapser
+    id="linux-privileged"
+    title="Run as privileged user"
+  >
+    The agent runs a non-privileged user, named the `nri-agent`, which is granted extended kernel capabilities during the installation process. The privileged `nri-agent` user is therefore able to collect some metrics and most of the inventory. These permissions are read-only_._
+
+    The installation scripts in privileged mode will make the following changes in your system:
+
+    1. Create the `nri-agent` user and group.
+    2. Set the `nri-agent` user and group as the owners of the following directories:
+
+       * `/var/run/newrelic-infra`
+       * `/var/db/newrelic-infra`
+       * `/var/log/newrelic-infra`
+       * `/etc/newrelic-infra`
+    3. Add the following [kernel capabilities](http://man7.org/linux/man-pages/man7/capabilities.7.html) to the `/usr/bin/newrelic-infra` executable:
+
+       * `CAP_SYS_PTRACE`, which allows inspecting and tracing arbitrary processes
+       * `CAP_DAC_READ_SEARCH`, to bypass file and directory read and execute permission checks
+  </Collapser>
+
+  <Collapser
+    id="linux-unprivileged"
+    title="Run as unprivileged user"
+  >
+    The agent runs with a non-privileged user, `nri-agent`, which is automatically created during the upgrade/installation process, and will not have read access to all the system metrics. This provides visibility into environments with very strict security or regulatory policies. There are no special permissions or access granted to the user in this run mode.
+
+    The installation scripts in unprivileged mode will make the following changes in your system:
+
+    1. Create the `nri-agent` user and group.
+    2. Set the `nri-agent` and group as the owners of the following system files and folders:
+
+       * `/var/run/newrelic-infra`
+       * `/var/db/newrelic-infra`
+       * `/var/log/newrelic-infra`
+       * `/etc/newrelic-infra`
+  </Collapser>
+</CollapserGroup>
+
+For more details on the different running modes, see the comparison in the [Infrastructure installation documentation](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes).
+
+### Windows
+
+In Windows systems, the agent must be executed with Administrator permissions.
+
+## Sources of data collection [#sources]
+
+The infrastructure agent gathers metrics, events, and inventory data from a variety of OS sources. While some of these sources can be read from a non-privileged account, others require elevated privileges.
+
+For current agent versions, New Relic requires that it run as the root user (on Linux) or with full Administrator access (Windows). Here are additional details about how the infrastructure agent accesses default directories and what packages and commands it uses.
+
+<CollapserGroup>
+  <Collapser
+    id="directories"
+    title="Default directories accessed by the agent"
+  >
+    Unless otherwise noted, this information applies to any Linux operating system.
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Directory or file
+          </th>
+
+          <th>
+            Purpose
+          </th>
+
+          <th style={{ width: "150px" }}>
+            Linux OS
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `/etc/newrelic-infra.yml`
+          </td>
+
+          <td>
+            Default configuration file
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/usr/bin/newrelic-infra-service`
+          </td>
+
+          <td>
+            Default agent service wrapper binary install location
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/usr/bin/newrelic-infra`
+          </td>
+
+          <td>
+            Default agent binary install location
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/usr/bin/newrelic-infra-ctl`
+          </td>
+
+          <td>
+            Default CLI agent control binary location
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/var/db/newrelic-infra/`
+          </td>
+
+          <td>
+            Default inventory cache and plugin binaries
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `/var/run/newrelic-infra.pid`
+          </td>
+
+          <td>
+            Default pid file
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `stdout`, `stderr`, `logs`
+          </td>
+
+          <td>
+            Depending on configuration, the agent writes logs to `stdout`, which may connect to your system logging service
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="packages-commands"
+    title="Packages and commands used by the agent"
+  >
+    Some data sources are specific to particular operating systems. Unless otherwise mentioned, New Relic uses the source on all variations of an operating system when the related software is detected. Many of the tools are on a path accessible to the agent. If not otherwise indicated, the infrastructure agent typically searches for them in `/usr/bin`, `/bin`, or `/sbin`.
+
+    New Relic uses some tools or data sources to gather information for multiple infrastructure features. Here are some primary use cases. Unless otherwise noted, New Relic uses this information primarily for the [<DNT>**Inventory**</DNT> page](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure).
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Plugin or data
+          </th>
+
+          <th>
+            Tool, directory, or file
+          </th>
+
+          <th style={{ width: "150px" }}>
+            Linux OS
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `systemd`
+          </td>
+
+          <td>
+            `initctl list`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `upstart`
+          </td>
+
+          <td>
+            `systemctl -l`, `systemctl show`, `modinfo`, `lsmod`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `selinux`
+          </td>
+
+          <td>
+            `sestatus -b, semodule -l`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dpkg`
+          </td>
+
+          <td>
+            `dpkg-query -W -f`
+          </td>
+
+          <td>
+            Debian
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rpm`
+          </td>
+
+          <td>
+            `rpm -qa`
+          </td>
+
+          <td>
+            Redhat
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hostinfo`
+          </td>
+
+          <td>
+            `/sys/devices/virtual/dmi/id/sys_vendor, /sys/devices/virtual/dmi/id/product_name`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hostinfo`
+          </td>
+
+          <td>
+            `/proc/sys/kernel/osrelease`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hostinfo`
+          </td>
+
+          <td>
+            `uptime -s`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hostinfo`
+          </td>
+
+          <td>
+            /etc/lsb_release
+          </td>
+
+          <td>
+            Debian
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hostinfo`
+          </td>
+
+          <td>
+            `/etc/redhat-release`
+          </td>
+
+          <td>
+            Redhat
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `facter`
+          </td>
+
+          <td>
+            `facter -p -j`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `daemontool`
+          </td>
+
+          <td>
+            `svstat`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `kernel_modules`
+          </td>
+
+          <td>
+            `/sbin/modinfo`, `/sbin/lsmod`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `users`
+          </td>
+
+          <td>
+            `/usr/bin/env who`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Various plugins gather system-wide details through this directory. Used for infrastructure <DNT>**Inventory**</DNT> and metrics.
+          </td>
+
+          <td>
+            `/proc/`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Various plugins gather `sysctl` settings through this directory. Used for infrastructure <DNT>**Inventory**</DNT> and metrics.
+          </td>
+
+          <td>
+            `/sys/`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Various plugins (`sshd_config`, `hostinfo`) read specific configs in this directory. Used for infrastructure <DNT>**Inventory**</DNT> and metrics.
+          </td>
+
+          <td>
+            `/etc/`
+          </td>
+
+          <td>
+            Any
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Proxies [#proxy]
+
+New Relic includes optional settings so that you can configure the agent to communicate through a proxy. To define proxy settings, see the [configuration documentation](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#proxy-variables) for infrastructure monitoring.
+
+## External agent connections [#external-connections]
+
+The agent periodically sends JSON-formatted data describing [compute metrics](/docs/infrastructure/infrastructure-ui-pages/infra-hosts-ui-page), [events](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-events-page-live-feed-every-config-change), and your [inventory](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure) configuration to the infrastructure endpoint at New Relic. These communications are associated with the agent using the <InlinePopover type="licenseKey"/> generated for your account. Once New Relic receives data from any external agent, it will display the new metrics, events, or configuration data in the infrastructure monitoring UI.
+
+## External agent commands [#command-api]
+
+The agent handles two different sources of commands, `newrelic-infra-ctl` and `command-API`:
+
+* CLI commands submitted with `newrelic-infra-ctl` are sent into the agent with Linux or Docker signaling or with Windows named-pipes.
+* Using New Relic's platform `command-API` endpoint, the agent polls for platform-provided commands every 60 seconds. The connection is always open from the agent into the New Relic platform command-API endpoint, never the opposite way. The `command-API` endpoint is used only to force enable or disable of dynamic entities' registration. It also applies to the Docker integration that comes with the infrastructure agent version 1.9.0 or higher.
+
+## Deliverables
+
+The infrastructure agent and all on-host integrations that run on top of it are provided using standard operating system repositories and packages. New Relic cryptographically signs all packages, and verification steps are provided by default in the installation scripts.
+
+All code is checked for dependency vulnerabilities through standard security tools (<DNT>Snyk</DNT>, <DNT>Dependabot</DNT>, <DNT>Trivy</DNT>).
+
+New Relic official downloads site is hosted on AWS via S3, and fronted with Fastly, our trusted CDN provider.
