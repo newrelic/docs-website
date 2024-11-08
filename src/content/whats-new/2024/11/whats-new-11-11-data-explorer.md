@@ -1,7 +1,7 @@
 ---
 title: 'Get insights faster with the new data explorer'
 summary: 'Explore all your metrics, events, and logs from anywhere in the platform faster'
-releaseDate: '2023-11-11'
+releaseDate: '2024-11-11'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/query-builder/introduction-new-data-explorer' 
 getStartedLink: 'https://one.newrelic.com/data-exploration'
 ---
