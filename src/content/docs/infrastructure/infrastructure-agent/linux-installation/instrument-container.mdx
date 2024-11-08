@@ -1,0 +1,114 @@
+---
+title: Instrument your container with the infrastructure agent
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Linux installation
+metaDescription: New Relic's infrastructure agent automatically instruments container runtimes to collect container metrics and metadata.
+redirects:
+  - /docs/infrastructure-docker-integration
+  - /docs/infrastructure-docker-instrumentation
+  - /docs/infrastructure/install-configure-manage-infrastructure/docker-installation/docker-container-monitoring-infrastructure
+  - /docs/infrastructure/new-relic-infrastructure/data-instrumentation/docker-instrumentation-infrastructure
+  - /docs/infrastructure/install-configure-manage-infrastructure/docker-installation/docker-instrumentation-infrastructure
+  - /docs/infrastructure/install-configure-manage-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure
+  - /docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure-monitoring
+  - /docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure
+  - /docs/infrastructure/install-infrastructure-agent/linux-installation/container-instrumentation-infrastructure-monitoring
+freshnessValidatedDate: never
+---
+
+Our [infrastructure agent](/docs/welcome-new-relic-infrastructure) automatically monitors your containers. With container monitoring you can:
+
+* Group containers by [tags](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor), [attributes](#container-data), and other metadata.
+* Search for containers relevant to your monitoring scenario.
+* Link to related entities that may be affected by issues with the container.
+* Set [container-related alert conditions](#alerts).
+
+## Requirements
+
+Requirement details for automatic container monitoring for New Relic's infrastructure agent:
+
+* A New Relic account. Don't have one? [Sign up for free!](https://newrelic.com/signup). No credit card required.
+* Infrastructure agent [1.8.32](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1832) or higher running on Linux
+* If using CentOS, you must have CentOS version 6.0 or higher
+* Docker with engine from [v1.12](https://docs.docker.com/engine/release-notes/prior-releases/#1120-2016-07-28) or other [`containerd`-based container runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes).
+
+<Callout variant="important">
+  Support for Operating systems using Control Group v2 is included from infrastructure agent v.1.26.0 and nri-docker v1.7.0.
+</Callout>
+
+## Enable container monitoring [#enable]
+
+If you meet the [requirements](#requirements) and have installed the correct infrastructure agent, there are no additional steps to enable container monitoring. If a container runtime is running, data will automatically be reported.
+
+You can also use a container image containing the infrastructure agent. For more information, see [Container for infrastructure monitoring](/docs/infrastructure/install-infrastructure-agent/linux-installation/container-infrastructure-monitoring).
+
+<InstallFeedback/>
+
+## View your container data [#find-data]
+
+To view your container data in the New Relic UI, use either of these options:
+
+* Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Hosts > Containers**</DNT>.
+
+  OR
+* Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Third-party services**</DNT>, and select Docker-related links.
+
+For more information, see [Query your data](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+## container attributes [#container-data]
+
+Container attributes (metrics and metadata) are attached to the [`ContainerSample`](/attribute-dictionary/?event=ContainerSample) event. Here's an example of a query to find out how many containers are associated with each container image:
+
+```sql
+SELECT uniqueCount(containerId) FROM ContainerSample FACET imageName SINCE 1 HOUR AGO TIMESERIES
+```
+
+To see all `ContainerSample` attributes, use our [data dictionary](/attribute-dictionary/?event=ContainerSample). Attributes include:
+
+* General metadata (like `containerId`, `name`, and `image`)
+* CPU metrics (like `cpuUsedCores`, `cpuPercent`, and `cpuThrottleTimeMs`)
+* Memory metrics (like `memoryUsageBytes`, `memoryCacheBytes`, and `memoryResidentSizeBytes`)
+* Network metrics (like `networkRxBytes`, `networkRxDropped`, and `networkTxBytes`)
+
+Container metrics are also attached to the [`ProcessSample`](/attribute-dictionary/?event=ProcessSample) event.
+
+The reported data does **not** include information related to the container orchestrator (for example, ECS or Kubernetes). To monitor those, you can add the orchestrator's cluster and task names as [labels](https://docs.docker.com/ee/ucp/admin/configure/add-labels-to-cluster-nodes/).
+
+## Set alert conditions [#alerts]
+
+To create container-related alert conditions, use either of these options:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts **</DNT>.
+
+   OR
+
+   Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Settings > Alerts**</DNT>.
+2. Create a new [alert condition](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions).
+3. For the condition type, select <DNT>**Container metrics**</DNT>.
+
+## Enable container metrics collection from Docker API
+
+The nri-docker integration, by default, employs the Docker API in conjunction with the /proc filesystem to extract container metrics. As of version v1.51.0 of the infrastructure agent, you can reconfigure the integration to solely source metrics from the Docker API.
+
+This Docker API-only collection strategy applies only when the Docker Engine Cgroup operates under version V2. To enforce the Docker API-only collection, adapt the docker-config.yml configuration file located in the integrations.d directory to resemble the following:
+
+```yaml
+integrations:
+  - name: nri-docker
+    env:
+      USE_DOCKER_API: true
+    when:
+      feature: docker_enabled
+      file_exists: /var/run/docker.sock
+    interval: 15s
+```
+
+<Callout variant="tip">
+  Metrics variations between metrics sources are detailed in the [`ContainerSample`](/attribute-dictionary/?event=ContainerSample) attributes.
+</Callout>
+
+## Disabling container monitoring
+
+To disable this capability simply delete the `docker-config.yml` configuration file from the `integrations.d` folder.
