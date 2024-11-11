@@ -1,0 +1,309 @@
+---
+title: "Compute Add On (archived)"
+metaDescription: "This document contains details about the original New Relic Compute Add On"
+freshnessValidatedDate: 2024-11-06
+---
+
+(Not generally available after 2024-10-22)
+
+If your account has the original Compute Add On provisioned, you can use this page to refer to the details referenced in your order. This page contains the following:
+
+* A copy of the Compute Add On description
+* A copy of the Compute Add On promotional tiered pricing
+
+
+## Add-on billing (optional) [#add-on-billing]
+
+In addition to the primary billing factors of ingest and billable users, you can also use optional billable add-ons to enhance your experience with New Relic:
+
+* Compute Add On: This add-on applies to usage-based billing for actions you run related to live archives and other add-ons as made available. It measures your usage based on [Compute Capacity Units (CCUs)](/docs/licenses/license-information/product-definitions/new-relic-one-pricing-definitions#compute-capacity-unit).
+
+
+## List Price for Compute Add On [#list-prices]
+
+<table>
+    <thead>
+    <tr>
+        <th>
+        Tiers
+        </th>
+
+        <th>
+        CCU Range
+        </th>
+
+        <th>
+        List Price per CCU per month<sup>1</sup>
+        </th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr>
+        <td>
+        1
+        </td>
+
+        <td>
+        0 - 100
+        </td>
+
+        <td>
+        ~~$3.8100~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        2
+        </td>
+
+        <td>
+        101 - 250
+        </td>
+
+        <td>
+        ~~$3.3020~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        3
+        </td>
+
+        <td>
+        251 - 500
+        </td>
+
+        <td>
+        ~~$2.8575~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        4
+        </td>
+
+        <td>
+        501 - 1,000
+        </td>
+
+        <td>
+        ~~$2.4638~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        5
+        </td>
+
+        <td>
+        1,001 - 2,500
+        </td>
+
+        <td>
+        ~~$2.1209~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        6
+        </td>
+
+        <td>
+        2,501 - 5,000
+        </td>
+
+        <td>
+        ~~$1.8161~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        7
+        </td>
+
+        <td>
+        5,001 - 10,000
+        </td>
+
+        <td>
+        ~~$1.5494~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        8
+        </td>
+
+        <td>
+        10,001 - 25,000
+        </td>
+
+        <td>
+        ~~$1.3208~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        9
+        </td>
+
+        <td>
+        25,001 - 50,000
+        </td>
+
+        <td>
+        ~~$1.1049~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        10
+        </td>
+
+        <td>
+        50,001 - 100,000
+        </td>
+
+        <td>
+        ~~$0.9017~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        11
+        </td>
+
+        <td>
+        100,001 - 250,000
+        </td>
+
+        <td>
+        ~~$0.7140~~ $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        12
+        </td>
+
+        <td>
+        250,001 - 500,000
+        </td>
+
+        <td>
+        $0.5503
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        13
+        </td>
+
+        <td>
+        500,001 - 1,000,000
+        </td>
+
+        <td>
+        $0.4229
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        14
+        </td>
+
+        <td>
+        1,000,001 - 5,000,000
+        </td>
+
+        <td>
+        $0.2959
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+        15
+        </td>
+
+        <td>
+        5,000,001+
+        </td>
+
+        <td>
+        $0.1905
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+
+Notes:
+
+
+<sup>1</sup>  For eligible customers with full platform users, you are subject to limited-time promotional pricing for the first twelve tiers: $0.5503 per 1 CCU per month.
+
+If you are using the Enterprise edition, the EU data region, or other options available for CCU, the applicable List Price is calculated by multiplying the value in above table's List Price column by these factors:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Option
+          </th>
+
+          <th>
+            Multiply list prices by
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Pro (EU)
+          </td>
+
+          <td>
+            1.1500
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Enterprise
+          </td>
+
+          <td>
+            1.3300
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Enterprise (EU)
+          </td>
+
+          <td>
+            1.5295
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    On a monthly basis, CCU usage will be charged for each CCU within each tier beginning at the initial tier at its corresponding price. Only those units exceeding the preceding tier(s) are entitled to the reduced List Price in the subsequent tier(s). Calculated charges are based on factors that have four decimal places. Amounts invoiced are rounded up to the nearest cent where applicable.
+  
