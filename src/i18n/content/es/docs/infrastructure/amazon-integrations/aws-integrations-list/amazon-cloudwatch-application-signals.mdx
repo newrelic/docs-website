@@ -1,0 +1,96 @@
+---
+title: Aplicación Amazon CloudWatch Integración de señales
+tags:
+  - Integrations
+  - Amazon integrations
+  - AWS integrations list
+metaDescription: 'New Relic''s Amazon CloudWatch Application Signals integration: what data it reports and how to enable it.'
+freshnessValidatedDate: '2024-09-25T00:00:00.000Z'
+translationType: machine
+---
+
+New Relic se integra con Amazon Web Services (AWS) para monitor [la aplicación CloudWatch Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Application_Signals.html) y otros datos para New Relic.
+
+Este documento explica cómo activar la integración y describe los datos informados.
+
+## Activar la integración [#activate]
+
+Esta integración está disponible a través de CloudWatch MetricStreams.
+
+Para habilitar esta integración, consulte cómo [conectar los servicios de AWS a New Relic a través de CloudWatch Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream-setup/).
+
+## Buscar y utilizar datos [#find-use-data]
+
+Para encontrar la métrica de tu integración, ve a <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities) &amp;gt; Metrics and events**</DNT> y filtra por `aws.applicationsignals`.
+
+## Datos métricos disponibles [#metric-data]
+
+Esta integración de New Relic Infrastructure recopila los siguientes datos de señales de la aplicación Amazon CloudWatch:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "220px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Unidad
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Latency`
+      </td>
+
+      <td>
+        EM
+      </td>
+
+      <td>
+        El retraso antes de la transferencia de datos comienza después de que se realiza la solicitud.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Faults`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Un recuento de fallas del lado del servidor HTTP 5XX y errores de estado de extensión de OpenTelemetry.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Errors`
+      </td>
+
+      <td>
+        Contar
+      </td>
+
+      <td>
+        Un recuento de errores del lado del cliente HTTP 4XX. Se consideran errores de solicitud que no son causados por problemas de servicio. Por lo tanto, la métrica de Disponibilidad que se muestra en el panel de la aplicación Señales no considera estos errores como fallas del servicio.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Crear alerta [#create-alerts]
+
+Puede configurar <InlinePopover type="alerts" />para que le notifique si hay algún cambio. Por ejemplo, puede configurar una alerta para notificar a las partes relevantes sobre errores críticos o fatales.
+
+Obtenga más información sobre cómo crear alertas [aquí](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts/).
