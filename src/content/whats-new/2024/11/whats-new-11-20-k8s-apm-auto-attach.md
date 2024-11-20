@@ -9,7 +9,7 @@ The dynamic nature of Kubernetes environments makes it complicated to monitor yo
 
 New Relic extends one-step observability to Kubernetes for fast instrumentation and out-of-the-box, AI-powered insights. It features automatic APM instrumentation with Kubernetes deployments and delivers out-of-the-box AI-powered insights with automatic correlation across applications and Kubernetes. All of this is accessible through a single user interface, enabling faster performance management and more efficient troubleshooting.
 
-## K8s APM Auto-attach capabilities: 
+### K8s APM Auto-attach capabilities: 
 
   * **One-step APM and K8s instrumentation:**  New Relic APM auto-attach provides simple installation and one-time setup for auto-instrumentation for both APM and Kubernetes.
   * **Simple agent upgrades:** APM agent versions can be automatically updated to the latest version (or any other)  based on your needs.
