@@ -16,7 +16,7 @@ New Relic extends one-step observability to Kubernetes for fast instrumentation 
   * **Empowered DevOps Teams:** DevOps teams gain independence by automatically instrumenting APM agents without relying on app developers. No changes in the application deployment manifest are needed.
   * **Agents supported:** Java, Node.js, Python, Ruby, .NET and PHP.
 
-![An animated gif showing the K8s APM auto-attach installation flow.](/images/k8s-apm-auto-attach-flow.gif "An animated gif showing the K8s APM auto-attach installation flow.")
+![An animated gif showing the K8s APM auto-attach installation flow.](/images/k8s-apm-auto-attach-flow.webp "An animated gif showing the K8s APM auto-attach installation flow.")
 
 ## How to start
 
@@ -26,11 +26,11 @@ Depending on your choice you can install it by taking advantage of our K8s guide
 
 The new K8s installation flows not only includes K8s APM auto-attach to be installed automatically but also provides guidance to inject the instrumentation CR needed to enable auto-instrumentation.
 
-  1. Click on 'Integrations & Agents' on the left menu.
-  2. Select 'Kubernetes & containers' collection listed in the bottom of the scren.
-  3. Finally, click on the 'Kubernetes' tile to start the guided install.
+  1. Click on **Integrations & Agents** on the left menu.
+  2. Select **Kubernetes & containers** collection listed in the bottom of the screen.
+  3. Finally, click on the **Kubernetes** tile to start the guided install.
 
-![Steps required to start the K8s guided install including APM auto-attach.](/images/k8s-apm-auto-attach-steps.gif "Steps required to start the K8s guided install including APM auto-attach.")
+![Steps required to start the K8s guided install including APM auto-attach.](/images/k8s-apm-auto-attach-steps.webp "Steps required to start the K8s guided install including APM auto-attach.")
 
 
 ### Manual install
