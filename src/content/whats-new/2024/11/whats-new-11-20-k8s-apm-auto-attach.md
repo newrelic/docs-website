@@ -1,20 +1,21 @@
 ---
-title: 'Introducing Kubernetes APM auto-attach'
+title: 'Introducing One-Step Kubernetes with APM auto-attach'
 summary: 'New Relic extends one-step observability to Kubernetes for application workloads'
-releaseDate: '2024-11-20'
+releaseDate: '2024-12-02'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/'
 ---
 
 The dynamic nature of Kubernetes environments makes it complicated to monitor your application workloads, as the containers hosting those workloads frequently spin up and down. Developers must continuously modify their workloads and deploy agents to achieve full visibility and manage performance effectively. This process makes installing and managing the life cycle of APM and Kubernetes instrumentation cumbersome and time-consuming, which negatively impacts developer productivity.
 
-New Relic extends one-step observability to Kubernetes for fast instrumentation and out-of-the-box, AI-powered insights. It features automatic APM instrumentation with Kubernetes deployments and delivers out-of-the-box AI-powered insights with automatic correlation across applications and Kubernetes. All of this is accessible through a single user interface, enabling faster performance management and more efficient troubleshooting.
+New Relic extends one-step observability to Kubernetes for fast instrumentation and out-of-the-box, AI-powered insights. APM auto-attach automates APM instrumentation with Kubernetes deployments, eliminating the need for code changes.  Instantly analyze your entire Kubernetes workload with pre-built dashboards  that automatically  correlate applications and Kubernetes on a  single user interface, enabling faster performance management and more efficient troubleshooting.
 
-### K8s APM Auto-attach capabilities: 
+### Kubernetes APM Auto-attach capabilities: 
 
   * **One-step APM and K8s instrumentation:**  New Relic APM auto-attach provides simple installation and one-time setup for auto-instrumentation for both APM and Kubernetes.
   * **Simple agent upgrades:** APM agent versions can be automatically updated to the latest version (or any other)  based on your needs.
-  * **Empowered DevOps Teams:** DevOps teams gain independence by automatically instrumenting APM agents without relying on app developers. No changes in the application deployment manifest are needed.
+  * **No changes in the application manifest are needed:** DevOps teams can fully manage and configure APM auto-attach without modifying the application's deployment manifest.
   * **Agents supported:** Java, Node.js, Python, Ruby, .NET and PHP.
+  * **Curated experience with out-of-the-box insights:** New Relic’s Intelligent Observability Platform enables immediate troubleshooting with AI-powered, out-of-the-box insights that automatically correlate apps and Kubernetes data in a single UI, enabling any user to identify and resolve performance issues faster.
 
 ![An animated gif showing the K8s APM auto-attach installation flow.](/images/k8s-apm-auto-attach-flow.webp "An animated gif showing the K8s APM auto-attach installation flow.")
 
