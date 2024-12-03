@@ -1,5 +1,5 @@
 ---
-title: 'Gain Security Insights Faster with FOSSA in New Relic Vulnerability Management'
+title: 'Gain security insights with FOSSA in New Relic vulnerability management dashboard'
 summary: 'Quickly view FOSSA open source vulnerability scan results alongside other security detections within the New Relic Vulnerability Management dashboard.'
 releaseDate: '2024-12-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/integrations/fossa/'
