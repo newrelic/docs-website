@@ -10,6 +10,11 @@ const METADATA = [
   },
 ];
 
+// List of urls we don't want to have indexed by Swifttype or search engines
+const DO_NOT_INDEX = [
+  'docs/licenses/license-information/usage-plans/archived-add-on',
+];
+
 const surveyRecaptcha = (
   <script
     key="google-recaptcha"
@@ -29,8 +34,15 @@ const isAgileHandbookPage = (url) => {
 
 const isMdxTestPage = (url) => url.includes('docs/mdx-test-page');
 
-const isExcludedFromSwiftype = (url) =>
-  isStyleGuidePage(url) || isAgileHandbookPage(url) || isMdxTestPage(url);
+const doNotIndex = (url, arr) => {
+  return arr.some((item) => url.includes(item));
+};
+
+const isExcludedFromIndexing = (url) =>
+  isStyleGuidePage(url) ||
+  isAgileHandbookPage(url) ||
+  isMdxTestPage(url) ||
+  doNotIndex(url, DO_NOT_INDEX);
 
 const DocsSiteSeo = ({
   location,
@@ -77,8 +89,8 @@ const DocsSiteSeo = ({
       />
     )}
 
-    {isExcludedFromSwiftype(location.pathname) && (
-      <meta name="st:robots" content="noindex, nofollow" />
+    {isExcludedFromIndexing(location.pathname) && (
+      <meta name="robots" content="noindex, nofollow" />
     )}
 
     {(description || title) && (

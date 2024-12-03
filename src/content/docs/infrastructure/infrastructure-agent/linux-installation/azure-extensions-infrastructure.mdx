@@ -1,0 +1,58 @@
+---
+title: Azure extensions for infrastructure
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Linux installation
+  - Windows installation
+metaDescription: New Relic's infrastructure agent automatically instruments Docker to collect container metrics and metadata.
+redirects:
+    - /docs/infrastructure/install-infrastructure-agent/linux-installation/azure-extensions-infrastructure/
+freshnessValidatedDate: never
+---
+
+You can install our [infrastructure](/docs/welcome-new-relic-infrastructure) agent using [Microsoft Azure extensions](https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/overview).
+
+<CollapserGroup>
+  <Collapser
+    id="what-is-extension"
+    title="What is an Azure extension?"
+  >
+    Azure virtual machine (VM) extensions are small applications that provide post-deployment configuration and automation tasks on Azure VMs. For example, if a virtual machine requires software installation, anti-virus protection, or a script to be run, a VM extension can be used. Azure CLI, PowerShell, Azure Resource Manager templates, and the Azure portal can all run Azure VM extensions. Extensions can be bundled with a new VM deployment, or run against any existing system.
+  </Collapser>
+</CollapserGroup>
+
+New Relic uses these extensions to facilitate the installation of the infrastructure agent. This removes the need for manually updating our agent and, more importantly, automatically scales the agent with your [Azure scale sets](https://docs.microsoft.com/en-us/azure/virtual-machine-scale-sets/overview).
+
+## Install infrastructure using Azure extensions [#install-infra-azure-extensions]
+
+To install the agent using the Azure extension on supported [operating systems](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent/).
+
+1. Go to any Azure VM, Azure scale set, or Azure Service Fabric using scale sets, and select the <DNT>**Extensions**</DNT> tab.
+
+   <img
+     title="azure_ext01.png"
+     alt="azure_ext01.png"
+     src="/images/infrastructure_screenshot-crop_azure-extensions-tab.webp"
+   />
+2. Select the <DNT>**New Relic infrastructure**</DNT> extension.
+
+   <img
+     title="azure_ext02.png"
+     alt="azure_ext02.png"
+     src="/images/infrastructure_screenshot-crop_azure-nr-infrastructure-extension.webp"
+   />
+3. Follow the instructions, and add your <InlinePopover type="licenseKey"/>.
+
+   <img
+     title="azure_ext03.png"
+     alt="azure_ext03.png"
+     src="/images/infrastructure_screenshot-crop_azure-nr-license-key.webp"
+   />
+
+   <Callout variant="tip">
+     If you automate the installation, remember to pass your <InlinePopover type="licenseKey"/> with the `NR_LICENSE_KEY` variable.
+     You can use [configurations via environment variables](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#precedence) (`NRIA_` format) to customize any agent configuration.
+   </Callout>
+
+<InstallFeedback/>

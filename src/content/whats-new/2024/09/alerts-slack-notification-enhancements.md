@@ -12,20 +12,13 @@ While tracking multiple issues as individual threads in Slack, the details can e
 
 To use this feature, select the “Receive notification updates on the channel as well” checkbox while configuring your Slack notification channel.
 
-<img
-    title="Slack channel broadcast"
-    alt="Screenshot showing Slack channel broadcast"
-    src={/images/slack-channel-broadcast.png "Screenshot showing Slack channel broadcast}
-/>
+![Slack channel broadcast](/images/slack-channel-broadcast.png "Screenshot showing Slack channel broadcast")
 
 **Uncheck Slack notification overrides**
 
 While addressing an issue in Slack, you may sometimes need a snapshot of what was happening when the notification was originally issued. Previously, the initial Slack issue notification would be overwritten as the issue was updated. Now, the **Override notifications** option on the context menu for new Slack notification workflows offers the ability to disable this behavior. This box is checked by default; if unchecked, the original notification will remain unchanged - making it easier to understand the state of your system at the time of the alert.
 
-<img
-    title="Slack notification override"
-    alt="Screenshot showing Slack notification override checkbox"
-    src={/images/slack-notification-overrides-checkbox.png}
-/>
+![Slack notification override](/images/slack-notification-overrides-checkbox.png "Screenshot showing Slack notification override checkbox")
+
 
 More information about our alerts notification integration for Slack and other applications can be found in our [documentation](https://docs.newrelic.com/docs/alerts/get-notified/notification-integrations/).
