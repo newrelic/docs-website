@@ -1,17 +1,17 @@
 ---
 title: 'Gain security insights with FOSSA in New Relic vulnerability management dashboard'
-summary: 'Quickly view FOSSA open source vulnerability scan results alongside other security detections within the New Relic Vulnerability Management dashboard.'
+summary: 'Quickly view FOSSA open-source vulnerability scan results alongside other security detections within the New Relic Vulnerability Management dashboard.'
 releaseDate: '2024-12-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/integrations/fossa/'
 ---
 
-We're thrilled to introduce the integration between New Relic and FOSSA, offering users enhanced security insights. This integration enables FOSSA users to view open source vulnerability scan results directly within the New Relic VM dashboard, alongside other important security detections. This unified view allows for a more holistic approach to managing vulnerabilities across both build-time and runtime environments.
+We're thrilled to introduce the integration between New Relic and FOSSA, offering users enhanced security insights. This integration enables FOSSA users to view open-source vulnerability scan results directly within the New Relic Vulnerability Management dashboard, alongside other important security detections. This unified view allows for a more holistic approach to managing vulnerabilities across both build-time and runtime environments.
 
-#### Why This is Important:
+#### Why this is important:
 Users of New Relic and FOSSA now benefit from a comprehensive view of their vulnerabilities, alongside health and performance metrics, all within the same New Relic dashboard. This capability ensures that new and existing services meet production readiness compliance and security goals, enhancing overall service reliability and security posture.
 
-#### Prioritize What to Fix First and What Can Wait:
-By integrating FOSSA detections into the New Relic VM dashboard, users gain a centralized platform to:
+#### Prioritize what to fix first and what can wait:
+By integrating FOSSA detections into the New Relic Vulnerability Management dashboard, users gain a centralized platform to:
 
 - **Rate Vulnerabilities:** Utilize data on exploits in the wild and active ransomware threats to assess vulnerability severity.
 - **Prioritize Detections:** Determine which risks require immediate attention and which can be deferred, optimizing resource allocation.
