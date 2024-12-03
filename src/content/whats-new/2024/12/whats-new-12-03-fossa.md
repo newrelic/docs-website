@@ -1,6 +1,6 @@
 ---
-title: 'FOSSA Integration Connects Security Detections to New Relic Vulnerability Management'
-summary: 'The New Relic integration for FOSSA enables users to display open source vulnerability scan results from FOSSA alongside other security detections within the New Relic Vulnerability Management (VM) dashboard.'
+title: 'Gain Security Insights Faster with FOSSA in New Relic Vulnerability Management'
+summary: 'Quickly view FOSSA open source vulnerability scan results alongside other security detections within the New Relic Vulnerability Management dashboard.'
 releaseDate: '2024-12-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/integrations/fossa/'
 ---
