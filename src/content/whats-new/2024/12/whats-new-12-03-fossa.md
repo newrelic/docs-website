@@ -1,11 +1,11 @@
 ---
-title: 'FOSSA Integration Adds New Security Detections to New Relic Vulnerability Management Dashboard'
-summary: 'The New Relic integration for FOSSA empowers users by displaying open source vulnerability scan results from FOSSA alongside other security detections within the New Relic Vulnerability Management (VM) dashboard.'
+title: 'FOSSA Integration Connects Security Detections to New Relic Vulnerability Management'
+summary: 'The New Relic integration for FOSSA enables users to display open source vulnerability scan results from FOSSA alongside other security detections within the New Relic Vulnerability Management (VM) dashboard.'
 releaseDate: '2024-12-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/integrations/fossa/'
 ---
 
-We're thrilled to introduce the integration between New Relic and FOSSA, a significant advancement for users seeking comprehensive security insights. This integration enables FOSSA users to view open source vulnerability scan results directly within the New Relic VM dashboard, alongside other critical security detections. This unified view allows for a more holistic approach to managing vulnerabilities across both build-time and runtime environments.
+We're thrilled to introduce the integration between New Relic and FOSSA, offering users enhanced security insights. This integration enables FOSSA users to view open source vulnerability scan results directly within the New Relic VM dashboard, alongside other important security detections. This unified view allows for a more holistic approach to managing vulnerabilities across both build-time and runtime environments.
 
 #### Why This is Important:
 Users of New Relic and FOSSA now benefit from a comprehensive view of their vulnerabilities, alongside health and performance metrics, all within the same New Relic dashboard. This capability ensures that new and existing services meet production readiness compliance and security goals, enhancing overall service reliability and security posture.
