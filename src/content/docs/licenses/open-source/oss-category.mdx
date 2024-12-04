@@ -1,0 +1,121 @@
+---
+title: "New Relic open source categories"
+metaDescription: "Every public repository in the New Relic and New Relic Experimental GitHub organizations leverages one of the open source categories."
+redirects:
+  - https://opensource.newrelic.com/oss-category
+freshnessValidatedDate: never
+---
+
+Every public repository in the New Relic and New Relic Experimental GitHub organizations leverages one of the following open source categories:
+
+<CollapserGroup>
+  <Collapser
+    id="community-project"
+    title="Community Project"
+  >
+    This code is developed in the open with input from the community through issues and PRs. There is an active maintainer team within New Relic, troubleshooting support in the New Relic Explorers Hub, and the documentation is available in the project repository.
+    <Callout variant="important">
+    This is an official New Relic open source community project, supported by maintainers within New Relic.
+    </Callout>
+
+    **Requirements**
+    - Complies with New Relic's legal and security requirements for open source software
+    - Contains the appropriate New Relic open source category header in the repository's README file
+    - Has active maintainer / maintainers, including at least one Relic
+    - Troubleshooting support via the New Relic Explorers Hub
+    - Issues and PR’s managed in GitHub
+    - Documentation reviewed by the New Relic documentation team
+    - Linted code
+    - An automated release pipeline
+  </Collapser>
+
+  <Collapser
+    id="community-plus"
+    title="Community Plus"
+  >
+    This code is developed in the open with input from the community through issues and PRs. A New Relic engineering team serves as the maintainer. Troubleshooting support is available in the New Relic Explorers Hub, and documentation is available in the project repository and [New Relic Docs](https://docs.newrelic.com).
+
+    <Callout variant="important">
+    This code is currently maintained by New Relic engineering teams and delivered here in GitHub. See the README for troubleshooting and defect reporting instructions.
+    </Callout>
+
+    **Requirements**
+    - Complies with New Relic's legal and security requirements for open source software
+    - Contains the appropriate New Relic open source category header in the repository's README file
+    - Is maintained by a New Relic engineering team
+    - Troubleshooting support via the New Relic Explorers Hub
+    - Issues and PR’s managed in GitHub
+    - For additional details on support options, see the [open source support policy](/docs/licenses/license-information/general-usage-licenses/global-technical-support-offerings?_gl=1*1ftd2ji*_gcl_aw*R0NMLjE3MjE3NDA0NzIuQ2p3S0NBandxZjIwQmhCd0Vpd0F0N2R0ZGQxa01LaHBmazl1OFNQZTlTRU02eHZ1UThaZXk3dVdoQ3F2Y09iX2JzOFJpbENRUDlwZVpob0NGdkFRQXZEX0J3RQ..*_gcl_au*MTUzNzk1ODMxOS4xNzIwNDI5NDM0*_ga*NzE1OTA0NDA1LjE3MjA0Mjk0MzU.*_ga_R5EF3MCG7B*MTcyNzQxNzgxOS4yMjIuMS4xNzI3NDE4OTQxLjYwLjEuMjI2NDAzOTc2)
+    - Documentation reviewed by the New Relic documentation team
+    - Linted code
+    - An automated release pipeline
+  </Collapser>
+
+  <Collapser
+    id="one-catalog"
+    title="New Relic Catalog"
+  >
+    This code is a part of the New Relic catalog. It meets the criteria for a Community Project; but it also contains UI workflows for configuration. Most Catalog projects seek to maintain a public roadmap, often expressed in a GitHub Project board and Issues within the repository.
+    <Callout variant="important">
+    This code is a part of the New Relic catalog. It's available for installation and configuration via the New Relic homepage. You can install it within New Relic.
+    </Callout>
+
+    **Requirements**
+    - All the requirements of a Community Project
+    - An empty state application workflow that guides users through the setup of configuration data that is stored in NerdStorage
+    - Architectural review (including UX) by New Relic
+    - (Optional) maintains a public roadmap (recommended via a GitHub project in the repo)
+  </Collapser>
+
+  <Collapser
+    id="example-code"
+    title="Example Code"
+  >
+    This code demonstrates an aspect of building on the New Relic platform. Find the complete description of its usage and other relevant docs in the README. There is no long-term maintainer for this code nor is support provided, but the author(s) may address future updates / needs as platform features change.
+
+    <Callout variant="important">
+    Not meant for production deployment, but is provided as a working example of a concept. Comes with no ongoing support or maintenance, but you're welcome to submit issues and PR's to the repo.
+    </Callout>
+
+    **Requirements**
+    - Complies with New Relic's legal and security requirements for open source software
+    - Contains the appropriate New Relic open source category header in the repository's README file
+    - (Optional) Issues are available at the project author's discretion
+    - Documentation reviewed by the New Relic documentation team
+    - Linted code
+  </Collapser>
+
+  <Collapser
+    id="experimental"
+    title="New Relic Experimental"
+  >
+    This code solves an interesting problem but does not yet have an active maintainer(s). The project is being developed in the open for the purpose of feedback on a new feature or function.
+
+    <Callout variant="important">
+    This code is not necessarily used in production but is being developed in the open. It is provided with no expectation of support, ongoing development, or maintenance.
+    </Callout>
+
+    **Requirements**
+    - Complies with New Relic's legal and security requirements for open source software
+    - Contains the appropriate New Relic open source category header in the repository's README file
+    - Typically hosted in the New Relic Experimental GitHub org
+    - (Optional) Issues at the project owner's discretion
+  </Collapser>
+
+  <Collapser
+    id="archived"
+    title="Archived"
+  >
+    This code is read-only. There is neither a maintainer team nor support.
+    <Callout variant="important">
+    This code has been moved into a read-only state. It is no longer supported and is available for cloning only.
+    </Callout>
+
+    **Requirements**
+    - Complies with New Relic's legal requirements for open source software
+    - Contains the appropriate New Relic open source category header in the repository's README file
+    - Previous references to Support should be modified or removed from the README
+    - Project is read-only and available for cloning only
+
+  </Collapser>
+</CollapserGroup>

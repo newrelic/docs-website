@@ -63,6 +63,7 @@ const INCLUDE_AGENTS = new Set([
   'infrastructure',
   'ios',
   'java',
+  'kubernetes',
   'node',
   'nodejs',
   'php',
@@ -137,9 +138,8 @@ const validateReleaseNotesAgents = (releaseNotes) => {
   const errors = [];
 
   JSON_AGENTS.forEach((agent) => {
-    const agentsCount = releaseNotes.filter(
-      (note) => note.agent === agent
-    ).length;
+    const agentsCount = releaseNotes.filter((note) => note.agent === agent)
+      .length;
     if (agentsCount < 1) {
       const message = `\n😵 No release notes found for ${agent}`;
       errors.push(message);
