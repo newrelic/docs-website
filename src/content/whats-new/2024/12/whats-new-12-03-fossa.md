@@ -15,6 +15,6 @@ By integrating FOSSA detections into the New Relic Vulnerability Management dash
 
 - **Rate vulnerabilities:** Utilize data on exploits in the wild and active ransomware threats to assess vulnerability severity.
 - **Prioritize detections:** Determine which risks require immediate attention and which can be deferred, optimizing resource allocation.
-- **Avoid wasted effort:** Prevent unnecessary developer workload by focusing on vulnerabilities that are actively executed in runtime environments.
+- **Avoid wasted effort:** Prevent unnecessary developer workload by focusing on vulnerabilities that are actively performing in runtime environments.
 
 This integration streamlines Vulnerability Management, allowing teams to focus on what truly matters and ensures that security measures are both effective and efficient.
