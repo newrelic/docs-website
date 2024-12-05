@@ -1,0 +1,176 @@
+---
+title: Agregar gráficos circulares
+metaDescription: Add pie charts
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección y agregue su primer gráfico antes de comenzar esta.
+</Callout>
+
+Comenzaste a crear tu aplicación Prueba A/B. Hasta ahora, consta de un gráfico de una sola línea, que representa el número de subscripciones que recibe su boletín de cada versión de su sitio web.
+
+En el diseño, hay dos gráficos circulares debajo del gráfico de líneas que ya creó. Uno representa la distribución de usuarios que reciben la versión A y la versión B. El otro representa la distribución de solicitudes exitosas del usuario que obtuvo la versión A y la versión B.
+
+<Steps>
+  <Step>
+    Cambie al directorio `add-pie-charts/ab-test` del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-pie-charts/ab-test
+    ```
+
+    Este directorio contiene el código que esperamos que tenga su aplicación en este punto del curso. Al navegar al directorio correcto al comienzo de cada lección, deja atrás su código personalizado, proteger así de llevar código incorrecto de una lección a la siguiente.
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet`, agregue dos nuevos archivos Javascript:
+
+    * `total-subscriptions.js`
+    * `total-cancellations.js`
+
+      ```sh
+      touch total-subscriptions.js total-cancellations.js
+      ```
+  </Step>
+
+  <Step>
+    En `total-subscriptions.js`, cree un componente, llamado `TotalSubscriptions`, que muestre datos de subscripción simulados:
+
+    ```js fileName=nerdlets/ab-test-nerdlet/total-subscriptions.js
+    import React from 'react';
+    import { PieChart } from 'nr1';
+
+    export default class TotalSubscriptions extends React.Component {
+        render() {
+            const subscriptionsA = {
+                metadata: {
+                    id: 'subscriptions-A',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { y: 259 },
+                ],
+            }
+            const subscriptionsB = {
+                metadata: {
+                    id: 'subscriptions-B',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { y: 318 },
+                ],
+            }
+            return <PieChart data={[subscriptionsA, subscriptionsB]} fullWidth />
+        }
+    }
+    ```
+
+    Observe que el serial `data` tiene un formato diferente para `PieChart` que para `LineChart`. Debido a que `PieChart` usa datos unidimensionales, su serial solo toma valores de y.
+  </Step>
+
+  <Step>
+    En `total-cancellations.js`, cree un componente, llamado `TotalCancellations`, que muestre datos de cancelación simulados:
+
+    ```js
+    fileName=nerdlets/ab-test-nerdlet/total-subscriptions.js
+
+    import React from 'react';
+    import { PieChart } from 'nr1';
+
+    export default class TotalCancellations extends React.Component {
+        render() {
+            const cancellationsA = {
+                metadata: {
+                    id: 'cancellations-A',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { y: 118 },
+                ],
+            }
+            const cancellationsB = {
+                metadata: {
+                    id: 'cancellations-B',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { y: 400 },
+                ],
+            }
+            return <PieChart data={[cancellationsA, cancellationsB]} fullWidth />
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    En el archivo `index.js` de tu Nerdlet, importa tus nuevos componentes y actualiza el método `render()` de tu Nerdlet:
+
+    ```js
+    fileName=nerdlets/ab-test-nerdlet/index.js lineHighlight=3-4,10-11
+
+    import React from 'react';
+    import NewsletterSignups from './newsletter-signups';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <NewsletterSignups />
+                <TotalSubscriptions />
+                <TotalCancellations />
+            </div>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-pie-charts/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vea sus cambios en [New Relic](https://one.newrelic.com?nerdpacks=local).
+
+    Aquí verá los `PieChart` componentes que se muestran en su aplicación.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+Tu aplicación está empezando a tomar forma. Creó un gráfico de líneas y dos gráficos circulares. Por ahora, estos gráficos emplean datos simulados, pero les proporcionará datos reales en una lección posterior. Sin embargo, antes de concentrar en los datos de sus gráficos, aprenderá cómo agregar una tabla a su aplicación para poder visualizar los datos de una manera nueva.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Cuando esté listo, continúe con la siguiente lección: Agregar tablas.
+</Callout>

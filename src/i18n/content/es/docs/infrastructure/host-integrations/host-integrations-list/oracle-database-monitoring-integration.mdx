@@ -1,0 +1,8058 @@
+---
+title: Integración de monitoreo de base de datos de Oracle
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: 'New Relic''s Oracle Database integration: how to install it and configure it, and what data it reports.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra [integración](/docs/integrations/host-integrations/getting-started/introduction-host-integrations) de base de datos de Oracle recopila métricas clave de rendimiento en base de datos, espacios de tabla y memoria de forma predeterminada. Puede personalizar su configuración para recopilar aún más métricas, brindándole una caracterización detallada del rendimiento de la base de datos.
+
+Continúe leyendo para instalar la integración y ver qué datos recopilamos.
+
+## Compatibilidad y requisitos [#comp-req]
+
+Nuestra integración es compatible con Oracle base de datos desde las versiones 11.2 a la 21.
+
+Antes de instalar la integración, asegúrese de cumplir con los siguientes requisitos:
+
+* Distribución Linux [compatible con infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/compatibility-requirements-new-relic-infrastructure), excepto versiones RHEL/CentOS/OEL inferiores a 7.
+
+* [Instale el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic).
+
+* [Oracle Instant Client](http://www.Oracle.com/technetwork/database/database-technologies/instant-client/downloads/index.html) en el cuadro del agente.
+
+* Base de datos de Oracle con `ORACLE_HOME` [configurado en el directorio correcto](https://docs.oracle.com/database/121/ADMQS/GUID-EC18C4A6-3BA5-4C14-9D76-B0DD62FEFFF2.htm#ADMQS12369) para el usuario raíz.
+
+* Usuario de la base de datos Oracle con [privilegios](#users-privileges)
+
+  <DNT>
+    [**CONNECT**](#users-privileges)
+  </DNT>
+
+  [y](#users-privileges)
+
+  <DNT>
+    [**SELECT**](#users-privileges)
+  </DNT>
+
+  [](#users-privileges)en las vistas globales requeridas.
+
+* Base de datos de Oracle con un archivo `listener.ora` configurado para monitor desde una conexión remota. De forma predeterminada, Oracle base de datos solo escucha a localhost.
+
+<Callout variant="important">
+  La arquitectura ARM64 no es compatible.
+</Callout>
+
+## Instalar y activar [#install]
+
+Para instalar la integración de la base de datos Oracle:
+
+1. Instale [el agente de infraestructura](/docs/integrations/host-integrations/installation/install-infrastructure-host-integrations/#install) y reemplace la variable `INTEGRATION_FILE_NAME` con `nri-oracledb`.
+
+2. Cambiar directorio a la carpeta de integración:
+
+   ```shell
+   cd /etc/newrelic-infra/integrations.d
+   ```
+
+3. Copie el archivo de configuración de muestra:
+
+   ```shell
+   sudo cp oracledb-config.yml.sample oracledb-config.yml
+   ```
+
+4. Edite el archivo `oracledb-config.yml` como se describe en los [ajustes de configuración](#config).
+
+Notas adicionales:
+
+* <DNT>
+    **Advanced:**
+  </DNT>
+
+  También es posible [instalar la integración desde un archivo tarball](/docs/integrations/host-integrations/installation/install-host-integrations-built-new-relic#tarball). Esto le brinda control total sobre el proceso de instalación y configuración.
+
+* <DNT>
+    **On-host integrations do not automatically update.**
+  </DNT>
+
+  Para obtener mejores resultados, [actualice periódicamente el paquete de integración](/docs/integrations/host-integrations/installation/update-infrastructure-host-integration-package) y [el agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+<InstallFeedback/>
+
+## Configuración [#configuration]
+
+### Habilitando su servidor Oracle DB [#enable-instance]
+
+En la base de datos Oracle, ejecute las siguientes instrucciones para crear un nuevo usuario y asignar privilegios de usuario. Se deben reemplazar USERNAME y valores similares específicos del usuario.
+
+1. Elija qué tipo de base de datos tiene. Para obtener ayuda con las preguntas de mantenimiento del usuario, consulte los [documentos de Oracle](https://docs.oracle.com/en/database/oracle/oracle-database/index.html) o comuníquese con el administrador de su sistema o base de datos.
+
+   <CollapserGroup>
+     <Collapser
+       id="standalone-database"
+       title="Base de datos independiente (Oracle DB 12c o superior)"
+     >
+       Para una base de datos independiente, si usa Oracle DB 12c o superior, use `ALTER SESSION` para acceder a la base de datos y administrar usuarios y propiedades de usuario. No ejecute esta consulta si su versión de Oracle DB es inferior a 12c.
+
+       ```
+       ALTER SESSION set "_Oracle_SCRIPT"=true;
+       ```
+
+       Utilice `CREATE USER` para agregar un nuevo usuario a la base de datos. Reemplace `USER_PASSWORD` con la [contraseña del nuevo usuario](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/dbseg/keeping-your-oracle-database-secure.html#GUID-451679EB-8676-47E6-82A6-DF025FD65156).
+
+       ```
+       CREATE USER USERNAME IDENTIFIED BY "USER_PASSWORD";
+       ```
+     </Collapser>
+
+     <Collapser
+       id="multitenant-database"
+       title="Base de datos multiinquilino"
+     >
+       Para bases de datos multiinquilino, log sesión en la base de datos raíz como administrador. Utilice `CREATE USER` para agregar un nuevo usuario a la base de datos. El nombre de usuario especificado será un "usuario común" y debe tener el prefijo "c##" según lo recomendado por Oracle. Reemplace `USER_PASSWORD` con la [contraseña del nuevo usuario](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/dbseg/keeping-your-oracle-database-secure.html#GUID-451679EB-8676-47E6-82A6-DF025FD65156).
+
+       ```
+       CREATE USER c##USERNAME IDENTIFIED BY "USER_PASSWORD";
+       ```
+
+       Otorgue permiso al nuevo usuario para acceder a todos los objetos del contenedor (o a un contenedor específico mencionando el nombre del contenedor PDB y el nombre del contenedor raíz en 'CONTAINER_DATA').
+
+       ```
+       ALTER USER c##USERNAME SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
+       ```
+     </Collapser>
+   </CollapserGroup>
+
+2. Otorgue `CONNECT` privilegios al usuario:
+
+   ```
+   GRANT CONNECT TO USERNAME;
+   ```
+
+3. Otorgue privilegios `SELECT` al usuario en las siguientes vistas globales:
+
+   * `cdb_data_files`
+
+   * `cdb_pdbs`
+
+   * `cdb_users`
+
+   * `gv_$sysmetric`
+
+   * `gv_$pgastat`
+
+   * `gv_$instance`
+
+   * `gv_$filestat`
+
+   * `gv_$parameter`
+
+   * `sys.dba_data_files`
+
+   * `gv_$session`
+
+   * `gv_$sesstat`
+
+   * `gv_$statname`
+
+   * `gv_$rowcache`
+
+   * `gv_$sga`
+
+   * `gv_$sysstat`
+
+   * `v_$database`
+
+   * `gv_$librarycache`
+
+   * `gv_$sqlarea`
+
+   * `gv_$system_event`
+
+   * `dba_tablespaces`
+
+   * `gv_$session_wait`
+
+   * `gv_$rollstat`
+
+   * `v_$instance`
+
+     Ejecute las siguientes sentencias SQL juntas en un script o individualmente:
+
+     ```
+     GRANT SELECT ON cdb_data_files TO USERNAME;
+     GRANT SELECT ON cdb_pdbs TO USERNAME;
+     GRANT SELECT ON cdb_users TO USERNAME;
+     GRANT SELECT ON gv_$sysmetric TO USERNAME;
+     GRANT SELECT ON gv_$pgastat TO USERNAME;
+     GRANT SELECT ON gv_$instance TO USERNAME;
+     GRANT SELECT ON gv_$filestat TO USERNAME;
+     GRANT SELECT ON gv_$parameter TO USERNAME;
+     GRANT SELECT ON sys.dba_data_files TO USERNAME;
+     GRANT SELECT ON DBA_TABLESPACES TO USERNAME;
+     GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS TO USERNAME;
+     GRANT SELECT ON gv_$session TO USERNAME;
+     GRANT SELECT ON gv_$sesstat TO USERNAME;
+     GRANT SELECT ON gv_$statname TO USERNAME;
+     GRANT SELECT ON gv_$rowcache TO USERNAME;
+     GRANT SELECT ON gv_$sga TO USERNAME;
+     GRANT SELECT ON gv_$sysstat TO USERNAME;
+     GRANT SELECT ON v_$database TO USERNAME;
+     GRANT SELECT ON gv_$librarycache TO USERNAME;
+     GRANT SELECT ON gv_$sqlarea TO USERNAME;
+     GRANT SELECT ON gv_$system_event TO USERNAME;
+     GRANT SELECT ON dba_tablespaces TO USERNAME;
+     GRANT SELECT ON gv_$session_wait TO USERNAME;
+     GRANT SELECT ON gv_$rollstat TO USERNAME;
+     GRANT SELECT ON v_$instance TO USERNAME;
+     ```
+
+   Para recopilar PDB métrica, otorgue privilegios `gv$con_sysmetric` ejecutando:
+
+   ```
+   GRANT SELECT ON gv$con_sysmetric TO USERNAME;
+   ```
+
+### Configurar la integración [#config]
+
+Hay varias formas de configurar la integración, dependiendo de cómo se instaló:
+
+* Si está habilitado a través de Amazon ECS: consulte [Servicios de monitorización que se ejecutan en ECS](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs).
+* Si está instalado en el host: edite la configuración en el archivo de configuración YAML de la integración, `oracledb-config.yml`.
+
+La configuración de formato YAML de una integración es donde puede colocar las credenciales de inicio de sesión requeridas y configurar cómo se recopilan los datos. Las opciones que cambie dependen de su configuración y preferencia.
+
+El archivo de configuración tiene configuraciones comunes aplicables a todas las integraciones como `interval`, `timeout`, `inventory_source`. Para leer todo sobre estas configuraciones comunes, consulte nuestro documento [Formato de configuración](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-newer-configuration-format/#configuration-basics) .
+
+<Callout variant="important">
+  Si todavía utiliza nuestros archivos de configuración/definición legacy , consulte este [documento](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/) para obtener ayuda.
+</Callout>
+
+Las configuraciones específicas relacionadas con Oracle DB se definen usando la sección `env` del archivo de configuración. Estas configuraciones controlan la conexión a su instancia de base de datos Oracle, así como otras configuraciones y características de seguridad. La lista de configuraciones válidas se describe en la siguiente sección de este documento.
+
+### Configuración de instancia de base de datos de Oracle [#instance-settings]
+
+La integración de Oracle DB recopila información métrica (<DNT>**M**</DNT>) e inventario (<DNT>**I**</DNT>). En la tabla, utilice la columna <DNT>**Applies To**</DNT> para las configuraciones disponibles para cada colección:
+
+' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' '
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '150px' }}>
+        Configuración
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Por defecto
+      </th>
+
+      <th>
+        Se aplica a
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **SERVICE_NAME**
+        </DNT>
+      </td>
+
+      <td>
+        El nombre del servicio para la instancia de Oracle.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **HOSTNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de host o IP donde se ejecuta Oracle DB.
+      </td>
+
+      <td>
+        127.0.0.1
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **PORT**
+        </DNT>
+      </td>
+
+      <td>
+        Puerto en el que escucha Oracle DB.
+      </td>
+
+      <td>
+        1521
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **USERNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de usuario para acceder al servidor de base de datos Oracle.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **PASSWORD**
+        </DNT>
+      </td>
+
+      <td>
+        Contraseña para el usuario dado.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CONNECTION_STRING**
+        </DNT>
+      </td>
+
+      <td>
+        Una cadena de conexión completa como las que se encuentran en `tnsnames.ora`. Tiene prioridad sobre el nombre de host, el puerto y el nombre del servicio.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **ORACLE_HOME**
+        </DNT>
+      </td>
+
+      <td>
+        Ruta hacia donde está `ORACLE_HOME` . Este campo es obligatorio.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **TABLESPACES**
+        </DNT>
+      </td>
+
+      <td>
+        Una matriz JSON de espacios de tabla para recopilar. Si se omite, recopila todos los espacios de tabla. Si está vacío, se salta la colección métrica del tablespace.
+      </td>
+
+      <td>
+        \[]
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **IS_SYS_DBA**
+        </DNT>
+      </td>
+
+      <td>
+        Indica si el usuario que se autentica tiene permisos SysDBA.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **IS_SYS_OPER**
+        </DNT>
+      </td>
+
+      <td>
+        Indica si el usuario que se autentica tiene permisos SysOper.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **EXTENDED_METRICS**
+        </DNT>
+      </td>
+
+      <td>
+        Indica si se debe recoger métrica extendida. Consulta cuáles tienen extensión métrica en la [siguiente tabla](#database-metric)
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **SKIP_METRICS_GROUPS**
+        </DNT>
+      </td>
+
+      <td>
+        Las métricas recopiladas se agrupan según la consulta utilizada para obtener los datos. Estos grupos métricos se enumeran [aquí](https://github.com/newrelic/nri-oracledb/blob/master/METRIC_GROUPS.md) y se pueden omitir de la colección agregando el nombre del grupo a `SKIP_METRICS_GROUPS` en formato de matriz JSON. Por defecto no se omite ningún grupo. Vea [el ejemplo](#metrics-skip) a continuación.
+      </td>
+
+      <td>
+        \[]
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **DISABLE_CONNECTION_POOL**
+        </DNT>
+      </td>
+
+      <td>
+        Deshabilite la agrupación de conexiones. Úselo solo si la integración genera errores al intentar establecer nuevas conexiones a Oracle DB.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **MAX_OPEN_CONNECTIONS**
+        </DNT>
+      </td>
+
+      <td>
+        Número máximo de conexiones simultáneas abiertas por la integración.
+      </td>
+
+      <td>
+        5
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **SYS_METRICS_SOURCE**
+        </DNT>
+      </td>
+
+      <td>
+        Configúrelo en `PDB` para recopilar la aplicación contenedor métrica. Configúrelo en `ALL` para recopilar la base de datos de contenedor multiinquilino (CDB) y la base de datos conectable (PDB) métrica creada por los clientes. Si lo establece en cualquier otro valor, obtendrá `SYS` métrica para una base de datos independiente y multiinquilino con acceso CDB únicamente.
+      </td>
+
+      <td>
+        ''
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CUSTOM_METRICS_QUERY**
+        </DNT>
+      </td>
+
+      <td>
+        Una consulta SQL para recopilar métrica personalizada. Vea [el ejemplo](#custom-query) a continuación.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CUSTOM_METRICS_CONFIG**
+        </DNT>
+      </td>
+
+      <td>
+        Configuración YAML con una o más consultas SQL para recopilar métrica personalizada. Vea [el ejemplo](#multi-custom-query) a continuación.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **METRICS**
+        </DNT>
+      </td>
+
+      <td>
+        Establezca en `true` para habilitar la recopilación solo métrica.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **INVENTORY**
+        </DNT>
+      </td>
+
+      <td>
+        Configúrelo en `true` para habilitar la recopilación solo de inventario.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+  </tbody>
+</table>
+
+Los valores para estas configuraciones se pueden definir de varias maneras:
+
+* Agregue el valor directamente al archivo de configuración. Esta es la forma más común.
+* Reemplace los valores de las variables de entorno utilizando la notación `{{}}` . Esto requiere el agente de infraestructura 1.14.0+. Para obtener más información sobre esto, consulte más sobre [las variables de entorno de paso a través del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#passthrough).
+* Utilice la administración de secretos para proteger la información confidencial, como las contraseñas, de modo que no quede expuesta en texto sin formato en el archivo de configuración. Para obtener más información, consulte [gestión de secretos](/docs/integrations/host-integrations/installation/secrets-management).
+
+## Etiquetas y atributos personalizados [#labels]
+
+También puedes decorar tu métrica con etiquetas. Las etiquetas le permiten agregar valor par principal atributo a su métrica para que pueda consultar, filtrar o agrupar su métrica.
+
+Aunque nuestro archivo de configuración de muestra predeterminado incluye ejemplos de etiquetas, son opcionales. Puede eliminar, modificar o agregar otros nuevos.
+
+```yml
+ labels:
+   env: production
+   role: load_balancer
+```
+
+## Configuración de ejemplo [#examples]
+
+<CollapserGroup>
+  <Collapser
+    id="basic-config"
+    title="Configuración básica"
+  >
+    Esta es la configuración básica utilizada para recopilar métricas e inventario de su localhost. Utiliza la conexión predeterminada en el puerto 1521. No olvide reemplazar `SERVICE_NAME` y `ORACLE_HOME` con los valores correctos para su entorno:
+
+    ```yml
+    integrations:
+      - name: nri-oracledb
+        env:
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+        interval: 15s
+        labels:
+          environment: production
+        inventory_source: config/oracledb
+    ```
+  </Collapser>
+
+  <Collapser
+    id="basic-intervals"
+    title="Configuración básica con diferentes intervalos métricos/de inventario."
+  >
+    Esta configuración recolecta métrica cada 15 segundos e inventario cada 60 segundos:
+
+    ```yml
+    integrations:
+      - name: nri-oracledb
+        env:
+          METRICS: true
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-oracledb
+        env:
+          INVENTORY: true
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/oracledb
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics-extended"
+    title="Solo métrica con filtrado métrico extendido y de espacio de tabla"
+  >
+    Esta configuración recopila solo métricas, incluidas las extendidas, filtrando la colección a solo 2 tablespaces:
+
+    ```yml
+    integrations:
+      - name: nri-oracledb
+        env:
+          METRICS: true
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+          TABLESPACES: '["tablespace1", "tablespace2"]'
+          EXTENDED_METRICS: true
+        interval: 15s
+        labels:
+          environment: production
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics-skip"
+    title="Saltar grupos métricos"
+  >
+    Esta configuración omite la recopilación de algunas métricas al deshabilitar algunas de las consultas usando `SKIP_METRICS_GROUPS`. La lista de grupos métricos permitidos, junto con la consulta y métrica afectada, se detallan en este [documento](https://github.com/newrelic/nri-oracledb/blob/master/METRIC_GROUPS.md):
+
+    ```yml
+    integrations:
+      - name: nri-oracledb
+        env:
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+          SKIP_METRICS_GROUPS: '["sgauga_total_memory", "redo_log_waits"]'
+        interval: 15s
+        labels:
+          environment: production
+        inventory_source: config/oracledb
+    ```
+  </Collapser>
+
+  <Collapser
+    id="custom-query"
+    title="Consulta personalizada"
+  >
+    Puede utilizar una consulta personalizada para recopilar métricas adicionales. La métrica personalizada se agregará, de forma predeterminada, a la muestra de evento `OracleCustomSample` .
+
+    Notas:
+
+    * Si necesita utilizar varias consultas personalizadas, elimine esta configuración y utilice [`CUSTOM_METRICS_CONFIG`](#multi-custom-query) en su lugar.
+
+    * No utilice `;` en declaraciones SQL personalizadas.
+
+      ```yml
+      integrations:
+        - name: nri-oracledb
+          env:
+            METRICS: true
+            SERVICE_NAME: ORACLE
+            HOSTNAME: 127.0.0.1
+            PORT: 1521
+            USERNAME: oracledb_user
+            PASSWORD: oracledb_password
+            ORACLE_HOME: /app/oracle/product/version/database
+            CUSTOM_METRICS_QUERY: >-
+              SELECT
+                'physical_reads' AS "metric_name",
+                'gauge' AS "metric_type",
+                SUM(PHYRDS) AS "metric_value",
+                INST_ID AS "instanceID"
+              FROM gv$filestat
+              GROUP BY INST_ID
+          interval: 15s
+          labels:
+            environment: production
+      ```
+  </Collapser>
+
+  <Collapser
+    id="multi-custom-query"
+    title="Consulta personalizada múltiple"
+  >
+    Si necesita varias consultas SQL personalizadas, agréguelas a `oracledb-custom-query.yml` y haga referencia a ese archivo en su configuración.
+
+    <DNT>**NOTE**</DNT>: `CUSTOM_METRICS_CONFIG` solo está habilitado si `CUSTOM_METRICS_QUERY` no está presente.
+
+    ```yml
+    integrations:
+      - name: nri-oracledb
+        env:
+          METRICS: true
+          SERVICE_NAME: ORACLE
+          HOSTNAME: 127.0.0.1
+          PORT: 1521
+          USERNAME: oracledb_user
+          PASSWORD: oracledb_password
+          ORACLE_HOME: /app/oracle/product/version/database
+          CUSTOM_METRICS_CONFIG: 'C:\path\to\oracledb-custom-query.yml'
+        interval: 15s
+        labels:
+          environment: production
+    ```
+
+    A continuación se muestra un ejemplo `oracledb-custom-query.yml`.
+
+    ```yml
+    queries:
+      # Metric names are set to the column names in the query results
+      - query: >-
+          SELECT
+            SUM(stat.gets) AS "gets",
+            SUM(stat.waits) AS "waits",
+            SUM(stat.waits)/SUM(stat.gets) AS "ratio",
+            inst.inst_id
+          FROM GV$ROLLSTAT stat, GV$INSTANCE inst
+          WHERE stat.inst_id=inst.inst_id
+          GROUP BY inst.inst_id
+
+        # If not set explicitly here, metric type will default to
+        # 'gauge' for numbers and 'attribute' for strings
+        metric_types:
+          gets: gauge
+
+        # If unset, sample_name defaults to OracleCustomSample
+        sample_name: MyCustomSample
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Buscar y utilizar datos [#find-and-use]
+
+Para encontrar sus datos de integración en New Relic, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Third-party services**</DNT> y seleccione uno de los enlaces de integración de la base de datos de Oracle.
+
+Los datos de la base de datos de Oracle se adjuntan a los siguientes [tipos de eventos](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#event):
+
+* `OracleDatabaseSample`
+* `OracleTablespaceSample`
+
+Para obtener más información sobre cómo encontrar y utilizar sus datos, consulte [Comprender los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos [#metrics]
+
+La integración de la base de datos de Oracle recopila el siguiente atributo de datos métricos. Cada nombre de métrica tiene como prefijo un indicador de categoría y un punto, como `disk.` o `memory.`.
+
+### Base de datos métrica [#database-metric]
+
+Estos atributos se pueden encontrar consultando el tipo de evento `OracleDatabaseSample` .
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "365px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Extendido
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `db.activeParallelSessions`
+      </td>
+
+      <td>
+        Sesiones paralelas activas.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.activeSerialSessions`
+      </td>
+
+      <td>
+        Sesiones seriales activas.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.averageActiveSessions`
+      </td>
+
+      <td>
+        Sesiones activas promedio.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.backgroundCheckpointsPerSecond`
+      </td>
+
+      <td>
+        Puntos de control por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.backgroundCpuUsagePerSecond`
+      </td>
+
+      <td>
+        Uso de CPU en segundo plano por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.backgroundTimePerSecond`
+      </td>
+
+      <td>
+        Tiempo de fondo por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockChangesPerSecond`
+      </td>
+
+      <td>
+        Cambios de bloque de base de datos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockChangesPerTransaction`
+      </td>
+
+      <td>
+        Cambios en el bloque de base de datos por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockChangesPerUserCall`
+      </td>
+
+      <td>
+        Cambios de bloque de base de datos por llamada de usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockGetsPerSecond`
+      </td>
+
+      <td>
+        El bloque DB se obtiene por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockGetsPerTransaction`
+      </td>
+
+      <td>
+        El bloque DB se obtiene por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.blockGetsPerUserCall`
+      </td>
+
+      <td>
+        El bloque DB se obtiene por llamada del usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.branchNodeSplitsPerSecond`
+      </td>
+
+      <td>
+        El nodo de rama se divide por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.branchNodeSplitsPerTransaction`
+      </td>
+
+      <td>
+        El nodo de sucursal se divide por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.consistentReadChangesPerSecond`
+      </td>
+
+      <td>
+        Cambios de lectura consistentes por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.consistentReadChangesPerTransaction`
+      </td>
+
+      <td>
+        Cambios de lectura consistentes por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.consistentReadGetsPerSecond`
+      </td>
+
+      <td>
+        Obtiene lecturas consistentes por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.consistentReadGetsPerTransaction`
+      </td>
+
+      <td>
+        Obtiene lecturas consistentes por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.cpuTimeRatio Database`
+      </td>
+
+      <td>
+        Relación de tiempo de CPU.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.cpuUsagePerSecond`
+      </td>
+
+      <td>
+        Uso de CPU por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.cpuUsagePerTransaction`
+      </td>
+
+      <td>
+        Uso de CPU por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.crBlocksCreatedPerSecond`
+      </td>
+
+      <td>
+        Bloques CR creados por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.crBlocksCreatedPerTransaction`
+      </td>
+
+      <td>
+        Bloques CR creados por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.crUndoRecordsAppliedPerSecond`
+      </td>
+
+      <td>
+        CR deshacer registros aplicados por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.crUndoRecordsAppliedPerTransaction`
+      </td>
+
+      <td>
+        CR deshacer registros aplicados por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.currentLogons`
+      </td>
+
+      <td>
+        Los inicios de sesión actuales cuentan.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.currentOpenCursors`
+      </td>
+
+      <td>
+        Los cursores abiertos actuales cuentan.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.cursorCacheHitsPerAttempts`
+      </td>
+
+      <td>
+        Cursor activado de relación caché.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.databaseCpuTimePerSecond`
+      </td>
+
+      <td>
+        Tiempo de base de datos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.dbwrCheckpointsPerSecond`
+      </td>
+
+      <td>
+        Puntos de control DBWR por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueDeadlocksPerSecond`
+      </td>
+
+      <td>
+        Poner en cola interbloqueos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueDeadlocksPerTransaction`
+      </td>
+
+      <td>
+        Poner en cola los puntos muertos por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueRequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes en cola por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueRequestsPerTransaction`
+      </td>
+
+      <td>
+        Poner en cola solicitudes por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueTimeoutsPerSecond`
+      </td>
+
+      <td>
+        Tiempos de espera de puesta en cola por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueTimeoutsPerTransaction`
+      </td>
+
+      <td>
+        Tiempos de espera de puesta en cola por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueWaitsPerSecond`
+      </td>
+
+      <td>
+        Esperas en cola por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.enqueueWaitsPerTransaction`
+      </td>
+
+      <td>
+        Esperas en cola por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.executionsPerSecond`
+      </td>
+
+      <td>
+        Ejecuciones por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.executionsPerTransaction`
+      </td>
+
+      <td>
+        Ejecuciones por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.executionsPerUserCall`
+      </td>
+
+      <td>
+        Ejecuciones por llamada de usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.fullIndexScansPerSecond`
+      </td>
+
+      <td>
+        Escaneos de índice completo por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.fullIndexScansPerTransaction`
+      </td>
+
+      <td>
+        Escaneos de índice completo por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.GcCrBlockRecievedPerSecond`
+      </td>
+
+      <td>
+        Bloque GC CR recibido por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.GcCrBlockRecievedPerTransaction`
+      </td>
+
+      <td>
+        Bloque GC CR recibido por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.GcCurrentBlockReceivedPerSecond`
+      </td>
+
+      <td>
+        Bloque actual del GC recibido por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.GcCurrentBlockReceivedPerTransaction`
+      </td>
+
+      <td>
+        Bloque actual de GC recibido por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.globalCacheAverageCrGetTime`
+      </td>
+
+      <td>
+        Tiempo de obtención de CR promedio de caché global.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.globalCacheAverageCurrentGetTime`
+      </td>
+
+      <td>
+        Tiempo de obtención actual promedio de caché global.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.hardParseCountPerSecond`
+      </td>
+
+      <td>
+        Recuento de análisis duro por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.hardParseCountPerTransaction`
+      </td>
+
+      <td>
+        Recuento de análisis duro por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.hostCpuUsagePerSecond`
+      </td>
+
+      <td>
+        Uso de CPU del host por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.hostCpuUtilization`
+      </td>
+
+      <td>
+        Utilización de CPU del host (porcentaje).
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.leafNodeSplitsPerSecond`
+      </td>
+
+      <td>
+        El nodo hoja se divide por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.leafNodeSplitsPerTransaction`
+      </td>
+
+      <td>
+        El nodo hoja se divide por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.libraryCacheHitRatio`
+      </td>
+
+      <td>
+        Biblioteca acierto de caché ratio.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.libraryCacheMissRatio`
+      </td>
+
+      <td>
+        Proporción de errores de caché de la biblioteca.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.logicalReadsPerSecond`
+      </td>
+
+      <td>
+        Lecturas lógicas por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.logicalReadsPerTransaction`
+      </td>
+
+      <td>
+        Lecturas lógicas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.logonsPerSecond`
+      </td>
+
+      <td>
+        Inicios de sesión por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.logonsPerTransaction`
+      </td>
+
+      <td>
+        Inicios de sesión por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.longTableScansPerSecond`
+      </td>
+
+      <td>
+        Escaneos de tablas largos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.longTableScansPerTransaction`
+      </td>
+
+      <td>
+        Escaneos largos de tablas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.openCursorsPerSecond`
+      </td>
+
+      <td>
+        Abrir cursores por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.openCursorsPerTransaction`
+      </td>
+
+      <td>
+        Abrir cursores por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.osLoad`
+      </td>
+
+      <td>
+        Carga actual del sistema operativo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.parseFailureCountPerSecond`
+      </td>
+
+      <td>
+        Recuento de errores de análisis por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.parseFailureCountPerTransaction`
+      </td>
+
+      <td>
+        Analizar el recuento de errores por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.pgaCacheHitPercentage`
+      </td>
+
+      <td>
+        PGA acierto de porcentaje de caché.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.processLimitPercentage`
+      </td>
+
+      <td>
+        Porcentaje límite de proceso.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.recursiveCallsPerSecond`
+      </td>
+
+      <td>
+        Llamadas recursivas por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.recursiveCallsPerTransaction`
+      </td>
+
+      <td>
+        Llamadas recursivas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.redoWritesPerSecond`
+      </td>
+
+      <td>
+        Rehacer escrituras por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.redoWritesPerTransaction`
+      </td>
+
+      <td>
+        Rehacer escrituras por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.responseTimePerTransaction`
+      </td>
+
+      <td>
+        Tiempo de respuesta por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rowCacheHitRatio`
+      </td>
+
+      <td>
+        Row acierto de caché ratio.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rowCacheMissRatio`
+      </td>
+
+      <td>
+        Proporción de errores de caché de filas.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rowsPerSort`
+      </td>
+
+      <td>
+        Filas por clasificación.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.sessionCount`
+      </td>
+
+      <td>
+        Recuento de sesiones.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.sessionLimitPercentage`
+      </td>
+
+      <td>
+        Porcentaje de límite de sesión.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.sharedPoolFreePercentage`
+      </td>
+
+      <td>
+        Porcentaje gratuito del grupo compartido.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.softParseRatio`
+      </td>
+
+      <td>
+        Relación de análisis suave.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.sortsPerUserCall`
+      </td>
+
+      <td>
+        Clasificación total por llamada de usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.sqlServiceResponseTime`
+      </td>
+
+      <td>
+        Tiempo de respuesta del servicio SQL.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.streamsPoolUsagePercentage`
+      </td>
+
+      <td>
+        Porcentaje de uso del grupo de transmisiones.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.tableScansPerUserCall`
+      </td>
+
+      <td>
+        Escaneos totales de tablas por llamada de usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalIndexScansPerSecond`
+      </td>
+
+      <td>
+        Escaneos de índice totales por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalIndexScansPerTransaction`
+      </td>
+
+      <td>
+        Escaneos de índice totales por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalParseCountPerSecond`
+      </td>
+
+      <td>
+        Recuento total de análisis por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalParseCountPerTransaction`
+      </td>
+
+      <td>
+        Recuento total de análisis por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalTableScansPerSecond`
+      </td>
+
+      <td>
+        Escaneos totales de tablas por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `db.totalTableScansPerTransaction`
+      </td>
+
+      <td>
+        Escaneos totales de tablas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.TransactionsPerLogon`
+      </td>
+
+      <td>
+        Transacción por inicio de sesión.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userCallsPerSecond`
+      </td>
+
+      <td>
+        Llamadas de usuario por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userCallsPerTransaction`
+      </td>
+
+      <td>
+        Llamadas de usuario por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userCallsRatio`
+      </td>
+
+      <td>
+        Ratio de llamadas de usuarios.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userCommitsPercentage`
+      </td>
+
+      <td>
+        Porcentaje de compromisos del usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userCommitsPerSecond`
+      </td>
+
+      <td>
+        El usuario confirma por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userLimitPercentage`
+      </td>
+
+      <td>
+        Porcentaje límite de usuarios.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userRollbacksPercentage`
+      </td>
+
+      <td>
+        Rollbacks de usuario por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userRollbacksPerSecond`
+      </td>
+
+      <td>
+        Reversiones de usuario por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userRollbackUndoRecordsAppliedPerSecond`
+      </td>
+
+      <td>
+        La reversión del usuario deshace registros aplicados por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.userRollbackUndoRecordsAppliedPerTransaction`
+      </td>
+
+      <td>
+        La reversión del usuario deshace los registros aplicados por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.waitTimeRatio`
+      </td>
+
+      <td>
+        Relación de tiempo de espera de la base de datos.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.capturedUserCalls`
+      </td>
+
+      <td>
+        Llamadas utilizadas capturadas
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.executeWithoutParseRatio`
+      </td>
+
+      <td>
+        Ejecutar sin relación de análisis
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.logonsPerSecond`
+      </td>
+
+      <td>
+        Inicios de sesión por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.physicalReadBytesPerSecond`
+      </td>
+
+      <td>
+        Bytes de lectura física por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.physicalReadIORequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes de E/S de lectura física por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.physicalReadsPerSecond`
+      </td>
+
+      <td>
+        Lecturas físicas por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.physicalWriteBytesPerSecond`
+      </td>
+
+      <td>
+        Bytes de escritura física por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.physicalWritesPerSecond`
+      </td>
+
+      <td>
+        Escrituras físicas por segundo
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.blocksRead`
+      </td>
+
+      <td>
+        Número de lecturas de bloque.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.blocksWritten`
+      </td>
+
+      <td>
+        Número de escrituras en bloque.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.logicalReadsPerUserCall`
+      </td>
+
+      <td>
+        Lecturas lógicas por llamada de usuario.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalLobsReadsPerSecond`
+      </td>
+
+      <td>
+        Lecturas físicas de globos directos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalLobsWritesPerSecond`
+      </td>
+
+      <td>
+        Escritura física globos directos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalReadBytesPerSecond`
+      </td>
+
+      <td>
+        Bytes totales de lectura física por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalReadIoRequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes de I/O totales de lectura física por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalReadsPerSecond`
+      </td>
+
+      <td>
+        Lecturas físicas directas por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalWriteBytesPerSecond`
+      </td>
+
+      <td>
+        Total de bytes por segundo de escritura física.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalWriteIoRequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes de I/O de escritura física por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalWritesPerSecond`
+      </td>
+
+      <td>
+        Escrituras físicas directas por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.physicalWriteTotalIoRequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes de I/O totales de escritura física por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.reads`
+      </td>
+
+      <td>
+        Número total de lecturas físicas.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.readTimeInMilliseconds`
+      </td>
+
+      <td>
+        Cantidad de tiempo de lectura del archivo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.sortPerSecond`
+      </td>
+
+      <td>
+        Clasificación de discos por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.sortPerTransaction`
+      </td>
+
+      <td>
+        Clasificación de discos por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.tempSpaceUsedInBytes`
+      </td>
+
+      <td>
+        Espacio temporal utilizado.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.writes`
+      </td>
+
+      <td>
+        Número total de escrituras físicas.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.writeTimeInMilliseconds`
+      </td>
+
+      <td>
+        Cantidad de tiempo de escritura del archivo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `lockedAccounts`
+      </td>
+
+      <td>
+        Número de cuentas cuyo `account_status` no es `OPEN`.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `longRunningQueries`
+      </td>
+
+      <td>
+        Número de consultas de larga duración (>60 años).
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.bufferCacheHitRatio`
+      </td>
+
+      <td>
+        Buffer acierto de caché ratio.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.globalCacheBlocksCorrupted`
+      </td>
+
+      <td>
+        Bloques de caché global dañados.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.globalCacheBlocksLost`
+      </td>
+
+      <td>
+        Se perdieron bloques de caché global.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.pgaAllocatedInBytes`
+      </td>
+
+      <td>
+        Cantidad actual de memoria PGA asignada por la instancia.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.pgaFreeableInBytes`
+      </td>
+
+      <td>
+        Tamaño máximo de un área de trabajo ejecutada en modo automático.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.pgaFreeableInBytes`
+      </td>
+
+      <td>
+        Número de bytes de memoria PGA en todos los procesos que podrían liberarse al sistema operativo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.pgaInUseInBytes`
+      </td>
+
+      <td>
+        Indica cuánta memoria PGA consumen actualmente las áreas de trabajo. Este número se puede utilizar para determinar cuánta memoria consume otro consumidor de la memoria PGA (por ejemplo, PL/SQL o Java).
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.redoAllocationHitRatio`
+      </td>
+
+      <td>
+        Rehacer la proporción de aciertos de la asignación.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.redoGeneratedBytesPerSecond`
+      </td>
+
+      <td>
+        Rehacer bytes generados por segundo.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.redoGeneratedBytesPerTransaction`
+      </td>
+
+      <td>
+        Rehacer bytes generados por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `memory.sortsRatio`
+      </td>
+
+      <td>
+        Relación de tipos de memoria.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `network.ioMegabytesPerSecond`
+      </td>
+
+      <td>
+        Megabytes de I/O por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `network.ioRequestsPerSecond`
+      </td>
+
+      <td>
+        Solicitudes de I/O por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `network.trafficBytePerSecond`
+      </td>
+
+      <td>
+        Volumen de tráfico de red por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalLobsReadsPerTransaction`
+      </td>
+
+      <td>
+        Lecturas físicas de globos directos por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalLobsWritesPerTransaction`
+      </td>
+
+      <td>
+        Escrituras físicas globos directos por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalReadsPerTransaction`
+      </td>
+
+      <td>
+        Lecturas físicas directas por transacción.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalReadsPerTransaction`
+      </td>
+
+      <td>
+        Lecturas físicas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalWritesPerTransaction`
+      </td>
+
+      <td>
+        Escrituras físicas directas por transacción.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `query.physicalWritesPerTransaction`
+      </td>
+
+      <td>
+        Escrituras físicas por transacción.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query.transactionsPerSecond`
+      </td>
+
+      <td>
+        Transacción de usuario por segundo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `redoLog.logFileSwitch`
+      </td>
+
+      <td>
+        Número de evento de cambio de registro de rehacer archivo.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `redoLog.logFileSwitchArchivingNeeded`
+      </td>
+
+      <td>
+        Número de eventos de cambio de registro de rehacer archivo que necesitan archivarse.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `redoLog.logFileSwitchCheckpointIncomplete`
+      </td>
+
+      <td>
+        Número de puntos de control de eventos de cambio de archivo de registro de rehacer que están incompletos.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `redoLog.waits`
+      </td>
+
+      <td>
+        Número de esperas log de rehacer.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `rollbackSegments.gets`
+      </td>
+
+      <td>
+        Se obtiene el número de segmentos de reversión.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `rollbackSegments.ratioWait`
+      </td>
+
+      <td>
+        Relación de esperas para segmentos de reversión.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `rollbackSegments.waits`
+      </td>
+
+      <td>
+        Número de segmentos de reversión en espera.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.bufferBusyWaits`
+      </td>
+
+      <td>
+        Número de esperas ocupadas del búfer SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.fixedSizeInBytes`
+      </td>
+
+      <td>
+        Tamaño fijo SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.freeBufferInspected`
+      </td>
+
+      <td>
+        Número de buffers libres de SGA inspeccionados.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.freeBufferWaits`
+      </td>
+
+      <td>
+        Número de esperas de búfer libres de SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.hitRatio`
+      </td>
+
+      <td>
+        Proporción de aciertos para el SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.logBufferAllocationRetriesRatio`
+      </td>
+
+      <td>
+        Proporción de reintentos de asignaciones para el búfer log SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.logBufferRedoAllocationRetries`
+      </td>
+
+      <td>
+        Rehacer la proporción de asignación para el búfer log SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.logBufferRedoEntries`
+      </td>
+
+      <td>
+        Número de entradas de Rehacer en el búfer log SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.logBufferSpaceWaits`
+      </td>
+
+      <td>
+        El espacio del búfer espera el búfer log SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.redoBuffersInBytes`
+      </td>
+
+      <td>
+        Búfers de rehacer SGA, en bytes.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.sharedPoolDictCacheMissRatio`
+      </td>
+
+      <td>
+        Proporción de errores para la caché del diccionario (dict) del grupo compartido de SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.sharedPoolLibraryCacheHitRatio`
+      </td>
+
+      <td>
+        Proporción de aciertos para la caché de la biblioteca del grupo compartido SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.sharedPoolLibraryCacheReloadRatio`
+      </td>
+
+      <td>
+        Relación de recarga para la caché de la biblioteca del grupo compartido SGA.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.sharedPoolLibraryCacheShareableMemoryPerStatementInBytes`
+      </td>
+
+      <td>
+        Memoria cacheable SGA por declaración, en bytes.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.sharedPoolLibraryCacheShareableMemoryPerUserInBytes`
+      </td>
+
+      <td>
+        Memoria caché SGA por usuario, en bytes.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sga.ugaTotalMemoryInBytes`
+      </td>
+
+      <td>
+        Memoria total en el Área Global de usuario (UGA).
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sorts.diskInBytes`
+      </td>
+
+      <td>
+        Ordena el uso del disco, en bytes.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `sorts.memoryInBytes`
+      </td>
+
+      <td>
+        Ordena el uso de la memoria, en bytes.
+      </td>
+
+      <td/>
+    </tr>
+  </tbody>
+</table>
+
+### Espacio de mesa métrica [#tablespace-metric]
+
+La integración de la base de datos de Oracle recopila el siguiente tablespace métrico. Estos atributos se pueden encontrar consultando el tipo de evento `OracleTablespaceSample` . Tenga en cuenta que las métricas de uso del espacio de tabla no están disponibles para la base de datos en espera de solo lectura; lea más sobre esta limitación en la base de conocimiento de Oracle [aquí](https://support.oracle.com/knowledge/Enterprise%20Management/2972740_1.html).
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Extendido
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `tablespace.isOffline`
+      </td>
+
+      <td>
+        Booleano para el estado fuera de línea del espacio de tabla.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.offlinePDBDatafiles`
+      </td>
+
+      <td>
+        La cantidad de archivos de datos PDB que están fuera de línea.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.offlineCDBDatafiles`
+      </td>
+
+      <td>
+        La cantidad de archivos de datos CDB que están fuera de línea.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.pdbDatafilesNonWrite`
+      </td>
+
+      <td>
+        El número de archivos de datos PDB en un estado de no escritura.
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.spaceConsumedInBytes`
+      </td>
+
+      <td>
+        Cantidad consumida de espacio de tabla en bytes.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.spaceReservedInBytes`
+      </td>
+
+      <td>
+        Espacio de tabla reservado total en bytes.
+      </td>
+
+      <td>
+        <DNT>
+          **<Icon name="fe-check"/>**
+        </DNT>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `tablespace.spaceUsedPercentage`
+      </td>
+
+      <td>
+        Relación entre el espacio de tabla utilizado y el total.
+      </td>
+
+      <td/>
+    </tr>
+  </tbody>
+</table>
+
+## Datos de inventario [#inventory]
+
+La integración de la base de datos de Oracle captura el parámetro de configuración de la base de datos de Oracle. Los datos están disponibles en la [página Inventario](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure), en la fuente <DNT>**config/oracledb**</DNT> . Para obtener más información sobre los datos de inventario, consulte [Comprender los datos de integración](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#inventory-data).
+
+La integración captura datos para el siguiente parámetro de configuración de base de datos de Oracle:
+
+<CollapserGroup>
+  <Collapser
+    id="parameters"
+    title="Parámetros"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "300px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `DBFIPS_140`
+          </td>
+
+          <td>
+            Habilitar el uso de biblioteca criptográfica en modo FIPS, público.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `O7_DICTIONARY_ACCESSIBILITY`
+          </td>
+
+          <td>
+            Soporte de accesibilidad al diccionario versión 7.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `active_instance_count`
+          </td>
+
+          <td>
+            Número de instancias activas en la base de datos del clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `adg_account_info_tracking`
+          </td>
+
+          <td>
+            Información de la cuenta de usuario de ADG rastreada en espera (`LOCAL`) o en primaria (`GLOBAL`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `allow_global_dblinks`
+          </td>
+
+          <td>
+            Búsqueda LDAP para DBLINKS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `allow_group_access_to_sga`
+          </td>
+
+          <td>
+            Permitir acceso de lectura para SGA al usuario del grupo propietario de Oracle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `approx_for_aggregation`
+          </td>
+
+          <td>
+            Reemplace `exact_aggregation` con `approximate_aggregation`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `approx_for_count_distinct`
+          </td>
+
+          <td>
+            Reemplace `count_distinct` con `approx_count_distinct`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `approx_for_percentile`
+          </td>
+
+          <td>
+            Reemplace `percentile_*` con `approx_percentile`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aq_tm_processes`
+          </td>
+
+          <td>
+            Número de administradores de tiempo AQ para comenzar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `archive_lag_target`
+          </td>
+
+          <td>
+            Número máximo de segundos de rehacer que el modo de espera podría perder.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `asm_diskstring`
+          </td>
+
+          <td>
+            Ubicaciones de conjuntos de discos para descubrimiento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `asm_preferred_read_failure_groups`
+          </td>
+
+          <td>
+            Grupos de errores de lectura preferidos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `audit_file_dest`
+          </td>
+
+          <td>
+            Directorio en el que residirán los archivos de auditoría.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `audit_sys_operations`
+          </td>
+
+          <td>
+            Habilite la auditoría del sistema.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `audit_syslog_level`
+          </td>
+
+          <td>
+            Instalación y nivel de Syslog.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `audit_trail`
+          </td>
+
+          <td>
+            Habilitar la auditoría del sistema.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `autotask_max_active_pdbs`
+          </td>
+
+          <td>
+            Configuración para PDB de mantenimiento máximo de tareas automáticas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awr_pdb_autoflush_enabled`
+          </td>
+
+          <td>
+            Activar/desactivar el lavado automático de PDB de AWR.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awr_pdb_max_parallel_slaves`
+          </td>
+
+          <td>
+            Máximo de esclavos AWR PDB MMON simultáneos por instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awr_snapshot_time_offset`
+          </td>
+
+          <td>
+            Configuración para el desplazamiento de tiempo de la instantánea AWR.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `background_core_dump`
+          </td>
+
+          <td>
+            Tamaño del núcleo para procesos en segundo plano.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `background_dump_dest`
+          </td>
+
+          <td>
+            Directorio de volcado de proceso separado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `backup_tape_io_slaves`
+          </td>
+
+          <td>
+            Esclavos de I/O de cinta de respaldo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `bitmap_merge_area_size`
+          </td>
+
+          <td>
+            La memoria máxima permite la combinación de mapas de bits.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `blank_trimming`
+          </td>
+
+          <td>
+            Parámetro semántica de recorte en blanco.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `buffer_pool_keep`
+          </td>
+
+          <td>
+            Número de bloques/latches de base de datos mantenidos grupo de búferes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `buffer_pool_recycle`
+          </td>
+
+          <td>
+            Número de bloques/latches de base de datos en el grupo de búferes de reciclaje.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cdb_cluster`
+          </td>
+
+          <td>
+            Si `TRUE` se inicia en modo de clúster CDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cdb_cluster_name`
+          </td>
+
+          <td>
+            Nombre del clúster CDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offload_compaction`
+          </td>
+
+          <td>
+            Estrategia de compactación de paquetes celulares.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offload_decryption`
+          </td>
+
+          <td>
+            Habilite la descarga de procesamiento SQL de datos cifrados a las celdas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offload_parameters`
+          </td>
+
+          <td>
+            Parámetro de descarga de celda adicional.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offload_plan_display`
+          </td>
+
+          <td>
+            Visualización del plan de explicación de descarga celular.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offload_processing`
+          </td>
+
+          <td>
+            Habilite la descarga del procesamiento SQL a las celdas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cell_offloadgroup_name`
+          </td>
+
+          <td>
+            Establezca el nombre del grupo de descarga.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `circuits`
+          </td>
+
+          <td>
+            Número máximo de circuitos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `client_result_cache_lag`
+          </td>
+
+          <td>
+            Retraso máximo de la caché de resultados del cliente en milisegundos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `client_result_cache_size`
+          </td>
+
+          <td>
+            Tamaño máximo de la caché de resultados del cliente en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `clonedb`
+          </td>
+
+          <td>
+            Clonar base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `clonedb_dir`
+          </td>
+
+          <td>
+            Directorio CloneDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cluster_database`
+          </td>
+
+          <td>
+            Si `TRUE` se inicia en modo de base de datos de clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cluster_database_instances`
+          </td>
+
+          <td>
+            Número de instancias que se utilizarán para dimensionar las estructuras DB SGA del clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cluster_interconnects`
+          </td>
+
+          <td>
+            Interconexiones para uso RAC.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `commit_logging`
+          </td>
+
+          <td>
+            Comportamiento de escritura log de confirmación de transacciones.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `commit_point_strength`
+          </td>
+
+          <td>
+            Sesgo que este nodo tiene para no prepararse en un compromiso de dos fases.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `commit_wait`
+          </td>
+
+          <td>
+            Comportamiento de espera log de confirmación de transacción.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `commit_write`
+          </td>
+
+          <td>
+            Comportamiento de escritura log de confirmación de transacciones.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `common_user_prefix`
+          </td>
+
+          <td>
+            Aplique una restricción a un prefijo de un `user`, `role` o `profile` común.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `compatible`
+          </td>
+
+          <td>
+            La base de datos será completamente compatible con esta versión del software.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_brokers`
+          </td>
+
+          <td>
+            Especificación de intermediarios de conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `containers_parallel_degree`
+          </td>
+
+          <td>
+            Grado paralelo para una consulta `CONTAINERS()` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `control_file_record_keep_time`
+          </td>
+
+          <td>
+            El registro del archivo de control mantiene el tiempo en días.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `control_files`
+          </td>
+
+          <td>
+            Lista de nombres de archivos de control.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `control_management_pack_access`
+          </td>
+
+          <td>
+            Declara qué paquetes de capacidad de administración están habilitados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `core_dump_dest`
+          </td>
+
+          <td>
+            Directorio de volcado de núcleo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cpu_count`
+          </td>
+
+          <td>
+            Número de CPU para esta instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `create_bitmap_area_size`
+          </td>
+
+          <td>
+            Tamaño del búfer de creación de mapa de bits para el índice de mapa de bits.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `create_stored_outlines`
+          </td>
+
+          <td>
+            Cree esquemas almacenados para declaraciones DML.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cursor_bind_capture_destination`
+          </td>
+
+          <td>
+            Destino permitido para variables de enlace capturadas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cursor_invalidation`
+          </td>
+
+          <td>
+            Valor predeterminado para la semántica de invalidación del cursor DDL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cursor_sharing`
+          </td>
+
+          <td>
+            Modo de compartir cursor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cursor_space_for_time`
+          </td>
+
+          <td>
+            Utilice más memoria para obtener una ejecución más rápida.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `data_guard_sync_latency`
+          </td>
+
+          <td>
+            Latencia de sincronización de protección de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `data_transfer_cache_size`
+          </td>
+
+          <td>
+            Tamaño de la caché de transferencia de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_16k_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché para buffers de 16K.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_2k_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché para buffers de 2K.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_32k_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché para buffers de 32K.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_4k_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché para búferes de 4K.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_8k_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché para buffers de 8K.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_big_table_cache_percent_target`
+          </td>
+
+          <td>
+            Tamaño objetivo de caché de tabla grande en porcentaje.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_block_buffers`
+          </td>
+
+          <td>
+            Número de bloques de base de datos almacenados en caché en la memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_block_checking`
+          </td>
+
+          <td>
+            Comprobación de cabeceras y comprobación de bloques de datos e índices.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_block_checksum`
+          </td>
+
+          <td>
+            Almacene la suma de comprobación en bloques de base de datos y verifique durante las lecturas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_block_size`
+          </td>
+
+          <td>
+            Tamaño del bloque de base de datos en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_cache_advice`
+          </td>
+
+          <td>
+            Aviso sobre el tamaño de la caché del búfer.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_cache_size`
+          </td>
+
+          <td>
+            Tamaño del grupo de búferes predeterminado para buffers de tamaño de bloque estándar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_file_dest`
+          </td>
+
+          <td>
+            Ubicación predeterminada de la base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_online_log_dest_1`
+          </td>
+
+          <td>
+            Destino n.º 1 del logde control/registro en línea.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_online_log_dest_2`
+          </td>
+
+          <td>
+            Destino n.º 2 del logde control/registro en línea.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_online_log_dest_3`
+          </td>
+
+          <td>
+            Destino del archivo de control/ logen línea #3.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_online_log_dest_4`
+          </td>
+
+          <td>
+            Destino del archivo de control/ logen línea #4.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_create_online_log_dest_5`
+          </td>
+
+          <td>
+            Destino del archivo de control/ logen línea #5.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_domain`
+          </td>
+
+          <td>
+            Parte del directorio del nombre de la base de datos global almacenado con `CREATE DATABASE`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_file_multiblock_read_count`
+          </td>
+
+          <td>
+            Bloque DB que se leerá en cada I/O.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_file_name_convert`
+          </td>
+
+          <td>
+            El nombre del archivo de datos convierte patrones y cadenas para la base de datos en espera/clon.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_files`
+          </td>
+
+          <td>
+            Número máximo permitido de archivos db.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_flash_cache_file`
+          </td>
+
+          <td>
+            Archivo de caché flash para el tamaño de bloque predeterminado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_flash_cache_size`
+          </td>
+
+          <td>
+            Tamaño de caché flash para `db_flash_cache_file`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_flashback_retention_target`
+          </td>
+
+          <td>
+            Tiempo máximo de retención log de la base de datos flashback en minutos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_index_compression_inheritance`
+          </td>
+
+          <td>
+            Opciones para herencia de compresión a nivel de tabla o espacio de tabla.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_keep_cache_size`
+          </td>
+
+          <td>
+            Tamaño de KEEP grupo de búferes para buffers de tamaño de bloque estándar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_lost_write_protect`
+          </td>
+
+          <td>
+            Habilite la detección de escritura perdida.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_name`
+          </td>
+
+          <td>
+            Nombre de la base de datos especificado en `CREATE DATABASE`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_performance_profile`
+          </td>
+
+          <td>
+            Categoría de rendimiento de la base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_recovery_file_dest`
+          </td>
+
+          <td>
+            Ubicación predeterminada del archivo de recuperación de la base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_recovery_file_dest_size`
+          </td>
+
+          <td>
+            Límite de tamaño de archivos de recuperación de base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_recycle_cache_size`
+          </td>
+
+          <td>
+            Tamaño de RECYCLE grupo de búferes para buffers de tamaño de bloque estándar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_securefile`
+          </td>
+
+          <td>
+            Permitir el almacenamiento seguro de archivos durante la creación del lob.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_ultra_safe`
+          </td>
+
+          <td>
+            Establece valores predeterminados para otros parámetros que controlan los niveles de protección.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_unique_name`
+          </td>
+
+          <td>
+            Nombre único de la base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_unrecoverable_scn_tracking`
+          </td>
+
+          <td>
+            Realice un seguimiento del SCN no registrado en el archivo de control.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `db_writer_processes`
+          </td>
+
+          <td>
+            Número de procesos de creación de base de datos en segundo plano que se van a iniciar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dbwr_io_slaves`
+          </td>
+
+          <td>
+            Esclavos de I/O DBWR.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ddl_lock_timeout`
+          </td>
+
+          <td>
+            Tiempo de espera para restringir el tiempo que DDLS espera el bloqueo DML.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `default_sharing`
+          </td>
+
+          <td>
+            Cláusula de intercambio predeterminada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `deferred_segment_creation`
+          </td>
+
+          <td>
+            Posponga la creación del segmento hasta la primera inserción.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dg_broker_config_file1`
+          </td>
+
+          <td>
+            Archivo de configuración del agente de protección de datos n.º 1.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dg_broker_config_file2`
+          </td>
+
+          <td>
+            Archivo de configuración del agente de protección de datos n.º 2.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dg_broker_start`
+          </td>
+
+          <td>
+            Inicie el intermediario de protección de datos (proceso DMON).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `diagnostic_dest`
+          </td>
+
+          <td>
+            Directorio base de diagnóstico.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `disable_pdb_feature`
+          </td>
+
+          <td>
+            Desactivar característica.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `disk_asynch_io`
+          </td>
+
+          <td>
+            Utilice I/O asíncronas para dispositivos de acceso aleatorio.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dispatchers`
+          </td>
+
+          <td>
+            Especificaciones de los despachadores.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `distributed_lock_timeout`
+          </td>
+
+          <td>
+            Número de segundos que una transacción distribuida espera un bloqueo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dml_locks`
+          </td>
+
+          <td>
+            Bloqueos DML: uno para cada tabla modificada en una transacción.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dnfs_batch_size`
+          </td>
+
+          <td>
+            Número máximo de solicitudes de I/O asíncronas dNFS en cola por sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_upgrade_insert_conv`
+          </td>
+
+          <td>
+            Activa/desactiva las conversiones internas durante la actualización de DST.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enable_automatic_maintenance_pdb`
+          </td>
+
+          <td>
+            Habilitar/deshabilitar el mantenimiento automatizado para PDB no raíz.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enable_ddl_logging`
+          </td>
+
+          <td>
+            Habilite el registro DDL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enable_dnfs_dispatcher`
+          </td>
+
+          <td>
+            Habilite el despachador DNFS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enable_goldengate_replication`
+          </td>
+
+          <td>
+            Replicación de Goldengate habilitada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enable_pluggable_database`
+          </td>
+
+          <td>
+            Habilite la base de datos conectable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enabled_PDBs_on_standby`
+          </td>
+
+          <td>
+            Lista de patrones PDB habilitados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `encrypt_new_tablespaces`
+          </td>
+
+          <td>
+            Si se deben cifrar los espacios de tabla recién creados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `event`
+          </td>
+
+          <td>
+            Control de eventos de depuración: cadena nula predeterminada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `exafusion_enabled`
+          </td>
+
+          <td>
+            Habilitar la exageración.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `external_keystore_credential_location`
+          </td>
+
+          <td>
+            Ubicación de credenciales del almacén de claves externo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fal_client`
+          </td>
+
+          <td>
+            Cliente FAL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fal_server`
+          </td>
+
+          <td>
+            Lista de servidores FAL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fast_start_io_target`
+          </td>
+
+          <td>
+            Límite superior en lecturas de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fast_start_mttr_target`
+          </td>
+
+          <td>
+            Objetivo MTTR en segundos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fast_start_parallel_rollback`
+          </td>
+
+          <td>
+            Número máximo de esclavos de recuperación paralelos que se pueden utilizar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `file_mapping`
+          </td>
+
+          <td>
+            Habilitar archivo mapeo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fileio_network_adapters`
+          </td>
+
+          <td>
+            Adaptadores de red para I/O de archivos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `filesystemio_options`
+          </td>
+
+          <td>
+            Operaciones IO en archivos del sistema de archivos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fixed_date`
+          </td>
+
+          <td>
+            Valor fijo de `SYSDATE` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `forward_listener`
+          </td>
+
+          <td>
+            Oyente adelantado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `gcs_server_processes`
+          </td>
+
+          <td>
+            Número de procesos del servidor gcs en segundo plano que se iniciarán.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `global_names`
+          </td>
+
+          <td>
+            Haga cumplir que los enlaces de la base de datos tengan el mismo nombre que la base de datos remota.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `global_txn_processes`
+          </td>
+
+          <td>
+            Número de procesos de transacción global en segundo plano a iniciar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hash_area_size`
+          </td>
+
+          <td>
+            Tamaño del área de trabajo hash en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `heat_map`
+          </td>
+
+          <td>
+            Seguimiento del mapa de calor de ILM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hi_shared_memory_address`
+          </td>
+
+          <td>
+            Dirección inicial SGA (orden superior de 32 bits en plataforma de 64 bits).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `hs_autoregister`
+          </td>
+
+          <td>
+            Habilite las actualizaciones automáticas de DD del servidor en el autoregistro del agente HS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ifile`
+          </td>
+
+          <td>
+            Incluir archivo en `init.Ora`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_adg_enabled`
+          </td>
+
+          <td>
+            Habilite la compatibilidad con IMC en ADG.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_automatic_level`
+          </td>
+
+          <td>
+            Habilite la gestión automática en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_clause_default`
+          </td>
+
+          <td>
+            Cláusula en memoria predeterminada para tablas nuevas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_expressions_usage`
+          </td>
+
+          <td>
+            Controla qué expresiones en memoria se completan en la memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_force`
+          </td>
+
+          <td>
+            Forzar que las tablas estén en memoria o no.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_max_populate_servers`
+          </td>
+
+          <td>
+            Servidores con capacidad máxima de memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_optimized_arithmetic`
+          </td>
+
+          <td>
+            Controla si los DSB se almacenan o no en la memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_prefer_xmem_memcompress`
+          </td>
+
+          <td>
+            Prefiere almacenar tablas con niveles de memcompress dados en xmem.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_prefer_xmem_priority`
+          </td>
+
+          <td>
+            Prefiere almacenar tablas con niveles de prioridad determinados en xmem.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_query`
+          </td>
+
+          <td>
+            Especifica si se permiten consultas en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del área en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_trickle_repopulate_servers_percent`
+          </td>
+
+          <td>
+            El goteo de memoria repobla el porcentaje de servidores.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_virtual_columns`
+          </td>
+
+          <td>
+            Controla qué columnas virtuales definidas por el usuario se almacenan en la memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `inmemory_xmem_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del área xmem en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_abort_delay_time`
+          </td>
+
+          <td>
+            Tiempo para retrasar un aborto iniciado internamente (en segundos).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_groups`
+          </td>
+
+          <td>
+            Lista de nombres de grupos de instancias.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_mode`
+          </td>
+
+          <td>
+            Indica si la instancia es de solo lectura, de lectura y escritura o de lectura mayoritaria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_name`
+          </td>
+
+          <td>
+            Nombre de instancia admitido por la instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_number`
+          </td>
+
+          <td>
+            Número de instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instance_type`
+          </td>
+
+          <td>
+            Tipo de instancia a ejecutar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instant_restore`
+          </td>
+
+          <td>
+            Repoblación instantánea de archivos de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `java_jit_enabled`
+          </td>
+
+          <td>
+            Máquina virtual Java (VM) JIT habilitado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `java_max_sessionspace_size`
+          </td>
+
+          <td>
+            Tamaño máximo permitido en bytes de un espacio de sesión Java.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `java_pool_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del grupo de Java.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `java_restrict`
+          </td>
+
+          <td>
+            Restringir el acceso a la máquina virtual (VM) Java.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `java_soft_sessionspace_limit`
+          </td>
+
+          <td>
+            Límite de advertencia sobre el tamaño en bytes de un espacio de sesión Java.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `job_queue_processes`
+          </td>
+
+          <td>
+            Número máximo de procesos esclavos de la cola de trabajos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `large_pool_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del grupo grande.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ldap_directory_access`
+          </td>
+
+          <td>
+            Opción de acceso LDAP de RDBMS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ldap_directory_sysauth`
+          </td>
+
+          <td>
+            Parámetro de uso de OID.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `license_max_sessions`
+          </td>
+
+          <td>
+            Número máximo de sesiones de usuarios no pertenecientes al sistema permitidas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `license_max_users`
+          </td>
+
+          <td>
+            Número máximo de usuarios nombrados que se pueden crear en la base de datos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `license_sessions_warning`
+          </td>
+
+          <td>
+            Nivel de advertencia para el número de sesiones de usuarios que no son del sistema.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `listener_networks`
+          </td>
+
+          <td>
+            Redes de registro de oyentes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `local_listener`
+          </td>
+
+          <td>
+            Oyente local.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `lock_name_space`
+          </td>
+
+          <td>
+            Espacio de nombres de bloqueo utilizado para generar nombres de bloqueo para la base de datos en espera/clon.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `lock_sga`
+          </td>
+
+          <td>
+            Bloquee todo el SGA en la memoria física.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_config`
+          </td>
+
+          <td>
+            Configuración del archivo log.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest`
+          </td>
+
+          <td>
+            Cadena de texto de destino de archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_1`
+          </td>
+
+          <td>
+            Cadena de texto del destino n.º 1 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_10`
+          </td>
+
+          <td>
+            Cadena de texto del destino n.º 10 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_11`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 11.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_12`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 12.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_13`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 13.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_14`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 14.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_15`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 15.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_16`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 16.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_17`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 17.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_18`
+          </td>
+
+          <td>
+            Cadena de texto del destino n.º 18 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_19`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 19.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_2`
+          </td>
+
+          <td>
+            Cadena de texto del destino n.º 2 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_20`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 20.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_21`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 21.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_22`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 22.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_23`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 23.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_24`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 24.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_25`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 25.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_26`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 26.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_27`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 27.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_28`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 28.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_29`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 29.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_3`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 3.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_30`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 30.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_31`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 31.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_4`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 4.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_5`
+          </td>
+
+          <td>
+            Cadena de texto del destino n.º 5 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_6`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 6.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_7`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 7.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_8`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 8.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_9`
+          </td>
+
+          <td>
+            Cadena de texto del destino de archivo n.º 9.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_1`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 1 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_10`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 10 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_11`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 11 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_12`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 12 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_13`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 13.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_14`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 14 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_15`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 15 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_16`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 16 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_17`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 17.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_18`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 18 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_19`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 19.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_2`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 2.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_20`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 20 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_21`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 21.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_22`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 22.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_23`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 23.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_24`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 24.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_25`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 25.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_26`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 26.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_27`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 27.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_28`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 28 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_29`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 29.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_3`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 3.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_30`
+          </td>
+
+          <td>
+            Destino de archivo #30 cadena de texto de estado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_31`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 31.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_4`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 4 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_5`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 5.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_6`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 6.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_7`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 7.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_8`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino n.º 8 del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_dest_state_9`
+          </td>
+
+          <td>
+            Cadena de texto del estado del destino de archivo n.º 9.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_duplex_dest`
+          </td>
+
+          <td>
+            Cadena de texto de destino de archivo dúplex.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_format`
+          </td>
+
+          <td>
+            Formato de destino del archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_max_processes`
+          </td>
+
+          <td>
+            Número máximo de procesos ARCH activos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_min_succeed_dest`
+          </td>
+
+          <td>
+            Número mínimo de destinos de archivo que deben tener éxito.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_start`
+          </td>
+
+          <td>
+            Inicie el proceso de archivo en la inicialización de SGA.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_archive_trace`
+          </td>
+
+          <td>
+            Establecer el nivel de seguimiento de la operación de archivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_buffer`
+          </td>
+
+          <td>
+            Rehacer el tamaño del búfer circular.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_checkpoint_interval`
+          </td>
+
+          <td>
+            Número de umbral de punto de control de bloques de rehacer.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_checkpoint_timeout`
+          </td>
+
+          <td>
+            Intervalo de tiempo máximo entre puntos de control en segundos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_checkpoints_to_alert`
+          </td>
+
+          <td>
+            Iniciar/finalizar el punto de control log del archivo de alerta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `log_file_name_convert`
+          </td>
+
+          <td>
+            El nombre del archivo de registro convierte patrones y cadenas para la base de datos en espera/clon.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `long_module_action`
+          </td>
+
+          <td>
+            Utilice un módulo y una acción más largos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_datapump_jobs_per_pdb`
+          </td>
+
+          <td>
+            Número máximo de trabajos de bombeo de datos simultáneos por PDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_dispatchers`
+          </td>
+
+          <td>
+            Número máximo de despachadores.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_dump_file_size`
+          </td>
+
+          <td>
+            Tamaño máximo (en bytes) del archivo de volcado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_idle_time`
+          </td>
+
+          <td>
+            Tiempo máximo de inactividad de la sesión en minutos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_iops`
+          </td>
+
+          <td>
+            MÁXIMA I/O por segundo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_mbps`
+          </td>
+
+          <td>
+            MÁXIMO MB por segundo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_pdbs`
+          </td>
+
+          <td>
+            Número máximo de pdbs permitidos en CDB o ROOT de aplicación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_shared_servers`
+          </td>
+
+          <td>
+            Número máximo de servidores compartidos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `max_string_size`
+          </td>
+
+          <td>
+            Controla el tamaño máximo de los tipos `VARCHAR2`, `NVARCHAR2` y `RAW` en SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `memoptimize_pool_size`
+          </td>
+
+          <td>
+            Tamaño de la caché para buffers imoltp.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `memory_max_target`
+          </td>
+
+          <td>
+            Tamaño máximo para la memoria objetivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `memory_target`
+          </td>
+
+          <td>
+            Tamaño objetivo de la memoria Oracle SGA y PGA.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `multishard_query_data_consistency`
+          </td>
+
+          <td>
+            Configuración de coherencia para consulta de múltiples fragmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `multishard_query_partial_results`
+          </td>
+
+          <td>
+            Habilite resultados parciales para consulta multishard.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_calendar`
+          </td>
+
+          <td>
+            Nombre del sistema de calendario NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_comp`
+          </td>
+
+          <td>
+            Comparación NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_currency`
+          </td>
+
+          <td>
+            Símbolo de moneda local NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_date_format`
+          </td>
+
+          <td>
+            Formato de fecha NLS Oracle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_date_language`
+          </td>
+
+          <td>
+            Nombre del idioma de la fecha NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_dual_currency`
+          </td>
+
+          <td>
+            Símbolo de moneda dual.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_iso_currency`
+          </td>
+
+          <td>
+            Nombre del territorio de moneda ISO NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_language`
+          </td>
+
+          <td>
+            Nombre del idioma NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_length_semantics`
+          </td>
+
+          <td>
+            Cree columnas utilizando la semántica de bytes o caracteres de forma predeterminada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_nchar_conv_excp`
+          </td>
+
+          <td>
+            NLS genera una excepción en lugar de permitir la conversión implícita.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_numeric_characters`
+          </td>
+
+          <td>
+            Caracteres numéricos NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_sort`
+          </td>
+
+          <td>
+            Nombre de la definición lingüística NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_territory`
+          </td>
+
+          <td>
+            Nombre del territorio NLS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_time_format`
+          </td>
+
+          <td>
+            Formato de tiempo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_time_tz_format`
+          </td>
+
+          <td>
+            Hora con formato de zona horaria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_timestamp_format`
+          </td>
+
+          <td>
+            Formato de marca de tiempo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `nls_timestamp_tz_format`
+          </td>
+
+          <td>
+            Timestamp con formato de zona horaria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `noncdb_compatible`
+          </td>
+
+          <td>
+            No compatible con CDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `object_cache_max_size_percent`
+          </td>
+
+          <td>
+            Porcentaje del tamaño máximo sobre el óptimo de la caché de objetos de la sesión del usuario.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `object_cache_optimal_size`
+          </td>
+
+          <td>
+            Tamaño óptimo de la caché de objetos de la sesión del usuario en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ofs_threads`
+          </td>
+
+          <td>
+            Número de subprocesos OFS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `olap_page_pool_size`
+          </td>
+
+          <td>
+            Tamaño del grupo de páginas olap en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `one_step_plugin_for_pdb_with_tde`
+          </td>
+
+          <td>
+            Facilite el complemento de un solo paso para PDB con datos cifrados TDE.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `open_cursors`
+          </td>
+
+          <td>
+            Número máximo de cursores por sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `open_links`
+          </td>
+
+          <td>
+            Número máximo de enlaces abiertos por sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `open_links_per_instance`
+          </td>
+
+          <td>
+            Número máximo de enlaces abiertos por instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_adaptive_plans`
+          </td>
+
+          <td>
+            Controla todo tipo de planes adaptativos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_adaptive_reporting_only`
+          </td>
+
+          <td>
+            Utilice el modo de solo informes para optimizaciones adaptativas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_adaptive_statistics`
+          </td>
+
+          <td>
+            Controla todo tipo de estadísticas adaptativas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_capture_sql_plan_baselines`
+          </td>
+
+          <td>
+            Captura automática de línea de base del plan SQL para declaraciones repetibles.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_dynamic_sampling`
+          </td>
+
+          <td>
+            Muestreo dinámico del optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_features_enable`
+          </td>
+
+          <td>
+            Parámetro de compatibilidad del plan optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_ignore_hints`
+          </td>
+
+          <td>
+            Permite ignorar las sugerencias incrustadas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_ignore_parallel_hints`
+          </td>
+
+          <td>
+            Permite ignorar las sugerencias paralelas incrustadas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_index_caching`
+          </td>
+
+          <td>
+            Almacenamiento en caché del índice de porcentaje del optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_index_cost_adj`
+          </td>
+
+          <td>
+            Ajuste del coste del índice optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_inmemory_aware`
+          </td>
+
+          <td>
+            Conciencia de columnas en memoria del optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_mode`
+          </td>
+
+          <td>
+            Modo optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_secure_view_merging`
+          </td>
+
+          <td>
+            El optimizador asegura la fusión de vistas y el desplazamiento/desplazamiento de predicados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_use_invisible_indexes`
+          </td>
+
+          <td>
+            Uso de índices invisibles (`TRUE` o `FALSE`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_use_pending_statistics`
+          </td>
+
+          <td>
+            Controlar si se utilizan estadísticas pendientes del optimizador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `optimizer_use_sql_plan_baselines`
+          </td>
+
+          <td>
+            Uso del plan SQL línea de base para sentencias sql capturadas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `os_authent_prefix`
+          </td>
+
+          <td>
+            Prefijo para cuentas de inicio de sesión automático.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `os_roles`
+          </td>
+
+          <td>
+            Recuperar roles del sistema operativo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `outbound_dblink_protocols`
+          </td>
+
+          <td>
+            Se permiten protocolos DBLINK salientes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_adaptive_multi_user`
+          </td>
+
+          <td>
+            Habilite la configuración adaptable de grado para múltiples flujos de usuarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_degree_limit`
+          </td>
+
+          <td>
+            Límite impuesto al grado de paralelismo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_degree_policy`
+          </td>
+
+          <td>
+            Política utilizada para calcular el grado de paralelismo (`MANUAL`, `LIMITED`, `AUTO` o `ADAPTIVE`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_execution_message_size`
+          </td>
+
+          <td>
+            Tamaño del búfer de mensajes para ejecución paralela.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_force_local`
+          </td>
+
+          <td>
+            Forzar la ejecución de una sola instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_instance_group`
+          </td>
+
+          <td>
+            Grupo de instancias que se utilizará para todas las operaciones paralelas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_max_servers`
+          </td>
+
+          <td>
+            Máximo de servidores de consulta paralelos por instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_min_degree`
+          </td>
+
+          <td>
+            Controla el DOP mínimo calculado mediante DOP automático.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_min_percent`
+          </td>
+
+          <td>
+            Porcentaje mínimo de subprocesos requeridos para consultas paralelas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_min_servers`
+          </td>
+
+          <td>
+            Servidores de consulta paralelos mínimos por instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_min_time_threshold`
+          </td>
+
+          <td>
+            Umbral por encima del cual un plan es candidato a paralelización (en segundos).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_servers_target`
+          </td>
+
+          <td>
+            Instancia objetivo en términos de número de servidores paralelos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `parallel_threads_per_cpu`
+          </td>
+
+          <td>
+            Número de subprocesos de ejecución paralelos por CPU.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb_file_name_convert`
+          </td>
+
+          <td>
+            Nombre de archivo PDB convierte patrones y cadenas para crear cdb/pdb.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb_lockdown`
+          </td>
+
+          <td>
+            Perfil de bloqueo de base de datos conectable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb_os_credential`
+          </td>
+
+          <td>
+            Credencial de sistema operativo de base de datos conectable para vincular.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pdb_template`
+          </td>
+
+          <td>
+            Plantilla PDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `permit_92_wrap_format`
+          </td>
+
+          <td>
+            Permitir formato de ajuste 9.2 o anterior en PL/SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pga_aggregate_limit`
+          </td>
+
+          <td>
+            Límite de memoria PGA agregada para la instancia o PDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pga_aggregate_target`
+          </td>
+
+          <td>
+            Tamaño objetivo para la memoria PGA agregada consumida por la instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plscope_settings`
+          </td>
+
+          <td>
+            Plscope_settings controla la recopilación en tiempo de compilación, las referencias cruzadas y el almacenamiento del identificador de código fuente PL/SQL y los datos de declaraciones SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_ccflags`
+          </td>
+
+          <td>
+            PL/SQL ccflags.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_code_type`
+          </td>
+
+          <td>
+            PL/SQL code-type.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_debug`
+          </td>
+
+          <td>
+            PL/SQL debug.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_optimize_level`
+          </td>
+
+          <td>
+            Nivel de optimización de PL/SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_v2_compatibility`
+          </td>
+
+          <td>
+            Indicador de compatibilidad de PL/SQL versión 2.X.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plsql_warnings`
+          </td>
+
+          <td>
+            Configuración de advertencias del compilador PL/SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pre_page_sga`
+          </td>
+
+          <td>
+            Sga de página previa para el proceso.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `private_temp_table_prefix`
+          </td>
+
+          <td>
+            Prefijo de tabla temporal privada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `processes`
+          </td>
+
+          <td>
+            Procesos de usuario.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `processor_group_name`
+          </td>
+
+          <td>
+            Nombre del grupo de procesadores en el que debe ejecutarse esta instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query_rewrite_enabled`
+          </td>
+
+          <td>
+            Permitir la reescritura de la consulta utilizando vistas materializadas si está habilitado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query_rewrite_integrity`
+          </td>
+
+          <td>
+            Realice una reescritura utilizando vistas materializadas con la integridad deseada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rdbms_server_dn`
+          </td>
+
+          <td>
+            Nombre distinguido de RDBMS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `read_only_open_delayed`
+          </td>
+
+          <td>
+            Si `TRUE` retrasa la apertura de archivos de solo lectura hasta el primer acceso.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `recovery_parallelism`
+          </td>
+
+          <td>
+            Número de procesos de servidor que se utilizarán para la recuperación paralela.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `recyclebin`
+          </td>
+
+          <td>
+            Procesamiento de papelera de reciclaje.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `redo_transport_user`
+          </td>
+
+          <td>
+            Usuario de transporte de protección de datos cuando se utiliza un archivo de contraseña.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_dependencies_mode`
+          </td>
+
+          <td>
+            Parámetro de modo de dependencia de llamada de procedimiento remoto.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_listener`
+          </td>
+
+          <td>
+            Oyente remoto.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_login_passwordfile`
+          </td>
+
+          <td>
+            Parámetro de uso del archivo de contraseña.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_os_authent`
+          </td>
+
+          <td>
+            Permitir que los clientes remotos no seguros utilicen cuentas de inicio de sesión automático.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_os_roles`
+          </td>
+
+          <td>
+            Permitir que los clientes remotos no seguros utilicen funciones del sistema operativo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `remote_recovery_file_dest`
+          </td>
+
+          <td>
+            Ubicación predeterminada del archivo de recuperación de base de datos remota para actualización/reubicación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `replication_dependency_tracking`
+          </td>
+
+          <td>
+            Seguimiento de la dependencia para la propagación paralela de replicación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resource_limit`
+          </td>
+
+          <td>
+            Interruptor maestro para límite de recursos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resource_manage_goldengate`
+          </td>
+
+          <td>
+            Administrador de recursos Goldengate habilitado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resource_manager_cpu_allocation`
+          </td>
+
+          <td>
+            Asignación de CPU del Administrador de recursos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resource_manager_plan`
+          </td>
+
+          <td>
+            Plan superior del administrador de recursos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `result_cache_max_result`
+          </td>
+
+          <td>
+            Tamaño máximo del resultado como porcentaje del tamaño de la caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `result_cache_max_size`
+          </td>
+
+          <td>
+            Cantidad máxima de memoria que utilizará la caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `result_cache_mode`
+          </td>
+
+          <td>
+            Modo de uso del operador de caché de resultados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `result_cache_remote_expiration`
+          </td>
+
+          <td>
+            Tiempo de vida máximo (min) para cualquier resultado utilizando un objeto remoto.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resumable_timeout`
+          </td>
+
+          <td>
+            Establecer tiempo de espera reanudable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rollback_segments`
+          </td>
+
+          <td>
+            Deshacer lista de segmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sec_case_sensitive_logon`
+          </td>
+
+          <td>
+            Contraseña que distingue entre mayúsculas y minúsculas habilitada para iniciar sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sec_max_failed_login_attempts`
+          </td>
+
+          <td>
+            Número máximo de intentos fallidos de inicio de sesión en una conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sec_protocol_error_further_action`
+          </td>
+
+          <td>
+            Error de protocolo TTC continuar con la acción.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sec_protocol_error_trace_action`
+          </td>
+
+          <td>
+            Acción de error del protocolo TTC.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sec_return_server_release_banner`
+          </td>
+
+          <td>
+            Si el servidor devuelve la información completa de la versión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `serial_reuse`
+          </td>
+
+          <td>
+            Reutilice los segmentos del marco.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `service_names`
+          </td>
+
+          <td>
+            Nombres de servicios admitidos por la instancia.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `session_cached_cursors`
+          </td>
+
+          <td>
+            Número de cursores para almacenar en caché en una sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `session_max_open_files`
+          </td>
+
+          <td>
+            Número máximo de archivos abiertos permitidos por sesión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sessions`
+          </td>
+
+          <td>
+            Sesiones de usuario y sistema.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sga_max_size`
+          </td>
+
+          <td>
+            Tamaño máximo total de SGA.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sga_min_size`
+          </td>
+
+          <td>
+            Tamaño mínimo garantizado del SGA de PDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sga_target`
+          </td>
+
+          <td>
+            Tamaño objetivo de SGA.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shadow_core_dump`
+          </td>
+
+          <td>
+            Tamaño del núcleo para procesos de sombra.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shared_memory_address`
+          </td>
+
+          <td>
+            Dirección inicial SGA (orden bajo de 32 bits en plataforma de 64 bits).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shared_pool_reserved_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del área reservada del grupo compartido.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shared_pool_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del grupo compartido.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shared_server_sessions`
+          </td>
+
+          <td>
+            Número máximo de sesiones de servidor compartido.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shared_servers`
+          </td>
+
+          <td>
+            Número de servidores compartidos para poner en marcha.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shrd_dupl_table_refresh_rate`
+          </td>
+
+          <td>
+            Frecuencia de actualización de tabla duplicada (en segundos).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `skip_unusable_indexes`
+          </td>
+
+          <td>
+            Omita los índices inutilizables si se establece en `TRUE`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `smtp_out_server`
+          </td>
+
+          <td>
+            Parámetro de configuración de puerto y servidor utl_smtp.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sort_area_retained_size`
+          </td>
+
+          <td>
+            Tamaño del área de trabajo de clasificación en memoria retenida entre llamadas de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sort_area_size`
+          </td>
+
+          <td>
+            Tamaño del área de trabajo de clasificación en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `spatial_vector_acceleration`
+          </td>
+
+          <td>
+            Habilite la aceleración del vector espacial.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `spfile`
+          </td>
+
+          <td>
+            Archivo de parámetros del servidor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sql92_security`
+          </td>
+
+          <td>
+            Requerir privilegio de selección para la actualización/eliminación buscada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sql_trace`
+          </td>
+
+          <td>
+            Habilite la traza SQL.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sqltune_category`
+          </td>
+
+          <td>
+            Calificador de categoría para aplicar conjuntos de sugerencias.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `standby_db_preserve_states`
+          </td>
+
+          <td>
+            Preservar la transición de funciones entre estados de espera.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `standby_file_management`
+          </td>
+
+          <td>
+            Si es automático, los archivos se crean/eliminan automáticamente en modo de espera.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `standby_pdb_source_file_dblink`
+          </td>
+
+          <td>
+            Enlace de base de datos a archivos fuente en espera.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `standby_pdb_source_file_directory`
+          </td>
+
+          <td>
+            Ubicación del directorio del archivo fuente en espera.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `star_transformation_enabled`
+          </td>
+
+          <td>
+            Habilite el uso de la transformación de estrellas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `statistics_level`
+          </td>
+
+          <td>
+            Nivel de estadísticas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `streams_pool_size`
+          </td>
+
+          <td>
+            Tamaño en bytes del grupo de transmisiones.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `tape_asynch_io`
+          </td>
+
+          <td>
+            Utilice solicitudes de I/O asíncronas para dispositivos de cinta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_pdbs`
+          </td>
+
+          <td>
+            El parámetro es una pista para ajustar cierto atributo del CDB.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `tde_configuration`
+          </td>
+
+          <td>
+            Configuración por PDB para cifrado tata transparente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `temp_undo_enabled`
+          </td>
+
+          <td>
+            ¿Está habilitada la deshacer temporal?
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `thread`
+          </td>
+
+          <td>
+            Rehacer la rosca para montar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threaded_execution`
+          </td>
+
+          <td>
+            Modo de ejecución subproceso.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timed_os_statistics`
+          </td>
+
+          <td>
+            Intervalo de recopilación de estadísticas del sistema operativo interno en segundos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timed_statistics`
+          </td>
+
+          <td>
+            Mantener estadísticas internas de cronometraje.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `trace_enabled`
+          </td>
+
+          <td>
+            Habilitar el seguimiento en memoria.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `tracefile_identifier`
+          </td>
+
+          <td>
+            Identificador personalizado del archivo de traza.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transactions`
+          </td>
+
+          <td>
+            Máx. Número de transacciones activas concurrentes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transactions_per_rollback_segment`
+          </td>
+
+          <td>
+            Número de transacciones activas por segmento de rollback.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `undo_management`
+          </td>
+
+          <td>
+            La instancia se ejecuta en modo SMU si es `TRUE`; en caso contrario, en modo RBU.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `undo_retention`
+          </td>
+
+          <td>
+            Deshacer la retención en segundos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `undo_tablespace`
+          </td>
+
+          <td>
+            Usar/cambiar deshacer espacio de tabla.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unified_audit_sga_queue_size`
+          </td>
+
+          <td>
+            Tamaño de la cola SGA de auditoría unificada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unified_audit_systemlog`
+          </td>
+
+          <td>
+            Instalación y nivel de Syslog para auditoría unificada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `uniform_log_timestamp_format`
+          </td>
+
+          <td>
+            Utilice formatos timestamp uniformes en comparación con los anteriores a 12.2 formatos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `use_dedicated_broker`
+          </td>
+
+          <td>
+            Utilice un intermediario de conexión dedicado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `use_large_pages`
+          </td>
+
+          <td>
+            Utilice páginas grandes si están disponibles (`TRUE`, `FALSE` o `ONLY`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `user_dump_dest`
+          </td>
+
+          <td>
+            Directorio de volcado de procesos de usuario.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `version`
+          </td>
+
+          <td>
+            Versión de la base de datos Oracle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `xwallet_root`
+          </td>
+
+          <td>
+            Parámetro de inicialización de instancia raíz de billetera.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `workarea_size_policy`
+          </td>
+
+          <td>
+            Política utilizada para dimensionar las áreas de trabajo de SQL (```MANUAL``AUTO```).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Resolución de problemas [#troubleshoot]
+
+Consejos para la resolución de problemas:
+
+<CollapserGroup id="troubleshooting-list">
+  <Collapser
+    id="library-not-loaded"
+    title="La biblioteca de Oracle no se puede cargar"
+  >
+    Si realiza el monitoreo de forma remota, instale [Oracle Instant Client](https://www.oracle.com/technetwork/topics/linuxx86-64soft-092277.html) y siga las instrucciones sobre cómo agregar `libclntsh.so` a la ruta de búsqueda de la biblioteca compartida.
+
+    Si realiza el monitoreo desde el cuadro con Oracle base de datos instalado, instale [Oracle Instant Client](https://www.oracle.com/technetwork/topics/linuxx86-64soft-092277.html) y agregue la ruta `ORACLE_HOME/lib` a la ruta de búsqueda `ldconfig` .
+  </Collapser>
+
+  <Collapser
+    id="oracle-home"
+    title={<><InlineCode>ORACLE_HOME</InlineCode> no está configurado correctamente</>}
+  >
+    Este error aparecerá en el registro como `[ERR] ORA-01284: Error while trying to retrieve text for error`.
+
+    Para evitar este error, asegúrese de que `ORACLE_HOME` esté configurado correctamente para el proceso del agente. El agente se ejecuta como root, por lo que su entorno no es el mismo que el del usuario de Oracle.
+
+    Para verificar esta configuración, ejecute `cat /proc/$(pgrep newrelic-infra)/environ` para imprimir las variables de entorno para el proceso de infraestructura; la salida debe incluir `ORACLE_HOME` si está configurado correctamente.
+  </Collapser>
+
+  <Collapser
+    id="ora-error"
+    title={<>Recibo un error <InlineCode>ORA</InlineCode></>}
+  >
+    Para resolver errores del tipo `ORA`, consulte [la lista de errores de Oracle](https://docs.oracle.com/en/database/oracle/oracle-database/18/errmg/).
+  </Collapser>
+</CollapserGroup>
+
+## Comprueba el código fuente [#source-code]
+
+Esta integración es software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/nri-oracledb) y enviar mejoras, o crear tu propia bifurcación y compilarla.

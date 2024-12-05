@@ -1,0 +1,329 @@
+---
+title: 'Grid'
+metaDescription: 'Learn how to work the Grid component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Grid is a 2-dimensional layout system, meaning that it can handle both columns and rows, that helps you design grid-based user interfaces, unlike `<Stack>` which is largely a 1-dimensional system.
+
+### Usage
+
+```js
+import { Grid } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<>
+  <Grid>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={1}>
+      <div className="nr1-RedBox">1</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={2}>
+      <div className="nr1-RedBox">2</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={6}>
+      <div className="nr1-RedBox">6</div>
+    </GridItem>
+    <GridItem columnSpan={6}>
+      <div className="nr1-RedBox">6</div>
+    </GridItem>
+    <GridItem columnSpan={12}>
+      <div className="nr1-RedBox">12</div>
+    </GridItem>
+  </Grid>
+</>
+```
+
+#### Medium gap type
+
+```js
+<>
+  <Grid gapType={Grid.GAP_TYPE.MEDIUM}>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+  </Grid>
+</>
+```
+
+#### Small gap type
+
+```js
+<>
+  <Grid gapType={Grid.GAP_TYPE.SMALL}>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={3}>
+      <div className="nr1-RedBox">3</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+  </Grid>
+</>
+```
+
+#### Columns
+
+```js
+<Grid>
+  <GridItem columnStart={1} columnEnd={6}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={2} columnEnd={7}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={3} columnEnd={8}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={4} columnEnd={9}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={5} columnEnd={10}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={6} columnEnd={11}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+  <GridItem columnStart={7} columnEnd={12}>
+    <div className="nr1-RedBox">6</div>
+  </GridItem>
+</Grid>
+```
+
+#### Collapse gap
+
+```js
+<>
+  <Grid>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4} collapseGapBefore>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4} collapseGapBefore collapseGapAfter>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4} collapseGapAfter>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+    <GridItem columnSpan={4}>
+      <div className="nr1-RedBox">4</div>
+    </GridItem>
+  </Grid>
+</>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Grid items to display.Up to 12 items are allowed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the grid to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the grid to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `gapType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Size of the gap between columns and rows.<OptionReference>Grid.GAP_TYPE.MEDIUMGrid.GAP_TYPE.SMALL</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Grid.SPACING_TYPE.EXTRA_LARGE,
+          Grid.SPACING_TYPE.LARGE,
+          Grid.SPACING_TYPE.MEDIUM,
+          Grid.SPACING_TYPE.NONE,
+          Grid.SPACING_TYPE.OMIT,
+          Grid.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

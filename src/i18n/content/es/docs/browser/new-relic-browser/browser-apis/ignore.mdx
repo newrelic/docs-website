@@ -1,0 +1,59 @@
+---
+title: ignore (SPA API)
+type: apiDoc
+shortDescription: Anula otras llamadas SPA save(); ignora una interacción por lo que no se guarda ni se envía a New Relic.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser monitoring to override other save calls; ignores an interaction so it is not be saved or sent to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.interaction().ignore()
+```
+
+Anula otras llamadas SPA `save()` ; ignora una interacción por lo que no se guarda ni se envía a New Relic.
+
+## Requisitos
+
+* Browser Pro+SPA agente (v963 o superior)
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar la característica `spa` al crear una instancia de la clase `BrowserAgent` . En la matriz `features` , agregue lo siguiente:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  Para obtener más información, consulte la [documentación de instalación del navegador npm](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+Este método SPA hará que se ignore una interacción. No se guardará ni se enviará a New Relic. Este método anula cualquier llamada anterior o posterior a [`save()`](/docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicinteractionsave).
+
+## Valores de retorno
+
+Este método devuelve el mismo objeto API creado por `interaction()`.
+
+## Ejemplos
+
+```js
+router.addRoute('/uninteresting-route', () => {
+  newrelic.interaction() // Get handle to current interaction.
+    .ignore(); // Ignore this interaction to ensure it will not be saved.
+  renderUninterestingRoute(); // Render route.
+});
+```

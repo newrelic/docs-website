@@ -1,0 +1,738 @@
+---
+title: NRQLでAPMメトリクスのタイムスライスデータを照会する
+metaDescription: 'In New Relic, you can query metric timeslice data from APM using NRQL.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+APM は、メトリクス データを[メトリック タイムスライス データ](/docs/using-new-relic/data/understand-data/new-relic-data-types#timeslice-data)の形式でレポートします[。NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を使用して、このタイプのデータのクエリとアラートを実行できます。 時間区切りデータを調べるには、 [「メトリクスを調べる」を](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer#blocks-metrics)参照してください。
+
+## メートル法のタイムスライスデータを照会する理由は？ [#why]
+
+New Relic は[いくつかの方法でメトリクス](/docs/using-new-relic/data/understand-data/new-relic-data-types#metrics)を報告します。 <DNT>**metric timeslice data**</DNT> と呼ばれるメトリクス データの一種。これは、APM、<InlinePopover type="mobile"/>、 browserで多くのチャートを生成するために使用されるデータのタイプです (詳細については、 [「メトリック タイムスライス データ」](/docs/using-new-relic/data/understand-data/new-relic-data-types#timeslice-data)を参照してください)。
+
+<InlinePopover type="apm"/>メトリクスは、メトリックタイムスライスデータからより詳細な次元のメトリクスデータに自動的に変換され、NRQL および[NerdGraph API](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial)を介してクエリできるようになります。 この機能を使用すると、これらの重要な APM メトリクスの強力で詳細なカスタム視覚化を作成できます。 これには[、カスタムメトリック](/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)をクエリできることも含まれます。
+
+<Callout variant="important">
+  タイムスライスメトリックをディメンションメトリックまたはイベントデータと組み合わせてクエリすることはできません。 `newrelic.timeslice.value`または`apm.*`メトリックを含むクエリは、APMメトリックのみを返すことができます。
+</Callout>
+
+## 問い合わせ先は？ [#where]
+
+[クエリビルダー](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data)を使用して、APMメトリックタイムスライスデータをクエリすることをお勧めします。このエクスペリエンスは、完全なNRQL機能を提供し、クエリエラーに関する役立つオートコンプリートの提案とフィードバックも提供します。
+
+もできます。
+
+* [NerdGraph (GraphQL) APIを使ってNRQLクエリを作成します。](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)
+* [NRQLのアラート条件を使用したNRQLクエリのアラート](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions)
+
+## クエリの作成方法 [#form-query]
+
+APM では、一部のチャートには、 [そのチャートを生成した NRQL クエリを表示する](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language#what-is-nrql)オプションがあります。 これは、メトリクスをクエリする方法を理解するための良い出発点となります。 以下の NRQL クエリは、 <InlinePopover type="apm"/>概要ページのエラー率グラフからわずかに変更されています。
+
+```sql
+FROM Metric
+  SELECT count(apm.service.error.count) / count(apm.service.transaction.duration)
+  WHERE (entity.guid = 'AN_ENTITY_GUID')
+  AND (transactionType = 'Web')
+  SINCE 1 day ago TIMESERIES
+```
+
+ここでは、このクエリの各部分がどのように機能するかを説明します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        問い合わせセグメント
+      </th>
+
+      <th>
+        何をするのか？
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `FROM Metric`
+      </td>
+
+      <td>
+        `Metric` はコア[データ型](/docs/using-new-relic/data/understand-data/new-relic-data-types#dimensional-metrics)の1つであり、メトリックタイムスライスデータはこのデータ型として保存されます。 `Metric`データのクエリに関する一般的なヒントについては、[メトリッククエリの例](/docs/data-ingest-apis/get-data-new-relic/metric-api/view-query-you-metric-data)を参照してください。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `SELECT count(apm.service.error.count) / count(apm.service.transaction.duration)`
+      </td>
+
+      <td>
+        この計算は、トランザクション・メトリクスの合計数からエラーの数を生成します。このクエリは、 [変換されたメトリック名](#timeslice-conversion) を使用しています。
+
+        なお、他の [アグリゲータの機能](#aggregator-functions) を使うこともできます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `WHERE (entity.guid = 'AN_ENTITY_GUID')`
+      </td>
+
+      <td>
+        少なくとも1つのデータソースを指定する必要があります。ここに示すように、単一のエンティティのGUIDを選択することも[、複数のソースを選択する](#multiple-app-names)こともできます。このクエリは`entity.guid`を使用しますが、 `appId`または`appName`を使用することもできます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `AND (transactionType = 'Web')`
+      </td>
+
+      <td>
+        トランザクションタイプをウェブに設定し、バックグラウンド／非ウェブのトランザクションがカウントされないようにします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `SINCE 1 day ago`
+      </td>
+
+      <td>
+        時間範囲の選択
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `TIMESERIES`
+      </td>
+
+      <td>
+        このオプション句では、結果を時間軸のチャートで表示します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+`FROM` 、 `FACET` 、および`TIMESERIES`を含むNRQL構文の一般的な情報については、 [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)の概要を参照してください。
+
+その他のクエリについては、 [クエリの例](#query-examples) を参照してください。
+
+## メートル法のタイムスライスデータの変換方法 [#timeslice-conversion]
+
+元の<InlinePopover type="apm"/>タイムスライス メトリクスをクエリに使用できるディメンション メトリクスに変換する作業は進行中のプロセスであり、完了していません。 このセクションに探しているメトリクスが見つからない場合は、 [「汎用クエリ」](#generic-queries)を参照してください。
+
+元の[APM タイムスライス メトリクスが](/docs/using-new-relic/data/understand-data/new-relic-data-types#timeslice-data)どのように次元メトリクスに変換されるかを次に示します。
+
+<table style={{ width: "700px" }}>
+  <thead>
+    <tr>
+      <th>
+        メトリック・タイムスライス構造
+      </th>
+
+      <th>
+        次元メトリック構造
+      </th>
+    </tr>
+  </thead>
+
+  <tbody/>
+
+  <tbody>
+    <tr>
+      <td>
+        APMのメトリック名は、スラッシュで区切られたセグメントの1つの文字列として表されます。
+
+        たとえば、「 `Datastore/statement/MySQL/users/select` 」メトリックは、usersテーブルでのデータベースの選択操作に費やされた時間を表します。
+      </td>
+
+      <td>
+        `apm.service.datastore.operation.duration`という名前の1次元メトリックは、データストアメトリックのグループ全体を表します。
+
+        このメトリックには、メトリック名にエンコードされたデータ値を表す3つの属性、datastoreType、table、operationがあります。
+
+        `datastoreType = ‘MySQL’`
+
+        `table = ‘users’`
+
+        `operation = ‘select’`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+APMメトリクスの一部は、ディメンションメトリクスとして利用可能です。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        メトリクス名
+      </th>
+
+      <th>
+        説明
+      </th>
+
+      <th>
+        属性
+      </th>
+
+      <th>
+        メートル単位
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `apm.service.cpu.usertime.utilization`
+      </td>
+
+      <td>
+        ユーザーモードのコードでの滞在時間
+      </td>
+
+      <td>
+        percentage
+      </td>
+
+      <td>
+        percentage
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.datastore.operation.duration`
+      </td>
+
+      <td>
+        テーブル操作別のデータベースコールの応答時間
+      </td>
+
+      <td>
+        `datastoreType`、 `table` 、 `operation`
+      </td>
+
+      <td>
+        秒
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.error.count`
+      </td>
+
+      <td>
+        サマリーエラーカウントメトリクス
+      </td>
+
+      <td>
+        `transactionType`
+      </td>
+
+      <td>
+        count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.external.host.duration`
+      </td>
+
+      <td>
+        外部からの問い合わせに対する応答時間（外部ホスト名別
+      </td>
+
+      <td>
+        `external.host`
+      </td>
+
+      <td>
+        秒
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.instance.count`
+      </td>
+
+      <td>
+        エージェントのインスタンス数のカウント
+      </td>
+
+      <td/>
+
+      <td>
+        count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.memory.physical`
+      </td>
+
+      <td>
+        プロセスメモリ（MB
+      </td>
+
+      <td/>
+
+      <td>
+        メガバイト
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.transaction.apdex`
+      </td>
+
+      <td>
+        トランザクションごとのApdexスコア
+      </td>
+
+      <td>
+        `transactionName`, `transactionType`
+      </td>
+
+      <td>
+        apdex
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.transaction.duration`
+      </td>
+
+      <td>
+        トランザクションごとの応答時間
+      </td>
+
+      <td>
+        `keyTransactionName`、 `transactionName` 、 `transactionType`
+      </td>
+
+      <td>
+        秒
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.transaction.error.count`
+      </td>
+
+      <td>
+        トランザクションごとのエラー数
+      </td>
+
+      <td>
+        `keyTransactionName`、 `transactionName` 、 `transactionType`
+      </td>
+
+      <td>
+        count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.transaction.external.duration`
+      </td>
+
+      <td>
+        トランザクションタイプ別の外部通話応答時間
+      </td>
+
+      <td>
+        `transactionType`
+      </td>
+
+      <td>
+        秒
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+[利用可能なすべての指標を表示する](#get-list)方法を学びます。特定のメトリック名のメトリック単位を取得するには、次のようなクエリを使用できます。
+
+```sql
+FROM Metric
+  SELECT unit
+  WHERE appName = 'YOUR_APP_NAME'
+  AND metricName = 'METRIC_NAME'
+```
+
+メトリック・タイムスライス・データの一般的な構造について、一般的な例を含めて詳しく理解するには、 [Metric timeslice data](/docs/using-new-relic/data/understand-data/new-relic-data-types#timeslice-data) を参照してください。
+
+### 属性
+
+これらの属性は、上記の<InlinePopover type="apm"/>メトリクスの表にリストされているメトリクス固有の属性に加えて使用できます。
+
+<table style={{ width: "700px" }}>
+  <thead>
+    <tr>
+      <th>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `appName`
+      </td>
+
+      <td>
+        アプリケーションの名前です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appId`
+      </td>
+
+      <td>
+        アプリケーションのIDです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.guid`
+      </td>
+
+      <td>
+        アプリケーションのGUIDです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `host`
+      </td>
+
+      <td>
+        監視対象のプロセスのホストです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `host.bootId`
+      </td>
+
+      <td>
+        ホストのブートのIDがあれば、それを入力します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `host.displayName`
+      </td>
+
+      <td>
+        エージェントに設定されている場合は、ホストの`display_name` 。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instanceName`
+      </td>
+
+      <td>
+        Java <InlinePopover type="apm"/>エージェントの場合、 `host : port`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metricName`
+      </td>
+
+      <td>
+        次元メトリックの名前です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metricTimesliceName`
+      </td>
+
+      <td>
+        レガシーメトリックのタイムスライス名です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `scope`
+      </td>
+
+      <td>
+        （オプション）このメトリックが「スコープ」されるレガシーメトリックのタイムスライス名。スコープを持つメトリックはそれに属します-それらの測定値は、 `scope`属性で指定されたメトリックのコンテキストに適用されます。例については、以下を参照してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 概要指標 [#overview-metrics]
+
+概要メトリックを使用すると、実行中に費やされた場所の内訳を取得できます。これらの指標はいくつかの点でユニークです。
+
+* それらは多くのタイムスライスの組み合わせです。
+* これらは、 `average` アグリゲーター関数のみで動作するように設計されています。
+* 同時に実行されたコードは、合計実行時間を示します。
+
+たとえば、サービスが 3 つの同時スレッドで MySQL データベースを呼び出し、各スレッドの平均応答時間が 0.1 秒の場合、MySQL セグメントは 0.3 と表示されます。
+
+さまざまな目的のために、いくつかの概要メトリックが提供されています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        メトリクス名
+      </th>
+
+      <th>
+        説明
+      </th>
+
+      <th>
+        属性
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `apm.service.overview.web`
+      </td>
+
+      <td>
+        Web トランザクションのサービスのさまざまな部分で費やされた時間の内訳
+      </td>
+
+      <td>
+        `segmentName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.overview.other`
+      </td>
+
+      <td>
+        バックグラウンド/非 Web トランザクションのサービスのさまざまな部分で費やされた時間の内訳
+      </td>
+
+      <td>
+        `segmentName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.service.transaction.overview`
+      </td>
+
+      <td>
+        特定のトランザクションに費やされた時間の内訳
+      </td>
+
+      <td>
+        `metricTimesliceName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apm.key.transaction.overview`
+      </td>
+
+      <td>
+        特定のキー トランザクションに費やされた時間の内訳
+      </td>
+
+      <td>
+        `segmentName`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 一般的なクエリ `newrelic.timeslice.value` [#generic-queries]
+
+ディメンションメトリックに変換されていないメトリックの場合、または独自のカスタムメトリックの場合、 `newrelic.timeslice.value`という名前のディメンションメトリックがあります。
+
+<Callout variant="important">
+  可能な場合は、 [上記の表の](#timeslice-conversion) ディメンション メトリックを使用することをお勧めします。
+</Callout>
+
+### 用途 `newrelic.timeslice.value` [#when-to-use]
+
+メトリックのタイムスライス名を指定すると、それが変換された次元メトリックに相当するものかどうかを、この構文で問い合わせることができます。
+
+```sql
+FROM Metric
+SELECT uniques(metricName)
+WHERE metricTimesliceName = 'Datastore/statement/MySQL/test/select'
+```
+
+返されるメトリック名が`newrelic.timeslice.value`のみの場合は、この一般的なアプローチを使用してデータをクエリする必要があります。
+
+### 利用可能なメトリクスの取得 [#get-list]
+
+あるアプリケーションで利用可能なメトリクスのリストを取得するには、次のようなクエリを使用します。
+
+```sql
+SELECT uniques(metricTimesliceName) 
+FROM Metric WHERE appName='YOUR_APP_NAME' 
+AND newrelic.timeslice.value IS NOT NULL
+```
+
+## ワイルドカードで指定されたメトリック名セグメントのファセット [#wildcard]
+
+一部のメトリクス タイムスライス名には、メトリクス名のセグメントとして属性値が含まれています。 たとえば、 <InlinePopover type="apm"/>エージェントは、次の形式を使用して外部通話の継続時間を追跡することによってメトリクスをレポートします。
+
+```
+External/{externalHost}/all
+```
+
+ここで、 `{externalHost}`はアウトバウンドネットワークコールのホスト名を表します。
+
+ワイルドカードメトリックセグメントにファセットするカスタムメトリックの[一般的な`newrelic.timeslice.value`クエリ](#generic-queries)の例を次に示します。
+
+```sql
+FROM Metric SELECT count(newrelic.timeslice.value) 
+  WHERE appName = 'MY APP' 
+  WITH METRIC_FORMAT 'Custom/Labels/{action}' 
+  TIMESERIES FACET action
+```
+
+このクエリでは、 `{action}`は一時属性`action`を作成し、それが`FACET action`によって使用されます。クエリ中に存在するのは属性のみであるため、任意の名前を使用できます。既存の属性名と競合しない名前を選択する必要があります。
+
+## 推奨するアグリゲーター機能 [#aggregator-functions]
+
+推奨されるNRQL [アグリゲータ機能](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#functions) があります。
+
+* `apdex`
+* `average`
+* `sum`
+* `count`
+* `rate`
+* `uniques`
+
+## クエリの例
+
+メトリック・タイムスライス・データのクエリの例をいくつか紹介します。
+
+<CollapserGroup>
+  <Collapser
+    id="multiple-app-names"
+    title="複数のアプリ名によるファセット"
+  >
+    このクエリは[`WHERE… IN`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#sel-where)を使用して2つのアプリケーションを指定し、それらによってファセットを作成します。
+
+    ```sql
+    FROM Metric
+      SELECT rate(count(apm.service.transaction.duration), 1 minute) as 'Web throughput' 
+      WHERE appName IN ('MY_APPLICATION', 'MY_OTHER_APPLICATION')
+      AND (transactionType = 'Web')
+      FACET appName
+      TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rate"
+    title="スループットパーミニッツレート"
+  >
+    このクエリは、 [`rate`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-rate)関数を使用して1分あたりのリクエスト数のグラフを表示します。
+
+    ```sql
+    FROM Metric 
+      SELECT rate(count(apm.service.transaction.duration), 1 minute) as 'HttpDispatcher requests_per_minute' 
+      WHERE appName = 'MY_APPLICATION' 
+      AND (transactionType = 'Web')
+      TIMESERIES SINCE 3 days ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="facet-by-host"
+    title="ホスト関連属性によるファセット"
+  >
+    このクエリは、ホスト名でファセットされた1分あたりのリクエスト数のチャートを表示します。
+
+    ```sql
+    FROM Metric 
+      SELECT count(apm.service.transaction.duration) as 'HttpDispatcher requests_per_minute' 
+      WHERE appName = 'MY_APPLICATION' 
+      AND (transactionType = 'Web')
+      TIMESERIES SINCE 3 hours ago 
+      FACET host 
+      LIMIT 20
+    ```
+
+    `host`を使用する代わりに、 `host.bootId`などの他の[ホスト関連の属性](/node/36916/revisions/402556/view#infrastructure-attributes)でファセットすることができます。
+  </Collapser>
+
+  <Collapser
+    id="average"
+    title="メトリックの平均継続時間の問い合わせ"
+  >
+    これは、 [`average`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-average)を使用してメトリックの平均期間を照会します。
+
+    ```sql
+    FROM Metric
+      SELECT average(apm.service.transaction.duration) as 'HttpDispatcher average duration' 
+      WHERE appName = 'MY_APPLICATION' 
+      AND (transactionType = 'Web') 
+      TIMESERIES SINCE 3 days ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id="average"
+    title="トランザクションにかかる平均時間を構成要素ごとに分類する"
+  >
+    このクエリは、単一のトランザクション（この場合、 `MY_APPLICATION`という名前のRailsアプリの`UsersController`の`show`アクション）の平均期間を、上位20の個々のセグメント（データベースクエリ、外部サービス呼び出し、ガベージコレクション）ごとに分類します。時間など）。これは、サービスエンティティのAPMトランザクションページに表示される「アプリケーションの内訳」チャートの多くを再現しています。
+
+    ```sql
+    FROM Metric 
+      SELECT average(newrelic.timeslice.value, exclusiveTime: true) as 'duration, seconds' 
+      WHERE appName = 'MY_APPLICATION' 
+      AND scope = 'Controller/users/show'
+      LIMIT 20 
+      FACET metricTimesliceName
+      TIMESERIES SINCE 3 days ago
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,837 @@
+---
+title: 'Integración en el host: Formato de configuración estándar'
+tags:
+  - Create integrations
+  - Infrastructure Integrations SDK
+  - Specifications
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En diciembre de 2019, [la versión 1.8.0 del agente de infraestructura](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) comenzó a admitir este nuevo formato de configuración que utiliza un único archivo de configuración (en lugar de dos archivos separados) y proporciona otras mejoras. Este documento explicará cómo funciona este nuevo formato.
+
+El [formato de configuración legacy ](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-legacy-configuration-format)anterior también es compatible con el actual agente de infraestructura.
+
+Para obtener una introducción a la configuración, consulte [Descripción general de la configuración](/docs/integrations/integrations-sdk/file-specifications/config-file-overview).
+
+## Estructura de configuración [#configuration-basics]
+
+El YAML de configuración de una integración en el host debe tener una sección de nivel superior `integrations` que contenga una matriz YAML, donde cada entrada representa una integración y su configuración.
+
+Para cada entrada de integración, solo la propiedad `name` es obligatoria. Las demás propiedades son opcionales.
+
+Aquí hay un ejemplo de configuración característica dos integración: nuestra [integración Docker ](https://github.com/newrelic/nri-docker)incorporada, que no requiere configuración, y nuestra [integración MySQL ](/docs/integrations/host-integrations/host-integrations-list/mysql-monitoring-integration):
+
+```
+integrations:
+  # New Relic integration that does not require any configuration
+  - name: nri-docker
+  # New Relic integration that gets its configuration from the environment
+  - name: nri-mysql
+    env:
+      PORT: 3306
+      USERNAME: newrelic
+      PASSWORD: 123456789 # to hide this field, read the <a href="/docs/integrations/host-integrations/installation/secrets-management">secrets management documentation</a>
+  # Any free-form integration executed via a user-provided command
+  - name: my-own-integration
+    exec: python /opt/integrations/my-script.py --host=127.0.0.1
+```
+
+Puede tener tantos archivos YAML de configuración como desee y puede agrupar su instancia de integración.
+
+<Callout variant="tip">
+  Recomendamos [borrar](http://www.yamllint.com/) los archivos de configuración YAML antes de usarlos para evitar problemas de formato.
+</Callout>
+
+Cada archivo YAML de configuración también puede contener [`discovery`](/docs/integrations/host-integrations/installation/container-auto-discovery) y [`variables`](/docs/integrations/host-integrations/installation/secrets-management) secciones de nivel superior.
+
+<Callout variant="important">
+  Este formato de configuración no requiere reiniciar el agente. Cuando se guardan, los cambios se detectan e implementan inmediatamente. Esto significa que guardar cambios de configuración intermedios puede hacer que la integración deje de funcionar.
+</Callout>
+
+## Lista de propiedades de configuración [#options-list]
+
+Esta es una lista de las propiedades generales utilizadas para configurar una integración. Para obtener más detalles sobre el uso de estas propiedades, incluidos valores de ejemplo, consulte la documentación que sigue a la tabla.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "220px" }}>
+        Config
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`name`](#name)
+      </td>
+
+      <td>
+        Nombre de la integración. Esta es la única propiedad de configuración obligatoria en toda la integración en el host. Si el campo `exec` no está configurado, también será el nombre del ejecutable de integración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cli_args`
+      </td>
+
+      <td>
+        Lista opcional de argumentos de línea de comando cuando se utiliza `name` para proporcionar el ejecutable de integración. _Disponible desde la versión del agente <DNT>**1.13.0**</DNT>._
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`exec`](#exec)
+      </td>
+
+      <td>
+        Ruta completa al ejecutable de integración, más argumentos. Puede ser una cadena de una sola línea o una matriz de cadenas. Si no se especifica, el campo `exec` de forma predeterminada será el campo `name` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`env`](#env)
+      </td>
+
+      <td>
+        Mapa YAML que contiene las variables de entorno que se pasarán a la integración, donde `key` es el nombre de la variable de entorno y `value` es el valor de la variable.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`config`](#config)
+      </td>
+
+      <td>
+        Configuración que se escribe como un archivo externo y la ruta que se pasa a la integración con la variable de entorno `CONFIG_PATH` o la variable marcador de posición `${config.path}` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`config_template_path`](#config_template_path)
+      </td>
+
+      <td>
+        Cualquier archivo externo cuya ruta se pase a la integración con la variable de entorno `CONFIG_PATH` o el marcador de posición de la variable `${config.path}` . Su uso permite aplicar descubrimiento y enlace de secretos a cualquier configuración externa.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`integration_user`](#integration_user)
+      </td>
+
+      <td>
+        Nombre del usuario que ejecuta la integración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`interval`](#interval)
+      </td>
+
+      <td>
+        Tiempo entre ejecuciones consecutivas de la integración. Debe ser un número seguido de una unidad de tiempo (`s`, `m` o `h`), sin espacios.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`inventory_source`](#inventory_source)
+      </td>
+
+      <td>
+        Permite anular la categoría y el término de la fuente del inventario.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`labels`](#labels)
+      </td>
+
+      <td>
+        Mapa con etiquetas que decoran los datos (métrica, evento, inventario) reportados por la integración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`timeout`](#timeout)
+      </td>
+
+      <td>
+        Un número seguido de una unidad de tiempo (`ms`, `s`, `m` o `h`). Una integración que no ha respondido en este período de tiempo se cierra y se reinicia.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`working_dir`](#working_dir)
+      </td>
+
+      <td>
+        Directorio de trabajo para el binario de integración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [cuando](#when)
+      </td>
+
+      <td>
+        La integración solo se ejecuta si la cláusula se evalúa como verdadera.
+
+        Las condiciones se definen [a continuación](#when).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+El resto de este documento describe las propiedades de configuración agrupadas por su funcionalidad:
+
+* [Seleccione una integración para ejecutar](#select-integration)
+* [Pasar la configuración al comando de integración.](#pass-configuration)
+* [Configurar cómo el agente ejecuta la integración](#configure-agent-execution)
+
+## Seleccione una integración para ejecutar
+
+Hay dos propiedades para seleccionar qué integración se ejecutará: `name` y `exec`.
+
+La única propiedad obligatoria en toda la integración en el host es `name`. El resto de propiedades especificadas en este documento son opcionales.
+
+Ejemplo:
+
+```
+integrations:
+  - name: nri-docker
+  - name: my-integration
+    exec: /usr/local/bin/my-integration --metrics --inventory
+```
+
+<CollapserGroup>
+  <Collapser
+    id="name"
+    title={<InlineCode>nombre</InlineCode>}
+  >
+    La propiedad obligatoria `name` puede funcionar de dos maneras:
+
+    * <DNT>**If the `exec` property is set**</DNT>: La propiedad `name` solo proporciona un identificador para la instancia de integración. Este identificador se utiliza en el mensaje de registro y para proporcionar una [categoría/fuente de inventario](/docs/infrastructure/infrastructure-ui-pages/infra-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure) predeterminada en el formato `integration/<name>` (por ejemplo, `integration/nri-redis`). Esta ruta de inventario se puede anular con la opción de configuración `inventory_source` .
+
+    * <DNT>**If the `exec` property is not set**</DNT>: El agente busca (y ejecuta) un ejecutable con el valor `name` en cualquiera de las siguientes carpetas:
+
+      * Linux:
+
+        * `/var/db/newrelic-infra/newrelic-integrations/bin`
+        * `/var/db/newrelic-infra/newrelic-integrations`
+        * `/var/db/newrelic-infra/custom-integrations/bin`
+        * `/var/db/newrelic-infra/custom-integrations`
+
+      * Windows
+
+        * `C:\Program Files\New Relic\newrelic-infra\newrelic-integrations\bin`
+        * `C:\Program Files\New Relic\newrelic-infra\newrelic-integrations`
+
+      Si no hay ningún ejecutable con este nombre en las carpetas anteriores el agente registra un error y no se ejecuta la integración.
+
+      <Callout variant="important">
+        En Windows, no agregue la extensión `.exe` al nombre. El agente hace esto por usted (por ejemplo, `name: nri-mysql` buscaría `nri-mysql.exe` en las carpetas anteriores).
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="exec"
+    title={<InlineCode>ejecutivo</InlineCode>}
+  >
+    La propiedad opcional `exec` especifica la ruta, el comando y los argumentos de línea de comando de la integración que se ejecutará. Cuando ninguna de las carpetas de ruta o argumentos tiene espacios, se puede escribir en una cadena de una sola línea:
+
+    ```
+    - name: my-integration
+      exec: /usr/bin/python /opt/integrations/my-script.py --host=127.0.0.1
+    ```
+
+    Si alguna de las rutas o argumentos tiene espacios que forman parte de un solo elemento, puede usar una notación de matriz YAML. Para Windows, asegúrese de evitar las barras invertidas con comillas como esta:
+
+    ```
+    - name: my-integration
+      exec:
+        - '"C:\Program Files\My Integration\integration.exe"'
+        - --host
+        - 127.0.0.1
+        - --port
+        - 8080
+    ```
+
+    El directorio de trabajo predeterminado es el directorio raíz de la configuración del agente. Se puede anular con la propiedad `working_dir` .
+  </Collapser>
+
+  <Collapser
+    id="cli-args"
+    title={<InlineCode>cli_args</InlineCode>}
+  >
+    La propiedad opcional `cli_args` especifica los argumentos de la línea de comando que se deben pasar a la integración. Es útil cuando se utiliza `name` ya que solo proporciona el identificador del nombre de la integración (no es compatible con `exec`).
+
+    ```
+    - name: my-integration
+      cli_args: [ -interval 10s ]
+    ```
+
+    También se puede utilizar el formato habitual de lista multilínea YAML:
+
+    ```
+    - name: my-integration
+      cli_args:
+        - -interval
+        - 10s
+    ```
+  </Collapser>
+
+  <Collapser
+    id="when"
+    title={<InlineCode>cuando</InlineCode>}
+  >
+    La propiedad `when` permite ejecutar la integración solo cuando todas las condiciones evaluadas sean exitosas.
+
+    Las condiciones disponibles son:
+
+    * `env_exists`: Las variables de entorno existen y coinciden con el valor.
+
+    * `file_exists`: La ruta del archivo dada existe.
+
+    * `feature`: Siempre que característica-flag esté habilitado.
+
+      Ejemplo:
+
+      ```
+      integrations:
+        - name: ssh-integration
+          when:
+            file_exists: /var/run/sshd.pid
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## Pasar la configuración al ejecutable de integración.
+
+A menudo, los ejecutables de integración necesitan recibir una configuración para funcionar correctamente (por ejemplo, nombre de host y puerto del sistema de monitorización, credenciales de usuario, etc.).
+
+El agente de infraestructura le permite configurar los comandos de integración de tres maneras (que puede combinar):
+
+* Variables de entorno, utilizando la [propiedad`env` ](#env). (recomendado)
+* Argumentos de línea de comando, pasados en la [propiedad`exec` ](#exec).
+* archivos de configuración, cuya ruta debe pasarse a través de variables de entorno o argumentos de línea de comando (consulte la propiedad [config](#config)).
+
+Ejemplo:
+
+```
+integrations:
+  - name: my-integration
+    exec: /opt/path/bin/script --host 127.0.0.1 --port 8081
+  - name: nri-mysql
+    env:
+      STATUS_URL: http://10.0.0.3/server-status?auto
+      REMOTE_MONITORING: true
+```
+
+<CollapserGroup>
+  <Collapser
+    id="env"
+    title={<InlineCode>env</InlineCode>}
+  >
+    La propiedad `env` le permite establecer variables de entorno que se pasan al ejecutable. Es un mapa de valor principal con las variables requeridas.
+
+    <Callout variant="important">
+      New Relic recomienda pasar claves `env` en letras mayúsculas, según el ejemplo siguiente, para lograr compatibilidad con todas las versiones del agente de infraestructura desde 1.8.0.<br/> Si está utilizando la versión 1.20.0 o superior del agente, puede utilizar letras minúsculas, ya que el agente [las pondrá](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1200#changed) automáticamente en mayúsculas.
+    </Callout>
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: nri-postgresql
+        env:
+          DATABASE: postgres
+          PORT: 6432
+          COLLECTION_LIST: '["postgres"]'
+          COLLECT_DB_LOCK_METRICS: false
+          VERBOSE: 1
+    ```
+
+    Si espera que su integración reciba la configuración del entorno del host en lugar de especificarla explícitamente en el archivo de configuración, debe establecer las variables requeridas en la propiedad de configuración global del agente de infraestructura [`passthrough_environment`](/docs/integrations/host-integrations/troubleshooting/pass-infrastructure-agent-parameters-host-integration) .
+  </Collapser>
+
+  <Collapser
+    id="config"
+    title={<InlineCode>configuración</InlineCode>}
+  >
+    Esta sección describe varias formas de pasar información de configuración a una integración.
+
+    <DNT>
+      **Pass configuration file directly**
+    </DNT>
+
+    Algunos comandos de integración pueden obtener su configuración de un archivo externo. Si su integración requiere un archivo de configuración, nada le impide pasar directamente su ruta como un argumento de línea de comando o una variable de entorno. A continuación se muestra un ejemplo de configuración de nuestra [integración Flex](/docs/integrations/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration):
+
+    ```
+    integrations:
+      - name: nri-flex
+        env:
+          CONFIG_FILE: /etc/nri-flex/configs/http-service.yaml
+      - name: other-integration
+        exec: /opt/integration/integration -f /opt/integration/config.properties
+    ```
+
+    El ejemplo anterior supone que los archivos `http-service.yaml` y `config.properties` existen. Podemos ver que la integración `nri-flex` espera la ruta completa `http-service.yaml` a través de la variable de entorno `CONFIG_FILE` y la integración `other-integration` espera la ruta `config.properties` completa después del indicador de línea de comando `-f` .
+
+    En el ejemplo anterior, es necesario para el instalador/configurador de integración que los archivos de configuración existan en la ruta proporcionada y que el agente y la integración tengan permisos de lectura sobre ellos.
+
+    <DNT>
+      **Pass configuration through `config` section**
+    </DNT>
+
+    Si prefiere mantener su archivo de configuración con el resto de la configuración de integración, puede usar la sección `config` en la entrada de integración, que puede contener un objeto YAML válido o simplemente una cadena de varias líneas:
+
+    ```
+    integrations:
+      - name: nri-flex
+        env:
+          CONFIG_FILE: ${config.path}
+        config:
+          name: csvFileExample
+          apis:
+            - name: csvFile
+              file: /Users/hello/test.csv
+      - name: other-integration
+        exec: /opt/integration/integration -f ${config.path}
+        config: |
+          example.cfg.verbose=true
+          example.cfg.logger=/var/logs/integration.log
+          example.cfg.hostname=localhost
+          example.cfg.port=9025
+    ```
+
+    En los ejemplos anteriores, cada vez que se ejecuta la integración `nri-flex`, el agente crea un archivo temporal con el siguiente contenido:
+
+    ```
+    name: csvFileExample
+    apis:
+      - name: csvFile
+        file: /Users/hello/test.csv
+    ```
+
+    El YAML anterior es solo un ejemplo de configuración para la integración `nri-flex` . El agente ignora su contenido; en su lugar, crea un archivo temporal y reemplaza el marcador de posición de la variable `${config.path}` con su ruta. Cuando la integración completa la ejecución, el archivo temporal se elimina.
+
+    Además, el agente crea otro archivo temporal antes de ejecutar la integración `other-integration` :
+
+    ```
+    example.cfg.verbose=true
+    example.cfg.logger=/var/logs/integration.log
+    example.cfg.hostid=localhost
+    example.cfg.port=9025
+    ```
+
+    Reemplaza el marcador de posición de la línea de comando `-f ${config.path}` con la ruta temporal del archivo escrito.
+
+    Por convención, si no coloca la variable `${config.path}` en ningún argumento de línea de comando o valor de variable de entorno, el agente pasa la ruta del archivo de configuración a través de la variable de entorno `CONFIG_PATH` :
+
+    ```
+    # assuming that nri-example command is prepared to receive the configuration
+    # file via the CONFIG_PATH environment variable
+    integrations:
+      - name: nri-example
+        config:
+          name: csvFileExample
+          apis:
+            - name: csvFile
+              file: /Users/hello/test.csv
+    ```
+
+    <DNT>
+      **Pass secrets and discovery through `config` section**
+    </DNT>
+
+    El principal beneficio de usar una sección `config` en lugar de codificar la ruta completa de un archivo externo es que puede insertar `${variable}` marcador de posición para aplicar nuestra [característica de descubrimiento automático](/docs/integrations/host-integrations/installation/container-auto-discovery) y [administración de secretos](/docs/integrations/host-integrations/installation/secrets-management).
+
+    A continuación se muestra un ejemplo seguido de algunas explicaciones:
+
+    ```
+    variables:
+      my_credentials:
+        vault:
+          http:
+            url: http://my.vault.host/v1/newengine/data/secret
+            headers:
+              X-Vault-Token: my-vault-token
+    discovery:
+      docker:
+        match:
+          label.service: foo
+    integrations:
+      - name: foo-monitor
+        exec: /opt/foo/bin/monitor --config=${config.path}
+        config: |
+          foo.host=${discovery.ip}
+          foo.port=${discovery.port}
+          foo.user=${my_credentials.user}
+          foo.password=${my_credentials.password}
+    ```
+
+    <Callout variant="tip">
+      (Para obtener más detalles sobre las `variables` `discovery` secciones y, visite la documentación [descubrimiento](/docs/integrations/host-integrations/installation/container-auto-discovery) y [de administración de secretos](/docs/integrations/host-integrations/installation/secrets-management)).
+    </Callout>
+
+    El ejemplo anterior se basa en las siguientes premisas:
+
+    * Existe un servicio [de Vault](https://www.vaultproject.io/) que permite recuperar un objeto JSON formado por los campos `user` y `password` .
+    * Puede haber una cantidad variable de contenedores docker etiquetados con `service=foo`, a los que se puede acceder desde el host del agente a través de una IP y un puerto públicos reconocibles.
+    * El usuario ha configurado la integración `foo-monitor` para monitor todos los contenedores etiquetados `service=foo`, que comparten un usuario y contraseña común. Cada instancia de la integración `foo-monitor` requiere ejecutar el ejecutable `/opt/foo/bin/monitor`, pasando la configuración de texto dentro de la sección `config` a través del argumento de línea de comando `--config=<path>` .
+
+    Como ejemplo de flujo de trabajo, imagine que la invocación de Vault devuelve el siguiente JSON:
+
+    ```
+    {"user":"monitorer","password":"5up3r53cr3t!"}
+    ```
+
+    Al momento de ejecutar la integración `foo-monitor`, hay tres contenedores en ejecución etiquetados con `service=foo`:
+
+    1. ip: `10.0.0.3`, puerto: `8080`
+    2. ip: `10.0.0.3`, puerto: `8081`
+    3. ip: `10.0.0.3`, puerto: `8082`
+
+    Luego, el agente crea los siguientes tres archivos temporales, utilizando el contenido de la propiedad `config` como plantilla, pero reemplazando el `${placeholders}` por las variables adquiridas y los elementos descubiertos (la ruta de los archivos se inventó para simplificar):
+
+    * Primer partido (`/tmp/123_discovered`):
+
+      ```
+      foo.host=10.0.0.3
+      foo.port=8080
+      foo.user=monitorer
+      foo.password=5up3r53cr3t!
+      ```
+
+    * Segundo partido (`/tmp/456_discovered`):
+
+      ```
+      foo.host=10.0.0.3
+      foo.port=8081
+      foo.user=monitorer
+      foo.password=5up3r53cr3t!
+      ```
+
+    * Tercer partido (`/tmp/789_discovered`)
+
+      ```
+      foo.host=10.0.0.3
+      foo.port=8082
+      foo.user=monitorer
+      foo.password=5up3r53cr3t!
+      ```
+
+    Después de reemplazar la variable `config` marcador de posición y crear los archivos temporales, el ejecutable `/opt/foo/bin/monitor` se ejecuta tres veces (una por contenedor coincidente), reemplazando la `${config.path}` línea de comando marcador de posición con la temporal archivo correspondiente a cada configuración descubierta:
+
+    * Primer partido: `/opt/foo/bin/monitor --config=/tmp/123_discovered`
+    * Segundo partido: `/opt/foo/bin/monitor --config=/tmp/456_discovered`
+    * Tercer partido: `/opt/foo/bin/monitor --config=/tmp/789_discovered`
+
+    Para garantizar la seguridad y minimizar la posibilidad de filtrar secretos al disco, el agente:
+
+    * Crea los archivos propiedad del usuario del agente, por ejemplo, `root` o `nri-agent`, según el usuario que haya configurado para ejecutar el agente.
+    * Establece permisos de lectura solo para el propietario.
+    * Elimina los archivos creados cuando la instancia de integración finaliza su ejecución.
+  </Collapser>
+
+  <Collapser
+    id="config_template_path"
+    title={<InlineCode>config_template_path</InlineCode>}
+  >
+    Si desea utilizar la administración y el descubrimiento de secretos en los archivos de configuración que está pasando al ejecutable de integración, pero prefiere conservarlos como un archivo individual, puede usar la opción `config_template_path: <path>` . Funciona exactamente como en la sección `config` :
+
+    1. El agente aplica la [gestión y](/docs/integrations/host-integrations/installation/secrets-management) [el descubrimiento](/docs/integrations/host-integrations/installation/container-auto-discovery) de secretos al contenido del archivo.
+
+    2. El agente crea diferentes archivos temporales que se pasan a la integración a través del marcador de posición `${config.path}` (o la variable de entorno `CONFIG_PATH` .
+
+       Ejemplo:
+
+       ```
+       discovery:
+           docker:
+             match:
+               name: /^redis/
+         integrations:
+           - name: nri-flex
+             env:
+               CONFIG_FILE: ${config.path}
+             config_template_path: /etc/flex-configs/redis.yml
+       ```
+
+       En el ejemplo anterior, el archivo externo `redis.yml` puede contener un marcador de posición de variable de descubrimiento de contenedor, como `${discovery.ip}` o `${discovery.port}`.
+  </Collapser>
+</CollapserGroup>
+
+## Configura cómo el agente ejecuta tu integración
+
+Las propiedades de esta sección modifican la forma en que el agente de infraestructura ejecuta e interactúa con la integración, o la forma en que el agente decora los datos de la integración.
+
+<CollapserGroup>
+  <Collapser
+    id="integration_user"
+    title={<InlineCode>integration_user</InlineCode>}
+  >
+    Los comandos de integración se ejecutan con el mismo usuario que el agente (normalmente `root` o `nri-agent`). Si debido a restricciones de permisos una integración necesita ejecutarse como otro usuario, se debe especificar su nombre en la propiedad `integration_user` .
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: dbus-inventory
+        exec: python my-dbus-script.py
+        integration_user: dbus
+    ```
+  </Collapser>
+
+  <Collapser
+    id="interval"
+    title={<InlineCode>intervalo</InlineCode>}
+  >
+    La opción `interval` establece el tiempo entre ejecuciones consecutivas de una integración. El formato aceptado es un número entero seguido inmediatamente de una unidad de tiempo (`s` para segundos, `m` para minutos, `h` para horas).
+
+    El valor predeterminado es `30s` y el valor mínimo aceptado es `15s`. Cualquier valor inferior a `15s` se establece automáticamente en `15s`.
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: nri-nginx
+        env:
+          STATUS_URL: http://127.0.0.1/status
+          STATUS_MODULE: discover
+        interval: 20s
+    ```
+  </Collapser>
+
+  <Collapser
+    id="inventory_source"
+    title={<InlineCode>inventory_source</InlineCode>}
+  >
+    Cualquier artículo del inventario debe catalogarse bajo una taxonomía `category/source` . De forma predeterminada, cada inventario de integración se almacena como valor `integration/` + `name` (por ejemplo, `integration/nri-apache`, `integration/nri-mysql`).
+
+    La propiedad `inventory_source` le permite anular la taxonomía predeterminada de datos de inventario.
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: nri-nginx
+      - name: nri-apache
+        exec:
+          - /var/db/newrelic-infra/newrelic-integrations/bin/nri-apache
+          - --inventory
+        inventory_source: config/apache
+    ```
+
+    En el ejemplo anterior, el `nri-nginx` inventario, si lo hubiera, sería visible en la New Relic UI en la `integration/nri-nginx` fuente . El inventario `nri-apache` sería visible en `config/apache`.
+  </Collapser>
+
+  <Collapser
+    id="labels"
+    title={<InlineCode>etiquetas</InlineCode>}
+  >
+    `labels` Es un mapa de valores principales que permite proporcionar metadatos adicionales para la integración. El agente utiliza esas etiquetas para decorar la métrica, el evento y el inventario que recibe de una instancia de integración determinada.
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: nri-apache
+        inventory_source: config/apache
+        labels:
+          env: production
+          role: load_balancer
+    ```
+
+    En el ejemplo anterior, el agente decora todas las métricas y eventos de la instancia `nri-apache` con los siguientes campos:
+
+    * `label.env`: `production`
+    * `label.role`: `load_balancer`
+
+    Además, se agregan las siguientes entradas al inventario de integración:
+
+    * `config/apache/labels/env`: `production`
+    * `config/apache/labels/role`: `load_balancer`
+  </Collapser>
+
+  <Collapser
+    id="timeout"
+    title={<InlineCode>se acabó el tiempo</InlineCode>}
+  >
+    Si una integración no ha devuelto ninguna métrica (o un mensaje de latido como se describe a continuación) antes del tiempo especificado en el valor `timeout`, el agente finaliza el proceso de integración y lo reinicia después del `interval` correspondiente. El formato aceptado es un número entero seguido inmediatamente (sin espacios) de una unidad de tiempo (`ms` para milisegundos, `s` para segundos, `m` para minutos, `h` para horas).
+
+    Si se proporciona un valor `timeout` cero (o negativo), la integración puede ejecutarse para siempre sin que se interrumpa por la expiración del tiempo de espera.
+
+    Para una integración de larga duración (integración que sigue funcionando, devolviendo periódicamente métrica/evento/inventario), cada vez que la integración envía una carga métrica/evento/inventario, se reinicia el plazo de tiempo de espera. Eso significa que la integración de larga duración debe devolver una carga JSON válida en un intervalo inferior a `timeout`.
+
+    La devolución de un JSON vacío (`{}`) se interpreta como un mensaje _de latido_ que reinicia el tiempo de espera, lo que evita que se elimine la integración de larga duración, incluso si no tienen información que informar.
+
+    El valor predeterminado es `120s` y el valor mínimo aceptado es `100ms`. Cualquier valor inferior a `100ms` se establece automáticamente en `100ms`.
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: nri-jmx
+        cli_args:
+          JMX_HOST: jmx-host.localnet
+          JMX_PORT: 7096
+          COLLECTION_FILES: "/etc/newrelic-infra/integrations.d/jvm-metrics.yml"
+        timeout: 30s
+    ```
+  </Collapser>
+
+  <Collapser
+    id="working_dir"
+    title={<InlineCode>working_dir</InlineCode>}
+  >
+    `working_dir` establece el directorio de trabajo del comando. Si está vacío o no se especifica, el agente ejecuta el comando en el directorio actual del agente de infraestructura.
+
+    El valor predeterminado es el directorio raíz del agente de infraestructura.
+
+    Ejemplo:
+
+    ```
+    integrations:
+      - name: my-integration
+        exec: /opt/integration/bin/integration
+        working_dir: /opt/integration/scratch-zone
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Actualizar la configuración de integración anterior [#update]
+
+En diciembre de 2019, la [versión 1.8.0 del agente de infraestructura](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) comenzó a utilizar un formato de configuración diferente.
+
+La principal diferencia entre estos formatos es que el formato de configuración anterior usa dos archivos de configuración separados (un archivo `INTEGRATION_NAME-definition.yml` y un archivo `INTEGRATION_NAME-config.yml` ) y la versión más nueva usa un único archivo de configuración.
+
+Estas son algunas de las características agregadas por la funcionalidad de configuración más nueva:
+
+* Configuración flexible a través de argumentos de línea de comando, variables de entorno o archivos externos.
+* Posibilidad de agrupar diferentes integraciones en un mismo archivo.
+* Recarga en caliente: agregar una nueva integración o cambiar su configuración no requiere reiniciar el agente.
+* Tiempos de espera: si una integración no responde antes de un tiempo especificado por el usuario, el proceso de integración finaliza y se reinicia.
+
+No todas las integraciones en el host vienen con el formato de configuración más nuevo, pero puedes actualizar la configuración al nuevo formato para que todas las integraciones en el host aprovechen la nueva característica.
+
+El siguiente YAML muestra un ejemplo de configuración [de integración de Apache](/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration) utilizando el formato de configuración anterior. Tenga en cuenta que esta configuración seguirá funcionando con el agente más nuevo, pero recomendamos actualizar su integración para aprovechar al máximo la característica.
+
+```
+integration_name: com.newrelic.apache
+
+instances:
+  - name: apache-server-metrics
+    command: metrics
+    arguments:
+      status_url: http://127.0.0.1/server-status?auto
+      remote_monitoring: true
+    labels:
+      env: production
+      role: load_balancer
+  - name: apache-server-inventory
+    command: inventory
+    arguments:
+      remote_monitoring: true
+    labels:
+      env: production
+      role: load_balancer
+```
+
+Para actualizar una configuración de integración anterior al nuevo formato, utilice uno de los siguientes métodos:
+
+### Método asistido [#assisted-method]
+
+Usando la [CLI de New Relic](https://developer.newrelic.com/automate-workflows/get-started-new-relic-cli/), ejecute el siguiente comando para convertir automáticamente sus archivos de definición/configuración antiguos al nuevo formato de configuración:
+
+```shell
+newrelic agent config migrateV3toV4 -d /path/definitionFile -c /path/configFile -o /path/outputFile
+```
+
+Ejemplos:
+
+<CollapserGroup>
+  <Collapser
+    id="redis_conversion"
+    title="Redis"
+  >
+    La ruta utilizada a continuación es la ubicación predeterminada para la integración basada en Linux. Es posible que deba ajustar la ruta si está utilizando una ubicación personalizada:
+
+    ```
+    newrelic agent config migrateV3toV4 \
+     -d /var/db/newrelic-infra/newrelic-integrations/redis-definition.yml \
+     -c /etc/newrelic-infra/integrations.d/redis-config.yml \
+     -o /etc/newrelic-infra/integrations.d/redis.yml
+    ```
+  </Collapser>
+
+  <Collapser
+    id="mssql_conversion"
+    title="MicrosoftSQL"
+  >
+    La ruta utilizada a continuación es la ubicación predeterminada para la integración basada en Windows. Es posible que deba ajustar la ruta si está utilizando una ubicación personalizada:
+
+    ```
+    newrelic agent config migrateV3toV4 ^
+     -d 'C:\Program Files\New Relic\newrelic-infra\newrelic-integrations\mssql-definition.yml' ^
+     -c 'C:\Program Files\New Relic\newrelic-infra\integrations.d\mssql-config.yml' ^
+     -o 'C:\Program Files\New Relic\newrelic-infra\integrations.d\mssql.yml'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Método manual [#manual-method]
+
+Para convertir el archivo de integración manualmente:
+
+1. Cambie el nombre de la sección de nivel superior `instances` a `integrations`.
+2. Elimine la sección de nivel superior `integration_name` y agréguela a cada entrada de integración. Ya no es necesario que mantenga un archivo separado para cada tipo de integración y puede agrupar sus entradas de integración legacy en el mismo archivo que otras integraciones.
+
+A continuación se muestra un ejemplo de la nueva versión de la configuración de integración de Apache:
+
+```yml
+integrations:
+  - name: nri-apache
+    env:
+      METRICS: "true"
+      STATUS_URL: http://127.0.0.1/server-status?auto
+      REMOTE_MONITORING: true
+    interval: 15s
+    labels:
+      env: production
+      role: load_balancer
+
+  - name: nri-apache
+    env:
+      INVENTORY: "true"
+      STATUS_URL: http://127.0.0.1/server-status?auto
+      REMOTE_MONITORING: true
+    interval: 60s
+    labels:
+      env: production
+      role: load_balancer
+    inventory_source: config/apache
+```
+
+<Callout variant="important">
+  Tenga en cuenta que el formato de configuración anterior no admite la recarga en caliente. Por lo tanto, debe reiniciar el agente de infraestructura para eliminar la configuración de integración anterior. De lo contrario, las instancias antiguas coexistirán con las nuevas.
+</Callout>

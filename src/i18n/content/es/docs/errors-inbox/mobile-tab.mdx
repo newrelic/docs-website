@@ -1,0 +1,262 @@
+---
+title: 'Celular: pestaña de fallos de grupo'
+tags:
+  - APM
+  - APM UI pages
+  - Error analytics
+metaDescription: New Relic's group crashes tab shows trends and anomalies that help you compare and troubleshoot error events.
+freshnessValidatedDate: '2024-01-02T00:00:00.000Z'
+translationType: machine
+---
+
+Los fallos frecuentes de las aplicaciones móviles degradan la experiencia del usuario y provocan retrasos en el ciclo de vida de desarrollo. La página de **Group crashes** \[fallos del grupo] está diseñada para ayudar a su equipo de desarrollo a ofrecer una experiencia de aplicación móvil más estable y confiable a su usuario.
+
+Con la página de **Group crashes** \[fallos del grupo] puedes:
+
+* **Evalúe las tendencias generales de fallas**: revise los gráficos de **Crash rate percentage** \[porcentaje de tasa de fallas] y porcentaje de **Crash-free users** \[usuarios sin fallas] para identificar rápidamente cualquier anomalía o patrón en la ocurrencia de fallas.
+* **Filtre para un análisis más profundo**: emplee grupos y filtros para centrar en atributos de fallas específicos, como el tipo de dispositivo, la ubicación o los puntos de datos personalizados.
+* **Identificar patrones**: examine la tabla de **Crash location** \[ubicación de fallas] en busca de tendencias relacionadas con la ubicación, el tipo de excepción, la fecha, la frecuencia, la versión de la aplicación y la cantidad de usuarios afectados.
+* **Investigar fallas individuales**: seleccione un reporte de fallas para ver su ruta de interacción, traza de evento, detalles del hilo, atributo y otra información relevante. También puede volver a simbolizar o exportar los detalles a Xcode para depurarlos.
+* **Actualizar el estado del bloqueo**: marque el bloqueo como `Resolved` o elija entre otras opciones de estado, como `Resolved in specific version`.
+
+<img
+  title="group crashes tab"
+  alt="A screenshot depicting the group crashes tab in the New Relic UI"
+  src="/images/errors-inbox_screenshot-crop_group-crashes-tab-.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox)**</DNT>: Con nuestra pestaña de **Group crashes** \[fallas grupales], puede analizar la tasa de fallas y el usuario sin fallas de un vistazo o profundizar en la ubicación de fallas específica.
+</figcaption>
+
+## Flujo de trabajo sugerido [#workflow]
+
+Estos pasos describen nuestro enfoque recomendado para la investigación de accidentes, lo que le permitirá obtener una comprensión completa del incidente, identificar los factores contribuyentes e implementar estrategias de depuración efectivas.
+
+<CollapserGroup>
+  <Collapser
+    id="percentage-charts"
+    title="Gráficos de porcentajes de accidentes: vea patrones de inmediato"
+  >
+    Comience con los gráficos <DNT>**Crash rate percentage**</DNT> y <DNT>**Crash-free users percentage**</DNT> para ver de un vistazo si hay picos, caídas o patrones inesperados con fallas en general. Por ejemplo:
+
+    * ¿Hay algún pico cerca del lanzamiento de una versión reciente?
+
+    * ¿Hay algún [periodo](#time-period) en el que el porcentaje de usuarios se vio afectado significativamente por la caída? (Si el gráfico
+
+      <DNT>
+        **Crash-free users percentage**
+      </DNT>
+
+      está vacío, no hubo sesiones de usuario durante el periodo seleccionado).
+  </Collapser>
+
+  <Collapser
+    id="groups-filters"
+    title="Grupos y filtros: desglose y desmenuce los datos de accidentes"
+  >
+    Puede seleccionar un grupo y luego filtrar por datos específicos, que incluyen:
+
+    * Agrupe la lista de fallos por tipo de fallo, dispositivo, ubicación u otro atributo personalizado.
+
+    * Mostrar fallos abiertos, fallos resueltos o todos los fallos.
+
+    * Emplee el [selector de tiempo](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker) para ajustar el periodo seleccionado actualmente.
+
+    * Filtre por un <DNT>**Version**</DNT> específico o por uno o más atributos <DNT>**Filter**</DNT>, como `Last Interaction`, `App Build` o cualquiera de la lista más larga de atributos estándar y personalizados.)
+
+      Los filtros seleccionados aparecen en la parte superior de la página de la UI .
+  </Collapser>
+
+  <Collapser
+    id="insights"
+    title="Consulta y enlaces de imágenes: consulta datos de fallos y comparte gráficos con otros."
+  >
+    Los gráficos <DNT>**Crash analysis**</DNT> de monitoreo de móviles utilizan [un atributo predeterminado para eventos móviles](/docs/insights/new-relic-insights/decorating-events/mobile-default-attributes-insights#mobile-list), junto con cualquier atributo personalizado que haya agregado a este tipo de evento. Para ver o compartir los datos, haga clic en el icono de puntos suspensivos.
+
+    * <DNT>
+        **Add to dashboard**
+      </DNT>
+
+      enlace: [vea el gráfico](/docs/insights/new-relic-insights/using-insights-interface/query-page-creating-editing-nrql-queries) y cópielo en un dashboard nuevo o existente.
+
+    * <DNT>
+        **View query**
+      </DNT>
+
+      enlace: vea la [consulta NRQL](/docs/insights/new-relic-insights/using-new-relic-query-language/using-nrql) utilizada para calcular los datos del gráfico.
+
+    * <DNT>
+        **Get as image**
+      </DNT>
+
+      enlace: seleccione esta opción para obtener una URL pública del gráfico y luego compártala utilizando cualquier medio.
+  </Collapser>
+
+  <Collapser
+    id="profiles"
+    title="Perfiles bloqueados: vea rápidamente las diferencias clave entre cuentas bloqueadas y libres de fallas"
+  >
+    Los perfiles de fallas brindan información valiosa, rápida y clara sobre los datos de fallas de su dispositivo móvil al mostrar anomalías en el rendimiento de su aplicación móvil. Se destacan diferencias inesperadas entre atributos y comportamientos, lo que ilumina las diferencias clave entre cuentas fallidas y libres de fallas. Puede identificar rápidamente problemas clave mediante desgloses y filtros para una experiencia de resolución de problemas rápida y optimizada.
+
+    <img
+      title="Mobile crash profiles"
+      alt="mobile-crash-profiles.png"
+      src="/images/mobile_screenshot-full_crash-profiles.webp"
+    />
+
+    <figcaption>
+      <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Errors > Crash analysis > Crash profiles**</DNT>: Compare sesiones fallidas y libres de fallos.
+    </figcaption>
+  </Collapser>
+
+  <Collapser
+    id="event-trail"
+    title="Crash traza de evento: vea todos los eventos previos a un accidente"
+  >
+    La <InlinePopover type="mobile"/>traza de evento de falla le muestra el evento que condujo a una falla de una aplicación móvil. Estos pueden ser monitores de eventos por defecto o por eventos personalizados que creaste. Para obtener más información, consulte [Crash traza de evento](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/mobile-crash-event-trail).
+  </Collapser>
+
+  <Collapser
+    id="export-xcode"
+    title="Examine los detalles del informe de fallos: exporte a Xcode o resimbolice su código fuente"
+  >
+    Desde la tabla <DNT>**Crash types**</DNT> , puede profundizar en un [tipo de falla](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/investigate-mobile-app-crash-report) específico. Desde aquí podrás:
+
+    * Explore el desglose del hilo relacionado.
+
+    * Seleccione <DNT>**Export crash details**</DNT> para poder examinar el código fuente usando Xcode.
+
+    * Haga clic en el botón <DNT>**View crash libraries**</DNT> para ver qué archivos de mapas de Android o iOS .dSYM archivos que tenemos para su aplicación.
+
+    * Si no ve los archivos que espera, cargue un nuevo archivo de mapa de Android o iOS.`dSYM` archivos haciendo clic en el enlace <DNT>**Upload**</DNT> . Tenga en cuenta que cargar un archivo nuevo automáticamente despeja o simboliza la ocurrencia de su falla.
+
+    * Presente un ticket y resuelva el problema.
+
+      <img
+        title="New Relic mobile crash analytics: Stack trace"
+        alt="New Relic Mobile Crash Analytics: Stack trace"
+        src="/images/mobile_screenshot-full_stack-trace.webp"
+      />
+
+      <figcaption>
+        <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Errors > Crash Analysis > Crash types >**</DNT> (seleccione un bloqueo): este es un ejemplo de un rastreo del stack que incluye la opción de cargar un nuevo archivo de mapa de Android o .dSYM de iOS adicional. archivos. Para analizar y depurar su código fuente usando Xcode, seleccione <DNT>**Export crash details**</DNT>.
+      </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+## Vista de detalles de bloqueos [#details-view]
+
+El **Crash summary panel** incluye:
+
+* **Gráfico de ocurrencias**: visualiza la frecuencia de este bloqueo específico durante el periodo seleccionado desde su detección inicial. Si se registran varias ocurrencias, puede navegar a través de cada instancia.
+* **Desglose del tipo de falla** : muestra la distribución de esta falla en diferentes versiones del sistema operativo o dispositivos afectados.
+
+Los fallos resueltos se indican mediante un banner que muestra el usuario que resolvió el fallo y la timestamp de resolución. Tenga en cuenta que [se aplican las políticas de retención de datos](/docs/accounts/original-accounts-billing/product-based-pricing/overview-data-retention-components/#mobile) de monitoreo de celulares, lo que le permite filtrar por fallas resueltas para un análisis histórico cuando sea necesario.
+
+<img
+  title="crash details view"
+  alt="A screenshot showing the crash details view in the errors inbox UI"
+  src="/images/errors-inbox_screenshot-full_crash-details-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox)**</DNT>: seleccione una ubicación de fallas para abrir la página de **Crash details** .
+</figcaption>
+
+## Clasifica tus accidentes [#triage-crashes]
+
+La sección de clasificación asocia la ocurrencia de error específica que está viendo con su [grupo de errores creado por el sistema](/docs/errors-inbox/errors-inbox/#groups). Estos grupos de errores creados por el sistema se identifican mediante una huella digital única. Es esta huella digital única la que le permite clasificar grupos de errores mediante actualizaciones de estado o asignaciones.
+
+Para obtener más información sobre cómo se crean los grupos de errores, consulte [Cómo funcionan los grupos de errores](/docs/errors-inbox/errors-inbox/#how-groups-work) y, para obtener más información sobre el estado y las asignaciones, consulte [rastreo de errores](/docs/errors-inbox/errors-inbox/#assign).
+
+<img
+  title="triage crashes"
+  alt="A screenshot showcasing how to triage crashes in errors inbox"
+  src="/images/errors-inbox_screenshot-crop_triage-crashes-with-errors-inbox.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox) > Select a crash location **</DNT>: Desde la página de **Crash details**, puede clasificar ocurrencias de errores específicas agregando actualizaciones de estado o asignaciones.
+</figcaption>
+
+## atributo crash [#crash-attributes]
+
+Cada muestra de falla proporciona información detallada sobre el entorno del dispositivo donde ocurrió la falla, que incluye:
+
+* **Versión de la aplicación**: la versión específica de la aplicación en la que ocurrió el bloqueo.
+* **Tipo de dispositivo**: el modelo del dispositivo en el que ocurrió el accidente.
+* **Versión del sistema operativo**: la versión del sistema operativo que se ejecuta en el dispositivo.
+* **RAM empleada**: la cantidad de memoria que estaba empleando la aplicación en el momento del bloqueo.
+* **Disco libre**: la cantidad de espacio de almacenamiento disponible en el dispositivo cuando ocurrió el bloqueo.
+* **Atributo**: Atributo detallado asociado con el reporte del accidente, que ofrece información valiosa más profunda sobre el contexto del accidente.
+
+Puede exportar los detalles del bloqueo a Xcode o resimbolicar su código fuente, si corresponde, para agilizar el proceso de resolución de problemas.
+
+## Traza de evento [#event-trail]
+
+La traza de evento proporciona un log cronológico de todos [los eventos](/docs/data-apis/custom-data/custom-events/report-mobile-monitoring-custom-events-attributes/#event-definition) celulares que conducen a una falla, lo que ayuda al análisis de la causa raíz. Estos pueden ser el evento New Relic monitor por defecto, o el evento personalizado. La traza de evento está ordenada cronológicamente, comenzando con el evento más antiguo, que normalmente es el lanzamiento de la aplicación, pero puedes modificar lo siguiente:
+
+* **Ordenar**: alterna entre orden ascendente y descendente.
+* **Filtrado de eventos**: filtre por tipo de evento, como `interaction`, `request` o `request error`.
+* **Detalles del evento**: expanda el evento individual para inspeccionar su atributo, como `responseTime` o `requestUrl` para aplicar el evento.
+
+Luego de ordenar y filtrado su evento, puede profundizar un poco más en el evento que manejó al bloqueo examinando:
+
+* **Ruta de navegación personalizada**: emplee el [SDK Record ruta de navegación](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb/) para crear un evento `MobileBreadcrumb` personalizado. Esto le permite log interacciones de aplicaciones específicas que pueden ser relevantes para el análisis de fallos.
+* **Excepciones manejadas**: emplee los métodos del SDK `recordHandledException` para iOS y Android para anotar dónde se manejan las excepciones en su aplicación. Estas anotaciones completarán automáticamente la traza de evento del accidente.
+
+Para obtener orientación detallada sobre cómo mejorar la traza de evento de accidente con datos personalizados, consulte [Registro de ruta de navegación](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb/).
+
+Para aprovechar al máximo nuestras herramientas de análisis de fallos, cerciorar de:
+
+* Emplee el SDK móvil para crear un evento `MobileBreadcrumb` o `MobileHandledException` personalizado.
+* Habilite `MobileRequest` evento para capturar datos de solicitudes de red.
+
+<img
+  title="group crashes event trail"
+  alt="A screenshot showing the event trail for group crashes in the UI"
+  src="/images/errors-inbox_screenshot-crop_event-trail.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox) > Select a crash location **</DNT>: Profundice en el evento que condujo a un accidente específico empleando nuestra traza de evento.
+</figcaption>
+
+## Rastreo móvil del stack [#stack-trace]
+
+El rastreo del stack para cada falla se muestra debajo de los detalles de la falla. Cada cuadro dentro de la stack muestra el nombre y el método de la biblioteca o paquete asociado. Para cada falla, el agente móvil intenta detectar el marco stack específico que contiene el error de programación responsable de la falla. Si se detecta correctamente, ese marco stack aparece en rojo.
+
+* **Aplicaciones de iOS**: los nombres de los métodos del código fuente y los números de línea son visibles si cargó los archivos dSYM correspondientes para cada compilación.
+* **Aplicaciones de Android que usan ProGuard**: los nombres de paquetes y métodos se desenmascararán si la carga de mapas de ProGuard está habilitada.
+* **Reportes de fallos nativos de Android**: estos reportes solo mostrarán los nombres de archivos de origen y las compensaciones de código relativas.
+
+Puede emplear [alertas por email](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/mobile-monitoring-email-notifications/) para responder rápidamente a nuevos fallos.
+
+## Informes de fallos nativos de Android [#android-native-reporting]
+
+[New Relic Android agente versión 6.7.0](/docs/release-notes/mobile-release-notes/android-release-notes/android-670), introdujo mejoras para ayudar a rastrear y diagnosticar fallos, reportes y análisis nativos. Estas mejoras incluyen interferencias de señales y otras fallas que ocurren a nivel [de código nativo](https://developer.android.com/ndk/guides) durante el tiempo de ejecución.
+
+Estas mejoras incluyen:
+
+* **Reportes de fallos nativos**: Señal de infracción y otros fallos informados por la aplicación durante el tiempo de ejecución, que incluyen:
+
+  * Señal 4: instrucción ilegal
+  * Señal 6: Terminación anormal
+  * Señal 7: Error de bus/mal acceso a la memoria
+  * Señal 8: excepción de coma flotante
+  * Señal 1: Segmentación dañada/referencia de memoria no válida
+
+* **Excepciones de tiempo de ejecución nativas**: el agente nativo informará cualquier excepción de C++ no controlada generada por la aplicación durante el tiempo de ejecución y las informará como [excepciones controladas](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/introduction-mobile-handled-exceptions/). Las excepciones no controladas suelen ser fatales y bloquearán la aplicación.
+
+<Callout variant="important">
+  Los informes de fallos nativos son una característica en incubación. El monitoreo nativo de fallas es, en el mejor de los casos, difícil, pero el agente hará todos los mejores intentos para detectar e informar estas condiciones. Es posible que omita algunas condiciones o las informe de manera incompleta, y puede haber latencia al visualizar estas condiciones en el dashboard de la aplicación.
+
+  La simbolización de símbolos nativos no será compatible con las primeras versiones del agente NDK. Cuando los símbolos nativos de una aplicación no están presentes, el rastreo de la pila producido por una falla consiste únicamente en estas etiquetas ofuscadas, que no son fácilmente legibles.
+</Callout>
+
+Puede ver información detallada sobre fallas nativas en [UI<DNT>**Crash analysis**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes)de New Relic Mobile o recibir una notificación de falla por [correo electrónico](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/receive-crash-notifications-email). También puede explorar los datos del accidente en mayor profundidad con [Insights de New Relic](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes#insights) o [integrarlos con sistemas de tickets](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/file-tickets-mobile-app-crashes) para una mayor investigación.
+
+## Resolución de problemas [#profiles-disabled]
+
+Tenga en cuenta que los perfiles están deshabilitados cuando no hay diferencias estadísticamente significativas entre los valores de atributos de las sesiones fallidas y libres de fallas o no hay perfiles disponibles que coincidan con los filtros aplicados.

@@ -1,0 +1,33 @@
+---
+title: "Intro to using alerts with our NerdGraph API"
+tags:
+  - Alerts  
+  - Alerts and Nerdgraph
+metaDescription: 'Read about how you can manage alerts conditions, policies, and muting rules using NerdGraph.'
+redirects:
+  - /docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-examples
+  - /docs/alerts/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-examples
+  - /docs/alerts-applied-intelligence/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-examples
+  - /docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-examples
+  - /docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/alerts-nerdgraph/nerdgraph-api-examples
+freshnessValidatedDate: never
+---
+
+You can manage your policies, conditions, and muting rules programmatically using our GraphQL-format [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph). This is a powerful alternative to managing them within New Relic or with our older [REST API](/docs/alerts/rest-api-alerts/new-relic-alerts-rest-api/rest-api-calls-new-relic-alerts).
+
+## Alerts features you can manage with NerdGraph [#what-you-can-do]
+
+Here are links to the alerts-related NerdGraph docs:
+
+* [Manage policies](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-alerts-policies)
+* [Use NRQL conditions](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-alerts-nrql-conditions)
+* [Add muting rules to suppress notifications](/docs/alerts/new-relic-alerts/managing-notification-channels/muting-rules-suppress-notifications)
+* [Manage Destinations](/docs/apis/nerdgraph/examples/nerdgraph-api-notifications-destinations)
+* [Manage Workflows](/docs/apis/nerdgraph/examples/nerdgraph-api-workflows)
+* [Customize loss of signal and gap filling](/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling)
+
+The easiest way to discover alerts queries and mutations is through the NerdGraph API explorer.
+
+## Learn about NerdGraph [#nerdgraph-details]
+
+For general information about NerdGraph and about using the NerdGraph explorer, see [Intro to NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).

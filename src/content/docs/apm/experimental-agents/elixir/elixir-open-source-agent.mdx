@@ -1,0 +1,32 @@
+---
+title: Elixir open-source agent
+tags:
+  - Agents
+  - Open-source licensed agents
+  - Open-source licensed agents
+metaDescription: A brief introduction to New Relic's open-source Elixir agent.
+redirects:
+  - /docs/integrations/open-source-telemetry-integrations/elixir/elixir-open-source-agent
+  - /docs/introduction-new-relic-elixir
+  - /docs/elixir-open-source-agent
+  - /docs/agents/open-source-licensed-agents/elixir-open-source-agent/
+  - /docs/more-integrations/open-source-telemetry-integrations/elixir/elixir-open-source-agent
+freshnessValidatedDate: never
+---
+
+Monitor [Elixir](https://github.com/newrelic/elixir_agent) behavior with New Relic using the Elixir open-source agent. This experimental agent:
+
+* Helps you track transactions, distributed traces, and other parts of your application’s behavior
+* Provides an overview of underlying [BEAM](http://erlang.org/faq/implementations.html#idp32950544) activity
+
+<Callout variant="tip">
+  This agent is released as open source on [GitHub](https://github.com/newrelic/). A change log is also available there for the latest updates.
+</Callout>
+
+## Get started [#get_started]
+
+For requirements, installation, and configuration information, see the [Open-source Elixir agent README](https://github.com/newrelic/elixir_agent/blob/master/README.md) on GitHub.
+
+Visit [New Relic's Elixir repository on GitHub](https://github.com/newrelic/elixir_agent) for questions about installation, usage, or other topics. Report issues or bugs as an issue in the [GitHub repository](https://github.com/newrelic/elixir_agent/issues).
+
+<InstallFeedback/>

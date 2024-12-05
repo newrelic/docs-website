@@ -1,0 +1,980 @@
+---
+title: Conozca más sobre la entidad New Relic
+tags:
+  - New Relic
+  - Use New Relic
+  - Core concepts
+metaDescription: 'The definition of ''entity'' at New Relic, and how to use and organize entities.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La observabilidad de New Relic se basa en el concepto de <DNT>**entities**</DNT>. Este documento explica cómo definimos entidad, qué puede hacer con ellas y cómo puede crear su propia entidad o agrupaciones de entidades.
+
+<Callout variant="tip">
+  ¿Quieres un recorrido introductorio por la plataforma New Relic? Ver [Conozca la plataforma](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform).
+</Callout>
+
+## ¿Qué es una entidad? [#what-is-entity]
+
+Desde la perspectiva de New Relic, <DNT>**entity**</DNT> es intencionadamente un concepto amplio. Una entidad es cualquier cosa que a) reporta datos a New Relic o que contiene datos a los que tenemos acceso, y b) es algo que hemos identificado con una ID de entidad única. Para la mayoría de las entidades, el ID se indica mediante el [atributo](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#attribute) `entityGuid`.
+
+Una entidad puede ser cualquier componente fundamental de generación de informes de datos, como una aplicación, un host o un servicio de base de datos, pero también puede referirse a grupos más grandes de esos componentes. Por ejemplo, para monitor un centro de datos, puede agregar esos hosts en New Relic para que sean una [carga de trabajo](/docs/new-relic-one/use-new-relic-one/get-started/introduction-new-relic-one) (una agrupación personalizada de entidades). Esa carga de trabajo es, en sí misma, también una entidad. Te damos la posibilidad de [crear tu propia entidad](#entity-synthesis).
+
+También son muy importantes las [relaciones entre entidades](#related-entities). Nuestro mapeo de relaciones detrás de escena nos ayuda a comprender cómo están conectadas las entidades, cómo se afectan entre sí. Y esto nos permite darle el poder de configurar cómo se relacionan los datos que ingresa con una entidad existente o cómo se relaciona con otra entidad.
+
+Nuestro enfoque en la entidad y sus relaciones es importante porque nuestro objetivo es brindarle <DNT>**practical information about your business-important entities**</DNT>, en lugar de brindarle un flujo enorme e inútil de datos de una lista enorme de servicios y sistemas de monitoreo. Con más información valiosa a nivel de entidad, puede monitor y solucionar mejor los problemas de sistemas modernos y complejos.
+
+<img
+  title="New Relic entity list view"
+  alt="New Relic entity list view"
+  src="/images/platform_screenshot-crop_entities-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com](https://one.newrelic.com)**</DNT>: Cuando abres New Relic, llegas a la página <DNT>**All entities**</DNT> , que te brinda una descripción general de la entidad de tu monitor. Desde esta página, puede ver los metadatos de una entidad o hacer clic en una entidad para ver los detalles de rendimiento.
+</figcaption>
+
+## Filtra y explora tu entidad [#filter-entities]
+
+La barra de filtro de entidades está disponible en muchas páginas UI de New Relic, incluida la vista de lista de entidades principal, APM, laUI <InlinePopover type="browser"/>, la UI de infraestructura y más. Para aprender a usar la barra de filtros para explorar entidades y guardar filtros útiles, consulte [filtro de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities).
+
+## Más información sobre la entidad [#find]
+
+Para encontrar el GUID de una entidad y otros metadatos en la UI: desde cualquier [lista de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find), haga clic en el nombre de una entidad. <Icon name="fe-more-horizontal"/> icono y haga clic en <DNT>**See metadata & tags**</DNT>.
+
+Cada entidad tiene un número de identificación específico New Relic , que se informa como el atributo `entityGuid`. Puede ejecutar [NRQL consulta](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language) de entidad utilizando su GUID.
+
+### Conozca las relaciones entre entidades [#relationships]
+
+A continuación se muestran algunas opciones para comprender las relaciones entre entidades monitoras:
+
+* Al ver una entidad en la UI, utilice la [UI<DNT>**Related entities**</DNT> ](#related-entities).
+* Utilice [mapas de servicios](/docs/service-maps-dependencies-new-relic-one) para ver una representación visual de las conexiones.
+* Utilice [rastreo distribuido](/docs/distributed-tracing-new-relic-one) para ver cómo las entidades se llaman entre sí en la transacción.
+* Utilice [nuestra API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-relationships-api-tutorial) para ver información de relaciones.
+
+### Conozca detalles técnicos sobre la entidad [#technical-details]
+
+Para conocer detalles técnicos sobre los tipos de entidades, consulte nuestro [repositorio de GitHub para nuestros tipos de entidades](https://github.com/newrelic/entity-definitions/tree/main). Por ejemplo, para obtener detalles sobre la entidad APM-monitor, consulte [Aplicación APM](https://github.com/newrelic/entity-definitions/tree/main/entity-types/apm-application).
+
+Cada entidad contiene varios archivos que rigen la forma en que informa los datos. Por ejemplo, el archivo `golden_metrics` contiene información sobre su métrica más importante, que suele estar resaltada en nuestras experiencias UI . Aquí está [el archivo `golden_metrics.yml` de APM-monitor entidad](https://github.com/newrelic/entity-definitions/blob/main/entity-types/apm-application/golden_metrics.yml).
+
+El archivo `definition` de una entidad contiene información como:
+
+* El `domain`: por ejemplo, `APM` o `Infra`.
+* Es `type`: por ejemplo, `Application` o `AWSECSCONTAINERINSTANCE`.
+* [Etiqueta](/docs/new-relic-one/use-new-relic-one/core-concepts/use-tags-help-organize-find-your-data) predeterminada.
+* El `entityExpirationTime`: para obtener más información sobre esto, consulte [Caducidad de la entidad](#expiration).
+
+### Caducidad de la entidad [#expiration]
+
+Los diferentes tipos de entidad tienen diferentes períodos de vida, determinados por el `entityExpirationTime` establecido en el archivo `definition` para cada [tipo de entidad](https://github.com/newrelic/entity-definitions/tree/main/entity-types). Este tiempo de vencimiento rige cuánto tiempo existe el registro de esa entidad en New Relic después de que la entidad deja de informar datos.
+
+New Relic monitorea una gran cantidad de entidades, y muchas de esas entidades son de corta duración (por ejemplo, el contenedor de Kubernetes). Por estas razones es necesario eliminar periódicamente los registros de entidades que han dejado de reportar datos.
+
+Este tiempo de vencimiento se relaciona con el registro de la propia entidad y **no** está relacionado con [telemetry data](/docs/data-apis/understand-data/new-relic-data-types). Dicho de otra manera: los telemetry data informados por su entidad monitora se pueden encontrar en NRDB y están disponibles a través de NRQL, dependiendo de su [configuración de retención de datos](/docs/telemetry-data-platform/manage-data/manage-data-retention). Pero el registro de la entidad en sí, una vez que caduque, ya no existirá en New Relic.
+
+Las opciones para el tiempo de vencimiento de la entidad son estas:
+
+* `FOUR_HOURS`
+* `DAILY` (24 horas)
+* `EIGHT_DAYS`: Valor predeterminado que se aplica si no se define ninguna fecha límite en el archivo `definition` .
+* `QUARTERLY` (3 meses)
+* `MANUAL`: Esta configuración se aplica solo para entidades cuya creación y eliminación se controlan manualmente (por ejemplo, carga de trabajo y panel de control).
+
+## Agrupar y organizar entidad. [#group]
+
+Puede colocar entidad en grupos que reflejen relaciones comerciales importantes en su organización. Por ejemplo, podrías agrupar todas las entidades relacionadas con un equipo o departamento específico, o relacionadas con un servicio específico. O puede agrupar varios hosts para reflejar su agrupación en un centro de datos.
+
+Para agrupar su entidad, consulte:
+
+* [etiqueta entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor).
+* [Cree carga de trabajo](/docs/new-relic-one/use-new-relic-one/workloads/workloads-new-relic-one-isolate-resolve-incidents-faster), que le permitirá agrupar conjuntos de entidades importantes para el negocio.
+* [Crear entidad y personalizar datos de entidad](#entity-synthesis)
+
+## Crea y gestiona tu propia entidad con síntesis de entidad [#entity-synthesis]
+
+Si tiene telemetría de cualquier fuente que no sea compatible con New Relic de fábrica, puede proponer un mapeo para ello. Una vez aprobada, cualquier telemetría recibida por New Relic que coincida con su archivo de definición se sintetizará en una entidad.
+
+Aprender más:
+
+* Para conocer el atributo reservado y cómo se definen las relaciones entre entidades, siga leyendo este documento.
+* Para saber cómo realizar el trabajo de modificar los tipos de entidades existentes o crear otros nuevos, consulte [nuestro repositorio de GitHub sobre síntesis de entidades](https://github.com/newrelic/entity-definitions#entity-definitions).
+
+### Atributo reservado para entidad sintetizada [#reserved-attributes]
+
+Estos atributos están pensados para ser sintetizados a partir de la telemetría que recibimos. No los establezca a menos que sea consciente de las participaciones y consecuencias.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Atributo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `entity.guid`
+      </td>
+
+      <td>
+        Generalmente, no debe configurar este campo de atributo en sus telemetry data. New Relic puede agregar este campo a los datos ingeridos para almacenar un identificador único para la entidad asociada con el punto de datos. Si la telemetría llega con el atributo `entity.guid` ya presente, New Relic no cambiará el valor. Sin embargo, puede provocar un comportamiento indefinido, como que falte una entidad en la UI o que la telemetría no se asocie con la entidad esperada.
+
+        Un caso de uso para pasar este atributo es asociar la telemetría ingerida con una entidad que ya monitor. Cuando se envía el atributo `entity.guid` , el valor anulará nuestro sistema de identificación de entidades (como las definiciones de síntesis de entidades) y en su lugar utilizará el atributo como datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.name`
+      </td>
+
+      <td>
+        Este atributo no debe colocarse en telemetry data ingeridos a menos que esté intentando anular el nombre de la entidad que habría sido seleccionado por nuestro sistema de identificación de entidades. Si bien no cambiaremos el valor si ya está presente en los datos, podemos agregar el atributo a sus datos. Por lo tanto, los valores no válidos o inesperados pueden provocar un comportamiento indefinido, como que falte una entidad en la UI o que la telemetría no se asocie con la entidad esperada.
+
+        Si este campo está presente en la telemetría ingerida, su valor se utilizará para nombrar la entidad asociada con el punto de datos. Este nombre se utilizará en lugar del nombre seleccionado por nuestro sistema de identificación de entidades (por ejemplo, [definiciones de síntesis de entidades](https://github.com/newrelic/entity-definitions#entity-definitions)). Tenga en cuenta que muchas entidades utilizan el nombre como parte de su identificación, por lo que cambiar este campo puede resultar en la generación de una nueva entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.type`
+      </td>
+
+      <td>
+        Este atributo no se debe colocar en telemetry data ingeridos, excepto en ciertos casos legacy en los que es necesario distinguir tipos de entidades. Pasar este campo puede interferir con la detección de entidades, particularmente si se envían valores no reconocidos en este campo.
+
+        Si bien New Relic no cambiará el valor si ya está presente en los datos, no se garantiza que el campo proporcione un filtrado inequívoco de la telemetría en el momento de la consulta. Las definiciones de entidad existentes ya tienen valores superpuestos y recomendamos evitar `entity.type` en favor de otros campos para filtrar la consulta de telemetría.
+
+        New Relic utiliza este campo, lo que significa que los valores no válidos o inesperados pueden provocar un comportamiento indefinido, como que falte una entidad en la UI o que la telemetría no se asocie con la entidad esperada.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para aprender cómo realizar el trabajo de modificar tipos de entidades existentes o crear otros nuevos, consulte [nuestro repositorio de GitHub sobre síntesis de entidades](https://github.com/newrelic/entity-definitions#entity-definitions).
+
+## Entidad no instrumentada [#uninstrumented-entities]
+
+Usando su telemetría, podemos detectar entidades que no están siendo instrumentadas en este momento pero que están siendo utilizadas por su aplicación. Por ejemplo, una de sus entidades instrumentadas puede estar llamando a una base de datos de Amazon RDS que actualmente no está instrumentada por New Relic, por lo que no podemos proporcionar ninguna herramienta como monitoreo o alerta para ello.
+
+En ese caso, creamos una denominada "entidad no instrumentada" junto con la relación con la instrumentada. Se muestra en el [mapa de servicios](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/introduction-service-maps) de la entidad instrumentada. Proporcionamos instrucciones claras para instrumentarlo, que se muestran con solo hacer clic sobre la entidad.
+
+## Relaciones de entidad [#related-entities]
+
+New Relic crea automáticamente las conexiones entre entidades en función de lo que podemos inferir de su telemetría. Por ejemplo, cuando dos servicios que se comunican mediante HTTP están instrumentados con New Relic, inferimos una relación de "llamadas/llamados por" entre ellos.
+
+Al visualizar una entidad en las vistas [Explorador de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find), Navegador y Lookout, puede ver su <DNT>**Related entities**</DNT> en el panel derecho. Esto da una visualización de las diversas entidades conectadas directamente a la entidad actual. Puede ver rápidamente métricas importantes para estas entidades relacionadas y navegar de una entidad a otra, a través de todas las partes conectadas de su stack.
+
+<Callout variant="tip">
+  Aprenda a profundizar en las relaciones entre entidades [con nuestra API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial).
+</Callout>
+
+### Tipos de relaciones de entidad [#types]
+
+Las entidades pueden estar relacionadas entre sí de varias maneras. El colapsador a continuación enumera las relaciones de entidades admitidas. Una vez que comprenda las posibles relaciones, eche un vistazo a la lista de [relaciones creadas automáticamente](#relationship-created) o considere si desea [crear relaciones de entidad personalizadas](#create-custom-relationship).
+
+<CollapserGroup>
+  <Collapser
+    id="types-definition"
+    title="Tipos de relación"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Tipo
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `BUILT_FROM`
+          </td>
+
+          <td>
+            La entidad de destino contiene el código de la entidad de origen.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `CALLS`
+          </td>
+
+          <td>
+            La relación entre un servicio o aplicación que llama a otro. Se utiliza para mostrar servicios ascendentes y descendentes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `CONNECTS_TO`
+          </td>
+
+          <td>
+            La entidad de origen tiene una conexión con la entidad de destino.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `CONSUMES`
+          </td>
+
+          <td>
+            La entidad de origen consume mensajes de un tema Kafka objetivo u otro sistema de cola.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `CONTAINS`
+          </td>
+
+          <td>
+            La relación y los casos de uso jerárquicos comunes a la infraestructura moderna y de la nube. Por ejemplo, esto podría indicar que `HOST` contiene un contenedor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `HOSTS`
+          </td>
+
+          <td>
+            La relación entre una aplicación o proceso y el sistema en el que se ejecuta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `IS`
+          </td>
+
+          <td>
+            La relación entre una entidad capturada como entidad separada por otra fuente telemetry data y la que estás viendo actualmente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `MANAGES`
+          </td>
+
+          <td>
+            La entidad fuente gestiona el objetivo que representa un subsistema de la fuente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `MEASURES`
+          </td>
+
+          <td>
+            La entidad de origen se utiliza para medir la entidad de destino.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `PRODUCES`
+          </td>
+
+          <td>
+            La entidad de origen produce mensajes para un tema Kafka objetivo u otro sistema de cola.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SERVES`
+          </td>
+
+          <td>
+            La relación entre una aplicación de backend y la aplicación browser que devuelve en la respuesta.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### ¿Qué relaciones se crean automáticamente? [#relationship-created]
+
+Las relaciones automáticas se crean en base a la telemetría que está reportando la entidad. Estas relaciones tienen un Tiempo de Vida (TTL). Esto significa que se eliminarán automáticamente si las métricas utilizadas para crear la relación no son reportadas en un período de tiempo determinado. El TTL predeterminado para una relación es <b>75 minutos</b>. El TTL puede variar <b>desde 10 minutos hasta 3 días dependiendo del tipo de relación</b>.
+
+Estas son las relaciones entre entidad que creamos automáticamente:
+
+<CollapserGroup>
+  <Collapser
+    id="source-agent"
+    title="Fuente: Agente de New Relic"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Fuente de la relación
+          </th>
+
+          <th>
+            Tipo de relación
+          </th>
+
+          <th>
+            Relación objetivo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            ¿Por qué se crea la relación?
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Aplicación instrumentada con un agente New Relic
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Aplicación instrumentada con un agente New Relic
+          </td>
+
+          <td>
+            Las relaciones entre el monitor de aplicaciones y el agente de New Relic se informan utilizando la métrica `DurationByCaller` . La persona que llama informa la métrica.
+
+            Por ejemplo, la métrica `DurationByCaller/Mobile/100/1234/HTTP/all` indica que la persona que llama es `APPLICATION 1234` para la cuenta 100.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Aplicación instrumentada con un agente New Relic
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Servicio instrumentado con un agente New Relic
+          </td>
+
+          <td>
+            Una aplicación (persona que llama) que llama a un monitor de servicio (destinatario de la llamada) mediante New Relic crea una relación que la persona que llama informa utilizando la métrica `ExternalApp` .
+
+            Por ejemplo, la métrica `ExternalApp/dirac.vips.net/100#1234/all` indica que el destinatario de la llamada es `APPLICATION 1234` para la cuenta 100.
+
+            La métrica se informa si el destinatario responde correctamente a la persona que llama.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Servicio instrumentado con un agente New Relic
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Servicio instrumentado con un agente New Relic
+          </td>
+
+          <td>
+            Cuando un agente de New Relic detecta que un servicio (persona que llama) llama a otro servicio (persona que llama) instrumentado por New Relic, la persona que llama informa la métrica `ClientApplication`.
+
+            Por ejemplo, la métrica `ClientApplication/100#1234/all` indica que la persona que llama es `APPLICATION 1234` para la cuenta 100.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Servicio instrumentado con un agente New Relic
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Una instancia de almacenamiento de datos.
+          </td>
+
+          <td>
+            Cuando una aplicación llama a una instancia de almacenamiento de datos, crea una relación reportada con la métrica `DatastoreInstance` .
+
+            Por ejemplo, la métrica `Datastore/instance/MySQL/172.16.16.3/3306` indica que la instancia de almacenamiento de datos es proveedor: MySQL, host: 172.16.16.3, puerto: 3306.
+
+            Esta métrica también admite el formato de instancia de almacenamiento de datos legacy `Datastore/instance/MySQL/172.16.16.3:3306`.
+
+            Actualmente no podemos determinar si la instancia de almacenamiento de datos está instrumentada por New Relic y tiene una entidad asociada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <InlinePopover type="apm"/>agente
+          </td>
+
+          <td>
+            SIRVE
+          </td>
+
+          <td>
+            Agente del navegador
+          </td>
+
+          <td>
+            Esta relación se crea cuando un agente APM [inyecta](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#select-apm-app) el agente del navegador en una página.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Entidad de carga de trabajo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Cualquier entidad
+          </td>
+
+          <td>
+            Cuando se crea o actualiza una carga de trabajo, se crean relaciones para cada una de las entidades que pertenecen a la carga de trabajo.
+
+            Debido a que algunas cargas de trabajo son “dinámicas” (definidas por etiqueta), las relaciones se recrean cada 5 minutos. De esta manera la entidad puede incorporarse o abandonar la carga de trabajo.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="source-infrastructure"
+    title="Fuente: infraestructura"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Fuente de la relación
+          </th>
+
+          <th>
+            Tipo de relación
+          </th>
+
+          <th>
+            Relación objetivo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            ¿Por qué se crea la relación?
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Anfitrión de infraestructura
+          </td>
+
+          <td>
+            HOSPEDADORES
+          </td>
+
+          <td>
+            Aplicación
+          </td>
+
+          <td>
+            Esta relación se crea cuando una aplicación se ejecuta en uno o más hosts y el agente de infraestructura se ejecuta en esos hosts.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Anfitrión de infraestructura
+          </td>
+
+          <td>
+            HOSPEDADORES
+          </td>
+
+          <td>
+            Contenedor
+          </td>
+
+          <td>
+            Esta relación se crea cuando el contenedor se ejecuta en uno o más hosts y el host está instrumentado con el agente de infraestructura.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="source-synthetics"
+    title="Fuente: Monitor Sintético"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Fuente de la relación
+          </th>
+
+          <th>
+            Tipo de relación
+          </th>
+
+          <th>
+            Relación objetivo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            ¿Por qué se crea la relación?
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Monitor sintético
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Agente del navegador
+          </td>
+
+          <td>
+            Esta relación se crea cuando se realiza una verificación de monitoreo sintético de una página instrumentada con el agente del navegador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Monitor sintético
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Aplicación APM
+          </td>
+
+          <td>
+            El evento de agente que contiene el atributo `nr.syntheticsMonitorId` se ha descrito como un monitor sintético (el origen) que interactúa con una aplicación APM (el objetivo).
+
+            Si el encabezado existe y el ID de la aplicación APM existe, se crea una relación entre el monitor y la aplicación.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="source-kubernetes"
+    title="Fuente: Kubernetes"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Fuente de la relación
+          </th>
+
+          <th>
+            Tipo de relación
+          </th>
+
+          <th>
+            Relación objetivo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            ¿Por qué se crea la relación?
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Pod
+          </td>
+
+          <td>
+            Esta relación se crea cuando se crea un pod en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Despliegue
+          </td>
+
+          <td>
+            Esta relación se crea cuando se crea un despliegue en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            DaemonSet
+          </td>
+
+          <td>
+            Esta relación se crea cuando se crea un DaemonSet en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Conjunto con estado
+          </td>
+
+          <td>
+            Esta relación se crea cuando se crea un StatefulSet en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Anfitrión
+          </td>
+
+          <td>
+            Esta relación se crea cuando un host que forma parte de un clúster está instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Despliegue
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Pod
+          </td>
+
+          <td>
+            Esta relación se crea cuando un despliegue crea un pod en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            DaemonSet
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Pod
+          </td>
+
+          <td>
+            Esta relación se crea cuando un DaemonSet crea un pod en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Conjunto con estado
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Pod
+          </td>
+
+          <td>
+            Esta relación se crea cuando un StatefulSet crea un pod en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Pod
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Contenedor
+          </td>
+
+          <td>
+            Esta relación se crea cuando un pod crea un contenedor en un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Anfitrión
+          </td>
+
+          <td>
+            HOSPEDADORES
+          </td>
+
+          <td>
+            Pod
+          </td>
+
+          <td>
+            Esta relación se crea cuando un pod se ejecuta en un host que forma parte de un clúster instrumentado con la integración de New Relic Kubernetes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Contenedor
+          </td>
+
+          <td>
+            HOSPEDADORES
+          </td>
+
+          <td>
+            Aplicación
+          </td>
+
+          <td>
+            Esta relación se crea cuando una aplicación se ejecuta en docker y los hosts donde se ejecuta docker están instrumentados por el agente de infraestructura.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="source-external"
+    title="Servicios externos"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Fuente de la relación
+          </th>
+
+          <th>
+            Tipo de relación
+          </th>
+
+          <th>
+            Relación objetivo
+          </th>
+
+          <th style={{ width: "350px" }}>
+            ¿Por qué se crea la relación?
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            Cuando se crea la relación, el servicio externo informa un intervalo con su nombre en el atributo `service.name` y el nombre del servicio que inicia la llamada en el atributo `parent.service.name` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Aplicación
+          </td>
+
+          <td>
+            ES
+          </td>
+
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            Se crea una relación entre una aplicación y un servicio externo para que el usuario pueda navegar entre ellos utilizando el componente entidad relacionada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Aplicación browser instrumentada con un agente New Relic.
+          </td>
+
+          <td>
+            LLAMADAS
+          </td>
+
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            Una aplicación browser informa una métrica `Ajax/HostTransaction` cuando llama a un servicio externo (URL).
+
+            Ejemplo métrico: `Ajax/HostTransaction/api.segment.io:443/CallbackTime'`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Grupo
+          </td>
+
+          <td>
+            CONTIENE
+          </td>
+
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            Cuando se crea la relación, el servicio externo informa un intervalo con el atributo `k8s.cluster.name`, el nombre del clúster.
+
+            El clúster debe estar instrumentado con la integración de New Relic Kubernetes y el nombre del clúster establecido para la integración debe coincidir con el informado en el lapso.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Pod
+          </td>
+
+          <td>
+            HOSPEDADORES
+          </td>
+
+          <td>
+            Servicio externo
+          </td>
+
+          <td>
+            Cuando se crea la relación, el servicio externo reporta un span con el siguiente atributo:
+
+            * `service.name`: El nombre del servicio.
+
+            * `k8s.cluster.name`: El nombre del clúster.
+
+            * `k8s.pod.name`: el nombre del pod que ejecuta el servicio.
+
+            * `k8s.namespace.name`: el namespace donde se creó el pod.
+
+              El clúster debe estar instrumentado con la integración de New Relic Kubernetes y el nombre del clúster establecido para la integración debe coincidir con el informado en el lapso.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### Crear relaciones de entidad personalizadas [#create-custom-relationship]
+
+Cuando las relaciones no se detectan automáticamente, puede crearlas manualmente usando nuestra [API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/#manual-relationships), o puede hacerlo en la UI de New Relic con el enlace <DNT>**Add/edit related entities**</DNT> en <DNT>**Related entities**</DNT>. Actualmente, solo puede crear manualmente relaciones de llamadas/llamados por entre entidades de servicio.
+
+<Callout
+  id="RBAC-callout"
+  variant="tip"
+>
+  Para gestionar relaciones manuales, debe tener capacidades de modificación y eliminación de relaciones entre entidades. Si no ve el botón editar relaciones, comuníquese con el administrador de su cuenta.
+</Callout>

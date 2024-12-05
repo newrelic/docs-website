@@ -1,0 +1,37 @@
+---
+title: Dojo.io integration
+tags:
+  - dojo.io integration
+  - dojo integration
+  - new relic integrations
+metaDescription: The New Relic Dojo.io integration sends performance metrics and inventory data from your Dojo.io framework to the New Relic platform.
+redirects:
+  - /docs/infrastructure/host-integrations/host-integrations-list/dojo-io-integration
+  - /docs/more-integrations/open-source-telemetry-integrations/dojo/dojo-io-integration
+freshnessValidatedDate: never
+---
+
+With the help of New Relic's Dojo dashboard, you can track your application's core web vitals, how much time your users spend on your site, and critical browser performance metrics like initial page load and pages with Javascript errors. Built with our <InlinePopover type="browser"/> agent, the Dojo dashboard lets you view all your most important data in one place.
+
+<img
+  title="dashboard-example.png"
+  alt="A screenshot of the Dojo dashboard"
+  src="/images/infrastructure_screenshot-crop_dojo-dashboard.webp"
+/>
+
+## Install the infrastructure agent (optional) [#infra-install]
+
+While our Dojo integration isn't built with our infrastructure agent, we recommend installing it if you want performance data about your hosts. You can install the infrastructure agent two different ways:
+
+* Our [guided install](https://one.newrelic.com/nr1-core?state=4f81feab-35f7-e97e-9903-52510f8542bd) is a CLI tool that inspects your system and installs the infrastructure agent alongside the application monitoring agent that best works for your system. To learn more about how our guided install works, check out our [Guided install overview](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview).
+* If you’d rather install our infrastructure agent manually, you can follow a tutorial for manual installation for [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/), or [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/).
+
+## Install the browser agent [#browser-install]
+
+1. Install our browser agent by going to our [install launcher](https://one.newrelic.com/marketplace?account=3510613&state=79352429-fa28-4c25-1123-30c4b23ff83c) and clicking <DNT>**Browser monitoring**</DNT>.
+2. Select your account and follow the instructions in the UI.
+3. Install the pre-built Dojo dashboard on the [Dojo instant observability page](https://newrelic.com/instant-observability/dojo)
+
+## What's next? [#whats-next]
+
+With the browser agent installed and instrumented with your app, you can then view your raw data in [Metrics & events](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/). The default <InlinePopover type="dashboards"/> transform the raw data into charts and graphs that provide a high level view of your system's health. To install our default dashboards, go to our [instant observability page](https://newrelic.com/instant-observability/)

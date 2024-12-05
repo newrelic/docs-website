@@ -1,0 +1,51 @@
+---
+title: 'logger'
+metaDescription: 'Learn how to use the logger API'
+freshnessValidatedDate: 2024-06-03
+---
+
+A set of methods to replace `console.log()`, `console.warn()`, and `console.error()`.
+
+### Usage
+
+```js
+import { logger } from 'nr1'
+```
+
+### Methods
+
+### `logger.error`
+
+<FunctionDefinition
+  arguments={[{"defaultValue":null,"description":"JavaScript string containing zero or more substitution strings. To print the percentage sign, use double encoding (`%%`).","name":"message","type":"string"},{"defaultValue":null,"description":"JavaScript objects with which to replace substitution strings within `message`. This gives you additional control over the format of the output.","name":"...params","type":"Object[]"}]}
+  returnValue={{"description": null, "type": "undefined"}}
+/>
+
+```js
+const state = { foo: 42, bar: 'token' };
+
+
+logger.error('Invalid state passed: %O', state);
+```
+
+### `logger.log`
+
+<FunctionDefinition
+  arguments={[{"defaultValue":null,"description":"JavaScript string containing zero or more substitution strings. To print the percentage sign, use double encoding (`%%`).","name":"message","type":"string"},{"defaultValue":null,"description":"JavaScript objects with which to replace substitution strings within `message`. This gives you additional control over the format of the output.","name":"...params","type":"Object[]"}]}
+  returnValue={{"description": null, "type": "undefined"}}
+/>
+
+```js
+logger.log('Hello, my name is %s', 'John Doe');
+```
+
+### `logger.warn`
+
+<FunctionDefinition
+  arguments={[{"defaultValue":null,"description":"JavaScript string containing zero or more substitution strings. To print the percentage sign, use double encoding (`%%`).","name":"message","type":"string"},{"defaultValue":null,"description":"JavaScript objects with which to replace substitution strings within `message`. This gives you additional control over the format of the output.","name":"...params","type":"Object[]"}]}
+  returnValue={{"description": null, "type": "undefined"}}
+/>
+
+```js
+logger.warn('Threshold exceeded by %d%%!', 35);
+```

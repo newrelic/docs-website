@@ -1,0 +1,719 @@
+---
+title: 'Button'
+metaDescription: 'Learn how to work the Button component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Buttons are used throughout the product to provide users a way to complete an action. Try to not overuse buttons in your experience. This will help users know exactly what action you would like them to take. Never use more than one primary button in your experience.
+
+Primary Capabilities — the buttons can
+
+* perform one action
+* perform multiple actions, if multiple buttons are present.
+
+### Usage
+
+```js
+import { Button } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Docs-prettify">
+  <Button onClick={() => alert('Hello World!')} type={Button.TYPE.PRIMARY}>
+    Click me
+  </Button>
+  <Button
+    onClick={() => alert('Hello World!')}
+    type={Button.TYPE.PRIMARY}
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__NOTES__A_ADD}
+  >
+    Click me
+  </Button>
+  <Button
+    type={Button.TYPE.PRIMARY}
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__FILE__A_ADD}
+  />
+</div>
+```
+
+#### Sizes
+
+```js
+<div className="nr1-Docs-prettify">
+  <Button type={Button.TYPE.PRIMARY} sizeType={Button.SIZE_TYPE.LARGE}>
+    Click me
+  </Button>
+  <Button type={Button.TYPE.PRIMARY} sizeType={Button.SIZE_TYPE.MEDIUM}>
+    Click me
+  </Button>
+  <Button type={Button.TYPE.PRIMARY} sizeType={Button.SIZE_TYPE.SMALL}>
+    Click me
+  </Button>
+</div>
+```
+
+#### Types
+
+```js
+<div className="nr1-Docs-prettify">
+  <Button type={Button.TYPE.NORMAL}>Click me</Button>
+  <Button type={Button.TYPE.PRIMARY}>Click me</Button>
+  <Button type={Button.TYPE.DESTRUCTIVE}>Click me</Button>
+  <Button type={Button.TYPE.OUTLINE}>Click me</Button>
+  <Button type={Button.TYPE.PLAIN}>Click me</Button>
+  <Button type={Button.TYPE.PLAIN_NEUTRAL}>Click me</Button>
+</div>
+```
+
+#### Disabled state
+
+```js
+<div className="nr1-Docs-prettify">
+  <Button disabled type={Button.TYPE.PRIMARY}>
+    Click me
+  </Button>
+  <Button
+    disabled
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__NOTES__A_ADD}
+    type={Button.TYPE.PRIMARY}
+  >
+    Click me
+  </Button>
+  <Button
+    disabled
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__FILE__A_ADD}
+    type={Button.TYPE.PRIMARY}
+  />
+</div>
+```
+
+#### Loading state
+
+```js
+<div className="nr1-Docs-prettify">
+  <Button loading type={Button.TYPE.PRIMARY}>
+    Click me
+  </Button>
+  <Button
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__NOTES__A_ADD}
+    loading
+    type={Button.TYPE.PRIMARY}
+  >
+    Click me
+  </Button>
+  <Button
+    iconType={
+Button.ICON_TYPE.DOCUMENTS__DOCUMENTS__FILE__A_ADD}
+    loading
+    type={Button.TYPE.PRIMARY}
+  />
+</div>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaControls` <h5>string</h5>
+      </td>
+
+      <td>
+        Pass the `id` string of the element the `Button` controls when it's used to expand or open a panel. Use it along with `ariaExpanded`.
+
+        ```js
+        const { expanded } = this.state;
+        const panelId = 'content-panel';
+
+        return (
+          <>
+            <Button ariaControls={panelId} ariaExpanded={expanded}>
+              Expand content
+            </Button>
+            <div id={panelId} hidden={!expanded}>
+              Content
+            </div>
+          </>
+        );
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaExpanded` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Use it to indicate whether the element the `Button` controls is expanded or not.Recommended to also check `ariaControls` and `ariaHasPopup` examples.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaHasPopup` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        Use it to indicate that the `Button` toggles an interactive overlay element.The value can be:
+
+        * `false` (default) indicates the element does not have a popup.
+        * `true` indicates the popup has a `menu` role
+        * `"menu"` indicates the popup has a `menu` role
+        * `"listbox"` indicates the popup has a `listbox` role
+        * `"tree"` indicates the popup has a `tree` role
+        * `"grid"` indicates the popup has a `grid` role
+        * `"dialog"` indicates the popup has a `dialog` role
+          Read [WAI ARIA specifications for this attribute](https://www.w3.org/TR/wai-aria-1.1/#aria-haspopup) to know which one suits better for your use case.
+
+        ```js
+        const { modalHidden } = this.state;
+
+        return (
+          <>
+            <Button
+              ariaHasPopup="dialog"
+              ariaExpanded={!modalHidden}
+              onClick={() => this.setState({ modalHidden: false })}
+            >
+              Open modal
+            </Button>
+            <Modal
+              hidden={modalHidden}
+              onClose={() => this.setState({ modalHidden: true })}
+            />
+          </>
+        );
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to describe better the context of the component's action or in buttons displaying only an icon for users on screen readers.
+
+        ```js
+        <Button
+          iconType={Button.ICON_TYPE.INTERFACE__OPERATIONS__SEARCH}
+          ariaLabel="Search for entities"
+        />;
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Content to render inside the button.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Use the disabled state for a button prior to a user filling out the required fields of a form or when a user must complete some other task before the button can be enabled.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `iconType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Icon to display.
+        <OptionReference>  
+                    Button.ICON_TYPE.DATAVIZ**DATAVIZ**AREA_CHART,  
+                    Button.ICON_TYPE.DATAVIZ**DATAVIZ**BAR_CHART,  
+                    Button.ICON_TYPE.DATAVIZ**DATAVIZ**BILLBOARD_CHART,  
+                    Button.ICON_TYPE.DATAVIZ**DATAVIZ**BULLET_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_ADD,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_EDIT,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_REMOVE,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_ADD,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_EDIT,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_FILTER,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_REMOVE,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**EVENT_FEED_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**HEATMAP_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**LINE_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**MARKDOWN,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**PIE_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**SCATTER_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**SERVICE_MAP_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_BAR_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_HORIZONTAL_BAR_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**TABLE_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**TRAFFIC_LIGHTS_CHART,
+        Button.ICON_TYPE.DATAVIZ**DATAVIZ**VERTICAL_BAR_CHART,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_ADD,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_REMOVE,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_ADD,
+        Button.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_REMOVE,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**ATTACHMENT,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**DOCUMENTATION,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL**V_ALTERNATE,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_ADD,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_REMOVE,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_ADD,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_REMOVE,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_ADD,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_EDIT,
+        Button.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_REMOVE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**ANOMALIES,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**A_INSPECT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CPU,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MEMORY,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**A_INSPECT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_ADD,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_CONFIGURE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_EDIT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_INSPECT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_PAUSE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_REMOVE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**STORAGE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CLUSTER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CONTAINER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_DEPLOYMENT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_MASTER_NODE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NAMESPACE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NODE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_POD,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_SERVICE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**ALL_ENTITIES,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CLOUD,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CODE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTAINER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTROL_CENTER,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION_REASONING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DECISIONS,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DESTINATIONS,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_CONNECTION,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_DEPLOYMENT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**EVENT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**FEED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LIVE_VIEW,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LOGS,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MONITORING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**NODE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**OVERVIEW,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PATHWAY,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**QUERY,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**A_CHECKED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_DISABLED,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_ERROR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_OK,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_WARNING,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SOURCES,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**STACK_TRACE,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHESIZED_ENTITY,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHETICS_MONITOR,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYSTEM,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRACES,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRAFFIC,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_CONNECTION,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_DEPLOYMENT,
+        Button.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**WORKLOADS,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_LEFT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_RIGHT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_LEFT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_RIGHT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_HORIZONTAL,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**ARROW**ARROW_VERTICAL,
+        Button.ICON_TYPE.INTERFACE**ARROW**EXPAND,
+        Button.ICON_TYPE.INTERFACE**ARROW**GO_TO,
+        Button.ICON_TYPE.INTERFACE**ARROW**MOVE,
+        Button.ICON_TYPE.INTERFACE**ARROW**RESIZE,
+        Button.ICON_TYPE.INTERFACE**ARROW**RETURN_LEFT,
+        Button.ICON_TYPE.INTERFACE**ARROW**RETURN_RIGHT,
+        Button.ICON_TYPE.INTERFACE**ARROW**SHRINK,
+        Button.ICON_TYPE.INTERFACE**ARROW**SORT,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_LEFT,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_TOP,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_TOP**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_TOP**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**INFO**ANNOUNCEMENT,
+        Button.ICON_TYPE.INTERFACE**INFO**HELP,
+        Button.ICON_TYPE.INTERFACE**INFO**INFO,
+        Button.ICON_TYPE.INTERFACE**INFO**INFO**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ADJUST,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ALERT,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**A_REMOVE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_OFF,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_ON,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**ARCHIVE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**CENTER,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**CONFIGURE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO_CLIPBOARD,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**DOWNLOAD,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**DRAG,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**EDIT,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**EXPORT,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**EXTERNAL_LINK,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**FILTER,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_ADD,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_REMOVE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**FOLLOW,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**GROUP,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**A_REMOVE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**HIDE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**HIDE_OTHERS,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**HIGHLIGHT,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**IMPORT,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**MORE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE_ALTERNATE**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**PIN,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**PLAY,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**PLAY_ALTERNATE**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**REARRANGE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**REDO,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**REFRESH,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**REMOVE**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**REPLY**A_REPLY,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SHARE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SHARE_LINK,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SHOW,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_BACK,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_FORWARD,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**TAG,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**TRASH,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE**A_TV_MODE,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**UNDO,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**UNPIN,
+        Button.ICON_TYPE.INTERFACE**OPERATIONS**UPLOAD,
+        Button.ICON_TYPE.INTERFACE**PLACEHOLDERS**CUSTOM_PLACEHOLDER,
+        Button.ICON_TYPE.INTERFACE**PLACEHOLDERS**ICON_PLACEHOLDER,
+        Button.ICON_TYPE.INTERFACE**SIGN**ASTERISK,
+        Button.ICON_TYPE.INTERFACE**SIGN**CHECKMARK,
+        Button.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**SIGN**CLOSE,
+        Button.ICON_TYPE.INTERFACE**SIGN**DOLLAR_SIGN,
+        Button.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION,
+        Button.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**SIGN**MINUS,
+        Button.ICON_TYPE.INTERFACE**SIGN**MINUS**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**SIGN**NUMBER,
+        Button.ICON_TYPE.INTERFACE**SIGN**PLUS,
+        Button.ICON_TYPE.INTERFACE**SIGN**PLUS**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**SIGN**TIMES,
+        Button.ICON_TYPE.INTERFACE**SIGN**TIMES**SIZE_8,
+        Button.ICON_TYPE.INTERFACE**SIGN**TIMES**V_ALTERNATE,
+        Button.ICON_TYPE.INTERFACE**STATE**CLOSED,
+        Button.ICON_TYPE.INTERFACE**STATE**CRITICAL,
+        Button.ICON_TYPE.INTERFACE**STATE**CRITICAL**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**STATE**DISABLED,
+        Button.ICON_TYPE.INTERFACE**STATE**ENABLED,
+        Button.ICON_TYPE.INTERFACE**STATE**HEALTHY,
+        Button.ICON_TYPE.INTERFACE**STATE**LOADING,
+        Button.ICON_TYPE.INTERFACE**STATE**LOCK,
+        Button.ICON_TYPE.INTERFACE**STATE**OPEN,
+        Button.ICON_TYPE.INTERFACE**STATE**PRIVATE,
+        Button.ICON_TYPE.INTERFACE**STATE**PUBLIC,
+        Button.ICON_TYPE.INTERFACE**STATE**UNAVAILABLE,
+        Button.ICON_TYPE.INTERFACE**STATE**UNLOCK,
+        Button.ICON_TYPE.INTERFACE**STATE**WARNING,
+        Button.ICON_TYPE.INTERFACE**STATE**WARNING**WEIGHT_BOLD,
+        Button.ICON_TYPE.INTERFACE**VIEW**ENTER_FULL_SCREEN,
+        Button.ICON_TYPE.INTERFACE**VIEW**EXIT_FULL_SCREEN,
+        Button.ICON_TYPE.INTERFACE**VIEW**GRID_VIEW,
+        Button.ICON_TYPE.INTERFACE**VIEW**HIGH_DENSITY_VIEW,
+        Button.ICON_TYPE.INTERFACE**VIEW**LAYER_LIST,
+        Button.ICON_TYPE.INTERFACE**VIEW**LIST_VIEW,
+        Button.ICON_TYPE.INTERFACE**VIEW**SIXTH_SENSE,
+        Button.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE,
+        Button.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_DARK,
+        Button.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_LIGHT,
+        Button.ICON_TYPE.LOCATION**LOCATION**HOME,
+        Button.ICON_TYPE.LOCATION**LOCATION**MAP,
+        Button.ICON_TYPE.LOCATION**LOCATION**PIN,
+        Button.ICON_TYPE.LOCATION**LOCATION**WORLD,
+        Button.ICON_TYPE.PROFILES**EVENTS**COMMENT,
+        Button.ICON_TYPE.PROFILES**EVENTS**COMMENT**A_EDIT,
+        Button.ICON_TYPE.PROFILES**EVENTS**FAVORITE,
+        Button.ICON_TYPE.PROFILES**EVENTS**FAVORITE**WEIGHT_BOLD,
+        Button.ICON_TYPE.PROFILES**EVENTS**LIKE,
+        Button.ICON_TYPE.PROFILES**USERS**ORGANIZATION,
+        Button.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_ADD,
+        Button.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_EDIT,
+        Button.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_REMOVE,
+        Button.ICON_TYPE.PROFILES**USERS**TEAM,
+        Button.ICON_TYPE.PROFILES**USERS**TEAM**A_ADD,
+        Button.ICON_TYPE.PROFILES**USERS**TEAM**A_EDIT,
+        Button.ICON_TYPE.PROFILES**USERS**TEAM**A_REMOVE,
+        Button.ICON_TYPE.PROFILES**USERS**USER,
+        Button.ICON_TYPE.PROFILES**USERS**USER**A_ADD,
+        Button.ICON_TYPE.PROFILES**USERS**USER**A_EDIT,
+        Button.ICON_TYPE.PROFILES**USERS**USER\_\_A_REMOVE>,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `loading` <h5>boolean</h5>
+      </td>
+
+      <td>
+        To indicate whether an action is in progress, especially in the case that it takes more than 1 second to complete, you should display the loading state.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the button.
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sizeType` <h5>enum</h5>
+      </td>
+
+      <td>
+        We recommend you use the normal size button in almost all instances.Use the slim button sparingly as it diminishes the importance of the button. Do not use it solely to fit into a space, but consider increasing the space around a default button.The few cases to use a large button are in marketing-like material for your add-on: introducing it in a splash page or in a hero message.
+        <OptionReference>Button.SIZE_TYPE.LARGE,
+        Button.SIZE_TYPE.MEDIUM,
+        Button.SIZE_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+        <OptionReference array>Button.SPACING_TYPE.EXTRA_LARGE,
+        Button.SPACING_TYPE.LARGE,
+        Button.SPACING_TYPE.MEDIUM,
+        Button.SPACING_TYPE.NONE,
+        Button.SPACING_TYPE.OMIT,
+        Button.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.
+        <h3>shape</h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Primary — use to call attention to one specific action you want the user to take as a next step.
+        * Normal (used as secondary) — use when multiple actions need to be displayed.
+        * Outline — use for important actions that are not the main (primary) action of a given view. This variation sits in between the primary and default buttons in terms of hierarchy.
+        * Plain — use when multiple actions need to be available that are less important for the user to take.
+        * Destructive — use when you have a destructive action like delete or remove, which you would like the user to pause and consider before completing.
+          <OptionReference>Button.TYPE.DESTRUCTIVE,
+          Button.TYPE.NORMAL,
+          Button.TYPE.OUTLINE,
+          Button.TYPE.PLAIN,
+          Button.TYPE.PLAIN_NEUTRAL,
+          Button.TYPE.PRIMARY</OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,32 @@
+---
+title: 'NerdletStateContext'
+metaDescription: 'Learn how to work the NerdletStateContext component'
+freshnessValidatedDate: 2024-06-03
+---
+
+[React context](https://reactjs.org/docs/context.html#when-to-use-context) to access the nerdlet URL state.
+
+### Usage
+
+```js
+import { NerdletStateContext } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<NerdletStateContext.Consumer>
+  {(nerdletState) => <pre>{JSON.stringify(nerdletState, null, 4)}</pre>}
+</NerdletStateContext.Consumer>
+```
+
+### Methods
+
+### `NerdletStateContext.subscribe`
+
+<FunctionDefinition
+  arguments={[{"description":"Function that will be called.","name":"subscriber","type":"function"}]}
+  returnValue={{"description":null,"type":"undefined"}}
+/>

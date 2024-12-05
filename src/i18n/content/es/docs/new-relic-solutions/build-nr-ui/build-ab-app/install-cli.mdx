@@ -1,0 +1,98 @@
+---
+title: Instalar y configurar la CLI de New Relic
+metaDescription: Install and configure the New Relic CLI
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Ponga en marcha sus servicios de demostración, antes de comenzar esta.
+</Callout>
+
+Uno de los elementos principales del SDK de New Relic One es la interfaz de línea de comando (CLI). Para crear un Nerdpack, deberá instalar el SDK, configurar la CLI para que funcione con su cuenta de New Relic y luego emplear su comando `create`.
+
+# Instalar y configurar la CLI [#install]
+
+<Steps>
+  <Step>
+    Vaya al inicio rápido de [**Build on New Relic**](https://one.newrelic.com/launcher/developer-center.launcher?pane=eyJuZXJkbGV0SWQiOiJkZXZlbG9wZXItY2VudGVyLmRldmVsb3Blci1jZW50ZXIifQ==).
+  </Step>
+
+  <Step>
+    Consigue tu [licencia clave de API](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher).
+
+    Una vez que instale la CLI, empleará esta clave para crear un perfil de usuario asociado con su cuenta. La CLI emplea este perfil para gestionar la entidad dentro de su cuenta.
+  </Step>
+
+  <Step>
+    Al instalar la CLI, lea y acepte los términos y condiciones para desarrolladores de New Relic.
+
+    Incluso si instala la CLI, no podrá emplearla sin aceptar primero estos términos y condiciones.
+  </Step>
+
+  <Step>
+    Elija su sistema operativo y haga clic en **Download installer**.
+
+    Una vez que instaló el SDK, tendrá acceso a la CLI `nr1`. Verifique esto comprobando su versión de SDK:
+
+    ```sh
+    nr1 --version
+    ```
+
+    Si ya tenía la CLI, actualícela:
+
+    ```sh
+    nr1 update
+    ```
+
+    <Callout variant="tip">
+      Es importante distinguir entre la CLI `newrelic` y la CLI `nr1`. `newrelic` es para gestionar la entidad en tu cuenta New Relic. `nr1` es para gestionar la aplicación New Relic.
+    </Callout>
+  </Step>
+
+  <Step>
+    Copie el comando para almacenar sus credenciales.
+
+    Este comando tiene un nombre de perfil, su región y su clave de API integrada.
+
+    Ejecute el comando en su terminal:
+
+    ```sh
+    nr1 profiles:add --name <profile name> --api-key <User key> --region <region>
+    ```
+
+    Los perfiles le permiten seleccionar en qué cuenta de New Relic desea ejecutar comandos. Si tiene varias cuentas, puede verlas con `profiles:list`:
+
+    ```sh
+    nr1 profiles:list
+    ```
+
+    Tenga en cuenta que un perfil es su perfil predeterminado. Esta es la cuenta con la que se ejecutarán sus comandos, a menos que especifique otra. Para especificar un perfil para un comando en individuo, use la opción `--profile` :
+
+    ```sh
+    nr1 create --profile <your profile>
+    ```
+
+    Si es la primera vez que emplea la CLI, entonces el perfil que acaba de agregar es su perfil predeterminado. Si tiene otros perfiles, debe configurar el predeterminado como el que le gustaría usar para este curso:
+
+    ```sh
+    nr1 profiles:default
+    ```
+
+    <Callout variant="tip">
+      Si olvida estos comandos, puede buscarlos en el menú de ayuda de perfiles:
+
+      ```sh
+      nr1 profiles --help
+      ```
+    </Callout>
+  </Step>
+</Steps>
+
+Ahora puede salir del inicio rápido de **Build on New Relic**. ¡Está listo para crear una aplicación con New Relic One CLI!
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: Crea un Nerdpack.
+</Callout>

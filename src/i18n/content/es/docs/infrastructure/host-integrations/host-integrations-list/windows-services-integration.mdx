@@ -1,0 +1,255 @@
+---
+title: Integración de servicios de Windows.
+metaDescription: An introduction to New Relic's open-source Windows services integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La integración de servicios de Windows de New Relic recopila datos sobre los servicios que se ejecutan en sus hosts de Microsoft Windows y los envía a nuestra plataforma. Puede verificar el estado y el modo de inicio de cada servicio, averiguar qué hosts están ejecutando un servicio, configurar <InlinePopover type="alerts"/>para servicios y más.
+
+Con nuestra integración de servicios de Windows usted puede:
+
+* Verifique todos sus servicios de Windows, su estado (en ejecución, detenido, etc.), el modo de inicio (automático, manual, etc.) y otros [metadatos](#metadata) del servicio.
+
+* Vea qué hosts ejecutan servicios específicos de Windows.
+
+* [Configure alertas](#set-alerts) basadas en cualquier servicio de Windows que esté monitoreando utilizando New Relic.
+
+* Instale el [inicio rápido de servicios de Windows](https://newrelic.com/instant-observability/winservices) o cree su propio
+
+  <InlinePopover type="dashboards"/>
+
+  para realizar un seguimiento de sus servicios de Windows.
+
+Nuestra integración se incluye con el [agente de infraestructura de Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows). Si está monitoreando hosts Windows en New Relic, solo necesita habilitar la integración para obtener datos de servicios Windows en nuestra plataforma.
+
+<img
+  title="New Relic - Windows services integration - Metric data"
+  alt="New Relic - Windows services integration - Metric data"
+  src="/images/infrastructure_screenshot-crop_windows-services-metric.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Dashboards**</DNT>: Puede utilizar la integración métrica de servicios de Microsoft Windows para crear tablas para sus servicios.
+</figcaption>
+
+## Compatibilidad y requisitos [#requirements]
+
+Nuestra integración es compatible con todas [las versiones de Windows soportadas](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent) por el agente New Relic Infrastructure .
+
+Debe tener <DNT>**version 1.12.1 or higher**</DNT> para nuestro [agente de monitoreo de infraestructura](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows) instalado en un host compatible. Las versiones x86 de Windows aún no son compatibles.
+
+<Steps>
+  <Step>
+    ## Instalar el agente de infraestructura [#infra-install]
+
+    Para utilizar la integración de servicios de Windows, primero debe [instalar el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) en el mismo host. Toda nuestra integración en el host requiere el agente de infraestructura, que ayuda a exponer e informar métricamente a New Relic.
+  </Step>
+
+  <Step>
+    ## Configurar la integración de servicios de Windows [#configure]
+
+    Para activar y configurar la integración de servicios de Windows:
+
+    1. Cambie el directorio a la carpeta de integración:
+
+       ```shell
+       cd C:\Program Files\New Relic\newrelic-infra\integrations.d\
+       ```
+
+    2. Copie el archivo de configuración de muestra:
+
+       ```shell
+       copy winservices-config.yml.sample winservices-config.yml
+       ```
+
+    3. Edite el archivo `winservices-config.yml` . Por defecto no se incluye ningún servicio. Para incluir y filtrar servicios, debe editar `include_matching_entities:`.
+
+       A continuación se muestra un ejemplo de la configuración de integración de servicios de Windows con un patrón de expresiones regulares que coincide con todos los servicios denominados `win32.*` y una coincidencia directa para el servicio `newrelic-infra` :
+
+       ```yml
+         integrations:
+           - name: nri-winservices
+             config:
+               exporter_bind_address: 127.0.0.1
+               exporter_bind_port: 9182
+               include_matching_entities:
+                 windowsService.name:
+                   - regex "win32.*"
+                   - "newrelic-infra"
+               scrape_interval: 30s
+             timeout: 60s
+       ```
+
+       Para obtener más información, consulte nuestra documentación sobre la [estructura general de integración en la configuración del host](/docs/integrations/integrations-sdk/file-specifications/host-integration-configuration-overview).
+  </Step>
+
+  <Step>
+    ## Reinicie el agente New Relic Infrastructure
+
+    Reinicie su agente de infraestructura:
+
+    ```shell
+    sudo systemctl restart newrelic-infra.service
+    ```
+
+    En un par de minutos, tu aplicación enviará métrica a [one.newrelic.com](https://one.newrelic.com).
+  </Step>
+
+  <Step>
+    ## Encuentra tus datos
+
+    Puede elegir nuestra plantilla dashboard prediseñadas llamada `Windows services integration `para monitor sus servicios de Windows. Siga estos pasos para utilizar nuestra plantilla dashboard prediseñadas:
+
+    1. Desde [one.newrelic.com](https://one.newrelic.com), vaya a la página
+
+       <DNT>
+         **+ Add data**
+       </DNT>
+
+       .
+
+    2. Haga clic en
+
+       <DNT>
+         **Dashboards**
+       </DNT>
+
+       .
+
+    3. En la barra de búsqueda, escriba `Windows services`.
+
+    4. Debería aparecer el dashboard servicios de Windows. Haga clic en él para instalarlo.
+
+       Su dashboard de servicios de Windows se considera un panel personalizado y se puede encontrar en la UI <DNT>**Dashboards**</DNT>. Para obtener documentos sobre el uso y edición del panel, consulte [nuestros documentos dashboard ](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+  </Step>
+</Steps>
+
+## Configurar una alerta [#set-alerts]
+
+Puede crear servicios de Windows <InlinePopover type="alerts"/>usando condiciones NRQL para recibir notificaciones sobre los cambios de estado de los servicios que desea monitor. A continuación se muestran dos ejemplos de condición de alerta que utilizan datos de servicios de Windows:
+
+<CollapserGroup>
+  <Collapser
+    id="service"
+    title="El servicio no está funcionando"
+  >
+    ```sql
+    SELECT count(*) FROM Metric WHERE metricName = 'windows_service_state' AND state != 'running' FACET hostname, service_name
+    ```
+  </Collapser>
+
+  <Collapser
+    id="start-mode"
+    title={<>El modo de inicio es <InlineCode>auto</InlineCode>, pero el estado actual no lo es <InlineCode>running</InlineCode></>}
+  >
+    ```sql
+    FROM Metric SELECT count(*) WHERE start_mode = 'auto' AND state != 'running' FACET hostname, service_name
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cómo funciona [#process]
+
+Para obtener datos de hosts de Windows, nuestra integración de servicios de Windows utiliza una versión reducida del [exportador Prometheus para Windows](https://github.com/prometheus-community/windows_exporter), que expone Prometheus métrica en el puerto especificado en la configuración del agente. La integración recopila estas métricas, las transforma en entidad, las filtra y luego las envía a New Relic.
+
+<img
+  title="Windows services integration architecture"
+  alt="Windows services integration architecture"
+  src="/images/infrastructure_diagram_windows-services.webp"
+/>
+
+<figcaption>
+  La integración de servicios de Windows recopila datos [de funciones de servicio](https://docs.microsoft.com/en-us/windows/win32/services/service-functions) mediante el exportador de Windows Prometheus. Luego transforma y filtra los datos antes de enviarlos a New Relic.
+</figcaption>
+
+## Datos métricos [#metrics]
+
+La integración de servicios de Windows proporciona los siguientes datos:
+
+<Callout variant="tip">
+  Esta integración crea métricas dimensionales, que devuelven el estado numérico proporcionado por la [clase Win32_Service](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-service). La enumeración de estas métricas en valores de cadena legibles se proporciona en los atributos `start_mode` y `state` .
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Nombre de la métrica
+      </th>
+
+      <th>
+        Atributo enumerado
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `windows_service_start_mode`
+      </td>
+
+      <td>
+        `start_mode`
+      </td>
+
+      <td>
+        Modo de inicio del servicio. Los valores posibles son:
+
+        * `boot`
+        * `system`
+        * `auto`
+        * `manual`
+        * `disabled`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `windows_service_state`
+      </td>
+
+      <td>
+        `state`
+      </td>
+
+      <td>
+        Estado del servicio. Los valores posibles son:
+
+        * `stopped`
+        * `start pending`
+        * `stop pending`
+        * `running`
+        * `continue pending`
+        * `pause pending`
+        * `paused`
+        * `unknown`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Metadatos [#metadata]
+
+La integración de servicios de Windows envía los siguientes metadatos a New Relic:
+
+* `display_name`: Nombre del servicio tal como se ve en el complemento de servicios.
+
+* `process_id`: Identificador de proceso del servicio.
+
+* `run_as`: Nombre de la cuenta bajo la cual se ejecuta un servicio. Según el tipo de servicio, el formato del nombre de la cuenta puede ser `DomainName\Username` o `Username@DomainName` (UPN). El valor se toma del atributo `StartName` de la clase `Win32_Service`, que puede ser `NULL` (en ese caso, la etiqueta se informa como una cadena vacía).
+
+* `service_name`: Identificador único del servicio.
+
+  <Callout variant="important">
+    Si el atributo `StartName` es `NULL`, el servicio se inicia sesión con la cuenta `LocalSystem` . Para la unidad de nivel de sistema o kernel, se ejecuta con un nombre de objeto predeterminado creado por el sistema de I/O en función del nombre del servicio, por ejemplo, `DWDOM\Admin`.
+  </Callout>
+
+## Código fuente [#open-source]
+
+La integración de servicios de Windows es un software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/nri-winservices/) y [enviar mejoras](https://github.com/newrelic/nri-winservices/blob/master/CONTRIBUTING.md), o crear tu propia bifurcación y compilarla. Para obtener más información, consulte el [archivo README](https://github.com/newrelic/nri-winservices/blob/master/README.md).

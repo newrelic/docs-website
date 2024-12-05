@@ -1,0 +1,118 @@
+---
+title: Evento Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Kubernetes events
+metaDescription: The Kubernetes events integration for infrastructure monitoring watches for events happening in Kubernetes clusters and sends them to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El evento New Relic Kubernetes monitorea los eventos que ocurren en su clúster de Kubernetes y envía esos eventos a New Relic. Para visualizar los datos de sus eventos, emplee el [explorador del clúster de Kubernetes ](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer)o emplee la [UIde infraestructura de eventos](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-events-page-live-feed-every-config-change).
+
+## Encuentra tu evento Kubernetes [#view-k8s-events]
+
+Una vez que instaló correctamente la integración Kubernetes , podrá ver y consultar sus eventos en New Relic.
+
+Para ver su evento Kubernetes :
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Kubernetes**</DNT>.
+
+2. Seleccione su clúster.
+
+3. Haga clic en <DNT>**Kubernetes Events**</DNT> en el panel de navegación izquierdo.
+
+<img title="View your Kubernetes events" alt="View your Kubernetes events" src="/images/kubernetes_screenshot-crop_view-events.webp" />
+
+### Buscar evento en New Relic [#data-infrastructure]
+
+Para buscar eventos en nuestra UI de infraestructura:
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Infrastructure &amp;gt; Events**</DNT>.
+
+2. En <DNT>**Categories**</DNT>, seleccione <DNT>**kubernetes**</DNT>.
+
+3. Emplee el campo <DNT>**Search events**</DNT> para buscar un evento específico. Para centrar en un conjunto específico de eventos, seleccione o cambie el conjunto de filtros.
+
+<img title="Search events in New Relic" alt="Search events in New Relic" src="/images/kubernetes_screenshot-crop_view-events-categories.webp" />
+
+### Ver evento en el explorador del clúster de Kubernetes [#data-cluster]
+
+Para ver eventos en el explorador del clúster de Kubernetes :
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Kubernetes**</DNT> y seleccione su clúster.
+
+2. Seleccione un pod y haga clic en <DNT>**See pod details**</DNT>.
+
+<img title="View events in the Kubernetes cluster explorer" alt="View events in the Kubernetes cluster explorer" src="/images/kubernetes_screenshot-crop_see-pod-details-link.webp" />
+
+## Agrega un evento a tu dashboard [#add-events]
+
+Para agregar un evento a su [dashboard](/docs/dashboards/new-relic-one-dashboards/get-started/introduction-new-relic-one-dashboards):
+
+1. Agregue un gráfico a un [nuevo o existente dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) o cree un gráfico usando el New Relic [generador de consultas](/docs/chart-builder/use-chart-builder/get-started/introduction-chart-builder).
+
+2. Al crear o actualizar su gráfico, seleccione el tipo de gráfico <DNT>**table**</DNT> y utilice la siguiente consulta de evento, reemplazando `YOUR_CLUSTER_NAME` con el nombre de su clúster:
+
+   ```sql
+   FROM InfrastructureEvent
+   SELECT event.involvedObject.kind, event.involvedObject.name, event.reason,event.message 
+   WHERE clusterName = 'YOUR_CLUSTER_NAME' limit 100
+   ```
+
+## Consulta evento [#data-insights]
+
+A continuación se muestran algunos ejemplos para [consultar sus datos](/docs/using-new-relic/data/understand-data/query-new-relic-data):
+
+### Obtener nombres de atributos [#attributes-names]
+
+Para ver todos los nombres de los atributos, emplee esta consulta:
+
+```sql
+FROM InfrastructureEvent
+SELECT keyset()
+WHERE category = 'kubernetes'
+```
+
+### Obtenga los últimos detalles del evento [#event-details]
+
+Para ver detalles sobre el último evento en un clúster, utilice la siguiente consulta, reemplazando `YOUR_CLUSTER_NAME` con el nombre de su clúster:
+
+```sql
+FROM InfrastructureEvent
+SELECT event.involvedObject.kind, event.involvedObject.name, event.type, event.message, event.reason
+WHERE category = 'kubernetes' AND clusterName = 'YOUR_CLUSTER_NAME'
+```
+
+El evento recopilado por New Relic tendrá exactamente el mismo atributo que proporciona Kubernetes. Para obtener una referencia de estos atributos, consulte la [documentación principal del evento v1Kubernetes ](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#event-v1-core).
+
+## Opcional: Recoger métrica del evento recolector [#events-metrics]
+
+Para recopilar datos métricos para el propio recolector de eventos, debe [enviar datos métricos de Prometheus a New Relic](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/).
+
+Para instalar y configurar el agente Prometheus en el clúster de Kubernetes:
+
+1. Instale la [integración del agente New Relic Prometheus](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/).
+
+2. Etiquete la implementación de su integración de eventos Kubernetes con su [etiqueta de scrape](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/setup-prometheus-agent) configurada (el valor predeterminado es `prometheus.io/scrape=true`).
+
+## Opcional: Definir atributo personalizado [#custom-attributes]
+
+Para agregar atributos personalizados al evento enviado por la integración, estos deben especificar en su archivo [values.yaml](https://github.com/newrelic/nri-kube-events/blob/main/charts/nri-kube-events/values.yaml) bajo el mapa `customAttributes` .
+
+Por ejemplo, para agregar el atributo `environment` con valor `dev` a todos los eventos, agrega lo siguiente a tu `values.yaml`:
+
+```yml
+nri-kube-events:
+  customAttributes:
+    environment: dev
+```
+
+Puede agregar otro atributo personalizado globalmente a todas las demás integraciones Kubernetes configurándolo globalmente:
+
+```yml
+global:
+    customAttributes:
+        environment: dev
+```

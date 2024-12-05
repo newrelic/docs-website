@@ -1,0 +1,204 @@
+---
+title: 'MetricTableRowCell'
+metaDescription: 'Learn how to work the MetricTableRowCell component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Renders a row table cell showing a particular metric. The metric is formatted according to the unit passed. Units are 1:1 compatible with the ones supported by `<NrqlQuery>` format type `CHART`.
+
+Unit and prefix formatting is automatically picked for you so that it is consistent with the rest of the platform. Metrics are automatically aligned to the left, and ellipsified from the right, which is the standard way for presenting them.
+
+### Usage
+
+```js
+import { MetricTableRowCell } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+function render() {
+  const items = [
+    {
+      value: 123456789,
+    },
+  ];
+
+
+  return (
+    <Table items={items}>
+      <TableHeader>
+        <TableHeaderCell alignmentType={TableHeaderCell.ALIGNMENT_TYPE.RIGHT}>
+          Memory usage
+        </TableHeaderCell>
+      </TableHeader>
+
+
+      {({ item }) => (
+        <TableRow>
+          <MetricTableRowCell
+            type={MetricTableRowCell.TYPE.BITS}
+            value={item.value}
+          />
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+#### With additional value
+
+```js
+function render() {
+  const items = [
+    {
+      value: 123456789,
+      lastUpdated: new Date().toLocaleTimeString(),
+    },
+  ];
+
+
+  return (
+    <Table items={items} multivalue>
+      <TableHeader>
+        <TableHeaderCell alignmentType={TableHeaderCell.ALIGNMENT_TYPE.RIGHT}>
+          Memory usage
+        </TableHeaderCell>
+      </TableHeader>
+
+
+      {({ item }) => (
+        <TableRow>
+          <MetricTableRowCell
+            type={MetricTableRowCell.TYPE.BITS}
+            value={item.value}
+            additionalValue={`Last updated at ${item.lastUpdated}`}
+          />
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `additionalValue` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information along the main data in the cell.**Note:** At the moment this content becomes visible only when the `multivalue` prop is passed to the parent `Table` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the table cell.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.Linked `TableRowCell`s are unstyled and will not show icons for external links. If the same styling as the Link component is what is desired, then use a `Link` instead as a child component within the cell.<h3>shape</h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Unit of the provided metric. Will be used for auto-formatting the numerical value.
+
+        <OptionReference>
+          MetricTableRowCell.TYPE.APDEX,
+          MetricTableRowCell.TYPE.BITS,
+          MetricTableRowCell.TYPE.BITS_PER_MS,
+          MetricTableRowCell.TYPE.BITS_PER_SECOND,
+          MetricTableRowCell.TYPE.BYTES,
+          MetricTableRowCell.TYPE.BYTES_PER_MS,
+          MetricTableRowCell.TYPE.BYTES_PER_SECOND,
+          MetricTableRowCell.TYPE.CELSIUS,
+          MetricTableRowCell.TYPE.COUNT,
+          MetricTableRowCell.TYPE.HERTZ,
+          MetricTableRowCell.TYPE.MS,
+          MetricTableRowCell.TYPE.PAGES_PER_SECOND,
+          MetricTableRowCell.TYPE.PERCENTAGE,
+          MetricTableRowCell.TYPE.REQUESTS_PER_SECOND,
+          MetricTableRowCell.TYPE.SECONDS,
+          MetricTableRowCell.TYPE.TIMESTAMP,
+          MetricTableRowCell.TYPE.UNKNOWN,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>REQUIRED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        Metric value, always in the shape of a number.
+      </td>
+    </tr>
+  </tbody>
+</table>

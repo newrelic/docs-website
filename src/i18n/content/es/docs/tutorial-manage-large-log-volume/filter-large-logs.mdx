@@ -1,0 +1,178 @@
+---
+title: Reduzca la complejidad y el costo log mediante el filtrado
+metaDescription: Reduce the complexity and cost of your log management by filtering your logs with drop rules
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los sistemas modernos crean enormes cantidades de registros. No todos son útiles. De hecho, existe una alta probabilidad de que cuando mires tu registro descubras que _la mayoría_ no son útiles. Es posible que tenga un servicio que genere registros para cada carga de página o un servicio de respaldo para el cual nunca necesite monitor el registro.
+
+<SideBySide>
+  <Side>
+    Con New Relic puede crear reglas de eliminación que observen su registro e ignoren el registro que no haya seleccionado para la ingesta. Esto tiene algunos beneficios clave:
+
+    * Reduzca los costos almacenando solo el registro relevante para su cuenta.
+    * Reducir costos eliminando atributos específicos
+    * Reduzca el trabajo almacenando únicamente logs valiosos.
+  </Side>
+
+  <Side>
+    <img
+      title="Logs architecture for drop filters in New Relic"
+      alt="Diagram of logs architecture for drop filters in New Relic"
+      src="/images/logs_screenshot-full_intro.webp"
+    />
+  </Side>
+</SideBySide>
+
+## Cómo funcionan las reglas de filtro de caída [#how-it-works]
+
+Una regla de filtro de caída coincide con datos basados en una consulta. Cuando se activa, la regla de filtro de eliminación elimina los datos coincidentes de la canalización de ingesta antes de escribirlos en [la base de datos de New Relic (NRDB)](/docs/data-apis/get-started/nrdb-horsepower-under-hood/).
+
+Esto crea una distinción entre el registro que se reenvía desde su dominio y los datos que recopila New Relic. Dado que los datos eliminados por la regla de filtro de caída no llegan a nuestro backend, no se pueden consultar: los datos desaparecieron y no se pueden restaurar.
+
+## Decide qué registro soltar [#decide]
+
+Decidir qué registro conservar y qué registro descartar es una decisión muy específica de cada equipo y organización. Un registro valioso para una organización puede no serlo para otra. De todos modos, aquí hay algunas sugerencias sobre cómo decidir qué registros son valiosos y cuáles descartar:
+
+* <DNT>
+    **What logs does your team rely on today?**
+  </DNT>
+
+  : Si su equipo ya revisa manualmente un subconjunto de registros con regularidad, eso indica que esos registros son valiosos y no deben descartarse. Del mismo modo, si hay un conjunto de registros que su equipo nunca mira, eso podría indicar que deben eliminarse.
+
+* <DNT>
+    **What apps and systems produce the most logs?**
+  </DNT>
+
+  : Una aplicación o sistema que crea una gran cantidad de registros indica que debes dedicar tiempo a decidir qué hacer con esos registros. ¿Es una aplicación valiosa y ampliamente utilizada que indica que debes conservar la mayor parte del registro? ¿Es un sistema redundante que arroja registros con un valor mínimo?
+
+Tenga en cuenta que, si bien una aplicación o un sistema rara vez se utiliza, eso no significa que su registro no tenga valor. Odiaría eliminar el registro de una aplicación que apenas se usa solo para que esa aplicación deje de funcionar en unos meses sin una manera fácil de solucionar el problema.
+
+<img
+  title="Logs architecture for drop filters in New Relic"
+  alt="Diagram of logs architecture for drop filters in New Relic"
+  src="/images/logs_diagram_ingest-pipeline.webp"
+/>
+
+<figcaption>
+  Durante la ingesta, los datos log de los clientes se pueden analizar, transformar o eliminar antes de almacenarlos en la base de datos de New Relic (NRDB).
+</figcaption>
+
+## Filtre su ingesta log [#filter-steps]
+
+Los siguientes pasos le guiarán sobre cómo colocar el registro en la UI de New Relic.
+
+Digamos que Acme Corp crea 2 TB de registros cada día. Deciden que son demasiados registros para ingerir por razones de costo y usabilidad. Echan un vistazo a su registro y se dan cuenta de que más de la mitad de su registro diario proviene de una aplicación Node.js legacy . Si bien necesitan mantener la aplicación disponible, no les importa el registro creado por esta aplicación. Decidieron eliminar todos los registros creados desde la aplicación Node.js.
+
+<Steps>
+  <Step>
+    ## Navega a la UI
+
+    Ir a <DNT>**[one.newrelic.com > Logs](https://one.newrelic.com/launcher/logger.log-launcher)**</DNT>
+  </Step>
+
+  <Step>
+    ### Crea tu regla de caída
+
+    Filtre o consulte el conjunto específico de registros que contiene los datos que desea eliminar.
+
+    Hay algunas formas de hacer esto, pero la más sencilla es consultar el registro que desea eliminar. En este caso, haría lo siguiente:
+
+    <SideBySide>
+      <Side>
+        1. Seleccione
+
+           <DNT>
+             **All partitions**
+           </DNT>
+
+           cerca de la barra de búsqueda.
+
+        2. Ingrese su consulta. En este caso `logtype=node`.
+
+        3. Presione Intro y confirme que aparezca el registro correcto.
+
+        4. Una vez que la consulta esté activa, haga clic en
+
+           <DNT>
+             **Create drop filter**
+           </DNT>
+
+           en el navegador izquierdo.
+
+        5. Asigne un nombre significativo a la regla de caída.
+
+        6. Guarde la regla de filtro de caída.
+      </Side>
+
+      <Side>
+        <img
+          title="Query log "
+          alt="An image showing how to query for the logs you will drop"
+          src="/images/logs_screenshot-drop-log.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+
+  <Step>
+    ## Soltar atributo
+
+    Acme Corp todavía quiere reducir su ingesta. Decidieron que no necesitan cierto atributo en su registro almacenado, por lo que deciden eliminar atributos como `purchase_order`.
+
+    <SideBySide>
+      <Side>
+        1. En
+
+           <DNT>
+             **All logs**
+           </DNT>
+
+           , haga clic en un log que contenga el atributo que desea eliminar para abrir la vista detallada log .
+
+        2. Haga clic en el atributo que desea soltar para abrir el menú de atributos. En este caso `purchase_order`.
+
+        3. Haga clic en
+
+           <DNT>
+             **Create drop filter from attribute**
+           </DNT>
+
+           .
+
+        4. Asigne un nombre significativo a la regla de caída.
+
+        5. Guarde la regla de filtro de caída.
+      </Side>
+
+      <Side>
+        <img
+          title="Query attribute"
+          alt="An image showing how to query for the attributes you will drop"
+          src="/images/logs_screenshot-full_drop-filter-attribute.webp"
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+</Steps>
+
+Repita los pasos anteriores tantas veces como sea necesario hasta que esté satisfecho con la ingesta log . Si necesita ayuda para consultar registros y atributos, [consulte nuestro documento sobre sintaxis específica log ](/docs/logs/ui-data/query-syntax-logs/)o nuestro documento sobre [filtrado log más complejo](/docs/logs/ui-data/drop-data-drop-filter-rules/).
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    path="/docs/tutorial-large-logs/get-started-managing-large-logs"
+  />
+
+  <DocTile
+    title="Filter and reduce your log ingest"
+    label={{text: 'You are here', color: '#FCD672'}}
+    path="/docs/tutorial-large-logs/filter-large-logs"
+  />
+
+  <DocTile
+    title="Organize your logs"
+    path="/docs/tutorial-large-logs/organize-large-logs"
+  />
+</DocTiles>

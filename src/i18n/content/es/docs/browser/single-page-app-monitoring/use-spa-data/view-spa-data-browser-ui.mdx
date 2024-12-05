@@ -1,0 +1,201 @@
+---
+title: Ver datos de SPA en browser UI
+tags:
+  - Browser
+  - Single page app monitoring
+  - Use SPA data
+metaDescription: How to view your single page application (SPA) data details in browser.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si ha optado por [el monitoreo SPA (aplicación de página única)](/docs/browser/single-page-app-monitoring/get-started/welcome-single-page-app-monitoring), la página <DNT>**Page views**</DNT> del navegador incluirá datos sobre los cambios de ruta SPA y las cargas iniciales de la página.
+
+<img
+  title="spa_overview.png"
+  alt="spa_overview.png"
+  src="/images/browser_screenshot-full_spa-pageviews.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Page views**</DNT>: Cuando [opta por el monitoreo de SPA](/docs/browser/single-page-app-monitoring/get-started/add-apps-single-page-app-monitoring), la página <DNT>**Page views**</DNT> del browser mostrará datos del SPA, como cambios de ruta y la actividad asincrónica asociada browser .
+</figcaption>
+
+## Datos de aplicaciones de una sola página (SPA) [#app-views]
+
+Para ver datos de SPA: vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Page views**</DNT>.
+
+Las cargas de páginas iniciales y los cambios de ruta se [agrupan automáticamente](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls#hierarchy) por nombre de interacción del navegador. Puedes ajustar esto con [la configuración de tu lista de 'permitidos' para segmentos](/docs/browser/new-relic-browser/installation-configuration/url-whitelists-grouping-browser-metrics).
+
+Si configura nombres de ruta personalizados con la [API SPA](/docs/browser/new-relic-browser/browser-agent-spa-api), se mostrarán los nombres de ruta personalizados. Puede cambiar cómo se carga la página y cómo se agrupan los cambios de ruta utilizando el menú desplegable [<DNT>**Group page by**</DNT>](/docs/browser/single-page-app-monitoring/use-spa-data/view-spa-data-new-relic-browser#group-facet) .
+
+De forma predeterminada, la lista de cargas de páginas y cambios de ruta muestra las vistas que consumen más tiempo en la parte superior de la lista. También puede ordenar por tiempo de respuesta promedio, tiempo de respuesta medio y rendimiento por minuto utilizando el menú desplegable <DNT>**Sort by**</DNT> .
+
+Para buscar vistas específicas por [URL agrupada](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls#hierarchy), escriba en la barra de búsqueda debajo del menú desplegable <DNT>**Sort by**</DNT> . Por ejemplo, para buscar URL que representen su página de pago, busque `checkout`.
+
+Los gráficos en la página inicial <DNT>**Page view**</DNT> muestran:
+
+* Las cinco visualizaciones con el tiempo de respuesta promedio más lento
+* Las cinco vistas con mayor rendimiento
+
+Para cambiar el rango de tiempo que se examina, use el [selector de tiempo](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker) cerca de la parte superior de la página. (Si elige un rango de tiempo de hace más de ocho días, algunas funciones de filtrado y agrupación no estarán disponibles).
+
+## Filtrar vistas de SPA
+
+<img
+  title="spa_filter.png"
+  alt="spa_filter.png"
+  src="/images/browser_screenshot-full_spa-filters.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Page views > Filter**</DNT>: utilice <DNT>**Filter**</DNT> para filtrar cambios de ruta, cargas de página iniciales y otros atributos como ubicación y tipo browser .
+</figcaption>
+
+Para ver solo las cargas de páginas iniciales o solo los cambios de ruta, utilice el menú desplegable <DNT>**Filter**</DNT> . Por ejemplo, para ver solo los cambios de ruta, seleccione <DNT>**Filter > Route change**</DNT>.
+
+El filtro también le brinda la posibilidad de filtrar por otros atributos de carga de páginas y cambios de ruta, como el nombre de la aplicación, la ubicación geográfica del browser y el tipo browser . Por ejemplo, para ver solo las cargas de páginas y los cambios de ruta que se produjeron en el navegador en la ciudad de Portland, Oregón, seleccione <DNT>**Filter > City > Portland**</DNT>.
+
+## Vistas del SPA grupal [#group-facet]
+
+Puede utilizar el menú desplegable <DNT>**Group page by**</DNT> para agrupar la lista de vistas de página por cualquier atributo. Por ejemplo, si desea comparar el tiempo de respuesta promedio por tipo browser , seleccione <DNT>**Group page by > userAgent**</DNT>.
+
+La combinación de filtrado y agrupación le permite encontrar rápidamente datos muy específicos. Por ejemplo, para comparar cómo se carga una URL específica en diferentes navegadores:
+
+1. En el menú desplegable
+
+   <DNT>
+     **Filter**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **targetURL**
+   </DNT>
+
+   y luego seleccione la URL que desea estudiar.
+
+2. En el menú desplegable
+
+   <DNT>
+     **Group page by**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **userAgent**
+   </DNT>
+
+   .
+
+## SPA ver detalles [#details]
+
+<img
+  title="spa_details.png"
+  alt="spa_details.png"
+  src="/images/browser_screenshot-full_pageview-details.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Page views > (select a view)**</DNT>: seleccione una vista de la lista para ver una variedad de detalles y desgloses.
+</figcaption>
+
+Seleccione una carga de página individual o un cambio de ruta para ver los detalles. Al seleccionar cualquiera de los dos, se proporcionará un desglose de dónde se invirtió el tiempo en una [interacción con el navegador](/docs/browser/single-page-app-monitoring/understand-spa-data-structure#browser-interactions) y se mostrarán esos datos en una serie de tiempo que coincide con la ventana seleccionada en el [selector de tiempo](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker).
+
+En teoría, cada vista de cambio de ruta también puede ser una carga de página inicial. (Por ejemplo, cuando se envía una URL de cambio de ruta a otra persona y esta la carga, ahora se considerará una carga de página inicial para New Relic). Es por eso que la página de detalles de la vista SPA tiene gráficos tanto para las cargas de la página inicial como para los cambios de ruta. Esto le permite comparar el rendimiento de una vista como carga de página inicial con el rendimiento como cambio de ruta.
+
+Hay tres opciones de visualización de gráficos, que se pueden seleccionar con los iconos a la derecha del título del gráfico <DNT>**Avg initial page load time**</DNT> . La visualización predeterminada es el [gráfico de áreas apiladas codificado por colores](/docs/apm/new-relic-apm/ui-functions/standard-dashboard-features). También puede cambiar a una [visualización de histograma](/docs/apm/applications-menu/features/histograms-viewing-data-distribution) o un [gráfico de líneas percentiles](/docs/apm/applications-menu/features/percentiles-comparing-ranked-data).
+
+También en la página de detalles hay un gráfico <DNT>**Throughput**</DNT> que combina las cargas de la página inicial y los cambios de ruta. El gráfico muestra las cinco páginas con el mayor rendimiento, que se enumeran debajo del gráfico, y consolida todas las demás páginas en <DNT>**Other**</DNT>.
+
+A continuación se detallan los datos de rendimiento específicos que se muestran tanto para las cargas de páginas como para los cambios de ruta:
+
+<CollapserGroup>
+  <Collapser
+    id="page-load"
+    title="Detalles de rendimiento de carga de la página inicial"
+  >
+    Para las cargas iniciales de la página, los detalles de rendimiento incluyen el tiempo promedio de backend, el tiempo de frontend y el evento de carga de la ventana:
+
+    * <DNT>
+        **Backend time**
+      </DNT>
+
+      incluye red, tiempo de aplicación web y cola de solicitudes.
+
+    * <DNT>
+        **Frontend time**
+      </DNT>
+
+      incluye procesamiento DOM, representación de páginas y el tiempo para completar todos los XHR.
+
+    * Una línea roja horizontal muestra cuándo se activa el evento de carga de la ventana. Esto corresponde al tiempo de carga de página tradicional medido por el agente del navegador sin el monitoreo SPA habilitado. Con el monitoreo de SPA es común tener un evento de carga de ventana antes de que se complete
+
+      <DNT>
+        **frontend time**
+      </DNT>
+
+      . (Para obtener más información sobre cómo el tiempo de carga de la página SPA difiere del tiempo de carga de la página tradicional, consulte [Comprender la recopilación de datos de SPA](/docs/browser/single-page-app-monitoring/use-spa-data/understand-spa-data-collection#page-load-timing-diff)).
+  </Collapser>
+
+  <Collapser
+    id="route-change"
+    title="Detalles de rendimiento del cambio de ruta"
+  >
+    Para cambios de ruta, el gráfico de rendimiento muestra la duración de JS y el tiempo de espera.
+
+    * <DNT>
+        **JS Duration**
+      </DNT>
+
+      es la suma de todo el tiempo de ejecución de JavaScript durante la interacción, que es sincrónica por definición.
+
+    * El tiempo restante se denomina
+
+      <DNT>
+        **Waiting time**
+      </DNT>
+
+      y se obtiene restando la duración de JS de la duración total.
+  </Collapser>
+</CollapserGroup>
+
+Los detalles de <DNT>**Historical performance**</DNT> y <DNT>**Breakdown**</DNT> son similares tanto para las cargas de páginas como para los cambios de ruta:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Pestaña de detalles
+      </th>
+
+      <th>
+        Comentarios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Datos historicos
+      </td>
+
+      <td>
+        La pestaña <DNT>**Historical performance**</DNT> muestra el rendimiento (vistas por minuto) y [el tiempo de respuesta](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#response-time) en comparación con el mismo período de ayer y la semana pasada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Averías
+      </td>
+
+      <td>
+        La pestaña <DNT>**Breakdowns**</DNT> enumera los diversos componentes cronometrados individualmente como parte de una [interacción](/docs/browser/single-page-app-monitoring/understand-spa-data-structure#browser-interactions). De forma predeterminada, todos los XHR se capturan y cronometran. También puede utilizar la [API SPA](/docs/browser/new-relic-browser/browser-agent-spa-api) para incluir elementos adicionales para un cambio de ruta o carga de página.
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,302 @@
+---
+title: Almacene credenciales seguras para pruebas de API y browser con secuencias de comandos
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Using monitors
+metaDescription: 'Use secure credentials with synthetic monitoring to store critical information, such as passwords, API keys, usernames, etc.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar credenciales seguras con monitoreo sintético para almacenar información crítica, como contraseñas, clave de API, nombres de usuario, etc. Esto evita que el usuario monitor con script vea, actualice o elimine estos valores a menos que tenga permisos explícitos en New Relic.
+
+Puede configurar credenciales seguras en New Relic o con la [API](/docs/apis/synthetics-rest-api/secure-credentials-examples/use-synthetics-secure-credentials-apis). Las credenciales se almacenan de forma segura mediante cifrado AES-GCM de 256 bits en reposo con claves administradas por [AWS Key Management Service (KMS)](https://aws.amazon.com/kms/).
+
+Para aprender cómo proteger información confidencial en su flujo de trabajo de monitoreo sintético, mire este breve video (3:15 minutos):
+
+<Video
+  id="BLrTnqIHRrU"
+  type="youtube"
+/>
+
+## Requisitos y límites [#requirements]
+
+Antes [de utilizar credenciales seguras](#ui-procedures), revise estos requisitos y pautas:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Credenciales seguras
+      </th>
+
+      <th>
+        Comentarios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Monitor aplicable
+      </td>
+
+      <td>
+        La característica de credenciales seguras está disponible solo para [el browser con script Sintético y el monitor de prueba API](/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Permisos
+      </td>
+
+      <td>
+        El administrador de la cuenta puede controlar qué usuario puede `create`, `view` o `delete` proteger las credenciales [administrando los permisos del usuario](/docs/accounts/accounts-billing/general-account-settings/factors-affecting-access-features-data).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Límite
+      </td>
+
+      <td>
+        Puede tener un máximo de 1000 credenciales seguras.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Agregar o actualizar credenciales seguras [#ui-procedures]
+
+Puede agregar o actualizar credenciales seguras mediante la UI o la [API REST de monitoreo sintético](/docs/apis/synthetics-rest-api/secure-credentials-examples/use-synthetics-secure-credentials-apis#add-secure-credential). Tenga en cuenta que los valores no se pueden ver, solo las claves.
+
+Para agregar, ver, editar o eliminar una clave de credencial segura para un browser con script o un monitor de prueba de API desde la UI:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > Synthetic monitoring > Secure credentials](https://one.newrelic.com/synthetics-nerdlets/secure-credential-list)**
+   </DNT>
+
+   .
+
+2. Para agregar una nueva credencial segura, busque el botón
+
+   <DNT>
+     **Create secure credential +**
+   </DNT>
+
+   . Si ya tiene credenciales agregadas, este botón está en la parte superior derecha.
+
+   * Consejos para crear
+
+     <DNT>
+       **Key**
+     </DNT>
+
+     : elija un nombre de usuario u otro nombre de clave significativo para identificar la credencial segura. Utilice caracteres alfanuméricos o de subrayado `_` . Los nombres de las claves deben estar en MAYÚSCULAS.
+
+   * Consejos para crear
+
+     <DNT>
+       **Value**
+     </DNT>
+
+     : utilice cualquier combinación de caracteres alfanuméricos o especiales. 10000 caracteres máximo. No se puede acceder a este campo a través de [la API](/docs/apis/synthetics-rest-api/secure-credentials-examples/use-synthetics-secure-credentials-apis).
+
+3. Para editar una credencial existente, haga clic en los puntos suspensivos
+
+   <Icon name="fe-more-horizontal"/>
+
+   icono para opciones.
+
+4. Asocie la credencial segura con un browser con secuencia de comandos o una prueba de API [editando la secuencia de comandos](#script-procedures).
+
+Después de agregar la credencial segura al script, la UI <DNT>**[Secure credentials](https://one.newrelic.com/synthetics-nerdlets/secure-credential-list)**</DNT> muestra cuántos monitores con script utilizan esa credencial. Este número es aproximado y solo se actualiza después de que se haya ejecutado un monitor con una credencial segura.
+
+<Callout variant="tip">
+  Debe crear credenciales seguras antes de poder crear un monitor usándolas. Este consejo puede resultar útil cuando se utiliza una herramienta de infraestructura como código como Terraform.
+</Callout>
+
+## Actualizar el script [#script-procedures]
+
+Cuando utilice el [editor UI de Sintético](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers) para crear un browser con script o un monitor de prueba de API, siga estas pautas:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Script**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Guidelines**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Formato
+      </td>
+
+      <td>
+        En cualquier parte del script donde haga referencia a la credencial segura, se accede a ella a través del objeto JavaScript reservado New Relic `$secure` con notación de puntos. Por ejemplo, `$secure.MY_SECURE_CREDENTIAL`. No se puede acceder a las propiedades en `$secure` a través de la notación entre corchetes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Credenciales existentes
+      </td>
+
+      <td>
+        Para ver o seleccionar de una lista de credenciales seguras disponibles:
+
+        * Tipo `$secure.`
+
+          O
+
+        * Seleccione del menú desplegable en la UI del editor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Validación
+      </td>
+
+      <td>
+        Para validar la credencial segura, siga los procedimientos estándar para [probar el script](/docs/synthetics/new-relic-synthetics/using-monitors/view-monitor-results) o [escribir una prueba de API](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-api-tests).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Cualquier cambio en el valor de la credencial segura entrará en vigor automáticamente en todos los monitores que la utilicen. No es necesario que actualice también el script.
+
+<DNT>**Exception:**</DNT> Si actualiza el script y los trabajos ya se están procesando, el cambio de credencial segura no entrará en vigor hasta la próxima vez que comience el trabajo.
+
+## Seguridad para credenciales seguras [#security]
+
+Para garantizar la seguridad de sus credenciales seguras, New Relic elimina el valor seguro de todos los datos que se utilizan para generar alertas y datos sintéticos. <DNT>**New Relic employees cannot access secure credential values and must be added to the account to be able to view secure credentials**</DNT>.
+
+### Ejemplo
+
+Una credencial segura se denomina `PASSWORD` y el valor es `Pass123!`. New Relic reemplaza `Pass123!` con `_SECURECREDENTIAL_`
+
+Por ejemplo, un script incluye:
+
+```
+$browser.get("https://example.com/" + $secure.PASSWORD)
+```
+
+Los resultados del script mostrarán que su monitor Sintético fue a `https://example.com/_SECURECREDENTIAL_`, aunque en realidad fue a `https://example.com/Pass123!`. Esto garantiza que el valor de la credencial segura no aparecerá en los resultados.
+
+### Información redactada [#redacted]
+
+Actualmente redactamos lo siguiente de los resultados de su monitor:
+
+* Los valores exactos de sus credenciales seguras
+* Cualquier valor codificado en porcentaje de sus credenciales seguras
+
+### Proteger sus credenciales en uso [#protecting]
+
+Al crear un script, asegúrese de que las credenciales seguras no se pasen a un sitio externo ni se ingresen en un sitio web de manera que se muestren o se divulguen de otro modo.
+
+Los mecanismos de protección detallados anteriormente están diseñados para evitar la divulgación de las credenciales cuando New Relic las almacena y las respuestas en texto del sitio web que se está monitoreando. Sin embargo, la capacidad del script permite a los usuarios implementar funciones que podrían dar lugar a la divulgación de las credenciales si el usuario las utiliza incorrectamente. New Relic no controla el sitio que se monitorea ni las acciones de los usuarios individuales de su organización. Por este motivo, solo debe otorgar el permiso "Usar credenciales" a usuarios que sean de plena confianza y estén autorizados para hacerlo por su organización. Para actualizar los permisos de credenciales seguras en monitoreo sintético, siga [los conceptos de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts) para controlar [las capacidades de credenciales seguras](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions/#synthetics).
+
+New Relic Logs de guardar o validar monitor que incluye una credencial segura; el registro se puede consultar a través de [NrAuditEvents](/docs/accounts/accounts/account-maintenance/query-account-audit-logs-nrauditevent).
+
+### Rotar credenciales seguras [#rotate-secure-credentials]
+
+<CollapserGroup>
+  <Collapser
+    id="rotate-specific-credential"
+    title="Rotar una credencial segura específica"
+  >
+    Si las credenciales utilizadas en su secuencia de comandos se han visto comprometidas, puede cambiar el valor en la UI para actualizar automáticamente todos los trabajos monitor :
+
+    1. Vaya a <DNT>**[one.newrelic.com > Synthetic monitoring > Secure credentials](https://one.newrelic.com/synthetics/secure-credential-list)**</DNT>. Haga clic en los puntos suspensivos <DNT>**...**</DNT> de las credenciales que desea cambiar y haga clic en <DNT>**Edit**</DNT>.
+
+       <img
+         title="Screenshot of how to edit a secure credential"
+         alt="Screenshot of how to edit a secure credential"
+         src="/images/synthetic_screenshot-crop_edit-secure-credential-key.webp"
+       />
+
+    2. Introduzca el nuevo valor y haga clic en <DNT>**Save**</DNT>.
+
+       <img
+         title="Screenshot of secure credential editing/config screen"
+         alt="Screenshot of secure credential editing/config screen"
+         src="/images/synthetic_screenshot-crop_secure-credential-edit.webp"
+       />
+
+       El nuevo valor se utilizará en todos los trabajos monitor que hagan referencia a esta credencial segura.
+  </Collapser>
+
+  <Collapser
+    id="rotate-credential-in-monitor"
+    title="Rotar las credenciales seguras utilizadas en un monitor específico"
+  >
+    Si sospecha que un monitor se ha visto comprometido, debe rotar todas las credenciales utilizadas en ese monitor. (Si ese monitor se ejecuta en una ubicación privada, también debes [rotar la clave de ubicación privada](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/#rotate-private-location-keys)).
+
+    Para localizar las credenciales seguras utilizadas en un monitor específico:
+
+    1. Vaya a <DNT>**[one.newrelic.com > Synthetic monitoring](https://one.newrelic.com/synthetics)**</DNT>.
+
+    2. Busque el monitor en la lista. Puede buscar por nombre o puede ingresar la ID del monitor en el campo de texto del filtro:
+
+       <img
+         title="Screenshot of locating a specific monitor by ID"
+         alt="Screenshot of locating a specific monitor by ID"
+         src="/images/synthetic_screenshot-crop_locate-monitor-by-id.webp"
+       />
+
+    3. Seleccione la pestaña <DNT>**Write script**</DNT> para ver el script:
+
+       <img
+         title="Screenshot showing where to find script contents in synthetic"
+         alt="Screenshot showing where to find script contents in synthetic"
+         src="/images/synthetic_screenshot-crop_script-edit-location.webp"
+       />
+
+    4. Busque el término `$secure.` para resaltar todas las referencias a credenciales seguras y tome nota de las que encuentre.
+
+       <img
+         title="Screenshot showing secure credentials in use inside a script"
+         alt="Screenshot showing secure credentials in use inside a script"
+         src="/images/synthetic_screenshot-crop_secure-credentials-in-script-example.webp"
+       />
+
+       Luego, rote las credenciales que encontró en el script. Repita estos pasos para cada credencial:
+
+    5. Vaya a <DNT>**[one.newrelic.com > Synthetic monitoring > Secure credentials](https://one.newrelic.com/synthetics/secure-credential-list)**</DNT>.
+
+    6. Copie el nombre del secreto en el campo de texto del filtro.
+
+       <img
+         title="Screenshot showing how to use the filter bar to locate a specific secure credential"
+         alt="Screenshot showing how to use the filter bar to locate a specific secure credential"
+         src="/images/synthetic_screenshot-crop_edit-secure-credential-by-name.webp"
+       />
+
+    7. Haga clic en el icono de puntos suspensivos <DNT>**...**</DNT> de la credencial que desea cambiar y haga clic en <DNT>**Edit**</DNT>.
+
+       <img
+         title="Screenshot of how to edit a secure credential"
+         alt="Screenshot of how to edit a secure credential"
+         src="/images/synthetic_screenshot-crop_edit-secure-credential-key.webp"
+       />
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,96 @@
+---
+subject:  Java agent
+releaseDate:  '2024-10-01'
+version:  8.15.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.15.0/'
+features: ["AWS Lambda SDK instrumentation", "Flyway migration events", "AWS Kinesis SDK", "Kafka Client Node metrics", "Glassfish JUL logging", "Java 23", "ECS Fargate docker id", "Actuator endpoint transaction naming"]
+bugs: ["Slick 3.5.0 PrioritizedRunnable", "Netty HTTP/2 Http2Headers null pointer exception"]
+security: []
+---
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.15.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+- Addition of AWS Lambda SDK instrumentation [1998](https://github.com/newrelic/newrelic-java-agent/pull/1998)
+- Reporting of Flyway migration events [2021](https://github.com/newrelic/newrelic-java-agent/pull/2021)
+- Add support for using an environment variable for config file location [2022](https://github.com/newrelic/newrelic-java-agent/pull/2022)
+- Support AWS Kinesis V1 and V2 SDKs [2031](https://github.com/newrelic/newrelic-java-agent/pull/2031)
+- Addition of kafka-clients-node-metrics-3.7.0 Instrumentation module [2039](https://github.com/newrelic/newrelic-java-agent/pull/2039)
+- Add instrumentation for glassfish-jul-extension logging library [2049](https://github.com/newrelic/newrelic-java-agent/pull/2049)
+- Java 23 support [2055](https://github.com/newrelic/newrelic-java-agent/pull/2055)
+- Support reporting of ECS Fargate Docker ids [2050](https://github.com/newrelic/newrelic-java-agent/pull/2050)
+- Actuator endpoint transaction naming for Spring Boot 3 [2077](https://github.com/newrelic/newrelic-java-agent/pull/2077)
+
+## Fixes
+
+- Slick 3.5.0 instrumentation bug fix [2025](https://github.com/newrelic/newrelic-java-agent/pull/2025)
+- Protect against Http2Headers methods throwing exceptions in Netty instrumentation [2042](https://github.com/newrelic/newrelic-java-agent/pull/2042)
+- Fix an issue where the Kinesis instrumentation is generating ERROR logs due to a NullPointerException [2052](https://github.com/newrelic/newrelic-java-agent/pull/2052)
+
+## IAST
+
+- CSEC version bump to 1.5 [2076](https://github.com/newrelic/newrelic-java-agent/pull/2076)
+- Changelog: https://github.com/newrelic/csec-java-agent/releases/tag/1.5.0
+
+**Full Changelog**: https://github.com/newrelic/newrelic-java-agent/compare/v8.14.0...v8.15.0
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you're moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).
+
+

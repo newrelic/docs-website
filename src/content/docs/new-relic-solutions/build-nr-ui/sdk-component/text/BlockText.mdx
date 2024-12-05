@@ -1,0 +1,143 @@
+---
+title: 'BlockText'
+metaDescription: 'Learn how to work the BlockText component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Typography styles are used throughout the UI. If used consistently they will help you maintain a hierarchy that is clear to your users.
+
+### Usage
+
+```js
+import { BlockText } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<>
+  <BlockText>
+    Typography is at the core of <strong>great</strong> user interface design.
+  </BlockText>
+</>
+```
+
+#### Types
+
+```js
+<>
+  <BlockText type={BlockText.TYPE.NORMAL}>
+    Typography is at the core of <strong>great</strong> user interface design.
+  </BlockText>
+  <BlockText type={BlockText.TYPE.PARAGRAPH}>
+    Typography is at the core of <strong>great</strong> user interface design.
+  </BlockText>
+</>
+```
+
+#### Changing semantic
+
+```js
+<BlockText type={BlockText.TYPE.PARAGRAPH} tagType={BlockText.TYPE.DIV}>
+  This is a div element styled as a paragraph
+</BlockText>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Text to display.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          BlockText.SPACING_TYPE.EXTRA_LARGE,
+          BlockText.SPACING_TYPE.LARGE,
+          BlockText.SPACING_TYPE.MEDIUM,
+          BlockText.SPACING_TYPE.NONE,
+          BlockText.SPACING_TYPE.OMIT,
+          BlockText.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `tagType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Tag in which to wrap the text.Useful for changing the semantic meaning of the text. This does not apply any style.
+
+        <OptionReference>
+          BlockText.TAG_TYPE.DIV,
+          BlockText.TAG_TYPE.P
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type of text that you want to display.This applies styles according to the type.
+
+        <OptionReference>
+          BlockText.TYPE.NORMAL,
+          BlockText.TYPE.PARAGRAPH
+        </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

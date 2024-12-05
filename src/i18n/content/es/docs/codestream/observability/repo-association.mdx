@@ -1,0 +1,192 @@
+---
+title: Conectando repositorio a servicios
+metaDescription: Connect your repository to a service to see observability.
+freshnessValidatedDate: '2024-12-11T00:00:00.000Z'
+translationType: machine
+---
+
+Los telemetry data disponibles en CodeStream son contextuales, lo que significa que todos están relacionados con el código que tiene abierto en su IDE. Para hacer esto, CodeStream necesita saber qué servicios en New Relic se crean desde el repositorio que tiene abierto en su IDE. CodeStream le indicará que seleccione un servicio para asociarlo con el repositorio que tiene abierto actualmente en su IDE.
+
+<img
+  title="Associate a repository in your IDE with a service."
+  alt="A screenshot of associating a repository in your IDE with a service."
+  src="/images/codestream_screenshot-crop_associate-repos-button.webp"
+/>
+
+En algunos casos, es posible que su repositorio deba estar asociado con múltiples servicios. Por ejemplo, es posible que tenga diferentes servicios que representen diferentes entornos (como producción o de prueba) y todos puedan estar asociados con el mismo repositorio. Para asociar el repositorio actual con un servicio adicional, haga clic en <DNT>**Add another service**</DNT>.
+
+<img
+  title="Associate an additional service with your repository."
+  alt="A screenshot of associating an additional service with your repository."
+  src="/images/codestream_screenshot-crop_associate-other-services.webp"
+/>
+
+Hacer estas asociaciones sobre la marcha cuando el símbolo es una excelente manera de comenzar, pero recomendamos uno de los siguientes métodos porque requieren menos esfuerzo manual continuo y eliminan la posibilidad de errores del usuario final, como URL remotas mal configuradas.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="env-var"
+    title="Usar variable de entorno con APM (recomendado)"
+  >
+    Establezca la variable de entorno `NEW_RELIC_METADATA_REPOSITORY_URL`. El nuevo agente Relic <InlinePopover type="apm"/>crea la entidad del repositorio y la asocia con la entidad de su aplicación automáticamente.
+
+    Esto requiere el formato de URL remota SSH o HTTPS. Recomendamos que esto se establezca como parte de su canal de compilación.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="repo-ui"
+    title="Utilice la UIweb de New Relic"
+  >
+    Vaya a la página de resumen de APM a través de <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select an app)**</DNT> y luego haga clic en el menú de puntos suspensivos a la derecha del nombre del servicio. Haga clic en la pestaña <DNT>**Repositories**</DNT> para conectar un repositorio.
+
+    <img
+      title="The Repositories section of the service summary page"
+      alt="A screenshot of the Repositories section of the service summary page."
+      src="/images/codestream_screenshot-crop_connect-repositories.webp"
+    />
+
+    Haga clic en <DNT>**Connect repository**</DNT> para buscar un repositorio existente o agregar uno nuevo.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="nerdgraph"
+    title="Utilice la API NerdGraph"
+  >
+    Utilice [las API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) de New Relic para crear un repositorio y asociarlo con la entidad de su aplicación.
+
+    <DNT>
+      **Step 1: Create a repository entity**
+    </DNT>
+
+    Para crear una entidad de repositorio, utilice la API `referenceEntityCreateOrUpdateRepository` y asegúrese de guardar el GUID que se genera. La API toma el siguiente parámetro:
+
+    * `accountId` - el ID de cuenta entero para la cuenta a la que desea agregar el repositorio
+
+    * `url` - ejemplo `https://github.com/newrelic/beta-docs-site.git`
+
+    * `name` - ejemplo: `newrelic/beta-docs-site`
+
+      ```graphql
+      mutation {
+        referenceEntityCreateOrUpdateRepository(repositories: [{accountId: [YOUR_ACCOUNT_ID], name: "[REPO_NAME]", url: "[REPO_URL]"}]) {
+          created
+          failures {
+            guid
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      Para encontrar la entidad que crea, puede utilizar una consulta como la siguiente. Tenga en cuenta que la URL que proporcionó a `referenceEntityCreateOrUpdateRepository` se guarda como una etiqueta de entidad.
+
+      ```graphql
+      {
+        actor {
+          entitySearch(query: "name = 'a name' OR tags.url = 'a url'") {
+            count
+            query
+            results {
+              entities {
+                guid
+                name
+                tags {
+                  key
+                  values
+                }
+              }
+            }
+          }
+        }
+      }
+
+      ```
+
+      <DNT>
+        **Step 2: Associate the repository entity to your application entity**
+      </DNT>
+
+      Primero, busque el GUID de la aplicación a la que desea asociar su repositorio.
+
+      Parámetro:
+
+    * `sourceEntityGuid` - el GUID de la entidad de la aplicación
+
+    * `targetEntityGuid` - el GUID de entidad de su repositorio
+
+    * `type` - siempre `BUILT_FROM`
+
+      ```graphql
+      mutation {
+        entityRelationshipUserDefinedCreateOrReplace(sourceEntityGuid: "", targetEntityGuid: "", type: BUILT_FROM) {
+          errors {
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      Para ver todas las entidades relacionadas con su repositorio puede hacer una consulta como esta:
+
+      ```graphql
+      {
+        actor {
+          entity(guid: "[YOUR_REPOSITORY_GUID]]") {
+            relatedEntities(filter: {direction: BOTH, relationshipTypes: {include: BUILT_FROM}}) {
+              results {
+                target {
+                  entity {
+                    name
+                    guid
+                    type
+                  }
+                }
+                type
+              }
+            }
+            name
+            type
+            tags {
+              values
+              key
+            }
+          }
+        }
+      }
+      ```
+
+      <DNT>
+        **Step 3: Cleanup (if needed)**
+      </DNT>
+
+      Eliminar un repositorio con la siguiente consulta:
+
+      ```graphql
+      mutation DeleteRepository {
+        entityDelete(guids: "[ENTITY_GUID_HERE]]") {
+          deletedEntities
+          failures {
+            message
+            guid
+          }
+        }
+      }
+      ```
+  </Collapser>
+</CollapserGroup>
+
+Con cualquiera de estos métodos, puede especificar la URL remota en formato SSH o HTTPS&#x3A;
+
+* `git@github.com:newrelic/beta-docs-site.git`
+* `https://github.com/newrelic/beta-docs-site.git`
+
+<Callout variant="caution">
+  Es posible agregar el mismo repositorio más de una vez, si utiliza protocolos diferentes para hacerlo. La UI le advierte sobre esto, pero no le impedirá hacerlo.
+
+  Por ejemplo, `https://github.com/tuna/repo` y `git@github.com:tuna/repo` son el mismo repositorio, con protocolos diferentes.
+</Callout>

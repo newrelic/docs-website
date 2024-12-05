@@ -1,0 +1,358 @@
+---
+title: Alerts overview page
+tags:
+  - Alerts
+  - Get started
+metaDescription: How to interpret what you see on the Alerts overview page.
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview
+  - /docs/new-relic-one/use-new-relic-one/new-relic-ai/introduction-new-relic-ai
+  - /docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page
+freshnessValidatedDate: never
+---
+
+On the <InlinePopover type="alerts"/> <DNT>**Overview**</DNT> page, you'll find a consolidated view of your current alerts incidents. The <DNT>**Issues & activity**</DNT> page has views of your active issues and recent incidents.
+
+## Why it matters [#why]
+
+The <DNT>**Overview**</DNT> and <DNT>**Issues & activity**</DNT> pages provide analytics on how your system is (or isn't) performing. You can quickly switch between the [<DNT>**Overview**</DNT>](#summary), [<DNT>**Issues**</DNT>](#issues) and [<DNT>**Incidents**</DNT>](#incidents) to scan for critical problems affecting your systems.
+
+## Overview page [#summary]
+
+The overview page shows a high-level view of recent and current alerts incidents. With this page, you'll get quick insight into how many critical incidents you have, how many have been closed, and which policies are creating the most incidents. This page also shows the top sources of your muted incidents.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Dashboard title
+      </th>
+
+      <th>
+        What it is
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Opened incidents by priority (time series)
+      </td>
+
+      <td>
+        A time series view that counts the number of incidents opened during a time period. This chart only tracks open events. It doesn't track the open or closed state of the incident.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Opened incidents by priority (pie)
+      </td>
+
+      <td>
+        This chart uses the same data as the time series chart of the same name. It quickly shows you the breakdown between warning and critical incidents. Click the pie chart to filter the whole page by warning or critical incidents.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Closed incident durations
+      </td>
+
+      <td>
+        A distribution of how long each incident was open (duration), before being closed. Generally, it's better to have shorter durations for your incidents. If you're seeing a lot of long duration incidents, you may want to write a custom filter to investigate those more deeply.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Muted incidents
+      </td>
+
+      <td>
+        If you've written some muting rules, you'll see them here. If you're not using any muting rules, you'll see 100% “Not muted” incidents. Click this chart to filter by muted incidents to quickly see where they're coming from.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Top policies creating incidents
+      </td>
+
+      <td>
+        A chart of the top five policies generating the most incidents. Click a policy name to filter the whole page by that policy's incidents.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Top conditions creating incidents
+      </td>
+
+      <td>
+        A chart of the top five conditions generating the most incidents. Click a policy name to filter the whole page by that condition's incidents.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Top sources of incidents
+      </td>
+
+      <td>
+        A chart of the entities generating the most incidents. If available, it uses the entity name. Otherwise, it will use the event type. Click an entity to filter the whole page by that entity's incidents.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Issues
+
+On the <DNT>**Issues & activity**</DNT> page, issues are groups of incidents that describe the underlying problem of your symptoms. When a new incident is created, incident intelligence opens an issue and evaluates other open issues for correlations. An issue will contain arrays of all the tags (metadata) from all the incidents it contains.
+
+The issues feed includes all of your issues and can be searched and filtered using the top of page component.
+
+By default, the issues feed is filtered to only show the active issues. You can also filter by issue priority, source, alert condition, alert policiy, entity, or issue ID.
+
+By default, issues are sorted by most recently created issue.
+
+Click an issue to open its issue page.
+
+### Issues feed columns
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Column name
+      </th>
+
+      <th>
+        Values
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        State
+      </td>
+
+      <td>
+        Created, active, acknowledged, closed
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Priority
+      </td>
+
+      <td>
+        Low, medium, high, critical
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Issue name
+      </td>
+
+      <td>
+        The issue's name
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Created
+      </td>
+
+      <td>
+        When the issue was created (in absolute or relative time)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duration
+      </td>
+
+      <td>
+        How much time has passed since the issue was created
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entities
+      </td>
+
+      <td>
+        A list of the impacted entities. If the list is too long to be shown, mouseover the value to see the list.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Analysis summary
+      </td>
+
+      <td>
+        The machine learning module's output for the issue
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Path
+      </td>
+
+      <td>
+        The Sources -> Destination path
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incidents
+      </td>
+
+      <td>
+        The number of related incidents
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Incidents
+
+On the <DNT>**Issues & activity**</DNT> page, incidents are events that describe the symptoms affecting your system over time. These symptoms are detected by your monitoring tools, which evaluate your data streams and events.
+
+New Relic incident metadata comes from any of the following sources:
+
+* Inheriting all the tags from the alert condition that triggered it
+* All the facets, values, and where conditions are added as tags if the NRQL alert condition contains a facet or where condition
+* All the tags from an entity are added if the result of the NRQL alert condition can be mapped to that single entity
+
+[External incident](/docs/data-apis/ingest-apis/event-api/incident-event-rest-api/) medadata is what was received as tag.\*.
+
+The incidents feed includes all of your incidents: New Relic incident and external incidents.
+
+You can filter the feed by source, incident state, and priority.
+
+### Default behavior [#default]
+
+By default, the feed is sorted by last updated at the top.
+
+Click an incident's row to see the incident's details.
+
+### Incidents feed columns [#incident-feed]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Column name
+      </th>
+
+      <th>
+        Values
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        State
+      </td>
+
+      <td>
+        Open, Closed
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Priority
+      </td>
+
+      <td>
+        Low, Medium, High, Critical
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incident name
+      </td>
+
+      <td>
+        The incident's name
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Created
+      </td>
+
+      <td>
+        When the incident was created (in absolute or relative time)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duration
+      </td>
+
+      <td>
+        How much time has passed since the incident was created
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entities
+      </td>
+
+      <td>
+        A list of the entities impacted by the incident. If the list is too long to be displayed, mouseover the value to see the list.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Analysis summary
+      </td>
+
+      <td>
+        The machine learning module's output for the incident
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Source
+      </td>
+
+      <td>
+        The source system of the incident
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Events
+      </td>
+
+      <td>
+        The number of events aggregated in the incident
+      </td>
+    </tr>
+  </tbody>
+</table>

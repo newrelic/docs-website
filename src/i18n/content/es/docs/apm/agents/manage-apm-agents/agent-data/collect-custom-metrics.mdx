@@ -1,0 +1,138 @@
+---
+title: 'Recopilación de métrica personalizada (APM, browser, móvil)'
+metaDescription: 'For an overview of custom metrics, including examples, best practices, and a quick reference by New Relic agent, start here.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Agente APM, agente del navegador y agente móvil informan un tipo de datos métricos llamado [intervalo de tiempo de datos métricos](/docs/using-new-relic/data/understand-data/new-relic-data-types#timeslice-data). Estos agentes le permiten informar datos de intervalo de tiempo de métrica personalizados desde su aplicación y verlos junto con los datos predeterminados de New Relic. Cree métricas personalizadas para registrar datos de rendimiento arbitrarios mediante una llamada API, como por ejemplo:
+
+* Datos de tiempo
+* Datos de recursos informáticos
+* Datos de suscripción o compras
+
+Después de reportar estos datos, podrás [explorarlos y consultarlos](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-apm-metric-timeslice-data-nrql).
+
+## Nombre métrica personalizada [#naming]
+
+Empiece todos los nombres métricos personalizados con `Custom/`; por ejemplo, `Custom/MyMetric/My_label`. El prefijo `Custom/` es obligatorio para todas las métricas personalizadas.
+
+Cualquier nombre de métrica personalizada que no comience con `Custom/` está sujeto a todas las demás reglas de agrupación. Es posible que no estén visibles al realizar consultas o que no aparezcan como se esperaba en la UI.
+
+<img
+  title="custom-metric-syntax.png"
+  alt="custom-metric-syntax.png"
+  src="/images/apm_diagram_custom-metric-syntax.webp"
+/>
+
+Un nombre de métrica personalizada consta del prefijo `Custom/`, el nombre de categoría o clase y un método o etiqueta, cada uno separado por una barra.
+
+## Implementar métrica personalizada [#implementing]
+
+La implementación de métrica personalizada requiere llamada API. Los detalles exactos de la llamada API varían según el agente.
+
+<Callout variant="tip">
+  Si está probando su implementación de métrica personalizada, ejecute el agente durante al menos 10 minutos para asegurarse de que la llamada API se informe a New Relic.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        New Relic
+      </th>
+
+      <th>
+        Implementación
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Agente APM
+      </td>
+
+      <td>
+        * <DNT>
+            **C SDK:**
+          </DNT>
+
+          [`newrelic_record_custom_metric()`](https://newrelic.github.io/c-sdk/libnewrelic_8h.html#aee71182588ace508cc816044d2024ff3)
+
+        * <DNT>
+            **Go:**
+          </DNT>
+
+          [`app.RecordCustomMetric`](/docs/agents/go-agent/instrumentation/create-custom-metrics-go)
+
+        * <DNT>
+            **Java:**
+          </DNT>
+
+          [`recordMetric`](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html#recordMetric(java.lang.String,%20float))
+
+        * <DNT>
+            **.NET:**
+          </DNT>
+
+          [`RecordMetric`](/docs/agents/net-agent/net-agent-api/recordmetric-net-agent)
+
+        * <DNT>
+            **Node.js:**
+          </DNT>
+
+          [`recordMetric`](/docs/agents/nodejs-agent/supported-features/nodejs-custom-metrics)
+
+        * <DNT>
+            **PHP:**
+          </DNT>
+
+          [`newrelic_custom_metric`](/docs/agents/php-agent/php-agent-api/newrelic_custom_metric)
+
+        * <DNT>
+            **Python:**
+          </DNT>
+
+          [`record_custom_metric` y `register_data_source`](/docs/python/python-custom-metrics)
+
+        * <DNT>
+            **Ruby:**
+          </DNT>
+
+          [`record_metric` y `increment_metric`](/docs/ruby/ruby-custom-metrics)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente New Relic Mobile
+      </td>
+
+      <td>
+        [Registro métrico personalizado SDK](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-custom-metrics/)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        New Relic Browser
+      </td>
+
+      <td>
+        Browser no soporta métrica personalizada. Para conocer las opciones sobre cómo agregar datos personalizados al navegador, consulte [instrumentación del navegador](/docs/browser/new-relic-browser/page-load-timing-resources/instrumentation-browser-monitoring).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Evite problemas de agrupación [#best_practices]
+
+Recopilar demasiados intervalos de tiempo métricos puede afectar el rendimiento tanto de su aplicación como de New Relic. Por ejemplo, si tiene miles de usuarios individuales, evite crear métricas para realizar un seguimiento del rendimiento de sus ID de usuario únicos. Esto podría dar como resultado una cantidad tan grande de métricas que resulte casi imposible navegar o entender los datos. En su lugar, utilice un marcador de posición, como un asterisco (\*), en lugar de ID de usuario individuales.
+
+<Callout variant="important">
+  Para evitar posibles problemas con los datos, intente mantener el número total de intervalos de tiempo métricos únicos introducidos por métrica personalizada por debajo de 2000.
+</Callout>
+
+Cuando el número total de nombres métricos únicos supera los 5000, comienzan a aplicarse límites automáticamente que afectan la forma en que aparecen los datos en la interfaz de usuario, como en gráficos y tablas. Para obtener más información, consulte [problemas de agrupación métrica](/docs/features/metric-grouping-issues).

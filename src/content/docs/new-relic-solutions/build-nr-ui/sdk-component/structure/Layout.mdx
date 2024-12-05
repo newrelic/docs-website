@@ -1,0 +1,267 @@
+---
+title: 'Layout'
+metaDescription: 'Learn how to work the Layout component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Layout is a 1-dimensional layout system with options to control the relative sizing of its children's elements. Layout spans the full width of the viewport area.
+
+### Usage
+
+```js
+import { Layout } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Layout preview>
+  <LayoutItem>
+    <div className="nr1-Box">Main content</div>
+  </LayoutItem>
+</Layout>
+```
+
+#### Split left small
+
+```js
+<Layout preview>
+  <LayoutItem
+    type={LayoutItem.TYPE.SPLIT_LEFT}
+    sizeType={LayoutItem.SIZE_TYPE.SMALL}
+  >
+    <div className="nr1-Box">Navigation</div>
+  </LayoutItem>
+  <LayoutItem>
+    <div className="nr1-Box">Main content</div>
+  </LayoutItem>
+</Layout>
+```
+
+#### Split right medium
+
+```js
+<Layout preview>
+  <LayoutItem>
+    <div className="nr1-Box">Main content</div>
+  </LayoutItem>
+  <LayoutItem type={LayoutItem.TYPE.SPLIT_RIGHT}>
+    <div className="nr1-Box">Activity stream</div>
+  </LayoutItem>
+</Layout>
+```
+
+#### Split left small and split right medium
+
+```js
+<Layout preview>
+  <LayoutItem
+    type={LayoutItem.TYPE.SPLIT_LEFT}
+    sizeType={LayoutItem.SIZE_TYPE.SMALL}
+  >
+    <div className="nr1-Box">Navigation</div>
+  </LayoutItem>
+  <LayoutItem>
+    <div className="nr1-Box">Main content</div>
+  </LayoutItem>
+  <LayoutItem type={LayoutItem.TYPE.SPLIT_RIGHT}>
+    <div className="nr1-Box">Activity stream</div>
+  </LayoutItem>
+</Layout>
+```
+
+#### Split left and right collapsible
+
+```js
+<Layout preview fullHeight>
+  <CollapsibleLayoutItem
+    triggerType={CollapsibleLayoutItem.TRIGGER_TYPE.INBUILT}
+    type={LayoutItem.TYPE.SPLIT_LEFT}
+    sizeType={LayoutItem.SIZE_TYPE.SMALL}
+  >
+    <div className="nr1-Box">Navigation</div>
+  </CollapsibleLayoutItem>
+
+
+  <LayoutItem>
+    <div className="nr1-Box">Main content</div>
+  </LayoutItem>
+
+
+  <CollapsibleLayoutItem
+    triggerType={CollapsibleLayoutItem.TRIGGER_TYPE.INBUILT}
+    type={LayoutItem.TYPE.SPLIT_RIGHT}
+  >
+    <div className="nr1-Box">Activity stream</div>
+  </CollapsibleLayoutItem>
+</Layout>
+```
+
+#### Collapsible in controlled mode
+
+```js
+class Example extends React.Component {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      collapsedLeft: false,
+      collapsedRight: false,
+    };
+  }
+
+
+  render() {
+    return (
+      <>
+        <Stack>
+          <StackItem>
+            <label>
+              Collapsed on the left side?
+              <input
+                type="checkbox"
+                onChange={(e) =>
+                  this.setState({ collapsedLeft: e.currentTarget.checked })
+                }
+              />
+            </label>
+          </StackItem>
+
+
+          <StackItem>
+            <label>
+              Collapsed on the right side?
+              <input
+                type="checkbox"
+                onChange={(e) =>
+                  this.setState({ collapsedRight: e.currentTarget.checked })
+                }
+              />
+            </label>
+          </StackItem>
+        </Stack>
+
+
+        <Layout preview fullHeight>
+          <CollapsibleLayoutItem
+            collapsed={this.state.collapsedLeft}
+            triggerType={CollapsibleLayoutItem.TRIGGER_TYPE.CUSTOM}
+            type={LayoutItem.TYPE.SPLIT_LEFT}
+            sizeType={LayoutItem.SIZE_TYPE.SMALL}
+          >
+            <div className="nr1-Box">Navigation</div>
+          </CollapsibleLayoutItem>
+
+
+          <LayoutItem>
+            <div className="nr1-Box">Main content</div>
+          </LayoutItem>
+
+
+          <CollapsibleLayoutItem
+            collapsed={this.state.collapsedRight}
+            triggerType={CollapsibleLayoutItem.TRIGGER_TYPE.CUSTOM}
+            type={LayoutItem.TYPE.SPLIT_RIGHT}
+          >
+            <div className="nr1-Box">Activity stream</div>
+          </CollapsibleLayoutItem>
+        </Layout>
+      </>
+    );
+  }
+}
+```
+
+#### Stacked layout
+
+```js
+<>
+  <Layout preview>
+    <LayoutItem>
+      <div className="nr1-Box">Chart</div>
+    </LayoutItem>
+  </Layout>
+  <Layout preview>
+    <LayoutItem
+      type={LayoutItem.TYPE.SPLIT_LEFT}
+      sizeType={LayoutItem.SIZE_TYPE.SMALL}
+    >
+      <div className="nr1-Box">Navigation</div>
+    </LayoutItem>
+    <LayoutItem>
+      <div className="nr1-Box">Main Content</div>
+    </LayoutItem>
+  </Layout>
+</>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Layout items to display.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the layout to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `preview` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Visually draws the boxes of the layout and its layout items.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

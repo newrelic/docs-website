@@ -1,0 +1,150 @@
+---
+title: Obtener datos de Apdex para aplicaciones o navegador (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: Some examples of how to use the New Relic REST API (v2) to get Apdex information for your app and browser.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A continuación se muestran algunos ejemplos de cómo utilizar la API REST de New Relic (v2) para obtener datos [de Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction) para su aplicación y browser, para un [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y [una clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing) específicos. De forma predeterminada, esto proporcionará una lista de valores cada minuto durante los [últimos 30 minutos](/docs/apm/apis/api-v2-examples/specifying-time-range-v2) en formato JSON.
+
+Al adquirir datos, los valores devueltos pueden verse afectados por el período de tiempo que especifique y la forma en que se almacenan los datos. Para obtener más información, consulte [Extracción de datos métricos](/docs/apis/extracting-metric-data).
+
+## Nombres y valores métricos para Apdex [#apdex-names]
+
+Para especificar nombres y valores de Apdex métrica con REST llamada API, utilice estos códigos según sea necesario.
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        <DNT>
+          **Metric name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Metric value**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td rowSpan={6}>
+        `Apdex`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `score`: Puntuación Apdex de la aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `s`: Recuento de satisfacción de la aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `t`: Recuento de tolerancia de la aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `f`: Conteo frustrado de la aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `count`: Recuento de solicitudes de la aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td rowSpan={6}>
+        `EndUserApdex`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `score`: puntuación Apdex del browser
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `s`: recuento de satisfacción del browser
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `t`: recuento de tolerancia del browser
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `f`: recuento frustrado del browser
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `count`: recuento de solicitudes del browser
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+El cálculo utilizado para determinar el `score` se explica en [Apdex: Medición de la satisfacción del usuario](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction). Las siguientes secciones describen cómo obtener `score` y los [valores s, t y f](#apdex-all) utilizados para llegar a él.
+
+## Puntuación promedio de Apdex [#apdex-average]
+
+Para obtener el Apdex [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize) `score` (tanto de la aplicación como browser) para un [período de tiempo específico](/docs/apm/apis/api-v2-examples/specifying-time-range-v2), use este comando. Este ejemplo muestra 24 horas en formato XML para su [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y su correspondiente [clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing).
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.xml" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=Apdex&names[]=EndUser/Apdex&values[]=score&from=2014-01-01T00:00:00+00:00&to=2014-01-02T00:00:00+00:00&summarize=true'
+```
+
+Esto devolverá las mismas puntuaciones de Apdex que se muestran en su [página APM <DNT>**Overview**</DNT> ](/docs/apm/applications-menu/monitoring/applications-overview-dashboard).
+
+## Valores medios de Apdex métrica [#apdex-metrics]
+
+Para obtener los valores [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize) de Apdex [métrica](/docs/apm/apis/requirements/extracting-metric-data) para un [rango de tiempo específico](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2), use este comando. Este ejemplo muestra 12 horas en formato XML para su [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y su correspondiente [clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing).
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.xml" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=Apdex&names[]=EndUser/Apdex&values[]=score&from=2014-06-09T00:00:00+00:00&to=2014-06-09T12:00:00+00:00&summarize=true'
+```
+
+<DNT>**Tip:**</DNT> Para devolver una serie de puntuaciones de Apdex en lugar de un promedio, omita `&summarize=true`.
+
+## Todos los valores promedio de Apdex [#apdex-all]
+
+Para obtener el conjunto completo de puntuaciones [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize) , `s`, `t`, `f`, `count` y valores de umbral para un [rango de tiempo específico](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2), use este comando. Este ejemplo muestra 24 horas ([ajustadas a la zona horaria](/docs/apm/apis/requirements/specifying-time-range-api-v2#utc) de 6 horas al oeste de UTC usando `%2B06:00`) en formato XML para su [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y su correspondiente [clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing).
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.xml" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=Apdex&names[]=EndUser/Apdex&from=2014-06-09T00:00:00%2B06:00&to=2014-06-10T00:00:00%2B06:00&summarize=true'
+```
+
+<Callout variant="tip">
+  Aunque este ejemplo ajusta la zona horaria, el resultado sigue siendo la hora UTC.
+</Callout>

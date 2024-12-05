@@ -1,0 +1,128 @@
+---
+title: 'FavoriteTableRowCell'
+metaDescription: 'Learn how to work the FavoriteTableRowCell component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Renders a row table cell showing the favorite status of a particular entity. The favorite status can be controlled through the `checked` property and the status changes can be listened through the `onChange` property.
+
+### Usage
+
+```js
+import { FavoriteTableRowCell } from 'nr1'
+```
+
+### Examples
+
+#### Example 1
+
+```js
+function render() {
+  const items = [
+    {
+      name: 'Login service',
+      alertSeverity: 'CRITICAL',
+      reporting: true,
+      favorite: true,
+    },
+    {
+      name: 'Service Gateway',
+      alertSeverity: 'NOT_ALERTING',
+      reporting: true,
+      favorite: false,
+    },
+  ];
+  return (
+    <Table items={items}>
+      <TableHeader>
+        <TableHeaderCell width="56px" />
+        <TableHeaderCell>Entity</TableHeaderCell>
+      </TableHeader>
+      {({ item }) => (
+        <TableRow>
+          <FavoriteTableRowCell checked={item.favorite} />
+          <EntityTitleTableRowCell value={item} />
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `checked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, indicates that the user has marked the entity as favorite.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the favorite status changes. The new favorite status will be passed as second parameter.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""},{"name":"checked","type":"boolean","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.Linked `TableRowCell`s are unstyled and will not show icons for external links. If the same styling as the Link component is what is desired, then use a `Link` instead as a child component within the cell.<h3>shape</h3>
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,548 @@
+---
+title: Integración de monitoreo de registros de flujo de Amazon VPC
+tags:
+  - Integrations
+  - Amazon integrations
+  - AWS integrations list
+metaDescription: 'New Relic''s Amazon VPC Flow Logs monitoring integration: what data it reports, and how to enable it.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout
+  variant="important"
+  title="AVISO EOL"
+>
+  Más adelante este año, dejaremos de admitir esta integración. Ahora puede configurar su registro de flujo AWS VPC instalando un paquete que incluye un dashboard diseñado para el registro de flujo AWS VPC. Vea cómo [configurar el monitoreo AWS de flujo VPC log ](/docs/network-performance-monitoring/setup-performance-monitoring/cloud-flow-logs/aws-vpc-flow-log-monitoring/).
+</Callout>
+
+[El registro de flujo de VPC de mejorado AWS ](http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/flow-logs.html)[de Amazon](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html) le permite capturar información sobre el tráfico IP que va hacia y desde las interfaces de red en su VPC. La integración del registro de flujo de VPC con New Relic le permite analizar todos los registros de red generados por las redes privadas para monitor el tráfico aceptado/rechazado en las IP públicas y dentro de la propia VPC.
+
+La integración de registros New Relic VPC Flow solo puede procesar registros en el formato predeterminado de AWS. Para obtener más información sobre el formato del registro de VPC Flow, consulte [la documentación del registro de VPC Flow de Amazon](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html#flow-log-records).
+
+## Requisitos [#reqs]
+
+<Callout variant="important">
+  Si integró una cuenta AWS tanto a través de métrica streams como del modo de sondeo API , solo podrá ver el registro de VPC en la cuenta del proveedor utilizando la integración de métrica streams.
+</Callout>
+
+Para que el registro de VPC envíe datos a New Relic, debe habilitar una función Lambda proporcionada por New Relic que realizará el trabajo de ingesta. A diferencia de otras integraciones AWS que tienen [intervalo de sonido](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-polling-intervals-infrastructure-integrations), la integración de registro de flujo VPC recibe datos cuando se envían a la función Lambda. La velocidad de envío de los datos log de flujo de VPC es de 15 segundos.
+
+## Habilitar el monitoreo del registro de flujo de VPC [#enable]
+
+Para enviar datos al servicio de ingesta New Relic , New Relic proporciona una función Lambda específica que admite envíos desde el registro de CloudWatch y recupera datos de depósitos de S3. Para asignar la función Lambda y habilitar el monitoreo del registro de flujo de VPC:
+
+1. Cree una nueva función Lambda AWS desde el repositorio Serverless: vaya a
+
+   <DNT>
+     **Lambda > Create Function > Browse serverless App repository**
+   </DNT>
+
+   , marque la casilla
+
+   <DNT>
+     **Show apps that create custom IAM roles or resource policies**
+   </DNT>
+
+   y busque `NewRelic-log-ingestion`.
+
+2. Complete la variable de entorno `LICENSE_KEY` con su cuenta New Relic
+
+   <InlinePopover type="licenseKey"/>
+
+   .
+
+3. Revise todos los parámetros opcionales y adáptelos según sus casos de uso.
+
+4. Seleccione
+
+   <DNT>
+     **Deploy**
+   </DNT>
+
+   para crear una nueva stack de CloudFormation, una nueva función llamada `newrelic-log-ingestion` y el rol requerido.
+
+5. Vaya a la función `newrelic-log-ingestion` .
+
+6. Continúe con el procedimiento para [transmitir el registro a la función Lambda](#stream-logs).
+
+<Callout variant="tip">
+  La función `newrelic-log-ingestion` requiere la política AWSLambdaBasicExecutionRole que contiene los permisos mínimos (según lo recomendado por AWS). Se puede definir un nombre de función de IAM personalizado en el momento de la instalación; de lo contrario, se creará una función adecuada, que requerirá que se reconozca CAPABILITY_IAM.
+</Callout>
+
+## Transmitir registro a la función Lambda [#stream-logs]
+
+Para transmitir el registro a la función Lambda:
+
+1. Desde la [Consola de administración de CloudWatch](https://console.aws.amazon.com/cloudwatch/home), seleccione
+
+   <DNT>
+     **Logs**
+   </DNT>
+
+   .
+
+2. Seleccione
+
+   <DNT>
+     **/aws/vpc/flow-logs**
+   </DNT>
+
+   y haga clic en
+
+   <DNT>
+     **Actions > Stream to AWS Lambda**
+   </DNT>
+
+   .
+
+3. Seleccione la función Lambda New Relic que creó (`newrelic-log-ingestion`) cuando [habilitó el monitoreo del registro de flujo de VPC](#enable) y luego seleccione
+
+   <DNT>
+     **Next**
+   </DNT>
+
+   .
+
+4. Mantenga el
+
+   <DNT>
+     **Log format**
+   </DNT>
+
+   predeterminado (registro de flujo de Amazon VPC) y seleccione
+
+   <DNT>
+     **Next**
+   </DNT>
+
+   .
+
+5. Revise la configuración y luego seleccione
+
+   <DNT>
+     **Start streaming**
+   </DNT>
+
+   .
+
+## Configurar el registro de tráfico [#configuration]
+
+Puede configurar el registro de tráfico desde AWS en tres modos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Tipo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Tráfico aceptado
+      </td>
+
+      <td>
+        El registro solo capturará el tráfico en la derecha
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tráfico rechazado
+      </td>
+
+      <td>
+        El registro solo reflejará el tráfico rechazado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Todo el tráfico
+      </td>
+
+      <td>
+        El registro mostrará tanto el tráfico aceptado como el rechazado.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Frecuencia de sondeo [#polling]
+
+A diferencia de otras integraciones AWS que tienen [intervalo de sonido](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-polling-intervals-infrastructure-integrations), la integración de registro de flujo VPC recibe datos cuando se envían a la función Lambda. La velocidad de envío de los datos log de flujo de VPC es de 15 segundos.
+
+## Datos de registro de flujo de Amazon VPC procesados [#metrics]
+
+New Relic recopila solo estos campos log de los [log flujo de Amazon VPC](http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/flow-logs.html#flow-log-records).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Campo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `version`
+      </td>
+
+      <td>
+        La versión del registro de flujo de VPC.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `account-id`
+      </td>
+
+      <td>
+        El ID de la cuenta AWS para el log de flujo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `interface-id`
+      </td>
+
+      <td>
+        El ID de la interfaz de red a la que se aplica el flujo log .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `srcaddr`
+      </td>
+
+      <td>
+        La dirección IPv4 o IPv6 de origen. La dirección IPv4 de la interfaz de red es siempre su dirección IPv4 privada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dstaddr`
+      </td>
+
+      <td>
+        La dirección IPv4 o IPv6 de destino. La dirección IPv4 de la interfaz de red es siempre su dirección IPv4 privada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `srcport`
+      </td>
+
+      <td>
+        El puerto de origen del tráfico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dstport`
+      </td>
+
+      <td>
+        El puerto de destino del tráfico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `protocol`
+      </td>
+
+      <td>
+        El número de protocolo IANA del tráfico. Para obtener más información, vaya a Números de protocolo de Internet asignados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `packets`
+      </td>
+
+      <td>
+        La cantidad de paquetes transferidos durante la ventana de captura.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytes`
+      </td>
+
+      <td>
+        El número de bytes transferidos durante la ventana de captura.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `start`
+      </td>
+
+      <td>
+        La hora, en segundos Unix, del inicio de la ventana de captura.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `end`
+      </td>
+
+      <td>
+        El tiempo, en segundos Unix, del final de la ventana de captura.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `action`
+      </td>
+
+      <td>
+        La acción asociada al tráfico:
+
+        * `ACCEPT`: el tráfico registrado fue permitido por los grupos de seguridad o las ACL de red.
+        * `REJECT`: Los grupos de seguridad o las ACL de red no permitieron el tráfico registrado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `log-status`
+      </td>
+
+      <td>
+        El estado de registro del log de flujo:
+
+        * OK: Los datos se registran normalmente en el registro de CloudWatch.
+        * `NODATA`: No hubo tráfico de red hacia o desde la interfaz de red durante la ventana de captura.
+        * `SKIPDATA`: algunos registros log flujo se omitieron durante la ventana de captura. Esto puede deberse a una restricción de capacidad interna o a un error interno.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## VPC log de flujo métrico [#metrics]
+
+New Relic procesa este tráfico métrico:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `provider.bytes`
+      </td>
+
+      <td>
+        El número de bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.packets`
+      </td>
+
+      <td>
+        El número de paquetes.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Dimensiones log de flujo de VPC [#dimensions]
+
+New Relic le permite dividir métricamente el tráfico aceptado o rechazado utilizando estas dimensiones:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Dimensiones
+      </th>
+
+      <th>
+        Definición
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `provider.action`
+      </td>
+
+      <td>
+        Si el paquete fue aceptado o rechazado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.destinationAddress`
+      </td>
+
+      <td>
+        Dirección IP de destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.destinationPort`
+      </td>
+
+      <td>
+        El puerto de destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.interfaceId`
+      </td>
+
+      <td>
+        El ID de la interfaz de red donde se registra el paquete.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.privateDnsName`
+      </td>
+
+      <td>
+        El nombre DNS privado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.privateIp`
+      </td>
+
+      <td>
+        La IP privada
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.protocol`
+      </td>
+
+      <td>
+        El número de protocolo de Internet.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.publicDnsName`
+      </td>
+
+      <td>
+        El nombre DNS público
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.publicIp`
+      </td>
+
+      <td>
+        La IP pública
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.requesterManaged`
+      </td>
+
+      <td>
+        Indicador de que la interfaz de red fue creada por el usuario o por AWS
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.sourceAddress`
+      </td>
+
+      <td>
+        La dirección IP de origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.sourcePort`
+      </td>
+
+      <td>
+        El puerto de origen
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.subnetId`
+      </td>
+
+      <td>
+        La identificación de la subred
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provider.vpcId`
+      </td>
+
+      <td>
+        El ID de VPC al que pertenece la interfaz de red
+      </td>
+    </tr>
+  </tbody>
+</table>

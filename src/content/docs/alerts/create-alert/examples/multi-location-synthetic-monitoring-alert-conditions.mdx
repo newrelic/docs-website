@@ -1,0 +1,136 @@
+---
+title: Multi-location synthetic monitoring alert conditions
+tags:
+  - Alerts  
+  - Alert conditions
+metaDescription: Synthetic monitoring multi-location alert conditions allow you to specify how many location checks must fail before generating a notification.
+redirects:
+  - /docs/synthetics-multi-location-alert-conditions
+  - /docs/synthetics-multi-location-failure-alert-conditions
+  - /docs/multi-location-synthetics-alert-conditions
+  - /docs/alerts/new-relic-alerts/defining-conditions/multi-location-synthetics-alert-conditions
+  - /docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/multi-location-synthetics-alert-conditions
+  - /docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/multi-location-synthetic-monitoring-alert-conditions
+  - /docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/multi-location-synthetic-monitoring-alert-conditions
+freshnessValidatedDate: never
+---
+
+With multi-location Synthetic monitoring alert conditions, you can create a monitor to notify you when a specific number of locations are failing at the same time.
+
+## Why this matters [#feature]
+
+For [Synthetic monitoring](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics) that runs in multiple [locations](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#setting-location), a single location will sometimes temporarily fail for a wide variety of reasons. In many cases, a single, short-lived failure does not indicate a problem that would require a notification.
+
+With multi-location conditions, you can set the number of locations that must simultaneous fail in order to trigger an incident and send you a notification. For example, if your monitor is running in six locations, you might set a condition requiring four locations to fail before you receive a notification.
+
+<Callout variant="important">
+  Multi-location alerts do **not** affect alerts policies for a Synthetic monitor. For example, [muting a Multi-location alert](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications) will **not** mute a [Synthetic monitor's alerts.](/docs/synthetics/synthetic-monitoring/using-monitors/alerts-synthetic-monitoring#alerts-existing-monitor)
+</Callout>
+
+## Rules
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Rule
+      </th>
+
+      <th>
+        Details
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Required check frequency
+      </td>
+
+      <td>
+        15 minutes or less.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Maximum monitors per condition
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Conditions per account
+      </td>
+
+      <td>
+        This feature has a limit of 1000 conditions per account, but some types of infrastructure alert conditions also count towards this limit. If you get a notification that you've exceeded your limit, contact your New Relic representative or [Support](https://support.newrelic.com/) for assistance.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Status between checks
+      </td>
+
+      <td>
+        A failed location check will be considered failed until it performs a successful check. For example: a location may fail and then immediately become available, but we'll consider it failed until a scheduled check is reported as successful.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Here's a diagram that shows how a four-location condition will be triggered for non-simultaneous failures:
+
+<img
+  title="synthetics-multi-location-alert-diagram.png"
+  alt="Synthetics multi-location alert condition diagram"
+  src="/images/accounts_screenshot-full_synthetics-multi-location-alert-diagram.webp"
+/>
+
+<figcaption>
+  This diagram shows an example of how a four-failed-locations setting will trigger an incident for failures that occur one after the other. Note that failed location checks will be viewed as failed until they next have a successful check.
+</figcaption>
+
+## Create condition from Alerts UI [#create]
+
+Before creating a condition, read the [rules for multi-location conditions](#rules).
+
+<img
+  title="Create a classic alert for synthetics"
+  alt="A screenshot that shows what to select to create a classic alert for synthetics"
+  src="/images/alerts_screenshot-crop_synthetics-Alerts.webp"
+/>
+
+1. From <DNT>**one.newrelic.com**</DNT>, select [<DNT>**Alerts**</DNT>](https://one.newrelic.com/alerts-ai), then [<DNT>**Alert policies**</DNT>](https://one.newrelic.com/alerts-ai/condition-builder/policy-list).
+
+2. Click on the policy in which you'd like to create the classic alert condition or create a new policy.
+
+3. Select <DNT>**New alert condition**</DNT>.
+
+4. Select <DNT>**Build a classic alert**</DNT>.
+
+5. Select <DNT>**Synthetics**</DNT> and <DNT>**Multiple location failures**</DNT>.
+
+6. Click <DNT>**Next**</DNT> to select monitors to target.
+
+7. Click <DNT>**Next**</DNT>. Fill out the fields on the <DNT>**Set thresholds**</DNT> step.
+
+8. Click <DNT>**Save condition**</DNT>.
+
+<Callout variant="important">
+  You can't view or edit multi-location Synthetic monitoring alert conditions in the [Synthetics UI](/docs/synthetics/new-relic-synthetics/pages/view-monitors-alert-information).
+</Callout>
+
+## Create condition with the API [#api]
+
+Before creating a condition, read the [rules for multi-location conditions](#rules).
+
+For example, multi-location condition REST API calls see the [REST API calls for alerts](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/rest-api-alerts/rest-api-calls-alerts/#multilocation-synthetics-conditions) documentation.
+
+To use the alerts REST API to manage multi-location conditions, use the [REST API explorer](https://rpm.newrelic.com/api/explore/alerts_location_failure_conditions/create).

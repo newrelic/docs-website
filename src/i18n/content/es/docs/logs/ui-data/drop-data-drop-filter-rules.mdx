@@ -1,0 +1,184 @@
+---
+title: Eliminar datos log con reglas de filtro de eliminación
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: Use New Relic's log management UI to set up drop filter rules for dropping specific types of log data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Después de que los datos del registro de eventos se hayan enviado a New Relic, se pueden almacenar en nuestra base de datos NRDB o descartar (descartar). Para eliminar datos log , puede utilizar la UI de administración de registros, como se explica en este documento. También puedes usar [NerdGraph para soltar datos](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph). NerdGraph es nuestro explorador GraphQL.
+
+## Ahorro, seguridad, rapidez. [#why-it-matters]
+
+Las reglas de filtrado de caídas le ayudan a lograr varios objetivos importantes:
+
+* Reduzca los costos almacenando solo el log relevante para su cuenta.
+* Proteja la privacidad y la seguridad eliminando la información de identificación personal (PII).
+* Reduzca el ruido eliminando eventos y atributos irrelevantes.
+
+<Callout variant="caution">
+  Tenga cuidado al decidir eliminar datos. Los datos que usted suelta no son recuperables. Antes de utilizar esta característica, revise las [responsabilidades y consideraciones sobre la eliminación de datos](#caution).
+</Callout>
+
+## Cómo funcionan las reglas de filtro de caída [#how-it-works]
+
+Una regla de filtro de caída coincide con datos basados en una consulta. Cuando se activa, la regla de filtro de eliminación elimina los datos coincidentes del pipeline de ingesta antes de que se escriban en la base de datos de New Relic (NRDB).
+
+Esto crea una demarcación explícita entre el registro que se reenvía desde su dominio y los datos que recopila New Relic . Dado que los datos eliminados por la regla de filtro de caída no llegan a nuestro backend, no se pueden consultar: los datos desaparecieron y no se pueden restaurar.
+
+<img
+  title="Logs architecture for drop filters in New Relic"
+  alt="Diagram of logs architecture for drop filters in New Relic"
+  src="/images/logs_diagram_ingest-pipeline.webp"
+/>
+
+<figcaption>
+  Durante el proceso de ingesta, los datos log de los clientes se pueden analizar, transformar o eliminar antes de almacenarlos en la base de datos New Relic (NRDB).
+</figcaption>
+
+## Precauciones al soltar datos [#caution]
+
+Al crear reglas de eliminación, usted es responsable de garantizar que las reglas identifiquen y descarten con precisión los datos que cumplan con las condiciones que haya establecido. También eres responsable de monitorear la regla, así como los datos que revelas a New Relic.
+
+New Relic no puede garantizar que esta funcionalidad resuelva por completo las inquietudes que pueda tener sobre la divulgación de datos. New Relic no revisa ni monitor qué tan efectivas son las reglas que usted desarrolla.
+
+La creación de reglas sobre datos confidenciales puede filtrar información sobre qué tipos de datos mantiene, incluido el formato de sus datos o sistemas (por ejemplo, al hacer referencia a direcciones de correo electrónico o números de tarjetas de crédito específicos). Cualquier usuario con los permisos de control de acceso basados en roles relevantes puede ver y editar toda la información en las reglas que cree.
+
+<Callout variant="caution">
+  Las reglas de eliminación son específicas de la partición. Cuando crea una regla de eliminación, también debe especificar las particiones donde se encuentra el registro. Si luego cambia o elimina la partición asociada con su registro, es probable que ese registro ya no coincida con sus reglas de eliminación. Si está utilizando particiones y reglas de eliminación, tenga cuidado de validar que sus reglas de eliminación sigan siendo válidas después de actualizar las reglas de partición.
+</Callout>
+
+## Crear reglas de filtro de caída [#create]
+
+Para conocer los requisitos relacionados con los permisos, consulte [Requisitos de eliminación de datos](/docs/data-apis/manage-data/drop-data-using-nerdgraph#requirements).
+
+Una vez que una regla de filtro de caída está activa, se aplica a todos los registros de eventos ingeridos a partir de ese momento. Las reglas no se aplican retroactivamente. Los registros recopilados antes de crear una regla no se filtran por esa regla.
+
+<img
+  title="Log drop filter rule"
+  alt="Screenshot of Log drop filter rule in UI"
+  src="/images/logs_screenshot-full_drop-filter-selection-2.webp"
+/>
+
+<figcaption>
+  Filtre o consulte el conjunto de registros que contienen los datos que desea eliminar. Luego, desde <DNT>**Manage data**</DNT> en el panel de navegación izquierdo de la UI de registro, haga clic en <DNT>**Create drop filter**</DNT>.
+</figcaption>
+
+Para crear una nueva regla de filtro de caída, puede emplear [una consulta do log ](/docs/logs/new-relic-logs/ui-data/query-syntax-logs)nueva o existente. Hay dos formas de crear un filtro de caída:
+
+<CollapserGroup>
+  <Collapser
+    id="from-attribute"
+    title="De un atributo"
+  >
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+       </DNT>
+
+       .
+
+    2. En **All logs**, haga clic en un log que contenga el atributo que desea colocar para abrir la vista detallada log .
+
+    3. Haga clic en el atributo que desea soltar para abrir el menú de atributos.
+
+    4. Haga clic en **Create drop filter from attribute**.
+
+    5. Asigne un nombre significativo a la regla de caída.
+
+    6. Seleccione las particiones en las que se encuentra el log.
+
+    7. El campo NRQL se completará previamente con la clave y el valor del atributo. Si la consulta aún necesita ajustes, no dude en editarla aquí.
+
+    8. Elija [eliminar todo el registro de eventos](#drop-events) que coincida con la consulta o solo un [subconjunto específico de atributo](#drop-attributes) en el evento coincidente.
+
+    9. Guarde la regla de filtro de caída.
+  </Collapser>
+
+  <Collapser
+    id="from-scratch"
+    title="Desde cero"
+  >
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+       </DNT>
+
+       .
+
+    2. Desde **Manage data** en el panel de navegación izquierdo de la UI de log, haga clic en **Drop filters**.
+
+    3. Haga clic en el botón **Create drop filter** en el lado derecho de la vista de filtros de colocación.
+
+    4. Asigne un nombre significativo a la regla de caída.
+
+    5. Seleccione las particiones en las que se encuentra el log.
+
+    6. Complete el campo NRQL para filtrar el registro que contiene los datos que desea eliminar.
+
+    7. Elija [eliminar todo el registro de eventos](#drop-events) que coincida con la consulta o solo un [subconjunto específico de atributo](#drop-attributes) en el evento coincidente.
+
+    8. Guarde la regla de filtro de caída.
+  </Collapser>
+</CollapserGroup>
+
+## Administre las reglas de filtro de caída a través de la API NerdGraph [#nerdgraph]
+
+Para administrar sus reglas de filtro de caída mediante programación, puede usar [NerdGraph](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph), nuestro Explorador GraphQL, para crear, consultar y eliminar sus reglas de filtro de caída.
+
+## Tipos de reglas de filtro de caída [#types]
+
+El símbolo UI de filtros de caída le permite seleccionar si desea eliminar el registro según la consulta o un atributo específico.
+
+### Soltar registro de eventos [#drop-events]
+
+El tipo predeterminado de regla de filtro de eliminación es eliminar registro. Esta opción descarta todo el registro de eventos que coincida con el filtro o consulta. Al crear una regla, intente proporcionar una consulta específica que solo coincida con los datos log que deben descartarse.
+
+Nuestro proceso de filtros de eliminación no le permitirá crear reglas de filtro de eliminación sin valores en la consulta coincidente. Esto evita que reglas mal formadas eliminen todos los datos log .
+
+### Soltar atributo [#drop-attributes]
+
+Puede especificar que el atributo se incluya en un registro de eventos que coincida con su consulta. Se deben seleccionar al menos uno o más atributos. Cualquier atributo que sea seleccionado será eliminado; todos los atributos restantes se conservarán y almacenarán en NRDB.
+
+<Callout variant="tip">
+  Recomendamos este método para eliminar campos que podrían contener información de identificación personal (PII) u otros atributos sensibles sin perder datos valiosos de monitoreo.
+</Callout>
+
+## Ver o eliminar reglas de filtro de caída [#drop-rules-delete]
+
+Después de eliminar una regla de filtro de caída desde aquí, el registro de eventos ingerido ya no se filtra.
+
+<img
+  title="Log drop filter rule"
+  alt="Screenshot of existing Log drop filter rule in UI"
+  src="/images/logs_screenshot-full_drop-filter-view2.webp"
+/>
+
+Para ver o eliminar una regla de filtro de caída:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**
+   </DNT>
+
+   .
+
+2. Desde
+
+   <DNT>
+     **Manage data**
+   </DNT>
+
+   en el panel de navegación izquierdo de la UI de registro, haga clic en
+
+   <DNT>
+     **Drop filters**
+   </DNT>
+
+   .

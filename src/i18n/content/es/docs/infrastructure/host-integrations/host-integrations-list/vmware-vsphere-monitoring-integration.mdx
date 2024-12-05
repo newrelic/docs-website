@@ -1,0 +1,2044 @@
+---
+title: Integración de monitoreo de VMware vSphere
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: An introduction to New Relic's open-source VMware vSphere / ESXi integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La integración de VMware vSphere de New Relic le ayuda a comprender el estado y el rendimiento de su entorno vSphere. Puede:
+
+* Consulte datos para obtener información valiosa sobre el rendimiento de sus hipervisores, máquina virtual y más.
+* Pase de vistas de alto nivel a los datos más granulares.
+
+Nuestra integración utiliza la [APIde vSphere](https://code.vmware.com/apis/704/vsphere) para recopilar métricas y eventos generados por todos los componentes de vSphere, y envía los datos a nuestra plataforma a través del agente de infraestructura.
+
+<img
+  title=""
+  alt=""
+  src="/images/infrastructure_screenshot-full_vmware-vsphere-ui.webp"
+/>
+
+## Por qué es importante [#features]
+
+Con nuestra integración de vSphere usted puede:
+
+* Instrumento y monitor múltiples instancias de vSphere usando la misma cuenta.
+
+* Recopile datos sobre instantáneas, máquinas virtuales (VM), hosts, grupos de recursos, clústeres y almacenes de datos, incluida la etiqueta.
+
+* Monitor el estado de sus hipervisores y máquinas virtuales (VM) utilizando nuestros gráficos y panel de control.
+
+* Utilice los datos recuperados para monitor el rendimiento clave y los indicadores clave de escalamiento de capacidad.
+
+* Establezca
+
+  <InlinePopover type="alerts"/>
+
+  en función de cualquier métrica recopilada de vCenter.
+
+* Cree [carga de trabajo](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster) para agrupar recursos y centrarse en datos clave.
+
+## Compatibilidad y requisitos [#requirements]
+
+Nuestra integración es compatible con VMware vSphere 6.5 o superior.
+
+Antes de instalar la integración, asegúrese de cumplir con los siguientes requisitos:
+
+* [Agente de infraestructura instalado en un host](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic)
+* Cuenta de servicio de vCenter que tiene al menos permisos globales de solo lectura con la opción `propagate to children` marcada
+
+<Callout variant="important">
+  <DNT>**Large environments:**</DNT> En entornos con más de 800 máquinas virtuales, la integración no puede informar todos los datos y puede fallar. Ofrecemos una solución alternativa que preservará todas las métricas y eventos, pero deshabilitará el registro de entidades. Para aplicar la solución, agregue la siguiente variable de entorno al archivo de configuración:
+
+  ```yaml
+  integrations:
+  - name: nri-vsphere
+    env:
+      # Integration configuration parameters.
+
+      EVENTS: true
+      METRICS: true
+
+  ```
+</Callout>
+
+## Instalar la integración [#install]
+
+La forma más sencilla de instalar la integración es seguir nuestra [instalación guiada](https://onenr.io/0Bj3VYmGbRX):
+
+1. Log sesión en [one.newrelic.com](https://onenr.io/0Bj3VYmGbRX).
+
+2. Haga clic en
+
+   <DNT>
+     **Add data**
+   </DNT>
+
+   , busque "vSphere" y haga clic en la integración.
+
+3. Siga los pasos en la UI.
+
+Si necesita realizar la instalación manualmente, consulte las secciones siguientes.
+
+<CollapserGroup>
+  <Collapser
+    id="linux-install"
+    title="Instalación de linux"
+  >
+    1. Instale [el agente de infraestructura](/docs/integrations/host-integrations/installation/install-infrastructure-host-integrations/#install) y reemplace `INTEGRATION_FILE_NAME` con `nri-vsphere` cuando ejecute el comando de instalación.
+
+    2. Cambie el directorio a la carpeta de integración:
+
+       ```
+       cd /etc/newrelic-infra/integrations.d
+       ```
+
+    3. Copia del archivo de configuración de muestra:
+
+       ```
+       sudo cp vsphere-config.yml.sample vsphere-config.yml
+       ```
+
+    4. Edite el archivo `vsphere-config.yml` como se describe en los [ajustes de configuración](#config).
+  </Collapser>
+
+  <Collapser
+    id="windows-install"
+    title="Instalación de Windows"
+  >
+    1. Descargue la imagen del instalador MSI `nri-vsphere` de:
+
+       [descargar.newrelic.com/infrastructure_agent/windows/integrations/nri-vsphere/nri-vsphere-amd64.msi](https://download.newrelic.com/infrastructure_agent/windows/integrations/nri-vsphere/nri-vsphere-amd64.msi)
+
+    2. Para instalar desde el símbolo del sistema de Windows, ejecute:
+
+       ```
+       msiexec.exe /qn /i PATH\TO\nri-vsphere-amd64.msi
+       ```
+
+    3. En el directorio de integración, `C:\Program Files\New Relic\newrelic-infra\integrations.d\`, cree una copia del archivo de configuración de muestra ejecutando:
+
+       ```
+       cp vsphere-config.yml.sample vsphere-config.yml
+       ```
+
+    4. Edite el archivo `vsphere-config.yml` como se describe en los [ajustes de configuración](#config).
+  </Collapser>
+
+  <Collapser
+    id="tarball"
+    title="Instalación de Tarball (avanzado)"
+  >
+    También puedes [instalar la integración desde un archivo tarball](/docs/integrations/host-integrations/installation/install-host-integrations-built-new-relic#tarball). Esto le brinda control total sobre el proceso de instalación y configuración.
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## Configurar la integración [#config]
+
+La configuración de formato YAML de una integración es donde puede colocar las credenciales de inicio de sesión requeridas y configurar cómo se recopilan los datos. Las opciones que cambie dependen de su configuración y preferencia.
+
+Para configurar la integración de vSphere, debe definir la URL de los extremos de API de vSphere y su nombre de usuario y contraseña de vSphere. Para ver ejemplos de configuración, consulte los [archivos de configuración de muestra](#example-config). Algunas características de integración de vSphere son opcionales y se pueden habilitar a través de la configuración.
+
+Además, con [la gestión de secretos](/docs/integrations/host-integrations/installation/secrets-management), puede configurar la integración en el host con el agente de monitoreo de infraestructura de New Relic para utilizar datos confidenciales (como contraseñas) sin tener que escribirlos como texto sin formato en el archivo de configuración de la integración.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="vsphere-events"
+    title="Recopilar eventos de vSphere"
+  >
+    Para recopilar eventos de vSphere, utilice la variable de entorno `ENABLE_VSPHERE_EVENTS` .
+
+    La integración recopila eventos entre la hora actual y el último evento obtenido para cada centro de datos. Almacena la información sobre el último evento recuperado en un caché que se actualiza después de cada ejecución. evento solo están disponibles si la integración está conectada a un vCenter y no directamente a un host ESXi.
+
+    La cantidad de eventos recopilados por solicitud se puede ajustar modificando `EVENTS_PAGE_SIZE`, que está establecido en `100` de forma predeterminada.
+
+    Los eventos están disponibles en la página <DNT>**Events**</DNT> y se pueden consultar a través de [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) como `InfrastructureEvent` en `vSphereEvent`. A continuación se muestra un ejemplo de datos de eventos de vSphere:
+
+    ```
+    "summary": "User dcui@127.0.0.1 logged out (login time: Tuesday, 14 July, 2020 08:32:09 AM, number of API invocations: 0, user agent: VMware-client/6.5.0)",
+    "vSphereEvent.computeResource": "cluster1",
+    "vSphereEvent.datacenter": "Prod Datacenter",
+    "vSphereEvent.date": "Tue, 14 Jul 2020 09:03:51 UTC",
+    "vSphereEvent.host": "192.168.0.230",
+    "vSphereEvent.userName": "dcui"
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="snapshot-data"
+    title="Recopilar datos de instantáneas"
+  >
+    Para recopilar datos de instantáneas, utilice la variable de entorno `ENABLE_VSPHERE_SNAPSHOTS` .
+
+    Los datos instantáneos se pueden encontrar en `VSphereSnapshotVmSample`. Los datos recopilados cubren el espacio total y único ocupado por los archivos de memoria y disco, el árbol de instantáneas y el tiempo de creación.
+
+    Puede utilizar esta información para crear [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) consultas, [](/docs/dashboards/new-relic-one-dashboards/get-started/introduction-new-relic-one-dashboards)[paneles](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) y alertas, ya que está vinculada a la máquina virtual correspondiente.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="vsphere-tags"
+    title="Recopilar la etiqueta de vSphere"
+  >
+    Para recopilar la etiqueta de vSphere, utilice la variable de entorno `ENABLE_VSPHERE_TAGS` .
+
+    Etiqueta están disponibles como atributo en la muestra de entidad correspondiente como `label.tagCategory:tagName`.
+
+    Si se asignan dos etiquetas de la misma categoría a un recurso, se agregan a un atributo único separado por un carácter de barra vertical. Por ejemplo: `label.tagCategory:tagName|tagName`2.
+
+    La etiqueta se puede utilizar para ejecutar la consulta [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql), filtrar entidades en nuestro [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer) y crear [paneles](/docs/dashboards/new-relic-one-dashboards/get-started/introduction-new-relic-one-dashboards) y [alertas](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="vsphere-filter"
+    title="Filtrar recursos por etiqueta"
+  >
+    El filtrado de recursos le permite especificar qué recursos desea monitor declarando un conjunto de etiquetas que los recursos deben tener para ser monitoreados.
+
+    Los recursos requieren una coincidencia en cualquiera (una o más) de las etiquetas de filtro para poder ser incluidos. Si ninguna de las etiquetas de recursos coincide con ninguna de las etiquetas de filtro, no se envía ninguna información sobre ese recurso a New Relic.
+
+    Para utilizar el filtrado de recursos por etiqueta, debe tener habilitada la variable de entorno `ENABLE_VSPHERE_TAGS` .
+
+    Una expresión de filtro de etiqueta es una lista separada por espacios de pares de cadenas con el formato `category=name`.
+
+    Por ejemplo, para recuperar únicamente recursos con una categoría de etiqueta `region` e incluir las regiones `us` y `eu` utilice una expresión de filtro como: `region=us region=eu`
+
+    ```
+    INCLUDE_TAGS: >
+      region=us
+      region=eu
+    ```
+
+    Para habilitar el filtrado de recursos por etiqueta, edite su archivo de configuración de integración y agregue la opción `INCLUDE_TAGS` con la expresión de filtro que desee.
+
+    <Callout variant="caution">
+      Tenga en cuenta que los recursos del centro de datos que actúan como raíz del árbol de recursos DEBEN tener una etiqueta adjunta Y coincidir con la expresión del filtro para que se puedan recuperar otros recursos secundarios.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="perf-metrics"
+    title="Habilitar y configurar rendimiento métrica (vista previa)"
+  >
+    El rendimiento métrico proporciona una mejor comprensión del estado actual de los recursos de VMware y se puede recopilar <DNT>**in addition**</DNT> en la métrica recopilada de forma predeterminada; e incluirse en las muestras; descritas en la parte inferior de la página.
+
+    Todas las métricas recopiladas se incluyen en la muestra correspondiente con el prefijo `perf.` adjunto al nombre. Por ejemplo, `net.packetsRx.summation` se recopila y envía como `perf.net.packetsRx.summation`.
+
+    Para recopilar la métrica de rendimiento de vSphere, utilice la variable de entorno `ENABLE_VSPHERE_PERF_METRICS` .
+
+    Los datos se recopilan de acuerdo con la configuración del archivo de configuración [`vsphere-performance.metrics`](https://github.com/newrelic/nri-vsphere/blob/master/vsphere-performance.metrics) . Puede anular la ubicación del archivo de configuración de rendimiento métrica usando la variable de entorno `PERF_METRIC_FILE` . Tenga en cuenta que la integración sigue [los niveles de recopilación de datos de VMware](https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.monitoring.doc/GUID-25800DE4-68E5-41CC-82D9-8811E27924BC.html) (1 a 4).
+
+    Cuando se establece `ENABLE_VSPHERE_PERF_METRICS`, se recopilan todas las métricas de nivel 1. El nivel de recopilación de datos del rendimiento métrica recopilado se puede modificar usando `PERF_LEVEL`. Cada métrica en el archivo de configuración se puede comentar y se pueden agregar otras nuevas si es necesario.
+
+    <Callout variant="caution">
+      La recopilación de datos de rendimiento puede aumentar la carga en vCenter y el tiempo necesario para recopilar datos. Recomendamos incluir solo la métrica que necesita en el archivo de configuración.
+    </Callout>
+
+    Para afinar la recopilación de datos, el número de entidades y métricas recuperadas por solicitud se puede modificar usando `BATCH_SIZE_PERF_ENTITIES` y `BATCH_SIZE_PERF_METRICS`.
+
+    <Callout variant="tip">
+      Para obtener más información sobre vSphere rendimiento métrica, consulte la [documentación de VMware](https://docs.vmware.com/en/VMware-vSphere/6.7/vsphere-esxi-vcenter-server-67-monitoring-performance-guide.pdf).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="multi-instance"
+    title="Instancia múltiple"
+  >
+    En esta configuración estamos monitoreando múltiples servidores vSphere desde una misma integración. Para la primera instancia (`FIRST_VSPHERE_API_URL`) estamos recopilando evento y etiqueta mientras que para la segunda instancia (`SECOND_VSPHERE_API_URL`) los hemos desactivado.
+
+    ```yaml
+    integrations:
+      - name: nri-vsphere
+        env:
+          # vSphere API connection data (vCenter or ESXi servers)
+          URL: https://<FIRST_VSPHERE_API_URL>/sdk
+          USER: <FIRST_VSPHERE_USER>
+          PASS: <FIRST_PASSWORD>
+
+          # Collect events data
+          ENABLE_VSPHERE_EVENTS: true
+
+          # Collect vSphere tags
+          ENABLE_VSPHERE_TAGS: true
+
+        # Execution interval. Set a value higher than 20s, as real-time vSphere samples are run every 20s.
+        interval: 120s
+      - name: nri-vsphere
+        env:
+          # vSphere API connection data (vCenter or ESXi servers)
+          URL: https://<SECOND_VSPHERE_API_URL>/sdk
+          USER: <SECOND_VSPHERE_USER>
+          PASS: <SECOND_PASSWORD>
+
+          # Collect events data
+          ENABLE_VSPHERE_EVENTS: false
+
+          # Collect vSphere tags
+          ENABLE_VSPHERE_TAGS: false
+
+        # Execution interval. Set a value higher than 20s, as real-time vSphere samples are run every 20s.
+        interval: 300s
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  Si conecta la integración directamente al host ESXi, los datos de vCenter no están disponibles (por ejemplo, evento, etiqueta o metadatos del centro de datos).
+</Callout>
+
+### Configuración de ejemplo [#example-config]
+
+A continuación se muestran ejemplos de la configuración de integración de vSphere, incluido el rendimiento métrico:
+
+* [`vsphere-config.yml.sample`](https://github.com/newrelic/nri-vsphere/blob/master/vsphere-config.yml.sample) (Linux)
+* [`vsphere-win-config.yml.sample`](https://github.com/newrelic/nri-vsphere/blob/master/vsphere-win-config.yml.sample) (Windows)
+* [`vsphere-performance.metrics`](https://github.com/newrelic/nri-vsphere/blob/master/vsphere-performance.metrics) (Rendimiento métrico)
+
+Para obtener más información, consulte nuestra documentación sobre la [estructura general de integración en la configuración del host](/docs/integrations/integrations-sdk/file-specifications/host-integration-configuration-overview).
+
+<Callout variant="important">
+  La opción de configuración [inventory_source](/docs/integrations/integrations-sdk/file-specifications/host-integrations-newer-configuration-format#inventory_source) no es compatible con esta integración.
+</Callout>
+
+## Actualiza tu integración [#update]
+
+<DNT>
+  **On-host integrations do not automatically update.**
+</DNT>
+
+Para obtener mejores resultados, [actualice periódicamente el paquete de integración](/docs/integrations/host-integrations/installation/update-infrastructure-host-integration-package) y el [agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+## Ver y usar datos [#data]
+
+Los datos de este servicio se reportan a un [dashboard de integración](https://onenr.io/0qwyY4Bzpwn). Puede [consultar estos datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) para fines de resolución de problemas o para crear gráficos y paneles.
+
+Los datos de vSphere se adjuntan a estos [tipos de eventos](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#event):
+
+* `VSphereHostSample`
+* `VSphereClusterSample`
+* `VSphereVmSample`
+* `VSphereDatastoreSample`
+* `VSphereDatacenterSample`
+* `VSphereResourcePoolSample`
+* `VSphereSnapshotVmSample`
+
+Los datos de rendimiento se habilitan y configuran por separado (ver [Habilitar y configurar rendimiento métrica](#perf-metrics)).
+
+Para obtener más información sobre cómo ver y utilizar sus datos, consulte [Comprender los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos [#metrics]
+
+La integración de vSphere proporciona datos métricos adjuntos al siguiente New Relic [evento](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#events-new-relic):
+
+* `VSphereHostSample`
+* `VSphereVmSample`
+* `VSphereDatastoreSample`
+* `VSphereDatacenterSample`
+* `VSphereResourcePoolSample`
+* `VSphereClusterSample`
+* `VSphereSnapshotVmSample`
+
+### VSphereHostMuestra
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `cpu.totalMHz`
+      </td>
+
+      <td>
+        Suma de MHz para todos los núcleos individuales del host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.coreMHz`
+      </td>
+
+      <td>
+        Velocidad de los núcleos de la CPU.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.available`
+      </td>
+
+      <td>
+        Cantidad de CPU MHz libres en el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.overallUsage`
+      </td>
+
+      <td>
+        Uso de CPU en todos los núcleos del host en MHz
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.percent`
+      </td>
+
+      <td>
+        Porcentaje de utilización de CPU en el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.cores`
+      </td>
+
+      <td>
+        Número de núcleos de CPU físicos en el host. Los núcleos físicos de la CPU son los procesadores contenidos en un paquete de CPU.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.threads`
+      </td>
+
+      <td>
+        Número de subprocesos de CPU físicos en el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.totalMiB`
+      </td>
+
+      <td>
+        Capacidad total de discos montados en el host, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.free`
+      </td>
+
+      <td>
+        Cantidad de memoria disponible en el host, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.usage`
+      </td>
+
+      <td>
+        Cantidad de memoria utilizada en el host, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.size`
+      </td>
+
+      <td>
+        Capacidad total de memoria del host, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmCount`
+      </td>
+
+      <td>
+        Número de máquina virtual en el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hypervisorHostname`
+      </td>
+
+      <td>
+        Nombre del anfitrión
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `uuid`
+      </td>
+
+      <td>
+        La identificación del BIOS del hardware
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterName`
+      </td>
+
+      <td>
+        Nombre del centro de datos relacionado con el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `clusterName`
+      </td>
+
+      <td>
+        Nombre del clúster relacionado con el anfitrión
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourcePoolNameList`
+      </td>
+
+      <td>
+        Lista de nombres de los grupos de recursos relacionados con el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastoreNameList`
+      </td>
+
+      <td>
+        Lista de nombres de almacenes de datos relacionados con el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterLocation`
+      </td>
+
+      <td>
+        Ubicación del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `networkNameList`
+      </td>
+
+      <td>
+        Lista de nombres de redes relacionadas con el host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido
+        * `green`: La entidad está bien
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `connectionState`
+      </td>
+
+      <td>
+        El estado de la conexión del host:
+
+        * `connected`: Conectado al servidor. Para ESX Server, esta es la configuración predeterminada.
+        * `disconnected`: El usuario ha desactivado explícitamente el host. VirtualCenter no espera recibir latidos del host. La próxima vez que se recibe un latido, el host pasa nuevamente al estado conectado y se registra un evento.
+        * `notResponding`: VirtualCenter no recibe latidos del servidor. El estado cambia automáticamente a conectado una vez que se reciben nuevamente los latidos. Este estado se utiliza normalmente para activar una alarma en el host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `inMaintenanceMode`
+      </td>
+
+      <td>
+        La bandera para indicar si el host está o no en modo de mantenimiento. Este indicador se establece cuando el host ha entrado en el modo de mantenimiento. No se configura durante la fase de entrada del modo de mantenimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `inQuarantineMode`
+      </td>
+
+      <td>
+        La bandera para indicar si el host está o no en modo de cuarentena. `InfraUpdateHa` recomendará establecer este indicador en función del `HealthUpdates` recibido por el `HealthUpdateProviders` configurado para el clúster.
+
+        A un host que se reporte como degradado se le recomendará ingresar al modo de cuarentena, mientras que a un host que se reporte como saludable se le recomendará que salga del modo de cuarentena. La ejecución de estas acciones recomendadas establecerá esta bandera.
+
+        VSphere DRS evitará los hosts en modo de cuarentena siempre que la mayor consolidación en el clúster no afecte negativamente el rendimiento de la máquina virtual (VM).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `powerState`
+      </td>
+
+      <td>
+        El estado de energía del host:
+
+        * `poweredOff`: El usuario apagó específicamente el host a través de VirtualCenter. Este estado no es un estado seguro, porque después de que VirtualCenter emite el comando para apagar el host, el host podría fallar o cancelar todos los procesos pero no poder apagarse.
+        * `poweredOn`: El host está encendido. Un host que está entrando en modo de espera también se encuentra en este estado.
+        * `standBy`: El host se puso específicamente en modo de espera, ya sea explícitamente por el usuario o automáticamente por DPM. Este estado no es un estado determinado, porque después de que VirtualCenter emite el comando para poner el host en estado de espera, el host podría fallar o cancelar todos los procesos pero no poder apagarse. Un host que está saliendo del modo de espera también se encuentra en este estado.
+        * `unknown`: Si el host está desconectado o `notResponding`, conocemos su estado de energía, por lo que el host se marca como `unknown`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `standbyMode`
+      </td>
+
+      <td>
+        El modo de espera del anfitrión. La propiedad solo la completa el servidor vCenter. Si se consulta directamente desde el host ESX, la propiedad es `unset`.
+
+        * `entering`: El host está entrando en modo de espera.
+        * `exiting`: El host está saliendo del modo de espera.
+        * `in`: El host está en modo de espera.
+        * `none`: El host no está en modo de espera y no está en proceso de entrar o salir del modo de espera.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cryptoState`
+      </td>
+
+      <td>
+        Estado de cifrado del host. Los valores válidos se enumeran por tipo CryptoState:
+
+        * `incapable`: El anfitrión no es seguro para recibir material confidencial.
+        * `prepared`: El host está preparado para recibir material confidencial pero aún no tiene configurada una clave de host.
+        * `safe`: El host es criptoseguro y tiene una clave de host configurada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bootTime`
+      </td>
+
+      <td>
+        La hora en que se inició el host.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### VSphereVmMuestra [#vspherevirtualmachine]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `mem.size`
+      </td>
+
+      <td>
+        Tamaño de memoria de la máquina virtual, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.usage`
+      </td>
+
+      <td>
+        Estadísticas de utilización de memoria de invitados, en MiB. Esto también se conoce como memoria activa de invitados. El valor puede oscilar entre `0` y el tamaño de memoria configurado de la máquina virtual. Válido mientras la máquina virtual está en ejecución.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.free`
+      </td>
+
+      <td>
+        Memoria de invitados disponible, en MiB. El valor puede oscilar entre `0` y el tamaño de memoria configurado de la máquina virtual. Válido mientras la máquina virtual está en ejecución.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.ballooned`
+      </td>
+
+      <td>
+        El tamaño del controlador de globo en la máquina virtual, en MiB. El host inflará el controlador del globo para recuperar memoria física de la máquina virtual. Esta es una señal de que hay presión de memoria en el host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.swapped`
+      </td>
+
+      <td>
+        La porción de memoria, en MiB, que se otorga a esta máquina virtual desde el espacio de intercambio del host. Esta es una señal de que hay presión de memoria en el host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.swappedSsd`
+      </td>
+
+      <td>
+        La cantidad de memoria intercambiada a un dispositivo de disco rápido como SSD, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.allocationLimit`
+      </td>
+
+      <td>
+        Límites de recursos para CPU, en MHz. Si se establece en `-1`, no hay límite de asignación fijo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.overallUsage`
+      </td>
+
+      <td>
+        Estadísticas básicas de rendimiento de la CPU, en MHz. Válido mientras la máquina virtual está en ejecución.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.hostUsagePercent`
+      </td>
+
+      <td>
+        Porcentaje de la CPU del host utilizada por la máquina virtual. En caso de que se configure un límite, el porcentaje se calcula tomando el límite como el total.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.cores`
+      </td>
+
+      <td>
+        Número de procesadores en la máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.totalMiB`
+      </td>
+
+      <td>
+        Espacio de almacenamiento total, comprometido para esta máquina virtual en todos los almacenes de datos, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ipAddress`
+      </td>
+
+      <td>
+        Dirección IP principal del invitado, si está disponible
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ipAddresses`
+      </td>
+
+      <td>
+        Lista de IP asociadas con la máquina virtual (VM) (excepto `ipAddress`). Un carácter de barra vertical o tubería (`|`) se utiliza como separador.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `connectionState`
+      </td>
+
+      <td>
+        Indica si la máquina virtual está disponible o no para su administración:
+
+        * `connected`: El servidor tiene acceso a la máquina virtual.
+        * `disconnected`: El servidor está actualmente desconectado de la máquina virtual, ya que su host está desconectado.
+        * `inaccessible`: Uno o más archivos de configuración de la máquina virtual son inaccesibles.
+        * `invalid`: El formato de configuración de la máquina virtual no es válido.
+        * `orphaned`: La máquina virtual ya no está registrada en su host asociado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `powerState`
+      </td>
+
+      <td>
+        El estado de energía actual de la máquina virtual: `poweredOff`, `poweredOn` o `suspended`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `guestHeartbeatStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido.
+        * `green`: La entidad está bien.
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `operatingSystem`
+      </td>
+
+      <td>
+        Sistema operativo de la máquina virtual
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `guestFullName`
+      </td>
+
+      <td>
+        Nombre completo del sistema operativo invitado, si está disponible en las herramientas para invitados
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hypervisorHostname`
+      </td>
+
+      <td>
+        Nombre del host donde se ejecuta la máquina virtual
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instanceUuid`
+      </td>
+
+      <td>
+        Identificación única de la máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterName`
+      </td>
+
+      <td>
+        Nombre del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `clusterName`
+      </td>
+
+      <td>
+        Nombre del cluster
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourcePoolNameList`
+      </td>
+
+      <td>
+        Lista de nombres de los grupos de recursos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastoreNameList`
+      </td>
+
+      <td>
+        Lista de nombres de almacenes de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `networkNameList`
+      </td>
+
+      <td>
+        Lista de nombres de redes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterLocation`
+      </td>
+
+      <td>
+        Ubicación del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido.
+        * `green`: La entidad está bien.
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.suspendMemory`
+      </td>
+
+      <td>
+        Tamaño del archivo de instantánea (bytes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.suspendMemoryUnique`
+      </td>
+
+      <td>
+        Tamaño del archivo de instantánea, bloques únicos (bytes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.totalUncommittedMiB`
+      </td>
+
+      <td>
+        Espacio de almacenamiento adicional potencialmente utilizado por esta máquina virtual en todos los almacenes de datos. Básicamente, un agregado de la propiedad no confirmada en todos los almacenes de datos en los que se encuentra esta máquina virtual (Mebibytes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disk.totalUnsharedMiB`
+      </td>
+
+      <td>
+        Espacio de almacenamiento total ocupado por la máquina virtual en todos los almacenes de datos, que no se comparte con ninguna otra máquina virtual (Mebibytes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.hostUsage`
+      </td>
+
+      <td>
+        Uso de memoria del host (Mebibytes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourcePoolName`
+      </td>
+
+      <td>
+        Nombre del grupo de recursos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmConfigName`
+      </td>
+
+      <td>
+        Nombre de configuración de la máquina virtual (VM).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmHostname`
+      </td>
+
+      <td>
+        Máquina virtual (VM) nombre de host.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### VSphereDatastoreSample
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `capacity`
+      </td>
+
+      <td>
+        La capacidad máxima de este almacenamiento de datos, en GiB, si es accesible es `true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `freeSpace`
+      </td>
+
+      <td>
+        El espacio disponible de este almacenamiento de datos, en GiB, si es accesible es `true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `uncommitted`
+      </td>
+
+      <td>
+        El espacio de almacenamiento adicional total, potencialmente utilizado por todas las máquinas virtuales en este almacenamiento de datos, en GiB, si es accesible, es `true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmCount`
+      </td>
+
+      <td>
+        Número de máquina virtual adjunta al almacenamiento de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterLocation`
+      </td>
+
+      <td>
+        Ubicación del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterName`
+      </td>
+
+      <td>
+        Nombre del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hostCount`
+      </td>
+
+      <td>
+        Número de hosts adjuntos al almacenamiento de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido.
+        * `green`: La entidad está bien.
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `accessible`
+      </td>
+
+      <td>
+        Estado de conectividad del almacenamiento de datos. Si se establece en `false`, no se podrá acceder al almacenamiento de datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `url`
+      </td>
+
+      <td>
+        Localizador único para el almacenamiento de datos, si es accesible. `true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fileSystemType`
+      </td>
+
+      <td>
+        Tipo de volumen del sistema de archivos, como `VMFS` o `NFS`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `name`
+      </td>
+
+      <td>
+        Nombre del almacenamiento de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `nas.remoteHost`
+      </td>
+
+      <td>
+        Host que ejecuta el servidor NFS/CIFS
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `nas.remotePath`
+      </td>
+
+      <td>
+        Ruta remota del punto de montaje NFS/CIFS
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### VSphereDatacenterSample
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `datastore.totalUsedGiB`
+      </td>
+
+      <td>
+        Espacio total utilizado en los almacenes de datos, en GiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastore.totalFreeGiB`
+      </td>
+
+      <td>
+        Espacio libre total en los almacenes de datos, en GiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastore.totalGiB`
+      </td>
+
+      <td>
+        Tamaño total de los almacenes de datos, en GiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.cores`
+      </td>
+
+      <td>
+        Recuento total de CPU por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.overallUsagePercentage`
+      </td>
+
+      <td>
+        Uso total de CPU, en porcentaje
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.overallUsage`
+      </td>
+
+      <td>
+        Uso total de CPU, en MHz
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.totalMHz`
+      </td>
+
+      <td>
+        Capacidad total de la CPU, en MHz
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.usage`
+      </td>
+
+      <td>
+        Uso total de memoria, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.size`
+      </td>
+
+      <td>
+        Memoria total, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.usagePercentage`
+      </td>
+
+      <td>
+        Uso total de memoria como porcentaje
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `clusters`
+      </td>
+
+      <td>
+        Recuento total de clústeres por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourcePools`
+      </td>
+
+      <td>
+        Grupos de recursos totales por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastores`
+      </td>
+
+      <td>
+        Total de almacenes de datos por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `networks`
+      </td>
+
+      <td>
+        Recuento total de adaptadores de red por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido
+        * `green`: La entidad está bien
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hostCount`
+      </td>
+
+      <td>
+        Recuento total de sistemas host por centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmCount`
+      </td>
+
+      <td>
+        Recuento total de máquinas virtuales por centro de datos
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Muestra de VSphereResourcePool
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `cpu.TotalMHz`
+      </td>
+
+      <td>
+        Capacidad total de CPU del grupo de recursos, en MHz
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.overallUsage`
+      </td>
+
+      <td>
+        Uso de CPU del grupo de recursos, en MHz
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.size`
+      </td>
+
+      <td>
+        Memoria total reservada del grupo de recursos, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.usage`
+      </td>
+
+      <td>
+        Uso de memoria del grupo de recursos, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.free`
+      </td>
+
+      <td>
+        Memoria del grupo de recursos disponible, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.ballooned`
+      </td>
+
+      <td>
+        Tamaño del controlador de globo en el grupo de recursos, en MiB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.swapped`
+      </td>
+
+      <td>
+        Porción de memoria, en MiB, que se otorga a este grupo de recursos desde el espacio de intercambio del host
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `vmCount`
+      </td>
+
+      <td>
+        Número de máquinas virtuales en el grupo de recursos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido.
+        * `green`: La entidad está bien.
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `resourcePoolName`
+      </td>
+
+      <td>
+        Nombre del grupo de recursos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterLocation`
+      </td>
+
+      <td>
+        Ubicación del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterName`
+      </td>
+
+      <td>
+        Nombre del centro de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `clusterName`
+      </td>
+
+      <td>
+        Nombre del cluster
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### VSphereClusterMuestra
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `cpu.totalEffectiveMHz`
+      </td>
+
+      <td>
+        Recursos efectivos de CPU, en MHz, disponibles para la máquina virtual. Este es el nivel de recursos efectivo agregado de todos los hosts en ejecución. Los hosts que están en modo de mantenimiento o que no responden no se cuentan. Los recursos utilizados por VMware Service Console no se incluyen en el agregado. Este valor representa la cantidad de recursos disponibles para el grupo de recursos raíz para ejecutar la máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.totalMHz`
+      </td>
+
+      <td>
+        Recursos de CPU agregados de todos los hosts, en MHz. No filtra la CPU utilizada por el sistema o relacionada con hosts en mantenimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.cores`
+      </td>
+
+      <td>
+        Número de núcleos de CPU físicos. Los núcleos físicos de la CPU son los procesadores contenidos en un paquete de CPU.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cpu.threads`
+      </td>
+
+      <td>
+        Número agregado de subprocesos de CPU.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.size`
+      </td>
+
+      <td>
+        Recursos de memoria agregados de todos los hosts, en MiB. No filtra la memoria utilizada por el sistema o relacionada con hosts en mantenimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mem.effectiveSize`
+      </td>
+
+      <td>
+        Recursos de memoria efectivos, en MiB, disponibles para ejecutar máquina virtual. Este es el nivel de recursos efectivo agregado de todos los hosts en ejecución. Los hosts que están en modo de mantenimiento o que no responden no se cuentan. Los recursos utilizados por VMware Service Console no se incluyen en el agregado. Este valor representa la cantidad de recursos disponibles para el grupo de recursos raíz para ejecutar la máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `effectiveHosts`
+      </td>
+
+      <td>
+        Número total de hosts efectivos. Este número excluye los hosts en mantenimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hosts`
+      </td>
+
+      <td>
+        Número total de hosts
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `overallStatus`
+      </td>
+
+      <td>
+        * `gray`: El estado es desconocido.
+        * `green`: La entidad está bien.
+        * `yellow`: La entidad podría tener un problema.
+        * `red`: La entidad definitivamente tiene un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastoreList`
+      </td>
+
+      <td>
+        Listado de almacenamiento de datos utilizados por el clúster. Un carácter de barra vertical o tubería (`|`) se utiliza como separador.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hostList`
+      </td>
+
+      <td>
+        Lista de hosts que pertenecen al clúster. Un carácter de barra vertical o tubería (`|`) se utiliza como separador.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `networkList`
+      </td>
+
+      <td>
+        Lista de redes adjuntas al clúster. Un carácter de barra vertical o tubería (`|`) se utiliza como separador.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `drsConfig.vmotionRate`
+      </td>
+
+      <td>
+        Umbral para las recomendaciones de clúster generadas. DRS genera solo aquellas recomendaciones que están por encima del vmotionRate especificado. Las calificaciones varían del 1 al 5. Esta configuración se aplica al clúster DRS manual, parcialmente automatizado y totalmente automatizado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.restartPriorityTimeout`
+      </td>
+
+      <td>
+        Tiempo máximo que la máquina virtual (VM) de menor prioridad debe esperar hasta que la máquina virtual (VM) de mayor prioridad esté lista (segundos).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterName`
+      </td>
+
+      <td>
+        Nombre del centro de datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datacenterLocation`
+      </td>
+
+      <td>
+        Ubicación del centro de datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `drsConfig.enabled`
+      </td>
+
+      <td>
+        Bandera que indica si el servicio está habilitado o no.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `drsConfig.enableVmBehaviorOverrides`
+      </td>
+
+      <td>
+        Marca que dicta si las anulaciones de comportamiento de DRS para máquinas virtuales individuales (ClusterDrsVmConfigInfo) están habilitadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `drsConfig.defaultVmBehavior`
+      </td>
+
+      <td>
+        Especifica el comportamiento DRS predeterminado en todo el clúster para la máquina virtual. Puede anular el comportamiento predeterminado de una máquina virtual utilizando el objeto ClusterDrsVmConfigInfo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.enabled`
+      </td>
+
+      <td>
+        Bandera para indicar si la característica vSphere HA está habilitada o no.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.admissionControlEnabled`
+      </td>
+
+      <td>
+        Bandera que determina si está habilitado el control de admisión estricto
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.isolationResponse`
+      </td>
+
+      <td>
+        Indica si la máquina virtual debe apagarse o no si un host determina que está aislado del resto del recurso de calcular.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.restartPriority`
+      </td>
+
+      <td>
+        Prioridad de reinicio para una máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.hostMonitoring`
+      </td>
+
+      <td>
+        Determina si HA reinicia la máquina virtual después de que falla un host.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.vmMonitoring`
+      </td>
+
+      <td>
+        Nivel de servicio de monitoreo del estado de la máquina virtual HA.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.vmComponentProtecting`
+      </td>
+
+      <td>
+        Esta propiedad indica si el servicio de protección de componentes de máquina virtual (VM) de vSphere HA está habilitado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dasConfig.hbDatastoreCandidatePolicy`
+      </td>
+
+      <td>
+        La política sobre qué almacenes de datos utilizará vCenter Server para elegir almacenes de datos de latidos: allFeasibleDs, allFeasibleDsWithUserPreference, userSelectedDs
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### VSphereInstantáneaVmMuestra [#vspheresnapshot]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `snapshotTreeInfo`
+      </td>
+
+      <td>
+        Información del árbol para la instantánea. Es: clúster:máquina virtual (VM):Snapshot1:Snapshot2
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `name`
+      </td>
+
+      <td>
+        Nombre de la instantánea
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `creationTime`
+      </td>
+
+      <td>
+        Hora de creación de la instantánea
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `powerState`
+      </td>
+
+      <td>
+        El estado de energía de la máquina virtual cuando se tomó esta instantánea
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `snapshotId`
+      </td>
+
+      <td>
+        El identificador único que distingue esta instantánea de otras instantáneas de la máquina virtual.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `quiesced`
+      </td>
+
+      <td>
+        Bandera para indicar si la instantánea se creó o no con la opción "inactivo", lo que garantiza un estado coherente del sistema de archivos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backupManifest`
+      </td>
+
+      <td>
+        La ruta relativa desde snapshotDirectory que apunta al manifiesto de copia de seguridad. Disponible solo para determinadas instantáneas inactivas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description`
+      </td>
+
+      <td>
+        Descripción de la instantánea
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replaySupported`
+      </td>
+
+      <td>
+        Bandera para indicar si esta instantánea está asociada con una sesión de grabación en la máquina virtual que se puede reproducir
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalMemoryInDisk`
+      </td>
+
+      <td>
+        Tamaño total de la memoria en el disco.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalUniqueMemoryInDisk`
+      </td>
+
+      <td>
+        Tamaño total del archivo correspondiente a los bloques de archivos que se asignaron de forma única para almacenar la memoria. En otras palabras, si el almacenamiento subyacente admite el uso compartido de bloques de archivos entre archivos de disco, la propiedad corresponde al tamaño de los bloques de archivos que se asignaron solo en el contexto de este archivo. No incluye bloques compartidos que se asignaron en otros archivos. Esta propiedad se desactivará si la implementación subyacente no puede calcular esta información.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalDisk`
+      </td>
+
+      <td>
+        Tamaño total de los archivos de instantáneas en el disco
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalUniqueDisk`
+      </td>
+
+      <td>
+        Tamaño total del archivo correspondiente a los bloques de archivos que se asignaron de forma única para almacenar datos de instantáneas en el disco. En otras palabras, si el almacenamiento subyacente admite el uso compartido de bloques de archivos entre archivos de disco, la propiedad corresponde al tamaño de los bloques de archivos que se asignaron solo en el contexto de este archivo. No incluye bloques compartidos que se asignaron en otros archivos. Esta propiedad se desactivará si la implementación subyacente no puede calcular esta información.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastorePathDisk`
+      </td>
+
+      <td>
+        Ruta del archivo de disco en el almacenamiento de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `datastorePathMemory`
+      </td>
+
+      <td>
+        Ruta del archivo de memoria en el almacenamiento de datos
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Resolución de problemas [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="data-gaps"
+    title="Lagunas en los datos reportados"
+  >
+    Una posible razón de las lagunas de datos podría deberse a que la integración tarda demasiado en recopilar y procesar datos de vCenter. En caso de que la integración exceda el [tiempo de espera](/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#timeout), que por defecto es `120s`, el agente de infraestructura finalizará la integración y se imprimirá un mensaje de registro como el siguiente:
+
+    ```shell
+    level=warn msg="HeartBeat timeout exceeded after 120000000000" integration_name=nri-vsphere
+    ```
+
+    Para solucionar este problema, puede ampliar el parámetro [de tiempo de espera](/docs/infrastructure/host-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/#timeout) en el archivo de configuración.
+
+    ```yaml
+    integrations:
+    - name: nri-vsphere
+      env:
+        # Integration configuration parameters.
+
+      interval: 120s
+
+      timeout: 300s
+    ```
+  </Collapser>
+</CollapserGroup>

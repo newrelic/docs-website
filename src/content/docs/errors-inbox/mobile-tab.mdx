@@ -1,0 +1,238 @@
+---
+title: 'Mobile: Group crashes tab'
+tags:
+  - APM
+  - APM UI pages
+  - Error analytics
+metaDescription: New Relic's group crashes tab shows trends and anomalies that help you compare and troubleshoot error events.
+redirects:
+  - /docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-page/
+  - /docs/mobile-monitoring/mobile-monitoring-ui/crashes/investigate-mobile-app-crash-report/
+  - /docs/mobile-monitoring/mobile-monitoring-ui/crashes/mobile-crash-event-trail/
+  - /docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes
+
+freshnessValidatedDate: 2024-01-02
+---
+
+Frequent mobile app crashes degrade the user experience and cause delays in the development lifecycle. The **Group crashes** page is designed to help your development team deliver a more stable and reliable mobile app experience to your users.
+
+With the **Group crashes** page you can:
+
+* **Assess overall crash trends**: Review the **Crash rate percentage** and **Crash-free users **percentage charts to quickly identify any anomalies or patterns in crash occurrences.
+* **Filter for deeper analysis**: Utilize groups and filters to focus on specific crash attributes, such as device type, location, or custom data points.
+* **Identify patterns**: Examine the **Crash location** table for trends related to location, exception type, date, frequency, app version, and the number of affected users.
+* **Investigate individual crashes**: Select a crash report to view its interaction trail, event trail, thread details, attributes, and other relevant information. You can also resymbolicate or export the details to Xcode for debugging.
+* **Update crash status**: Mark the crash as `Resolved` or choose from other status options, such as `Resolved in specific version`.
+
+<img
+  title="group crashes tab"
+  alt="A screenshot depicting the group crashes tab in the New Relic UI"
+  src="/images/errors-inbox_screenshot-crop_group-crashes-tab-.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox)**</DNT>: With our **Group crashes** tab you can analyze crash rate and crash free users at a glance or dive deeper into specific crash locations.
+</figcaption>
+
+## Suggested workflow [#workflow]
+
+These steps outline our recommended approach to crash investigation, enabling you to gain a complete understanding of the incident, identify contributing factors, and implement effective debugging strategies.
+
+<CollapserGroup>
+  <Collapser
+    id="percentage-charts"
+    title="Crash percentages charts: See patterns immediately"
+  >
+    Start with the <DNT>**Crash rate percentage**</DNT> and <DNT>**Crash-free users percentage**</DNT> charts to see at a glance whether there are any unexpected spikes, dips, or patterns with crashes in general. For example:
+
+    * Are there any spikes near a recent version release?
+    * Is there a [period](#time-period) when the percentage of users has been affected significantly by the crash? (If the <DNT>**Crash-free users percentage**</DNT> chart is empty, there were no user sessions during the selected period.)
+  </Collapser>
+
+  <Collapser
+    id="groups-filters"
+    title="Groups and filters: Slice and dice the crash data"
+  >
+    You can select a group and then filter to specific data, including:
+
+    * Group the crash list by type of crash, device, location, or other custom attributes.
+    * Show open crashes, resolved crashes, or all crashes.
+    * Use the [time picker](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker) to adjust the currently selected period.
+    * Filter by a specific <DNT>**Version**</DNT> or by one or more attribute <DNT>**Filter**</DNT>, such as `Last Interaction`, `App Build`, or any of the longer list of standard and custom attributes.)
+
+      The selected filters appear at the top of the UI page.
+  </Collapser>
+
+  <Collapser
+    id="insights"
+    title="Queries and image links: Query crash data and share charts with others"
+  >
+    Mobile monitoring's <DNT>**Crash analysis**</DNT> charts use [default attributes for mobile events](/docs/insights/new-relic-insights/decorating-events/mobile-default-attributes-insights#mobile-list), along with any custom attributes you have added to this event type. To view or share the data, click the ellipsis icon.
+
+    * <DNT>**Add to dashboard**</DNT> link: [View the chart](/docs/insights/new-relic-insights/using-insights-interface/query-page-creating-editing-nrql-queries), and copy it to a new or existing dashboard.
+    * <DNT>**View query**</DNT> link: View the [NRQL query](/docs/insights/new-relic-insights/using-new-relic-query-language/using-nrql) used to calculate the chart data.
+    * <DNT>**Get as image**</DNT> link: Select this option to get a public URL of the chart, then share it using any media.
+  </Collapser>
+
+  <Collapser
+    id="profiles"
+    title="Crash profiles: Quickly see key differences between crashed and crash-free accounts"
+  >
+    Crash profiles provide quick, clear insight into your mobile crash data by surfacing anomalies in your mobile application's performance. Unexpected differences between attributes and behaviors are highlighted, illuminating key differences between crashed and crash-free accounts. You can quickly pinpoint key issues through drill-downs and filters for a fast, streamlined troubleshooting experience.
+
+    <img
+      title="Mobile crash profiles"
+      alt="mobile-crash-profiles.png"
+      src="/images/mobile_screenshot-full_crash-profiles.webp"
+    />
+
+    <figcaption>
+      <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Errors > Crash analysis > Crash profiles**</DNT>: Compare crashed and crash-free sessions.
+    </figcaption>
+  </Collapser>
+
+  <Collapser
+    id="event-trail"
+    title="Crash event trail: See all the events leading up to a crash"
+  >
+    The <InlinePopover type="mobile"/> crash event trail shows you the events leading up to a crash of a mobile app. These can be events monitored by default or by custom events you've created. For more information, see [Crash event trail](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/mobile-crash-event-trail).
+  </Collapser>
+
+  <Collapser
+    id="export-xcode"
+    title="Examine crash report details: Export to Xcode or resymbolicate your source code"
+  >
+    From the <DNT>**Crash types**</DNT> table, you can drill down into a specific [crash type](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/investigate-mobile-app-crash-report). From here, you can:
+
+    * Explore the related thread breakdown.
+    * Select <DNT>**Export crash details**</DNT> so you can examine source code using Xcode.
+    * Click the <DNT>**View crash libraries**</DNT> button to see what Android map files or iOS .dSYM files we have for your application.
+    * If you don't see the files you're expecting, upload a new Android map file or iOS .`dSYM` files by clicking on the <DNT>**Upload**</DNT> link. Note that uploading a new file automatically de-obfuscates or symbolicate your crash occurrence.
+    * File a ticket and resolve the crash.
+
+      <img
+        title="New Relic mobile crash analytics: Stack trace"
+        alt="New Relic Mobile Crash Analytics: Stack trace"
+        src="/images/mobile_screenshot-full_stack-trace.webp"
+      />
+
+      <figcaption>
+        <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Errors > Crash Analysis > Crash types >**</DNT> (select a crash): This is an example of a stack trace that includes the option to upload a new Android map file or additional iOS .dSYM files. To analyze and debug your source code using Xcode, select <DNT>**Export crash details**</DNT>.
+      </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+## Crashes details view [#details-view]
+
+The **Crash summary panel** includes:
+
+* **Occurrences chart**: Visualizes the frequency of this specific crash over the selected period since its initial detection. If multiple occurrences are recorded, you can navigate through each instance.
+* **Crash type breakdown** : Displays the distribution of this crash across different operating system versions or affected devices.
+
+Resolved crashes are indicated by a banner that shows the user who resolved the crash and the resolution timestamp. Note that mobile monitoring's [data retention policies apply](/docs/accounts/original-accounts-billing/product-based-pricing/overview-data-retention-components/#mobile), allowing you to filter by resolved crashes for historical analysis when needed.
+
+<img
+  title="crash details view"
+  alt="A screenshot showing the crash details view in the errors inbox UI"
+  src="/images/errors-inbox_screenshot-full_crash-details-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox)**</DNT>: Select a crash location to open the **Crash details** page.
+</figcaption>
+
+## Triage your crashes [#triage-crashes]
+
+The triage section associates the specific error occurrence you're viewing with its [system-created error group](/docs/errors-inbox/errors-inbox/#groups). These system-created error groups are identified by a unique fingerprint. It is this unique fingerprint that allows you to triage error groups by status updates or assignments.
+
+For more info on how error groups are created, see [How error groups work](/docs/errors-inbox/errors-inbox/#how-groups-work), and to learn more about status and assignments, see [Error tracking](/docs/errors-inbox/errors-inbox/#assign).
+
+<img
+  title="triage crashes"
+  alt="A screenshot showcasing how to triage crashes in errors inbox"
+  src="/images/errors-inbox_screenshot-crop_triage-crashes-with-errors-inbox.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox) > Select a crash location **</DNT>:  From the **Crash details** page you can triage specific error occurrences by adding status updates or assignments.
+</figcaption>
+
+## Crash attributes [#crash-attributes]
+
+Each crash sample provides detailed information about the device environment where the crash occurred, including:
+
+* **App version**: The specific version of the application in which the crash occurred.
+* **Device type**: The model of the device on which the crash occurred.
+* **OS version**: The operating system version running on the device.
+* **RAM used**: The amount of memory the application was utilizing at the time of the crash.
+* **Disk free**: The amount of available storage space on the device when the crash happened.
+* **Attributes**: Detailed attributes associated with the crash report, offering deeper insights into the context of the crash.
+
+You can export crash details to Xcode or resymbolicate your source code, if applicable, to streamline the troubleshooting process.
+
+## Event trail [#event-trail]
+
+The event trail provides a chronological log of all mobile [events](/docs/data-apis/custom-data/custom-events/report-mobile-monitoring-custom-events-attributes/#event-definition) leading up to a crash, aiding root cause analysis. These can be events New Relic monitors by default, or custom events. The event trail is sorted chronologically, beginning with the oldest event, which is typically the app launch, but you can modify the following:
+
+* **Sort**: Toggle between ascending and descending order.
+* **Event filtering**: Filter by event type, like `interaction`, `request`, or `request error`.
+* **Event details**: Expand individual events to inspect their attributes, like `responseTime`,or `requestUrl` for request events.
+
+After you've sorted and filtered your events, you can dig a little deeper into the events that lead up to the crash by examining:
+
+* **Custom breadcrumbs**: Utilize the [Record breadcrumb SDK](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb/) to create custom `MobileBreadcrumb` events. This allows you to log specific application interactions that may be relevant to crash analysis.
+* **Handled exceptions**: Use the `recordHandledException` SDK methods for iOS and Android to annotate where exceptions are handled in your application. These annotations will automatically populate the crash event trail.
+
+For detailed guidance on enhancing crash event trails with custom data, see [Record breadcrumbs](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb/).
+
+To fully leverage our crash analysis tools, make sure to:
+
+* Use the mobile SDK to create custom `MobileBreadcrumb` or `MobileHandledException` events.
+* Enable `MobileRequest` events for capturing network request data.
+
+<img
+  title="group crashes event trail"
+  alt="A screenshot showing the event trail for group crashes in the UI"
+  src="/images/errors-inbox_screenshot-crop_event-trail.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > Crashes (errors inbox) > Select a crash location **</DNT>:  Dig deeper into the events that led up to a specific crash using our event trail.
+</figcaption>
+
+## Mobile stack trace [#stack-trace]
+
+The stack trace for each crash is displayed beneath the crash details. Each frame within the stack shows the associated library or package name, and method. For each crash, the mobile agent attempts to detect the specific stack frame containing the programming error responsible for the crash. If successfully detected, that stack frame appears red.
+
+* **iOS apps**: Source code method names and line numbers are visible if you have uploaded the corresponding dSYM files for each build.
+* **Android apps using ProGuard**: Package and method names will be de-obfuscated if ProGuard map uploading is enabled.
+* **Android native crash reports**: These reports will only display source filenames and relative code offsets.
+
+You can use [email alerts](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/mobile-monitoring-email-notifications/) to promptly respond to new crashes.
+
+## Android-native crash reporting [#android-native-reporting]
+
+[New Relic Android agent version 6.7.0](/docs/release-notes/mobile-release-notes/android-release-notes/android-670), introduced enhancements to help track and diagnose native crashes, reporting, and analysis. These enhancements include signal violations and other faults that occur at the [native code](https://developer.android.com/ndk/guides) level during runtime.
+
+These enhancements include:
+
+* **Native crash reports**: Signal violations and other crashes reported by the app during runtime, including:
+  * Signal 4: Illegal instruction
+  * Signal 6: Abnormal termination
+  * Signal 7: Bus error/bad memory access
+  * Signal 8: Floating-point exception
+  * Signal 1: Segmentation violation/invalid memory reference
+
+* **Native runtime exceptions**: The native agent will report any unhandled C++ exceptions thrown by the app during runtime, and report them as [handled exceptions](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/introduction-mobile-handled-exceptions/). Unhandled exceptions are usually fatal and will crash the application.
+
+<Callout variant="important">
+  Native crash reporting is an incubating feature. Native crash monitoring is difficult at best, but the agent will make all best-attempts to detect and report these conditions. It may miss or incompletely report some conditions, and there may be latency viewing these conditions in the application dashboard.
+
+  Symbolication of native symbols will not be supported in early NDK agent releases. When native symbols for an app are not present, the stack trace produced by a crash consists only of these obfuscated labels, which are not easily readable.
+</Callout>
+
+You can view detailed information about native crashes in New Relic Mobile's [<DNT>**Crash analysis**</DNT> UI](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes), or receive crash notifications by [email](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/receive-crash-notifications-email). You can also explore the crash data deeper with [New Relic Insights](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes#insights), or [integrate with ticketing systems](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/file-tickets-mobile-app-crashes) for further investigation.
+
+## Troubleshooting  [#profiles-disabled]
+
+Keep in mind that profiles are disabled when there are no statistically significant differences between attributes values of crashed and crash-free sessions or there are no profiles available that match the applied filters.

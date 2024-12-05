@@ -1,0 +1,192 @@
+---
+title: リポジトリをサービスに接続する
+metaDescription: Connect your repository to a service to see observability.
+freshnessValidatedDate: '2024-12-11T00:00:00.000Z'
+translationType: machine
+---
+
+CodeStream で利用できるテレメトリ データはコンテキストに依存します。つまり、すべてが IDE で開いているコードに関連しています。これを行うには、CodeStream は、New Relic のどのサービスが IDE で開いているリポジトリから構築されているかを知る必要があります。CodeStream では、現在 IDE で開いているリポジトリに関連付けるサービスを選択するよう求められます。
+
+<img
+  title="Associate a repository in your IDE with a service."
+  alt="A screenshot of associating a repository in your IDE with a service."
+  src="/images/codestream_screenshot-crop_associate-repos-button.webp"
+/>
+
+場合によっては、リポジトリを複数のサービスに関連付ける必要があることがあります。 たとえば、異なる環境 (本番環境やステージング環境など) を表す異なるサービスがあり、それらはすべて同じリポジトリに関連付けられている場合があります。 現在のリポジトリを追加のサービスに関連付けるには、 <DNT>**Add another service**</DNT>をクリックします。
+
+<img
+  title="Associate an additional service with your repository."
+  alt="A screenshot of associating an additional service with your repository."
+  src="/images/codestream_screenshot-crop_associate-other-services.webp"
+/>
+
+プロンプトが表示されたときにその場でこれらの関連付けを行うことは、開始するのに最適な方法ですが、次のいずれかの方法をお勧めします。これは、継続的な手動作業が少なくて済み、リモート URL の設定ミスなどのエンド ユーザーのミスの可能性を排除できるためです。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="env-var"
+    title="APMでの環境変数の使用（推奨）"
+  >
+    環境変数`NEW_RELIC_METADATA_REPOSITORY_URL`を設定します。 New Relic <InlinePopover type="apm"/>エージェントはリポジトリ エンティティを作成し、それをアプリケーション エンティティに自動的に関連付けます。
+
+    これには、SSHまたはHTTPSのリモートURL形式が必要です。これをビルドパイプラインの一部として設定することをお勧めします。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="repo-ui"
+    title="New Relic Web UI を使用する"
+  >
+    <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select an app)**</DNT>から APM 概要ページに移動し、サービス名の右側にある省略記号メニューをクリックします。 リポジトリを接続するには、 <DNT>**Repositories**</DNT>タブをクリックします。
+
+    <img
+      title="The Repositories section of the service summary page"
+      alt="A screenshot of the Repositories section of the service summary page."
+      src="/images/codestream_screenshot-crop_connect-repositories.webp"
+    />
+
+    既存のリポジトリを検索するか、新しいリポジトリを追加するには、 <DNT>**Connect repository**</DNT>をクリックします。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="nerdgraph"
+    title="NerdGraph APIを使う"
+  >
+    NewRelicの[NerdGraphAPI](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/)を使用してリポジトリを作成し、それをアプリケーションエンティティに関連付けます。
+
+    <DNT>
+      **Step 1: Create a repository entity**
+    </DNT>
+
+    リポジトリエンティティを作成するには、 `referenceEntityCreateOrUpdateRepository` APIを使用し、生成されたGUIDを必ず保存してください。 APIは次のパラメーターを取ります。
+
+    * `accountId` -リポジトリを追加するアカウントの整数アカウントID
+
+    * `url` - 例 `https://github.com/newrelic/beta-docs-site.git`
+
+    * `name` - 例： `newrelic/beta-docs-site`
+
+      ```graphql
+      mutation {
+        referenceEntityCreateOrUpdateRepository(repositories: [{accountId: [YOUR_ACCOUNT_ID], name: "[REPO_NAME]", url: "[REPO_URL]"}]) {
+          created
+          failures {
+            guid
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      作成したエンティティを見つけるには、次のようなクエリを使用できます。 `referenceEntityCreateOrUpdateRepository`に指定したURLはエンティティタグとして保存されることに注意してください。
+
+      ```graphql
+      {
+        actor {
+          entitySearch(query: "name = 'a name' OR tags.url = 'a url'") {
+            count
+            query
+            results {
+              entities {
+                guid
+                name
+                tags {
+                  key
+                  values
+                }
+              }
+            }
+          }
+        }
+      }
+
+      ```
+
+      <DNT>
+        **Step 2: Associate the repository entity to your application entity**
+      </DNT>
+
+      まず、リポジトリを関連付けたいアプリケーションのGUIDを探します。
+
+      パラメーター：
+
+    * `sourceEntityGuid` -アプリケーションのエンティティGUID
+
+    * `targetEntityGuid` -リポジトリのエンティティGUID
+
+    * `type` - いつも `BUILT_FROM`
+
+      ```graphql
+      mutation {
+        entityRelationshipUserDefinedCreateOrReplace(sourceEntityGuid: "", targetEntityGuid: "", type: BUILT_FROM) {
+          errors {
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      リポジトリに関連するすべてのエンティティを見るには、次のようなクエリを実行します。
+
+      ```graphql
+      {
+        actor {
+          entity(guid: "[YOUR_REPOSITORY_GUID]]") {
+            relatedEntities(filter: {direction: BOTH, relationshipTypes: {include: BUILT_FROM}}) {
+              results {
+                target {
+                  entity {
+                    name
+                    guid
+                    type
+                  }
+                }
+                type
+              }
+            }
+            name
+            type
+            tags {
+              values
+              key
+            }
+          }
+        }
+      }
+      ```
+
+      <DNT>
+        **Step 3: Cleanup (if needed)**
+      </DNT>
+
+      以下のクエリでリポジトリを削除します。
+
+      ```graphql
+      mutation DeleteRepository {
+        entityDelete(guids: "[ENTITY_GUID_HERE]]") {
+          deletedEntities
+          failures {
+            message
+            guid
+          }
+        }
+      }
+      ```
+  </Collapser>
+</CollapserGroup>
+
+これらの方法のいずれかを使用して、SSHまたはHTTPS形式のいずれかでリモートURLを指定できます。
+
+* `git@github.com:newrelic/beta-docs-site.git`
+* `https://github.com/newrelic/beta-docs-site.git`
+
+<Callout variant="caution">
+  異なるプロトコルを使用している場合は、同じリポジトリを複数回追加することができます。UI はこれについて警告しますが、警告を妨げることはありません。
+
+  たとえば、 `https://github.com/tuna/repo`と`git@github.com:tuna/repo`は同じリポジトリであり、プロトコルが異なります。
+</Callout>

@@ -1,0 +1,390 @@
+---
+title: 'Tutorial NerdGraph: Retorne respostas NRQL maiores com exportação de dados históricos'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: The New Relic historical data export feature lets you use NerdGraph API to return large NRQL responses with no query timeout.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Ao executar uma [consulta NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language), você fica restrito a [vários limites](/docs/query-your-data/nrql-new-relic-query-language/get-started/rate-limits-nrql-queries), como um limite no número de pontos de dados retornados em uma resposta e um tempo limite de consulta. Nosso recurso de exportação de dados históricos pode ser usado para executar uma consulta NRQL que retorna 200 milhões de pontos de dados em uma resposta (em vez do [limite usual de 5.000](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-limit)) e não tem tempo limite de consulta. Os resultados são retornados como um ou mais arquivos JSON.
+
+## Requisitos [#requirements]
+
+* Requer [Dados Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices)
+* Para exportar dados, você deve ser um [usuário principal ou completo da plataforma](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+
+## Limites e restrições [#limits-restrictions]
+
+Aqui estão alguns limites e restrições do recurso:
+
+### Limites de uso [#usage-limits]
+
+A seguir estão os limites de uso padrão para uma exportação:
+
+* Estima-se que as exportações retornem menos de 200 milhões de eventos
+* As exportações devem ser estimadas em menos de 5 bilhões de eventos
+* Não mais do que duas exportações simultâneas por conta
+
+Se desejar limites mais altos, fale com seu representante de conta.
+
+### Restrições de tipo de dados [#data-type-restrictions]
+
+Nenhum dos seguintes tipos de dados está disponível para exportação:
+
+* [Métrica de fração de tempo dados](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)
+* [Dados FedRAMP](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp/)
+* [Atributo do Blob](/docs/logs/ui-data/long-logs-blobs/)
+* Atributo da matriz
+* Atributo percentil
+
+### Restrições de intervalo de tempo [#time-range-restrictions]
+
+O recurso de exportação de dados históricos não oferece suporte à consulta de dados em tempo real ou das últimas 12 horas. O intervalo de tempo deve terminar pelo menos 12 horas atrás.
+
+### Requisitos de sintaxe de consulta [#syntax-requirements]
+
+Este recurso suporta a seleção de nomes de atributos específicos e curingas (`SELECT *`). Por exemplo, apoiamos consultas como estas:
+
+```sql
+SELECT * FROM MobileRequest SINCE 3 days ago until 2 days ago
+```
+
+```sql
+SELECT duration, appId FROM Transaction
+WHERE appName = 'interesting-application'
+SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'
+```
+
+Os seguintes [componentes NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions) <DNT>**cannot**</DNT> serão usados na consulta:
+
+* Funções de agregação (`sum`, `count`, `average`, `max`)
+* Funções avaliáveis (`numeric`, `log`, `concat`) são suportadas *apenas* na cláusula `WHERE`
+* `FACET`
+* `TIMESERIES`
+* `COMPARE WITH`
+* `JOIN`
+* Agregações aninhadas
+* Subconsultas
+* Ligações de variáveis
+* Consulta entre contas
+
+## Detalhes endpoint [#endpoints]
+
+O recurso de exportação de dados históricos usa nossa API NerdGraph e faz uso de três endpoints:
+
+* O endpoint <DNT>**create**</DNT> permite que um usuário especifique o ID da conta e o NRQL que deseja executar como uma exportação.
+* O endpoint <DNT>**get details for export**</DNT> permite que um usuário especifique um ID de conta e um ID de exportação (encontrado no corpo da resposta do endpoint de criação) e use-os para recuperar o status da exportação. Quando a exportação for concluída, os resultados, na forma de um ou mais URLs de download, poderão ser encontrados na resposta deste endpoint.
+* O endpoint <DNT>**get details for account exports**</DNT> permite que um usuário especifique um ID de conta e recupere os detalhes de todas as exportações ativas e não expiradas dessa conta.
+
+## Exemplo de consulta [#example-queries]
+
+### Criar exportação [#create-export]
+
+Uma maneira de usar o NerdGraph é com o [explorador NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer). As instruções nesta seção se concentrarão no uso do explorador NerdGraph. Se você estiver interessado em executar seu próprio script, consulte [script](#scripts).
+
+No esquema NerdGraph, o endpoint `historicalDataExportCreateExport` pode ser encontrado em `mutation > historicalDataExport`. Use uma consulta como a abaixo para executar uma exportação.
+
+Recomenda-se selecionar o ID para o corpo da resposta, pois ele será usado para obter detalhes para a exportação e recuperar resultados.
+
+```graphql
+mutation {
+  historicalDataExportCreateExport(
+    accountId: YOUR_ACCOUNT_ID,
+    nrql: "FROM Transaction SELECT duration, appId WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'"
+  ) {
+    percentComplete
+    nrql
+    status
+    id
+    message
+  }
+}
+```
+
+#### Resposta de exemplo [#create-export-response]
+
+Aqui está um exemplo de resposta para criar uma exportação:
+
+```json
+{
+  "data": {
+    "historicalDataExportCreateExport": {
+      "id": "609b6916-8ca9-417c-bbf8-02e4cdc3afd2",
+      "message": null,
+      "nrql": "FROM Transaction SELECT duration, appId WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'",
+      "percentComplete": 5,
+      "status": "WAITING"
+    }
+  }
+}
+```
+
+### Cancelar exportação [#cancel-export]
+
+No esquema NerdGraph, o endpoint `historicalDataExportCancelExport` pode ser encontrado em `mutation` &amp;gt; `historicalDataExport`. Use uma consulta como a abaixo para executar uma exportação.
+
+É recomendado selecionar o status no corpo da resposta para verificar se a exportação foi cancelada com sucesso.
+
+```graphql
+mutation {
+  historicalDataExportCancelExport(accountId: YOUR_ACCOUNT_ID, id: "YOUR_EXPORT_ID") {
+    status
+    id
+  }
+}
+```
+
+#### Resposta de exemplo [#cancel-export-response]
+
+Aqui está um exemplo de resposta para cancelar uma exportação:
+
+```json
+{
+  "data": {
+    "historicalDataExportCancelExport": {
+      "id": "YOUR_EXPORT_ID",
+      "status": "CANCELED"
+    }
+  }
+}
+```
+
+### Obtenha detalhes de uma exportação específica [#details-for-export]
+
+Use o ID de exportação encontrado na resposta do endpoint de criação para consultar os detalhes da exportação, conforme mostrado abaixo. Este endpoint pode ser encontrado no NerdGraph em `query` &amp;gt; `actor` &amp;gt; `account` &amp;gt; `historicalDataExport` &amp;gt; `export`.
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      historicalDataExport {
+        export(id: "YOUR_EXPORT_ID") {
+          availableUntil
+          eventCount
+          eventTypes
+          id
+          message
+          nrql
+          percentComplete
+          results
+          status
+        }
+      }
+    }
+  }
+}
+```
+
+#### Resposta de exemplo [#get-export-details-response]
+
+Aqui está a resposta para obter os detalhes de uma exportação específica:
+
+```json
+{
+  "data": {
+    "actor": {
+      "account": {
+        "historicalDataExport": {
+          "export": {
+            "availableUntil": 1655499642845,
+            "eventCount": 1291,
+            "eventTypes": [
+              "MobileRequest"
+            ],
+            "id": "4776677a-1e0f-4ad5-a790-cdbe40a1f348",
+            "message": null,
+            "nrql": "SELECT * FROM MobileRequest SINCE 3 days ago UNTIL 2 days ago",
+            "percentComplete": 100,
+            "results": [
+              "downloadLink1",
+              "downloadLink2"
+            ],
+            "status": "COMPLETE_SUCCESS"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Obtenha detalhes de exportação de uma conta [#get-details-account]
+
+Você pode usar o ID da conta para obter os detalhes de todas as exportações dessa conta, conforme mostrado abaixo. O endpoint pode ser encontrado no esquema NerdGraph em `query` &amp;gt; `actor` &amp;gt; `account` &amp;gt; `historicalDataExport` &amp;gt; `exports`.
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      historicalDataExport {
+        exports {
+          availableUntil
+          eventCount
+          eventTypes
+          id
+          message
+          nrql
+          percentComplete
+          results
+          status
+        }
+      }
+    }
+  }
+}
+```
+
+#### Resposta de exemplo [#get-details-account-response]
+
+Aqui está um exemplo de resposta para obter detalhes de exportação de uma conta:
+
+```json
+{
+  "data": {
+    "actor": {
+      "account": {
+        "historicalDataExport": {
+          "exports": [
+            {
+              "availableUntil": 1655499642845,
+              "eventCount": 1291,
+              "eventTypes": [
+                "MobileRequest"
+              ],
+              "id": "4776677a-1e0f-4ad5-a790-cdbe40a1f348",
+              "message": null,
+              "nrql": "SELECT * FROM MobileRequest SINCE 3 days ago UNTIL 2 days ago",
+              "percentComplete": 100,
+              "results": [
+                "downloadLink1",
+                "downloadLink2"
+              ],
+              "status": "COMPLETE_SUCCESS"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+## Usar roteiro [#scripts]
+
+Pode ser útil consultar os dados históricos das exportações de forma programática, a partir de um script. Os seguintes comandos `curl` podem ser úteis para começar. Para exemplos de respostas, consulte as respostas na seção Exemplo de consulta.
+
+<Callout variant="important">
+  Você deve escapar de todas as instâncias de aspas simples (`'`) em sua consulta NRQL de exportação com uma barra invertida (`\'`). Os comandos `curl` abaixo dependem de um `$` inicial no argumento `--data-raw` , cuja funcionalidade a citação ANSI-C fornece. Mais informações estão disponíveis através do [manual oficial do GNU](https://www.gnu.org/software/bash/manual/html_node/ANSI_002dC-Quoting.html).
+</Callout>
+
+### Criar exportação [#create-export-script]
+
+```bash
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+     --header 'Content-Type: application/json' \
+     --header 'API-Key: $USER_API_KEY' \
+     --data-raw $'{"query":"mutation {historicalDataExportCreateExport(accountId: $ACCOUNT_ID, nrql: \\"$NRQL_QUERY_TO_EXPORT\\") {percentComplete nrql status message id}}","variables":{}}'
+```
+
+### Cancelar exportação [#cancel-export-script]
+
+```bash
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+     --header 'Content-Type: application/json' \
+     --header 'API-Key: $USER_API_KEY' \
+     --data-raw $'{"query":"mutation {historicalDataExportCancelExport(accountId: $ACCOUNT_ID, id: \\"$YOUR_EXPORT_ID\\") { status message id}}","variables":{}}'
+```
+
+### Obtenha detalhes para exportação [#export-details-script]
+
+```bash
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+     --header 'Content-Type: application/json' \
+     --header 'API-Key: $USER_API_KEY' \
+     --data-raw $'{"query":"{actor {account(id: $ACCOUNT_ID) {historicalDataExport {export(id: \\"$YOUR_EXPORT_ID\\") {availableUntil eventCount eventTypes id message nrql percentComplete results status}}}}}","variables":{}}'
+```
+
+### Obtenha detalhes para exportações de conta [#export-details-account-script]
+
+```bash
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+     --header 'Content-Type: application/json' \
+     --header 'API-Key: $USER_API_KEY' \
+     --data-raw $'{"query":"{actor {account(id: $USER_API_KEY) {historicalDataExport {exports {availableUntil eventCount eventTypes id message nrql percentComplete results status}}}}}","variables":{}}'
+```
+
+## Exportar formato de resultados [#export-results-format]
+
+Os resultados da consulta estão no campo de resultados de qualquer um dos dois pontos de extremidade `get details` . Eles estão na forma de um ou mais links para download. Os próprios arquivos de resultados são válidos por uma semana a partir da execução da exportação e contêm aproximadamente 100 MB ou menos de JSON compactado GZIP. Cada link é pré-assinado para ser válido por 6 horas. Se o link expirar, você poderá obter um novo consultando novamente o objeto de detalhes de exportação no NerdGraph para obter os resultados.
+
+Um exemplo de arquivo de resultados descompactado está abaixo:
+
+```json
+[
+  {
+    "attributes": {
+      "duration": 36,
+      "eventType": "Transaction",
+      "accountId": YOUR_ACCOUNT_ID,
+      "timestamp": 1655174793213
+    }
+  },
+  {
+    "attributes": {
+      "duration": 3,
+      "eventType": "MobileRequest",
+      "accountId": YOUR_ACCOUNT_ID,
+      "timestamp": 1655174793215
+    }
+  }
+]
+```
+
+## Consulta e alerta sobre evento relacionado à exportação [#query-alert]
+
+Este recurso irá gerar um evento personalizado na conta New Relic em que a exportação foi realizada. Pode ser útil consultar ou criar alertas sobre estes eventos para obter informações sobre as exportações que foram realizadas numa conta.
+
+O tipo de evento `HistoricalDataExport` contém informações como o status da exportação (`Created`, `Completed`, `Failed`, `Canceled`), o ID da exportação, a string NRQL a partir da qual a exportação é gerada e muito mais.
+
+A consulta a seguir, que você pode executar no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) ou adicionar em um dashboard, retornará todas as exportações criadas na última semana e a quantidade daquelas que foram concluídas com sucesso e não tiveram erro:
+
+```sql
+FROM HistoricalDataExport SELECT * WHERE status = 'Created' SINCE 1 WEEK AGO
+```
+
+```sql
+FROM HistoricalDataExport SELECT count(*) WHERE status != 'Completed' FACET status SINCE 1 WEEK AGO
+```
+
+## Resolução de problemas [#troubleshooting]
+
+### Conta ainda não ativada [#account-not-yet-enabled]
+
+Ao tentar criar uma exportação, você poderá ver uma mensagem de erro que diz:
+
+```
+Cannot query field \"historicalDataExportCreateExport\" on type \"RootMutationType\".
+```
+
+Se você receber isso, provavelmente significa que o recurso de exportação de dados históricos ainda não foi habilitado para a conta da qual você está tentando exportar. Caso tenha dúvidas, revise os requisitos e fale com seu representante de conta para perguntar sobre o acesso.
+
+### O link dos resultados expirou [#results-link-expired]
+
+Ao tentar fazer download dos resultados usando um URL pré-assinado, você poderá ver um erro como este:
+
+```xml
+<Error>
+  <Code>AccessDenied</Code>
+  <Message>Request has expired</Message>
+  <X-Amz-Expires>120</X-Amz-Expires>
+  <Expires>2022-06-24T15:16:45Z</Expires>
+  <ServerTime>2022-06-24T17:56:40Z</ServerTime>
+  <RequestId>1234567890ABC</RequestId>
+  <HostId>ABCD1234HOST-ID098765-XYZ</HostId>
+</Error>
+```
+
+Um erro como esse indica que o URL de resultados expirou e você precisará consultar novamente o objeto de exportação para obter um novo URL de resultados. Você não precisa executar novamente a exportação, basta obter um novo conjunto de URLs para os resultados.

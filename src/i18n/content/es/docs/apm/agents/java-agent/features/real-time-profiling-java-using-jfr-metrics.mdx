@@ -1,0 +1,150 @@
+---
+title: Perfilado en tiempo real para Java usando JFR métrica
+tags:
+  - Agents
+  - Java agent
+  - Features
+metaDescription: 'APM for Java: Real-time Java profiling using Java Flight Recorder (JFR) metrics.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con la creación de perfiles en tiempo real para Java de New Relic utilizando Java Flight Recorder (JFR) métrica, puede ejecutar perfiles continuos y siempre activos de su código Java en el entorno de producción. La vista de línea de tiempo del clúster JVM adjunta proporciona una forma rápida e intuitiva de diagnosticar problemas de rendimiento en todo el clúster. Por ejemplo, puede ver rápidamente cómo el despliegue de una aplicación afecta el estado general del clúster.
+
+## Encontrar rendimiento cuello de botella [#feature]
+
+La resolución de problemas de rendimiento cuello de botella en su aplicación o servicio Java puede ayudarle a comprender mejor lo siguiente:
+
+* Donde estás desperdiciando recursos
+* Cuando ocurre un incidente
+* ¿Qué pasó durante un incidente?
+* Qué problemas de rendimiento condujeron a un incidente
+
+Para que la resolución de problemas sea más rápida y sencilla, necesita ver las características de tiempo de ejecución de alta fidelidad de su código que se ejecuta en la JVM, y necesita esos datos en tiempo real.
+
+## daemon JFR [#about]
+
+El [daemonJFR](https://github.com/newrelic/newrelic-jfr-core) es un exportador de eventos JFR que le permite aprovechar el poder de la plataforma New Relic para [visualizar](#find-data) el comportamiento de su JVM. Utilizando el [SDK de telemetría Java](https://github.com/newrelic/newrelic-telemetry-sdk-java) de New Relic como implementación subyacente, el daemon JFR convierte el evento JFR en tipos de telemetría de New Relic y los informa a las API de ingesta de eventos y métricas de New Relic.
+
+Hay tres escenarios de uso diferentes para el daemon JFR:
+
+* [Servicio New Relic agente de Java JFR](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#new-relic-java-agent-jfr-service) (RECOMENDADO): monitoreo JFR integrado en el buque insignia [New Relic agente de Java](/docs/agents/java-agent/). No se necesita configuración adicional, simplemente [instale el agente de Java](/docs/agents/java-agent/installation/install-java-agent/), asegúrese de que el [servicio JFR esté habilitado](/docs/agents/java-agent/configuration/java-agent-configuration-config-file/#jfr-real-time-profiling) y los datos JFR fluirán a la misma aplicación
+
+  <InlinePopover type="apm"/>
+
+  que el agente de Java. Requiere [New Relic agente de Java versión 7.0.0+](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-700/).
+
+  * <DNT>
+      **Note**
+    </DNT>
+
+    : La creación de perfiles JFR en tiempo real se puede alternar mediante [la configuración del lado del servidor del agente](/docs/apm/agents/manage-apm-agents/configuration/server-side-agent-configuration/). Esto permite alternar la creación de perfiles sin la necesidad de reiniciar la aplicación de destino.
+
+* [Proceso independiente](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#standalone-process) : ejecute `jfr-daemon` como un proceso independiente y configúrelo para monitor un proceso Java existente mediante JMX remoto.
+
+* [Agente de Java independiente](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#standalone-java-agent) : adjunte el `jfr-daemon` a su proceso Java como agente de Java. Una alternativa ligera al agente de Java New Relic.
+
+## Versiones de Java compatibles [#supported-java-versions]
+
+Si bien el daemon JFR admite cualquier versión de Java 11 y superior, no recomendamos utilizar ninguna versión de Java que no sea LTS en el entorno de producción.
+
+Algunos proveedores han respaldado JFR en sus binarios de Java 8. Por ejemplo, OpenJDK respaldó JFR en la versión 8u262. El daemon JFR es compatible con esas versiones de Java.
+
+## Requisitos e instrucciones de uso [#requirements-and-usage-instructions]
+
+Los requisitos e instrucciones varían para cada escenario de uso. Para obtener detalles completos, consulte los enlaces para su escenario de uso específico:
+
+* Servicio New Relic agente de Java JFR - [Requisitos](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#requirements-for-new-relic-java-agent-jfr-service), [configuración](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#configuration-for-new-relic-java-agent-jfr-service) e [instrucciones de uso](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#usage-for-new-relic-java-agent-jfr-service)
+* Proceso independiente: [requisitos](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#requirements-for-standalone-process), [configuración](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#configuration-for-standalone-usage) e [instrucciones de uso](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#usage-for-standalone-process)
+* Agente independiente de Java - [Requisitos](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#requirements-for-standalone-java-agent), [configuración](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#configuration-for-standalone-usage) e [instrucciones de uso](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#usage-for-standalone-java-agent)
+
+<Callout variant="important">
+  Las aplicaciones que se ejecutan con el daemon JFR deben esperar que el subsistema JFR utilice memoria adicional.
+</Callout>
+
+<Callout variant="tip">
+  Con agente de Java versión 8.0.0 o superior, puede cambiar dinámicamente la configuración de su perfil JFR sin reiniciar sus JVM. Haga esto alternando la configuración en <DNT>**Settings > Application > Java Flight Recorder**</DNT> o cambiando la configuración `jfr.enabled` .
+</Callout>
+
+## Ver tus datos [#find-data]
+
+Para ver sus datos, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select service) > More views > Realtime Profiling Java**</DNT>.
+
+## Comprender el comportamiento del clúster JVM a lo largo del tiempo [#ui]
+
+La vista de la línea de tiempo del clúster JVM muestra el comportamiento de JVM en todo el clúster. Este cronograma permite una resolución de problemas y una detección de problemas más rápidas; por ejemplo, de un vistazo puedes ver:
+
+* Cómo afectó un despliegue reciente al resto del clúster JVM
+* Cuando se reinicia una JVM
+* Cómo una instancia individual se vio afectada por su vecino ruidoso
+
+Para facilitar la resolución de problemas, necesita ver las características de tiempo de ejecución de alta fidelidad de su código que se ejecuta en la JVM y necesita esos datos en tiempo real.
+
+<img
+  title="new-relic-one-java-flight-record-ui"
+  alt="New Relic Java Flight Recorder (JFR) UI"
+  src="/images/apm_screenshot-full_Java-Flight-Record-UI.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select service) > Realtime Profiling Java**</DNT>: La vista de la línea de tiempo del clúster JVM muestra el comportamiento de JVM en todo el clúster.
+</figcaption>
+
+Cada fila de la línea de tiempo representa una JVM específica a lo largo del tiempo. Dentro de cada fila, un cuadro representa un período de 5 minutos de la vida de esa JVM. Desde el menos grave hasta el más grave, el semáforo amarillo, naranja y rojo indican un comportamiento anómalo para una JVM, por lo que puede profundizar en esa instancia y el período de tiempo adecuado al investigar errores u otros problemas de rendimiento.
+
+<img
+  title="JVM-health-info"
+  alt="How JVM health is measured"
+  src="/images/apm_screenshot-full_Java-JVM-health-UI.webp"
+/>
+
+<figcaption>
+  Seleccione <DNT>**How is JVM health determined?**</DNT> para obtener un desglose detallado de cómo se calcula el estado de JVM.
+</figcaption>
+
+## Detalles de JVM [#details]
+
+Para encontrar la página de detalles de JVM, vaya a: <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select service) > Realtime Profiling Java > (select JVM)**</DNT>.
+
+El panel de detalles de cada JVM proporciona varias vistas críticas:
+
+* Porcentaje de uso de CPU del usuario
+* Porcentaje de uso de CPU de la máquina
+* Tamaños de montón
+* Duración de la recolección de basura
+* Pausa más larga en la recolección de basura
+* Utilización de CPU de subprocesos de usuario
+* Utilización de la CPU del subproceso del sistema
+* Asignación de objetos pequeños por subproceso
+* Asignación de objetos grandes por subproceso
+* Lectura de red por subproceso
+* Escritura de red por subproceso
+* Tamaño de asignación de búfer por subproceso
+* Asignación total de subprocesos
+* Asignación total de objetos por subproceso
+* Metaspace
+
+## Identifique rutas de código que consumen muchos recursos con gráficos de llamas [#flamegraph]
+
+<Callout variant="important">
+  La característica flame graph solo es compatible con el escenario de uso [del servicio New Relic agente de Java JFR](https://github.com/newrelic/newrelic-jfr-core/blob/main/README.md#new-relic-java-agent-jfr-service) .
+</Callout>
+
+Un "gráfico de llama" es una forma de visualizar el árbol de llamadas. Cada bloque del gráfico representa una función. Cuanto más tiempo de CPU y recursos de memoria consume un método, más ancho será el bloque.
+
+Utilice gráficos de llamas para identificar las clases y métodos de Java que se ejecutan con mayor frecuencia en el código de su aplicación. Al utilizar gráficos de llamas para optimizar los puntos calientes de su código, puede reducir el consumo de recursos y aumentar el rendimiento general de su aplicación.
+
+Aquí hay algunos detalles sobre los colores del gráfico de llamas:
+
+* Degradado de grises: Aplicamos el degradado de grises a métodos de un paquete Java SE. Los recuentos de llamadas más bajos tienen tonos más claros y pasan gradualmente a tonos más oscuros a medida que aumenta el recuento de llamadas.
+* Degradado amarillo-naranja: aplicamos el degradado amarillo-naranja a métodos de otra biblioteca. Los recuentos de llamadas más bajos tienen más colores amarillos y pasan gradualmente a colores más naranjas a medida que aumenta el recuento de llamadas.
+
+<img
+  title="Screenshot of New Relic Java flame graph"
+  alt="Screenshot of New Relic Java flame graph."
+  src="/images/apm_screenshot-full_Java-jfr-flamegraphs.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com](https://one.newrelic.com/) > APM & Services > (select service) > Realtime Profiling Java > (select JVM)**</DNT>: Puede ver los detalles de cada JVM, incluidos los gráficos de llamas.
+</figcaption>

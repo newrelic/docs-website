@@ -1,0 +1,368 @@
+---
+title: Configuración de servicios externos
+metaDescription: Here are steps to enable and configure external services
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La característica de servicios externos está disponible para New Relic APM agente y [OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/introduction-opentelemetry-new-relic).
+
+Si desea comenzar a funcionar lo más rápido posible, le recomendamos utilizar nuestro agente APM.
+
+Al hacer clic en un logotipo, accederá a la plataforma New Relic, donde se le guiará durante la instalación y configuración del agente.
+
+<TechTileGrid>
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="https://one.newrelic.com/nr1-core?state=985d4005-ba90-a8c7-1da1-2af34539b03b"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="https://one.newrelic.com/nr1-core?state=80d18bcb-4919-1fcb-2b77-9406838eb916"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="https://one.newrelic.com/nr1-core?state=30e93090-6dfa-6b70-8e75-472f54414355"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="https://one.newrelic.com/marketplace/install-data-source?state=be2e62fa-cc3b-c428-27c4-8d662c9e80a1"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="https://one.newrelic.com/nr1-core?state=aa633b41-72d4-009c-3abf-55dcf64894fe"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="https://one.newrelic.com/nr1-core?state=20fda75b-58fb-a92a-f9e1-7b052035c6e8"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+  />
+</TechTileGrid>
+
+## Configurar servicios externos
+
+Las siguientes instrucciones lo guiarán a través de la configuración de servicios externos.
+
+<Steps>
+  <Step>
+    ### Empezar a enviar datos
+
+    La configuración de servicios externos cambia según si está utilizando agente APM u OpenTelemetry. Seleccione la pestaña de la opción de instalación que se adapte a su sistema:
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="send-data-apm">
+          Agente APM
+        </TabsBarItem>
+
+        <TabsBarItem id="send-data-otel">
+          OpenTelemetry
+        </TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="send-data-apm">
+          Complete lo siguiente para cada servicio que desee ver en servicios externos:
+
+          1. Si aún no lo ha hecho, instale el [agente](/docs/distributed-tracing/enable-configure/quick-start) New Relic APM adecuado.
+
+          2. Asegúrese de que rastreo distribuido esté activado en el agente:
+
+             * Si instaló un nuevo agente, el rastreo distribuido estándar está activado de forma predeterminada. Si su servicio se comunica con otros servicios que utilizan Infinite Tracing, consulte la documentación de su agente para obtener ayuda con Infinite Tracing.
+             * Si tiene un agente anterior, siga los pasos de configuración para habilitar el rastreo distribuido estándar o el rastreo infinito. Cuando habilita el rastreo distribuido, anula el antiguo rastreo de aplicaciones múltiples.
+
+          3. Vea si su agente requiere pasos de configuración adicionales:
+
+             <table>
+               <thead>
+                 <tr>
+                   <th style={{ width: "200px" }}>
+                     Agente
+                   </th>
+
+                   <th>
+                     Versión mínima
+                   </th>
+
+                   <th>
+                     Configuración
+                   </th>
+                 </tr>
+               </thead>
+
+               <tbody>
+                 <tr>
+                   <td>
+                     Go
+                   </td>
+
+                   <td>
+                     3.6.0
+                   </td>
+
+                   <td>
+                     Consulte la documentación sobre el uso de [`NewRoundTripper()`](/docs/apm/agents/go-agent/instrumentation/instrument-go-segments/).
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     Java
+                   </td>
+
+                   <td>
+                     5.13.0
+                   </td>
+
+                   <td>
+                     Consulte la documentación sobre el uso de la [API del agente de Java](/docs/apm/agents/java-agent/api-guides/java-agent-api-instrument-external-calls-messaging-datastore-web-frameworks/) para realizar llamadas externas.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     .NET
+                   </td>
+
+                   <td>
+                     8.29.0
+                   </td>
+
+                   <td>
+                     El agente .NET y el agente .NET en Azure automáticamente realizan llamadas externas, pero no utilizan métodos de transacción. Para ver la transacción, necesita usar una combinación de lo siguiente:
+
+                     * [Transaccion personalizada](/docs/agents/net-agent/instrumentation/net-custom-transactions/)
+                     * [Roles de trabajador instrumentado](/docs/apm/agents/net-agent/azure-installation/install-net-agent-azure-cloud-services/#requirements)
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     Node.js
+                   </td>
+
+                   <td>
+                     6.9.0
+                   </td>
+
+                   <td>
+                     Consulte la documentación sobre el uso de la [API del agente Node.js.](/docs/apm/agents/nodejs-agent/api-guides/guide-using-nodejs-agent-api/#external-services)
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     PHP
+                   </td>
+
+                   <td>
+                     9.12.0.268
+                   </td>
+
+                   <td>
+                     Consulte la documentación sobre el uso de la [API del agente PHP](/docs/apm/agents/php-agent/php-agent-api/guide-using-php-agent-api/#datastore) para instrumentar llamadas externas.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     Python
+                   </td>
+
+                   <td>
+                     5.14.0.142
+                   </td>
+
+                   <td>
+                     No son necesarios pasos adicionales: Las llamadas externas se instrumentan automáticamente.
+                   </td>
+                 </tr>
+
+                 <tr>
+                   <td>
+                     Ruby
+                   </td>
+
+                   <td>
+                     6.12.0.367
+                   </td>
+
+                   <td>
+                     Consulte la documentación sobre el uso de la [API del agente Ruby](/docs/apm/agents/ruby-agent/api-guides/guide-using-ruby-agent-api/#externals) para realizar llamadas externas.
+                   </td>
+                 </tr>
+               </tbody>
+             </table>
+
+             <Callout variant="tip">
+               La versión clásica de servicios externos todavía está disponible si necesita agregar un nuevo servicio a una cadena de agentes que ya utilizan servicios externos clásicos. Para instalar servicios externos clásicos, habilita [el rastreo multiaplicación](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) en lugar del rastreo distribuido en los pasos siguientes.
+             </Callout>
+        </TabsPageItem>
+
+        <TabsPageItem id="send-data-otel">
+          La UI de New Relic muestra detalles de los servicios externos una vez que completa los pasos para configurar la instrumentación de OpenTelemetry para su servicio y las [llamadas](https://opentelemetry.io/docs/java/manual_instrumentation/#span-attributes) que realiza a otros servicios. La característica de servicios externos muestra las llamadas entre tus servicios, desglosadas por extremo de transacción en cada servicio. El nombre de cada transacción se deriva del intervalo de entrada del proceso (`span.kind = "server"`).
+
+          Si su servicio APM está conectado a un servicio OpenTelemetry (ascendente o descendente), ese servicio OpenTelemetry no aparecerá en la vista de ese servicio APM. Esto se debe a que, al visualizar un servicio APM, esta característica utiliza métricas que solo son reportadas por el agente APM. Al ver un servicio OpenTelemetry, el servicio APM aparecerá como una conexión.
+
+          La calidad de la información que ve depende de la estrategia de muestreo que esté utilizando en el recolector. Consulte la siguiente sección sobre el uso del muestreo para controlar lo que ve en la UI.
+
+          <Callout variant="tip">
+            Si envía el 100% de sus datos de OpenTelemetry a nuestra traza API, almacenamos el 100% de esos datos, a menos que tenga un límite de tarifa específico para su organización, o si envía suficientes datos para activar nuestro límite de tarifa predeterminado.
+          </Callout>
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ### Ajuste el muestreo para ver más datos UI [#adjust-sampling]
+
+    Si está utilizando un agente APM y ve pocos o ningún dato cuando comienza a perforar más allá de la página inicial del mapa, es posible que necesite ajustar el yacimiento de extensión para muestrear más datos. Esto se debe a que los datos a nivel de transacción se completan con datos de traza muestreados.
+
+    Para OpenTelemetry, tanto la página inicial como todas las páginas de profundización se completan con datos de muestra, por lo que es posible que deba realizar algunos ajustes en el muestreo para obtener los datos que necesita.
+
+    Aquí hay información sobre las diferentes rutinas para ajustar el depósito para agente APM, así como consejos para ajustar el muestreo para OpenTelemetry:
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="agent-sample">
+          Muestreo de agente APM
+        </TabsBarItem>
+
+        <TabsBarItem id="otel-sample">
+          Muestreo OpenTelemetry
+        </TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="agent-sample">
+          Todos los agentes APM tienen un depósito que almacena tramos y la mayoría de estos depósitos de agente son configurables. El tamaño de este depósito afecta la probabilidad de que un agente pueda enviar todos los tramos que crea. Ver [traza fragmentada](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) para más detalles.
+
+          Los datos para esta característica se derivan de tramos de clientes y servidores adyacentes donde se realizan llamadas externas de un servicio a otro. Cuando un agente alcanza su límite de depósito de intervalos, existe la posibilidad de que elimine algunos intervalos que representan estas llamadas.
+
+          El valor de configuración predeterminado del agente de 2000 define la cantidad máxima de eventos que el agente recopila por minuto. Si hay más tramos que este número, el agente recopila un muestreo estadístico, esencialmente degradando la cantidad de datos que se utilizan en el mapa de servicios externos.
+
+          Si no ve el tipo de detalle que desea en la UI, puede aumentar el tamaño del depósito hasta 10 000. Revise lo siguiente para ajustar los depósitos de agente:
+
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "200px" }}>
+                  Agente APM
+                </th>
+
+                <th>
+                  Documentación
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  Go
+                </td>
+
+                <td>
+                  El depósito no es configurable actualmente
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  Java
+                </td>
+
+                <td>
+                  [Configuración de java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#cfg-span-events-max-samples-stored)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  .NET
+                </td>
+
+                <td>
+                  [Configuración .NET](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#paragrp-max-samples-stored)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  Node.js
+                </td>
+
+                <td>
+                  [Configuración de Node.js](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#span-events-max-samples-stored)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  PHP
+                </td>
+
+                <td>
+                  El depósito no es configurable actualmente
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  Python
+                </td>
+
+                <td>
+                  [Configuración de Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#environment-variables) (Ver `NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED`)
+                </td>
+              </tr>
+
+              <tr>
+                <td>
+                  Ruby
+                </td>
+
+                <td>
+                  [Configuración Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#span_events-max_samples_stored)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </TabsPageItem>
+
+        <TabsPageItem id="otel-sample">
+          <Callout variant="tip">
+            Esta sección solo se aplica si sus servicios envían datos a New Relic a través de un recolector OpenTelemetry. Esto se debe a que los datos no se muestrean en un recolector de OpenTelemetry.
+          </Callout>
+
+          Para OpenTelemetry, todas las vistas de servicios externos se completan con trazas de muestra, lo que significa que es posible que no vea suficientes datos útiles. Para resolver esto, puede cambiar el muestreo en el recolector para permitir que entren más datos en New Relic.
+
+          Consulte [Muestreo](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#sampling) para obtener sugerencias sobre la configuración.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+</Steps>
+
+## ¿Que sigue? [#next]
+
+* Aprenda a utilizar servicios externos para [solucionar problemas de API](/docs/tutorial-external-services/respond-external)
+* Obtenga más información sobre [cómo navegar por la UIde servicios externos](/docs/apm/apm-ui-pages/monitoring/external-services/external-services-ui).
+* Si tiene preguntas sobre cómo entender la UI, consulte nuestros [consejos](/docs/apm/apm-ui-pages/monitoring/external-services/external-services-ui).

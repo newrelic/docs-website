@@ -1,0 +1,953 @@
+---
+title: 'Dropdown'
+metaDescription: 'Learn how to work the Dropdown component'
+freshnessValidatedDate: 2024-06-03
+---
+
+`<Dropdown>` are toggleable overlays for displaying a list of options.
+
+The `<Dropdown>` component can render the items in two ways: as an array of `<DropdownItem>` elements or as a render callback (Function as Children).
+
+The recommendation is to use the render callback when a large number of items is provided because then the dropdown will virtualize all the items and performance will be greatly improve.
+
+If you are willing to use `<Dropdown>` to paint a select field as you would do in a form, use `<Select>` instead.
+
+The component also supports nested lists, check out the [DropdownItem documentation](/docs/new-relic-solutions/build-nr-ui/sdk-component/controls/DropdownItem/) to learn more.
+
+### Usage
+
+```js
+import { Dropdown } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Dropdown title="Dropdown">
+  <DropdownItem>Item 1</DropdownItem>
+  <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+  <DropdownItem>Item 3</DropdownItem>
+  <DropdownItem>Item 4</DropdownItem>
+</Dropdown>
+```
+
+#### With label and info
+
+```js
+<Dropdown title="Dropdown" label="Items" info="Info value">
+  <DropdownItem>Item 1</DropdownItem>
+  <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+  <DropdownItem>Item 3</DropdownItem>
+  <DropdownItem>Item 4</DropdownItem>
+</Dropdown>
+```
+
+#### With inline label
+
+```js
+<Dropdown title="Dropdown" label="Items" labelInline>
+  <DropdownItem>Item 1</DropdownItem>
+  <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+  <DropdownItem>Item 3</DropdownItem>
+  <DropdownItem>Item 4</DropdownItem>
+</Dropdown>
+```
+
+#### With description
+
+```js
+<Dropdown title="Dropdown" description="Description value">
+  <DropdownItem>Item 1</DropdownItem>
+  <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+  <DropdownItem>Item 3</DropdownItem>
+  <DropdownItem>Item 4</DropdownItem>
+</Dropdown>
+```
+
+#### With Invalid message
+
+```js
+<Dropdown title="Dropdown" invalid="Invalid message value">
+  <DropdownItem>Item 1</DropdownItem>
+  <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+  <DropdownItem>Item 3</DropdownItem>
+  <DropdownItem>Item 4</DropdownItem>
+</Dropdown>
+```
+
+#### With sub items
+
+```js
+function render() {
+  const items = new Array(10).fill().map((_, i) => i + 1);
+
+
+  return (
+    <Dropdown title="Dropdown">
+      <DropdownItem>Item 1</DropdownItem>
+      <DropdownItem onClick={(evt) => console.log(evt)}>Item 2</DropdownItem>
+      <DropdownItem items={items}>
+        Item 3
+        {({ item, index }) => (
+          <DropdownItem key={index} onClick={(evt) => console.log(evt)}>
+            Item 3.{item}
+          </DropdownItem>
+        )}
+      </DropdownItem>
+      <DropdownItem>Item 4</DropdownItem>
+    </Dropdown>
+  );
+}
+```
+
+#### Sections
+
+```js
+<Dropdown title="Dropdown" sectioned>
+  <DropdownSection title="Section 1">
+    <DropdownItem>Item 1.1</DropdownItem>
+    <DropdownItem>Item 1.2</DropdownItem>
+  </DropdownSection>
+
+
+  <DropdownSection title="Section 2">
+    <DropdownItem>Item 2.1</DropdownItem>
+    <DropdownItem>Item 2.2</DropdownItem>
+  </DropdownSection>
+</Dropdown>
+```
+
+#### Virtualized list
+
+```js
+function render() {
+  const items = new Array(10000).fill().map((_, i) => `Item ${i}`);
+
+
+  return (
+    <Dropdown title="Dropdown" items={items}>
+      {({ item, index }) => (
+        <DropdownItem key={index} onClick={() => alert(item)}>
+          {item}
+        </DropdownItem>
+      )}
+    </Dropdown>
+  );
+}
+```
+
+#### Virtualized sections and items list
+
+```js
+function render() {
+  const sections = new Array(30).fill().map((_, s) => ({
+    title: `Section ${s}`,
+    items: new Array(1000).fill().map((_, i) => `Item ${s}.${i}`),
+  }));
+
+
+  return (
+    <Dropdown title="Dropdown" items={sections} sectioned>
+      {({ item: section, index }) => (
+        <DropdownSection
+          key={index}
+          title={section.title}
+          items={section.items}
+        >
+          {({ item, index }) => <DropdownItem>{item}</DropdownItem>}
+        </DropdownSection>
+      )}
+    </Dropdown>
+  );
+}
+```
+
+#### Search prop and onSearch callback
+
+```js
+class SearchDropdown extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      search: '',
+      items: [
+        { id: '1ed6', name: 'Melton Garcia' },
+        { id: 'f5a3', name: 'Finley Mendez' },
+        { id: '93bc', name: 'Coleen Salinas' },
+        { id: '7123', name: 'John Doe' },
+        { id: 'b62f', name: 'Ana Santos' },
+        { id: '8db4', name: 'Jane Smith' },
+        { id: '4c77', name: 'Colin Payne' },
+      ],
+    };
+  }
+
+
+  render() {
+    const { search, items } = this.state;
+
+
+    const filteredItems = items.filter(({ name }) =>
+      name.toLowerCase().includes(search.toLowerCase()),
+    );
+
+
+    return (
+      <Dropdown
+        title="Dropdown"
+        items={filteredItems}
+        search={search}
+        onSearch={(evt) => this.setState({ search: evt.target.value })}
+      >
+        {({ item }) => <DropdownItem key={item.id}>{item.name}</DropdownItem>}
+      </Dropdown>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a descriptive label for this control, e.g. "Accounts".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node|function</h5>
+      </td>
+
+      <td>
+        This component can render either declaratively, by directly passing a set of children or virtualized, by passing a render callback (function as children).Children can be of two types: `<DropdownItem>`s, to generate items; or `<DropdownSection>`s, when the dropdown is sectioned. Each section can, in turn, have `<DropdownItem>`s in it.The recommendation is to use the render callback when a large number of items is provided, since the item list will be virtualized by the component, thus increasing the performance.When using the render callback, items need to be provided through the `items` prop. Then, the callback will be called for each item present in the array, and the expected result is a `<DropdownItem>` or a `<DropdownSection>` depending on the `sectioned` prop.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the dropdown is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `iconType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Icon to display.
+        <OptionReference>  
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**AREA_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**BAR_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**BILLBOARD_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**BULLET_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_ADD,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_EDIT,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_REMOVE,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_ADD,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_EDIT,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_FILTER,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_REMOVE,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**EVENT_FEED_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**HEATMAP_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**LINE_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**MARKDOWN,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**PIE_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**SCATTER_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**SERVICE_MAP_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_BAR_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_HORIZONTAL_BAR_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**TABLE_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**TRAFFIC_LIGHTS_CHART,
+        Dropdown.ICON_TYPE.DATAVIZ**DATAVIZ**VERTICAL_BAR_CHART,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_ADD,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_REMOVE,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_ADD,
+        Dropdown.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_REMOVE,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**ATTACHMENT,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**DOCUMENTATION,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL**V_ALTERNATE,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_ADD,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_REMOVE,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_ADD,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_REMOVE,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_ADD,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_EDIT,
+        Dropdown.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_REMOVE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**ANOMALIES,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**A_INSPECT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CPU,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MEMORY,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**A_INSPECT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_ADD,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_CONFIGURE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_EDIT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_INSPECT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_PAUSE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_REMOVE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**STORAGE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CLUSTER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CONTAINER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_DEPLOYMENT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_MASTER_NODE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NAMESPACE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NODE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_POD,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_SERVICE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**ALL_ENTITIES,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CLOUD,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CODE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTAINER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTROL_CENTER,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION_REASONING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DECISIONS,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DESTINATIONS,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_CONNECTION,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_DEPLOYMENT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**EVENT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**FEED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LIVE_VIEW,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LOGS,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MONITORING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**NODE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**OVERVIEW,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PATHWAY,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**QUERY,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**A_CHECKED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_DISABLED,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_ERROR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_OK,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_WARNING,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SOURCES,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**STACK_TRACE,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHESIZED_ENTITY,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHETICS_MONITOR,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYSTEM,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRACES,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRAFFIC,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_CONNECTION,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_DEPLOYMENT,
+        Dropdown.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**WORKLOADS,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_HORIZONTAL,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**ARROW_VERTICAL,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**EXPAND,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**GO_TO,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**MOVE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**RESIZE,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**RETURN_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**RETURN_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**SHRINK,
+        Dropdown.ICON_TYPE.INTERFACE**ARROW**SORT,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_TOP,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_TOP**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_TOP**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**INFO**ANNOUNCEMENT,
+        Dropdown.ICON_TYPE.INTERFACE**INFO**HELP,
+        Dropdown.ICON_TYPE.INTERFACE**INFO**INFO,
+        Dropdown.ICON_TYPE.INTERFACE**INFO**INFO**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ADJUST,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ALERT,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**A_REMOVE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_OFF,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_ON,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**ARCHIVE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**CENTER,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**CONFIGURE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO_CLIPBOARD,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**DOWNLOAD,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**DRAG,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**EDIT,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**EXPORT,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**EXTERNAL_LINK,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**FILTER,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_ADD,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_REMOVE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**FOLLOW,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**GROUP,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**A_REMOVE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**HIDE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**HIDE_OTHERS,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**HIGHLIGHT,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**IMPORT,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**MORE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE_ALTERNATE**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**PIN,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**PLAY,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**PLAY_ALTERNATE**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**REARRANGE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**REDO,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**REFRESH,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**REMOVE**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**REPLY**A_REPLY,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SHARE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SHARE_LINK,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SHOW,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_BACK,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_FORWARD,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**TAG,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**TRASH,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE**A_TV_MODE,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**UNDO,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**UNPIN,
+        Dropdown.ICON_TYPE.INTERFACE**OPERATIONS**UPLOAD,
+        Dropdown.ICON_TYPE.INTERFACE**PLACEHOLDERS**CUSTOM_PLACEHOLDER,
+        Dropdown.ICON_TYPE.INTERFACE**PLACEHOLDERS**ICON_PLACEHOLDER,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**ASTERISK,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**CHECKMARK,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**CLOSE,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**DOLLAR_SIGN,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**MINUS,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**MINUS**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**NUMBER,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**PLUS,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**PLUS**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**TIMES,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**TIMES**SIZE_8,
+        Dropdown.ICON_TYPE.INTERFACE**SIGN**TIMES**V_ALTERNATE,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**CLOSED,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**CRITICAL,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**CRITICAL**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**DISABLED,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**ENABLED,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**HEALTHY,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**LOADING,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**LOCK,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**OPEN,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**PRIVATE,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**PUBLIC,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**UNAVAILABLE,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**UNLOCK,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**WARNING,
+        Dropdown.ICON_TYPE.INTERFACE**STATE**WARNING**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**ENTER_FULL_SCREEN,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**EXIT_FULL_SCREEN,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**GRID_VIEW,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**HIGH_DENSITY_VIEW,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**LAYER_LIST,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**LIST_VIEW,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**SIXTH_SENSE,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_DARK,
+        Dropdown.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_LIGHT,
+        Dropdown.ICON_TYPE.LOCATION**LOCATION**HOME,
+        Dropdown.ICON_TYPE.LOCATION**LOCATION**MAP,
+        Dropdown.ICON_TYPE.LOCATION**LOCATION**PIN,
+        Dropdown.ICON_TYPE.LOCATION**LOCATION**WORLD,
+        Dropdown.ICON_TYPE.PROFILES**EVENTS**COMMENT,
+        Dropdown.ICON_TYPE.PROFILES**EVENTS**COMMENT**A_EDIT,
+        Dropdown.ICON_TYPE.PROFILES**EVENTS**FAVORITE,
+        Dropdown.ICON_TYPE.PROFILES**EVENTS**FAVORITE**WEIGHT_BOLD,
+        Dropdown.ICON_TYPE.PROFILES**EVENTS**LIKE,
+        Dropdown.ICON_TYPE.PROFILES**USERS**ORGANIZATION,
+        Dropdown.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_ADD,
+        Dropdown.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_EDIT,
+        Dropdown.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_REMOVE,
+        Dropdown.ICON_TYPE.PROFILES**USERS**TEAM,
+        Dropdown.ICON_TYPE.PROFILES**USERS**TEAM**A_ADD,
+        Dropdown.ICON_TYPE.PROFILES**USERS**TEAM**A_EDIT,
+        Dropdown.ICON_TYPE.PROFILES**USERS**TEAM**A_REMOVE,
+        Dropdown.ICON_TYPE.PROFILES**USERS**USER,
+        Dropdown.ICON_TYPE.PROFILES**USERS**USER**A_ADD,
+        Dropdown.ICON_TYPE.PROFILES**USERS**USER**A_EDIT,
+        Dropdown.ICON_TYPE.PROFILES**USERS**USER\_\_A_REMOVE,</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean\|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `items` <h5>array</h5>
+      </td>
+
+      <td>
+        Items to render, in the shape of a list of objects. Usually, each item in the items array contains the required data to generate the corresponding `<DropdownItem>` (or `<DropdownSection>` in case the dropdown is sectioned).This prop is required when rendering items with the render callback (function as children).
+
+        ```js
+        const items = ['Item 1', 'Item 2', 'Item 3'];
+
+        const dropdown = (
+          <Dropdown title="Dropdown" items={items}>
+            {({ item, index }) => (
+              <DropdownItem key={index} onClick={() => console.log(item)}>
+                {item}
+              </DropdownItem>
+            )}
+          </Dropdown>
+        );
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `loading` <h5>boolean</h5>
+      </td>
+
+      <td>
+        To indicate whether an action is in progress, especially in the case that it takes more than 1 second to complete, you should display the loading state.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClose` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the dropdown is closed.<FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onLoadMore` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when more items must be loaded. This happens when you're lazy loading the items and the items that are about to render cannot be found in the `items` array.This callback should be used to fetch/load the missing items from the backend or other sources.The returned Promise should be resolved once item data has finished loading. It will be used to determine when to refresh the list with the newly-loaded data. This callback may be called multiple times in reaction to a single scroll event.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"cursor","type":"Cursor","description":"Items to load."}]}
+        />
+
+        <h3>
+          Lazy loading items
+        </h3>
+
+        ```js
+        import { Dropdown, DropdownItem } from 'nr1';
+
+        // This example assumes you have a way to know/load this information.
+        const remoteTotalNumberOfItems = 9000;
+        const items = [
+          { id: 1, text: 'Item 1' },
+          { id: 2, text: 'Item 2' },
+          { id: 3, text: 'Item 3' },
+          { id: 4, text: 'Item 4' },
+        ];
+
+        function fetchMore({ startIndex, stopIndex }) {
+          return fetch(
+            `path/to/api?startIndex=${startIndex}&stopIndex=${stopIndex}`
+          ).then((response) => {
+            // Store items in item list...
+          });
+        }
+
+        const dropdown = (
+          <Dropdown
+            items={items}
+            onLoadMore={fetchMore}
+            rowCount={remoteTotalNumberOfItems}
+            title="Dropdown"
+          >
+            {({ item, index }) => <DropdownItem key={index}>{item.text}</DropdownItem>}
+          </Dropdown>
+        );
+        ```
+
+        <h3>
+          Integration with the query components
+        </h3>
+
+        ```js
+        import { EntitiesByDomainTypeQuery, Dropdown, DropdownItem } from 'nr1';
+
+        const renderDropdown = (queryResult) => {
+          const { fetchMore, loading, data } = queryResult;
+          const { results, count } = data.actor.entitySearch;
+
+          return (
+            <Dropdown
+              items={results.entities}
+              onLoadMore={fetchMore}
+              rowCount={count}
+              title="Dropdown"
+            >
+              {({ item, index }) => (
+                <DropdownItem key={index}>{item.text}</DropdownItem>
+              )}
+            </Dropdown>
+          );
+        };
+
+        const style = { width: 200, height: 300 };
+        const dropdown = (
+          <EntitiesByDomainTypeQuery entityDomain="APM" entityType="APPLICATION">
+            {renderDropdown}
+          </EntitiesByDomainTypeQuery>
+        );
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onOpen` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the dropdown is opened.
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onSearch` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the search input of the dropdown changes. This callback needs the `search` prop to be defined.
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.ChangeEvent","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onToggle` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the dropdown is toggled.
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""},{"name":"opened","type":"boolean","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `placementType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Specifies the placement of the dropdown relative to the dropdown trigger. Default display is on the bottom start, but you can also choose to display it from the bottom end.
+        <OptionReference>Dropdown.PLACEMENT_TYPE.BOTTOM_END,
+        Dropdown.PLACEMENT_TYPE.BOTTOM_START
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rowCount` <h5>number</h5>
+      </td>
+
+      <td>
+        Number of rows.By default it's equal to length of array passed in the items prop.You should specify the `rowCount` when you know the total number of items but you want to lazy load them while scrolling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `search` <h5>string</h5>
+      </td>
+
+      <td>
+        Value of the search input. The search input will be shown only if the value is defined.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sectioned` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Establishes whether the dropdown is sectioned. A sectioned dropdown composes its options grouped by sections (made with `<DropdownSection>`), where each section is delimited by an optional title at the top, and a horizontal separator at the bottom.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+        <OptionReference array>Dropdown.SPACING_TYPE.EXTRA_LARGE,
+        Dropdown.SPACING_TYPE.LARGE,
+        Dropdown.SPACING_TYPE.MEDIUM,
+        Dropdown.SPACING_TYPE.NONE,
+        Dropdown.SPACING_TYPE.OMIT,
+        Dropdown.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title` <h5>string</h5>
+      </td>
+
+      <td>
+        The text to display in the dropdown button. When not present, an icon must be passed instead.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Primary — use to call attention to one specific action you want the user to take as a next step.
+        * Normal (used as secondary) — use when multiple actions need to be displayed.
+        * Plain — use when multiple actions need to be available that are less important for the user to take.
+        * Destructive — use when you have a destructive action like delete or remove, which you would like the user to pause and consider before completing.
+          <OptionReference>Dropdown.TYPE.DESTRUCTIVE,
+          Dropdown.TYPE.NORMAL,
+          Dropdown.TYPE.PLAIN,
+          Dropdown.TYPE.PLAIN_NEUTRAL,
+          Dropdown.TYPE.PRIMARY,</OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"DropdownRendererArguments","properties":[{"description":"Item to render","name":"item","type":"string"},{"description":"Index of the item in the items array","name":"index","type":"number"},{"description":"Array of items which we're iterating on","name":"items","type":"string[]"}]}}/>
+
+<TypeDefReference typeDef={{"name":"Cursor","properties":[{"description":"First index of the range of items to load.","name":"startIndex","type":"number"},{"description":"Last index of the range of items to load.","name":"stopIndex","type":"number"}]}}/>

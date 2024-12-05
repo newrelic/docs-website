@@ -1,0 +1,331 @@
+---
+title: Conceptos importantes de gestión de usuarios
+tags:
+  - Accounts
+  - Accounts and billing
+  - New Relic user management
+metaDescription: 'For New Relic user management: how permissions work, including how groups, roles, and permissions work.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para configurar y administrar su usuario de New Relic, primero debe comprender algunos conceptos básicos sobre cómo funciona nuestro sistema de administración de usuarios.
+
+## Resumen del acceso de usuarios [#overview]
+
+El acceso que tiene el usuario a las características del producto está controlado por dos factores:
+
+* Tipo de usuario (usuario básico, usuario principal, usuario de plataforma completa): el tipo de usuario de un usuario se basa en cuánto espera que ese usuario use New Relic. El tipo de usuario es un factor de facturación. No pretende ser una forma de establecer permisos. Para obtener más información sobre esto, consulte [Tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type).
+* Acceso basado en roles: esto es lo que utiliza para controlar los permisos de su usuario, y de eso se trata el resto de este documento.
+
+Estos son dos sistemas separados. Para poder acceder a una característica de New Relic, tanto su tipo de usuario como sus permisos basados en roles deben permitir ese acceso. Para obtener más información sobre la relación entre el tipo de usuario y los roles, consulte [Tipo de usuario y roles](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type#user-type-and-roles). El resto de este documento trata sobre el acceso basado en roles.
+
+## Cómo los grupos y roles controlan el acceso a New Relic [#understand-concepts]
+
+En New Relic, el usuario <DNT>**groups**</DNT> contiene <DNT>**roles**</DNT> y esos roles contienen <DNT>**permissions**</DNT>. Para que un usuario de New Relic pueda utilizar la característica New Relic, debe estar en un [grupo](#groups) con acceso asignado a:
+
+* Un [rol](#roles) específico (un rol es un conjunto de [permisos](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions) granulares específicos).
+* Una o más cuentas.
+
+Las organizaciones con [Pro o edición Enterprise](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) pueden tener múltiples cuentas en su organización y pueden crear roles y grupos personalizados. Nuestras ediciones Gratuita y Estándar permiten solo una cuenta en una organización y no le permiten crear roles o grupos personalizados.
+
+Cuando se registra inicialmente en New Relic, su organización tiene algunas asignaciones de cuentas y funciones integradas para los [grupos<DNT>**User**</DNT> o <DNT>**Admin**</DNT> ](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#groups)predeterminados. Por ejemplo, el grupo <DNT>**Admin**</DNT> tiene varias asignaciones de roles que otorgan al usuario de ese grupo un amplio acceso a New Relic, incluidos permisos administrativos de nivel superior.
+
+<img
+  title="New Relic user mgmt groups UI - default group assignments"
+  alt="New Relic user mgmt groups UI - default group assignments"
+  src="/images/accounts_screenshot-crop_User-mgmt-groups-UI.webp"
+/>
+
+<figcaption>
+  Una vista de la [UI<DNT>**Access management**</DNT> ](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where), que muestra cómo nuestros grupos predeterminados (<DNT>**Admin**</DNT> y <DNT>**User**</DNT>) obtienen acceso a funciones, cuentas y configuraciones administrativas.
+</figcaption>
+
+A continuación se muestra un diagrama que muestra cómo funciona el acceso grupal y cómo se relacionan con la organización en general:
+
+<img
+  title="user-management-diagram.png"
+  alt="New Relic user management diagram"
+  src="/images/accounts_diagram_user-mgmt-concepts-diagram.webp"
+/>
+
+<figcaption>
+  Un diagrama que muestra cómo los grupos dan a los usuarios de ese grupo acceso a roles y cuentas.
+</figcaption>
+
+Para obtener consejos sobre cómo configurar grupos, consulte nuestro [tutorial de gestión de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/tutorial-add-new-user-groups-roles-new-relic-one-user-model#group-access).
+
+## Grupos [#groups]
+
+En New Relic, colocar un usuario en un <DNT>**group**</DNT> permite administrar permisos para múltiples usuarios al mismo tiempo. Por ejemplo, si está utilizando nuestra característica [de administración automatizada de usuarios](/docs/accounts/accounts/automated-user-management/automated-user-provisioning-single-sign) , puede importar un grupo personalizado de usuarios (por ejemplo, <DNT>**External consultants**</DNT>) desde su servicio de proveedor de identidad y luego [otorgar una función y una cuenta](#understand-concepts) a ese grupo.
+
+Un usuario debe estar en al menos un grupo con acceso a un rol y al menos una cuenta para poder acceder a la característica New Relic.
+
+Tenga en cuenta que los grupos **no** son los que restringen los permisos de New Relic de un usuario: son los <DNT>**role**</DNT> asignados a ese grupo los que otorgan acceso a los permisos.
+
+Tenemos dos grupos de usuarios simples disponibles de forma predeterminada (ver más abajo). Y las organizaciones Pro y Enterprise pueden [crear grupos personalizados](/docs/accounts/accounts-billing/new-relic-one-user-management/tutorial-add-new-user-groups-roles-new-relic-one-user-model/#group-access).
+
+El usuario y los grupos se encuentran dentro de un [dominio de autenticación](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/), que es lo que controla la configuración relacionada con cómo se aprovisiona al usuario (por ejemplo, a través de un proveedor de identidad) y cómo log sesión.
+
+### Nuestros grupos de usuarios predeterminados [#default-groups]
+
+Tenemos dos grupos de usuarios predeterminados:
+
+* <DNT>
+    **User**
+  </DNT>
+
+  : Un usuario de este grupo puede usar y configurar nuestra característica de observabilidad y monitoreo, pero **no** realizar tareas a nivel de cuenta como administrar la facturación o administrar otros usuarios. Tiene acceso a la función
+
+  <DNT>
+    [**All product admin**](#standard-roles)
+  </DNT>
+
+  , que otorga control sobre todas las herramientas de la plataforma de observabilidad, pero no tiene ninguna [configuración de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings), que otorga acceso a las capacidades de administración de usuarios y cuentas de nivel superior.
+
+* <DNT>
+    **Admin**
+  </DNT>
+
+  : tiene el [rol](#standard-roles)
+
+  <DNT>
+    [**All product admin**](#standard-roles)
+  </DNT>
+
+  [](#standard-roles)y además tiene todas [las configuraciones de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings) disponibles. Como resultado, este grupo tiene acceso a todas las características, incluida la característica de administrador de nivel superior.
+
+Para editar el grupo en el que se encuentra un usuario, puede ir a la UI <DNT>**Access management**</DNT> y editar un grupo, o ir a la UI <DNT>**User management**</DNT> y editar el usuario.
+
+## Roles [#roles]
+
+Ofrecemos varios [roles predeterminados](#standard-roles), pero las organizaciones con Pro o edición Enterprise pueden crear sus propios roles personalizados.
+
+Puntos importantes sobre los roles:
+
+* Los roles son aditivos: los usuarios con múltiples roles asignados tienen el total de todos los permisos otorgados por esos roles. Por ejemplo, si estás en un grupo que te otorga el rol `All product admin` en una cuenta y en otro grupo que te otorga un rol `Read only` para la misma cuenta, tienes ambos roles y no estás restringido por el `Read only` rol.
+* El acceso de un usuario se basa en el acceso que le otorga su tipo de usuario y sus permisos ([más información](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type#user-type-and-roles)).
+* Los roles gobiernan la característica de la plataforma de observabilidad, mientras que el acceso a la configuración de administración relacionada con la organización y el usuario se rige por [la configuración de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings).
+
+Para ver las funciones y sus permisos, vaya a la [UI<DNT>**Access management**</DNT> ](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#where)y haga clic en <DNT>**Roles**</DNT>.
+
+### Nuestros roles estándar (predeterminados) [#standard-roles]
+
+Tenemos varios <DNT>**standard roles**</DNT>, que son roles que están disponibles de forma predeterminada y que satisfacen algunos casos de uso comunes de administración de usuarios.
+
+<Callout variant="important">
+  Tenga en cuenta que algunos de nuestros roles estándar tienen permisos que no exponemos y que no están disponibles para agregarlos a un rol personalizado. Los únicos roles estándar que se pueden replicar con un rol personalizado son <DNT>**Standard user**</DNT> y <DNT>**Read only**</DNT>; todos los demás tienen algunos permisos no expuestos.
+</Callout>
+
+Aquí hay una tabla con nuestros roles estándar. Para comprender mejor estos roles, vaya a la UI usuario de administración de acceso y seleccione un rol.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Roles estándar
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Directrices [para el tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **All product admin**
+        </DNT>
+      </td>
+
+      <td>
+        Esta función incluye todos los permisos de la plataforma New Relic <DNT>**except**</DNT> la capacidad de administrar la configuración, el usuario y la facturación a nivel de organización. Es un rol de administrador en el sentido de que permite la configuración de nuestra característica de plataforma (por ejemplo, la capacidad de configurar <InlinePopover type="apm"/>ajustes), pero no proporciona permisos de administrador a nivel de organización (esos requieren [la configuración de administración](#admin-settings)).
+
+        Esta función es esencialmente la función <DNT>**Standard user**</DNT> , que se muestra a continuación, con la capacidad adicional de configurar la característica de observabilidad.
+      </td>
+
+      <td>
+        Cualquier. Recomendado: plataforma central o completa.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Standard user**
+        </DNT>
+      </td>
+
+      <td>
+        Proporciona acceso a nuestras características de plataforma (por ejemplo, APM UI y <InlinePopover type="browser"/>UI), pero carece de permisos para configurar esas características y carece de permisos de administración de usuarios y a nivel de organización.
+
+        Utilice la UI de usuario de administración de acceso para ver las capacidades incluidas en el rol de usuario estándar en toda la plataforma.
+      </td>
+
+      <td>
+        Cualquier. Recomendado: plataforma central o completa.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Read only**
+        </DNT>
+      </td>
+
+      <td>
+        Proporciona acceso de solo lectura a la plataforma New Relic (excepto [las credenciales seguras del monitor Sintético](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests)).
+      </td>
+
+      <td>
+        Cualquier.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener más información sobre cómo asignar roles a grupos y crear roles personalizados, consulte el [tutorial de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/tutorial-add-new-user-groups-roles-new-relic-one-user-model).
+
+### Configuración de administración [#admin-settings]
+
+Puedes agregar varios <DNT>**Administration settings**</DNT> a un grupo. El usuario básico no podrá utilizar esta configuración.
+
+La configuración incluye:
+
+* <DNT>
+    **Organization settings**
+  </DNT>
+
+  : permisos relacionados con la configuración de la organización, incluida la adición de cuentas y el cambio del nombre de la organización y las cuentas.
+
+* <DNT>
+    **Authentication domain settings**
+  </DNT>
+
+  : Permisos relacionados con agregar y administrar usuarios, incluida la configuración del dominio de autenticación y la personalización de grupos y roles. Las opciones dentro de esto incluyen:
+
+  * <DNT>
+      **Manage**
+    </DNT>
+
+    : Puede gestionar todos los aspectos del dominio de autenticación, incluida la configuración del dominio y la adición de usuarios.
+
+  * <DNT>
+      **Read only**
+    </DNT>
+
+    : Puede ver el dominio de autenticación y la información del usuario.
+
+  * <DNT>
+      **Add users**
+    </DNT>
+
+    : Puede ver información del usuario y agregar usuarios a la organización, pero carece de otras capacidades de administración y configuración del dominio de autenticación.
+
+  * <DNT>
+      **Read users**
+    </DNT>
+
+    : Sólo puede ver la información del usuario.
+
+* <DNT>
+    **Billing**
+  </DNT>
+
+  : permite al usuario ver y administrar la facturación, el uso y la retención de datos. Para organizaciones con varias cuentas, la facturación se agrega en
+
+  <DNT>
+    **reporting account**
+  </DNT>
+
+  (generalmente la primera cuenta creada en una organización).
+
+### Administrador del grupo [#group-admin]
+
+Puede agregar un rol <DNT>**Group admin**</DNT> a un grupo. Esta función le brinda al grupo la capacidad de agregar y eliminar usuarios para uno o más grupos que seleccione.
+
+Con esta característica, puede darle al usuario seleccionado la posibilidad de agregar y eliminar usuarios para un grupo específico. Esto puede ser preferible a otorgar al usuario la [configuración de dominio de autenticación](#admin-settings) <DNT>**Manage**</DNT> mucho más potente y específica para la organización. Por ejemplo, es posible que solo tenga uno o dos administradores en la empresa con permisos de administración de usuarios para toda la organización, pero es posible que desee otorgar a varios administradores más la capacidad de administrar usuarios para equipos específicos, y esta función es útil para eso.
+
+Para utilizar la función <DNT>**Group admin**</DNT> , un usuario debe estar en un grupo con al menos una de las configuraciones de administrador del dominio de autenticación.
+
+<Video
+  id="8s6jSAviZBM"
+  type="youtube"
+/>
+
+## Capacidades [#capabilities]
+
+Para obtener información sobre los permisos que tienen los roles y que están disponibles para agregarlos a roles personalizados, consulte [Permisos](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions).
+
+## Administrar usuario
+
+Para aprender cómo agregar usuarios, asignarlos a grupos y crear grupos y roles personalizados, consulte [Administrar usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks).
+
+## Utilice la API [#api]
+
+Para saber cómo administrar sus usuarios y grupos a través de API, consulte [nuestros documentos de NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-manage-users).
+
+## Términos y definiciones de gestión de usuarios [#definitions]
+
+Para obtener una explicación de cómo funciona el acceso de los usuarios a cuentas y roles, consulte [conceptos de gestión de usuarios](#understand-concepts). A continuación se muestran algunas definiciones de algunos de nuestros términos de gestión de usuarios:
+
+* Una New Relic
+
+  <DNT>
+    **organization**
+  </DNT>
+
+  es la representación de su organización y contiene todas sus cuentas, usuarios y datos. Para obtener más información, consulte [organización y estructura de cuentas](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure).
+
+* Un
+
+  <DNT>
+    **permission**
+  </DNT>
+
+  es la capacidad de usar o editar una característica específica y granular de New Relic. Para obtener más información, consulte [Permisos](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions).
+
+* Un
+
+  <DNT>
+    **role**
+  </DNT>
+
+  es un conjunto de permisos. Es lo que le da al usuario sus permisos. Nuestros [roles estándar](#standard-roles) predeterminados tienen varios permisos y usted puede crear roles personalizados que tengan permisos personalizados.
+
+* Un usuario
+
+  <DNT>
+    **group**
+  </DNT>
+
+  tiene uno o más roles asociados. Asignas tu usuario a un grupo. Tenemos [grupos de usuarios predeterminados](#default-groups) (
+
+  <DNT>
+    **Admin**
+  </DNT>
+
+  y
+
+  <DNT>
+    **User**
+  </DNT>
+
+  ) y usted puede crear sus propios grupos.
+
+* Un
+
+  <DNT>
+    [**authentication domain**](/docs/accounts/accounts-billing/new-relic-one-pricing-users/configure-authentication-domains)
+  </DNT>
+
+  contiene un conjunto de usuarios que se agregan a New Relic y que log sesión en New Relic de la misma manera.
+
+* Si un usuario es un [usuario básico](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type), esto tiene prioridad sobre cualquier permiso relacionado con el rol. Para obtener más información sobre esto, consulte [Usuarios y roles básicos](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#user-type-groups-relation).

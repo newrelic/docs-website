@@ -1,0 +1,247 @@
+---
+title: 'Radio'
+metaDescription: 'Learn how to work the Radio component'
+freshnessValidatedDate: 2024-06-03
+---
+
+When a user can choose only one of the options provided
+
+The radio button state can be controlled through the `checked` property. If the `checked` prop is not set then the radio button will manage its own state.
+
+You can listen to the radio button events through the `onClick` or the `onChange` props.
+
+### Usage
+
+```js
+import { Radio } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Docs-prettify">
+  <Radio onChange={(event) => alert('Foo')} label="Foo" />
+  <Radio checked label="Bar" />
+  <Radio checked disabled label="Baz" />
+</div>
+```
+
+#### With info
+
+```js
+<Radio onChange={(event) => alert('Foo')} info="Info value" label="Foo" />
+```
+
+#### With description
+
+```js
+<Radio
+  onChange={(event) => alert('Foo')}
+  description="Description value"
+  label="Foo"
+/>
+```
+
+#### With invalid message
+
+```js
+<Radio
+  onChange={(event) => alert('Foo')}
+  invalid="Invalid message value"
+  label="Foo"
+/>
+```
+
+#### Controlled component
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      isChecked: false,
+    };
+
+
+    this.onClick = this.onClick.bind(this);
+  }
+
+
+  onClick(event) {
+    this.setState((state) => {
+      return { isChecked: !state.isChecked };
+    });
+  }
+
+
+  render() {
+    return (
+      <Radio
+        checked={this.state.isChecked}
+        onClick={this.onClick}
+        label="Radio button"
+      />
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `checked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the radio button is checked.If defined, it turns the input into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the radio button is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the selected state of the radio button changes.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":"Event source of the callback."},{"name":"value","type":"any","description":"The value of the radio button."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the radio button is clicked.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Radio.SPACING_TYPE.EXTRA_LARGE,
+          Radio.SPACING_TYPE.LARGE,
+          Radio.SPACING_TYPE.MEDIUM,
+          Radio.SPACING_TYPE.NONE,
+          Radio.SPACING_TYPE.OMIT,
+          Radio.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string</h5>
+      </td>
+
+      <td>
+        The value of the component. Used by the `<RadioGroup/>` to identify the selected radio button.
+      </td>
+    </tr>
+  </tbody>
+</table>

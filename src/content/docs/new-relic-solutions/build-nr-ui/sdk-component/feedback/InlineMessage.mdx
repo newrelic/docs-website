@@ -1,0 +1,228 @@
+---
+title: 'InlineMessage'
+metaDescription: 'Learn how to work the InlineMessage component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Use the inline messages when an element requires attention. They alert users that important information is available or action is required and disappear once the user has taken appropriate action.
+
+The inline message uses an icon as the main element to give a visual indicator of the type and urgency of the message. The icon can be combined with an optional label to highlight its message.
+
+The inline message reveals a dialog that provides a summary of the issue and links to information or actions when the user hovers on the icon or the icon and label combination.
+
+### Usage
+
+```js
+import { InlineMessage } from 'nr1'
+```
+
+### Examples
+
+#### Types
+
+```js
+<Stack>
+  <StackItem>
+    <InlineMessage label="We have updated the data for this chart." />
+  </StackItem>
+  <StackItem>
+    <InlineMessage
+      type={InlineMessage.TYPE.SUCCESS}
+      label="The entity has been successfully created"
+    />
+  </StackItem>
+  <StackItem>
+    <InlineMessage
+      type={InlineMessage.TYPE.WARNING}
+      label="The edition is restricted for this account."
+    />
+  </StackItem>
+  <StackItem>
+    <InlineMessage
+      type={InlineMessage.TYPE.CRITICAL}
+      label="We couldn't fetch the data."
+    />
+  </StackItem>
+</Stack>
+```
+
+#### Label and action
+
+```js
+<InlineMessage
+  type={InlineMessage.TYPE.CRITICAL}
+  label="We couldn't transform the query."
+  action={{ label: 'See the documentation', onClick: console.log }}
+/>
+```
+
+#### Dialog with details
+
+```js
+<InlineMessage
+  type={InlineMessage.TYPE.SUCCESS}
+  label="The data has been added."
+  description="You have successfully added 3 new hosts."
+  action={{ label: 'See the hosts', onClick: console.log }}
+/>
+```
+
+#### Icon only
+
+```js
+<InlineMessage
+  type={InlineMessage.TYPE.CRITICAL}
+  title="We can't render this query."
+  description="We tried to transform your query into a query that is compatible with both Metric and previous Infrastructure methods, but some expressions weren’t available."
+  action={{ label: 'See NRQL documentation', to: '//docs.newrelic.com' }}
+/>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `action` <h5>shape</h5>
+      </td>
+
+      <td>
+        You may specify an action to provide the user with some actionable next steps to avoid leading them to a dead end.
+
+        <h3>
+          shape
+        </h3>
+
+        `ariaLabel` <h5>string</h5>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        <SideBySide>
+          <Side>
+            `onClick` <h5>function</h5>
+          </Side>
+
+          <Side>
+            Callback fired any time the user clicks on the button.
+
+            <FunctionDefinition
+              returnValue={[]}
+              arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+            />
+          </Side>
+        </SideBySide>
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+            <h4>shape</h4>
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a label for screen readers to describe the status message. This is only required if the screen reader label should be different to the `label` prop, or if you are not providing a `label` prop at all.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Should be used to provide further details in the dialog and complement the title.Note: `title`, `label`, and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Short summary of the status. Use the label when possible to shortly describe the status of the component and when there are no spacing limitations.Note: `title`, `label`, and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title` <h5>string</h5>
+      </td>
+
+      <td>
+        Title displayed in the dialog.Note: `title`, `label`, and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Info (default) — use it to indicate general or in-progress status.
+        * Success — use it to communicate positive changes.
+        * Warning — use it to communicate a possible problem, undesired situation, cautionary advice, or advanced notice of some sort.
+        * Critical — use it to communicate problematic issues.
+
+          <OptionReference>
+            InlineMessage.TYPE.CRITICAL,
+            InlineMessage.TYPE.INFO,
+            InlineMessage.TYPE.SUCCESS,
+            InlineMessage.TYPE.WARNING
+          </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,124 @@
+---
+title: 'Badge'
+metaDescription: 'Learn how to work the Badge component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Badges indicate the status of an object.
+
+### Usage
+
+```js
+import { Badge } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Docs-prettify">
+  <Badge>Normal</Badge>
+</div>
+```
+
+#### Types
+
+```js
+<div className="nr1-Docs-prettify">
+  <Badge>Normal</Badge>
+  <Badge type={Badge.TYPE.INFO}>New</Badge>
+  <Badge type={Badge.TYPE.SUCCESS}>Success</Badge>
+  <Badge type={Badge.TYPE.WARNING}>Warning</Badge>
+  <Badge type={Badge.TYPE.CRITICAL}>Critical</Badge>
+</div>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5><h5>string|number</h5>
+      </td>
+
+      <td>
+        String to render inside the badge. Ellipsis will apply if the content is more than 24 characters.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Badge.SPACING_TYPE.EXTRA_LARGE,
+          Badge.SPACING_TYPE.LARGE,
+          Badge.SPACING_TYPE.MEDIUM,
+          Badge.SPACING_TYPE.NONE,
+          Badge.SPACING_TYPE.OMIT,
+          Badge.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Normal — indicates general or in-progress status, eg. ‘Coming soon’ or ‘Minor’.
+        * Info - indicates a new, created, or help status, eg. ‘New’, ‘Beta’ or ‘Information’.
+        * Success - indicates a successful state.
+        * Warning - indicates items that require advice state.
+        * Critical - indicates problematic items.
+
+          <OptionReference>
+            Badge.TYPE.CRITICAL,
+            Badge.TYPE.INFOBadge.TYPE.NORMAL,
+            Badge.TYPE.SUCCESS,
+            Badge.TYPE.WARNING,
+          </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

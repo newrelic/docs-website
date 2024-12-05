@@ -1,0 +1,1526 @@
+---
+title: Configurar la lógica de correlación con las decisiones.
+metaDescription: 'For New Relic''s alerts, how to configure the correlation logic using decisions.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con la lógica de correlación de alertas, los problemas relacionados se agrupan para reducir las alertas redundantes y que distraen. Cuando ingresan a su sistema, son elegibles para nuestra lógica de correlación. Los problemas elegibles se evalúan en función del tiempo, el contexto de alerta y los datos de relación. Si hay varios problemas relacionados, nuestra lógica de correlación incorporará el incidente relacionado en un [problema](/docs/alerts-applied-intelligence/overview/#concepts-terms) único y completo.
+
+A esta lógica de correlación la llamamos <DNT>**decisions**</DNT>. Tenemos decisiones integradas, pero también puedes crear y personalizar las tuyas propias en la página de decisiones. Para encontrar la página de decisiones, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>. Cuanto más configure sus decisiones para que se adapten mejor a sus necesidades, mejor podrá New Relic correlacionar su incidente, reducir el ruido y proporcionar un mayor contexto para los equipos de guardia.
+
+<img
+  title="NRAI_Decisions_Page.png"
+  alt="A screenshot that shows the alert decisions UI."
+  src="/images/alerts_screenshot-full_new-relic-decisions-page.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Incident intelligence > Decisions**</DNT>: Nuestra UI muestra cómo cada decisión se correlaciona con el incidente.
+</figcaption>
+
+## ¿Qué es la correlación y cómo funciona? [#what-is-correlaton]
+
+Su incidente más reciente y activo está disponible para nuestra lógica de correlación. Por ejemplo, digamos que su sistema ha recibido dos alertas que indican que un monitor Sintético está fallando en Australia y Londres. Estos dos alerta habrán creado su propio incidente único. Esos incidentes generarán sus propios problemas únicos según [la política de creación de incidentes](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-target) existente de su equipo. La lógica de correlación de New Relic comparará esos incidentes entre sí para encontrar similitudes. En este caso, es el mismo monitor el que falla en varias ubicaciones, por lo que New Relic fusionará ambos incidentes en un solo problema que contenga cada evento relevante.
+
+Cuando correlacionamos un evento, comparamos cada par de combinaciones entre sí y combinamos tantas como sea posible. Por ejemplo:
+
+* Nuestro algoritmo correlaciona el incidente A y B (llámelo "AB").
+* Nuestro algoritmo correlaciona el incidente B y C (llámelo "BC").
+* Debido a que B está presente en ambos problemas, el algoritmo correlaciona los tres incidentes en un solo problema.
+
+## Configurar la política de correlación [#configure-correlation]
+
+Para habilitar la correlación en problemas basados en [alertas](/docs/alerts-applied-intelligence/overview/#concepts-terms) , deberá conectarse a la correlación para la [política de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy/#alert-policy-name) respectiva.
+
+<img
+  title="Decision - enable correlation for alert policy"
+  alt="A screenshot of how to enable correlation for an alert policy."
+  src="/images/alerts_screenshot-full_decision-policy-.webp"
+/>
+
+<figcaption>
+  Marque la casilla <DNT>**Correlate and suppress noise**</DNT> para habilitar la correlación para la política de alertas.
+</figcaption>
+
+## Tipos de decisión [#decision-types]
+
+Las decisiones determinan cómo la inteligencia de incidentes correlaciona los problemas. La lógica de correlación de New Relic está disponible para su equipo en tres tipos de decisiones diferentes:
+
+* <DNT>
+    **Global decision**
+  </DNT>
+
+  : Un amplio conjunto de decisiones predeterminadas se habilita automáticamente cuando comienza a emplear alertas.
+
+* <DNT>
+    **Suggested decision**
+  </DNT>
+
+  : El motor de correlación de New Relic evalúa constantemente los datos de su evento para sugerir decisiones que capturen patrones de correlación para reducir el ruido. Puede obtener una vista previa de los resultados de la simulación de una decisión sugerida y elegir activarla.
+
+* <DNT>
+    **Custom decision**
+  </DNT>
+
+  : Su equipo puede personalizar las decisiones según su caso de uso para mejorar la eficacia de la correlación. La UI de decisión de New Relic le brinda flexibilidad para configurar todas las dimensiones en una decisión.
+
+## Revisa tus decisiones activas [#decisions]
+
+Para revisar las decisiones existentes de su equipo:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com](https://one.newrelic.com/all-capabilities)> Alerts > Incident intelligence > Decisions**
+   </DNT>
+
+   .
+
+2. Revisar la lista de decisiones activas. Para ver la lógica de reglas que crea correlaciones entre sus problemas, haga clic en la decisión.
+
+3. Para ver ejemplos de incidentes relacionados con la decisión, haga clic en la pestaña
+
+   <DNT>
+     **Recent correlations**
+   </DNT>
+
+   .
+
+4. Tiene la opción de habilitar o deshabilitar estas decisiones globales.
+
+## Configurar fuentes [#configure-sources]
+
+Antes de configurar sus decisiones, es importante determinar las fuentes que le gustaría correlacionar. Las fuentes son sus entradas de datos.
+
+Puede obtener datos de cualquiera de las siguientes fuentes:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="configure-source-nr-alerts"
+    title="Alerta"
+  >
+    Al habilitar la inteligencia de incidentes para sus políticas <InlinePopover type="alerts"/>, puede obtener contexto y correlaciones de lo que está monitoreando. Para obtener datos de alerta:
+
+    1. Desde <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, haga clic en <DNT>**Alerts**</DNT>.
+
+    2. A la izquierda, debajo de <DNT>**incident intelligence**</DNT>, haga clic en <DNT>**Sources**</DNT> y luego haga clic en <DNT>**Alerts**</DNT>.
+
+    3. Seleccione las políticas que desea conectar a las alertas y haga clic en <DNT>**Connect**</DNT>.
+
+       Puedes agregar política de alertas adicionales o eliminar políticas que ya hayas conectado en <DNT>**Sources > Alerts**</DNT>.
+
+       <Callout variant="tip">
+         Agregar alerta como fuente no afectará su configuración o notificación actual.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="Aporía (MLOps)"
+  >
+    Al integrar la inteligencia de incidentes con sus modelos de aprendizaje automático de Aporia, puede monitor el rendimiento de su modelo de aprendizaje automático. Para configurar nuestra integración de Aporia, consulte nuestros [documentos](/docs/integrations/mlops-integrations/aporia-mlops-integration/).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="Supersabio (MLOps)"
+  >
+    Al integrar la inteligencia de incidentes con sus modelos de aprendizaje automático Superwise, puede monitor el rendimiento de su modelo de aprendizaje automático. Para configurar nuestra integración Superwise, consulte nuestros [documentos](/docs/alerts-applied-intelligence/mlops/integrations/superwise-mlops-integration/).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-source-rest-api"
+    title="API REST"
+  >
+    Incidente Intelligence admite una interfaz API REST dedicada que le permite integrarse con sistemas adicionales. La interfaz permite la instrumentación de su código u otras soluciones de monitoreo para informar cualquier tipo de métrica o evento.
+
+    * Una métrica puede ser un punto de datos sin procesar, como CPU, memoria, utilización del disco o KPI empresarial.
+
+    * Un evento puede ser una alerta de monitoreo, un evento de despliegue, un incidente, excepciones o cualquier otro cambio de estado que desee describir.
+
+      También puedes enviar cualquier tipo de datos a incidente Intelligence directamente desde tus propios sistemas o aplicaciones. La API REST admite la autenticación segura basada en tokeny acepta contenido JSON como entrada.
+
+      Para obtener más información sobre la autenticación y la referencia completa de la API, consulte [API REST para alertas de New Relic](/docs/rest-api-new-relic-ai).
+  </Collapser>
+</CollapserGroup>
+
+### Decisiones globales [#global-decisions]
+
+Las decisiones globales se habilitan automáticamente cuando su equipo comienza a usar alertas. No requieren configuración y están disponibles de inmediato para su equipo. Las decisiones globales cubren una variedad de escenarios de correlación.
+
+La siguiente tabla proporciona descripciones de todas las decisiones globales que se habilitan automáticamente.
+
+<table id="global-decision-descriptions">
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Nombre de la decisión
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Mismo nombre de objetivo New Relic (NRQL)
+      </td>
+
+      <td>
+        La correlación se activa cuando el nombre de la entidad con un umbral excedido y la consulta NRQL son iguales. Se identificará el evento relevante de la misma [condición de alerta NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) . Esta decisión ayuda a relacionar problemas que tienen la misma desviación de latencia de consulta de transacción, por ejemplo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Mismo nombre de objetivo New Relic (no NRQL)
+      </td>
+
+      <td>
+        La correlación se activa porque los umbrales de alerta no NRQL de New Relic son los mismos. No se aplica a la fuente REST. La entidad que no es NRQL se refiere a [la entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/), generalmente la aplicación, los tipos de HOST; consulte [el repositorio de New Relic GitHub sobre síntesis de entidades](https://github.com/newrelic/entity-definitions#entity-definitions). Con esta decisión se identificarán temas relevantes de la misma entidad. Por ejemplo, un problema de memoria alta del host y un problema de no notificación del host podrían ser muy posibles debido a la misma causa.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Misma ID de objetivo New Relic
+      </td>
+
+      <td>
+        La correlación se activa porque los umbrales de alerta no NRQL de New Relic son los mismos. No se aplica a la fuente REST. Utilice el ID de entidad para identificar de forma única una instancia de entidad; obtenga más información sobre [entity.guid](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#reserved-attributes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Misma New Relic
+      </td>
+
+      <td>
+        La correlación se activa porque los New Relic [ID de condición](/docs/new-relic-solutions/get-started/glossary/#condition_id) son los mismos. Por ejemplo, el aumento del uso de la CPU con servicios relacionados provocará un incidente de la misma condición de uso de la CPU y, por lo tanto, será identificado. Esta lógica es valiosa más allá de [la opción de preferencia de creación de problemas de política de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-options) para un problema por condición, debido a la granularidad a nivel de condición y la flexibilidad al definir la ventana de tiempo de correlación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Misma New Relic y URL de enlace profundo
+      </td>
+
+      <td>
+        La correlación se activa porque los [ID de condición](/docs/new-relic-solutions/get-started/glossary/#condition_id) de New Relic y la URL del enlace profundo son los mismos. La URL del vínculo profundo proporciona información sobre seriales temporales y rangos temporales además de [la condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/). La correlación de estos problemas le facilita observar los incidentes relacionados en el flujo de respuesta a incidentes con métricas de alcance temporal y realizar un análisis profundo. La URL del enlace profundo se puede generar automáticamente si los incidentes se activan mediante la condición de alerta New Relic , mientras que para la fuente REST [deepLinkUrl](/docs/data-apis/ingest-apis/event-api/incident-event-rest-api/#api-specs) debe ser definida por el usuario.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Misma condición y título New Relic
+      </td>
+
+      <td>
+        La correlación se activa porque los New Relic [nombres y títulos de las condiciones](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes) de la son los mismos. Esta es una opción refinada al comparar títulos y condiciones para revelar una relevancia más estricta con el mismo mensaje de alerta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Mismo despliegue de k8s
+      </td>
+
+      <td>
+        La lógica de correlación está activada porque los kubernetes desplegados son los mismos. Muchos incidentes se deben a cambios de despliegue único. Esta decisión tiene como objetivo reducir los problemas del mismo despliegue problemático de la entidad Kubernetes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Mismo nombre de aplicación, política e identificación
+      </td>
+
+      <td>
+        La lógica de correlación se activa porque el nombre de la aplicación personalizada, la política y el ID personalizado son los mismos. Correlacionamos los problemas con estos elementos para reducir los problemas de la aplicación, especialmente para atender a las etiquetas de usuario personalizadas. Obtenga más información sobre [la etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/). La ID de etiqueta personalizada podría definirse mediante la ID de familia de condiciones u otros valores de ID utilizados como clave para identificar conexiones entre datos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Mensaje de alerta similar
+      </td>
+
+      <td>
+        La correlación se activa porque los incidentes tienen títulos similares y son de la misma entidad. Esto es para reducir los problemas de la misma entidad que son causados por [condiciones de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/) similares.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Misma credencial segura, ubicación pública y tipo
+      </td>
+
+      <td>
+        La correlación se activa porque la credencial segura, la ubicación pública y el tipo personalizado son los mismos respectivamente. Esto es para correlacionar problemas de la misma ubicación geográfica/región con las mismas credenciales de seguridad que normalmente se activan por una única causa raíz (por ejemplo, falla del monitor Sintético) y que muy probablemente podrían abordarse con la misma solución. [Añade etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags) para beneficiarte de esta decisión.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Estructura de problemas similar
+      </td>
+
+      <td>
+        La correlación se activa porque ambos incidentes tienen una estructura de atributos y contenidos de datos similares. Esta es una versión más simple de clúster, adopta algoritmos de similitud avanzados en el cálculo matricial para reducir problemas altamente relacionados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Topológicamente dependiente
+      </td>
+
+      <td>
+        La correlación se activa porque los incidentes se generan a partir de instancias que tienen relaciones de dependencia. Obtenga más información sobre [la correlación de topología lista para usar](#topology-requirements).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Utilice decisiones sugeridas [#suggested-decisions]
+
+Los datos de las fuentes seleccionadas se inspeccionan continuamente en busca de patrones para ayudar a reducir el ruido. Una vez que se hayan observado patrones en sus datos, nuestra lógica de correlación sugerirá decisiones únicas que permitirían que estos tipos de eventos se correlacionen en el futuro.
+
+Para comenzar, haga clic en la pestaña <DNT>**Suggested decisions**</DNT> en el tema de la página de UI <DNT>**Decisions**</DNT>. Puede ver la lógica detrás de la decisión sugerida y la tasa de correlación estimada haciendo clic en cada decisión sugerida.
+
+<img
+  title="Suggested decision block"
+  alt="A screenshot of a suggested decision block"
+  src="/images/alerts_screenshot-full_suggested-decisions.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>: Algunos ejemplos de estadísticas de la UI de decisiones .
+</figcaption>
+
+Para habilitar una decisión sugerida, haga clic en <DNT>**Add to your decisions**</DNT>. Una vez activada, la decisión aparecerá en la tabla de decisiones principal de su equipo. Todas las decisiones sugeridas mostrarán al creador como New Relic AI (esto se refiere a las alertas de New Relic).
+
+Si la decisión sugerida no es relevante para sus necesidades, haga clic en <DNT>**Dismiss**</DNT>.
+
+## Crea decisiones personalizadas [#customize]
+
+Puede reducir el ruido y mejorar la correlación creando sus propias decisiones personalizadas. Para comenzar a tomar una decisión, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT> y luego haga clic en <DNT>**Create new decision**</DNT>.
+
+Hay dos versiones del generador de decisiones:
+
+* Generador de decisiones básico (en vista previa)
+* Generador de decisiones avanzado
+
+Para obtener más información sobre cómo utilizar estos constructores de decisiones, siga leyendo.
+
+### Elementos de decisión [#decision-elements]
+
+Una decisión se compone de estos elementos:
+
+* Correlacionar por atributo: Correlacionar todos los incidentes por similitudes o diferencias en su atributo.
+* Filtrar por valores específicos: limita el incidente a aquellos con valores específicos.
+* Filtrar por entidad relacionada: Selecciona los tipos de conexiones compartidas o dependencia que quieres que busquemos.
+* Rango de tiempo de correlación: establece la diferencia de tiempo máxima permitida entre los tiempos de creación de dos incidentes para que se consideren para la correlación.
+
+Una vez que se establecen las conexiones entre incidentes, nuestro [algoritmo](#what-is-correlaton) agrupa los incidentes correlacionados en un solo problema.
+
+### Constructor de decisiones básico [#basic-decision-builder]
+
+<DNT>**This feature is currently in preview and available for only some customers.**</DNT> Si no tiene acceso, consulte las instrucciones del [generador de decisiones avanzado](#advanced-decision-builder).
+
+Aquí hay un video corto (3:25 minutos) que muestra cómo usar el generador de decisiones básico:
+
+<Video
+  type="wistia"
+  id="xmbcv8rhuu"
+/>
+
+El generador de decisiones básico cubre la mayoría de los casos de uso y se centra en "correlacionar por atributo", donde puede especificar condiciones de filtrado para coincidencias de correlación. También puede aplicar la misma lógica de filtro para valores específicos de ambos incidentes que se correlacionan. Por ejemplo, puede correlacionar el incidente si el nombre de la entidad es `host 1` para ambos.
+
+Para crear su propia decisión personalizada utilizando el generador de decisiones básico, complete los siguientes pasos. Tenga en cuenta que los pasos 1, 2 y 3 son opcionales por sí solos, pero se debe definir al menos uno de los tres para poder tomar una decisión.
+
+#### Paso 1: Correlacionar por atributo [#basic-correlate-attributes]
+
+Elija un atributo del menú desplegable. El operador `equal` , la opción más popular, está preseleccionado o puedes elegir otro [operador](#operators).
+
+El segundo atributo normalmente coincide con el primero, por lo que se completa automáticamente. Puede mantener la opción de autocompletar o elegir otro operador.
+
+Una vez que haya terminado, se ejecutará una [simulación](#simulations) automáticamente.
+
+Puede repetir estos pasos para agregar hasta ocho filtros lógicos.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-correlate-attributes-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder, correlating with attributes."
+      alt="A screenshot of the basic decision builder, correlating with attributes."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 2: filtrar por valores específicos [#basic-filter-values]
+
+1. Para abrir la sección `Filter by specific values` y ver filtros adicionales, haga clic en
+
+   <DNT>
+     **See more options**
+   </DNT>
+
+   .
+
+2. Elija un atributo.
+
+3. El operador `equal` está preseleccionado o puede seleccionar otro [operador](#operators).
+
+4. Seleccione los valores esperados para el atributo elegido, admitiéndose múltiples selecciones.
+
+Cuando se complete, la [simulación](#simulations) se ejecutará automáticamente.
+
+Puede repetir estos pasos para agregar hasta ocho filtros lógicos.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-filer-values-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by values."
+      alt="A screenshot of the basic decision builder, filtering by values."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-values.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 3: Filtrar por entidad relacionada [#basic-filter-related-entities]
+
+Haga clic en <DNT>**Filter by related entities**</DNT> y elija las clases de entidad.
+
+Cuando [el agente New Relic](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/) recopila sus datos, obtiene una correlación topológica automática. [Obtenga más información sobre nuestra correlación de topología predeterminada](#topology-requirements).
+
+También puede configurar [la configuración de topología utilizando nuestra API NerdGraph](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial). Esto permite que cualquier decisión relacionada con la topología coincida con sus datos de topología. [Obtenga más información sobre cómo configurar la correlación de topología](#topology).
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-related-entities-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by entities."
+      alt="A screenshot of the basic decision builder, filtering by entities."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 4: establecer el rango de tiempo de correlación [#basic-set-time-range]
+
+Esto establece la diferencia de tiempo máxima permitida entre los tiempos de creación de dos incidentes para que se consideren para la correlación. Los incidentes dentro de este rango se evaluarán según reglas específicas, mientras que aquellos fuera del rango no se correlacionarán.
+
+El rango de tiempo está establecido en 20 minutos de forma predeterminada. Puedes ajustarlo entre 1 y 120 minutos.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-time-range"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder, setting a correlation time range."
+      alt="A screenshot of the basic decision builder, setting a correlation time range."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-time-range.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 5: Probar su decisión mediante una simulación [#basic-test-with-simulation]
+
+Después de agregar una lógica de filtro, el sistema ejecuta automáticamente una [simulación](#simulations) utilizando los datos de incidentes de los últimos 7 días.
+
+También puede activar manualmente la simulación haciendo clic en <DNT>**Simulate**</DNT>, lo que quizás desee hacer si se cambia algo en la decisión.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-test-with-simulation-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder, testing with a simulation."
+      alt="A screenshot of the basic decision builder, testing with a simulation."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-run-simulation.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 6: Nombra y guarda tu decisión [#basic-name-save-decision]
+
+Para acceder al panel de nombre y descripción, haga clic en <DNT>**Create decision**</DNT>. El sistema genera un nombre en función de su decisión. Personalice el nombre y la descripción como desee.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-save-decision-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the basic decision builder: naming and saving the decision"
+      alt="A screenshot of the basic decision builder: naming and saving the decision"
+      src="/images/alerts_screenshot-crop_basic-decision-builder-name-describe.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+### Generador de decisiones avanzado [#advanced-decision-builder]
+
+El generador de decisiones avanzado permite la creación de decisiones más complejas al aplicar diferentes filtros lógicos a los dos incidentes que se correlacionan. Por ejemplo, puede correlacionar el incidente si uno tiene el nombre de entidad `host 1` y el otro tiene el nombre de entidad `host 2`. También hay configuraciones más avanzadas además de poder configurar solo la ventana de tiempo.
+
+Para utilizar el generador de decisiones avanzado:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**
+   </DNT>
+
+   .
+
+2. Haga clic en
+
+   <DNT>
+     **Create new decision**
+   </DNT>
+
+   y luego haga clic en
+
+   <DNT>
+     **Use advanced builder**
+   </DNT>
+
+   .
+
+Para obtener detalles sobre las opciones disponibles, siga leyendo.
+
+Términos importantes:
+
+* Filtro lógico: Condición lógica definida con un [operador](#operators) sobre un [atributo](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes).
+* Segmento: grupo de incidentes que satisfacen una combinación de filtros lógicos.
+
+Para crear su propia decisión personalizada, complete los siguientes pasos. Tenga en cuenta que los pasos 1, 2 y 3 son opcionales por sí solos, pero se debe definir al menos uno de los tres para poder tomar una decisión.
+
+#### Paso 1: Filtra tus datos [#filter-data]
+
+La correlación se produce entre dos incidentes cualesquiera. Si no se definen filtros, la decisión tendrá en cuenta todos los incidentes entrantes. Cuanto más configure sus decisiones para que se adapten a sus necesidades, mejor podremos correlacionar su incidente, reducir el ruido y proporcionar un mayor contexto para los equipos de guardia.
+
+Su equipo puede definir sus filtros para el primer segmento del incidente y el segundo segmento del incidente. [Los operadores](#operators) de filtro van desde la coincidencia de subcadenas hasta [la coincidencia de expresiones regulares](#regex) para ayudarle a identificar el evento de incidente que desea y excluir los que no.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-filter-data-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: filter your data"
+      alt="A screenshot of the basic decision builder: filter your data"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-filter-data.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 2: Correlacionar por atributo [#correlate-context]
+
+Una vez que haya filtrado sus datos, defina la lógica utilizada al comparar el contexto del incidente. Puede correlacionar eventos basándose en los siguientes métodos:
+
+* Comparaciones de valores de atributos con operadores estándar
+* Similitud del valor del atributo utilizando [algoritmos de similitud](#algorithms)
+* [Expresión regular de valor de atributo con grupos de captura](#regex)
+* Comparaciones de incidentes completos utilizando algoritmos de similitud o clúster
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-correlate-attributes-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by attributes"
+      alt="A screenshot of the basic decision builder: correlate by attributes"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 3: Correlacionar por entidad relacionada [#topology-correlation]
+
+Para una correlación de topología automática, asegúrese de que telemetry data [el agente New Relic](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/) recopile sus . Obtenga más información sobre [la correlación de topología lista para usar](#topology-requirements).
+
+También puede configurar [la configuración de topología utilizando nuestra API NerdGraph](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial). Esto permite que cualquier decisión relacionada con la topología coincida con sus datos de topología. [Obtenga más información sobre cómo configurar la correlación de topología](#topology).
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-related-entities-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by related entities"
+      alt="A screenshot of the basic decision builder: correlate by related entities"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 4: dale un nombre [#name-your-decision]
+
+Después de configurar su lógica de decisión, asígnele un nombre y una descripción reconocibles.
+
+<Callout variant="tip">
+  Minimice los problemas de seguridad asegurándose de no agregar información personal o confidencial a estos campos de texto abiertos.
+</Callout>
+
+Esto se utiliza en notificaciones y otras áreas de la UI para indicar qué decisión provocó que un par de incidentes se correlacionaran. Si no desea actualizar la configuración avanzada predeterminada en el siguiente paso, haga clic en <DNT>**Create decision**</DNT> para finalizar la creación.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-name-decision"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: name decision"
+      alt="A screenshot of the basic decision builder: name decision"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-name-decision.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Paso 5: use la configuración avanzada [#advanced-settings]
+
+Utilice el área de configuración avanzada para personalizar aún más cómo se comporta su decisión al correlacionar eventos. Cada configuración tiene un valor predeterminado, por lo que la personalización es opcional.
+
+* <DNT>
+    **Time window**
+  </DNT>
+
+  : establece el tiempo máximo entre dos incidentes creados para que sean elegibles para la correlación.
+
+* <DNT>
+    **Issue priority**
+  </DNT>
+
+  : Anula la configuración de prioridad predeterminada (`inherit priority`) para agregar una prioridad mayor o menor si el incidente está correlacionado.
+
+* <DNT>
+    **Frequency**
+  </DNT>
+
+  : Modifica el número mínimo de incidentes que deben cumplir la lógica de decisión para que se active la decisión.
+
+* <DNT>
+    **Similarity**
+  </DNT>
+
+  : si utiliza operadores `similar to` en su lógica de decisión, puede elegir de una lista de algoritmos y establecer su sensibilidad. Esto se aplicará a todos los `similar to` operadores en su decisión.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-advanced-settings-ui"
+    title="Ver una captura de pantalla UI"
+  >
+    <img
+      title="Decision - advanced settings"
+      alt="A screenshot of the decision builder showing how to configure advanced settings."
+      src="/images/alerts_screenshot-full_decision-builder-settings.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+## Operadores lógicos [#operators]
+
+Decision proporciona un conjunto de operadores para ayudarle a definir de manera flexible cómo se evalúa el valor del atributo de un incidente en un filtro lógico. Los básicos son <DNT>**equals**</DNT>, <DNT>**contains**</DNT>, <DNT>**starts with**</DNT>, <DNT>**ends with**</DNT>, <DNT>**exists**</DNT> y sus operadores de negación en consecuencia. Por ejemplo, <DNT>**does not equal**</DNT>.
+
+Hay un operador de similitud <DNT>**is similar to**</DNT>, el [algoritmo de similitud](#algorithms) subyacente se puede especificar para este operador. De forma predeterminada, utiliza la distancia de Levenshtein.
+
+El operador <DNT>**contains (regex)**</DNT> permite definir la condición [de expresión regular](#regex) . Potente para unir valores de datos arbitrarios.
+
+### Algoritmos de similitud [#algorithms]
+
+Aquí hay detalles técnicos sobre los algoritmos de similitud que utilizamos:
+
+<CollapserGroup>
+  <Collapser
+    id="levenshtein-distance"
+    title="Distancia de Levenshtein"
+  >
+    Esta medida es útil para comparar cadenas cortas con esquemas estáticos y longitud fija, como nombres de host. La distancia de Levenshtein también se conoce como distancia de edición.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            La distancia de Levenshtein entre dos cadenas es el número mínimo de ediciones de un solo carácter para pasar de una cadena a la otra. Las operaciones de edición permitidas son eliminación, inserción y sustitución.
+
+            El umbral de similitud predeterminado para decisiones de alerta es una distancia de edición de 3. Puede cambiar esto en el <DNT>**Advanced mode**</DNT> del generador de decisiones.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            Esta medida es más útil para comparar cadenas relativamente cortas con esquemas estáticos y longitud fija. Las aplicaciones comunes incluyen correctores ortográficos, biología computacional y reconocimiento de voz.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ejemplos
+          </td>
+
+          <td>
+            `number/bumble: 3 (number → bumber → bumblr → bumble)`
+
+            `trying/lying: 2 (trying → rying → lying)`
+
+            `strong/through: 4 (strong → htrong → throng → throug → through)`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            El algoritmo de distancia de Levenshtein no está normalizado de forma predeterminada para tener en cuenta las longitudes de las cadenas.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-score"
+    title="Puntuación difusa"
+  >
+    Esta métrica es útil para comparar cadenas de la misma longitud donde el mismo prefijo sería un buen indicador de correlación.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            El algoritmo de puntuación difusa funciona asignando "puntos" por coincidencias de caracteres entre cadenas:
+
+            * Un punto por cada personaje coincidente.
+
+            * Dos puntos de bonificación para partidos posteriores
+
+              Cuanto mayor sea la puntuación difusa, mayor será la similitud entre dos cadenas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            La puntuación difusa es más útil para cadenas que tienen los mismos prefijos y relativamente cortos (idealmente menos de cinco caracteres). Una puntuación mínima garantizada sería `(length(expected prefix) * 3) - 2`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ejemplos
+          </td>
+
+          <td>
+            Ejemplo: `Decisions / dcsions`
+
+            `d: 1`
+
+            `c: 1`
+
+            `i 1`
+
+            `s: 2`
+
+            `o: 1`
+
+            `n: 1`
+
+            `si: 2`
+
+            `io: 2`
+
+            `on: 2`
+
+            `ns: 2`
+
+            `= 15 points`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            Si el primer carácter de la primera cadena no se encuentra en la segunda cadena, no se otorgan puntos.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-ratio"
+    title="Proporción borrosa y borrosa"
+  >
+    Esta métrica es útil para comparar cadenas de longitud similar.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            [SeatGeek desarrolló](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/) la familia <DNT>**fuzzy wuzzy**</DNT> de medidas de similitud para ayudar a encontrar entradas para el mismo evento que tengan diferentes etiquetas en múltiples plataformas. La proporción difusa de dos cadenas se expresa como porcentaje, donde un número más alto indica una cadena más similar. Está basado en el [algoritmo SequenceMatcher](https://docs.python.org/3/library/difflib.html) en difflib de Python.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            La relación difusa es eficaz para cadenas muy cortas (como el nombre de host) o cadenas muy largas (como la descripción de un evento), especialmente al comparar cadenas de longitud similar.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            Este algoritmo es demasiado sensible para utilizarlo de forma eficaz en cadenas de 3 a 10 palabras. Una de las otras modificaciones de Fuzzy Wuzzy (ver más abajo) puede ser una mejor opción.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzzy-wuzzy-partial"
+    title="Relación parcial difusa y difusa"
+  >
+    Esta métrica es útil para comparar cadenas de diferente longitud. Esta modificación del algoritmo difuso wuzzy ayuda a abordar la limitación de longitud efectiva.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            Con la relación parcial difusa, la cadena más corta se compara con cada subcadena de la misma longitud dentro de la cadena más larga. La puntuación de la subcadena "mejor coincidencia" se utiliza para determinar la proporción parcial difusa.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            La relación parcial difusa es especialmente efectiva para los tipos de comparaciones en los que el algoritmo básico difuso wuzzy falla: cadenas de 3 a 10 palabras donde es probable que algunas subcadenas significativas se superpongan.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ejemplos
+          </td>
+
+          <td>
+            Por ejemplo, entre las siguientes cadenas:
+
+            `DevOps and SRE teams`
+
+            `DevOps`
+
+            `DevOps` (la cadena más corta, longitud = 6) se compararía con cada subcadena con longitud 6 dentro de `DevOps and SRE teams`. Dado que una de esas subcadenas (`DevOps`) es una coincidencia perfecta, la proporción parcial difusa para estas dos cadenas será alta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            Mientras que el wuzzy difuso puede ser demasiado conservador, la coincidencia parcial del wuzzy difuso puede ser más liberal de lo esperado con las correlaciones. Puede ajustar el umbral en el generador de decisiones según sus necesidades.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-token"
+    title="Proporción de conjunto token difusos y difusos"
+  >
+    Esta métrica es útil para comparar cadenas donde la información puede no estar en el mismo orden y tener posibles longitudes diferentes. Funciona mejor para oraciones como mensajes, descripciones, etc.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            El algoritmo de relación de conjunto token sigue algunos pasos para comparar cadenas:
+
+            1. Tokenice cada cadena (por ejemplo, “DevOps and ingeniería de confiabilidad del sitio (SRE) equipos” a "DevOps" "y" "ingeniería de confiabilidad del sitio (SRE)" "teams"; "ingeniería de confiabilidad del sitio (SRE) team and DevOps ingeniero" a "ingeniería de confiabilidad del sitio (SRE)" "teams" "y" "DevOps" "ingeniero")
+            2. Combine el token que se cruza en una nueva cadena, dejando el token restante (por ejemplo, que se cruza: "DevOps", "and", "ingeniería de confiabilidad del sitio (SRE)"; resto1: "teams"; resto2: "team", "ingeniero ")
+            3. Ordene alfabéticamente cada grupo token (p. ej. “and, DevOps, ingeniería de confiabilidad del sitio (SRE)”, “teams”, ingeniero, team”)
+            4. Compare los siguientes pares de cadenas:
+            5. Grupo de intersección
+            6. Grupo de intersección + resto1
+            7. Grupo de intersección + resto2
+
+               La comparación de estos pares ("mejores coincidencias") es la proporción del conjunto token difusos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            Esta métrica es útil en casos en los que cadenas similares pueden tener palabras superpuestas pero una construcción diferente; por ejemplo, descripciones de eventos para diferentes problemas con el mismo recurso.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            Mientras que Fuzzy Wuzzy puede ser demasiado conservador, la coincidencia del conjunto token Fuzzy Wuzzy puede ser más liberal de lo esperado con las correlaciones. Puede ajustar el umbral en el generador de decisiones según sus necesidades.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaro-winkler-distance"
+    title="Distancia jaro-winkler"
+  >
+    Esta métrica es útil para cadenas cortas donde prefijos idénticos son una fuerte indicación de correlación.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            Esta métrica utiliza una escala de 0 a 1 para indicar la similitud entre dos cadenas, donde 0 significa que no hay similitud (0 caracteres coincidentes entre cadenas) y 1 es una coincidencia exacta. La similitud de Jaro-Winkler tiene en cuenta:
+
+            * `matching`: dos caracteres iguales y en posiciones similares en las cadenas.
+            * `transpositions`: caracteres coincidentes que están en diferente orden de secuencia en las cadenas.
+            * `prefix scale`: la distancia Jaro-Winkler se ajusta favorablemente si las cadenas coinciden desde el principio (un prefijo tiene hasta 4 caracteres).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            Esta métrica es bastante tolerante con las transposiciones, pero las transposiciones más separadas en la cadena son menos útiles.
+
+            Un número generalmente seguro para utilizar para la similitud Jaro-Winkler en cadenas de moderadas a largas es 0,9; podría utilizar `{~}0.85` en los casos en los que esté bien ser más indulgente (por ejemplo, si tiene otra lógica más específica en la decisión).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cosine-distance"
+    title="Distancia del coseno"
+  >
+    Esta medida se utiliza más comúnmente para comparar grandes bloques de texto (por ejemplo, descripciones de incidentes) y proporciona una visualización sencilla de la similitud.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            Para cada bloque de texto que estás comparando, se calcula un vector para representar el recuento de cada palabra única en el bloque. La distancia coseno de los vectores resultantes es su producto escalar dividido por el producto de sus magnitudes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            Esta medida es más útil para comparar bloques largos de texto, específicamente cuando la comparación pretende considerar el texto como un todo, y no diferencias o errores ortográficos en palabras individuales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ejemplos
+          </td>
+
+          <td>
+            ```
+            It is not length of life, but depth of life.
+            Depth of life does not depend on length.
+            ```
+
+            Aquí están los recuentos de palabras para estas oraciones:
+
+            `it 1 0`
+
+            `is 0 1`
+
+            `not 1 1`
+
+            `length 1 1`
+
+            `of 2 1`
+
+            `life 2 1`
+
+            `but 1 0`
+
+            `depth 1 1`
+
+            `does 0 1`
+
+            `depend 0 1`
+
+            `on 0 1`
+
+            Y aquí están esos recuentos representados como un vector:
+
+            ```
+            [1, 0, 1, 1, 2, 2, 1, 1, 0, 0, 0]
+            [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+            ```
+
+            La distancia del coseno de estos vectores es aproximadamente 0,9 (1 es la mayor similitud).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            La distancia del coseno es menos útil en situaciones en las que las pequeñas diferencias de caracteres en las palabras son insignificantes. Además, la distancia del coseno ignora el orden de las palabras en los bloques de texto.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para obtener más información sobre la implementación de la distancia del coseno, consulte el [tutorial detallado en blog.christianperone.com](http://blog.christianperone.com/2013/09/machine-learning-cosine-similarity-for-vector-space-models-part-iii/).
+  </Collapser>
+
+  <Collapser
+    id="hamming-distance"
+    title="Distancia de Hamming"
+  >
+    Esta medida es útil para textos más cortos con esquema estático, pero solo funciona para cadenas de la misma longitud.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            La distancia de Hamming requiere que las cadenas comparadas tengan la misma longitud. Esta es una métrica de similitud útil para situaciones en las que la diferencia entre dos cadenas puede deberse a errores tipográficos o en las que desea comparar dos atributos con longitudes conocidas. Por ejemplo:
+
+            ```
+            Low Disk Space in application myapp in data center us01
+            ```
+
+            Si desea ser tolerante a los cambios del centro de datos, la distancia de Hamming debe establecer en 4. Un caso de uso promedio para la distancia de Hamming sería de alrededor de 2-3.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ejemplos
+          </td>
+
+          <td>
+            Una versión más simple de "editar distancia" métrica como la distancia de Levenshtein, la distancia de Hamming entre dos cadenas es el número de caracteres en la cadena que no coinciden (en la misma posición). Por ejemplo, en las cadenas siguientes, la distancia de Hamming es 2:
+
+            ```
+            flowers / florets
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            En el ejemplo anterior, si cambia el nombre de la aplicación en lugar del centro de datos, también se creará una correlación. A medida que aumenta la distancia, la utilidad de Hamming Distance se desploma. Por esta razón, para cualquier cosa remotamente más complicada que ser tolerante a sustituciones de 1 o 2 caracteres (o si las longitudes de las cadenas no coinciden), emplee una medida de similitud diferente.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaccard-distance"
+    title="Distancia jaccard"
+  >
+    Esta medida es útil para comparar grandes bloques de texto, como descripciones o un incidente completo.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Detalles
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Cómo funciona
+          </td>
+
+          <td>
+            La distancia, expresada como porcentaje (siendo 0 completamente similar; 1 siendo totalmente diferente) se calcula con la siguiente fórmula:
+
+            ```
+            1 - [(# of characters in both sets) / (# of characters in either set) * 100]
+            ```
+
+            En otras palabras, la distancia Jaccard es el número de caracteres compartidos dividido por el número total de caracteres (compartidos y no compartidos). Una distancia Jaccard de 0,1 significa que el 10% o menos de los caracteres entre dos incidentes son diferentes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Cuando usarlo
+          </td>
+
+          <td>
+            La distancia de Jaccard es muy fácil de interpretar y especialmente útil en casos con un gran conjunto de datos. Por ejemplo, al comparar la similitud entre dos incidentes completos (en contraposición a un atributo).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Posibles inconvenientes
+          </td>
+
+          <td>
+            Es menos eficaz para conjuntos de datos pequeños o situaciones en las que faltan datos. Además, las diferentes permutaciones del conjunto de caracteres no afectan la distancia de Jaccard, así que tenga cuidado para evitar falsos positivos.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### Operadores de expresiones regulares [#regex]
+
+Al [tomar una decisión](#customize), los operadores disponibles incluyen:
+
+* `contains (regex)`: utilizado en [el Paso 1: Filtrar tus datos](#customize).
+* `regular expression match`: utilizado en [el Paso 2: Correlación contextual](#customize).
+
+El creador de decisiones sigue los estándares descritos en [estos documentos para expresiones regulares](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html).
+
+<CollapserGroup>
+  <Collapser
+    id="regex-step-1"
+    title="Expresiones regulares en el paso 1"
+  >
+    Para que su expresión regular sea verdadera, el valor completo del atributo (los datos que está evaluando) debe coincidir con la expresión regular proporcionada. Se pueden utilizar grupos capturados, pero no se evalúan explícitamente.
+
+    Para una instancia, si el valor del atributo es `foobarbaz`, estos ejemplos cumplirían los criterios y se probarían como verdaderos:
+
+    * `foo.*`
+    * `^.*baz`
+    * `\w+`
+  </Collapser>
+
+  <Collapser
+    id="regex-step-2"
+    title="Expresiones regulares en el paso 2"
+  >
+    Para que su expresión regular sea verdadera, se deben incluir en la coincidencia todos los valores de atributo para el incidente 1 y el incidente 2. Además, cada grupo capturado (expresiones entre `( )` paréntesis) debe existir en ambos valores (incidente 1 y atributo de incidente 2), y tener el mismo valor:
+
+    * El número de grupos capturados debe ser igual para ambos atributos del incidente.
+
+    * Cada grupo debe ser igual al grupo correspondiente entre valores de atributo: el valor del primer grupo capturado en el atributo incidente 1 es igual al valor del primer grupo capturado en el atributo incidente 2.
+
+      Para una instancia, si el valor del atributo 1 es `abc-123-xyz` y el valor del atributo 2 es `abc-777-xyz`, entonces `(\w+)-(?:\w+)-(\w+)` cumpliría los criterios:
+
+    * El valor total coincide con la expresión.
+
+    * El primer y tercer grupo capturado tienen los mismos valores respectivos.
+
+    * El segundo grupo no se captura usando `?:`, lo que permite que coincida todo el valor pero no se usa en la comparación del grupo de captura.
+  </Collapser>
+
+  <Collapser
+    id="flags"
+    title="Acerca de las banderas"
+  >
+    No hay banderas habilitadas de forma predeterminada. Algunas banderas útiles para incluir en expresiones regulares en el generador de decisiones son:
+
+    * CASE_INSENSITIVE: (?i)
+
+    * MULTILÍNEA: (?m)
+
+    * DOTALL: (?s)
+
+      Consulte [la documentación detallada de campo de Oracle](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.detail) para obtener más notas sobre la función y la implementación de cada uno de estos indicadores.
+  </Collapser>
+</CollapserGroup>
+
+## Asistente de correlación [#assistant]
+
+Puede utilizar el asistente de correlación para analizar [incidentes](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents) más rápidamente, crear una lógica de decisión y probar la lógica con una simulación. Para utilizar el asistente de correlación:
+
+1. Vaya a la pestaña
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Issues & activity > Incidents**
+   </DNT>
+
+   .
+
+2. Marque las casillas del incidente que le gustaría correlacionar. Luego, en la parte inferior de la lista de incidentes, haga clic en
+
+   <DNT>
+     **Correlate incidents**
+   </DNT>
+
+   .
+
+3. Para obtener mejores resultados al correlacionar incidentes, seleccione un atributo común con un porcentaje de frecuencia bajo. [Obtenga más información sobre el uso de la frecuencia](#frequency-tips).
+
+4. Haga clic en
+
+   <DNT>
+     **Simulate**
+   </DNT>
+
+   para ver el efecto probable de su nueva decisión en la última semana de sus datos.
+
+5. Haga clic en ejemplos de pares de correlación para determinar qué correlaciones utilizar.
+
+6. Si le gusta lo que se ha simulado, haga clic en
+
+   <DNT>
+     **Next**
+   </DNT>
+
+   y luego mencione y describa su decisión.
+
+7. Si el resultado de la simulación muestra demasiados incidentes potenciales, es posible que desee elegir un conjunto diferente de atributo e incidente para su decisión y ejecutar otra simulación. [Obtenga más información sobre la simulación](#simulations).
+
+<CollapserGroup>
+  <Collapser
+    id="frequency-tips"
+    title="Análisis de atributos"
+  >
+    En la UI aparecen dos tipos de análisis de atributos:
+
+    * <DNT>**Common attributes:**</DNT> Este análisis simplemente resalta los atributos y valores que son exactamente iguales entre todos los incidentes seleccionados.
+
+    * <DNT>**Similar attributes:**</DNT> El análisis de similitud utiliza el algoritmo de Levenshtein con una distancia de 3 para encontrar atributos cuyos valores serían los mismos si se realizan 3 o menos cambios de caracteres. Los valores numéricos y los valores de un solo carácter se filtran de los resultados. Un atributo similar requiere que se seleccionen dos incidentes, el análisis de similitud no se realiza cuando se seleccionan 3 o más incidentes.
+
+      Para tomar las mejores decisiones, recomendamos elegir atributos comunes que tengan una menor frecuencia en su incidente. A continuación se ofrecen consejos para comprender cómo la elección de un atributo de baja o alta frecuencia afecta sus decisiones:
+
+    * <DNT>**Low frequency:**</DNT> Por ejemplo, un atributo con un 0% en la columna de frecuencia probablemente sea un identificador único o un atributo que recientemente se informó en sus datos en el último mes. La elección de un atributo de baja frecuencia puede tener correlación con algunos eventos.
+
+    * <DNT>**High frequency:**</DNT> Por otro lado, un atributo con 100% de frecuencia sería aquel que está presente en todos sus datos. Elegir estos atributos correlacionaría todos sus eventos juntos.
+
+      Por defecto, los atributos están ordenados por menor frecuencia. Haga clic en el porcentaje de frecuencia de un atributo para obtener información sobre la distribución de los valores que hemos visto reportados para ese atributo en el último mes.
+  </Collapser>
+</CollapserGroup>
+
+### Usando simulación [#simulations]
+
+La simulación probará la lógica con la última semana de sus datos y le mostrará cuántas correlaciones habrían ocurrido. A continuación se muestra un desglose de la información de vista previa de la decisión que se muestra cuando simula:
+
+* <DNT>
+    **Potential correlation rate:**
+  </DNT>
+
+  El porcentaje de incidentes testados que esta decisión habría afectado.
+
+* <DNT>
+    **Total created incidents:**
+  </DNT>
+
+  El número de incidentes analizados por esta decisión.
+
+* <DNT>
+    **Total estimated correlated incidents:**
+  </DNT>
+
+  El número estimado de incidentes que esta decisión habría correlacionado.
+
+* <DNT>
+    **Incident examples:**
+  </DNT>
+
+  Una lista de pares de incidentes que la decisión habría correlacionado, incluidos los atributos y valores de la regla, así como otros atributos populares en cada par. Haga clic en el incidente para ver los detalles.
+
+Ejecute la simulación con diferentes atributos tantas veces como necesite hasta que vea los resultados que le gusten. Cuando estés listo, sigue el símbolo UI para guardar tu decisión.
+
+## Correlación de topología [#topology]
+
+Para las alertas de New Relic, la topología es una representación de su mapa de servicios: cómo se relacionan entre sí los servicios y recursos de su infraestructura.
+
+Para las decisiones de usuario, se agrega y habilita una [decisión de topología predeterminada](#global-decisions) en su cuenta. También tienes la opción de [crear decisiones personalizadas](#customize).
+
+Nuestra correlación de topología encuentra relaciones entre fuentes de incidentes para determinar si [el incidente](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents) y, por lo tanto, sus respectivos problemas deben correlacionarse. La correlación de topología está diseñada para mejorar la calidad de sus correlaciones y la velocidad a la que se encuentran.
+
+### Requisitos [#topology-requirements]
+
+Para una correlación de topología automática (sin la necesidad de configurar explícitamente un gráfico de topología),telemetry data [asegúrese de que el agente New Relic](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/) recopile sus . Cuantos más tipos de agentes New Relic estén instalados en sus servicios y entorno, más oportunidades habrá para que las decisiones de topología correlacionen su incidente.
+
+### ¿Cómo funciona la correlación de topología? [#topology-explained]
+
+<img
+  title="topology-4.png"
+  alt="A screenshot of New Relic topology explained"
+  src="/images/alerts_diagram_topology-4.webp"
+/>
+
+<figcaption>
+  En este mapa de servicios, los hosts y las aplicaciones son los vértices y las líneas que muestran sus relaciones son los bordes.
+</figcaption>
+
+Para configurar su topología además de la [entidad y las relaciones](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) recopiladas por [el agente New Relic](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/), utilice nuestra [API NerdGraph](#create-topology-graph).
+
+La correlación de topología personalizada se basa en dos conceptos principales:
+
+* <DNT>
+    **Vertex:**
+  </DNT>
+
+  Un vértice representa una entidad monitora. Es la fuente de donde proviene el incidente o describe un síntoma problemático. Un vértice tiene un atributo (pares de valores principales) configurado para él, como GUID de entidad u otros ID, que permiten asociarlo con un evento de incidente entrante.
+
+* <DNT>
+    **Edges:**
+  </DNT>
+
+  Una arista es una conexión entre dos vértices. Los bordes describen la relación entre los vértices.
+
+Puede resultar útil comprender cómo se utiliza la topología para correlacionar incidentes:
+
+1. Primero, New Relic reúne todos los incidentes relevantes. Esto incluye incidentes en los que [los pasos 1 y 2 de la lógica de decisión](#customize) son verdaderos y que también están dentro del período de tiempo definido en la configuración avanzada.
+
+   <img
+     title="topology-1.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-1.webp"
+   />
+
+2. A continuación, intentamos asociar cada incidente a un vértice en su [gráfico de topología](#create-topology-graph), utilizando el atributo que define un vértice y el atributo disponible en el incidente.
+
+   <img
+     title="topology-2.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-2.webp"
+   />
+
+   <figcaption>
+     Un ejemplo de los pasos para asociar el incidente con la información del gráfico de topología.
+   </figcaption>
+
+3. Luego, los pares de vértices asociados con el incidente se prueban utilizando el operador "topológicamente dependiente" para determinar si estos vértices están conectados entre sí.
+
+   <img
+     title="topology-3.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-3.webp"
+   />
+
+   <figcaption>
+     Este operador verifica si hay alguna ruta en el gráfico que conecte los dos vértices dentro de cinco saltos.
+   </figcaption>
+
+   Luego se correlacionan los incidentes y se fusionan los problemas.
+
+### Agregar atributo al evento incidente [#add-attributes]
+
+Los incidentes se conectan a los vértices empleando el atributo definitorio de un vértice. (En el ejemplo de topología en [Topología explicada](#topology-explained), cada vértice tiene un atributo definitorio "CID" con un valor único). A continuación, el sistema de alertas de New Relic encuentra un vértice que coincide con el atributo.
+
+Si el atributo definitorio que le gustaría usar en sus vértices aún no está en su evento de incidente, use cualquiera de estas opciones para agregarlo:
+
+<CollapserGroup>
+  <Collapser
+    id="tag-entities"
+    title="Etiqueta tu entidad en New Relic"
+  >
+    Al [etiquetar su entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/use-tags-help-organize-find-your-data), esas etiquetas enriquecerán el evento incidente generado por alerta. Por ejemplo, si ha etiquetado su entidad con `CID` y su correspondiente valor único, entonces puede definir el atributo en su vértice de la siguiente manera: `'newrelic/tags/CID' : CID_VALUE`
+  </Collapser>
+
+  <Collapser
+    id="facet-data"
+    title="Etiqueta tu entidad en New Relic"
+  >
+    Al crear [NRQL condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) con una o más [facetas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions#syntax) definidas, se agruparán sus datos por atributo. Además, el incidente evento emitido se enriquecerá con dichos atributos y valores. Para el incidente, el atributo facetado sigue el mismo formato: `newrelic/tags/ATTRIBUTE_NAME`
+  </Collapser>
+</CollapserGroup>
+
+### Crear o ver topología [#create-topology-graph]
+
+Para configurar su topología o ver la topología existente, consulte el [tutorial de topología de NerdGraph](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial).

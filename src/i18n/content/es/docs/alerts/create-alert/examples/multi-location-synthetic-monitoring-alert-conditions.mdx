@@ -1,0 +1,122 @@
+---
+title: Monitoreo sintético multiubicación condición de alerta
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: Synthetic monitoring multi-location alert conditions allow you to specify how many location checks must fail before generating a notification.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con la condición de alerta de monitoreo sintético de múltiples ubicaciones, puede crear un monitor que le notifique cuando un número específico de ubicaciones fallan al mismo tiempo.
+
+## Por qué esto importa [#feature]
+
+Para [el monitoreo sintético](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics) que se ejecuta en múltiples [ubicaciones](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#setting-location), una sola ubicación a veces fallará temporalmente por una amplia variedad de razones. En muchos casos, una única falla de corta duración no indica un problema que requiera una notificación.
+
+Con condiciones de múltiples ubicaciones, puede establecer la cantidad de ubicaciones que deben fallar simultáneamente para desencadenar un incidente y enviarle una notificación. Por ejemplo, si su monitor se ejecuta en seis ubicaciones, puede establecer una condición que requiera que cuatro ubicaciones fallen antes de recibir una notificación.
+
+<Callout variant="important">
+  Las alertas de múltiples ubicaciones **no** afectan la política de alertas de un monitor Sintético. Por ejemplo, [silenciar una alerta de ubicación múltiple](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications) **no** silenciará las [alertas de un monitor Sintético.](/docs/synthetics/synthetic-monitoring/using-monitors/alerts-synthetic-monitoring#alerts-existing-monitor)
+</Callout>
+
+## Normas
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Regla
+      </th>
+
+      <th>
+        Detalles
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Frecuencia de verificación requerida
+      </td>
+
+      <td>
+        15 minutos o menos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo máximo por condición
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Condiciones por cuenta
+      </td>
+
+      <td>
+        Esta característica tiene un límite de 1000 condiciones por cuenta, pero algunos tipos de infraestructura de condición de alerta también cuentan para este límite. Si recibe una notificación de que ha excedido su límite, comuníquese con su representante de New Relic o con [el Soporte](https://support.newrelic.com/) para obtener ayuda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Estado entre verificaciónes
+      </td>
+
+      <td>
+        Una verificación de ubicación fallida se considerará fallida hasta que se realice una verificación exitosa. Por ejemplo: una ubicación puede fallar y luego volverse disponible inmediatamente, pero la consideraremos fallida hasta que se informe que una verificación programada fue exitosa.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+A continuación se muestra un diagrama que muestra cómo se activará una condición de cuatro ubicaciones en caso de fallas no simultáneas:
+
+<img
+  title="synthetics-multi-location-alert-diagram.png"
+  alt="Synthetics multi-location alert condition diagram"
+  src="/images/accounts_screenshot-full_synthetics-multi-location-alert-diagram.webp"
+/>
+
+<figcaption>
+  Este diagrama muestra un ejemplo de cómo una configuración de cuatro ubicaciones fallidas desencadenará un incidente por fallas que ocurren una tras otra. Tenga en cuenta que las comprobaciones de ubicación fallidas se considerarán fallidas hasta que la próxima vez se realice una verificación exitosa.
+</figcaption>
+
+## Crear condición desde alerta UI [#create]
+
+Antes de crear una condición, lea las [reglas para condiciones de múltiples ubicaciones](#rules).
+
+<img
+  title="Create a classic alert for synthetics"
+  alt="A screenshot that shows what to select to create a classic alert for synthetics"
+  src="/images/alerts_screenshot-crop_synthetics-Alerts.webp"
+/>
+
+1. Desde <DNT>**one.newrelic.com**</DNT>, seleccione [<DNT>**Alerts**</DNT>](https://one.newrelic.com/alerts-ai) y luego [<DNT>**Alert policies**</DNT>](https://one.newrelic.com/alerts-ai/condition-builder/policy-list).
+2. Haga clic en la política en la que desea crear la condición de alerta clásica o cree una nueva política.
+3. Seleccione <DNT>**New alert condition**</DNT>.
+4. Seleccione <DNT>**Build a classic alert**</DNT>.
+5. Seleccione <DNT>**Synthetics**</DNT> y <DNT>**Multiple location failures**</DNT>.
+6. Haga clic en <DNT>**Next**</DNT> para seleccionar monitorear al objetivo.
+7. Haga clic en <DNT>**Next**</DNT>. Complete los campos en el paso <DNT>**Set thresholds**</DNT> .
+8. Haga clic en <DNT>**Save condition**</DNT>.
+
+<Callout variant="important">
+  No puede ver ni editar la condición de alerta de monitoreo sintético de múltiples ubicaciones en la [UI de Sintético](/docs/synthetics/new-relic-synthetics/pages/view-monitors-alert-information).
+</Callout>
+
+## Crear condición con la API [#api]
+
+Antes de crear una condición, lea las [reglas para condiciones de múltiples ubicaciones](#rules).
+
+Por ejemplo, API de llamada REST de condición de ubicación múltiple, consulte la [API de llamada REST para obtener documentación de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/rest-api-alerts/rest-api-calls-alerts/#multilocation-synthetics-conditions) .
+
+Para utilizar la API REST de alerta para gestionar condiciones de múltiples ubicaciones, utilice el [explorador de API REST](https://rpm.newrelic.com/api/explore/alerts_location_failure_conditions/create).

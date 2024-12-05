@@ -1,0 +1,235 @@
+---
+title: Cargue mapas de origen para eliminar los errores de JS
+metaDescription: Browser allows you to upload source maps to "decode" minified JavaScript; this allows you to understand your error stack traces in the browser UI.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro [<InlinePopover type="browser"/>](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)admite la carga de mapas de origen.
+
+La compatibilidad con mapas de origen es principalmente útil para "decodificar" JavaScript minimizado. JavaScript minimizado genera un error de rastreo del stack en su mayoría inútil en la página <DNT>**Errors**</DNT> del browser. La carga de mapas fuente convierte estos errores en un rastreo del stack comprensible, con referencias útiles a las líneas de código. Esta característica también puede resultar útil para código JavaScript empaquetado o transpilado.
+
+Browser le ofrece dos opciones para utilizar mapas de origen:
+
+1. Cargar mapas de origen a través de la browser UI
+2. Publicar mapas fuente en browser a través de la API
+
+Este documento explicará el primer método: cómo cargar mapas de origen a través de la UI, junto con [ayuda general para la resolución de problemas](#troubleshoot). Para obtener instrucciones sobre el uso del método API, consulte [Enviar mapas fuente a través de la API](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api/).
+
+## Importe mapas de origen a través de la UIde New Relic [#source-map-ui]
+
+Puede arrastrar y soltar, o cargar, un archivo de mapa de origen en la browser UI para asociarlo con un archivo JavaScript específico. New Relic luego convertirá el rastreo del stack minificado en una traza no minificada y un código fuente visible en la página de Errores.
+
+1. Descargue su mapa fuente en su máquina local.
+
+2. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Errors**
+   </DNT>
+
+   y luego haga clic en un grupo de errores. (No seleccione un grupo etiquetado como
+
+   <DNT>
+     **Errors without a stack trace**
+   </DNT>
+
+   .)
+
+3. En la sección
+
+   <DNT>
+     **Stack trace**
+   </DNT>
+
+   , haga clic en
+
+   <DNT>
+     **Upload source map**
+   </DNT>
+
+   .
+
+4. En la ventana emergente del buscador de archivos, seleccione su archivo fuente. Un cuadro de error con una franja gris en el lado izquierdo indica JS minimizado. Una franja azul indica que se le ha aplicado un mapa fuente.
+
+Otras características del marco de error JS incluyen:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **If you want to...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Ver más del código circundante
+      </td>
+
+      <td>
+        Seleccione `Show 10 more lines above/below` para ver el código antes o después del código en el rastreo de la pila.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver información del archivo original y minimizado
+      </td>
+
+      <td>
+        * Para obtener información de marco individual: junto a la línea y columna de origen del marco, coloque el mouse sobre el
+
+          <Icon name="fe-more-horizontal"/>
+
+          elipsis.
+
+        * Para datos sin procesar de todo el rastreo del stack: en la parte superior de la pestaña de error, seleccione
+
+          <DNT>
+            **&lt;/> Raw**
+          </DNT>
+
+          .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Eliminar un mapa de origen
+      </td>
+
+      <td>
+        Desde un marco de rastreo del stack expandido, seleccione <DNT>**Remove file**</DNT>.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Resolución de problemas [#troubleshoot]
+
+### El rastreo del stack todavía está minificado [#still-minified]
+
+Si has subido mapas fuente a New Relic y aún ves el rastreo del stack minimizado, hay algunas cosas que debes verificar. Usar la API es la mejor manera de investigar problemas potenciales, [enumerando o eliminando mapas fuente publicados](/docs/push-source-maps-api#publish).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Typical problems**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Troubleshooting tips**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        La URL no coincide
+      </td>
+
+      <td>
+        Cada cuadro en el rastreo del stack está asociado con una URL de JavaScript específica. Esa URL debe coincidir con la URL de JavaScript que se utilizó al publicar el mapa de origen. Asegúrese de que estas URL coincidan exactamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        El nombre de la versión/ID no coincide
+      </td>
+
+      <td>
+        Si la URL de JavaScript no tiene una versión cuando implementa sus recursos de interfaz, se debe especificar un nombre de versión y un ID de versión utilizando el [método API`newrelic.addRelease` ](/docs/browser-api-newrelicaddrelease)y también al publicar sus mapas de origen. Asegúrese de que estas cadenas coincidan exactamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Error 409: `Combination of javascriptUrl, releaseName, and releaseId must be unique`
+      </td>
+
+      <td>
+        Si se carga un archivo de mapa de origen para una URL de JavaScript en particular sin especificar un nombre de versión o ID, New Relic trata la URL como un identificador único.
+
+        Para resolver esto, elimine el mapa de origen que tiene un nombre de versión y valores de ID NULL y vuelva a cargar todas las versiones para esa URL, incluidos esos parámetros. Esto permitirá múltiples versiones de mapas fuente para una URL JS particular.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Falta `SourcesContent` componente
+      </td>
+
+      <td>
+        Su archivo de mapeo debe contener el componente `SourcesContent` para que New Relic desminifique su rastreo del stack. Si cargó su mapa correctamente y aún no ve el código no minificado, verifique el mapa fuente original de este componente. Si no puede encontrarlo, regenere el mapa de origen para que se incluya el componente y cargue su mapa en New Relic.
+
+        Si no se agrega el componente `SourcesContent` , aparecerá un error similar a `Whoops, that was the wrong file. Please try again.` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### No se pueden generar mapas de origen [#generate-maps]
+
+¿Tiene problemas incluso para generar mapas fuente? Cada sistema de compilación tiene sus propias instrucciones para generar mapas fuente. Para obtener detalles más específicos, consulte la documentación de su herramienta en particular. A continuación se muestran instrucciones de generación de mapas fuente para dos sistemas de compilación populares:
+
+<CollapserGroup>
+  <Collapser
+    id="generate-example"
+    title="Genera mapas fuente con UglifyJS"
+  >
+    <DNT>**Generate source maps using UglifyJS:**</DNT> Al "feear" archivos fuente, especifique un nombre de archivo de mapa fuente e incluya el contenido fuente original:
+
+    A partir de la versión v3.12.5:
+
+    ```bash
+    uglifyjs [source files]   \ 
+         -o bundle.min.js   \ 
+         -c -m
+         --source-map "includeSources=true"
+    ```
+
+    Para versiones anteriores:
+
+    ```bash
+    uglifyjs [source files]   \ 
+         -o bundle.min.js   \ 
+         --source-map bundle.min.js.map   \ 
+         --source-map-include-sources   \ 
+         -c -m
+    ```
+  </Collapser>
+
+  <Collapser
+    id="generate-example"
+    title="Generar mapas fuente con webpack"
+  >
+    <DNT>**Generate source maps using [Webpack](https://webpack.github.io/docs/configuration.html#devtool):**</DNT> En la configuración de su paquete web de producción, simplemente especifique `source-map` para la propiedad `config.devtool` . La propiedad `sourceMapFilename` de `config.output` es opcional y su valor predeterminado es `[name].js.map`.
+
+    ```js
+    devtool: 'source-map', 
+    output: { 
+         path: path.join(__dirname, 'dist'), 
+         filename: '[name].js', 
+         sourceMapFilename: '[name].js.map', 
+    },
+    ```
+  </Collapser>
+</CollapserGroup>

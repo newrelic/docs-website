@@ -1,0 +1,213 @@
+---
+title: 'Tutorial de NerdGraph: Pérdida de señal y llenado de huecos'
+tags:
+  - Alerts and applied intelligence
+  - Alerts
+  - Alerts and Nerdgraph
+metaDescription: Customize how New Relic detects loss of signal and what values it should use for filling gaps in the data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede personalizar New Relic alertando la pérdida de detección de señal y el llenado de espacios utilizando nuestra [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph). Por ejemplo, puede configurar cuánto tiempo esperar antes de considerar que la señal se perdió, o qué valor debe usarse para llenar los vacíos en la serie temporal.
+
+La pérdida de señal ocurre cuando New Relic deja de recibir datos por un tiempo; Técnicamente, detectamos la pérdida de señal después de que ha transcurrido un período de tiempo significativo desde la última vez que se recibieron datos en una serie de tiempo. La pérdida de señal se puede utilizar para desencadenar o resolver un incidente, que puedes utilizar para configurar una alerta.
+
+Llenar los huecos puede ayudarle a resolver los problemas causados por la pérdida de puntos de datos. Cuando se detectan espacios entre puntos de datos válidos, los llenamos automáticamente con valores de reemplazo, como los últimos valores conocidos o un valor estático. Llenar los espacios puede evitar que alerta se active o se resuelva cuando no debería.
+
+<Callout variant="tip">
+  El sistema <InlinePopover type="alerts"/>llena los vacíos en las señales reportadas activamente. Este historial de señal se elimina después de 2 horas de inactividad. Para llenar los vacíos, los puntos de datos recibidos después de este período de inactividad se tratan como nuevas señales.
+
+  Para obtener más información sobre la pérdida de señal, el llenado de espacios y cómo solicitar acceso a estas características, consulte [esta publicación del Foro de soporte](https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361).
+</Callout>
+
+En esta guía cubrimos lo siguiente:
+
+* [Personalizar la pérdida de detección de señal](#loss-of-signal)
+* [Personalizar el relleno de huecos](#customize)
+
+## Personaliza tu pérdida de detección de señal [#loss-of-signal]
+
+La detección de pérdida de señal abre o cierra el incidente si no se reciben datos después de un cierto período de tiempo. Por ejemplo, si establece la duración del período de vencimiento en 60 segundos y una integración no parece enviar datos durante más de un minuto, se activará una pérdida de umbral de señal.
+
+Puede configurar la duración de la pérdida de señal y si desea abrir o cerrar un incidente utilizando estos tres campos en NerdGraph:
+
+* `expiration.expirationDuration`: Cuánto tiempo esperar, en segundos, después de que nuestra plataforma reciba el último punto de datos antes de considerar la señal como perdida. Esto se basa en la hora en que los datos llegan a nuestra plataforma y no en la marca de tiempo de los datos. El valor predeterminado es dejar esto como nulo y, por lo tanto, esto no habilitaría la detección de pérdida de señal.
+* `expiration.openViolationOnExpiration`: Si `true`, se abre un nuevo incidente cuando se pierde la señal. El valor predeterminado es `false`. Para utilizar este campo, se debe especificar una duración.
+* `expiration.closeViolationsOnExpiration`: Si es `true`, los incidentes abiertos relacionados con la señal se cierran al vencimiento. El valor predeterminado es `false`. Para utilizar este campo, se debe especificar una duración.
+
+### Ver la configuración de pérdida de señal para una condición existente
+
+Es posible que las condiciones NRQL existentes ya tengan configuradas sus configuraciones de pérdida de señal. Para ver la configuración de condiciones existente, seleccione los campos debajo de `nrqlCondition` > `expiration`:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      alerts {
+        nrqlCondition(id: NRQL_CONDITION_ID) {
+          ... on AlertsNrqlStaticCondition {
+            id
+            name
+            nrql {
+              query
+            }
+            expiration {
+              closeViolationsOnExpiration
+              expirationDuration
+              openViolationOnExpiration
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Deberías ver un resultado como este:
+
+```json
+{
+  "data": {
+    "actor": {
+      "account": {
+        "alerts": {
+          "nrqlCondition": {
+            "expiration": {
+              "closeViolationsOnExpiration": false,
+              "expirationDuration": 300,
+              "openViolationOnExpiration": true
+            },
+            "id": "YOUR_ACCOUNT_ID",
+            "name": "Any less than - Extrapolation",
+            "nrql": {
+              "query": "SELECT average(value) FROM AlertsSmokeTestSignals WHERE wave_type IN ('min-max', 'single-gap') FACET wave_type"
+            }
+          }
+        }
+      }
+    }
+  },
+  ...
+```
+
+### Crear una nueva condición con pérdida de configuración de señal.
+
+Supongamos que desea crear una nueva [condición estática NRQL](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) que desencadene un umbral de pérdida de señal después de que no se reciban datos durante dos minutos. Establecería `expirationDuration` en 120 segundos y `openViolationOnExpiration` en `true`, como en el siguiente ejemplo.
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticCreate(
+    accountId: YOUR_ACCOUNT_ID
+    policyId: YOUR_POLICY_ID
+    condition: {
+      name: "Low Host Count - Catastrophic"
+      enabled: true
+      nrql: {
+        query: "SELECT uniqueCount(host) FROM Transaction WHERE appName='my-app-name'"
+      }
+      signal {
+        aggregationWindow: 60
+        aggregationMethod: EVENT_FLOW
+        aggregationDelay: 120
+      }
+      terms: [{
+        threshold: 2
+        thresholdOccurrences: AT_LEAST_ONCE
+        thresholdDuration: 600
+        operator: BELOW
+        priority: CRITICAL
+      }]
+      valueFunction: SINGLE_VALUE
+      violationTimeLimitSeconds: 86400
+      expiration: {
+        expirationDuration: 120
+        openViolationOnExpiration: true
+      }
+    }
+  ) {
+    id
+    name
+  }
+}
+```
+
+### Actualizar la configuración de pérdida de señal de una condición
+
+¿Qué sucede si desea actualizar el parámetro de pérdida de señal para una condición de alerta? La siguiente mutación le permite [actualizar una condición estática NRQL](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) con nuevos valores `expiration` .
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticUpdate(
+    accountId: YOUR_ACCOUNT_ID
+    id: YOUR_STATIC_CONDITION_ID
+    condition: {
+      expiration: {
+        closeViolationsOnExpiration: BOOLEAN
+        expirationDuration: DURATION_IN_SECONDS
+        openViolationOnExpiration: BOOLEAN
+      }
+    }
+  ) {
+    id
+    expiration {
+      closeViolationsOnExpiration
+      expirationDuration
+      openViolationOnExpiration
+    }
+  }
+}
+```
+
+## Personalizar el relleno de huecos [#customize]
+
+El relleno de espacios reemplaza los valores de espacios en una serie temporal con el último valor encontrado o con un valor estático y arbitrario de su elección. Rellenamos los huecos sólo después de que se haya recibido otro punto de datos después de los huecos en la señal (después de que se haya restablecido la recepción de datos).
+
+Puedes configurar tanto el tipo de llenado como el valor, si el tipo está establecido en estático:
+
+* `signal.fillOption`: Tipo de valor de reemplazo para puntos de datos perdidos. Los valores pueden ser:
+
+  * `NONE`: El relleno de huecos está deshabilitado.
+  * `LAST_VALUE`: El último valor visto en la serie temporal.
+  * `STATIC`: Un valor arbitrario, definido en `fillValue`.
+
+* `signal.fillValue`: Valor que se utilizará para reemplazar puntos de datos perdidos cuando `fillOption` se establece en `STATIC`.
+
+<Callout variant="important">
+  El llenado de espacios también se ve afectado por `expiration.expirationDuration`. Cuando un espacio es más largo que la duración de vencimiento, la señal se considera caducada y el espacio ya no se llenará.
+</Callout>
+
+Por ejemplo, aquí se explica cómo crear una condición NRQL estática con el llenado de espacios configurado:
+
+```graphql
+mutation {
+  alertsNrqlConditionStaticCreate(
+    accountId: YOUR_ACCOUNT_ID
+    policyId: YOUR_POLICY_ID
+    condition: {
+      enabled: true
+      name: "Example Gap Filling Condition"
+      nrql: { query: "SELECT count(*) FROM Transaction" }
+      terms: {
+        operator: ABOVE
+        priority: CRITICAL
+        threshold: 1000
+        thresholdDuration: 300
+        thresholdOccurrences: ALL
+      }
+      valueFunction: SINGLE_VALUE
+      violationTimeLimitSeconds: 28800
+      signal: {
+        aggregationWindow: 60,
+        aggregationMethod: EVENT_FLOW,
+        aggregationDelay: 120,
+        fillOption: STATIC,
+        fillValue: 1
+      }
+    }
+  ) {
+    id
+  }
+}
+```

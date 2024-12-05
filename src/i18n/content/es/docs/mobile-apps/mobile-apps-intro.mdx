@@ -1,0 +1,141 @@
+---
+title: New Relic Mobile app
+tags:
+  - Mobile app
+  - New Relic mobile app
+  - iOS app
+  - Android app
+metaDescription: 'Install the New Relic mobile app to view your data, run queries, and receive and create alerts.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La aplicación New Relic Mobile te permite acceder a tus datos estés donde estés. Puede ver un panel seleccionado de todas las capacidades de New Relic, desde APM hasta la infraestructura y browser, y acceder a cualquier panel que haya creado. Si necesita profundizar más, puede consultar sus datos directamente con NRQL o buscar en su log. Y puede recibir <InlinePopover type="alerts"/>directamente en la aplicación para que pueda comenzar a investigar de inmediato.
+
+## Empezar [#mobile-get-started]
+
+Para obtener más información sobre la característica, consulte [Capacidades móviles](#mobile-app-features) a continuación o instale la aplicación de inmediato usando el código QR:
+
+<Callout variant="tip">
+  Dependiendo de su cuenta New Relic, es posible que necesite [autenticar aún más a su usuario](/docs/mobile-apps/new-relic-mobile-apps/authentication-alerts/user-settings-authentication).
+</Callout>
+
+<SideBySide>
+  <Side>
+    ### iOS [#ios-options]
+
+    <img
+      style={{ width: "60%" }}
+      title="Scan this QR code for the iOS mobile app"
+      alt="Scan this QR code for the iOS mobile app"
+      src="/images/mobile-app_screenshot-crop_ios-qr-code.webp"
+    />
+  </Side>
+
+  <Side>
+    ### Android [#adroid-options]
+
+    <img
+      style={{ width: "60%" }}
+      title="Scan this QR code for the android mobile app"
+      alt="Scan this QR code for the android mobile app"
+      src="/images/mobile-app_screenshot-crop_mobile-app-android-qr-code.webp"
+    />
+  </Side>
+</SideBySide>
+
+## Capacidades móviles [#mobile-app-features]
+
+Aquí hay una muestra de lo que puede hacer con nuestra aplicación móvil:
+
+* <DNT>
+    **Alerts**
+  </DNT>
+
+  : vea el incidente actual y pasado, reconozca el incidente y toque para ver los datos de rendimiento de la entidad relacionada.
+
+* <DNT>
+    **Application performance monitoring (APM)**
+  </DNT>
+
+  : Vea datos históricos y en tiempo real sobre transacciones, errores, base de datos, servicios externos y más.
+
+* <DNT>
+    **Browser monitoring**
+  </DNT>
+
+  : Realice un seguimiento del rendimiento, los tiempos de carga, los errores, las solicitudes AJAX y más en todas sus aplicaciones web frontend.
+
+* <DNT>
+    **Dashboards and NRQL**
+  </DNT>
+
+  : vea su panel de control o profundice con NRQL. Puede crear una consulta NRQL personalizada o puede ver el NRQL de cualquier gráfico tocando el gráfico y luego tocando el desbordamiento.
+
+  <Icon name="fe-more-horizontal"/>
+
+  icono y seleccionando
+
+  <DNT>
+    **View query**
+  </DNT>
+
+  .
+
+* <DNT>
+    **Explorer**
+  </DNT>
+
+  : explore todo lo demás en New Relic, desde los servicios de AWS hasta el rendimiento de la red.
+
+* <DNT>
+    **Infrastructure monitoring**
+  </DNT>
+
+  : vea el estado de sus hosts que se ejecutan en la nube, en hosts dedicados o en contenedores que se ejecutan en entornos orquestados.
+
+* <DNT>
+    **Mobile monitoring**
+  </DNT>
+
+  : vea el rendimiento, los errores, las fallas y más en todas sus aplicaciones móviles.
+
+* <DNT>
+    **Synthetic monitoring**
+  </DNT>
+
+  : vea el rendimiento de cada monitor, vea resultados individuales y realice un seguimiento de las fallas.
+
+<SideBySide>
+  <Side>
+    ### iOS [#ios-screenshot]
+
+    <img
+      style={{ width: "60%" }}
+      title="APM dashboard in the New Relic iOS app"
+      alt="APM dashboard in the New Relic iOS app"
+      src="/images/mobile-apps_screenshot-full_iOS-app-APM-dashboard.webp"
+    />
+  </Side>
+
+  <Side>
+    ### Android [#android-screenshot]
+
+    <img
+      style={{ width: "60%" }}
+      title="APM dashboard in New Relic's Android app"
+      alt="APM dashboard in New Relic's Android app"
+      src="/images/mobile-apps_screenshot-full_Android-app-APM-dashboard.webp"
+    />
+  </Side>
+</SideBySide>
+
+## Privacidad de datos [#privacy]
+
+Nuestras aplicaciones móviles solo registran la información necesaria para ayudar a autenticar y solucionar problemas:
+
+* Dirección de correo electrónico del usuario asociada con su cuenta de New Relic, incluido el nombre y apellido (solo para fines de autenticación)
+* Dirección IP
+* ID del dispositivo
+
+Para obtener más información, consulte nuestra [documentación sobre seguridad y privacidad de datos móviles](/docs/mobile-monitoring/new-relic-mobile/get-started/security-mobile-apps).

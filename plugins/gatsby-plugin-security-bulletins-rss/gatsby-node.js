@@ -32,6 +32,7 @@ const securityBulletinsQuery = async (graphql) => {
           frontmatter {
             title
             metaDescription
+            releaseDate
           }
           slug
           mdxAST
@@ -59,7 +60,7 @@ const securityBulletinsQuery = async (graphql) => {
 
 const getFeedItem = (node, siteMetadata, imageHashMap) => {
   const { frontmatter, slug, mdxAST } = node;
-  const { title, metaDescription } = frontmatter;
+  const { title, metaDescription, releaseDate } = frontmatter;
 
   const transformedAST = htmlGenerator.runSync(mdxAST);
   const html = htmlGenerator.stringify(
@@ -72,7 +73,7 @@ const getFeedItem = (node, siteMetadata, imageHashMap) => {
   );
 
   // time is necessary for RSS validity
-  const date = new Date();
+  const date = new Date(releaseDate);
   const pubDate = `${format(date, 'EE, dd LLL yyyy')} 00:00:00 +0000`;
   const link = new URL(slug, siteMetadata.siteUrl).href;
   const id = Buffer.from(`${title}`).toString('base64');

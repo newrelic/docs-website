@@ -1,0 +1,465 @@
+---
+title: Visualiza y consulta tus datos de Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - View and query data
+metaDescription: 'How to view, query, and visualize the data you report to New Relic with the Prometheus OpenMetrics integration.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para consultar y visualizar las métricas recopiladas para su Prometheus OpenMetrics o integración de escritura remota con New Relic, puede utilizar [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-components-functions). También puede [traducir su consulta estilo PromQL a NRQL](/docs/integrations/prometheus-integrations/view-query-data/translate-promql-queries-nrql) usando Grafana o el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-promql-style-mode-query-data).
+
+Todas las métricas para docker y Kubernetes se almacenan en el tipo `Metric`.
+
+## Atributo predeterminado para la integración OpenMetrics [#default-attributes]
+
+De forma predeterminada, se agregará el siguiente atributo a todas las métricas para la integración de docker y Kubernetes :
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Atributo predeterminado  
+                (toda integración)
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `clusterName`
+      </td>
+
+      <td>
+        El nombre del clúster proporcionado en la configuración del raspador.
+      </td>
+    </tr>
+  </tbody>
+
+  <tbody>
+    <tr>
+      <td>
+        `integrationName`
+      </td>
+
+      <td>
+        El nombre de esta integración (`nri-prometheus`).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integrationVersion`
+      </td>
+
+      <td>
+        La versión de la integración; por ejemplo, `0.2.0`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metricName`
+      </td>
+
+      <td>
+        El nombre de la métrica en sí.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `nrMetricType`
+      </td>
+
+      <td>
+        El tipo de New Relic `Metric`; por ejemplo, `Gauges`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `promMetricType`
+      </td>
+
+      <td>
+        El tipo de métrica de la métrica de Prometheus.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `scrapedEndpoint`
+      </td>
+
+      <td>
+        Se está eliminando la URL del extremo.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<img
+  style={{ width: '40px', height: '35px'}}
+  class="inline"
+  title="img-integration-k8.png"
+  alt="img-integration-k8.png"
+  src="/images/os_icon_k8.webp"
+/>
+
+<DNT>
+  **Kubernetes:**
+</DNT>
+
+Si el scraper se ejecuta en Kubernetes, New Relic también agrega el siguiente atributo a todas las métricas:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Atributo adicional Kubernetes
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `deploymentName`
+      </td>
+
+      <td>
+        Nombre del despliegue, si se raspa una pod.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label`
+      </td>
+
+      <td>
+        Las etiquetas de Kubernetes del objeto que se está extrayendo, con el prefijo `"label"`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `namespaceName`
+      </td>
+
+      <td>
+        Nombre del namespace.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `nodeName`
+      </td>
+
+      <td>
+        Nombre del nodo donde se ejecuta el pod que se está extrayendo, si corresponde.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `podName`
+      </td>
+
+      <td>
+        Nombre de la pod que se está raspando, si corresponde.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `serviceName`
+      </td>
+
+      <td>
+        Nombre del servicio que se está eliminando, si corresponde
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Atributo predeterminado para la integración de escritura remota [#default-attributes-remote-write]
+
+De forma predeterminada, se agregará el siguiente atributo a la escritura remota métrica de Prometheus:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Atributo predeterminado  
+                (toda integración)
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `prometheus_server`
+      </td>
+
+      <td>
+        Una etiqueta proporcionada por el usuario especificada como parámetro de URL de escritura remota de Prometheus. El valor proporcionado debe ser único, ya que pretende diferenciar entre los servidores Prometheus de origen en el momento de la consulta. No especificado de forma predeterminada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `newrelic.source`
+      </td>
+
+      <td>
+        El nombre del punto de ingesta de New Relic (`prometheusAPI`).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instrumentation.provider`
+      </td>
+
+      <td>
+        `prometheus`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instrumentation.name`
+      </td>
+
+      <td>
+        `remote-write`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instrumentation.source`
+      </td>
+
+      <td>
+        Un identificador proporcionado por el usuario para la fuente de los datos de Prometheus que coincide con el valor de `prometheus_server`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `instrumentation.version`
+      </td>
+
+      <td>
+        Se utiliza para identificar la versión de la API de escritura remota; Por ejemplo, `0.0.1.`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplos de consultas NRQL [#nrql-examples]
+
+Cuando [crees consulta](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data), ten en cuenta que no existe ningún vínculo entre la métrica, la entidad y el atributo. Utilice la siguiente consulta NRQL para averiguar qué métricas están disponibles y qué atributos están presentes en estas métricas:
+
+<CollapserGroup>
+  <Collapser
+    id="get-names"
+    title="Obtener nombres métricos"
+  >
+    Para obtener todos los nombres métricos para OpenMetrics:
+
+    ```sql
+    FROM Metric SELECT uniques(metricName)
+    ```
+
+    Para obtener nombres métricos para una integración de escritura remota:
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE instrumentation.provider='prometheus' 
+    AND instrumentation.name='remote-write'
+    ```
+
+    Para obtener nombres métricos para una integración de escritura remota desde una única fuente de Prometheus:
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE instrumentation.provider='prometheus' 
+    AND instrumentation.name='remote-write' AND instrumentation.source='<ds>'
+    ```
+
+    Para obtener nombres métricos para un extremo OpenMetrics específico:
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE scrapedEndpoint='<ep>'
+    ```
+
+    Para obtener nombres métricos para un clúster, namespace o pod de OpenMetrics específico:
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE clusterName='<cn>'
+    ```
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE namespaceName='<ns>'
+    ```
+
+    ```sql
+    FROM Metric SELECT uniques(metricName) WHERE podName='<pod>'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="get-attributes"
+    title="Obtener el atributo para una métrica"
+  >
+    Para obtener todos los atributos para la métrica seleccionada:
+
+    ```sql
+    FROM Metric SELECT keyset() WHERE metricName='<mn>'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="get-attribute-values"
+    title="Obtener los valores de un atributo en OpenMetrics"
+  >
+    La función de autocompletar mostrará todos los valores del atributo, independientemente del pod. Para determinar los valores de atributos para un pod específico:
+
+    ```sql
+    FROM Metric SELECT uniques(<attribute>) WHERE metricName='<mn>' AND podName='<pod>'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Construye la consulta [#build-query]
+
+Usando [el nombre métrica y el atributo](#nrql-examples), puedes consultar tus datos. Para obtener más información sobre facetas, series temporales y selección de tiempo, consulte la [documentación de NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-components-functions).
+
+Para crear una consulta estilo PromQL, consulte nuestra documentación sobre [las características PromQL compatibles](/docs/integrations/prometheus-integrations/view-query-data/supported-promql-features).
+
+<CollapserGroup>
+  <Collapser
+    id="get-raw"
+    title="Obtener valores métricos"
+  >
+    Para obtener valores métricos brutos:
+
+    ```sql
+    FROM Metric SELECT <metricName> WHERE <attribute>='<value>'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="get-graph"
+    title="Obtener un gráfico de la métrica"
+  >
+    Para obtener un gráfico de la métrica con un agregador de `average`, `min`, `max` o `sum`:
+
+    ```sql
+    FROM Metric SELECT <aggregator>(<metricname>) WHERE <attribute>='<value>' TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    id="query-counter-metrics"
+    title="Consulta contador métrica (deltas)"
+  >
+    Actualmente la integración calcula los deltas para contramétrica. Es por esto que la consulta sobre contador métrica mostrará los deltas del contador en lugar del valor absoluto del contador.
+  </Collapser>
+
+  <Collapser
+    id="clients-pod-namespace"
+    title="Ver clientes Redis conectados por pod con OpenMetrics"
+  >
+    <img
+      style={{ width: '40px', height: '35px'}}
+      class="inline"
+      title="Docker icon"
+      alt="Docker icon"
+      src="/images/os_icon_docker.webp"
+    />
+
+    <DNT>
+      **Docker:**
+    </DNT>
+
+    En este ejemplo se supone que estás eliminando exportadores de Redis. Para ver la cantidad de clientes Redis conectados por extremo en un clúster:
+
+    ```sql
+    FROM Metric SELECT latest(redis_connected_clients) WHERE clusterName='my-cluster' 
+    FACET scrapedEndpoint TIMESERIES
+    ```
+
+    <img
+      style={{ width: '40px', height: '35px'}}
+      class="inline"
+      title="Kubernetes icon"
+      alt="Kubernetes icon"
+      src="/images/os_icon_k8.webp"
+    />
+
+    <DNT>
+      **Kubernetes:**
+    </DNT>
+
+    En este ejemplo se supone que tiene Redis un pod con el Redis exportador instalado. Para ver la cantidad de clientes Redis conectados por pod en el namespace predeterminado:
+
+    ```sql
+    FROM Metric SELECT latest(redis_connected_clients) WHERE namespaceName='default' FACET podName TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    id="avg-free-memory"
+    title={<><img src="/images/os_icon_docker.webp" title="Docker icon" alt="Docker icon" style={{ height: '35px', width: '40px' }}>docker: ver la memoria promedio libre para el extremo raspado</img></>}
+  >
+    Este ejemplo supone que está extrayendo exportadores de nodos para docker y desea utilizar OpenMetrics. Para ver la memoria promedio libre para todos los extremos raspados en un clúster:
+
+    ```sql
+    FROM Metric SELECT average(node_memory_MemFree_bytes) WHERE clusterName='my-cluster'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="average-memory-pods"
+    title={<><img src="/images/os_icon_k8.webp" title="img-integration-k8.png" alt="img-integration-k8.png" style={{ height: '35px', width: '40px' }}>Kubernetes: vea el uso promedio de memoria para el pod en un despliegue</img></>}
+  >
+    Para ver el uso promedio de memoria para todos los pods en un Kubernetes implementado usando OpenMetrics:
+
+    ```sql
+    FROM Metric SELECT average(container_memory_usage_bytes) 
+    WHERE deploymentName='my-app-deployment' AND namespaceName='default'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ver datos en New Relic [#view-ui]
+
+Cuando consulta los datos, puede ver los resultados en la New Relic UI. También puede visualizar los datos como gráficos, histograma, etc.
+
+Para ver los resultados de la consulta NRQL para los datos de su integración de Prometheus: vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Query your data**</DNT>. Para obtener más información, consulte nuestra [documentación del generador de consultas](/docs/chart-builder/use-chart-builder/get-started/introduction-chart-builder).
+
+## Generar histograma y calcular percentil. [#histograms-percentiles]
+
+Usando la escritura remota de Prometheus o la versión [2.0.0](https://github.com/newrelic/nri-prometheus/blob/main/CHANGELOG.md#200) y superior de la integración Prometheus OpenMetrics (POMI), puede generar histograma y calcular percentil a partir de sus datos. Para el histograma de Prometheus, se enviará un cubo `<basename>_bucket{le="42"}` como métrica `<basename>_bucket` y la dimensión será `{histogram.bucket.le="42"}`.
+
+NRQL tiene dos funciones que funcionan en el histograma de Prometheus ingerido mediante escritura remota o la integración de Prometheus OpenMetrics (a partir de la versión [2.0.0](https://github.com/newrelic/nri-prometheus/blob/main/CHANGELOG.md#200)): [`bucketPercentile()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-bucket-percentile) y [`histogram()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-histogram). Los enlaces incluyen ejemplos de consultas.

@@ -1,0 +1,291 @@
+---
+title: Comandos de configuración
+tags:
+  - New Relic One CLI
+  - Config commands
+metaDescription: An overview of the commands you can use to configure your New Relic One CLI preferences.
+freshnessValidatedDate: '2024-04-29T00:00:00.000Z'
+translationType: machine
+---
+
+Emplee los siguientes comandos para configurar sus preferencias de CLI de New Relic One. Puede hacer clic en cualquier comando para ver sus opciones de uso y detalles adicionales sobre el comando.
+
+Ejecute `nr1 config:list` para ver todas sus configuraciones existentes y sus claves.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Dominio
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`nr1 config:delete`](#nr1-configdelete)
+      </td>
+
+      <td>
+        Elimina el valor de una configuración específica.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 config:get`](#nr1-configget)
+      </td>
+
+      <td>
+        Muestra una configuración específica.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 config:list`](#nr1-configlist)
+      </td>
+
+      <td>
+        Enumera sus opciones de configuración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 config:set`](#nr1-configset)
+      </td>
+
+      <td>
+        Establece un valor de configuración específico.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `nr1 config:delete` [#nr1-configdelete]
+
+### Eliminar una configuración [#nr1-configdelete-remove]
+
+Elimina el valor de una configuración específica.
+
+### Uso [#nr1-configdelete-usage]
+
+`$ nr1 config:delete OPTION`
+
+### Opciones [#nr1-configdelete-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-k, --key=KEY`
+      </td>
+
+      <td>
+        Esto es **requerido**. La clave de la configuración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t, --this-profile-only`
+      </td>
+
+      <td>
+        Si está presente, esta configuración solo se aplicará mientras se ejecuta con el perfil especificado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Alias [#nr1-configdelete-aliases]
+
+* `nr1 config:remove`
+* `nr1 config:rm`
+
+### Ejemplos [#nr1-configdelete-exmples]
+
+* `$ nr1 config:delete --key=proxyHttp`
+
+## `nr1 config:get` [#nr1-configget]
+
+### Ver tu configuración [#nr1-configget-see]
+
+Muestra el valor para una configuración específica.
+
+### Uso [#nr1-configget-usage]
+
+`$ nr1 config:get OPTION`
+
+### Opciones [#nr1-configget-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-k, --key=KEY`
+      </td>
+
+      <td>
+        Esto es **requerido**. La clave de la configuración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `nr1 config:list` [#nr1-configlist]
+
+### Ver toda tu configuración [#nr1-configlist-see]
+
+Muestra una lista de todas sus opciones de configuración, incluida la configuración valor principal y el origen.
+
+### Uso [#nr1-configlist-usage]
+
+`$ nr1 config:list`
+
+### Opciones [#nr1-configlist-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Alias [#nr1-configlist-aliases]
+
+* `$ nr1 config:ls`
+
+## `nr1 config:set` [#nr1-configset]
+
+### Establecer una configuración [#nr1-configset-set]
+
+Establece un valor de configuración específico dada una clave de configuración. De forma predeterminada, el comando le indicará un nuevo valor luego de proporcionar una clave, pero también puede usar la opción `--k, --key=KEY` para omitir este paso.
+
+### Uso [#nr1-configset-usage]
+
+`$ nr1 config:set OPTION`
+
+### Opciones [#nr1-configset-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-k, --key=KEY`
+      </td>
+
+      <td>
+        Esto es **requerido**. La clave de la configuración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-V, --value=VALUE`
+      </td>
+
+      <td>
+        El valor de la configuración.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t, --this-profile-only`
+      </td>
+
+      <td>
+        Si está presente, esta configuración solo se aplicará mientras se ejecuta con el perfil especificado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Ejemplos [#nr1-configset-examples]
+
+* `$ nr1 config:set --key=proxyEnabled`
+* `$ nr1 config:set --key=proxyEnabled --value=ENABLED`

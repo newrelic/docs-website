@@ -1,0 +1,207 @@
+---
+title: Suporte assíncrono em .NET
+tags:
+  - Agents
+  - NET agent
+  - Other features
+metaDescription: 'How to activate asynchronous mode with New Relic''s .NET agent, plus a summary of new, disabled, or unavailable features when async mode is active.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+O agente .NET da New Relic inclui automaticamente a instrumentação framework assíncrono a partir da [versão 6.0](/docs/release-notes/agent-release-notes/net-release-notes) do agente. Com o padrão `async-await` padrão, introduzido no .NET 4.5, as chamadas para métodos assíncronos podem retornar mesmo que o trabalho realizado no método chamado ainda esteja em andamento. O agente .NET observa esse trabalho assíncrono em andamento e aguarda sua conclusão antes de registrar os tempos.
+
+## Recurso que suporta instrumentação assíncrona [#features]
+
+Com a adição do suporte assíncrono, recursos adicionais estão disponíveis em nosso agente .NET. Porém, como parte desta melhoria, um pequeno número de recursos anteriormente fornecidos pelo agente não estão atualmente disponíveis. Exceto conforme observado, o agente não utiliza métodos assíncronos para nenhuma outra [estrutura suportada](/docs/agents/net-agent/getting-started/compatibility-requirements-net-agent) pelo agente .NET.
+
+<CollapserGroup>
+  <Collapser
+    id="HttpClient"
+    title="Métodos assíncronos HttpClient"
+  >
+    O agente utiliza estes `HttpClient` métodos assíncronos:
+
+    * `SendAsync`
+    * `GetAsync`
+    * `PostAsync`
+    * `PutAsync`
+    * `DeleteAsync`
+    * `GetStringAsync`
+    * `GetStreamAsync`
+    * `GetByteArrayAsync`
+  </Collapser>
+
+  <Collapser title="Métodos assíncronos RestClient">
+    O agente utiliza estes `RestClient` métodos assíncronos:
+
+    * `ExecuteTaskAsync`
+    * `ExecuteGetTaskAsync`
+    * `ExecutePostTaskAsync`
+  </Collapser>
+
+  <Collapser
+    id="SqlCommand"
+    title="Métodos assíncronos SqlCommand"
+  >
+    O agente utiliza estes `SqlCommand` métodos assíncronos:
+
+    * `ExecuteReaderAsync`
+    * `ExecuteNonQueryAsync`
+    * `ExecuteScalarAsync`
+    * `ExecuteXmlReaderAsync`
+  </Collapser>
+
+  <Collapser
+    id="SqlDataReader"
+    title="Métodos assíncronos SqlDataReader"
+  >
+    O agente utiliza estes `SqlDataReader` métodos assíncronos:
+
+    * `NextResultAsync`
+    * `ReadAsync`
+  </Collapser>
+
+  <Collapser
+    id="NpgsqlCommand"
+    title="Métodos assíncronos NpgsqlCommand (Postgres)"
+  >
+    O agente utiliza estes `NpgsqlCommand` métodos assíncronos (Postgres):
+
+    * `ExecuteReaderAsync`
+    * `ExecuteNonQueryAsync`
+    * `ExecuteScalarAsync`
+  </Collapser>
+
+  <Collapser
+    id="custom-instrumentation"
+    title="Instrumentação personalizada"
+  >
+    O agente .NET oferece suporte à [instrumentação personalizada](/docs/agents/net-agent/instrumentation/net-custom-transactions#example-custom-txn-async) de seus próprios métodos assíncronos.
+  </Collapser>
+</CollapserGroup>
+
+## Limitações conhecidas [#known-issues]
+
+Aqui está um resumo das limitações conhecidas da instrumentação assíncrona com nosso agente .NET.
+
+<CollapserGroup>
+  <Collapser
+    id="response-time1"
+    title="O tempo de resposta é menor que o tempo total"
+  >
+    Espera-se que o tempo de resposta seja menor que o tempo total gasto em `async`-`await` cenários de uso. Considere o seguinte exemplo de código para um endpoint da web:
+
+    ```cs
+    async Task<string> WebEndpointExample() 
+    {
+        await DoSomethingForSomeSecondsAsync(5); //kick off a 5-second-work to be done.
+        return "Complete";
+    }
+
+    [Trace]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task DoSomethingForSomeSecondsAsync(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+    ```
+
+    Neste exemplo de código, leva aproximadamente 5 segundos para o `WebEndpointExample` ser concluído, portanto, o tempo de resposta para a transação que representa a solicitação para o endpoint `WebEndpointExample` será de aproximadamente 5 segundos.
+
+    O agente também captura o tempo “ocupado” (o tempo que o método instrumentado está realmente em execução) de cada segmento individual que constitui a transação. Eles são `WebEndpointExample` e `DoSomethingForSomeSecondsAsync`. Idealmente, o tempo total de execução dos dois segmentos é igual ao tempo de resposta (aproximadamente 5 segundos).
+
+    É fácil ver que o tempo de execução de `DoSomethingForSomeSecondsAsync` é de 5 segundos. Entretanto, o tempo de execução do `WebEndpointExample` deve ser próximo de 0 segundos. (Não faz nenhum trabalho; é `await`para o `DoSomethingForSomeSecondsAsync` ser concluído.)
+
+    Entretanto, o agente ainda mede seu tempo de execução em aproximadamente 5 segundos. Isso se deve à incapacidade do agente de detectar o tempo bloqueado (não o tempo de CPU) quando um método está `await`executando para outro. Portanto, o tempo total é relatado como 10 segundos, que é maior que o tempo de resposta (aproximadamente 5 segundos).
+
+    Ao mesmo tempo, o agente não pode presumir que a chamada aos métodos `async` sempre bloquearia o chamador o tempo todo. O próximo exemplo demonstra isso:
+
+    ```cs
+    async Task<string> WebEndpointExample()
+    {
+        var task = DoSomethingForSomeSecondsAsync(5); //kick off a 5-second-work to be done.
+
+        //Do something less than 5 seconds here.
+
+        await task;
+        return "Complete";
+    }
+
+    [Trace]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task DoSomethingForSomeSecondsAsync(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+    ```
+
+    Neste exemplo, o tempo de resposta ainda é de aproximadamente 5 segundos, mas o tempo de execução real do `WebEndpointExample` não é mais de aproximadamente 0.
+  </Collapser>
+
+  <Collapser
+    id="asp-pipeline"
+    title="Requer pipeline ASP atualizado"
+  >
+    O agente .NET não utilizará métodos assíncronos se o pipeline ASP legado estiver presente. Como a Microsoft substituiu o pipeline ASP legado bem antes da introdução dos métodos assíncronos, esse problema normalmente afeta apenas aplicativos criados no .NET framework 4.0 ou inferior e depois migrados para o .NET framework 4.5 ou superior.
+
+    Para ver se esse problema afeta sua inscrição e como resolvê-lo, caso isso aconteça, [revise os procedimentos de resolução de problemas](/docs/agents/net-agent/troubleshooting/missing-async-metrics).
+  </Collapser>
+
+  <Collapser
+    id="task-not-void"
+    title="Tipo de retorno Requisitos de tarefa"
+  >
+    O agente .NET não oferece suporte à instrumentação de métodos assíncronos que possuem tipo de retorno diferente de `Task` ou `Task<T>`. O agente não suporta métodos `async void` .
+
+    Para obter mais informações, consulte a documentação da Microsoft sobre [tipos de retorno assíncronos](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types):
+
+    * [`Task<TResult>`](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#BKMK_TaskTReturnType) tipo de retorno
+    * [Vazio assíncrono](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#BKMK_VoidReturnType)
+    * [Tipos de retorno assíncronos generalizados](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#generalized-async-return-types-and-valuetasktresult)
+  </Collapser>
+
+  <Collapser
+    id="begin-end-style"
+    title="Nenhuma instrumentação para o estilo inicial e final"
+  >
+    O agente .NET não utiliza nenhum método .NET que utilize o estilo `begin*` e `end*` , exceto [o aplicativo WCF](https://docs.microsoft.com/en-us/dotnet/framework/wcf/feature-details/how-to-call-wcf-service-operations-asynchronously). Fora desta exceção, se o seu aplicativo chamar esses tipos de métodos, o agente não criará segmentos para eles. Porém, o restante de suas transações e segmentos serão criados corretamente.
+  </Collapser>
+
+  <Collapser
+    id="manual-created-threads-capture"
+    title="Métricas/segmentos com escopo definido em threads criados manualmente"
+  >
+    O agente .NET não captura métricas ou segmentos com escopo definido em threads criados manualmente pelo seu aplicativo.
+  </Collapser>
+
+  <Collapser
+    id="async-await"
+    title="Métodos assíncronos instrumentados devem usar wait, não Task.Result"
+  >
+    Se seu aplicativo chamar métodos assíncronos instrumentados, use `await` em vez de `Task` métodos relacionados, como `Task.Result()` , para aguardar os resultados. Caso contrário, a instrumentação poderá não funcionar corretamente.
+
+    Em geral, evite usar `Task.Result()` ao chamar métodos assíncronos. Isso pode levar a [impasses](https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html).
+  </Collapser>
+
+  <Collapser
+    id="continue-with-timing"
+    title="O bloco ContinueWith pode afetar as medições de tempo"
+  >
+    Se você adicionar seu próprio bloco `ContinueWith({})` à promessa retornada por um método assíncrono instrumentado, isso poderá afetar as medições de tempo relatadas pela instrumentação. Por exemplo, o tempo pode incluir o tempo que seu `ContinueWith` leva para ser executado.
+  </Collapser>
+
+  <Collapser
+    id="iis-wcf-nesting"
+    title="Problema com o aninhamento em aplicativos WCF hospedados no IIS"
+  >
+    [Os serviços WCF](/docs/agents/net-agent/instrumentation/instrumenting-wcf-applications) hospedados pelo IIS não aninham corretamente o segmento <DNT>**WCF**</DNT> no segmento `ExecuteRequestHandler` . Os dois segmentos parecerão irmãos dentro do rastreamento da transação, embora [o tempo total](/docs/data-analysis/user-interface-functions/response-time#response-time-total-time) relatado seja preciso.
+  </Collapser>
+
+  <Collapser
+    id="stack-traces-segments"
+    title="Segmentos não criam rastreamento de pilha automaticamente"
+  >
+    Os segmentos em um rastreamento da transação não gerarão rastreamento de pilha automaticamente, mesmo que sejam executados por mais de `transaction_tracer.stack_trace_threshold`.
+  </Collapser>
+</CollapserGroup>

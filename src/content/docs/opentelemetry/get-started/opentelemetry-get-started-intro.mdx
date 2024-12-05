@@ -1,0 +1,30 @@
+---
+title: Overview of OpenTelemetry integrations
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Explore a variety of OpenTelemetry integration patterns with New Relic.
+translate:
+  - kr
+redirects:
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/get-started-opentelemetry-new-relic
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/set-opentelemetry-new-relic
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start-guide
+  - /docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-architecture-recipes/
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-get-started-intro
+freshnessValidatedDate: 2024-09-10
+---
+
+The OpenTelemetry project has a broad scope including [API and SDK specifications](https://opentelemetry.io/docs/specs/otel/), [instrumentation](https://opentelemetry.io/docs/concepts/instrumentation/), the [Collector](https://opentelemetry.io/docs/collector/), [semantic conventions](https://opentelemetry.io/docs/specs/semconv/), the [OTLP](https://opentelemetry.io/docs/specs/otlp/) protocol, and more. New Relic aims to have first-class support for OpenTelemetry and has a wide variety of platform capabilities that make it easy to use OpenTelemetry tools.
+
+The pages below focus on common integration patterns, providing a foundation for utilizing OpenTelemetry effectively with New Relic. While not exhaustive, it highlights how users typically leverage these tools and the New Relic platform capabilities built upon them.
+
+<DocTiles>
+  <DocTile title='APM monitoring' path="/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro/">Monitor your applications and services by configuring the OpenTelemetry Protocol (OTLP) exporter to send data to New relic via the New Relic OTLP endpoint.</DocTile>
+  <DocTile title='Infrastructure monitoring' path="/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro">Monitor your infrastructure hosts, containers, and more by configuring the the OpenTelemetry Collector to send data to New Relic.</DocTile>
+  <DocTile title='General data processing' path="/docs/opentelemetry/get-started/collector-processing/opentelemetry-collector-processing-intro">Monitor all other data by using the OpenTelemetry Collector to receive, process (enriching, transforming, sampling, filtering, etc), and export telemetry data to New Relic.</DocTile>
+</DocTiles>

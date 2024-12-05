@@ -23,15 +23,15 @@ export TRANSLATION_VENDOR_SECRET='' # MT user secret
 export TRANSLATION_TYPE='machine' # either 'human' or 'machine'. change as needed.
 
 
-node $SCRIPT_DIR/../../send-and-update-translation-queue.js
+node $SCRIPT_DIR/../../send-and-update-translation-queue.mjs
 
 # wait for translation to be complete
-node $SCRIPT_DIR/./wait_for_translation.js
+node $SCRIPT_DIR/./wait_for_translation.mjs
 
 # # step 3
-node $SCRIPT_DIR/../../check-job-progress.js
+node $SCRIPT_DIR/../../check-job-progress.mjs
 
 # # step 4
-node $SCRIPT_DIR/../../remove-completed-batch.js
+node $SCRIPT_DIR/../../remove-completed-batch.mjs
 
 popd

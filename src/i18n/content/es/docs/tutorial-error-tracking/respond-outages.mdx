@@ -1,0 +1,145 @@
+---
+title: Responder a cortes con rastreo de errores
+metaDescription: Learn how to monitor your system so you can quickly identify and resolve many error occurrences fast.
+freshnessValidatedDate: '2023-07-18T00:00:00.000Z'
+translationType: machine
+---
+
+Es probable que se produzcan errores. Incluso con una herramienta de observabilidad, encontrar el origen de un error no es tan sencillo como podría suponer. Piense en un jardín inundado. Observa que el agua fluye cerca de su manguera, pero la causa de la inundación es en realidad una grieta en algún lugar de la tubería de agua. Si supusiera que la manguera con fugas causó la inundación, terminaría con una manguera fija pero con el césped arruinado: un error costoso.
+
+El análisis de errores lo lleva al origen del problema para que pueda solucionarlo antes de que ocurra la inundación. Cuando un equipo realiza un nuevo despliegue o un servicio falla en sentido ascendente, es necesario profundizar más antes de implementar cualquier solución. No hay lugar para suposiciones en el análisis de errores.
+
+## Objetivos [#objective]
+
+Esta serie de tutoriales le muestra cómo resolver errores críticos y luego lo guía para reducir el recuento general de errores. Este documento cubre cómo navegar por nuestra característica [Errors Inbox](/docs/errors-inbox/getting-started) , incluido cómo:
+
+* Elija un servicio para comenzar el análisis de errores
+* Elija un grupo de errores que indique una interrupción
+
+## Requisitos previos [#prereq]
+
+Para monitor el rendimiento de su aplicación, utilizará un agente creado específicamente para el idioma de su aplicación. Al hacer clic en un logotipo, accederá a un instalador guiado en la UI de New Relic, donde se le guiará durante la instalación y configuración del agente.
+
+<TechTileGrid>
+  <TechTile
+    name="Go agent"
+    icon="logo-go"
+    to="https://one.newrelic.com/nr1-core?state=985d4005-ba90-a8c7-1da1-2af34539b03b"
+  />
+
+  <TechTile
+    name="Java agent"
+    icon="logo-java"
+    to="https://one.newrelic.com/nr1-core?state=80d18bcb-4919-1fcb-2b77-9406838eb916"
+  />
+
+  <TechTile
+    name=".NET agent"
+    icon="logo-dotnet"
+    to="https://one.newrelic.com/nr1-core?state=30e93090-6dfa-6b70-8e75-472f54414355"
+  />
+
+  <TechTile
+    name="Node.js agent"
+    icon="logo-nodejs"
+    to="https://one.newrelic.com/marketplace/install-data-source?state=be2e62fa-cc3b-c428-27c4-8d662c9e80a1"
+  />
+
+  <TechTile
+    name="PHP agent"
+    icon="logo-php"
+    to="https://one.newrelic.com/nr1-core?state=aa633b41-72d4-009c-3abf-55dcf64894fe"
+  />
+
+  <TechTile
+    name="Python agent"
+    icon="logo-python"
+    to="https://one.newrelic.com/nr1-core?state=20fda75b-58fb-a92a-f9e1-7b052035c6e8"
+  />
+
+  <TechTile
+    name="Ruby agent"
+    icon="logo-ruby"
+    to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+  />
+</TechTileGrid>
+
+Una vez que haya instalado un agente, vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com/nr1-core?filters=(domain%3D'APM'ANDtype%3D'APPLICATION'))**</DNT> y seleccione su aplicación. Si todavía no ve muchos datos, aléjese por un momento y deje que el agente recopile datos en tiempo real mientras se ejecuta su aplicación. Este tutorial también supone que está familiarizado con <InlinePopover type="alertsTutorial"/>, incluso si aún no ha creado su primera alerta.
+
+## Detecte y rastree errores en su aplicación [#detect-error]
+
+Ahora que sus aplicaciones están instrumentadas, New Relic está capturando datos sobre sus servicios. Esto incluye datos sobre ocurrencias de errores en su aplicación.
+
+<Steps>
+  <Step>
+    ## Piensa en el usuario final
+
+    Alerta te avisa que existe un problema: es el agua de tu césped. Pero alerta no le proporcionará todo el contexto. Ahí es donde entra en juego la Errors Inbox .
+
+    Imagine que es responsable de algunas aplicaciones en un sitio de comercio electrónico. Ha recibido dos alertas para dos componentes, una para pagar y otra para buscar inventario. Solo recibe informes de que la función de búsqueda falla para el usuario final, pero el componente de pago funciona bien. Quizás crea que la función de verificación es más importante, pero es fundamental separar sus creencias de sus prácticas de observabilidad.
+
+    Esta práctica se aplica incluso si el usuario final no ha informado nada. Cuando notes que los servicios fallan, puedes hacerte estas preguntas:
+
+    * ¿Es la experiencia del usuario final un problema?
+    * ¿Cómo debería ser su experiencia?
+    * ¿Qué comportamiento están experimentando actualmente?
+  </Step>
+
+  <Step>
+    ## Determinar qué servicios están reportando errores
+
+    Veamos cómo podría verse esto en la práctica. Cuando ve la página <DNT>**All entities**</DNT> , observa que cuatro servicios están emitiendo alertas.
+
+    <img
+      title="Overview errors affecting your services"
+      alt="A screenshot showing an app with many errors"
+      src="/images/apm_screenshot-crop_all_entities.webp"
+    />
+
+    Después de hacerse las preguntas del paso uno, sabrá que:
+
+    * El usuario final tiene dificultades con las acciones de compra.
+    * Su sitio solo debe mostrar artículos en stock.
+    * Su sitio muestra todos los productos, por lo que los clientes pueden comprar artículos agotados.
+
+      Ha identificado que `api-gateway` es una dependencia crítica para su inventario. Aquí es donde comenzará su análisis de errores.
+  </Step>
+
+  <Step>
+    ## Localiza lo que cambió [#source]
+
+    Tiene su punto de entrada a su sistema, por lo que ahora puede investigar los errores que afectan su aplicación. En la página de resumen `api-gateway` , haga clic en la pestaña <DNT>**Errors**</DNT> debajo de <DNT>**Triage**</DNT>. Su página de errores filtra sus datos a una vista de solo errores.
+
+    <img
+      title="Overview errors affecting your services"
+      alt="A screenshot showing an app with many errors"
+      src="/images/apm_screenshot-crop_errors-inbox-page.webp"
+    />
+
+    Hay al menos seis grupos de errores que se informan en `api-gateway`. Los grupos de errores aparecen entre una docena y miles de veces en su aplicación.
+
+    Al principio, esto parece carecer de granularidad, pero su serie temporal le brinda suficiente información para señalar lo que cambió con el tiempo. Desglosaremos esto:
+
+    * Basándose únicamente en el número de apariciones, su primer instinto podría indicarle que comience con `ActivemModel:::ValidationError` , ya que tiene 4000 apariciones. Sin embargo, si nos fijamos en la serie temporal, sus picos y valles son relativamente consistentes. Este podría ser un error esperado, pero veamos los otros cinco.
+    * El grupo de errores `Net::OpenTimeOut` tiene un patrón similar y, en realidad, constituye cuatro de los seis grupos de informes. En cada grupo de errores, puede ver picos y valles consistentes que se extienden antes del incidente. Con el mismo nombre y patrones similares, podemos inferir que este también es un error esperado.
+    * Nuestra última opción es `JsonapiClient:::Notfound`. Al igual que `ActivemModel:::ValidationError`, tiene una forma distinta y genera informes de forma constante. Si bien no tiene muchas ocurrencias, la serie temporal es lo suficientemente anómala como para que valga la pena profundizar un poco más.
+  </Step>
+
+  <Step>
+    ## Ajustar la serie temporal [#timeseries]
+
+    Para estar seguro, ajuste el parámetro de tiempo para mostrar patrones de las últimas 12 horas:
+
+    <img
+      title="Overview errors affecting your services"
+      alt="A screenshot showing an app with many errors"
+      src="/images/apm_screenshot-crop_errors-anomaly.webp"
+    />
+
+    Con el ajuste, verá que `ActivemModel:::ValidationError`tiene un patrón invariable de picos y valles, pero su `JsonapiClient:::Notfound` aumentó dramáticamente en la última hora. Este es un buen punto de partida.
+
+    Saber cuándo sucedió algo es una pieza fundamental para acercarse a la fuente. Al tener una comprensión completa del espacio del problema, ahora puede profundizar en la fuente.
+  </Step>
+</Steps>
+
+<UserJourneyControls nextStep={{"path":"/docs/tutorial-errors/solve-critical-errors","title":"Próximo paso","body":"Una vez que haya seleccionado sus grupos de errores, la página de resumen de errores muestra datos de atributos sobre fallas en su sistema."}}/>

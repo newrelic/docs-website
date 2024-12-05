@@ -1,0 +1,94 @@
+---
+title: Ejemplo de recuento de fallos móviles y tasa de fallas (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Mobile examples (v2)
+metaDescription: How to use New Relic's REST API (v2) to get crash count and crash rate data for the overall mobile app or a specific version.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esto describe cómo utilizar la API REST de New Relic (v2) para obtener <DNT>**crash count**</DNT> y <DNT>**crash rate**</DNT> generales y específicos de la versión de su aplicación móvil, que aparecen en la [página<DNT>**Summary**</DNT> ](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/mobile-apps-overview-page)en la esquina superior derecha.
+
+Estos ejemplos utilizan el período de tiempo predeterminado de los últimos 30 minutos. Para obtener datos de fallos para un [rango de tiempo](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) diferente, agregue el período de tiempo a los comandos.
+
+<Callout variant="tip">
+  También puede utilizar New Relic API Explorer para recuperar [datos métricos móviles](https://rpm.newrelic.com/api/explore/mobile_applications/metric_data).
+</Callout>
+
+## Requisitos previos [#prereqs]
+
+Para utilizar la API en estos ejemplos, necesita:
+
+* Your New Relic [REST clave de API](/docs/apis/rest-api-v2/requirements/rest-api-key)
+* Su ID de aplicación de monitoreo de móviles New Relic o su ID de versión de la aplicación de monitoreo de móviles.
+
+Para encontrar el ID de la aplicación monitoreo de móviles, consulte [Búsqueda del ID del producto: monitoreo de móviles](/docs/apis/rest-api-v2/requirements/finding-product-id#mobile).
+
+Para encontrar el ID de la versión de la aplicación monitoreo de móviles, consulte [Buscar el ID de la versión de la aplicación móvil](#mobile-app-version-id) a continuación.
+
+## Aplicación móvil: obtenga datos sobre accidentes [#app-crash-data]
+
+Para obtener datos de recuento de fallos y tasa de fallas para la aplicación móvil general, utilice el [ID de la aplicación móvil](/docs/apis/rest-api-v2/requirements/finding-product-id#mobile) en el siguiente comando de API REST:
+
+```
+curl -X GET "https://api.newrelic.com/v2/mobile_applications/${MOBILE_ID}.json" \
+     -H "X-Api-Key:${API_KEY}" -i
+```
+
+Los datos de salida `crash_summary` contienen tanto `crash_count` como `crash_rate`.
+
+```
+"crash_summary": {
+      "supports_crash_data": true,
+      "unresolved_crash_count": 14,
+      "crash_rate": 28.155339805825243
+    }
+```
+
+Para obtener datos de resumen de fallos para todas las aplicaciones móviles de la cuenta, utilice este comando de API REST:
+
+```
+curl -X GET "https://api.newrelic.com/v2/mobile_applications.json" \
+     -H "X-Api-Key:${API_KEY}" -i
+```
+
+## Versión de la aplicación móvil: obtenga datos del recuento de accidentes [#crash-count-version]
+
+Para obtener los datos de la métrica del recuento de fallos para una versión específica de la aplicación móvil, incluya el [ID de la versión de la aplicación móvil](#mobile-app-version-id) en el siguiente comando de API REST:
+
+```
+curl -X GET "https://api.newrelic.com/v2/mobile_applications/${MOBILE_APP_VERSION}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'name=Mobile/Crash/All&values[]=call_count&summarize=true'
+```
+
+## Versión de la aplicación móvil: obtenga datos de tasa de fallas [#crash-rate-version]
+
+Para calcular la tasa de fallas de una versión específica, use la siguiente ecuación:
+
+```
+Crash Rate = (Mobile/Crash/All:call_count) / (Session/Start:call_count)
+```
+
+Para obtener los dos valores métricos necesarios en la ecuación, use el siguiente comando API REST con el [ID de versión de la aplicación móvil](#mobile-app-version-id) .
+
+```
+curl -X GET "https://api.newrelic.com/v2/mobile_applications/${MOBILE_APP_VERSION}/metrics/data.json" \
+    -H "X-Api-Key:${API_KEY}" -i \
+    -d 'names[]=Mobile/Crash/All&names[]=Session/Start&values[]=call_count&summarize=true'
+```
+
+## Encuentre el ID de la versión de la aplicación móvil [#mobile-app-version-id]
+
+<Callout variant="important">
+  Debe proporcionar el ID de la versión solo cuando desee obtener datos sobre fallas para una versión específica.
+</Callout>
+
+Para encontrar el ID de versión de su aplicación móvil, ejecute la siguiente consulta NRQL:
+
+```
+SELECT count(*) from Mobile where appName='YOUR_APP_NAME' facet appVersionId since 1 day ago
+
+```

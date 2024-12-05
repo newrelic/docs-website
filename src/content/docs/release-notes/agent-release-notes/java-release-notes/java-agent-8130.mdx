@@ -1,0 +1,110 @@
+---
+subject:  Java agent
+releaseDate:  '2024-07-11'
+version:  8.13.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.13.0/'
+features: [“Add linking attributes to SQS spans”, “Add support for Graphql 22”, “Add support for JSP v4”, “Add support for HikariCP 2.4.0”, “Enhance CompletableFuture instrumentation for JDK11+”, “Enable RUM script injection via JSP v3 Tag library”, “Fetch the docker container ID for ECS Fargate instances”]
+bugs: [“Fix R2dbc postgresql 0.9.2 memory leak”, “Start vertx-web transactions for HTTP/2 requests”, “Update JFR Instance Naming”, “Close instrumentation gap for akka-http 10.2.0+”, “Start transactions in the Jetty12 core server”,  “Clean up tracers after exceptions to prevent memory leaks”, “Add security-related class excludes during class transformer creation”,  “Add null checks to vertx 4.5.1 instrumentation ”]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.13.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Add attributes to AWS SQS spans that allow linking to SQS entities [1954](https://github.com/newrelic/newrelic-java-agent/pull/1954)
+* Add support for Graphql 22.0+ [1912](https://github.com/newrelic/newrelic-java-agent/pull/1912)
+* Add support for JSP v4 [1951](https://github.com/newrelic/newrelic-java-agent/pull/1951)
+* Add instrumentation for HikariCP 2.4.0 to replace existing extension module.[1964](https://github.com/newrelic/newrelic-java-agent/pull/1964)
+  * Note: If the [New Relic HikariCP incubator module](https://docs.newrelic.com/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/#hikaricp-240) is currently in use, delete it from the new relic jar’s extension folder before upgrading to this version of the Java Agent.
+* Enhance CompletableFuture instrumentation for JDK11+ [1908](https://github.com/newrelic/newrelic-java-agent/pull/1908)
+* Enable RUM script injection via JSP v3 Tag library [1943](https://github.com/newrelic/newrelic-java-agent/pull/1943)
+* Fetch the docker container ID for ECS Fargate instances [1952](https://github.com/newrelic/newrelic-java-agent/pull/1952)
+
+## Fixes
+
+* Fix R2dbc postgresql 0.9.2 instrumentation to prevent memory leaks  [1916](https://github.com/newrelic/newrelic-java-agent/pull/1916)
+* Update vertx-web instrumentation to start transactions for HTTP/2 requests [1959](https://github.com/newrelic/newrelic-java-agent/pull/1959)
+* Update JFR Instance Naming to display correct number of JVMs  [1928](https://github.com/newrelic/newrelic-java-agent/pull/1928)
+* Close instrumentation gap for akka-http 10.2.0+ [1955](https://github.com/newrelic/newrelic-java-agent/pull/1955)
+* Start transactions in the Jetty12 core server [1950](https://github.com/newrelic/newrelic-java-agent/pull/1950)
+* Clean up dtTracers and externalTracers after exceptions to prevent memory leaks [1902](https://github.com/newrelic/newrelic-java-agent/pull/1902)
+* Add security-related class excludes during normal class transformer creation [1918](https://github.com/newrelic/newrelic-java-agent/pull/1918)
+* Add null checks to vertx 4.5.1 instrumentation [1927](https://github.com/newrelic/newrelic-java-agent/pull/1927)
+
+## IAST
+
+* CSEC Version bump to 1.4.0 [1956](https://github.com/newrelic/newrelic-java-agent/pull/1956)
+* [Changelog](https://github.com/newrelic/csec-java-agent/releases/tag/1.4.0)
+
+## Deprecations
+
+* The browser footer injection APIs have been deprecated and will be removed in a future agent release. The header injection API now adds both the header and footer scripts. [1679](https://github.com/newrelic/newrelic-java-agent/pull/1679)
+
+The following instrumentation modules are deprecated and will be removed in the next major release:
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1`
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you're moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

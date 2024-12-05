@@ -1,0 +1,164 @@
+---
+title: 'Tooltip'
+metaDescription: 'Learn how to work the Tooltip component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Tooltips are used to expose additional information not readily available in the UI. You can use them to explain what a UI element is, explain the purpose of an action, or provide a definition of a word or phrase.
+
+### Usage
+
+```js
+import { Tooltip } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Tooltip text="Search across all your accounts">
+  <Button>Search</Button>
+</Tooltip>
+```
+
+#### With placementType
+
+```js
+<Tooltip
+  text="Explore your metrics, events and logs"
+  placementType={Tooltip.PLACEMENT_TYPE.BOTTOM}
+>
+  <Button>Query your data</Button>
+</Tooltip>
+```
+
+#### With additional info link
+
+```js
+function render() {
+  const additionalInfoLink = {
+    label: 'See the docs',
+    to: 'https://docs.newrelic.com',
+  };
+
+
+  return (
+    <p>
+      Welcome to
+      <Tooltip
+        text="Go to docs for more information"
+        placementType={Tooltip.PLACEMENT_TYPE.BOTTOM}
+        additionalInfoLink={additionalInfoLink}
+      >
+        New Relic One
+      </Tooltip>
+    </p>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `additionalInfoLink` <h5>shape</h5>
+      </td>
+
+      <td>
+        The information shown in the text can be complemented/extended with a link to documentation. This link should only be used to provide contextual information.
+
+        <h3>
+          shape
+        </h3>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        <SideBySide>
+          <Side>
+            `onClick` <h5>function</h5>
+          </Side>
+
+          <Side>
+            Callback fired any time the user clicks on the button.
+
+            <FunctionDefinition
+              returnValue={[]}
+              arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+            />
+          </Side>
+        </SideBySide>
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+            <h4>shape</h4>
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Element to attach the tooltip to, hovering or focusing on this element will show the tooltip.We recommend passing a focusable element so screen readers can announce the tooltip content.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `placementType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Tooltips appear next to the element, action, word, or phrase they are explaining. Default display is from the top, but you can also choose to display it from the right, bottom, or left.
+
+        <OptionReference>
+          Tooltip.PLACEMENT_TYPE.BOTTOM,
+          Tooltip.PLACEMENT_TYPE.LEFT,
+          Tooltip.PLACEMENT_TYPE.RIGHT,
+          Tooltip.PLACEMENT_TYPE.TOP,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `text` <h5>REQUIRED</h5><h5>string</h5>
+      </td>
+
+      <td>
+        Tooltips should answer a question for the user. Tips should be crisp, clear, and helpful. Provide just enough information to answer questions without overloading the user.
+
+        * Keep the copy easy to read and clear. For longer copy, use complete sentences, active verbs, and punctuation.
+        * Give enough information to avoid misunderstandings. For example, if a button looks like it could add multiple things, use the tooltip to clarify what it actually adds.
+      </td>
+    </tr>
+  </tbody>
+</table>

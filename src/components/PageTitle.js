@@ -6,6 +6,11 @@ const PageTitle = (props) => (
   <h1
     css={css`
       grid-area: page-title;
+      &::before {
+        content: '';
+        display: block;
+        margin-top: -5px;
+      }
     `}
     {...props}
   />

@@ -1,0 +1,4209 @@
+---
+title: Configuración del agente Go
+tags:
+  - Agents
+  - Go agent
+  - Configuration
+metaDescription: How to change the configuration settings of New Relic Go agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede editar los ajustes de configuración del agente Go para controlar algunos aspectos de cómo New Relic monitorea su aplicación. Por ejemplo:
+
+* Active el modo de alta seguridad.
+* Agregue una etiqueta personalizada para filtrar y ordenar en la UI.
+* Desactive la recopilación de errores, evento de transacción, traza de la transacción y evento personalizado.
+
+## Métodos de configuración y precedencia. [#options]
+
+La forma principal de configurar el agente Go es modificando la estructura `newrelic.Config` como parte de la llamada a `newrelic.NewApplication()`, que forma parte del [proceso de instalación](/docs/agents/go-agent/installation/install-new-relic-go) estándar. Con [las versiones 2.7.0 o superiores del agente Go](/docs/release-notes/agent-release-notes/go-release-notes), también puede establecer una cantidad limitada de opciones de configuración mediante [la configuración del lado del servidor en la UI](#server-side-configuration).
+
+El agente Go sigue este orden de precedencia para la configuración. Si está habilitada, la configuración del lado del servidor anula los valores correspondientes de <DNT>**all**</DNT> en la estructura `newrelic.Config` , incluso si los valores del lado del servidor se dejan en blanco.
+
+<img
+  title="New Relic Go agent: config order of precedence"
+  alt="New Relic Go agent: config order of precedence"
+  src="/images/apm_diagram_Go-agent-config-precedence.webp"
+/>
+
+<figcaption>
+  Si la configuración del lado del servidor está habilitada con el agente Go, anula los valores correspondientes a <DNT>**all**</DNT> en la estructura `newrelic.Config` , incluso si los valores del lado del servidor se dejan en blanco.
+</figcaption>
+
+Aquí hay descripciones detalladas de cada método de configuración:
+
+<CollapserGroup>
+  <Collapser
+    id="server-side-configuration"
+    title="Configuración del lado del servidor (2.7.0 o superior)"
+  >
+    [La configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration) está disponible con [las versiones 2.7.0 o superiores del agente Go](/docs/release-notes/agent-release-notes/go-release-notes). Esto le permite configurar ciertos ajustes en la UI. Esto aplica sus cambios automáticamente a todos los agentes incluso si se ejecutan en varios hosts. Cuando esté disponible, este documento incluye las etiquetas de la UI para la configuración del lado del servidor en opciones de configuración individuales como <DNT>**Server-side label**</DNT>.
+
+    Aún debes llamar `newrelic.NewApplication()` en tu proceso de solicitud siguiendo los pasos descritos en la [configuración en proceso](#in-process-config). Las opciones de configuración establecidas en el lado del servidor sobrescribirán las establecidas localmente. Dado que no todas las opciones de configuración están disponibles en el lado del servidor, es posible que desees actualizar tu estructura `newrelic.Config` .
+
+    <Callout variant="caution">
+      Si la configuración del lado del servidor está habilitada, el agente ignora cualquier valor en la estructura `newrelic.Config` que <DNT>**could**</DNT> se establezca en la UI. Incluso si el valor de la UI está vacío, el agente lo trata como un valor vacío y no utiliza el valor `newrelic.Config`.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="in-process-config"
+    title={<>En proceso <InlineCode>newrelic.Config</InlineCode> estructura</>}
+  >
+    Usted configura su agente Go desde la estructura local en proceso `newrelic.Config` . Se puede acceder a esta estructura al llamar a `newrelic.NewApplication()`.
+
+    1. Agregue lo siguiente en la función `main` o en un bloque `init` :
+
+       ```go
+       app, err := newrelic.NewApplication(
+           newrelic.ConfigAppName("Your Application Name"),
+           newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+       )
+       ```
+
+       Tenga en cuenta el uso de `os.Getenv` para leer su clave de licencia del entorno en lugar de codificarla como un valor literal de cadena pasado a `newrelic.ConfigLicense`. Le recomendamos que no coloque clave de licencia u otra información confidencial en su código fuente, ya que eso puede resultar en que se almacenen en su repositorio SCM y posiblemente se revelen a partes no autorizadas.
+
+    2. Actualice los valores en la estructura `newrelic.Config` para configurar su aplicación usando `newrelic.ConfigOption` . Estas son funciones que aceptan un puntero a la estructura `newrelic.Config` . Agregue `newrelic.ConfigOption`mensajes adicionales para configurar aún más su aplicación. Por ejemplo, puede utilizar una de las opciones predefinidas para realizar una configuración común:
+
+       ```go
+       app, err := newrelic.NewApplication(
+           newrelic.ConfigAppName("Your Application Name"),
+           newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+           // add debug level logging to stdout
+           newrelic.ConfigDebugLogger(os.Stdout),
+       )
+       ```
+
+    3. O puede crear su propio `newrelic.ConfigOption` para realizar una configuración más compleja:
+
+       ```go
+       app, err := newrelic.NewApplication(
+           newrelic.ConfigAppName("Your Application Name"),
+           newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+           newrelic.ConfigDebugLogger(os.Stdout),
+           func(config *newrelic.Config) {
+           // add more specific configuration of the agent within a custom ConfigOption
+           config.HighSecurity = true
+               config.CrossApplicationTracer.Enabled = false
+           },
+       )
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Cambiar los ajustes de configuración [#make-config-changes]
+
+Para realizar cambios en la configuración del agente Go, establezca los valores en la estructura `newrelic.Config` desde un `newrelic.ConfigOption` personalizado. Por ejemplo, para desactivar temporalmente el monitoreo de New Relic con fines de prueba, cambie el valor de `Enabled` a `false`:
+
+```go
+app, err := newrelic.NewApplication(
+    newrelic.ConfigAppName("Your Application Name"),
+    newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+    func(config *newrelic.Config) {
+    	config.Enabled = false
+    },
+)
+```
+
+En este y los siguientes ejemplos, `config` representa su estructura de configuración de New Relic, aunque es posible que le haya dado un nombre de variable diferente cuando [instaló el agente Go](/docs/agents/go-agent/get-started/get-new-relic-go) e inició la configuración en su aplicación.
+
+## Ajustes de configuración generales [#general-settings]
+
+<CollapserGroup>
+  <Collapser
+    id="license"
+    title="Licencia (REQUERIDA)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica su [clave de licencia](/docs/subscriptions/license-key) de New Relic, utilizada para asociar la métrica de su aplicación con una cuenta de New Relic. La licencia y el nombre de la aplicación se configuran como parte del [proceso de instalación de New Relic](/docs/apm/agents/go-agent/installation/install-new-relic-go/#get-new-relic).
+  </Collapser>
+
+  <Collapser
+    id="app-name"
+    title="Nombre de la aplicación (REQUERIDO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `(none)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Este es el [nombre de la aplicación](/docs/apm/agents/manage-apm-agents/app-naming/name-your-application/) utilizada para agregar datos en la UI de New Relic. Usted establece tanto la licencia como el nombre de la aplicación como parte del [proceso de instalación de New Relic](/docs/apm/agents/go-agent/installation/install-new-relic-go/#get-new-relic).
+
+    Para informar datos a [varias aplicaciones al mismo tiempo](/docs/apm/agents/manage-apm-agents/app-naming/use-multiple-names-app/), especifique una lista de nombres separados por un punto y coma. No coloques un espacio antes del punto y coma. Por ejemplo:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("YOUR_APP_NAME;APP_GROUP_1;ALL_APPS"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="enabled"
+    title="Activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente envía datos desde su aplicación al [recolector de New Relic](//docs/new-relic-solutions/get-started/glossary/#collector).
+
+    Para desactivar el monitoreo de New Relic, configúrelo en `false`.
+
+    Por ejemplo:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+        	config.Enabled = false
+        },
+    )
+    ```
+
+    Puedes utilizar la opción `ConfigEnabled` para hacerlo más fácil:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+    	      newrelic.ConfigEnabled(false),
+    )
+    ```
+
+    Esto puede ser útil para instalar New Relic en un entorno de desarrollo o para propósitos de resolución de problemas. Cuando `Enabled` se establece en `false`:
+
+    * El agente de New Relic Go no se comunicará con el recolector de New Relic.
+    * El agente no generará gorutines.
+    * La clave de licencia no es necesaria durante la instalación.
+  </Collapser>
+
+  <Collapser
+    id="labels"
+    title="Etiquetas"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            map\[string]string
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Agregar [etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/).
+
+    <CollapserGroup>
+      <Collapser
+        id="example-labels"
+        title="Creando cuatro pares de etiquetas"
+      >
+        A continuación se muestra un ejemplo de configuración de cuatro etiquetas:
+
+        ```go
+        app, err := newrelic.NewApplication(
+            newrelic.ConfigAppName("Your Application Name"),
+            newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+            func(config *newrelic.Config) {
+                config.Labels = map[string]string{
+                    "Env":    "Dev",
+                    "Label2": "label2",
+                    "Label3": "label3",
+                    "Label4": "label4",
+                }
+            },
+        )
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="logger"
+    title="Logger"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Interfaz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Puede utilizar la interfaz `Logger` para [escribir archivo de registro Go](/docs/apm/agents/go-agent/configuration/go-agent-logging/) en una ubicación o sistema de registro específico.
+  </Collapser>
+
+  <Collapser
+    id="high_security"
+    title="Alta seguridad"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      Esta característica requiere [el nivel Enterprise](https://www.newrelic.com/pricing).
+    </Callout>
+
+    [El modo de alta seguridad](/docs/accounts-partnerships/accounts/security/high-security) impone ciertas configuraciones de seguridad y evita que se anulen, de modo que el agente no envíe datos confidenciales. El modo de alta seguridad hace lo siguiente:
+
+    * Activa SSL
+
+    * Desactiva el informe de cadenas de mensajes de error
+
+    * Desactiva los informes de evento personalizado
+
+      Esta configuración debe coincidir con la configuración de cuenta correspondiente en la UI. Por ejemplo:
+
+      ```go
+      app, err := newrelic.NewApplication(
+          newrelic.ConfigAppName("Your Application Name"),
+          newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+          func(config *newrelic.Config) {
+              config.HighSecurity = true
+          },
+      )
+      ```
+
+      El agente se comunica con New Relic a través de HTTPS de forma predeterminada, y New Relic [requiere HTTPS](/docs/apis/rest-api-v2/troubleshooting/301-response-rest-api-calls) para todo el tráfico hacia APM y nuestra API REST.
+  </Collapser>
+
+  <Collapser
+    id="use-tls"
+    title="Usar TLS (OBSECUTIVO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      Esta opción se eliminó en [la versión 2.0 del agente](/docs/release-notes/agent-release-notes/go-release-notes/go-agent-20).
+    </Callout>
+
+    Controla si se utiliza HTTPS o HTTP para enviar datos a New Relic. El agente se comunica con New Relic a través de HTTPS de forma predeterminada (que utiliza el protocolo TLS), y New Relic [requiere HTTPS](/docs/apis/rest-api-v2/troubleshooting/301-response-rest-api-calls) para todo el tráfico hacia APM y la API REST de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="host-display-name"
+    title="HostDisplayName"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto establece el [nombre de host que se muestra en la UIde APM](/docs/apm/agents/manage-apm-agents/configuration/add-rename-remove-hosts/#display_name). Esta es una configuración opcional.
+  </Collapser>
+
+  <Collapser
+    id="transport"
+    title="Transporte"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            [http.RoundTripper](https://golang.org/pkg/net/http/#RoundTripper)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto personaliza la comunicación [http.Client](https://golang.org/pkg/net/http/#Client) con el recolector New Relic. Puede utilizar esto para configurar un proxy.
+  </Collapser>
+
+  <Collapser
+    id="runtime-sampler"
+    title="RuntimeSampler.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente captura estadísticas de tiempo de ejecución.
+  </Collapser>
+</CollapserGroup>
+
+Si está utilizando New Relic CodeStream para monitor el rendimiento de su IDE, es posible que también desee [asociar el repositorio con sus servicios](/docs/codestream/how-use-codestream/performance-monitoring/#repo-association) y [asociar SHA de compilación o etiqueta de lanzamiento con errores](/docs/codestream/how-use-codestream/performance-monitoring/#buildsha).
+
+## Configurando desde el entorno [#configuring-from-the-environment]
+
+Para mayor flexibilidad, puede establecer muchas opciones de configuración estableciendo variables de entorno en lugar de codificarlas en el código fuente de su aplicación. Para usarlos, agrega una llamada a `ConfigFromEnvironment()` entre tus otras opciones de configuración:
+
+```go
+app, err := newrelic.NewApplication(
+   newrelic.ConfigAppName("Your Application Name"),
+   newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+   newrelic.ConfigFromEnvironment(),
+)
+```
+
+Tenga en cuenta que las variables de entorno se leerán y sus entradas correspondientes en la estructura `newrelic.Config` se actualizarán en el punto de la lista de opciones donde aparece `newrelic.ConfigFromEnvironment()` . Si hay opciones de configuración adicionales enumeradas después de `ConfigFromEnvironment`, pueden anular los valores establecidos por `ConfigFromEnvironment`.
+
+Por ejemplo, si se establecen las siguientes variables de entorno:
+
+```ini
+NEW_RELIC_LICENSE_KEY="your_license_key_here"
+NEW_RELIC_APP_NAME="Your Application Name"
+NEW_RELIC_CODE_LEVEL_METRICS_ENABLED="true"
+NEW_RELIC_CODE_LEVEL_METRICS_PATH_PREFIX="myproject/src"
+NEW_RELIC_LABELS="Env:Dev;Label2:label2;Label3:label3;Label4:label4"
+```
+
+luego el siguiente código:
+
+```go
+app, err := newrelic.NewApplication(
+    newrelic.ConfigFromEnvironment(),
+)
+```
+
+logrará el mismo resultado que el equivalente codificado:
+
+```go
+app, err := newrelic.NewApplication(
+    newrelic.ConfigAppName("Your Application Name"),
+    newrelic.ConfigLicense("your_license_key_here"),
+    newrelic.ConfigCodeLevelMetricsEnabled(true),
+    newrelic.ConfigCodeLevelMetricsPathPrefix("myproject/src"),
+    func(config *newrelic.Config) {
+        config.Labels = map[string]string{
+            "Env":    "Dev",
+            "Label2": "label2",
+            "Label3": "label3",
+            "Label4": "label4",
+        }
+    },
+)
+```
+
+No todas las opciones de configuración posibles pueden establecerse mediante variables de entorno. La [tabla de variables y funciones de entorno](#env-var-table) en el colapsador a continuación enumera todas las funciones de configuración disponibles y sus correspondientes variables de entorno. Aunque cualquier opción de configuración con nombre se puede configurar asignando directamente un valor al campo correspondiente en la estructura `Config` , recomendamos utilizar funciones de configuración y/o variables de entorno siempre que sea posible.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="env-var-table"
+    title="Tabla de variables y funciones de entorno."
+  >
+    A continuación se ofrecen algunos consejos sobre cómo utilizar la mesa:
+
+    * Si una variable de entorno aparece en la tabla, entonces puede configurar la opción correspondiente configurando la variable de entorno nombrada. También debe incluir la función `ConfigFromEnvironment()` , que hará que el agente acepte todas las `NEW_RELIC_*` variables de entorno.
+
+    * Si aparece una función de configuración, puede usar esa función para configurar la opción correspondiente en lugar de usar `ConfigFromEnvironment()`. Tenga en cuenta que las funciones de configuración enumeradas en el programa, incluida `ConfigFromEnvironment()`, se resuelven en el orden en que aparecen en el código. Esto significa que si crea una variable de entorno y llama a la función `ConfigFromEnvironment()`, sobrescribirá la configuración correspondiente que haya establecido previamente usando una función específica. Las opciones de configuración posteriores a `ConfigFromEnvironment()` anularán las funciones de configuración y las variables de entorno anteriores.
+
+    * Consulte la documentación aquí y en [el sitio de documentación de Go](https://pkg.go.dev/github.com/newrelic/go-agent/v3@v3.20.0/newrelic#ConfigOption) para obtener más información sobre cómo utilizar cada función.
+
+      <table>
+        <thead>
+          <tr>
+            <th>
+              Campo de configuración
+            </th>
+
+            <th>
+              Funciones de configuración
+            </th>
+
+            <th>
+              Variables de entorno
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `AppName`
+            </td>
+
+            <td>
+              `ConfigAppName`
+            </td>
+
+            <td>
+              `NEW_RELIC_APP_NAME`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ApplicationLogging.Enabled`
+            </td>
+
+            <td>
+              `ConfigAppLogForwardingEnabled`
+
+              `ConfigAppLogEnabled`
+
+              (Ver [nota 1](#table-note-one) a continuación)
+            </td>
+
+            <td>
+              `NEW_RELIC_APPLICATION_LOGGING_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ApplicationLogging.Forwarding.Enabled`
+            </td>
+
+            <td>
+              `ConfigAppLogForwardingEnabled`
+
+              `ConfigAppLogDecoratingEnabled`
+
+              `ConfigAppLogMetricsEnabled`
+
+              (Ver [nota 1](#table-note-one) a continuación)
+            </td>
+
+            <td>
+              `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ApplicationLogging.Forwarding.MaxSamplesStored`
+            </td>
+
+            <td>
+              `ConfigAppLogForwardingEnabled`
+
+              `ConfigAppLogForwardingMaxSamplesStored`
+
+              (Ver [nota 1](#table-note-one) a continuación)
+            </td>
+
+            <td>
+              `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ApplicationLogging.LocalDecorating.Enabled`
+            </td>
+
+            <td>
+              `ConfigAppLogDecoratingEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ApplicationLogging.Metrics.Enabled`
+            </td>
+
+            <td>
+              `ConfigAppLogMetricsEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_ATTRIBUTES_EXCLUDE`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_ATTRIBUTES_INCLUDE`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `BrowserMonitoring.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `BrowserMonitoring.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `BrowserMonitoring.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `BrowserMonitoring.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.Enabled`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.IgnoredPrefixes`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsIngoredPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_IGNORED_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.PathPrefixes`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsPathPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_PATH_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.RedactIgnoredPrefixes`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsRedactIgnoredPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_REDACT_IGNORED_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.RedactPathPrefixes`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsRedactPathPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_REDACT_PATH_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CodeLevelMetrics.Scope`
+            </td>
+
+            <td>
+              `ConfigCodeLevelMetricsScope`
+            </td>
+
+            <td>
+              `NEW_RELIC_CODE_LEVEL_METRICS_SCOPE`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `CrossApplicationTracer.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `CustomInsightsEvents.Enabled`
+            </td>
+
+            <td>
+              `ConfigCustomInsightsEventsEnabled`
+            </td>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `CustomInsightsEvents.MaxSamplesStored`
+            </td>
+
+            <td>
+              `ConfigCustomInsightsEventsMaxSamplesStored`
+            </td>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DatastoreTracer.DatabaseNameReporting.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DatastoreTracer.InstanceReporting.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DatastoreTracer.QueryParameters.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DatastoreTracer.SlowQuery.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DatastoreTracer.SlowQuery.Threshold`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DistributedTracer.Enabled`
+            </td>
+
+            <td>
+              `ConfigDistributedTracerEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `DistributedTracer.ExcludeNewRelicHeader`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `DistributedTracer.ReservoirLimit`
+            </td>
+
+            <td>
+              `ConfigDistributedTracerReservoirLimit`
+            </td>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Enabled`
+            </td>
+
+            <td>
+              `ConfigEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.CaptureEvents`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.IgnoreStatusCodes`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ErrorCollector.RecordPanics`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Error`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Heroku.DynoNamePrefixesToShorten`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Heroku.UseDynoNames`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `HighSecurity`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_HIGH_SECURITY`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `HostDisplayName`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_PROCESS_HOST_DISPLAY_NAME`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Host`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_HOST`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `InfiniteTracing.SpanEvents.QueueSize`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_INFINITE_TRACING_SPAN_EVENTS_QUEUE_SIZE`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `InfiniteTracing.TraceObserver.Host`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `InfiniteTracing.TraceObserver.Port`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_PORT`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Labels`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_LABELS`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `License`
+            </td>
+
+            <td>
+              `ConfigLicense`
+            </td>
+
+            <td>
+              `NEW_RELIC_LICENSE_KEY`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Logger`
+            </td>
+
+            <td>
+              `ConfigLogger`
+
+              `ConfigInfoLogger`
+
+              `ConfigDebugLogger`
+
+              (Ver [nota 2](#table-note-two) a continuación)
+            </td>
+
+            <td>
+              `NEW_RELIC_LOG`
+
+              `NEW_RELIC_LOG_LEVEL`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ModuleDependencyMetrics.Enabled`
+            </td>
+
+            <td>
+              `ConfigModuleDependencyMetricsEnabled`
+            </td>
+
+            <td>
+              `NEW_RELIC_MODULE_DEPENDENCY_METRICS_ENABLED`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ModuleDependencyMetrics.IgnoredPrefixes`
+            </td>
+
+            <td>
+              `ConfigModuleDependencyMetricsIgnoredPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_MODULE_DEPENDENCY_METRICS_IGNORED_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `ModuleDependencyMetrics.RedaceIgnoredPrefixes`
+            </td>
+
+            <td>
+              `ConfigModuleDependencyMetricsRedactIgnoredPrefixes`
+            </td>
+
+            <td>
+              `NEW_RELIC_MODULE_DEPENDENCY_METRICS_REDACT_IGNORED_PREFIXES`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `RuntimeSampler.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `SecurityPoliciesToken`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_SECURITY_POLICIES_TOKEN`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Segments.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Segments.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Segments.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Segments.StackTraceThreshold`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Segments.Threshold`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ServerlessMode.AccountID`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ServerlessMode.ApdexThreshold`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ServerlessMode.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ServerlessMode.PrimaryAppID`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `ServerlessMode.TrustedAccountKey`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `SpanEvents.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `SpanEvents.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `SpanEvents.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `SpanEvents.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionEvents.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionEvents.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionEvents.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionEvents.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionEvents.MaxSamplesStored`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Attributes.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Attributes.Exclude`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Attributes.Include`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Enabled`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Threshold.Duration`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `TransactionTracer.Threshold.IsApdexFailing`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Transport`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.BillingHostname`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_UTILIZATION_BILLING_HOSTNAME`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectAWS`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectAzure`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectDocker`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectGCP`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectKubernetes`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.DetectPCF`
+            </td>
+
+            <td/>
+
+            <td/>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.LocalRAMMIB`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_UTILIZATION_TOTAL_RAM_MIB`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `Utilization.LogicalProcessors`
+            </td>
+
+            <td/>
+
+            <td>
+              `NEW_RELIC_UTILIZATION_LOGICAL_PROCESSORS`
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      ### Nota de tabla 1: [#table-note-one]
+
+      Llamar a una de las funciones enumeradas para habilitar una característica subordinada también habilita la característica principal y/o establece otros valores de configuración:
+
+      * `ConfigAppLogForwardingEnabled(true)` establece `ApplicationLogging.Forwarding.Enabled=true` pero también establece `ApplicationLogging.Enabled=true`.
+      * `ConfigAppLogForwardingEnabled(false)` establece `ApplicationLogging.Forwarding.Enabled=false` pero también establece `ApplicationLogging.Forwarding.MaxSamplesStored=0`.
+      * `ConfigAppLogDecoratingEnabled(true)` establece `ApplicationLogging.LocalDecorating.Enabled=true` pero también establece `ApplicationLogging.Enabled=true`.
+      * `ConfigAppLogDecoratingEnabled(false)` establece `ApplicationLogging.LocalDecorating.Enabled=false` pero no afecta `ApplicationLogging.Enabled`.
+      * `ConfigAppLogMetricsEnabled(true)` establece `ApplicationLogging.Metrics.Enabled=true` pero también establece `ApplicationLogging.Enabled=true`.
+      * `ConfigAppLogMetricsEnabled(false)` establece `ApplicationLogging.Metrics.Enabled=false` pero no afecta `ApplicationLogging.Enabled`.
+
+        ### Nota de tabla 2: [#table-note-two]
+
+        Al configurar `Logger` mediante la variable de entorno `NEW_RELIC_LOG`, el tipo de logger utilizado depende del valor de `NEW_RELIC_LOG_LEVEL`. Si la última variable está definida y tiene el valor `debug`, `Debug`, `DEBUG`, `d` o `D`, entonces se utiliza un logger de nivel de depuración en lugar de uno estándar. `NEW_RELIC_LOG` puede tener los valores `stdout`, `Stdout`, `STDOUT`, `stderr`, `Stderr` o `STDERR`.
+
+      <Callout variant="tip">
+        Las variables de entorno deben tener un valor que no esté vacío para que `newrelic.ConfigFromEnvironment` las pueda leer.
+      </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Establecer etiqueta de versión [#version-tag]
+
+Configurar NEW_RELIC_METADATA_SERVICE_VERSION creará una etiqueta, `tag.service.version` en los datos del evento. En este contexto, la versión del servicio es la versión de su código que se implementa, en muchos casos una versión semántica como 1.2.3 pero no siempre. Enviar esta información le permite facetar su telemetría según la versión del software desplegar para que pueda identificar rápidamente qué versiones de su software están produciendo los errores.
+
+## Monitoreo de IA [#ai-monitoring]
+
+Esta sección incluye la configuración de Go agente para configurar el monitoreo de IA.
+
+<Callout variant="important">
+  Si el rastreo distribuido está deshabilitado o el modo de alta seguridad está habilitado, el monitoreo de IA no recopilará datos de IA.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="ai-monitoring-enabled"
+    title="AIMonitoring.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_ENABLED`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `newrelic.ConfigAIMonitoringEnabled`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, habilita el monitoreo de IA.
+  </Collapser>
+
+  <Collapser
+    id="ai-monitoring-streaming"
+    title="AIMonitoring.Streaming.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_STREAMING_ENABLED`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `newrelic.ConfigAIMonitoringStreamingEnabled`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, permite al agente capturar respuestas transmitidas. Si se establece en `false`, el agente no capturará datos de eventos sobre las respuestas transmitidas, pero aún puede capturar métricas y intervalos. La duración del lapso finalizará cuando finalice la llamada a la función LLM. Cuando se establece en `true`, la duración del intervalo finaliza cuando se lee el resultado final de la secuencia.
+  </Collapser>
+
+  <Collapser
+    id="ai-monitoring-record-content"
+    title="AIMonitoring.RecordContent.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_RECORD_CONTENT_ENABLED`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `newrelic.ConfigAIMonitoringRecordContentEnabled()`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si se establece en `false`, agente omitirá el contenido de entrada y salida (como cadenas de texto de símbolo y respuestas) capturado en el evento LLM. Esta es una configuración de seguridad opcional si no desea registrar datos confidenciales enviados y recibidos de sus LLM.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración personalizada del evento [#custom-insights-events-settings]
+
+Puedes crear eventos personalizados y ponerlos a disposición para consultas y análisis.
+
+<CollapserGroup>
+  <Collapser
+    id="custom-insights-events-enabled"
+    title="CustomInsightsEvents.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente [envía un evento personalizado](/docs/data-apis/custom-data/custom-events/apm-report-custom-events-attributes/#go) a [New Relic](/docs/insights/new-relic-insights/understanding-insights/new-relic-insights). Esta configuración es anulada por [`HighSecurity`](#high_security), que deshabilita el evento personalizado.
+
+    Para deshabilitar el evento personalizado, coloque lo siguiente en su aplicación Go después de que se inicie la [configuración de New Relic](/docs/agents/go-agent/get-started/get-new-relic-go#get-new-relic) :
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.CustomInsightsEvents.Enabled = false
+        },
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del evento de transacción [#transaction-events-settings]
+
+Los eventos de transacción se utilizan para recopilar eventos correspondientes a solicitudes web y tareas en segundo plano. Los datos del evento permiten que la UI de New Relic muestre información adicional como [histograma](/docs/applications-menu/histograms-viewing-data-distribution) y [percentil](/docs/applications-menu/percentiles-comparing-ranked-data).
+
+<CollapserGroup>
+  <Collapser
+    id="transaction-events"
+    title="TransactionEvents.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente recopila el evento de transacción.
+  </Collapser>
+
+  <Collapser
+    id="txn-events-attributes"
+    title="TransactionEvents.Attributes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Estructura
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Habilitado, sin exclusiones
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `TransactionEvents.Attributes` es una estructura con tres campos:
+
+    ```go
+    Enabled bool
+    Include []string
+    Exclude []string
+    ```
+
+    Utilice `TransactionEvents.Attributes.Enabled` para activar o desactivar la colección de atributos para el evento de transacción. Utilice `Include` y `Exclude` para incluir o excluir un atributo específico.
+
+    Un ejemplo de exclusión de un segmento de atributo denominado `allAgentAttributeNames` del evento de transacción:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.TransactionEvents.Attributes.Exclude = allAgentAttributeNames
+        },
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="transaction-events-maxsamplesstored"
+    title="TransactionEvents.MaxSamplesStored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos de transacción por minuto que se enviarán a New Relic, hasta el máximo predeterminado de 10,000 eventos de transacción.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del selector de errores [#error-collector]
+
+Las siguientes configuraciones se utilizan para configurar el selector de errores:
+
+<Callout variant="tip">
+  Para obtener una descripción general de la configuración de errores en New Relic, consulte [Administrar errores en APM](/docs/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-mark-expected).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="error-collector-enabled"
+    title="ErrorCollector.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Error Collection on/off`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `false`, el agente no recoge errores ni traza de error.
+  </Collapser>
+
+  <Collapser
+    id="error-capture-events"
+    title="ErrorCollector.CaptureEvents"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente recopila el evento de análisis de error.
+  </Collapser>
+
+  <Collapser
+    id="error-group-callback"
+    title="ErrorCollector.ErrorGroupCallback"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Devolución de llamada de grupo de errores
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            nulo
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+
+          <td>
+            `newrelic.ConfigSetErrorGroupCallbackFunction` opción de configuración
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando no es nulo, el agente aplicará la función de devolución de llamada definida por el usuario a todos los errores detectados en el momento de la recolección, aplicándoles un grupo de errores.
+  </Collapser>
+
+  <Collapser
+    id="error-ignore-status"
+    title="ErrorCollector.IgnoreStatusCodes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Los códigos de error 399 e inferiores y 404 se ignoran.
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Error Collection: Ignore from error collection`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto controla qué códigos de respuesta HTTP se ignoran como errores.
+
+    Los códigos de respuesta mayores o iguales a 100 y estrictamente menores a 400 se ignoran de forma predeterminada y nunca deben especificarse al llamar a esta función. Los códigos de respuesta 0, 5 y 404 se incluyen en la lista de forma predeterminada, pero deben especificarse al agregarlos a la lista de ignorados.
+
+    La forma predeterminada de esta función es:
+
+    ```go
+    config.ErrorCollector.IgnoreStatusCodes = []int{
+        0,                   // gRPC OK
+        5,                   // gRPC NOT_FOUND
+        http.StatusNotFound, // 404
+    }
+    ```
+
+    También puede agregar códigos de respuesta como HTTP, como `http.StatusNotFound` arriba.
+
+    <Callout variant="important">
+      Si se utiliza, [la configuración del lado del servidor](#server-side-configuration) anulará cualquier valor establecido en la estructura `newrelic.Config` . Por lo tanto, para ignorar 404 cuando la configuración del lado del servidor está habilitada, debe incluir 404 en la configuración establecida en la UI.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser
+        id="error-example"
+        title="Ejemplo de código de error omitido"
+      >
+        Para agregar el código de respuesta HTTP 418 a la lista de ignorados predeterminada, que incluye 0, 5 y 404:
+
+        ```go
+        app, err := newrelic.NewApplication(
+            newrelic.ConfigAppName("Your Application Name"),
+           newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+            func(config *newrelic.Config) {
+                config.ErrorCollector.IgnoreStatusCodes = []int{0, 5, 404, 418}
+            },
+        )
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="error-expected-status"
+    title="ErrorCollector.ExpectStatusCodes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            No se establecen códigos de error como se esperaba de forma predeterminada.
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto controla qué códigos de respuesta HTTP se esperan como errores.
+
+    Los códigos de respuesta esperados no afectarán el apdex de su aplicación ni las alertas de error, pero aún así se registrarán.
+
+    La forma predeterminada de esta función es:
+
+    ```go
+    config.ErrorCollector.ExpectStatusCodes = []int{
+        100,
+        http.StatusAccepted,
+    }
+    ```
+
+    También puede agregar códigos de respuesta como HTTP, como `http.StatusAccepted` descrito anteriormente.
+
+    <CollapserGroup>
+      <Collapser
+        id="error-example"
+        title="Ejemplo de código de error omitido"
+      >
+        Para agregar el código de respuesta HTTP 418 a la lista de ignorados predeterminada, que incluye 0, 5 y 404:
+
+        ```go
+        app, err := newrelic.NewApplication(
+            newrelic.ConfigAppName("Your Application Name"),
+            newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+            func(config *newrelic.Config) {
+                config.ErrorCollector.IgnoreStatusCodes = []int{100, http.StatusAccepted}
+            },
+        )
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="error-attributes"
+    title="ErrorCollector.Attributes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Estructura
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Habilitado, sin exclusiones
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `ErrorCollector.Attributes` es una estructura con tres campos:
+
+    ```go
+    Enabled bool
+    Include []string
+    Exclude []string
+    ```
+
+    Utilice `ErrorCollector.Attributes.Enabled` para activar o desactivar la colección de atributos en caso de errores. Utilice `Include` y `Exclude` para incluir o excluir un atributo específico.
+
+    Un ejemplo de cómo excluir de los errores un segmento de atributo denominado `allAgentAttributeNames` :
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.ErrorCollector.Attributes.Exclude = allAgentAttributeNames
+        },
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del rastreador de transacciones [#transaction-tracer]
+
+Aquí hay configuraciones para cambiar la configuración del rastreador de transacciones. Para obtener más información sobre la traza de la transacción, consulte [traza de la transacción](/docs/traces/transaction-traces).
+
+<CollapserGroup>
+  <Collapser
+    id="txn-tracer-enabled"
+    title="TransactionTracer.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Transaction Tracing on/off`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente recopila [la traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces) (información detallada sobre la transacción lenta).
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-threshold-apdex-falling"
+    title="TransactionTracer.Threshold.IsApdexFailing"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Transaction Tracing: Threshold`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla si el umbral de la traza de la transacción está basado en Apdex.
+
+    * Si es `true`, entonces el umbral de traza es cuatro veces el [umbral de Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction).
+    * Si `false`, el agente utiliza [`Threshold.Duration`](/docs/go-agent-configuration#txn-tracer-threshold-duration) como umbral de traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-threshold-duration"
+    title="TransactionTracer.Threshold.Duration"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            time.Millisecond
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `500`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Transaction Tracing: Threshold`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `Threshold.IsApdexFailing` se establece en `false`, el agente utiliza esta duración como umbral de traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-segment-threshold"
+    title="TransactionTracer.Segments.Threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            time.Millisecond
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `2`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Este es el umbral en el que se agregarán segmentos a la traza.
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-segments-attributes"
+    title="TransactionTracer.Segments.Attributes"
+  >
+    <Callout variant="important">
+      Disponible para la versión 2.6.0 o superior del agente Go.
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Estructura
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Habilitado, sin exclusiones
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `TransactionTracer.Segments.Attributes` es una estructura con tres campos:
+
+    ```go
+    Enabled bool
+    Include []string
+    Exclude []string
+    ```
+
+    Utilice `TransactionTracer.Segments.Attributes.Enabled` para activar o desactivar la recopilación de atributos para segmentos de traza de la transacción. Utilice `Include` y `Exclude` para incluir o excluir un atributo específico.
+
+    Un ejemplo de exclusión de un segmento de atributo llamado `allSegmentAttributeNames` de la traza:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.TransactionTracer.Segments.Attributes.Exclude = allSegmentAttributeNames
+        },
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-stack-threshold"
+    title="TransactionTracer.Segments.StackTraceThreshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            time.Millisecond
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `500`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Transaction Tracing: Stack trace threshold`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Este es el umbral en el que los segmentos recibirán un rastreo del stack en la traza de la transacción.
+
+    <Callout variant="caution">
+      Reducir esta configuración puede aumentar drásticamente la sobrecarga del agente.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="txn-tracer-attributes"
+    title="TransactionTracer.Attributes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Estructura
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Habilitado, sin exclusiones
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](/docs/agents/go-agent/instrumentation/go-agent-configuration#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `TransactionTracer.Attributes` es una estructura con tres campos:
+
+    ```go
+    Enabled bool
+    Include []string
+    Exclude []string
+    ```
+
+    Utilice `TransactionTracer.Attributes.Enabled` para activar o desactivar la recopilación de atributos para la traza de la transacción. Utilice `Include` y `Exclude` para incluir o excluir un atributo específico.
+
+    Un ejemplo de exclusión de un segmento de atributo llamado `allAgentAttributeNames` de la traza:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.TransactionTracer.Attributes.Exclude = allAgentAttributeNames
+        },
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del rastreador de almacenamiento de datos [#datastore-tracer]
+
+Aquí se muestran las configuraciones de almacenamiento de datos, incluida la habilitación y configuración [de consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details) .
+
+<CollapserGroup>
+  <Collapser
+    id="instance-reporting"
+    title="DatastoreTracer.InstanceReporting.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto permite la recopilación de almacenamiento de datos instancia métrica (como el host y el puerto) para algún controlador de la base de datos. Estos se informan en la traza de la transacción y como parte de [los datos de consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details).
+  </Collapser>
+
+  <Collapser
+    id="name-reporting"
+    title="DatastoreTracer.NameReporting.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice esto para habilitar la recopilación del nombre de la base de datos en consulta lenta traza y traza de la transacción. El valor predeterminado del atributo habilitado es `true`.
+  </Collapser>
+
+  <Collapser
+    id="data-query-enabled"
+    title="DatastoreTracer.QueryParameters.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente recopila el parámetro de consulta de llamada de almacenamiento de datos.
+  </Collapser>
+
+  <Collapser
+    id="slow-query"
+    title="DatastoreTracer.SlowQuery.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla si se capturan [las consultas lentas](/docs/apm/applications-menu/monitoring/viewing-slow-query-details) .
+  </Collapser>
+
+  <Collapser
+    id="slow-query-threshold"
+    title="DatastoreTracer.SlowQuery.Threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            time.Millisecond
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El agente captura [datos de consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details) para consultas más lentas que esto.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de rastreo multiaplicación [#cross-application-tracing]
+
+Aquí hay configuraciones para cambiar la característica [de rastreo multiaplicación](/docs/agents/go-agent/features/cross-application-tracing-go) .
+
+<Callout variant="important">
+  El rastreo de aplicaciones múltiples ha quedado obsoleto en favor de [Distributed tracing](/docs/agents/go-agent/features/distributed-tracing-go) y se eliminará en una versión futura de agente.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="cross-tracer-enabled"
+    title="CrossApplicationTracer.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` Estructura, configuración del lado del servidor
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side-configuration)
+          </th>
+
+          <td>
+            `Cross-application tracing on/off`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente agregará encabezados de seguimiento de múltiples aplicaciones en las solicitudes salientes y escaneará las solicitudes entrantes en busca de encabezados de seguimiento de múltiples aplicaciones.
+
+    El rastreo distribuido y el rastreo multiaplicación no se pueden utilizar simultáneamente. La configuración predeterminada para el agente Go deshabilita el rastreo distribuido y habilita el rastreo multiaplicación.
+  </Collapser>
+</CollapserGroup>
+
+## Rastreo distribuido configuración [#distributed-tracing]
+
+<Callout variant="important">
+  Para habilitar rastreo distribuido se requiere la versión 2.1.0 del agente Go o superior, y deshabilita [el rastreo multiaplicación](#cross-application-tracing). También tiene efectos sobre otras características. Antes de habilitar, lea la [guía de transición](/docs/transition-guide-distributed-tracing).
+</Callout>
+
+[rastreo distribuido](/docs/agents/go-agent/features/distributed-tracing-go) te permite ver el camino que sigue una solicitud a medida que viaja a través de un sistema distribuido.
+
+Cuando rastreo distribuido está habilitado, puedes recopilar [span evento](/docs/apm/distributed-tracing/ui-data/span-event).
+
+<CollapserGroup>
+  <Collapser
+    id="distributed-enabled"
+    title="DistributedTracer.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El seguimiento estándar está activado de forma predeterminada en las versiones 3.16.0 y superiores del agente Go. Esto significa que el agente agregará automáticamente encabezados de rastreo distribuido en las solicitudes salientes y escaneará las solicitudes entrantes en busca de encabezados de rastreo distribuido. Para deshabilitar el rastreo distribuido, establezca el valor en `false`.
+
+    Para obtener más información sobre cómo configurar rastreo distribuido, consulte [Habilitar rastreo distribuido para su aplicación Go](/docs/apm/agents/go-agent/instrumentation/distributed-tracing-go-agent).
+
+    <Callout variant="important">
+      Al habilitar rastreo distribuido se deshabilita [el rastreo multiaplicación](#cross-application-tracing).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="dt-exclude-newrelic-header"
+    title="DistributedTracer.ExcludeNewRelicHeader"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `true` para excluir el encabezado New Relic que se adjunta a las solicitudes salientes y, en su lugar, confíe únicamente en los encabezados W3C Trace Context para el rastreo distribuido. Si es `false` , se utilizan ambos tipos de encabezados.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración del evento span [#span-events]
+
+[Span evento](/docs/apm/distributed-tracing/ui-data/span-event) son reportados para [rastreo distribuido](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#distributed-tracing). rastreo distribuido debe estar habilitado para reportar span evento. Estas configuraciones controlan la colección de eventos span:
+
+<CollapserGroup>
+  <Collapser
+    id="span-events-enabled"
+    title="SpanEvents.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente recopilará el evento span.
+  </Collapser>
+
+  <Collapser
+    id="span-event-attributes"
+    title="SpanEvents.Attributes"
+  >
+    <Callout variant="important">
+      Disponible para la versión 2.6.0 o superior del agente Go.
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Estructura
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            Habilitado, sin exclusiones
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    `SpanEvents.Attributes` es una estructura con tres campos:
+
+    ```go
+    Enabled bool
+    Include []string
+    Exclude []string
+    ```
+
+    Utilice `SpanEvents.Attributes.Enabled` para habilitar o deshabilitar la colección de atributos para el evento span. Utilice `Include` y `Exclude` para incluir o excluir un atributo específico.
+
+    Un ejemplo de exclusión de un segmento de atributo llamado `allSpanAttributeNames` de la traza:
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppName("Your Application Name"),
+        newrelic.ConfigLicense(os.Getenv("NEW_RELIC_LICENSE_KEY")),
+        func(config *newrelic.Config) {
+            config.TransactionTracer.Segments.Attributes.Exclude = allSpanAttributeNames
+        },
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de seguimiento infinito [#infinite-tracing]
+
+Para habilitar Infinite Tracing, habilite rastreo distribuido (establezca `config.DistributedTracer.Enabled = true` en la estructura `newrelic.Config` ) y agregue las configuraciones adicionales a continuación. Para ver un ejemplo, consulte [Agente de idioma: Configurar rastreo distribuido](/docs/understand-dependencies/distributed-tracing/enable-configure/language-agents-enable-distributed-tracing#go-config).
+
+<CollapserGroup>
+  <Collapser
+    id="trace-observer-host"
+    title="InfiniteTracing.TraceObserver.Host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para obtener ayuda para obtener una entrada de host de observador de traza Infinite Tracing válida, consulte [Buscar o crear un extremo de observador de traza](/docs/understand-dependencies/distributed-tracing/enable-configure/language-agents-enable-distributed-tracing#provision-trace-observer).
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de registro de aplicaciones [#application-logging]
+
+Las siguientes configuraciones están disponibles para la configuración del inicio de sesión de la aplicación en el agente. Para obtener sugerencias sobre cómo utilizar logs en el contexto del agente Go, consulte [Go logs en el contexto](/docs/logs/logs-context/configure-logs-context-go).
+
+<Callout variant="important">
+  Requiere la versión 3.17.0 o superior del agente Go
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="application-logging-enabled"
+    title="ApplicationLogging.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la recopilación de registro de eventos y registro métrico si estas configuraciones subcaracterísticas también están habilitadas. Si `false`, no se habilita ninguna característica de instrumentación de registro.
+
+    Configure ApplicationLogging llamando a `ConfigAppLogEnabled()`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppLogEnabled(true),
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="application-logging-forwarding-enabled"
+    title="ApplicationLogging.Forwarding.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura log emitidos por su aplicación y los reenvía a New Relic. `ApplicationLogging.Enabled` también debe ser `true` para que esta configuración surta efecto.
+
+    Habilite el reenvío de registros llamando a `ConfigAppLogForwardingEnabled()`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppLogForwardingEnabled(true),
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="application-logging-forwarding-maximum-samples-stored"
+    title="ApplicationLogging.Forwarding.MaxSamplesStored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            10000
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Número de log para enviar por minuto a New Relic. Esta configuración controla el consumo general de memoria cuando se utiliza la característica de reenvío de registros.
+
+    Configure `ApplicationLogging.Forwarding.MaxSamplesStored` llamando a `ConfigAppLogForwardingMaxSamplesStored()`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppLogForwardingMaxSamplesStored(1000),
+    )
+    ```
+
+    Establezca esto en un valor más bajo para reducir la cantidad de líneas log enviadas (puede causar muestreo log ). Establezca esto en un valor más alto para enviar más líneas log .
+
+    Cada log recibe la misma prioridad que su transacción asociada. Los registros que ocurren fuera de una transacción recibirán una prioridad aleatoria. Es posible que algunos registros no se incluyan porque están limitados por `MaxSamplesStored`. Por ejemplo, si el registro `MaxSamplesStored` se establece en 10 000 y la transacción 1 tiene 10 000 entradas log , solo se registrarán las entradas log de la transacción 1. Si la transacción 1 tiene menos de 10 000 registros, recibirá todos los registros de la transacción 1. Si todavía hay espacio, recibirás todo el registro de la transacción 2, y así sucesivamente.
+
+    Si después de todo se registran los registros de transacciones muestreadas y no han alcanzado el límite en `MaxSamplesStored`, entonces se envían mensajes de registro de transacciones que no estaban en nuestro muestreo. Si queda alguno, se registran mensajes de registro fuera de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="application-logging-metrics-enabled"
+    title="ApplicationLogging.Metrics.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura métricas relacionadas con las líneas log que envía su aplicación. `ApplicationLogging.Enabled` también debe ser `true` para que esta configuración surta efecto.
+
+    Configurar ApplicationLogging.Metrics.Enabled llamando a `ConfigAppLogMetricsEnabled()`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigAppLogMetricsEnabled(true),
+    )
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configuración métrica de dependencia del módulo [#mdm]
+
+La dependencia del módulo métrica se puede configurar de diversas formas en el agente Go. Module dependency métrica informa la lista de módulos importados utilizados por su aplicación Go para ayudar a facilitar la gestión de la dependencia del código. También incluye la información de la versión de los módulos de tu aplicación.
+
+<Callout variant="important">
+  Requiere la versión 3.20.0 del agente Go o mas alto
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="mdm-enabled"
+    title="ModuleDependencyMetrics.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la recopilación de datos de dependencia del módulo. Si `false`, no se recopila información de dependencia del módulo.
+
+    Configure ModuleDependencyMetrics llamando a `ConfigModuleDependencyMetricsEnabled`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigModuleDependencyMetricsEnabled(true),
+    )
+    ```
+
+    Puede habilitar la configuración de las opciones de su agente Go a través de variables de entorno insertando `ConfigFromEnvironment()` en su llamada a `NewApplication`. Si ha hecho esto, puede habilitar o deshabilitar la colección métrica de dependencia del módulo configurando la variable de entorno.
+
+    ```ini
+    NEW_RELIC_MODULE_DEPENDENCY_METRICS_ENABLED=true
+    ```
+  </Collapser>
+
+  <Collapser
+    id="mdm-ignored-prefixes"
+    title="ModuleDependencyMetrics.IgnoredPrefixes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            String(s)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `nil`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta lista de prefijos de ruta de módulo especifica que desea excluir algunos módulos de la información de dependencia reportada por el agente. Se excluirá cualquier módulo cuya ruta `import` comience con cualquiera de las cadenas de prefijo enumeradas. El valor predeterminado es una lista vacía, lo que significa informar todos los módulos encontrados.
+
+    Especifique una lista de cadenas de prefijo de ruta que se excluirán llamando a `ConfigModuleDependencyMetricsIgnoredPrefixes`.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigModuleDependencyMetricsIgnoredPrefixes("example.com/packageAlpha", "example.com/packageBeta"),
+    )
+    ```
+
+    Si habilitó la configuración de las opciones de su agente Go a través de variables de entorno insertando `ConfigFromEnvironment()` en su llamada a `NewApplication`, puede enumerar los prefijos de ruta configurando la variable de entorno.
+
+    ```ini
+    NEW_RELIC_MODULE_DEPENDENCY_METRICS_IGNORED_PREFIXES="example.com/packageAlpha,example.com/packageBeta"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="mdm-redact-ignored-prefixes"
+    title="ModuleDependencyMetrics.RedactIgnoredPrefixes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            `newrelic.Config` estructura
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Normalmente, todas las opciones que establece como parte de la configuración de su agente se informan y son visibles en la UI de New Relic. Si elige excluir algunos módulos para que no se informen a través de la opción `ConfigModuleDependencyIgnoredPrefixes` , también puede eliminarlos de los datos de configuración. Por ejemplo, si los módulos fueron excluidos por motivos de confidencialidad.
+
+    Habilite o deshabilite la redacción de rutas excluidas llamando a `ConfigModuleDependencyMetricsRedactIgnoredPrefixes`. Si es `true`, no se informará la lista de prefijos de módulos excluidos. Si `false`, se informan.
+
+    ```go
+    app, err := newrelic.NewApplication(
+        newrelic.ConfigModuleDependencyMetricsRedactIgnoredPrefixes(false),
+    )
+    ```
+
+    Si habilitó la configuración de las opciones de su agente Go a través de variables de entorno insertando `ConfigFromEnvironment()` en su llamada a `NewApplication`, puede enumerar los prefijos de ruta configurando la variable de entorno.
+
+    ```ini
+    NEW_RELIC_MODULE_DEPENDENCY_METRICS_REDACT_IGNORED_PREFIXES=false
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## New Relic IAST [#go-IAST]
+
+[New Relic Interactive aplicación Security Testing](https://docs.newrelic.com/docs/iast/introduction/) (IAST) prueba su aplicación en busca de vulnerabilidades explotables reproduciendo la solicitud HTTP generada con carga vulnerable. Puede habilitar New Relic IAST actualizando el código de su aplicación Go con la configuración que se pasa a la función INIT. También puedes realizar estas configuraciones a través de un archivo YAML o con variables de entorno.
+
+Las opciones configuradas mediante funciones INIT tienen prioridad sobre el entorno o la configuración YAML. Dicho esto, recomendamos habilitar IAST usando un archivo YAML porque esa configuración pasará a otro agente en su entorno.
+
+### Instrucciones de configuración
+
+Importe la integración agregando la siguiente dependencia directa a su archivo `go.mod` .
+
+```go
+import "github.com/newrelic/go-agent/v3/integrations/nrsecurityagent"
+```
+
+A continuación, inicialice y habilite el agente de seguridad.
+
+### Habilitar IAST
+
+<CollapserGroup>
+  <Collapser
+    id="iast-option"
+    title="Habilitar con funciones opcionales"
+  >
+    ```go
+    err := nrsecurityagent.InitSecurityAgent(
+    app,
+    	nrsecurityagent.ConfigSecurityMode("IAST"),
+    nrsecurityagent.ConfigSecurityValidatorServiceEndPointUrl("wss://csec.nr-data.net"),
+    nrsecurityagent.ConfigSecurityEnable(true),
+    )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="iast-enviro"
+    title="Habilitar con variables de entorno"
+  >
+    ConfigSecurityFromEnvironment dirige la integración de nrsecurityagent para obtener toda su información de configuración de las variables de entorno.
+
+    ```go
+    err := nrsecurityagent.InitSecurityAgent(
+            app,
+           	ConfigSecurityFromEnvironment(),
+        )
+    ```
+  </Collapser>
+
+  <Collapser
+    id="iast-yaml"
+    title="Habilitar desde archivo YAML"
+  >
+    ConfigSecurityFromYaml dirige la integración de nrsecurityagent para que lea un archivo externo con formato YAML para obtener sus valores de configuración. La ruta a este archivo debe proporcionarse configurando la variable de entorno NEW_RELIC_SECURITY_CONFIG_PATH.
+
+    ```go
+    err := nrsecurityagent.InitSecurityAgent(
+            app,
+           	ConfigSecurityFromYaml(),
+        )
+    ```
+
+    El archivo YAML predeterminado tiene este aspecto.
+
+    ```yaml
+    enabled: true
+
+     # NR security provides two modes IAST and RASP
+     # Default is IAST
+    mode: IAST
+
+     # New Relic’s SaaS connection URLs
+    validator_service_url: wss://csec.nr-data.net
+
+     # Following category of security events
+     # can be disabled from generating.
+    detection:
+      rxss:
+        enabled: true
+    request:
+      body_limit: 300
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Configurar IAST
+
+El agente de seguridad se puede configurar con las siguientes opciones.
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-security-agent-enabled"
+    title="cfg.Security.Agent.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            ```go
+            func(cfg *SecurityConfig) {
+              cfg.Security.Agent.Enabled = true
+            }
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NEW_RELIC_SECURITY_AGENT_ENABLED
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para deshabilitar completamente todas las funciones de seguridad, establezca este indicador en falso. Al importar e inicializar el agente de seguridad en go, se supone que tiene intención de utilizarlo, por lo que este valor predeterminado es `true`. Tenga en cuenta que este es el comportamiento opuesto al de agente instrumentado automáticamente. Esta propiedad se lee solo una vez al inicio de la aplicación.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-enabled"
+    title="cfg.Security.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `nrsecurityagent.ConfigSecurityEnable(false)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NEW_RELIC_SECURITY_ENABLED
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Determina si los datos de seguridad se envían a New Relic o no. Cuando esto está deshabilitado y agente.enabled es verdadero, el módulo de seguridad se ejecutará pero no se enviarán datos. El valor predeterminado es falso.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-mode"
+    title="cfg.Security.Mode"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `nrsecurityagent.ConfigSecurityMode("IAST")`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NUEVO_RELIC_SECURITY_MODE
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `IAST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Modo de suministro de New Relic Security: IAST. El valor predeterminado es IAST. Debido a la naturaleza invasiva del escaneo IAST, NO habilite este modo ni en un entorno de producción ni en un entorno donde se procesen datos de producción.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-validator-service-url"
+    title="cfg.Security.Validator_service_url"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `nrsecurityagent.ConfigSecurityValidatorServiceEndPointUrl("wss://csec.nr-data.net")`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NEW_RELIC_SECURITY_VALIDATOR_SERVICE_URL
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `wss://csec.nr-data.net`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    URL de conexión SaaS de New Relic Security. Este es el extremo al que el agente de seguridad envía datos, debe coincidir con ese entorno que has configurado para el APM agente de Java.
+
+    Producción de EE. UU.: wss://csec.nr-data.net
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-detection-rxss-enabled"
+    title="cfg.Security.Detection.Rxss.Enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `nrsecurityagent.ConfigSecurityDetectionDisableRxss(true)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NEW_RELIC_SECURITY_DETECTION_RXSS_ENABLED
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad RXSS. El valor predeterminado es verdadero.
+  </Collapser>
+
+  <Collapser
+    id="cfg-security-request-body-limit"
+    title="cfg.Security.Request.BodyLimit"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            En t
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Función de configuración
+          </th>
+
+          <td>
+            `nrsecurityagent.ConfigSecurityRequestBodyLimit(300)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            NEW_RELIC_SECURITY_REQUEST_BODY_LIMIT
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            300
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El límite del cuerpo de la solicitud de seguridad establece un límite en la cantidad de memoria que se puede consumir al leer un cuerpo de solicitud en kb. Por defecto, esto es "300".
+  </Collapser>
+
+  ### Instrumentar las partes sensibles a la seguridad de su aplicación
+
+  La integración `nrgin`, `nrgrpc`, `nrmicro`, `fasthttp` o `nrmongo` ahora contiene código para respaldar el análisis de seguridad de los datos que manejan.
+
+  Además, el agente Go realizará escaneo de vulnerabilidades en código instrumentado que contiene segmentos de almacenamiento de datos, operaciones SQL, transacciones y llamadas y extremos HTTP envueltos.
+</CollapserGroup>

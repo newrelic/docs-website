@@ -1,0 +1,138 @@
+---
+title: Obtención de datos del tiempo de carga de la página browser (usuario final) (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Browser examples (v2)
+metaDescription: How to use the New Relic REST API v2 to obtain the browser transaction response time chart's data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los [datos de intervalo de tiempo de métrica](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data) presentados en el gráfico <DNT>**Browser page load time**</DNT> de la [página<DNT>**Summary**</DNT> ](/docs/browser/new-relic-browser/getting-started/browser-overview-website-performance-glance)de su aplicación dependerán de la configuración de su aplicación web. Los posibles componentes pueden incluir:
+
+* Tiempo de red
+* Tiempo de renderizado de la página
+* Tiempo de procesamiento DOM
+* Tiempo de aplicación web
+* Solicitar tiempo de cola
+
+Esto describe cómo utilizar la API REST de New Relic (v2) para obtener los datos que se muestran en el gráfico <DNT>**Browser page load time**</DNT> .
+
+## Valores generales de API [#general]
+
+Al realizar sus propios cálculos, tenga en cuenta lo siguiente:
+
+* Puede cambiar el [rango de tiempo predeterminado (30 minutos)](/docs/apm/apis/requirements/specifying-time-range-api-v2#api-call) utilizado en estos ejemplos.
+
+* Para valores calculados, el rango de tiempo que especifique debe ser consistente en
+
+  <DNT>
+    **all**
+  </DNT>
+
+  de la consulta; de lo contrario los cálculos finales serán incorrectos.
+
+* Debe reemplazar las variables `${APP_ID}` y `${API_KEY}` en estos ejemplos con su [ID de aplicación](/docs/apm/apis/requirements/identification-code) específico y [la clave REST de API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing) correspondiente.
+
+* Asegúrese de ajustar las unidades de tiempo devueltas por las solicitudes de API según sea necesario.
+
+## Tiempo de red [#network_time]
+
+`EndUser:average_network_time` es la latencia de la red, o el tiempo que tarda una solicitud en realizar un viaje de ida y vuelta a través de Internet. Utilice el siguiente comando para obtener esto.
+
+```
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=EndUser&values[]=average_network_time'
+```
+
+Este tiempo se devuelve en milisegundos.
+
+## Tiempo de renderizado de la página [#page_rendering_time]
+
+El tiempo de representación de la página es un valor derivado. Para calcularlo, use esta ecuación:
+
+```
+"Page rendering" time = EndUser:average_fe_response_time - EndUser/RB:average_dom_content_load_time
+```
+
+Para obtener los datos para este cálculo, utilice los siguientes comandos.
+
+* EndUser:average_fe_response_time
+
+  ```
+  curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+       -H "X-Api-Key:${API_KEY}" -i \
+       -d 'names[]=EndUser&values[]=average_fe_response_time'
+  ```
+
+  Este tiempo se devuelve en milisegundos.
+
+* EndUser/RB:average_dom_content_load_time
+
+  ```
+  curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+       -H "X-Api-Key:${API_KEY}" -i \
+       -d 'names[]=EndUser/RB&values[]=average_dom_content_load_time'
+  ```
+
+  Este tiempo se devuelve en milisegundos.
+
+## Tiempo de procesamiento DOM [#DOM_processing_time]
+
+El `EndUser/RB:average_dom_content_load_time` es el tiempo empleado en el browser para analizar e interpretar el HTML. Esto se mide por el evento <DNT>**DOM Content**</DNT> del browser.
+
+Para obtener estos datos, utilice el siguiente comando:
+
+```
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=EndUser/RB&values[]=average_dom_content_load_time'
+```
+
+Este tiempo se devuelve en milisegundos.
+
+## Tiempo de aplicación web [#web_application_response]
+
+El tiempo `Web application` es el tiempo empleado en el código de la aplicación. Para calcular este valor, use esta ecuación:
+
+```
+Web application = EndUser:total_app_time / EndUser:call_count
+```
+
+Para obtener los datos para este cálculo, utilice los siguientes comandos.
+
+* EndUser:total_app_time
+
+  ```
+  curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+       -H "X-Api-Key:${API_KEY}"  -i \
+       -d 'names[]=EndUser&values[]=total_app_time'
+  ```
+
+  Este tiempo se devuelve en segundos.
+
+* EndUser:call_count
+
+  ```
+  curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+       -H "X-Api-Key:${API_KEY}" -i \
+       -d 'names[]=EndUser&values[]=call_count'
+  ```
+
+## Solicitar tiempo de cola [#request_queue_time]
+
+El `EndUser/RB:average_queue_time` es el tiempo de espera entre el servidor web y el código de la aplicación. Los números grandes indican un servidor de aplicaciones ocupado.
+
+Para obtener estos datos, utilice el siguiente comando:
+
+```
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=EndUser/RB&values[]=average_queue_time'
+```
+
+Este tiempo se devuelve en milisegundos.
+
+El tiempo de cola de solicitudes no se incluye en el cálculo de promedios. New Relic lo incluye en este cuadro por conveniencia.

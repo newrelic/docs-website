@@ -1,0 +1,292 @@
+---
+title: Compatibilidad y requisitos para el agente Python.
+tags:
+  - Agents
+  - Python agent
+  - Getting started
+metaDescription: 'Our Python agent supports these frameworks, hosting mechanisms, and operating systems.'''
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Antes de instalar nuestro agente Python, asegúrese de que su sistema cumpla con estos requisitos.
+
+## Requerimientos básicos [#basic]
+
+El agente Python admite muchos de los marcos web Python más comunes. Es posible que se requiera una configuración adicional según su mecanismo de alojamiento específico, servicio de alojamiento, framework web o servicios backend. Consulte la siguiente tabla para obtener detalles de soporte.
+
+Si aún no tiene una, [cree una cuenta New Relic](https://newrelic.com/signup). Es gratis, para siempre.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Recurso
+      </th>
+
+      <th>
+        Requisitos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Sistema operativo
+      </td>
+
+      <td>
+        Sistema operativo tipo UNIX que incluye Linux, Solaris, FreeBSD y macOS. El agente Python no es compatible con entornos Windows.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Python
+      </td>
+
+      <td>
+        Versiones de Python (CPython/PyPy) compatibles: 2.7, 3.7, 3.8, 3.9, 3.10 y 3.11.
+
+        <DNT>**Recommendation:**</DNT> Utilice Python versión 3.7 o superior con nuestro agente.
+
+        * Las versiones 2.6 y 3.3 de Python solo son compatibles con las versiones 3.4.0.95 o inferiores del agente Python.
+        * La versión 3.4 de Python solo es compatible con las versiones 4.20.0.120 o inferiores del agente Python.
+        * La versión 3.5 de Python solo es compatible con las versiones 5.24.0.153 o inferiores del agente Python.
+        * La versión 3.6 de Python solo es compatible con las versiones 7.16.0.178 o inferiores del agente Python.
+        * Para la versión 2.7 de Python, siga nuestros requisitos [de soporte de fin de vida útil (EOL)](#version) .
+      </td>
+    </tr>
+
+    <tr id="frameworks">
+      <td>
+        Marco web compatible
+      </td>
+
+      <td>
+        El marco web compatible incluye:
+
+        * AIOHTTP
+        * Bottle
+        * CherryPy
+        * Django
+        * Falcon
+        * API rápida
+        * Flask
+        * GrafoQL
+        * gRPC
+        * Pylons
+        * Pyramid
+        * Sanic
+        * Starlette
+        * Tornado 6
+        * Web2Py
+      </td>
+    </tr>
+
+    <tr id="other-frameworks">
+      <td>
+        Marco no compatible
+      </td>
+
+      <td>
+        Algunos servidores, marcos y aplicaciones WSGI tienen requisitos especiales. Aunque es posible que no se admita un framework web Python WSGI específico, aún puede utilizar el agente. Para el marco no compatible, un desglose del tiempo dedicado a partes clave del framework no aparecerá en los desgloses del rendimiento de las transacciones web ni en la traza de la transacción.
+
+        Además, el agente no podrá agrupar de manera significativa ninguna transacción web manejada por controladores específicos en su código que utilice para hacerlas más útiles y objetivas. En estas situaciones, puede utilizar la API del agente Python para nombrar transacciones web o agregar instrumentación personalizada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Alojamiento
+      </td>
+
+      <td>
+        Mecanismos de alojamiento web compatibles con WSGI 1.0 (PEP 333). Apoyamos estos servicios de hosting:
+
+        * [Entorno flexible de Google App Engine](/docs/agents/python-agent/hosting-services/install-new-relic-python-agent-gae-flexible-environment).
+        * [Heroku](/docs/apm/agents/python-agent/hosting-services/python-agent-heroku/)
+        * [Cambio abierto](/docs/apm/agents/python-agent/hosting-services/python-agent-openshift/)
+        * [Stackato](/docs/apm/agents/python-agent/hosting-services/python-agent-stackato/)
+        * [WebFacción](/docs/apm/agents/python-agent/hosting-services/python-agent-webfaction/)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Requerimientos de seguridad
+      </td>
+
+      <td>
+        Como [medida de seguridad estándar para la recopilación de datos](/docs/accounts-partnerships/accounts/security/data-security), su servidor de aplicaciones debe admitir SHA-2 (256 bits). SHA-1 no es compatible.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Otro software de monitoreo
+      </td>
+
+      <td>
+        Si su aplicación utiliza otro software de monitoreo además del nuestro, no podemos garantizar que nuestro agente funcione correctamente y no podemos ofrecer soporte técnico. Para obtener más información, consulte [Errores al utilizar otro software de monitoreo](/docs/apm/new-relic-apm/troubleshooting/errors-while-using-new-relic-apm-alongside-other-apm-software).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Instrumentación del paquete Python [#python-packages]
+
+El agente también proporciona instrumentación para una variedad de otros [paquetes y módulos](/docs/agents/python-agent/getting-started/instrumented-python-packages) de Python. La instrumentación incluye consulta de la base de datos, solicitudes de Memcache, solicitudes de servicios externos, [detalles a nivel de instancia](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues) y más. Los resultados aparecerán automáticamente en la interfaz de usuario de APM dentro de los desgloses de rendimiento web de transacciones y la traza de la transacción para transacciones lentas.
+
+## Soporte de versión de paquete instrumentado [#package-version]
+
+El agente Python respalda y prueba activamente los paquetes instrumentados dentro de un período de lanzamiento de tres años.
+
+## Soporte de versión del agente [#agent-version]
+
+New Relic recomienda actualizar el agente con regularidad y como mínimo cada 3 meses. Las versiones del agente son compatibles dentro de un período de lanzamiento de un año.
+
+## Soporte de versión Python [#python-version]
+
+El agente en general admitirá todas [las ramas de Python](https://devguide.python.org/#status-of-python-branches) activas y publicadas. Sin embargo, para mantenerse al día con los próximos cambios, el agente también seguirá este cronograma de soporte de la versión Python. La política de soporte de versiones no reemplaza nuestra [política general de fin de vida útil (EOL)](/docs/agents/manage-apm-agents/maintenance/new-relic-agent-plugin-end-life-policy).
+
+### Soporte para nuevas versiones de Python [#support-new]
+
+A continuación se proponen rangos de tiempo. La fecha de lanzamiento real puede variar.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        Versión de Python
+      </th>
+
+      <th>
+        Fecha de inicio del soporte activo a largo plazo (LTS)
+      </th>
+
+      <th>
+        Fecha de lanzamiento inicial del agente Python con soporte
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        3.12
+      </td>
+
+      <td>
+        Octubre 2023
+      </td>
+
+      <td>
+        Noviembre 2023
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Fin del soporte para las versiones de Python que llegan al EOL [#support-end]
+
+A continuación se proponen rangos de tiempo. La fecha de lanzamiento real puede variar.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        Versión de Python
+      </th>
+
+      <th>
+        Fecha de fin de vida útil (EOL)
+      </th>
+
+      <th>
+        Fecha de lanzamiento inicial del soporte para el agente Python
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        2.7
+      </td>
+
+      <td>
+        1 de enero de 2020
+      </td>
+
+      <td>
+        Por determinar
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Conecte el agente a otras capacidades [#digital-intelligence-platform]
+
+El agente Python se integra con otras capacidades para brindarle visibilidad de un extremo a otro:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Producto
+      </th>
+
+      <th>
+        integracion
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [Monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring)
+      </td>
+
+      <td>
+        Si tiene la versión 9.8.0 del agente Python, puede recopilar datos de IA de cierta biblioteca y marco de IA:
+
+        * Versiones de la biblioteca [OpenAI](https://pypi.org/project/openai/) 0.28.0 y superiores.
+        * [Boto3 AWS SDK para Python](https://pypi.org/project/boto3/) versión 1.28.57 y superiores.
+        * [LangChain](https://pypi.org/project/langchain/) versiones 0.1.0 y por encima.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [monitoreo del navegador](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)
+      </td>
+
+      <td>
+        El agente Python inyecta automáticamente el agente JavaScript del navegador cuando [habilita la instrumentación automática](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#select-apm-app). Después de habilitar la inyección browser , puede ver los datos del navegador en la [página Resumen de APM](/docs/apm/applications-menu/monitoring/apm-overview-page) y cambiar rápidamente entre los datos <InlinePopover type="apm"/>y <InlinePopover type="browser"/>de una aplicación en particular. Para opciones de configuración e instrumentación manual, consulte [monitoreo del navegador y el agente Python](/docs/agents/python-agent/supported-features/page-load-timing-python).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure)
+      </td>
+
+      <td>
+        Cuando instala el monitoreo de infraestructura y el agente APM en el mismo host, se detectan automáticamente entre sí. Luego puede ver una lista de hosts en la UI de APM y filtrar sus hosts por aplicación de APM en la UI de monitoreo de infraestructura. Para obtener más información, consulte [Datos de APM en UIde infraestructura](/docs/infrastructure/new-relic-infrastructure/data-instrumentation/new-relic-apm-data-infrastructure).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo sintetico](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics)
+      </td>
+
+      <td>
+        [Sintético traza de la transacción](/docs/synthetics/new-relic-synthetics/using-monitors/collect-synthetic-transaction-traces) conecta las solicitudes del monitor Sintético a la transacción APM subyacente.
+      </td>
+    </tr>
+  </tbody>
+</table>

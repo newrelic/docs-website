@@ -1,0 +1,301 @@
+---
+title: 'Implementación parte 2: instrumentado'
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: 'Part 2 of the New Relic implementation guide, where you instrument your frontend and backend systems.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+_Esta es la segunda parte de [nuestra guía de implementación](/docs/new-relic-solutions/get-started/implementation-guide-intro)._
+
+En [la etapa de implementación anterior,](/docs/new-relic-solutions/get-started/implementation-guide-planning-setup) configuró su organización New Relic y pensó un poco en sus planes de instrumentación y las responsabilidades de New Relic de su usuario. Ahora es el momento de hacer la instrumentación real.
+
+Las organizaciones que terminan teniendo éxito con sus objetivos de observabilidad son aquellas que obtienen informes de datos de telemetría de todos los componentes relevantes de su stack. En esta etapa de la configuración, lo guiaremos a través de los pasos que, con suerte, instrumentarán un gran porcentaje de su stack y le brindarán una base sólida de observabilidad sobre la que luego podrá desarrollar.
+
+En esta etapa, usted:
+
+* Configurar el monitoreo de infraestructura.
+
+* Configure el monitoreo de aplicaciones, que puede incluir uno o más de estos:
+
+  * Nuestro
+
+    <InlinePopover type="apm"/>
+
+    agente, que monitor algunos de los marcos de aplicaciones más específicos del idioma.
+
+  * Nuestras otras soluciones para monitoreo de aplicaciones, incluida la integración para OpenTelemetry, StatsD u otros servicios y API.
+
+* Si su aplicación tiene una interfaz web: configure
+
+  <InlinePopover type="browser"/>
+
+* Si tienes una aplicación móvil: configura monitoreo de móviles.
+
+## Desplegar New Relic a escala [#deploy-scale]
+
+Si actualmente está implementando sus hosts y aplicaciones a escala, tendrá sentido automatizar también sus herramientas New Relic incluyéndolas en sus canales de automatización y aprovisionamiento.
+
+Esta guía lo guiará a través de algunos procedimientos de instalación estándar, pero muchos de ellos pueden automatizarse de varias maneras. Si planeas implementar New Relic a escala, considera asignar miembros del equipo para trabajar en ese proyecto.
+
+Algunos recursos para desplegar a escala:
+
+* [Recursos de automatización del flujo de trabajo](https://developer.newrelic.com/automate-workflows)
+* Nuestra [guía de observabilidad como código](/docs/new-relic-solutions/observability-maturity/operational-efficiency/observability-as-code-guide)
+
+## Monitoreo de infraestructura [#infrastructure]
+
+New Relic monitoreo de infraestructura le brinda una vista completa del estado y los cambios de configuración de todo su ecosistema de host, en todos los entornos.
+
+Nuestro monitoreo de infraestructura comprende una variedad de herramientas, que van desde nuestro agente de infraestructura que se instala en sus hosts e instrumenta el sistema operativo común, hasta nuestra integración docker y Kubernetes, nuestra plataforma de integración en la nube que reporta telemetry data de los servicios en la nube que utiliza, hasta nuestra integración para muchos servicios populares relacionados con la infraestructura.
+
+Mire un vídeo de 6 minutos que muestra lo que el monitoreo de infraestructura puede hacer por usted:
+
+<Video
+  id="PDpwGIL5s0U"
+  type="youtube"
+/>
+
+Si ya ha instrumentado parte de su infraestructura, debería verlo en la UI de la infraestructura. Si aún no lo ha hecho o necesita agregar más datos, esta sección le brindará algunas rutas recomendadas.
+
+### Instalación guiada (infraestructura y APM) [#guided-install]
+
+La instalación guiada es una buena opción para organizaciones pequeñas o para cualquiera que quiera probar New Relic antes de realizar una instalación más completa.
+
+La instalación guiada descubre automáticamente su entorno e instala las soluciones aplicables, incluido nuestro agente de infraestructura, algunas integraciones relacionadas con la infraestructura, nuestra integración de Kubernetes, el agente APM y alguna instrumentación log . Funciona en la mayoría de los entornos comunes, incluido el sistema operativo común, en docker contenedor y aplicaciones en Kubernetes.
+
+La instalación guiada puede ser una buena opción para probar y crear prototipos antes de un despliegue más grande. Si prefiere instalar las cosas manualmente o tener más control sobre el proceso de instalación, consulte la sección de instalación manual a continuación.
+
+Para ver a alguien usar la instalación guiada para agregar datos y un panel en solo unos minutos, mire este video de 5 minutos:
+
+<Video
+  id="6U-RQIkBJOA"
+  type="youtube"
+/>
+
+¿Listo para utilizar la instalación guiada? Vaya a la [página de instalación guiada en New Relic.](https://one.newrelic.com/marketplace?state=83ad7308-eba3-c490-39ae-54547650309e)
+
+### Instalación manual para agente de infraestructura e integración en el host. [#manual-infrastructure]
+
+Como alternativa o complemento a la [instalación guiada](#infra-guided-install), en el colapsador a continuación se encuentran los procedimientos para instalar el agente de infraestructura y la integración de servicios de infraestructura:
+
+<CollapserGroup>
+  <Collapser
+    id="manual-infra-install"
+    title="Opciones de instalación manual para infraestructura"
+  >
+    Aquí hay opciones manuales para instalar el agente de infraestructura y nuestra integración en el host:
+
+    ### Monitor su sistema operativo (Linux, Windows, macOS)
+
+    Nuestro agente de infraestructura instrumentado aloja y soporta muchas integraciones para otros servicios relacionados con la infraestructura. El agente se puede instalar en un host (ya sea un nodo en un clúster de Kubernetes, una máquina virtual (VM) en su propio centro de datos local o una máquina virtual (VM) en la nube) o en una docker . envase. Seleccione una opción relevante:
+
+    * [Instalar el agente en un host](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/#install)
+
+    * [Instalar agente en contenedor docker](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure-monitoring)
+
+    * Kubernetes:
+
+      * [Instalar agente a través de Kubernetes](/install/kubernetes)
+      * Utilice [nuestra integración Pixie](/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie) para obtener telemetry data y panel de control de Kubernetes
+
+      ¿Quieres implementar a escala? Conozca [nuestras opciones de gestión de configuración](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#config-mgmt).
+
+      ### Monitor los servicios de infraestructura
+
+      Nuestra integración en el host instrumentó muchos servicios populares relacionados con la infraestructura, como Apache, Cassandra, MySQL, NGINX, StatsD y más. Para comenzar, elija la opción que coincida con su stack:
+
+    * Si usa Kubernetes: [instálelo a través de nuestra integración de Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/monitor-services/monitor-services-running-kubernetes)
+
+    * Si utiliza Amazon ECS: [instálelo a través de nuestra integración ECS](/docs/infrastructure/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs)
+
+    * De lo contrario: [instale manualmente la integración específica que necesita](https://one.newrelic.com/marketplace?state=1be08f1d-0fd0-0bb2-4c13-44b4bbaba798)
+  </Collapser>
+</CollapserGroup>
+
+### Plataforma en la nube: AWS, Azure, GCP [#cloud]
+
+Cuando instala el agente de infraestructura en hosts en una plataforma de nube compatible (AWS, Azure, GCP), obtendrá algunos metadatos básicos informados sobre esas plataformas de forma predeterminada. Además, debes habilitar nuestra integración en la nube para obtener datos más detallados de los servicios de tu plataforma en la nube:
+
+* [AWS](https://newrelic.com/instant-observability/?category=amazon-web-services)
+* [Azur](https://newrelic.com/instant-observability/?category=azure)
+* [PCG](https://newrelic.com/instant-observability/?category=google-cloud-platform)
+
+¿Interesado en implementar a escala? Algunos recursos:
+
+* Nuestra [guía de observabilidad como código](/docs/new-relic-solutions/observability-maturity/operational-efficiency/observability-as-code-guide/#automation-tools) incluye información sobre el uso de Terraform y otras opciones.
+* [Nuestros documentos API de NerdGraph para integración en la nube](/docs/apis/nerdgraph/examples/nerdgraph-cloud-integrations-api-tutorial)
+
+### Ampliar y personalizar el monitoreo de infraestructura [#extend-infra]
+
+Tenemos muchas herramientas de monitoreo de infraestructura y esas herramientas tienen varias opciones de personalización y configuración. También puede ampliar las capacidades del agente de infraestructura con [nuestra sencilla integración Flex](/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration), que le permite crear integraciones para casi cualquier servicio. También tiene la opción de utilizar [nuestras API de ingesta de datos](/docs/apis/intro-apis/introduction-new-relic-apis/#data-type-apis) directamente.
+
+### Consejos sobre el uso de la UI de infraestructura
+
+* [Vea un vídeo de 5 minutos que muestra cómo utilizar la UI de infraestructura](https://www.youtube.com/watch?v=vudbQPOmQ58)
+* [Monitoreo de infraestructura mejores prácticas](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/infrastructure-monitoring-best-practices-guide)
+
+## Aplicación de monitoreo [#apm]
+
+<img
+  title="APM overview"
+  alt="An image showing an example APM page."
+  src="/images/apm_screenshot-full_apm-intro-overview.webp"
+/>
+
+<figcaption>
+  La página de resumen de APM le brinda una descripción general de algunas de sus aplicaciones métricas más importantes.
+</figcaption>
+
+A continuación instrumentarás tu aplicación o aplicaciones, si aún no lo has hecho (por ejemplo, con la [instalación guiada](#guided-install)). Instrumentar su aplicación le brinda información valiosa sobre su rendimiento y disponibilidad, y le ayuda a diagnosticar problemas de rendimiento de la aplicación.
+
+Contamos con varias soluciones para monitoreo del rendimiento de aplicaciones (APM) (APM). Seleccione la opción más aplicable a continuación:
+
+* Nuestro
+
+  <InlinePopover type="apm"/>
+
+  agente: esta es la opción más popular para el monitoreo de aplicaciones. Si aún no ha instalado un agente APM (por ejemplo, mediante la instalación guiada), vaya a [la página UI](https://one.newrelic.com/marketplace?state=b0897c4b-8fb0-eac2-7d6a-613337a6e03d)
+
+  <DNT>
+    [**Add your data**](https://one.newrelic.com/marketplace?state=b0897c4b-8fb0-eac2-7d6a-613337a6e03d)
+  </DNT>
+
+  [](https://one.newrelic.com/marketplace?state=b0897c4b-8fb0-eac2-7d6a-613337a6e03d)y seleccione un idioma. Cuando haya terminado, busque los datos de su aplicación en la [UI de resumen de APM](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data) y en [la UI de rastreo distribuido](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui).
+
+* Nuestra integración de OpenTelemetry: [configure OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction) y vea sus datos en [nuestra UI de OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-find-entities).
+
+* Contamos con [integración para estándares y servicios de telemetría comunes](https://newrelic.com/instant-observability/?category=open-source-monitoring), como [StatsD](https://newrelic.com/instant-observability/statsd) y Prometheus.
+
+* Para aplicaciones móviles y aplicaciones browser : hablaremos más sobre ellas en un momento.
+
+### APM mejores prácticas y consideraciones [#apm-tips]
+
+Nuestro <InlinePopover type="apm"/>agente es una de nuestras herramientas más populares, por lo que a continuación brindaremos algunos consejos y consideraciones sobre APM.
+
+#### Nomenclatura de aplicaciones [#app-naming]
+
+Querrá dedicar algo de tiempo a pensar en cómo nombrar sus aplicaciones de monitorización APM en New Relic. Si cambia el nombre de la aplicación más adelante, la tratará como una aplicación nueva y no tendrá informes de datos continuos para esa aplicación. Para mantener la coherencia, recomendamos estandarizar los nombres de sus aplicaciones: por ejemplo, agregue todos los nombres de las aplicaciones en un entorno de prueba con `[staging]`.
+
+Para obtener más consejos sobre cómo nombrar aplicaciones, consulte [Nomenclatura de aplicaciones](/docs/apm/agents/manage-apm-agents/app-naming/name-your-application).
+
+#### APM marcador de despliegue [#apm-deployment]
+
+Es una buena práctica configurar un marcador de despliegue, que le ayudará a ver cómo se relacionan los problemas de rendimiento con su despliegue. Para saber cómo configurar esto, consulte [el marcador de despliegue](/docs/apm/new-relic-apm/maintenance/record-monitor-deployments).
+
+#### Instrumentación personalizada para APM [#apm-custom-instrumentation]
+
+Desde el primer momento, nuestro agente APM le ofrece muchas vistas seleccionadas y paneles de control. Pero personalizar los datos que se informan le ayudará a aprovechar al máximo New Relic. Por ejemplo, si tiene ID de usuarios/clientes que es importante rastrear, puede configurar su agente APM para informarlos. Para comenzar con eso, consulte:
+
+* [instrumentación personalizada](/docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation), para personalizar cómo el agente instrumenta su aplicación
+* [evento personalizado y atributo](/docs/data-apis/custom-data/custom-events/apm-report-custom-events-attributes), para agregar nuevos eventos y metadatos
+
+#### Colaboración de desarrolladores [#codestream]
+
+¿Quiere que sus desarrolladores estén aún más alineados? New Relic CodeStream es una plataforma de colaboración para desarrolladores que permite a su equipo revisar el código de forma natural y contextual. CodeStream facilita sus discusiones al permitir que se desarrollen en contexto en su IDE. También preserva el conocimiento institucional que a menudo se pierde en los canales y correos electrónicos de Slack. [Obtenga más información sobre CodeStream.](/docs/codestream/start-here/what-is-codestream)
+
+#### Otras mejores prácticas [#more-on-apm]
+
+Para obtener más consejos para APM, consulte [APM mejores prácticas](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/apm-best-practices-guide/).
+
+## Monitoreo de usuarios reales [#real-user-monitoring]
+
+Para ayudarlo monitor la experiencia de su usuario final, ofrecemos observabilidad en browsery en la aplicación móvil.
+
+### monitoreo del navegador [#browser]
+
+Nuestro monitoreo de navegador le brinda información valiosa sobre las experiencias que su usuario final está teniendo con sus propiedades digitales. Nuestro agente del navegador está optimizado para una amplia variedad de arquitectura de aplicaciones. Puede monitor aplicaciones dinámicas y rastrear cambios de ruta, cargas iniciales de páginas y actividad sincrónica y asincrónica durante la interacción browser . También podrás ver tus datos reales de usuario en tu rastreo distribuido, junto con los datos de tu aplicación.
+
+Es fácil configurar el monitoreo del navegador, especialmente si ya tiene instalado un agente APM. Para comenzar, consulte [la página UI <DNT>**Add your data**</DNT> ](https://one.newrelic.com/marketplace?state=dbe79256-a6cf-ea3e-baac-c5dab3a0b5cb)y haga clic en <DNT>**Browser monitoring**</DNT>.
+
+Cuando hayas completado la configuración, busca tus datos en la [página de resumen UI del navegador](/docs/browser/browser-monitoring/getting-started/browser-summary-page) y en [la UI del rastreo distribuido](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui). Utilice nuestros [cuadros de principales web de Métricas](/docs/browser/browser-monitoring/getting-started/browser-summary-page/#core_vitals) para comprender cómo se desempeñan sus servicios según los principales web de Métricas de Google.
+
+Mire un breve vídeo sobre cómo configurar el monitoreo del navegador:
+
+<Video
+  id="blPC5R5l7C8"
+  type="youtube"
+/>
+
+Al configurar su monitoreo de navegador, es importante asegurarse de que los segmentos de URL de su browser se capturen correctamente. A veces, las URL se acumularán y agregarán a un nivel demasiado alto para que sean útiles y, a veces, serán demasiado granulares y querrás agregarlas más. Para obtener más información al respecto, consulte [Datos de grupo](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/browser-monitoring-best-practices-guide/#segment-allowlist) y otros consejos en [la guía de mejores prácticas](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/browser-monitoring-best-practices-guide).
+
+### Monitoreo de moviles [#mobile]
+
+Nuestra característica de monitoreo de móviles lo ayuda a obtener una visibilidad más profunda de sus aplicaciones móviles Android, iOS y React Native y su rendimiento. También verás tus datos de usuario móvil en tu rastreo distribuido, junto con los datos de tu aplicación.
+
+Para comenzar, consulte [la página UI <DNT>**Add your data**</DNT> ](https://one.newrelic.com/marketplace?state=dbe79256-a6cf-ea3e-baac-c5dab3a0b5cb)y seleccione un framework móvil. Cuando haya terminado, verá sus datos en [la UI de monitoreo de móviles](/docs/mobile-monitoring/mobile-monitoring-ui/mobile-app-pages/mobile-apps-summary-page).
+
+Aquí hay un breve video de 3 minutos que muestra cómo monitor una aplicación móvil React Native:
+
+<Video
+  id="Y32ujX-flm8"
+  type="youtube"
+/>
+
+Para obtener más información sobre cómo configurar el monitoreo de móviles, consulte [nuestra guía de mejores prácticas de monitoreo de móviles](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/mobile-monitoring-best-practices-guide).
+
+## Logs [#logs]
+
+Nuestro agente APM y nuestro agente de infraestructura están diseñados para informar el log listo para usar para algunas configuraciones y marcos de logging comunes. A ese log lo llamamos _logs en el contexto_ porque los ve no solo en nuestra UI de log principal, sino también junto con los datos de su aplicación y host en la UI de infraestructura y APM.
+
+Después de instalar estos agentes, es posible que no vea el log. Una razón común es que su log no está almacenado en el directorio que esperamos. Si instaló la infraestructura y/o el agente APM y no ve el log, consulte [No ver el log](/docs/logs/troubleshooting/no-log-data-appears-ui).
+
+### Reenvío de log [#log-forwarding]
+
+Además de iniciar sesión desde nuestro agente, también puede [configurar el reenvío de logs](/docs/logs/forward-logs/enable-log-management-new-relic) para informar el log de muchos servicios populares, como Fluentd, Cloudflare y Logstash.
+
+### Logs UI [#logs-ui]
+
+Aquí hay un video de 2 minutos que muestra nuestra UI de log en acción:
+
+<Video
+  id="61mn1WFVmoM"
+  type="youtube"
+  width="560px"
+/>
+
+### Configuración log [#log-config]
+
+Analizamos automáticamente su log y detectamos atributos importantes (pares de valores principales) para que pueda buscar, consultar y alertar más fácilmente en su log. Pero debido a que los logs varían tanto y no están estructurados, normalmente no podemos analizar todo lo que es relevante para usted, por lo que probablemente desee configurar reglas de análisis y configuración adicionales. Para obtener más información al respecto, consulte [Configurar análisis de logs](/docs/logs/ui-data/parsing).
+
+Log a veces puede generar una gran cantidad de ingesta de datos. Para obtener más información sobre cómo ajustar o reducir la ingesta de datos de log, consulte [Administrar datos](/docs/data-apis/manage-data/manage-data-coming-new-relic/#adjust-log-ingest).
+
+## Algunas mejores prácticas después de la instalación [#post-install]
+
+Instalar nuestro agente y otras integraciones es solo el primer paso de un proceso continuo de optimización de la observabilidad. Algunas mejores prácticas a tener en cuenta:
+
+* Para la instrumentación que ha configurado, más adelante querrá dedicar tiempo a configurar esas herramientas para que funcionen mejor para usted. Por ejemplo, si instaló un agente APM, esto significaría revisar más adelante los documentos de ese agente para comprender las opciones de configuración.
+* Vaya a [la UI de uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui) para obtener una vista de alto nivel de su ingesta de datos.
+* Si ha instalado uno o más de nuestros agentes, debe [actualizarlos](/docs/new-relic-solutions/new-relic-one/install-configure/update-new-relic-agent) con una cadencia establecida. Para obtener mejores resultados, recomendamos mensual o trimestralmente.
+
+<InstallFeedback/>
+
+## Validar informes de datos [#validate]
+
+<img
+  title="A service map"
+  alt="A service map"
+  src="/images/synthetic_screenshot-full_service-maps-new-relic-one.webp"
+/>
+
+<figcaption>
+  Revisar los mapas de servicios es una forma de asegurarse de haber instrumentado todo lo que necesita para monitor.
+</figcaption>
+
+En esta etapa, si aún no lo ha hecho, debe revisar los datos que está reportando. Lo ideal es que tengas buena visibilidad de todas las entidades relevantes para tus operaciones.
+
+A continuación se ofrecen algunos consejos para comprender los datos que está informando y asegurarse de que está bien configurado:
+
+* Vaya a [la vista del explorador](https://one.newrelic.com/nr1-core?state=0e6740e6-32c3-125b-de72-22a4848c6eaf), donde podrá ver todas las entidades de su monitor en un solo lugar.
+* Consulta [la UI de rastreo distribuido](https://one.newrelic.com/distributed-tracing) y comprueba qué tan completa está tu traza.
+* Vaya a [la UI de uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui) para ver una descripción general de sus datos ingeridos (tenga en cuenta que esto requiere permisos de facturación)
+* Si ya ha configurado [la carga de trabajo](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) en New Relic, asegúrese de que esa carga de trabajo contenga los datos que espera ver. (Hablaremos más sobre carga de trabajo más adelante).
+* Si desea profundizar más en la optimización de su instrumentación, consulte nuestra [aplicación de vencimiento de cuenta](https://one.newrelic.com/marketplace?state8c01154b-6b04-3abc-3c4c-3af8db3276cf): le ayuda a revisar su instrumentación y ver las características que no está utilizando.
+
+Si ve lagunas importantes en la instrumentación, puede llenarlas [configurando una mayor integración](https://newrelic.com/instant-observability), ya sea ahora o después de completar esta guía.
+
+## Siguiente etapa [#next]
+
+¿Listo para continuar su viaje de implementación? Vaya a la siguiente etapa: [<DNT>**Understand and organize your data**</DNT>](/docs/new-relic-solutions/get-started/implementation-guide-organize-data).

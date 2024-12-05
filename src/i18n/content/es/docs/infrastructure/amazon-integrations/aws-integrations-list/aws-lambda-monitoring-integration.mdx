@@ -1,0 +1,234 @@
+---
+title: Integración de monitoreo AWS Lambda
+tags:
+  - Integrations
+  - Amazon integrations
+  - AWS integrations list
+metaDescription: 'New Relic''s AWS Lambda monitoring integration: How to activate it and what data it reports.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  Habilite la [integraciónAWS CloudWatch Metric Streams ](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-metric-stream/)para monitor todas las métricas de CloudWatch desde sus servicios de AWS, incluido el espacio de nombres personalizado. La integración individual ya no es nuestra opción recomendada.
+</Callout>
+
+[La integración New Relic Infrastructure ](/docs/integrations/new-relic-integrations/getting-started/introduction-infrastructure-integrations)incluye una integración para informar sus datos AWS Lambda a New Relic. Este documento explica cómo activar esta integración y describe los datos que se pueden reportar.
+
+<DNT>**We also offers a more in-depth Lambda monitoring feature**</DNT>. Para obtener más información, consulte [Monitoreo del servidor New Relic para AWS Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/introduction-new-relic-monitoring-aws-lambda).
+
+## Característica [#features]
+
+[AWS Lambda](https://aws.amazon.com/lambda/) es una plataforma de cálculo de administración cero para desarrolladores web backend . Ejecuta su código por usted en la AWS cloud y le proporciona una estructura de precios detallada.
+
+Función Lambda son piezas de código personalizado que se ejecutan cuando ocurre un determinado evento. Para identificar el evento que invoca una función Lambda particular, el usuario AWS Lambda define el mapeo de origen del evento. Opcionalmente, se pueden utilizar alias para apuntar a una versión específica de una función Lambda.
+
+New Relic AWS Lambda La integración de informa datos como recuentos de invocaciones, recuentos de errores, temporizadores de funciones y otras [métricas .](#metrics) Puede ver sus datos de Lambda en un panel prediseñado y también [crear consultas y gráficos personalizados](/docs/infrastructure/integrations-getting-started/getting-started/use-integration-data-new-relic-insights).
+
+## Activar la integración [#activate]
+
+Para habilitar esta integración, siga los procedimientos estándar para [conectar los servicios de AWS a New Relic](/docs/infrastructure/infrastructure-integrations/getting-started/connect-aws-integrations-infrastructure).
+
+<Callout variant="important">
+  Si utiliza claves personalizadas para cifrar variables de entorno, es posible que comience a ver errores de descifrado de KMS en la consola de Cloudtrail. Esto se debe a que la API que se utiliza para recuperar lambdas siempre intenta recuperar información de las variables de entorno como parte de su respuesta. New Relic no recibe ni almacena esta información.
+</Callout>
+
+## Configuración y sondeo [#polling]
+
+Puede cambiar la frecuencia de sondeo y filtrar datos usando [las opciones de configuración](/docs/integrations/new-relic-integrations/getting-started/configure-polling-frequency-data-collection-cloud-integrations).
+
+Información [de sondeo](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-polling-intervals-infrastructure-integrations) predeterminada para la integración de AWS Lambda:
+
+* New Relic intervalo de sondeo: 5 minutos
+* Intervalo de datos de Amazon CloudWatch: 1 minuto
+
+## Buscar y utilizar datos [#find-data]
+
+Para encontrar sus datos de integración, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > AWS**</DNT> y seleccione uno de los enlaces de integración de Lambda.
+
+Puedes [consultar y explorar tus datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) usando el [tipo de evento](/docs/data-apis/understand-data/new-relic-data-types/#event-data) `ServerlessSample` , con `provider` valores de `LambdaRegion` , `LambdaFunction` y `LambdaFunctionAlias`.
+
+Para obtener más información sobre cómo utilizar sus datos, consulte [Comprender y utilizar los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos [#metrics]
+
+Esta integración recoge la siguiente métrica. Para obtener más información sobre estas métricas, consulte [la documentación Lambda de Amazon](http://docs.aws.amazon.com/lambda/latest/dg/monitoring-functions-metrics.html).
+
+### Función y alias
+
+La función Lambda y los datos de alias se adjuntan al [tipo de evento](/docs/data-apis/understand-data/new-relic-data-types/#event-data) `ServerlessSample` , con un valor `provider` de `LambdaFunction` y `LambdaFunctionAlias`, respectivamente.
+
+Además, si está utilizando [AWS CloudFront](/docs/integrations/amazon-integrations/aws-integrations-list/aws-cloudfront-monitoring-integration) para ejecutar las funciones en ubicaciones AWS más cercanas a los clientes y ha habilitado el filtro para recopilar la métrica Lambda@Edge, estos datos se adjuntarán al tipo de evento `ServerlessSample`, con un valor de proveedor. de `LambdaEdgeFunction`.
+
+<table>
+  <thead>
+    <tr>
+      <th width={285}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `concurrentExecutions`
+      </td>
+
+      <td>
+        Solo disponible para funciones que tienen especificado un límite de simultaneidad personalizado. No aplicable para versiones o alias. Mide la suma de ejecuciones simultáneas para una función determinada en un momento determinado. Debe verse como una métrica promedio si se agrega a lo largo de un período de tiempo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `deadLetterErrors`
+      </td>
+
+      <td>
+        Mide la cantidad de veces que una función no puede escribir la carga útil del evento fallido en las colas de mensajes fallidos configuradas. Esto podría deberse a uno de los siguientes:
+
+        * Errores de permisos
+        * Regulaciones de servicios posteriores
+        * Recursos mal configurados
+        * Tiempos de espera
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `duration`
+      </td>
+
+      <td>
+        Mide el tiempo de reloj transcurrido en milisegundos desde que el código de función comienza a ejecutarse como resultado de una invocación hasta que deja de ejecutarse. (Esta métrica reemplaza la métrica de latencia obsoleta). El valor máximo de punto de datos posible es la configuración del tiempo de espera de la función. La duración facturada se redondeará a los 100 milisegundos más cercanos. Tenga en cuenta que AWS Lambda solo envía estas métricas a CloudWatch si tienen un valor distinto de cero.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `edge-region`
+      </td>
+
+      <td>
+        La región de AWS donde se ejecuta la función. Solo para funciones ejecutadas por el servicio Lambda@Edge.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `errors`
+      </td>
+
+      <td>
+        Mide el número de invocaciones que fallaron debido a errores en la función (código de respuesta 4XX). Esto reemplaza la métrica ErrorCount obsoleta. Las invocaciones fallidas pueden desencadenar un reintento exitoso. Esto incluye:
+
+        * Excepciones manejadas (por ejemplo, context.fail(error))
+
+        * Excepciones no controladas que provocan la salida del código
+
+        * Excepciones por falta de memoria
+
+        * Tiempos de espera
+
+        * Errores de permisos
+
+          Esto no incluye las invocaciones que fallan debido a que las tasas de invocación exceden los límites simultáneos predeterminados (código de error 429) o fallas debido a errores internos del servicio (código de error 500).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invocations`
+      </td>
+
+      <td>
+        Mide la cantidad de veces que se invoca una función en respuesta a un evento o llamada API de invocación. Esto reemplaza la métrica RequestCount obsoleta. Esto incluye invocaciones exitosas y fallidas, pero no incluye intentos limitados. Esto equivale a las solicitudes facturadas para la función. Tenga en cuenta que AWS Lambda solo envía estas métricas a CloudWatch si tienen un valor distinto de cero.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `iteratorAge`
+      </td>
+
+      <td>
+        Solo disponible para invocaciones basadas en transmisiones (funciones activadas por una transmisión de Amazon DynamoDB o una transmisión de Kinesis). Mide la antigüedad del último registro en milisegundos para cada lote de registros procesados. La edad es la diferencia entre la hora en que Lambda recibió el lote y la hora en que se escribió el último registro del lote en la secuencia.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `streamedOutboundBytes` (Solo modo de transmisión de respuesta)
+      </td>
+
+      <td>
+        La cantidad de bytes transmitidos desde la función Lambda (el modo de respuesta rápida tiene que diseñar la función).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `streamedOutboundThroughput` (Solo modo de transmisión de respuesta)
+      </td>
+
+      <td>
+        El rendimiento de la función Lambda en bytes por segundo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `throttles`
+      </td>
+
+      <td>
+        Mide el número de intentos de invocación de función Lambda que se limitaron debido a que las tasas de invocación excedieron los límites concurrentes de los clientes (código de error 429). Las invocaciones fallidas pueden desencadenar un reintento exitoso.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Región
+
+Los datos de la región Lambda se adjuntan al [tipo de evento](/docs/data-apis/understand-data/new-relic-data-types/#event-data) `ServerlessSample` , con un valor `provider` de `LambdaRegion`.
+
+<table>
+  <thead>
+    <tr>
+      <th width={285}>
+        Nombre
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `concurrentExecutions`
+      </td>
+
+      <td>
+        Emitido como una métrica agregada para todas las funciones de la cuenta. Mide la suma de ejecuciones simultáneas para una función determinada en un momento determinado. Debe verse como una métrica promedio si se agrega a lo largo de un período de tiempo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `unreservedConcurrentExecutions`
+      </td>
+
+      <td>
+        Emitido como una métrica agregada para todas las funciones de la cuenta únicamente. Representa la suma de la simultaneidad de las funciones que no tienen especificado un límite de simultaneidad personalizado. Debe verse como una métrica promedio si se agrega a lo largo de un período de tiempo.
+      </td>
+    </tr>
+  </tbody>
+</table>

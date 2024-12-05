@@ -1,0 +1,501 @@
+---
+title: Política de alertas predefinida
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+freshnessValidatedDate: '2024-09-02T00:00:00.000Z'
+translationType: machine
+---
+
+Cuando implementamos la integración de New Relic Kubernetes por primera vez en una cuenta, implementamos un conjunto predeterminado de [condiciones de alerta](/docs/alerts/create-alert/create-alert-condition/alert-conditions/) predefinidas en su cuenta. No necesitas hacer nada más. Estas condiciones se agrupan en una política denominada <DNT>**Kubernetes default alert policy**</DNT>. Esta política no tiene un [canal de notificación](/docs/alerts/new-relic-alerts/managing-notification-channels/notification-channels-control-where-send-alerts) predeterminado para evitar notificaciones no deseadas.
+
+Podrás personalizar la [ventana](/docs/alerts/create-alert/set-thresholds/set-thresholds-alert-condition/) para la condición de alerta, así como gestionar tus [políticas](/docs/alerts/organize-alerts/create-edit-or-find-alert-policy/) y enviar [notificaciones](/docs/alerts/get-notified/intro-notifications/).
+
+## Cómo ver tu política de alertas predefinida [#see-predefined-alert-policy]
+
+Para ver la política de alertas predefinida predeterminada establecido luego de desplegar la integración, haga esto:
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts**</DNT>.
+
+2. Haga clic en <DNT>**Alert Policies**</DNT> en el panel de navegación izquierdo.
+
+3. Haga clic en <DNT>**Kubernetes default alert policy**</DNT>.
+
+   <img title="Add Kubernetes alerts" alt="Add Kubernetes alerts" src="/images/kubernetes_screenshot-crop_default-alert-policy.webp" />
+
+## Condición de alerta predefinida Kubernetes [#predefined-alert-conditions]
+
+Este es el conjunto predeterminado de condición de alerta instalado cuando implementas la integración New Relic Kubernetes :
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="cpu-usage" title="El porcentaje de uso de CPU del contenedor es demasiado alto">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sContainerSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `(cpuUsedCores/cpuLimitCores)*100`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;90% durante al menos 5 minutos
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;95% durante al menos 5 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser className="freq-link" id="memory-usage" title="El porcentaje de uso de memoria del contenedor es demasiado alto">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sContainerSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `memoryWorkingSetUtilization`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;85% durante al menos 5 minutos
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;95% durante al menos 5 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser className="freq-link" id="pod-not-scheduled" title="No se pudo programar el pod">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sPodSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `isScheduled`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td />
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            `isScheduled` = 0 durante al menos 7 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser className="freq-link" id="pod-not-ready" title="Pod no está lista">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sPodSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `isReady`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td />
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            `isReady = 0` durante al menos 10 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser className="freq-link" id="container-space" title="El contenedor se está quedando sin espacio">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sContainerSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `fsUsedPercent`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;75% durante al menos 5 minutos
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;90% durante al menos 5 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="replicaset-pods"
+    title={<><InlineCode>
+      ReplicaSet
+    </InlineCode> No tiene la cantidad deseada de vaina</>
+    }
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sReplicaSetSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `podsDesired - podsReady`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td />
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            `0` durante al menos 5 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="etcd-descriptors"
+    title={<><InlineCode>
+      etcd
+    </InlineCode> descriptores de archivos abiertos</>
+    }
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "180px" }}>
+            Configuración
+          </th>
+
+          <th>
+            Valor
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <DNT>
+              **Event type**
+            </DNT>
+          </td>
+
+          <td>
+            `K8sEtcdSample`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **SELECT value**
+            </DNT>
+          </td>
+
+          <td>
+            `(processOpenFds/processMaxFds)*100`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Warning threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;75% durante al menos 3 minutos
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <DNT>
+              **Critical threshold**
+            </DNT>
+          </td>
+
+          <td>
+            &gt;90% durante al menos 5 minutos
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>

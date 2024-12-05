@@ -1,0 +1,300 @@
+---
+title: Crear transacción vía XML (.NET)
+tags:
+  - Agents
+  - NET agent
+  - Custom instrumentation
+metaDescription: How to manually instrument non-web transactions for your app via XML file with New Relic's .NET agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic instrumentado [marco compatible](/docs/agents/net-agent/getting-started/compatibility-requirements-net-agent) automáticamente. Sin embargo, es posible que también tenga otro marco para el cual algunas transacciones no se crean automáticamente o métodos adicionales que le gustaría utilizar. Puede [agregar instrumentación personalizada](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation) a estos métodos creando [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction). Las transacciones creadas a través de XML se [clasifican como no web](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation#web-background) en la UI de New Relic.
+
+Este documento describe cómo crear transacciones con un archivo XML. Tú también puedes:
+
+* Agregar detalles a [transacciones existentes usando XML](/docs/agents/net-agent/custom-instrumentation/custom-instrumentation-xml-net)
+* Cree transacciones y agregue detalles a transacciones existentes con la [API del agente .NET](/docs/agents/net-agent/api-guides/net-agent-api-instrument-using-attributes).
+
+Si tiene una aplicación que no es IIS, la instrumentación XML requiere habilitar la opción `Instrument all` durante la [instalación del agente .NET](/docs/agents/net-agent/installation-configuration/install-net-agent#installing).
+
+## Crear transacción usando XML [#creating-custom-txn]
+
+La transacción personalizada (transacción no instrumentada automáticamente) se define en un archivo XML de instrumentación personalizada. Usted define un método que desencadena la creación de una transacción. También puede instrumentar métodos adicionales llamados por el método de activación.
+
+Algunas reglas importantes que debe conocer antes de crear una transacción personalizada:
+
+* La base de datos y las llamadas externas no requieren instrumentación personalizada porque se instrumentan automáticamente.
+* Asegúrese de que su archivo XML esté en la ruta correcta. Para definir su conjunto de instrumentación, el agente .NET lee cada archivo XML en el directorio `Extensions` .
+* Si un método que intenta instrumentar ya forma parte de una transacción existente, se agregará como un segmento a esa transacción. No se creará ninguna nueva transacción. Esto ocurrirá incluso si el método principal está instrumentado mediante instrumentación personalizada.
+* Evite instrumentar cosas como `Main()` ya que este método no finalizará hasta que finalice la aplicación y es posible que los datos no se envíen a New Relic.
+
+Para crear un archivo personalizado de instrumentación:
+
+1. Cree un nuevo archivo `.xml` en el directorio `Extensions` dentro de su directorio de agente .NET. La ubicación de este directorio depende de su sistema operativo:
+
+   <CollapserGroup>
+     <Collapser
+       id="windows-install-loc"
+       title="Para .NET framework o Core agente en Windows"
+     >
+       ```
+       C:\ProgramData\New Relic\.NET Agent\Extensions
+       ```
+
+       <Callout variant="important">
+         Utilice el directorio `ProgramData` , **no** el directorio `Program Files` .
+       </Callout>
+     </Collapser>
+
+     <Collapser
+       id="linux-install-loc"
+       title="Para .NET Core en Linux"
+     >
+       ```
+       PATH_TO_AGENT_DIRECTORY/Extensions
+       ```
+
+       `PATH_TO_AGENT_DIRECTORY` será el predeterminado `/usr/local/newrelic-dotnet-agent` (versiones del agente 10.0.0 o superiores), `/usr/local/newrelic-netcore20-agent` (versiones del agente 9.9.0 o inferiores) o el directorio elegido durante la instalación.
+     </Collapser>
+
+     <Collapser
+       id="Azure App Services"
+       title="Para servicios de aplicaciones de Azure"
+     >
+       Agente para .NET framework:
+
+       ```
+       D:\home\site\wwwroot\newrelic\extensions
+       ```
+
+       Agente para .NET Core:
+
+       ```
+       D:\home\site\wwwroot\newrelic_core\extensions
+       ```
+     </Collapser>
+   </CollapserGroup>
+
+2. Copie esta plantilla en el archivo que creó. Esta plantilla define dos clases y métodos separados como transacción, pero se pueden agregar más:
+
+   ```xml
+   <?xml version="1.0" encoding="utf-8"?>
+   <extension xmlns="urn:newrelic-extension">
+     <instrumentation>
+       <!-- Define the method which triggers the creation of a transaction. -->
+       <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="TransactionName">
+         <match assemblyName="AssemblyName" className="NameSpace.ClassName">
+           <exactMethodMatcher methodName="MethodName" />
+         </match>
+       </tracerFactory>
+       <!-- Define the method which triggers the creation of a transaction. -->
+       <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="TransactionName2">
+         <match assemblyName="AssemblyName" className="NameSpace.ClassName2">
+           <exactMethodMatcher methodName="MethodName2" />
+         </match>
+       </tracerFactory>
+       <!-- Define the method which triggers the creation of a transaction. -->
+       <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="TransactionName3">
+         <match assemblyName="AssemblyName" className="NameSpace.ClassName3" minVersion="1.0.0" maxVersion="99.99.99">
+           <exactMethodMatcher methodName="MethodName3" />
+         </match>
+       </tracerFactory>
+     </instrumentation>
+   </extension>
+   ```
+
+
+1. En el archivo que creó, personalice los valores de atributo `TransactionName`, `AssemblyName`, `NameSpace.ClassName` y `MethodName`. Personalice estos valores tanto para el método de activación como para cualquier método llamado por el método de activación. También puede utilizar los valores de atributos opcionales `minVersion` y `maxVersion` para apuntar a versiones específicas de un ensamblado, como se muestra en el tercer ejemplo anterior. Tenga en cuenta que esta funcionalidad requiere el agente 10.6.0 o superior.
+
+   <Callout variant="tip">
+     Estos valores distinguen entre mayúsculas y minúsculas.
+   </Callout>
+
+   * `TransactionName`: Define el nombre de la transacción. El atributo `metricName` es opcional. Si se omite, el nombre de la transacción será `NameSpace.ClassName/MethodName`. La categoría de transacción será `Custom`. El nombre completo de la métrica resultante será `OtherTransaction/Custom/TransactionName`. Si desea cambiar la categoría de transacción de `Custom`, utilice la llamada API [SetTransactionName](/docs/agents/net-agent/net-agent-api/settransactionname-net-agent-api) . La UI de New Relic agrupa las transacciones en categorías en el [campo tipo de transacción](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm/#agent-net).
+   * `AssemblyName`: el ensamblado que contiene el método de activación.
+   * `NameSpace.ClassName`: el nombre de clase completo que contiene el método desencadenante.
+   * `MethodName`: El nombre exacto del método de activación.
+   * `minVersion`: Opcional (puedes eliminarlo). La versión mínima de montaje para instrumento (inclusive). Si se omite, se considera que la versión mínima es 0. Requiere el agente 10.6.0 o superior.
+   * `maxVersion`: Opcional (puedes eliminarlo). La versión de máximo montaje para instrumento (exclusiva). Si se omite, no existe una versión máxima. Requiere agente 10.6.0 o superior.
+
+2. Agregar métodos adicionales debe incluir el atributo `"NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory"` para que se defina como una transacción. La etiqueta sin este atributo [agregará detalles solo a la transacción existente](/docs/agents/net-agent/custom-instrumentation/add-detail-transactions-xml-net) .
+
+3. Opcional: para comprobar si el archivo XML tiene el formato correcto, puede compararlo con el XSD (ubicado en `C:\ProgramData\New Relic\.NET Agent\Extensions\extension.xsd`) utilizando cualquier validador XSD.
+
+<Callout variant="important">
+  No utilice corchetes `[suffix]` al final del nombre de su transacción. New Relic elimina automáticamente los corchetes del nombre. En su lugar, utilice paréntesis `(suffix)` u otros símbolos si es necesario.
+</Callout>
+
+## Ver transacción en la UI [#viewing-custom-txn]
+
+La transacción personalizada comienza cuando el método especificado por `methodName` se invoca en el ensamblado especificado por `assemblyName`. La transacción finaliza cuando el método devuelve o genera una excepción.
+
+Puedes visualizar estas métricas en la [página<DNT>**Transactions**</DNT> ](/docs/applications-menu/transactions-dashboard#tx_viewing)y en la [traza de la transacción](/docs/traces/viewing-transaction-traces). Para ver la transacción: Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Monitor > Transactions > Type > (select a type)**</DNT>. El tipo será `Non-web/Custom` a menos que [utilice la API para cambiar la categoría](/docs/agents/net-agent/net-agent-api/settransactionname-net-agent-api).
+
+<img
+  title="Screenshot showing where to choose the transaction type"
+  alt="Screenshot showing where to choose the transaction type"
+  src="/images/apm_screenshot-crop_screenshot-of-transaction-dropdown.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Monitoring > Transactions > Type > (selected type)**</DNT>: Utilice el menú <DNT>**Type**</DNT> para ver su transacción personalizada.
+</figcaption>
+
+## Ejemplo: instrumento tres métodos [#example-custom-txn]
+
+Este ejemplo presenta una implementación simple de la creación de transacciones.
+
+<CollapserGroup>
+  <Collapser
+    id="example-file"
+    title="Ejemplo de fichero personalizado de instrumentación"
+  >
+    Esta ficha de instrumentación personalizada define los tres métodos de instrumentación. Sólo dos se definen como transacción.
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+        <!-- Define the method which triggers the creation of a transaction. -->
+        <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="Bars">
+          <match assemblyName="Foo" className="Foo.Bar">
+            <exactMethodMatcher methodName="Bar1" />
+            <exactMethodMatcher methodName="Bar2" />
+          </match>
+        </tracerFactory>
+        <!-- Instrument 0 or more methods called by the trigger method. These methods appear in the transaction breakdown table and in transaction traces. -->
+        <tracerFactory>
+          <match assemblyName="Foo" className="Foo.Bar">
+            <exactMethodMatcher methodName="Bar3" />
+          </match>
+        </tracerFactory>
+      </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-methods"
+    title="Métodos de ejemplo para ser instrumentado"
+  >
+    Este código contiene los tres métodos, con comentarios que explican cuándo será instrumentado cada uno por el agente:
+
+    ```cs
+    var bar = new Bar();
+    bar.Bar1(); // Creates a transaction named Bars in the Custom category.
+    bar.Bar2(); // Creates a transaction named Bars in the Custom category.
+    bar.Bar3(); // Won't create a new transaction. See `If Bar3 is called directly`, below.
+
+    namespace Foo
+    {
+        public class Bar
+        {
+            // The agent creates a transaction that includes an external service request in its transaction traces.
+            public void Bar1()
+            {
+                new WebClient().DownloadString("https://www.google.com/");
+            }
+
+            // Creates  a transaction containing one segment.
+            public void Bar2()
+            {
+                // The Bar3 segment will contain your SQL query inside of it and possibly an execution plan.
+                Bar3();
+            }
+
+            // If Bar3 is called directly, the agent will not create a transaction.
+            // However, if Bar3 is called from Bar1 or Bar2, Bar3 will appear as a segment containing its SQL query.
+            private void Bar3()
+            {
+                using (var connection = new SqlConnection(ConnectionStrings["MsSqlConnection"].ConnectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand("SELECT * FROM table", connection))
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                    }
+                }
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ejemplo: instrumento una aplicación de consola [#example-custom-app]
+
+Esta sencilla aplicación de consola demuestra la creación de transacciones. Después de ejecutar la aplicación varias veces, verá la transacción que creó en la [página de transacciones](/docs/apm/applications-menu/monitoring/transactions-page) (en <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Transactions > Type**</DNT>). El segmento <DNT>**Dummy**</DNT> será visible en la tabla de desglose de transacciones y en cualquier traza de la transacción.
+
+<CollapserGroup>
+  <Collapser
+    id="example-app-ci"
+    title="Ejemplo de fichero personalizado de instrumentación"
+  >
+    Esta ficha de instrumentación personalizada define dos métodos para instrumentar:
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <extension xmlns="urn:newrelic-extension">
+        <instrumentation>
+            <!-- Define the method which triggers the creation of a transaction. -->
+            <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="CustomTransaction">
+              <match assemblyName="ConsoleApplication1" className="ConsoleApplication1.CustomTransaction">
+                <exactMethodMatcher methodName="StartTransaction" />
+              </match>
+            </tracerFactory>
+            <!-- Instrument 0 or more methods called by the trigger method. These methods appear in the transaction breakdown table and in transaction traces. -->
+            <tracerFactory>
+              <match assemblyName="ConsoleApplication1" className="ConsoleApplication1.CustomTransaction">
+                <exactMethodMatcher methodName="Dummy" />
+              </match>
+            </tracerFactory>
+        </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-app"
+    title="Aplicación de ejemplo"
+  >
+    Este código contiene los dos métodos especificados por el fichero de instrumentación personalizada:
+
+    ```cs
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+
+    namespace ConsoleApplication1
+    {
+        class Program
+        {
+            static void Main(string[] args)
+            {
+                Console.WriteLine("Custom Transactions");
+                var t = new CustomTransaction();
+                while (true)
+                    t.StartTransaction();
+            }
+        }
+        class CustomTransaction
+        {
+            public void StartTransaction()
+            {
+                Console.WriteLine("StartTransaction");     
+                Dummy();
+            }
+            void Dummy()
+            {
+                System.Threading.Thread.Sleep(5000);
+            }
+        }
+
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,407 @@
+---
+title: Suelta datos usando NerdGraph
+tags:
+  - Drop rules
+  - Data ingest cost
+metaDescription: 'With the New Relic NerdGraph API, you can drop data that meeets certain criteria and have it not count towards ingest and billing.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Una forma de [gestionar la ingesta de datos](/docs/data-apis/manage-data/manage-data-coming-new-relic) es configurar reglas de eliminación de datos. Con la caída de datos puedes:
+
+* Filtrar datos de bajo valor sin importancia
+* Filtrar datos potencialmente confidenciales
+
+## Descripción general [#overview]
+
+Con reglas de eliminación de datos, puede especificar qué tipos de datos no desea que se guarden en su organización New Relic.
+
+Los datos eliminados no cuentan para la ingesta de datos y, por lo tanto, no son facturables. Para obtener más información sobre qué datos cuentan como facturables o no, consulte [Ingesta de datos](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#usage-calculation).
+
+Las reglas de eliminación solo se aplican a los datos que llegan desde el momento en que crea la regla. No eliminan datos que [ya han sido ingeridos](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion).
+
+Obtenga más información sobre cómo eliminar datos en este video (7:09 minutos):
+
+<Video
+  id="ww0mim4c5jk"
+  type="youtube"
+/>
+
+Además de crear reglas para eliminar datos, otras formas de minimizar los datos no deseados incluyen:
+
+* Si desea eliminar datos de intervalo de tiempo de métrica APM, puede utilizar [reglas de normalización métrica](/docs/new-relic-one/use-new-relic-one/ui-data/metric-normalization-rules).
+* Si está informando un registro, puede [colocar datos log a través de la UI](/docs/logs/ui-data/drop-data-drop-filter-rules).
+* Si está utilizando la escritura remota de Prometheus, consulte [Eliminar datos de escritura remota de Prometheus](/docs/integrations/prometheus-integrations/install-configure/remote-write-drop-data/).
+
+## Requisitos [#requirements]
+
+La capacidad de crear y editar reglas de filtro de caída está vinculada a la [capacidad`NRQL drop rules` ](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#insights).
+
+Los siguientes tipos de datos pueden ser objetivos para la eliminación de datos:
+
+* Evento reportado por APM
+
+* Evento informado browser
+
+* Evento reportado desde dispositivos móviles
+
+* Evento reportado por Sintético
+
+* evento personalizado (como los generados por las [API del agente APM](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) o la [API de eventos](/docs/insights/insights-data-sources/custom-data/introduction-event-api))
+
+* log datos (también puede [usar la UI para eliminar datos](/docs/logs/ui-data/drop-data-drop-filter-rules))
+
+* Rastreo distribuido abarca
+
+* [Evento de monitoreo de infraestructura predeterminado](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data) y evento [de integración de infraestructura](/docs/integrations/infrastructure-integrations/get-started/introduction-infrastructure-integrations) . Algunas advertencias:
+
+  * Cuando elimina estos datos, los datos sin procesar se eliminan, pero los eventos agregados `SystemSample`, `ProcessSample`, `NetworkSample` y `StorageSample` todavía están disponibles (para obtener más información sobre esto, consulte [retención de datos](/docs/data-apis/manage-data/manage-data-retention/#infrastructure-data)). Aunque todavía están disponibles, estos datos no cuentan para la ingesta y no son facturables.
+  * Los datos de infraestructura sin procesar se utilizan para alertar, por lo que si elimina esos datos, no podrá alertar sobre ellos. Debido a que los datos agregados aún están disponibles, es posible que aún los vea en gráficos con rangos de tiempo superiores a 59 minutos.
+
+* [Métrica dimensional](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#dimensional-metrics) (el tipo de datos `Metric` ). Algunas advertencias:
+
+  * Para organizaciones con nuestro [modelo de precios original](/docs/accounts/original-accounts-billing/product-pricing/product-based-pricing): la facturación se basa en la suscripción del producto, lo que significa que las dimensiones métricas eliminadas siguen siendo facturables.
+  * Para métricas generadas por el [servicio evento-to-métrica](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics): las reglas de eliminación no funcionarán, pero estas métricas se pueden detener o podar atributos deshabilitando o reconfigurando la regla evento-to-métrica.
+
+## Crear una regla para descartar datos [#how-to]
+
+<Callout variant="caution">
+  Tenga cuidado al decidir eliminar datos. Los datos que usted arroja no se pueden recuperar. Para obtener más detalles sobre posibles problemas, consulte [Notas de precaución](#caution).
+</Callout>
+
+Para eliminar datos, cree una regla de eliminación de formato [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)que incluya:
+
+* Una cadena [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) que especifica qué tipos de datos eliminar
+
+* Un tipo
+
+  <DNT>
+    **action**
+  </DNT>
+
+  que especifica cómo aplicar la cadena NRQL
+
+Puedes formar y realizar la llamada en el explorador de API de NerdGraph: <DNT>**[one.newrelic.com](https://one.newrelic.com) > Apps > NerdGraph API explorer**</DNT>.
+
+El límite de longitud de la consulta NRQL es de 4096 caracteres. Si excede la longitud, nerdGraph arrojará un error `INVALID_NRQL_TOO_LONG`.
+
+Hay dos formas de eliminar datos:
+
+* <DNT>**Drop entire data types or a data subset**</DNT> (con filtro opcional). Esto usa el tipo `DROP_DATA` <DNT>**action**</DNT> y usa NRQL del formulario:
+
+  ```sql
+  SELECT * FROM DATA_TYPE_1, DATA_TYPE_2 (WHERE OPTIONAL_FILTER)
+  ```
+
+  Para este tipo de regla de eliminación, no puede utilizar nada más que `*` en la cláusula `SELECT` .
+
+* <DNT>**Drop attributes from data types**</DNT> (con filtro opcional). Esto usa el tipo `DROP_ATTRIBUTES` <DNT>**action**</DNT> y usa NRQL del formulario:
+
+  ```sql
+  SELECT dropAttr1, dropAttr2 FROM DATA_TYPE (WHERE OPTIONAL_FILTER)
+  ```
+
+  Para este tipo de regla de eliminación, debe pasar una lista no vacía de nombres de atributos sin formato.
+
+## Restricciones NRQL [#restrictions]
+
+No todas las cláusulas NRQL tienen sentido para generar reglas de eliminación. Puede proporcionar una cláusula [`WHERE`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#sel-where) para seleccionar datos con un atributo específico. No se pueden utilizar otras características como `LIMIT`, `TIMESERIES`, `COMPARE WITH`, `FACET` y otras cláusulas.
+
+`SINCE` y `UNTIL` no se admiten en las reglas de eliminación. Si tiene reglas de tiempo específico (por ejemplo, dejar todo hasta un momento en el futuro), use `WHERE timestamp < (epoch milliseconds in the future)`. Tampoco puede utilizar `SINCE` para eliminar datos históricos: las reglas de eliminación de NRQL solo se aplican a los datos informados después de que se creó la regla de eliminación. Si necesita eliminar datos que ya han sido reportados, comuníquese con su representante de New Relic.
+
+`JOIN` y [las subconsultas](/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql) tampoco son compatibles. Las reglas de eliminación se aplican a cada punto de datos de forma independiente y no se pueden consultar otros datos para determinar si se debe aplicar una regla de eliminación.
+
+Los dos tipos de acciones tienen estas restricciones:
+
+* `DROP_DATA` solo puede usar `SELECT *`.
+
+* `DROP_ATTRIBUTES` requiere el uso de `SELECT` con atributo "raw" (atributo sin [función de agregador](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#functions) aplicada). Esto también significa que no puedes usar `SELECT *`. Además, hay algunos atributos que son integrales para su tipo de datos y
+
+  <DNT>
+    **cannot be dropped**
+  </DNT>
+
+  (como `timestamp` en datos de eventos). Si los incluyes, el registro fallará.
+
+## Ejemplos de reglas de caída [#example-rules]
+
+A continuación se muestran algunos ejemplos de reglas de eliminación:
+
+<CollapserGroup>
+  <Collapser
+    id="drop-events"
+    title="Eliminar dos tipos de eventos"
+  >
+    Digamos que notas que tienes algunos tipos de eventos enviados a New Relic que no son importantes para ti. Además, evitar que la fuente envíe esos tipos de eventos rápidamente no es realista, ya que requiere cambios en el agente y/o la instrumentación API. Usar una regla de caída es una forma más fácil de lograr el mismo objetivo.
+
+    A continuación se muestra un ejemplo de llamada a NerdGraph que genera dos tipos de eventos: `Event1` y `Event2`.
+
+    ```graphql
+    mutation {
+        nrqlDropRulesCreate(accountId: YOUR_ACCOUNT_ID, rules: [
+            {
+                action: DROP_DATA
+                nrql: "SELECT * FROM Event1, Event2"
+                description: "Drops all data for Event1 and Event2."
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="drop-specific-events"
+    title="Eliminar evento que cumpla ciertos criterios"
+  >
+    Supongamos que tiene un tipo de evento personalizado de gran volumen que llega de múltiples fuentes. Si no considera que todos esos datos sean importantes, puede utilizar una regla de eliminación. A continuación se muestra un ejemplo de una regla de eliminación que filtra eventos según criterios específicos.
+
+    ```graphql
+    mutation {
+        nrqlDropRulesCreate(accountId: YOUR_ACCOUNT_ID, rules: [
+            {
+                action: DROP_DATA
+                nrql: "SELECT * FROM MyCustomEvent WHERE appName='LoadGeneratingApp' AND environment='development'"
+                description: "Drops all data for MyCustomEvent that comes from the LoadGeneratingApp in the dev environment, because there is too much and we don’t look at it."
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="drop-sensitive-data"
+    title="Eliminar atributo sensible manteniendo el resto de los datos"
+  >
+    Digamos que notó que un evento tiene un atributo que contiene información de identificación personal (PII). Está trabajando para actualizar sus servicios y dejar de enviar datos, pero hasta entonces, debe dejar de almacenar más PII en New Relic. Aunque podría eliminar todos los datos tal como llegan con una regla `DROP_DATA` , el resto de los datos aún proporciona valor. Por lo tanto, puede registrar una regla de eliminación para eliminar solo la PII infractora de sus datos:
+
+    ```graphql
+    mutation {
+        nrqlDropRulesCreate(accountId: YOUR_ACCOUNT_ID, rules: [
+            {
+                action: DROP_ATTRIBUTES
+                nrql: "SELECT userEmail, userName FROM MyCustomEvent"
+                description: "Removes the user name and email fields from MyCustomEvent"
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Verifica que tu regla de abandono funcione [#verify]
+
+Después de crear una regla de eliminación, verifique que funcione como se esperaba. La regla debería entrar en vigor rápidamente después de un registro exitoso, así que intente ejecutar una versión `TIMESERIES` de la consulta que registró para ver que los datos desaparecen.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Tipo de regla de eliminación
+      </th>
+
+      <th>
+        NRQL
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `DROP_DATA`
+      </td>
+
+      <td>
+        <DNT>
+          **Drop rule NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT * FROM MyEvent WHERE foo = bar
+        ```
+
+        <DNT>
+          **Validation NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT count(*) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        Esto debería caer a 0. Para verificar que no afectó a nada más, invierta la cláusula `WHERE` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `DROP_ATTRIBUTES`
+      </td>
+
+      <td>
+        <DNT>
+          **Drop rule NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT dropAttr1, dropAttr2 FROM MyEvent WHERE foo = bar
+        ```
+
+        <DNT>
+          **Validation NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT count(dropAttr1), count(dropAttr2) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        Ambas líneas deberían caer a 0. Para verificar que no afectó el evento que contenía estos atributos y aún debería hacerlo, invierta la cláusula `WHERE` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ver reglas [#view]
+
+A continuación se muestra un ejemplo de llamada a NerdGraph que devuelve las reglas de eliminación establecidas en una cuenta:
+
+```graphql
+{
+    actor {
+        account(id: YOUR_ACCOUNT_ID) {
+            nrqlDropRules {
+                list {
+                    rules {
+                        id
+                        nrql
+                        accountId
+                        action
+                        createdBy
+                        createdAt
+                        description
+                    }
+                    error { reason description }
+                }
+            }
+        }
+    }
+}
+```
+
+## Eliminar reglas de colocación [#delete]
+
+A continuación se muestra un ejemplo de llamada a NerdGraph que elimina dos reglas de eliminación específicas:
+
+```graphql
+mutation {
+    nrqlDropRulesDelete(accountId: YOUR_ACCOUNT_ID, ruleIds: ["48", "98"]) {
+        successes {
+            id
+            nrql
+            accountId
+            action
+            description
+        }
+        failures {
+            error { reason description }
+            submitted { ruleId accountId }
+        }
+    }
+}
+```
+
+## Auditar el historial de reglas de eliminación [#history]
+
+Para ver quién creó y eliminó reglas de eliminación, consulte [el registro de auditoría de su cuenta](/docs/insights/use-insights-ui/manage-account-data/query-account-audit-logs-nrauditevent). La [lista extrema](#list) también incluye el ID de usuario de la persona que creó la regla.
+
+## Precauciones al soltar datos [#caution]
+
+Al crear reglas de eliminación, usted es responsable de garantizar que las reglas identifiquen y descarten con precisión los datos que cumplan con las condiciones que haya establecido. También eres responsable de monitorear la regla, así como los datos que revelas a New Relic.
+
+New Relic no puede garantizar que esta funcionalidad resuelva por completo las inquietudes que pueda tener sobre la divulgación de datos. New Relic no revisa ni monitor qué tan efectivas son las reglas que usted desarrolla.
+
+La creación de reglas sobre datos confidenciales puede filtrar información sobre qué tipos de datos mantiene, incluido el formato de sus datos o sistemas (por ejemplo, al hacer referencia a direcciones de correo electrónico o números de tarjetas de crédito específicos). Las reglas que usted crea, incluida toda la información contenida en esas reglas, pueden ser vistas y editadas por cualquier usuario con los permisos de control de acceso basados en roles pertinentes.
+
+Sólo se eliminarán los datos nuevos. Los datos existentes [no se pueden editar ni eliminar](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion).
+
+## Drop atributo en rollups dimensionales métricas
+
+[Dimensional métrica](/docs/data-apis/understand-data/new-relic-data-types/#metrics-conceptual) métrica agregada en rollups para almacenamiento a largo plazo y como forma de optimizar consultas a largo plazo. Se aplican [límites de cardinalidad métrica](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes) a estos datos.
+
+Puede utilizar esta característica para decidir qué atributo no necesita para el almacenamiento y la consulta a largo plazo, pero que le gustaría mantener para la consulta en tiempo real.
+
+Por ejemplo, agregar `containerId` como atributo puede ser útil para la resolución de problemas en vivo o análisis recientes, pero puede no ser necesario cuando se realizan consultas durante períodos más prolongados para tendencias más importantes. Debido a lo único que puede ser algo como `containerId` , puede llevarlo rápidamente hacia sus [límites de cardinalidad métrica](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes) que, cuando se alcanza, detiene la síntesis de resúmenes durante el resto de ese día UTC.
+
+Esta característica también le permite mantener el atributo [de alta cardinalidad](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/) en los datos sin procesar y eliminarlos de los paquetes acumulativos, lo que le brinda más control sobre la rapidez con la que se acerca a sus límites de cardinalidad.
+
+### Uso
+
+<DNT>**Drop attributes from dimensional metrics rollups**</DNT> (con filtro opcional). Esto usa el tipo `DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES` <DNT>**action**</DNT> y usa NRQL del formulario:
+
+```sql
+SELECT dropAttr1, dropAttr2 FROM Metric (WHERE OPTIONAL_FILTER)
+```
+
+Aquí hay un ejemplo de solicitud de NerdGraph:
+
+```graphql
+mutation {
+    nrqlDropRulesCreate(accountId: YOUR_ACCOUNT_ID, rules: [
+        {
+            action: DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES
+            nrql: "SELECT containerId FROM Metric WHERE metricName = 'some.metric'"
+            description: "Removes the containerId from long term querys."
+        }
+    ])
+    {
+        successes { id }
+        failures {
+            submitted { nrql }
+            error { reason description }
+        }
+    }
+}
+```
+
+Para verificar que esté funcionando, espere de 3 a 5 minutos para que se seleccione la regla y se generen datos agregados. Luego, asumiendo que el ejemplo NRQL anterior es su regla de eliminación, ejecute la siguiente consulta:
+
+```sql
+SELECT count(containerId) FROM Metric WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago
+SELECT count(containerId) FROM Metric WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago RAW
+```
+
+La primera consulta recupera resúmenes métricos y debería reducirse a 0 ya que `containerId` se eliminó según la nueva regla de eliminación. La segunda consulta recupera datos brutos métricos utilizando la palabra clave `RAW` y debería continuar manteniéndose estable ya que los datos brutos no se ven afectados por la nueva regla de eliminación. Para obtener más información sobre cómo ver el impacto que esto tendrá en su cardinalidad, consulte [Comprender y consultar la alta cardinalidad métrica](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics).
+
+### Restricciones
+
+Todas las restricciones que se aplican a `DROP_ATTRIBUTES` se aplican a `DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES` con la restricción adicional de que solo puede orientar el tipo de datos `Metric` . Tampoco funcionan en `Metric` consulta de segmentación de datos creados por un [evento a regla métrica](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics) o en `Metric` consulta de segmentación [de datos de intervalo de tiempo](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql).
+
+## Aprende más
+
+Recomendaciones para aprender más:
+
+* [Conceptos básicos y terminología de NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph#terminology)
+* [Conceptos básicos de NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)
+* Explore el [foro de soporte](https://discuss.newrelic.com/c/telemetry-data-platform/dashboards) para conocer los debates de la comunidad sobre las reglas de eliminación de NRQL.
+* Para profundizar en la gestión de la ingesta de datos para una organización compleja, consulte [Gobernanza de la ingesta de datos](/docs/new-relic-solutions/observability-maturity/operational-efficiency/intro-data-governance).

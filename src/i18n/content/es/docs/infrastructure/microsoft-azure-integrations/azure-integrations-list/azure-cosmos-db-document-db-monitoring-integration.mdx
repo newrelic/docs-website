@@ -1,0 +1,1336 @@
+---
+title: Integración de monitoreo de Azure Cosmos DB (Document DB)
+tags:
+  - Integrations
+  - Microsoft Azure integrations
+  - Azure integrations list
+metaDescription: 'New Relic''s Microsoft Azure Cosmos DB (Document DB) integration: what data it reports, and how to enable it.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New Relic monitoreo de infraestructura](/docs/infrastructure) proporciona una integración para el servicio [Cosmos DB deMicrosoft Azure](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction) que reporta su métrica Cosmos DB y otros datos a New Relic. Este documento explica cómo activar la integración de Cosmos DB y describe los datos que se pueden capturar.
+
+## Característica
+
+New Relic recopila datos de base de datos y datos de facturación de cobros de su servicio Azure Cosmos DB. Puede monitor y alertar sobre sus datos de Azure Cosmos DB desde New Relic, y puede [crear consultas personalizadas y paneles de gráficos personalizados](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+## Activar la integración [#activate]
+
+Para habilitar esta integración, siga los procedimientos estándar para [activar su servicio Azure en New Relic](/docs/infrastructure/microsoft-azure-integrations/getting-started/activate-azure-integrations).
+
+La integración de Cosmos DB requiere que cree una función y un permiso adicionales para recuperar la base de datos y los datos de la colección:
+
+1. Vaya a <DNT>**Azure Portal**</DNT> y abra un shell seleccionando la terminal <Icon name="fe-terminal"/> icono.
+
+2. Agregue el siguiente comando:
+
+   ```
+   az role definition create --role-definition '{
+   	"Name": "NewRelic Integrations",
+   	"Actions": [
+   		"*/read",
+   		"Microsoft.DocumentDB/databaseAccounts/listKeys/action"
+   	],
+   	"NotActions": [],
+   	"AssignableScopes": [
+   		"/subscriptions/YOUR_INSERT_SUBSCRIPTION_ID"
+   	],
+   	"Description": "Read Only for NewRelic Integrations",
+   	"IsCustom": "true"
+   }'
+   ```
+
+3. Desde <DNT>**Services > Subscriptions**</DNT>, seleccione la suscripción, vaya a <DNT>**Access control (IAM)**</DNT> y luego seleccione <Icon name="fe-plus"/> <DNT>**Add**</DNT>.
+
+4. En el cuadro de búsqueda <DNT>**Role**</DNT> , agregue el nombre de la definición de función recién creada (por ejemplo, `NewRelic Integrations`).
+
+5. En el cuadro de búsqueda <DNT>**Select**</DNT> , agregue el nombre de la aplicación de integración de New Relic y selecciónela.
+
+6. Asegúrese de que la aplicación se agregue a la lista <DNT>**Selected members**</DNT> y luego <DNT>**Save**</DNT>.
+
+## Configuración y sondeo [#polling]
+
+Puede cambiar la frecuencia de sondeo y filtrar datos usando [las opciones de configuración](/docs/integrations/new-relic-integrations/getting-started/configure-polling-frequency-data-collection-cloud-integrations).
+
+Información [de sondeo](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-polling-intervals-infrastructure-integrations) predeterminada para la integración de Cosmos DB:
+
+* Intervalo de sonda: 5 minutos
+* Resolución: 1 minuto o 5 minutos, varía según la métrica. Para obtener información sobre la resolución de una métrica específica, consulte [la documentación deMicrosoft Azure sobre soporte métrica](https://docs.microsoft.com/en-us/azure/azure-monitor/platform/metrics-supported#microsoftdocumentdbdatabaseaccounts).
+
+## Ver y consultar datos [#find-data]
+
+Para ver sus datos de integración, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Azure**</DNT> y seleccione la integración de Cosmos DB.
+
+Puedes [consultar y explorar tus datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) utilizando los siguientes [tipos de eventos](/docs/data-apis/understand-data/new-relic-data-types/#event-data):
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Entidad
+      </th>
+
+      <th>
+        Tipo de evento
+      </th>
+
+      <th>
+        Proveedor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cuenta
+      </td>
+
+      <td>
+        `AzureCosmosDbAccountSample`
+      </td>
+
+      <td>
+        `AzureCosmosDbAccount`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Base de datos
+      </td>
+
+      <td>
+        `AzureCosmosDbDatabaseSample`
+      </td>
+
+      <td>
+        `AzureCosmosDbDatabase`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Recopilación
+      </td>
+
+      <td>
+        `AzureCosmosDbCollectionSample`
+      </td>
+
+      <td>
+        `AzureCosmosDbCollection`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener más información sobre cómo buscar y utilizar datos, consulte [Comprender y utilizar datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos
+
+<Callout variant="important">
+  Para obtener información sobre el evento o métrica de Cosmos DB en desuso, consulte [Integración de Azure Cosmos DB (en desuso)](/docs/azure-cosmos-db-document-db-monitoring-integration-deprecated). Recomendamos encarecidamente migrar a los eventos y métrica admitidos en este documento.
+</Callout>
+
+Para ver las métricas reportadas por la integración Cosmos DB, consulte la entidad a continuación. Utilice los metadatos asociados con cada métrica para [filtrar y facetar](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#metric) los datos que se informan. Para obtener información métrica detallada, consulte la documentación [métrica admitida por Azure](https://docs.microsoft.com/en-us/azure/azure-monitor/platform/metrics-supported#microsoftdocumentdbdatabaseaccounts) .
+
+### Datos de cuenta
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "290px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th style={{ width: "210px" }}>
+        Metadatos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `totalRequests`
+      </td>
+
+      <td>
+        Número total de solicitudes.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `region`
+        * `offerType`
+        * `statusCode`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadataRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de metadatos.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `region`
+        * `offerType`
+        * `statusCode`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de Mongo realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `region`
+        * `commandName`
+        * `offerType`
+        * `errorCode`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequestCharge`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud de Mongo consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `region`
+        * `commandName`
+        * `offerType`
+        * `errorCode`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalRequestUnits`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `region`
+        * `offerType`
+        * `statusCode`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provisionedThroughput`
+      </td>
+
+      <td>
+        Rendimiento previsto para la base de datos o colección.
+      </td>
+
+      <td>
+        * `account`
+        * `offerType`
+        * `kind`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `availableStorageBytes`
+      </td>
+
+      <td>
+        Almacenamiento total disponible, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dataUsageBytes`
+      </td>
+
+      <td>
+        Uso total de datos informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `indexUsageBytes`
+      </td>
+
+      <td>
+        Uso total del índice informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentQuotaBytes`
+      </td>
+
+      <td>
+        Cuota de almacenamiento total informada, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentCount`
+      </td>
+
+      <td>
+        Recuento total de documentos informado.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ReplicationLatency`
+      </td>
+
+      <td>
+        Latencia de replicación de P99 entre regiones de origen y de destino para cuentas habilitadas geográficamente, en milisegundos.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `sourceRegion`
+        * `offerType`
+        * `targetRegion`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ServiceAvailability`
+      </td>
+
+      <td>
+        La cuenta solicita el porcentaje de disponibilidad en granularidad de hora, día o mes.
+      </td>
+
+      <td>
+        Sin metadatos específicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequests`
+      </td>
+
+      <td>
+        Solicitudes del conde de Casandra realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `errorCode`
+        * `offerType`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequestCharges`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas para las solicitudes de Cassandra.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `errorCode`
+        * `offerType`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+        * `resourceGroup`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraConnectionClosures`
+      </td>
+
+      <td>
+        Número total de conexiones de Cassandra que se cerraron.
+      </td>
+
+      <td>
+        * `account`
+        * `kind`
+        * `closureReason`
+        * `offerType`
+        * `region`
+        * `resourceGroup`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Datos de la base de datos
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "290px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th style={{ width: "210px" }}>
+        Metadatos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `totalRequests`
+      </td>
+
+      <td>
+        Número total de solicitudes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadataRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de metadatos.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de Mongo realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequestCharge`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud de Mongo consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalRequestUnits`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provisionedThroughput`
+      </td>
+
+      <td>
+        Rendimiento previsto para la base de datos o colección.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `availableStorageBytes`
+      </td>
+
+      <td>
+        Almacenamiento total disponible, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dataUsageBytes`
+      </td>
+
+      <td>
+        Uso total de datos informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `indexUsageBytes`
+      </td>
+
+      <td>
+        Uso total del índice informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentQuotaBytes`
+      </td>
+
+      <td>
+        Cuota de almacenamiento total informada, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentCount`
+      </td>
+
+      <td>
+        Recuento total de documentos informado.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replicationLatencyMilliseconds`
+      </td>
+
+      <td>
+        Latencia de replicación de P99 entre regiones de origen y de destino para cuentas habilitadas geográficamente, en milisegundos.
+      </td>
+
+      <td>
+        * `account`
+        * `sourceRegion`
+        * `targetRegion`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `serviceAvailabilityPercent`
+      </td>
+
+      <td>
+        La cuenta solicita el porcentaje de disponibilidad en granularidad de hora, día o mes.
+      </td>
+
+      <td>
+        Sin metadatos específicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequests`
+      </td>
+
+      <td>
+        Solicitudes del conde de Casandra realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequestCharges`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas para las solicitudes de Cassandra.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraConnectionClosures`
+      </td>
+
+      <td>
+        Número total de conexiones de Cassandra que se cerraron.
+      </td>
+
+      <td>
+        * `account`
+        * `closureReason`
+        * `region`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Datos de la base de datos
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "290px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th style={{ width: "210px" }}>
+        Metadatos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `totalRequests`
+      </td>
+
+      <td>
+        Número total de solicitudes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadataRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de metadatos.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de Mongo realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequestCharge`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud de Mongo consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalRequestUnits`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provisionedThroughput`
+      </td>
+
+      <td>
+        Rendimiento previsto para la base de datos o colección.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `availableStorageBytes`
+      </td>
+
+      <td>
+        Almacenamiento total disponible, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dataUsageBytes`
+      </td>
+
+      <td>
+        Uso total de datos informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `indexUsageBytes`
+      </td>
+
+      <td>
+        Uso total del índice informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentQuotaBytes`
+      </td>
+
+      <td>
+        Cuota de almacenamiento total informada, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentCount`
+      </td>
+
+      <td>
+        Recuento total de documentos informado.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replicationLatencyMilliseconds`
+      </td>
+
+      <td>
+        Latencia de replicación de P99 entre regiones de origen y de destino para cuentas habilitadas geográficamente, en milisegundos.
+      </td>
+
+      <td>
+        * `account`
+        * `sourceRegion`
+        * `targetRegion`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `serviceAvailabilityPercent`
+      </td>
+
+      <td>
+        La cuenta solicita el porcentaje de disponibilidad en granularidad de hora, día o mes.
+      </td>
+
+      <td>
+        Sin metadatos específicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequests`
+      </td>
+
+      <td>
+        Solicitudes del conde de Casandra realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequestCharges`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas para las solicitudes de Cassandra.
+      </td>
+
+      <td>
+        * `account`
+        * `databaseName`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraConnectionClosures`
+      </td>
+
+      <td>
+        Número total de conexiones de Cassandra que se cerraron.
+      </td>
+
+      <td>
+        * `account`
+        * `closureReason`
+        * `region`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Datos de recopilación
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "290px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th style={{ width: "210px" }}>
+        Metadatos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `totalRequests`
+      </td>
+
+      <td>
+        Número total de solicitudes.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadataRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de metadatos.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequests`
+      </td>
+
+      <td>
+        Recuento de solicitudes de Mongo realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mongoRequestCharge`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud de Mongo consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+        * `commandName`
+        * `errorCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `totalRequestUnits`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+        * `statusCode`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `provisionedThroughput`
+      </td>
+
+      <td>
+        Rendimiento previsto para la base de datos o colección.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `availableStorageBytes`
+      </td>
+
+      <td>
+        Almacenamiento total disponible, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `dataUsageBytes`
+      </td>
+
+      <td>
+        Uso total de datos informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `indexUsageBytes`
+      </td>
+
+      <td>
+        Uso total del índice informado, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentQuotaBytes`
+      </td>
+
+      <td>
+        Cuota de almacenamiento total informada, en bytes.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentCount`
+      </td>
+
+      <td>
+        Recuento total de documentos informado.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `region`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `replicationLatencyMilliseconds`
+      </td>
+
+      <td>
+        Latencia de replicación de P99 entre regiones de origen y de destino para cuentas habilitadas geográficamente, en milisegundos.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `sourceRegion`
+        * `targetRegion`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `serviceAvailabilityPercent`
+      </td>
+
+      <td>
+        La cuenta solicita el porcentaje de disponibilidad en granularidad de hora, día o mes.
+      </td>
+
+      <td>
+        Sin metadatos específicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequests`
+      </td>
+
+      <td>
+        Solicitudes del conde de Casandra realizadas.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraRequestCharges`
+      </td>
+
+      <td>
+        Número total de unidades de solicitud consumidas para las solicitudes de Cassandra.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `database`
+        * `errorCode`
+        * `opperationType`
+        * `region`
+        * `resourceType`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cassandraConnectionClosures`
+      </td>
+
+      <td>
+        Número total de conexiones de Cassandra que se cerraron.
+      </td>
+
+      <td>
+        * `account`
+        * `collectionName`
+        * `closureReason`
+        * `region`
+      </td>
+    </tr>
+  </tbody>
+</table>

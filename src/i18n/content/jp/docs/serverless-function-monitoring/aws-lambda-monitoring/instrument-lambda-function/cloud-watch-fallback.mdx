@@ -1,0 +1,180 @@
+---
+title: CloudWatch フォールバック
+metaDescription: This doc guides you through shipping your telemetry data with Cloudwatch as a fail-safe option.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+ニーズに応じて、いくつかの異なる方法で New Relic Lambda 監視データを送信できます。 関数の最高のパフォーマンスと最強のフェイルセーフを提供するオプションには、CloudWatch をフォールバックとして構成することが含まれます。 つまり、拡張機能を通じてテレメトリをNew Relicに送信し、拡張機能に問題が発生した場合でも、 New Relic CloudWatch を通じてペイロードを受け取ります。
+
+CloudWatch フォールバックの利点:
+
+* **独立した実行**: 関数の実行とは独立して、CloudWatch からすべてのログをキャプチャします。 関数の通常の操作を妨げたり、関数の呼び出し期間に影響を与えたりすることはほとんどありません。
+* **安全なネットワークで動作します**: New Relic への送信トラフィックが不可能な VPC 内の機能に役立ちます。
+* **強化された監視を可能にします**: 他の形式のインフラおよびデータベース テレメトリに必要です。 詳細については、 [Amazon RDS 拡張監視インテグレーションのドキュメント](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-rds-enhanced-monitoring-integration/)を参照してください。
+
+この配送オプションは最も強力なフェイルセーフを提供しますが、AWS CloudWatch サービスによって大量のデータが生成される可能性があることに注意することが重要です。 コストとどの New Relic 料金プランを選択するかを考えるときは、データの取り込みを念頭に置いてください。
+
+## CloudWatch フォールバックの仕組み [#works]
+
+拡張機能が起動に失敗した場合 (noop モードとも呼ばれます)、またはクラッシュした場合、エージェントによって生成された`NR_LAMBDA_MONITORING`行をエンコードできません。 代わりに、 `NR_LAMBDA_MONITORING`行が CloudWatch ログに表示されます。 `newrelic-log-ingestion`関数が関数と同じリージョンにインストールされ、ペイロードを発送するように設定され、関数の CloudWatch ロググループによってトリガーされる場合、ペイロードを発送するための拡張機能へのフォールバックとして機能できます。
+
+## あなたが始める前に [#requirements]
+
+フォールバック オプションを設定する前に、次の作業を完了する必要があります。
+
+* ログを送信する AWS リージョンに`newrelic-log-ingestion`関数をインストールします。
+* ログを送信する場合は、null に等しいフィルター パターンを作成するか、送信する関数ログに一致するカスタム パターンを作成します。 New Relic は関数の CloudWatch ログを受信します。 重複したログを回避するには、拡張機能のログ送信を無効にする必要があります。 拡張機能のログ配布はデフォルトで無効になっています。
+
+New Relic Lambda レイヤーを更新する前に実行できるベストプラクティスをいくつか紹介します。
+
+* 新しいレイヤー バージョンに更新する前に、最新のレイヤーによって拡張機能またはサードパーティの依存関係を破壊する変更が導入される可能性があることに注意してください。
+* 関数で適切に動作することがわかっているレイヤー バージョンを固定し、バグの解決、新機能やセキュリティ パッチの取得、またはエージェントのサポートが終了した場合にのみ、新しいレイヤー バージョンに更新します。
+* 新しいレイヤーを本番環境にデプロイする前に、すべての変更とリリース ノートを慎重に確認し、開発環境またはステージング環境でテストしてください。
+
+## 実装オプション [#fallback]
+
+CloudWatch フォールバックを実装する方法は 3 つあります。
+
+1. **テレメトリー ペイロードの拡張機能を有効にし、ログを CloudWatch 経由で送信します**。このシナリオでは、テレメトリー ペイロードは拡張機能を介して送信され、ログは CloudWatch を介して送信され、拡張機能が失敗した場合はペイロードも送信されます。
+2. **テレメトリー ペイロードおよびログに対して拡張機能が有効になっています: このシナリオでは、テレメトリー ペイロード**およびログは拡張機能を通じて出荷されます。
+3. **拡張機能が無効**: このシナリオでは、ログとペイロードの送信に常に CloudWatch が使用されます。
+
+<CollapserGroup>
+  <Collapser id="optional" title="オプションの CloudWatch ログを使用したペイロード フォールバック">
+    ログを CloudWatch に送信しない場合は、このオプションが、インストゥルメントされたペイロードが常にNew Relicに届くようにするための最も安価で堅牢な方法です。 ログを送信する場合、このオプションを選択すると、ログの送信に CloudWatch のコストが発生します。 料金の詳細については、 [「データ取り込み: 課金とルール」](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/)を参照してください。
+
+    New Relic Lambda レイヤーを追加すると、拡張機能が有効になり、ログ配布はデフォルトで無効になります。
+
+    1. 関数に[拡張環境変数](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go)を設定します。
+
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`: `true` (デフォルト)
+       * `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`: `false` (デフォルト)
+
+    2. `newrelic-log-ingestion`関数の環境変数を設定します:
+
+       * `INFRA_ENABLED`： `true`
+       * `LOGGING_ENABLED`: `true` (ログを送信する場合)
+
+    または、 [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers)使用している場合は、次のように設定します。
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: true
+        enableFunctionLogs: false
+        enableIntegration: true
+        cloudWatchFilter: "*"
+    ```
+
+    <Callout variant="tip">
+      `enableIntegration` 問題は、まだ統合されていないAWSアカウントに関数がデプロイされている場合にのみ含める必要があります。 統合が設定されたら、関数のデプロイに使用される`serverless.yml`からこのオプションを削除する必要があります。
+    </Callout>
+
+    または、 [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli)を使用している場合は、次のように設定します。
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY> --enable-logs
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID>
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern ""
+    ```
+  </Collapser>
+
+  <Collapser id="optional" title="オプションの拡張ログによるペイロードフォールバック">
+    このオプションは、インストゥルメントされたペイロードが常にNew Relicに到達することを保証する、最も低コストのパスを提供します。 このオプションは、New Relic Lambda 拡張機能を通じて関数ログを送信するため、拡張機能が起動に失敗したりクラッシュしたりすると、New Relic から関数ログが失われます。
+
+    関数ログを送信する場合は、拡張機能がそのように設定されていることを確認してください。 これらのログは拡張機能によってのみ送信され、重複を避けるためにログの CloudWatch フォールバックは行われません。
+
+    New Relic Lambda レイヤーを追加すると、拡張機能が有効になり、ログ配布はデフォルトで無効になります。 New Relic で関数ログを表示する場合は、拡張機能が関数ログを送信できるように環境変数を使用する必要があります。
+
+    関数ログは、関数の呼び出し時に関数によって記録されるログにすぎないことに注意することが重要です。 拡張機能は、 `START`や`END`などの Lambda プラットフォーム ログを送信しません。
+
+    1. 関数に[拡張環境変数](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go)を設定します。
+
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`: `true` (デフォルト)
+       * `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`: `true` 2 `newrelic-log-ingestion`関数の環境変数を設定します:
+       * `INFRA_ENABLED`： `true`
+       * `LOGGING_ENABLED`: `false` (重複を避けるためにログ転送を無効にするか、CloudWatch サブスクリプションのフィルタ パターンを`NR_LAMBDA_MONITORING`行のみに一致するように設定します)
+
+    または、 [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers)使用している場合は、次のように設定します。
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: true
+        enableFunctionLogs: true
+        enableIntegration: true
+        cloudWatchFilter: "NR_LAMBDA_MONITORING" # (only send payloads)
+    ```
+
+    <Callout variant="tip">
+      `enableIntegration` 問題は、まだ統合されていないAWSアカウントに関数がデプロイされている場合にのみ含める必要があります。 統合が設定されたら、関数のデプロイに使用される`serverless.yml`からこのオプションを削除する必要があります。
+    </Callout>
+
+    または、 [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli)を使用している場合は、次のように設定します。
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY>
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID>
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern "NR_LAMBDA_MONITORING"
+    ```
+  </Collapser>
+
+  <Collapser id="always-send" title="ログとペイロードは常にCloudWatch経由で送信する">
+    このオプションは、ログとペイロードを New Relic に送信するために CloudWatch と`newrelic-log-ingestion`関数に完全に依存しています。 このオプションでは、拡張機能の障害によって発生する可能性のあるダウンタイムを回避するために拡張機能が無効になります。
+
+    この方法では、 `NR_LAMBDA_MONITORING`行が CloudWatch に書き込まれるのを妨げないように、New Relic Lambda 拡張機能を完全に無効にする必要があります。 New Relic Lambda 拡張機能が無効になっている場合、すべてのテレメトリは CloudWatch、サブスクリプション フィルター、および `newrelic-log-ingestion` 関数を介して送信されます。
+
+    New Relic Lambda レイヤーを追加すると、拡張機能が有効になり、ログ配布はデフォルトで無効になります。 環境変数を使用して拡張機能を無効にする必要があります。
+
+    1. 関数に[拡張環境変数を](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go)次のように設定します。
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`： `false`
+
+    2. `newrelic-log-ingestion`関数の環境変数を次のように設定します。
+
+       * `INFRA_ENABLED`： `true`
+       * `LOGGING_ENABLED`： `true`
+
+    または、 [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers)使用している場合は、次のように設定します。
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: false
+        enableIntegration: true
+        cloudWatchFilter: "*"
+    ```
+
+    <Callout variant="tip">
+      `enableIntegration` 問題は、まだ統合されていないAWSアカウントに関数がデプロイされている場合にのみ含める必要があります。 統合が設定されたら、関数のデプロイに使用される`serverless.yml`からこのオプションを削除する必要があります。
+    </Callout>
+
+    または、 [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli)を使用している場合は、次のように設定します。
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY>
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID> --disable-extension
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern ""
+    ```
+
+    データを CloudWatch のみに送信するように手動で選択することもできます。 これをする：
+
+    1. 関数に`NEW_RELIC_LAMBDA_EXTENSION_ENABLED`環境変数を値`false`で追加して、拡張機能を無効にします。
+    2. CloudWatch Logsサブスクリプションフィルターを作成して、関数のログで`newrelic-log-ingestion`関数を呼び出します。
+
+    * CLIはこれを行うことができます： `newrelic-lambda subscriptions install --function FUNCTION_NAME`
+    * または、 AWSコンソールを使用して、関数の CloudWatch ログ グループからサブスクリプション フィルターを作成し、`newrelic-log-ingestion` Lambda 関数を呼び出します。
+
+    または、次の手順に従って CloudWatch ログを New Relic Lambda にストリーミングすることもできます。
+
+    1. CloudWatch を開き、左側のメニューで<DNT>**Logs**</DNT>を選択し、監視している機能のログ グループを選択します。
+    2. <DNT>**Actions &gt; Subscription filters &gt; Create Lambda subscription filter**</DNT>を選択します。
+    3. <DNT>**Lambda function**</DNT>で、 `newrelic-log-ingestion`関数を選択します。
+    4. <DNT>**Log format**</DNT>を`JSON`に設定します。
+    5. <DNT>**Subscription filter pattern to**</DNT> `?REPORT ?NR_LAMBDA_MONITORING ?"Task timed out" ?RequestId`を設定します。 あるいは、 `LOGGING_ENABLED`環境変数を使用して[すべてのログを当社のログにストリームする](#stream-all-logs)場合は、このフィールドを空白のままにしておきます。
+
+    <Callout variant="important">
+      上記の方法で選択した`newrelic-log-ingestion` Lambda関数が、Lambda関数と同じAWSリージョンにあることを確認してください。
+    </Callout>
+  </Collapser>
+</CollapserGroup>

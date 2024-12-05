@@ -1,0 +1,175 @@
+---
+title: Agregar un grupo de gráficos
+metaDescription: Add a chart group
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Agregar tablas, antes de comenzar esta.
+</Callout>
+
+En lecciones anteriores, agregaste una variedad de gráficos a tu aplicación Prueba A/B. Estos gráficos presentaban diferentes facetas de información sobre tu Prueba A/B y se comportaban de forma independiente unos de otros. En esta lección, creará un nuevo par de gráficos de líneas y aprenderá a sincronizar sus comportamientos.
+
+Hay un gráfico de líneas debajo de cada una de las tablas que creó en la última lección. Estos gráficos de líneas muestran el tiempo de respuesta específico de la versión para las solicitudes de subscripción al boletín. Ahora creará dos gráficos de líneas más, pero esta vez los agrupará con un `ChartGroup` y especificará que sus valores se midan en milisegundos.
+
+<Steps>
+  <Step>
+    Cambie al directorio `add-a-chart-group/ab-test` del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-a-chart-group/ab-test
+    ```
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet`, agregue un nuevo archivo Javascript llamado `page-views.js`:
+
+    ```sh
+    touch page-views.js
+    ```
+  </Step>
+
+  <Step>
+    En este nuevo archivo, cree un componente llamado `VersionPageViews` para contener un `LineChart`, que muestra la cantidad de veces que se ve una página:
+
+    ```js fileName=nerdlets/ab-test-nerdlet/page-views.js
+    import React from 'react';
+    import { LineChart } from 'nr1';
+
+    export default class VersionPageViews extends React.Component {
+        render() {
+            const versionPageViews = {
+                metadata: {
+                    id: `page-views-${this.props.version}`,
+                    name: `Version ${this.props.version.toUpperCase()}`,
+                    viz: 'main',
+                    color: 'blue',
+                    units_data: {
+                        y: 'MS'
+                    }
+                },
+                data: [
+                    { x: 0, y: 10 },
+                    { x: 10, y: 13 },
+                    { x: 20, y: 11.5 },
+                    { x: 30, y: 10 },
+                    { x: 40, y: 8.75 },
+                    { x: 50, y: 9 },
+                ],
+            }
+            return <LineChart data={[versionPageViews]} fullWidth />
+        }
+    }
+    ```
+
+    Observe el nuevo atributo en los campos `metadata` del serial: `units_data`. Este atributo describe el tipo de unidad para un eje de datos específico. En este caso, establece el tipo de unidad para el eje y en `'MS'`, que representa milisegundos. Otras opciones para tipos de unidades incluyen: `'PERCENTAGE'`, `'TIMESTAMP'` y `'BYTES_PER_SECOND'`.
+  </Step>
+
+  <Step>
+    En el archivo `index.js` de tu Nerdlet, importa tu nuevo componente y actualiza el método `render()` de tu Nerdlet:
+
+    ```js
+    import React from 'react';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <NewsletterSignups />
+                <TotalSubscriptions />
+                <TotalCancellations />
+                <VersionTotals version='a' />
+                <VersionTotals version='b' />
+                <VersionPageViews version='a' />
+                <VersionPageViews version='b' />
+                <PastTests />
+            </div>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    En `index.js`, importe `ChartGroup` desde `nr1` y agrupe su `VersionPageViews`:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup } from 'nr1';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <NewsletterSignups />
+                <TotalSubscriptions />
+                <TotalCancellations />
+                <VersionTotals version='a' />
+                <VersionTotals version='b' />
+                <ChartGroup>
+                    <VersionPageViews version='a' />
+                    <VersionPageViews version='b' />
+                </ChartGroup>
+                <PastTests />
+            </div>
+        }
+    }
+    ```
+
+    Debido a que las tablas están relacionadas conceptualmente, ya que muestran un rendimiento métrico contrastante en el mismo intervalo de tiempo, tiene sentido agruparlas en un `ChartGroup`. Esto significa que los dos gráficos se comportan de forma sincrónica. Por ejemplo, cuando pasa el cursor sobre un gráfico, el otro gráfico muestra un indicador de desplazamiento en la misma coordenada x.
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-a-chart-group/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vea sus cambios en [New Relic](https://one.newrelic.com?nerdpacks=local).
+
+    Aquí verá los `LineChart` componentes sincronizados en su aplicación.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+
+    <Callout variant="tip">
+      Cada uno de los tipos de componentes de gráficos que empleó en esta lección tiene una configuración de serial diferente. La mayoría de los componentes del gráfico comparten el mismo atributo `metadata` , como `LineChart` y `PieChart`, pero difieren en sus formatos `data`.
+
+      Es útil conocer los diferentes formatos `data` para cuando crees tus propios gráficos.
+    </Callout>
+  </Step>
+</Steps>
+
+Ahora su aplicación está llena de gráficos, pero no se ve muy bien. Los gráficos están apilados uno encima del otro de forma inútil. En la siguiente lección, aprenderá sobre los componentes de la interfaz de usuario del SDK y cómo puede usarlos para organizar sus gráficos.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Cuando esté listo, continúe con la siguiente lección: Agregue componentes de interfaz de usuario a su aplicación.
+</Callout>

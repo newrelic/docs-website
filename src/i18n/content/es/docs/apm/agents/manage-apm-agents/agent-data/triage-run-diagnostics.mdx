@@ -1,0 +1,299 @@
+---
+title: Solucionar problemas con la página de resumen de APM
+tags:
+  - APM
+  - Triage
+  - Diagnostics
+metaDescription: 'With the New Relic APM summary page, run diagnostics with application monitoring tools to quickly resolve incidents.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestras <InlinePopover type="apm"/>herramientas pueden ayudarte a resolver incidentes cuando tengas tiempo limitado. Con la página de resumen de APM, puede ver una descripción general de posibles fallas en sus aplicaciones y obtener métricas importantes sobre cada uno de sus servicios. Es el primer lugar al que acudirá para comprobar el estado de su servicio, comprender cualquier problema dentro de un contexto más amplio y tomar las medidas necesarias para resolver el problema.
+
+<img
+  title="apm summary page"
+  alt="A screenshot depicting the APM summary page."
+  src="/images/apm_screenshot-full_apm-complete-summary-page-.webp"
+/>
+
+Este documento lo guía a través de un ejemplo _ficticio_ de cómo utilizar las herramientas APM de New Relic para determinar la causa raíz de la degradación del servicio. Vas a explorar una situación en la que <DNT>**you work for a fictional e-commerce company that sells shoes**</DNT>. Usted es el gerente de ingeniería del equipo de pago. Los clientes se han quejado de que tienen que esperar demasiado para realizar el pago.
+
+Después de que un cliente ponga un par de zapatos en su carrito y decida que es hora de pagar, presionará el botón `Pay Now` . `Checkout-service` es la entidad que gestiona la funcionalidad del botón `Pay Now` .
+
+Para descubrir por qué los clientes no pueden hacer clic en el botón `Pay Now` , abra APM y seleccione su `Checkout-service`.
+
+<Steps>
+  <Step>
+    ## Identifique puntos débiles con mosaicos de resumen
+
+    Antes de profundizar en los detalles, es importante mirar primero los mosaicos de resumen en la parte superior de la página. Estos mosaicos lo alertan inmediatamente sobre cualquier problema, vulnerabilidad o falla en su sistema. Si los mosaicos en la parte superior de su página muestran un estado vacío, haga clic en `Set up now` para activar cada mosaico.
+
+    <img
+      title="apm summary tiles"
+      alt="A screenshot depicting the apm summary tiles"
+      src="/images/apm_screenshot-crop_apm-summary-tiles.webp"
+    />
+
+    ### Asuntos [#issues]
+
+    Una forma importante de rastrear comportamientos inusuales en su sistema es mediante alertas. Supongamos que desea saber cuándo la tasa de errores de la transacción para `Checkout-service` supera el 10%. Crearía una [condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition/) y establecería las reglas que desencadenarán un incidente. Uno o más incidentes crean un problema. Este mosaico mostrará cualquier problema en su servicio.
+
+    En este ejemplo, ya configuró su condición de alerta, de modo que cuando escanee sus mosaicos de resumen verá inmediatamente que su sistema tiene dos problemas críticos. Haga clic en el mosaico para ver detalles sobre cada problema crítico, el incidente que contiene y su entidad relacionada.
+
+    <img
+      title="issues summary tile "
+      alt="A screenshot depicting the issues summary tile"
+      src="/images/apm_screenshot-crop_issues-summary-tile.webp"
+    />
+
+    ### último despliegue [#last-deployment]
+
+    El marcador de despliegue lo ayuda monitor los resultados de cada actualización que realiza en su servicio. Este mosaico muestra el cambio en la tasa de errores y el tiempo de respuesta provocado por su último despliegue.
+
+    A partir de 15 minutos después de un despliegue, este mosaico mostrará una comparación entre los datos recopilados antes y después del despliegue. Si habilitó una nueva característica hace 45 minutos, este mosaico mostrará una comparación entre los 45 minutos anteriores y los 45 minutos posteriores. Durante las primeras tres horas después de un despliegue, este mosaico solo mostrará una comparación del tiempo transcurrido desde la habilitación con el tiempo correspondiente antes de la habilitación. Después de tres horas, el mosaico utiliza la comparación estándar de 3 horas.
+
+    Para un rango de tiempo personalizado, haga clic en el mosaico para ir a la página principal desplegable y use el selector de tiempo allí.
+
+    Para este ejemplo, [su último despliegue](/docs/apm/apm-ui-pages/events/record-deployments/) provocó un aumento del 27 % en la tasa de errores y un aumento del 5 % en el tiempo de respuesta. Haga clic en el mosaico para ver su último despliegue y los errores, registros, alertas y tendencias relacionados.
+
+    <img
+      title="deployment summary tile"
+      alt="A screenshot showing the deployment summary tile"
+      src="/images/apm_screenshot-crop_deployment-summary-tile.webp"
+    />
+
+    ### Nivel de servicio [#service-levels]
+
+    El nivel de servicio se utiliza para medir el desempeño de un servicio desde el punto de vista del usuario final. Cuando se excede el presupuesto de error de un nivel de servicio, verá estos tipos de incidentes:
+
+    * <DNT>
+        **Non-compliant**
+      </DNT>
+
+      significa que ha consumido todo el presupuesto de errores para este período. Así que tenga cuidado si necesita desplegar y planifique algún trabajo para mejorar sus SL.
+
+    * <DNT>
+        **At risk**
+      </DNT>
+
+      significa que su presupuesto de errores está casi consumido y debe ser más cauteloso durante el resto del período.
+
+      Para este ejemplo, ya [configuró su nivel de servicio](/docs/service-level-management/intro-slm/) y excedió su presupuesto de error en dos instancias. Haga clic en el mosaico para ver qué entidades no cumplen y profundizar en su presupuesto de errores.
+
+      <img
+        title="service levels tile"
+        alt="A screenshot depicting the service levels summary tile"
+        src="/images/apm_screenshot-crop_apm-service-levels-summary-tile.webp"
+      />
+
+      ### Vulnerabilidades [#vulnerabilities]
+
+      Gestión de vulnerabilidades proporciona una vista panorámica de todas las vulnerabilidades de su software. Cada uno de sus agentes o servicios integrados, como Java, .Net o Github [Dependabot](https://newrelic.com/instant-observability/github-dependabot) , incluirá automáticamente vulnerabilidades conocidas en New Relic para realizar un seguimiento.
+
+      Aquí puede ver que ha habilitado [la Administración de vulnerabilidades](/docs/vulnerability-management/overview/) y que se han detectado 3 `Critical` y 9 `High` vulnerabilidades para su servicio de monitorización. Haga clic en el mosaico para ver el impacto de sus vulnerabilidades.
+
+      <img
+        title="vulnerabilities summary tile"
+        alt="A screenshot depicting the apm vulnerabilities summary tile"
+        src="/images/apm_screenshot-crop_apm-vulnerabilities-tile.webp"
+      />
+  </Step>
+
+  <Step>
+    ## Revisa tu clave métrica
+
+    ¿Hay algún problema con tu `Checkout-service`? ¿Qué sistemas se ven afectados y cómo?
+
+    ### Apdex [#apdex]
+
+    <img
+      title="apdex in APM"
+      alt="A screenshot depicting a sample Apdex score in APM"
+      src="/images/apm_screenshot-crop_apdex-in-apm.webp"
+    />
+
+    El primer lugar al que hay que mirar al investigar una avería en el servicio es su puntuación Apdex. Su puntuación Apdex monitorea la satisfacción general de los clientes con su aplicación. Su puntuación busca una combinación de rendimiento, como tiempo de respuesta o rendimiento, y tasa de errores.
+
+    Apdex es un estándar de la industria que mide la satisfacción de su usuario con el tiempo de respuesta de su aplicación/servicio web. Se representa como un resultado de 0-1. Cuanto más se acerque su puntuación a 1, mejor será el rendimiento de su aplicación. El valor predeterminado para una experiencia satisfactoria es 0,5 segundos, pero puede establecer un objetivo diferente en Configuración.
+
+    Su puntuación Apdex normalmente se divide en los siguientes colores:
+
+    * <DNT>
+        **&lt; 0.5 - Gray:**
+      </DNT>
+
+      El rendimiento de su aplicación es más que crítico y necesita acción inmediata.
+
+    * <DNT>
+        **0.5-0.7 - Red:**
+      </DNT>
+
+      Hay problemas críticos de rendimiento en su aplicación y es necesario tomar medidas inmediatas.
+
+    * <DNT>
+        **0.7-0.85 -Orange:**
+      </DNT>
+
+      Su aplicación tiene una tendencia negativa y necesita más investigación.
+
+    * <DNT>
+        **0.85-0.95 - Blue:**
+      </DNT>
+
+      Esta es la gama Apdex ideal. Esta puntuación significa que ha ajustado su Apdex T perfectamente para su aplicación y que su rendimiento es saludable.
+
+    * <DNT>
+        **> 0.95 - Blue:**
+      </DNT>
+
+      Si su puntuación Apdex está en este rango, significa que su Apdex T podría estar configurado demasiado alto y no está obteniendo una lectura precisa del rendimiento de su aplicación. Deberías considerar reducir tu Apdex T.
+
+      <Callout variant="tip">
+        Si tiene una puntuación de Apdex de 0, podría deberse a que una solicitud devolvió un error. Cada solicitud con un error obtiene automáticamente un 0 en Apdex.
+      </Callout>
+
+      Para este ejemplo, después de abrir su entidad `Checkout-service` en APM, ve que su puntuación Apdex ha caído y ronda 0,6. El gráfico es rojo.
+
+      Ahora sabe con certeza que las quejas de sus clientes son correctas: hay un problema en algún lugar de su stack.
+
+      Para obtener más información sobre cómo comprender su puntuación, consulte [Apdex: medir la satisfacción del usuario](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/).
+
+      ### Transacciones web
+
+      <img
+        title="web transactions apm summary"
+        alt="A screenshot depicting web transactions in the APM summary page"
+        src="/images/apm_screenshot-crop_web-transactions-in-APM.webp"
+      />
+
+      Según los informes de los clientes, sabe que el botón `Pay now` falla en su aplicación, pero no está seguro de qué está causando el error real. Has comprobado Apdex y muestra una baja satisfacción del usuario.
+
+      El siguiente paso es determinar qué parte del proceso de pago no funciona investigando <DNT>**Web-transactions**</DNT> de tu aplicación.
+
+      En New Relic, una transacción se define como una unidad de trabajo lógica en una aplicación de software. Específicamente, se refiere a las llamadas a funciones y llamadas a métodos que conforman esa unidad de trabajo. Para APM, a menudo se referirá a una transacción web, que representa la actividad que ocurre desde que la aplicación recibe una solicitud web hasta que se envía la respuesta.
+
+      El tiempo de transacción web se divide en tres partes:
+
+    * Segmento azul: todas las transacciones
+
+    * Segmento amarillo: operaciones de base de datos
+
+    * Segmento verde: servicios externos
+
+      <Callout variant="tip">
+        Si está intentando monitor una aplicación asincrónica, entonces su tiempo de respuesta (la línea azul oscura) posiblemente podría ser menor que los tiempos de respuesta para cada segmento individual (transacción, base de datos y externos). Esto podría suceder porque una aplicación asincrónica puede procesar múltiples solicitudes al mismo tiempo. Por lo tanto, es posible que una transacción "finalice" mientras algunas solicitudes aún están "abiertas".
+      </Callout>
+
+      Una transacción lenta puede ser un fuerte indicador de que algo se está comportando de manera anormal, así que mire el gráfico y vea si alguna área de su servicio está tardando más de lo normal en responder. Las transacciones lentas se verán como picos en el gráfico.
+
+      También puede utilizar nuestra [herramienta marcador de despliegue](/docs/apm/apm-ui-pages/events/record-deployments/) para verificar si su equipo lanzó un cambio en el momento en que los clientes comenzaron a quejarse de que el botón `Pay Now` tardaba mucho en cargarse.
+
+      Un marcador de despliegue aparece como un pin gris en cada gráfico. Puede pasar el cursor sobre el pin para obtener información general o puede hacer clic en el marcador para ver más profundamente el despliegue.
+
+      ### Rendimiento
+
+      <img
+        title="throughput in APM"
+        alt="A screenshot depicting throughput in APM."
+        src="/images/apm_screenshot-full_throughput-in-apm.webp"
+      />
+
+      Mientras observa el tiempo de respuesta de `Checkout-service` también puede investigar el rendimiento. <DNT>**Throughput**</DNT> es una forma de medir la cantidad de trabajo que maneja su aplicación. El rendimiento le ayuda a comprender si el trabajo se distribuye uniformemente entre sus hosts y el contenedor. Los problemas de rendimiento a menudo pueden ser un síntoma de falta de recursos.
+
+      A los efectos de este ejemplo, verá que el rendimiento es un poco mayor de lo habitual. Si su rendimiento es muy alto durante un momento de degradación del servicio, podría indicar que su aplicación está procesando más trabajo del que puede manejar.
+
+      Por otro lado, un rendimiento bajo podría indicar que su aplicación no maneja muchas solicitudes. Esto podría significar simplemente que no se usa mucho o podría significar que un servicio que llama a su aplicación no funciona y las solicitudes no se están procesando.
+
+      ### Errores
+
+      <img
+        title="errors in APM"
+        alt="A screenshot showing errors in APM."
+        src="/images/apm_screenshot-full_errors-in-APM.webp"
+      />
+
+      Ahora que identificó transacciones lentas y analizó su rendimiento, es hora de analizar los errores. El gráfico <DNT>**Errors**</DNT> muestra el porcentaje de transacción que resultó en un error.
+
+      En el contexto de APM, los errores representan los eventos `TransactionError` y `ErrorTrace` .
+
+      En este caso, verá un aumento en `Web errors` aproximadamente al mismo tiempo que aumentó el tiempo de respuesta de su transacción web. También verá un marcador de despliegue que le alerta sobre un cambio que su equipo realizó en su sistema.
+
+      Ahora ve un patrón en torno a este reciente despliegue: disminución de la satisfacción del usuario, mayor tiempo de respuesta, rendimiento y errores.
+
+      Utilice el menú desplegable para cambiar a una vista del usuario afectado. Para saber cómo realizar un seguimiento del usuario afectado, consulte [Errors Inbox](/docs/errors-inbox/error-users-impacted/).
+
+      Para obtener más información sobre cómo administrar errores, consulte [Administrar errores](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/)
+  </Step>
+
+  <Step>
+    ## Ubicar el problema en un contexto más amplio.
+
+    ¿Qué partes de tu stack están en problemas? ¿El problema fue causado por cambios en la entidad que llama a su servicio o es llamado por su servicio?
+
+    ### Registro
+
+    <img
+      title="logs in apm"
+      alt="A screenshot showing logs in apm"
+      src="/images/apm_screenshot-crop_logs-in-apm.webp"
+    />
+
+    El gráfico de registro le brinda una vista resumida del registro de su aplicación informado a través de nuestra característica [de contexto de registro](/docs/logs/logs-context/get-started-logs-context/) . Al hacer clic en <DNT>**Logs**</DNT> accederá a la [UIde registro](/docs/logs/ui-data/use-logs-ui/) completa.
+
+    Para este ejemplo, después de investigar su métrica clave, sabe que tiene un problema con un despliegue reciente que afectó el tiempo `Web-transaction` , lo que resultó en un aumento en los errores y una baja satisfacción del usuario. Ahora quieres saber cómo afectó esto al resto de tu servicio.
+
+    Con el inicio de sesión en contexto, su registro individual es una etiqueta con la entidad o servicio con el que está relacionado. En el gráfico de registro, puede seleccionar <DNT>**Log patterns (top 10)**</DNT> para mostrar grupos de registros que son idénticos hasta el identificador de cadena único.
+
+    Para obtener más información sobre cómo funcionan los patrones de logs, consulte [patrones de logs](/docs/logs/ui-data/find-unusual-logs-log-patterns/).
+
+    ### rastreo distribuido [#distributed-tracing]
+
+    <img
+      title="distributed tracing in APM"
+      alt="A screenshot depicting distributed tracing information on the APM summary page"
+      src="/images/apm_screenshot-crop_distributed-tracing-in-the-apm-summary-page.webp"
+    />
+
+    El gráfico <DNT>**Distributed tracing insights**</DNT> muestra las entidades ascendentes y descendentes que podrían provocar aumentos en el tiempo de respuesta, la tasa de errores o el rendimiento de su servicio.
+
+    Por ejemplo, digamos que desea investigar un aumento en el tiempo de respuesta de un servicio, pero el pico se relaciona con una llamada externa. Si rastreo distribuido registró una entidad descendente que causó latencia para su servicio, puede ver ese cambio en el rendimiento en esta lista. Haga clic en el botón <DNT>**View trace**</DNT> para ver un rastreo distribuido que muestra los cambios de rendimiento.
+
+    Puedes conocer más en nuestro [rastreo distribuido información valiosa docs](/docs/distributed-tracing/ui-data/related-trace-entity-signals/).
+
+    ### Infraestructura [#infrastructure]
+
+    <img
+      title="Infrastructure summary page"
+      alt="A screenshot depicting the infrastructure section of the apm summary page."
+      src="/images/apm_screenshot-crop_infrastructure-on-apm-summary-page.webp"
+    />
+
+    Ahora, desplácese hacia abajo hasta la sección <DNT>**Infrastructure**</DNT> de la página de resumen de APM. Aquí verá una tabla que enumera cada host conectado a la aplicación `Checkout Service` y un registro de su tiempo de respuesta, rendimiento, tasa de errores y porcentaje de CPU. y porcentaje de memoria.
+
+    Para este ejemplo, sugerimos buscar para ver si hubo algún cambio en el porcentaje de CPU alrededor del mismo despliegue reciente que causó un aumento en el tiempo de respuesta y una alta tasa de errores.
+
+    Obtenga más información sobre cómo investigar datos de infraestructura en la página de resumen de APM [aquí](/docs/infrastructure/manage-your-data/data-instrumentation/apm-data-infrastructure-monitoring/).
+  </Step>
+
+  <Step>
+    ## Lleve su investigación al siguiente nivel
+
+    <DocTiles numbered>
+      <DocTile
+        path="/docs/tutorial-app-slow/problematic-transactions/"
+        title="Diagnose problematic transactions"
+      />
+
+      <DocTile
+        path="/docs/tutorial-app-slow/slow-database-queries/"
+        title="Diagnose slow database queries"
+      />
+
+      <DocTile
+        path="/docs/tutorial-app-slow/create-benchmarks/"
+        title="Create performance benchmarks"
+      />
+    </DocTiles>
+  </Step>
+</Steps>

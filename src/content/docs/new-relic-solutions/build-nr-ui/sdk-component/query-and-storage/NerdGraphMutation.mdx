@@ -1,0 +1,160 @@
+---
+title: 'NerdGraphMutation'
+metaDescription: 'Learn how to work the NerdGraphMutation component'
+freshnessValidatedDate: 2024-06-03
+---
+
+A generic NerdGraph mutation component that allows you to mutate anything from NerdGraph.
+
+### Usage
+
+```js
+import { NerdGraphMutation } from 'nr1'
+```
+
+### Examples
+
+#### Do a mutation
+
+```js
+NerdGraphMutation.mutate({
+  mutation: ngql`
+    mutation($guid: EntityGuid!) {
+      taggingAddTagsToEntity(
+        guid: $guid
+        tags: { key: "team", values: ["ui"] }
+      ) {
+        errors {
+          message
+        }
+      }
+    }
+  `,
+  variables: {
+    guid: 'XXXXXXXXXXX',
+  },
+});
+```
+
+#### Do mutation and refetch query
+
+```js
+function render() {
+  const mutation = ngql`
+    mutation($guid: EntityGuid!) {
+      taggingAddTagsToEntity(guid: $guid, tags: $tags) {
+        errors {
+          message
+        }
+      }
+    }
+  `;
+  const variables = {
+    guid: 'XXXXXXXXXXX',
+    tags: { key: 'team', values: ['ui'] },
+  };
+
+
+  // NOTE: Sometimes mutations take awhile so doing a refetch immediatly after a mutate
+  // doesn't show any change.
+  return (
+    <NerdGraphQuery query={query} variables={variables}>
+      {({ data, refetch }) => (
+        <>
+          <RenderData data={data} />
+          <Button
+            onClick={() =>
+              NerdGraphMutation.mutate({
+                mutation,
+                variables,
+              }).then(refetch)
+            }
+          >
+            Mutate
+          </Button>
+        </>
+      )}
+    </NerdGraphQuery>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5><h5>function</h5>
+      </td>
+
+      <td>
+        Render prop function as children.
+
+        <FunctionDefinition
+          returnValue={[{"type":"React.ReactNode","description":""}]}
+          arguments={[{"name":"mutate","type":"function","description":"Function to trigger a mutation from your UI."},{"name":"mutationResult","type":"MutationResult","description":"Results of the mutation."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mutation` <h5>REQUIRED</h5><h5>string|object</h5>
+      </td>
+
+      <td>
+        GraphQL mutation, either as a string or a GraphQL document parsed into an AST by `graphql-tag`.
+
+        ```js
+        import { ngql } from 'nr1';
+
+        const mutation = ngql`
+          mutation($guid: EntityGuid!) {
+            taggingAddTagsToEntity(guid: $guid, tags: $tags) {
+              errors {
+                message
+              }
+            }
+          }
+        `;
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `unsafeExperimentalNamespaces` <h5>string\[]</h5>
+      </td>
+
+      <td>
+        List containing unsafe [experimental namespaces](https://pages.datanerd.us/unified-api/nerd-graph-docs/graphql/schema_visibility.html#experimental-api-support) your query opts in to using.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `variables` <h5>object</h5>
+      </td>
+
+      <td>
+        Object containing all of the variables your mutation needs to execute.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `NerdGraphMutation.mutate`
+
+<FunctionDefinition
+  arguments={[{"description":"Object containing the mutation options. Any `NerdGraphMutation` prop is a valid option except `children`.","name":"props","type":"Object"}]}
+  returnValue={{"description":"","type":"PromiseQueryResult"}}
+/>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"PromiseQueryResult","properties":[{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>
+
+<TypeDefReference typeDef={{"name":"MutationResult","properties":[{"description":"Indicates that the request is in flight.","name":"loading","type":"boolean"},{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your mutation.","name":"data","type":"Object"}]}}/>

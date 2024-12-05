@@ -1,0 +1,1287 @@
+---
+title: 'Tipo de usuario: usuarios de plataforma básica, central y completa'
+tags:
+  - Accounts
+  - Accounts and billing
+  - New Relic user management
+metaDescription: 'An explanation of New Relic user types: basic users, core users, and full platform users.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En este documento, aprenderá cómo definimos <DNT>**user type**</DNT>, a qué características tiene acceso cada tipo de usuario y cómo decidir sobre un tipo de usuario.
+
+¿Quiere saber cómo se calculan los usuarios a efectos de facturación? Consulte [los precios de New Relic](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing). Si aún no lo ha hecho, asegúrese de [registrarse para obtener una cuenta New Relic](https://newrelic.com/signup). Es gratis, para siempre.
+
+## ¿Cuál es el tipo de usuario? [#user-type-defined]
+
+El <DNT>**user type**</DNT> de un usuario de New Relic determina el conjunto máximo de permisos de New Relic al que puede acceder. El tipo de usuario está destinado a ser una configuración a bastante largo plazo basada en las responsabilidades esperadas de un usuario durante los próximos meses o más.
+
+La elección del tipo de usuario de un usuario es principalmente una decisión relacionada con la facturación. El usuario principal y el usuario de plataforma completa son facturables, mientras que el usuario básico no. Es una cuestión de cuánto valor espera obtener una organización del uso de New Relic por parte de un miembro del equipo. (Para obtener detalles sobre facturación, consulte [Facturación de usuario](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/user-count-billing)).
+
+El tipo de usuario **no** debe utilizarse como forma de controlar los permisos de un usuario. Esto se debe a que New Relic ocasionalmente ajustará los permisos disponibles para cada tipo de usuario. Para restringir el acceso a los permisos, debes usar [roles](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+
+Hay tres tipos de usuarios:
+
+* <DNT>
+    **Basic user**
+  </DNT>
+
+  : acceso a varias características básicas pero poderosas de la plataforma New Relic.
+
+* <DNT>
+    **Core user**
+  </DNT>
+
+  : acceso a varias características más que un usuario básico.
+
+* <DNT>
+    **Full platform user**
+  </DNT>
+
+  : acceso a todas las características.
+
+Si tiene la tarea de [agregar usuarios de New Relic](/docs/accounts/accounts-billing/new-relic-one-user-management/tutorial-add-new-user-groups-roles-new-relic-one-user-model/#add-users), una de las decisiones clave que debe tomar es qué tipo de usuario crearlos. Si al principio no estás seguro, puedes agregarlo como usuario básico y luego decidir qué usuario deseas actualizar. Para saber cómo ajustar el tipo de usuario, consulte [Administrar tipo de usuario](#manage-user-type).
+
+## Descripción general del acceso por tipo de usuario [#user-type-capabilities]
+
+Aquí hay un breve resumen de a qué tiene acceso cada tipo de usuario:
+
+<table>
+  <thead>
+    <tr>
+      <th className="fcenter">
+        Usuario básico
+      </th>
+
+      <th className="fcenter">
+        Usuario principal
+      </th>
+
+      <th className="fcenter">
+        Usuario de plataforma completa
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Los usuarios básicos son gratuitos. El usuario básico puede configurar nuestras herramientas de observabilidad, realizar consultas sobre sus datos, usar <InlinePopover type="dashboards"/>personalizado (panel de inicio rápido de hasta 7 días), usar algunas características de alerta básicas y más. El usuario básico **no puede** usar nuestras experiencias seleccionadas (por ejemplo, nuestra <InlinePopover type="apm"/>UI, <InlinePopover type="browser"/>UI o UI móvil).
+      </td>
+
+      <td>
+        El usuario principal puede acceder a más características que el usuario básico pero a menos que el usuario de plataforma completa. Tienen acceso a algunas características poderosas centradas en desarrolladores como New Relic CodeStream, Errors Inbox y nuestra UI de administración de registros.
+      </td>
+
+      <td>
+        Los usuarios de toda la plataforma pueden acceder a todo, incluidas nuestras experiencias UI de observabilidad más seleccionadas, como APM, monitoreo de infraestructura, monitoreo de navegador, <InlinePopover type="mobile"/>, monitor sintético y más.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener una comparación más detallada, consulte la [tabla comparativa de acceso por tipo de usuario](#user-type-comparison-table).
+
+## Cómo elegir un tipo de usuario [#choose-user-type]
+
+Antes de decidir sobre los tipos de usuarios, querrá comprender los [impactos en la facturación y las reglas de degradación](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/user-count-billing). Para obtener una comparación de acceso detallada, consulte la [tabla de comparación de acceso por tipo de usuario](#user-type-comparison-table).
+
+A continuación se ofrecen algunos consejos para decidir un tipo de usuario:
+
+<DNT>
+  **Reasons to make someone a full platform user:**
+</DNT>
+
+* Necesitan acceso completo a la plataforma New Relic (nuestro panel seleccionado y otras experiencias), no solo la capacidad de consultar y crear gráficos personalizados.
+* Desempeñan un papel clave en las fases de desarrollo, prueba, implementación y mantenimiento del ciclo de vida de desarrollo de la aplicación.
+* Rompen/arreglan el código con regularidad; son responsables de clasificar el flujo de trabajo, la resolución de problemas o gestionar los usuarios y roles de su equipo.
+* Tienen prácticas de DevOps (por ejemplo, sistemas de control de versiones e implementación de CI/CD).
+
+<DNT>
+  **Reasons to make someone a core user:**
+</DNT>
+
+* Son desarrolladores que no tienen como principal responsabilidad la confiabilidad y el tiempo de actividad.
+
+* No requieren acceso completo a la plataforma, pero se beneficiarían de algunas de las funcionalidades específicas que se ofrecen al usuario principal, como:
+
+  * Depuración de problemas de código directamente desde su IDE, utilizando [New Relic CodeStream](/docs/codestream/start-here/what-is-codestream).
+  * Ver errores en un solo lugar desde toda su stack, usando [Errors Inbox](/docs/errors-inbox/errors-inbox).
+  * Usar nuestra [UIde registro](/docs/logs/ui-data/use-logs-ui) para detectar problemas y patrones en el registro.
+  * La capacidad de utilizar aplicaciones de nuestro [catálogo de aplicaciones New Relic](https://opensource.newrelic.com/nerdpacks).
+
+* Deben poder gestionar el usuario y/o la facturación (tanto el usuario principal como el de la plataforma completa pueden hacerlo).
+
+<DNT>
+  **Reasons to make someone a basic user:**
+</DNT>
+
+* No necesitan acceso completo a la plataforma para utilizar nuestras experiencias seleccionadas y
+
+  <InlinePopover type="dashboards"/>
+
+  , pero se beneficiarían de la creación de consultas y gráficos de datos personalizados.
+
+* Desempeñan un papel clave en la fase de planificación de la aplicación del ciclo de vida de desarrollo.
+
+* Usan y configuran herramientas de New Relic para ingresar datos en New Relic, y acceden, configuran y usan
+
+  <InlinePopover type="alerts"/>
+
+  en dichos datos, pero no son necesariamente responsables de clasificar el flujo de trabajo, la resolución de problemas o administrar usuarios y roles para sus equipo.
+
+* Quieren ver análisis de alto nivel y métricas comerciales para la planificación futura (como suele ocurrir con los ejecutivos de alto nivel).
+
+* No gestionan usuarios ni facturación.
+
+## Tabla comparativa de acceso por tipo de usuario [#user-type-comparison-table]
+
+A continuación se muestra una comparación detallada de las características a las que tiene acceso cada tipo de usuario. Puntos importantes sobre esta tabla:
+
+* La tabla proviene de [nuestra página de precios](https://newrelic.com/pricing). Para encontrar la tabla, visite el encabezado
+
+  <DNT>
+    **User costs**
+  </DNT>
+
+  y haga clic en
+
+  <DNT>
+    **View permissions**
+  </DNT>
+
+  .
+
+* Muchas de las características requieren acceso a nuestras experiencias UI , no a los datos subyacentes. Todos los usuarios pueden consultar todos los datos de las cuentas a las que pueden acceder y pueden crear y ver gráficos personalizados. Por ejemplo, el usuario básico puede acceder a
+
+  <InlinePopover type="apm"/>
+
+  datos, monitorear los datos del navegador y más, pero no puede acceder a experiencias UI seleccionadas.
+
+* El tipo de usuario está destinado a ser una configuración a largo plazo. Tanto el tipo de usuario como los roles rigen el acceso a la característica New Relic. [Obtenga más información sobre los factores de acceso de los usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+
+Para obtener sugerencias sobre por qué elegiría un tipo de usuario frente a otro, consulte [Decidir el tipo de usuario](#choose-user-type).
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Característica
+      </th>
+
+      <th>
+        Permisos de usuario básicos
+      </th>
+
+      <th>
+        Permisos de usuario principales
+      </th>
+
+      <th>
+        Permisos de usuario de plataforma completa
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        700+ integración (Observabilidad instantánea e inicios rápidos, excepto vista seleccionada)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Gráficos y panel personalizados
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento personalizado
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Entidad explorer, Lookout, Navegador](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts)
+      </td>
+
+      <td>
+        Solo vista de lista <br/><Icon style={{color: '#14E812'}} name="fe-check"/>
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+
+        (excepto señales divergentes)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        API GraphQL (NerdGraph)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Colaboración en la aplicación
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Administración de logs
+      </td>
+
+      <td>
+        Sólo búsqueda/visualización <br/><Icon style={{color: '#14E812'}} name="fe-check"/>
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Potentes capacidades de consulta
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Panel de inicio rápido
+      </td>
+
+      <td>
+        Hasta 7 días <br/><Icon style={{color: '#14E812'}} name="fe-check"/>
+      </td>
+
+      <td>
+        Hasta 7 días <br/><Icon style={{color: '#14E812'}} name="fe-check"/>
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Recibir alerta y notificación
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Configuración de administrador (administración de facturación y usuario)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Creación y ejecución de aplicaciones y visualizaciones personalizadas de New Relic **\***
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rastreo de errores con Errors Inbox
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        Excepto análisis de atributos <br/><Icon style={{color: '#14E812'}} name="fe-check"/>
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        New Relic CodeStream de IDE
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AIOps (inteligencia artificial para operaciones de TI)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo del rendimiento de aplicaciones (APM) (APM)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        monitoreo del navegador
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Seguimiento de cambios
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de bases de datos
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        rastreo distribuido
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de infraestructura
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de Kubernetes con Pixie **\***
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Aprendizaje automático (ML) monitoreo del rendimiento de los modelos (MLOps)
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de moviles
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de red
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo OpenTelemetry
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de seguridad (Gestión de vulnerabilidades) **\*\***
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo sin servidor
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Servicio y mapa de entidades
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Administración a nivel de servicio
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo sintetico
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Carga de trabajo
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#FA492B'}}
+          name="fe-x-circle"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#14E812'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**\*** Sujeto a términos y condiciones adicionales.
+
+**\*\*** New Relic [Gestión de vulnerabilidades](/docs/vulnerability-management/overview) está incluido para hasta 100 GB de ingesta de datos y requiere [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-prices) o un costo adicional adicional.
+
+Aquí hay detalles adicionales sobre permisos para algunas características:
+
+<CollapserGroup>
+  <Collapser
+    id="ai-capabilities"
+    title="Acceso a alerta e inteligencia aplicada"
+  >
+    Aquí hay más detalles sobre cómo el tipo de usuario afecta el acceso a las alertas y a la característica de inteligencia aplicada:
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:350px">
+            Lo que obtienes
+          </th>
+
+          <th
+            style="text-align:center"
+            style="width:170px"
+          >
+            Usuario básico
+          </th>
+
+          <th
+            style="text-align:center"
+            style="width:170px"
+          >
+            Usuario principal
+          </th>
+
+          <th style="text-align:center">
+            Usuario de plataforma completa
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Configurar [condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/alerts-concepts-workflow), decisiones de correlación y notificación.
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Reconocer y resolver problemas
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Acceso a características [de inteligencia aplicada](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-applied-intelligence) de nivel superior, que incluyen:
+
+            * Análisis de raíz de la causa
+            * Análisis de incidentes/anomalías
+            * Asistente de correlación
+            * Mapas de problemas
+            * Clasificación del aprendizaje automático
+          </td>
+
+          <td style="text-align:center"/>
+
+          <td style="text-align:center"/>
+
+          <td style="text-align:center">
+            <Icon
+              style={{color: '#328787'}}
+              name="fe-check"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="api-access"
+    title="API: ingesta de datos y NerdGraph"
+  >
+    Detalles sobre el acceso a [nuestras API](/docs/apis/intro-apis/introduction-new-relic-apis):
+
+    * <DNT>
+        **Data ingest**
+      </DNT>
+
+      : Todos los tipos de usuarios pueden configurar casi toda nuestra integración y agente, incluida la ingesta de datos a través de nuestras API de ingesta. Algunas soluciones de New Relic requieren ser un usuario de plataforma completa para poder configurarlas. Si es así, se menciona en la sección de requisitos de los documentos de esas soluciones.
+
+    * <DNT>
+        **NerdGraph**
+      </DNT>
+
+      : Un usuario puede utilizar [la API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) para hacer las mismas cosas que puede hacer desde la UI. Por ejemplo: configurar
+
+      <InlinePopover type="apm"/>
+
+      los ajustes requiere ser un usuario completo de la plataforma, ya sea que la configuración se realice a través de la UI o de NerdGraph. Para otro ejemplo: los [permisos relacionados con la administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings) (por ejemplo, agregar usuarios y agregar cuentas) requieren ser un usuario principal o un usuario de plataforma completa, ya sea en la UI o mediante NerdGraph.
+
+      El mensaje de error sobre no tener permisos al usar una API puede estar relacionado con restricciones de tipo de usuario. Para obtener más información sobre los factores de acceso, consulte [Factores que afectan el acceso](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data).
+  </Collapser>
+
+  <Collapser
+    id="quickstarts"
+    title="Guías de inicio rápido sobre observabilidad instantánea"
+  >
+    Detalles sobre el acceso a las opciones disponibles en [nuestra página de Observabilidad Instantánea](https://newrelic.com/instant-observability):
+
+    * Los usuarios básicos y principales pueden instalar casi todas las soluciones de New Relic pero, como se muestra en la [tabla de tipos de usuario](#user-type-comparison-table), no pueden acceder a nuestras experiencias seleccionadas (por ejemplo, nuestra UI de APM, la UI de usuario móvil y UI usuario de infraestructura).
+    * Para el panel personalizado que viene con nuestros inicios rápidos (por ejemplo, el dashboard incluido con [nuestro inicio rápido de .NET](https://newrelic.com/instant-observability/dotnet)): el usuario básico y principal puede acceder a ellos durante 7 días.
+  </Collapser>
+
+  <Collapser
+    id="logs-capabilities"
+    title="Administración de acceso a registros"
+  >
+    Detalles sobre el acceso a <InlinePopover type="logs"/>característica por tipo de usuario:
+
+    <table>
+      <thead>
+        <tr style="width:170px">
+          <th>
+            Usuario básico
+          </th>
+
+          <th>
+            Usuario principal y usuario de plataforma completa
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            * Buscar registro
+            * Ver patrones de registros, reglas de análisis, particiones y filtros de caída
+            * Ver regla de ofuscación y expresiones (disponibles con [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices))
+            * Crear filtros de caída
+            * Crear vistas privadas guardadas
+          </td>
+
+          <td>
+            Todo característico. Esto incluye aquellos en la columna <DNT>**Basic user**</DNT> más la capacidad de:
+
+            * Configurar patrones, reglas de análisis, particiones y filtros de caída
+            * Configurar la ofuscación de registros (disponible con [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices))
+            * Crear vistas guardadas compartidas
+            * Utilice [registros de cola en vivo](/docs/logs/troubleshooting/view-log-messages-real-time-live-tail)
+
+              Estos usuarios también pueden ver [el inicio de sesión en el contexto](/docs/logs/logs-context/configure-logs-context-apm-agents) de las experiencias de UI a las que tienen acceso (por ejemplo, el usuario principal puede ver los datos log en la UI de la Errors Inbox ).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Tipo de usuario y roles [#user-type-and-roles]
+
+A continuación se ofrece una explicación de en qué se diferencian el tipo de usuario y [el acceso basado en roles](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts) :
+
+* El
+
+  <DNT>
+    **[user type](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)**
+  </DNT>
+
+  de un usuario: qué tipo de usuario convertir en usuario es una cuestión de qué espera una organización que hagan los miembros de su equipo con New Relic y cuánto valor esperan obtener de ese trabajo. Es principalmente una decisión relacionada con la facturación. Establece los permisos máximos permitidos a los que puede acceder un usuario. El tipo de usuario **no** debe usarse para controlar el acceso y los permisos de un usuario: para eso, debe usar roles.
+
+* El
+
+  <DNT>
+    **roles**
+  </DNT>
+
+  de un usuario: los roles son los que controlan el acceso de un usuario. Los roles se componen de
+
+  <DNT>
+    **permissions**
+  </DNT>
+
+  , que otorgan acceso para hacer cosas específicas en New Relic (por ejemplo, la capacidad de modificar la configuración de APM). Los roles se asignan aplicándolos a un [grupo de usuarios](#groups) y pueden estar presentes en una o más cuentas de una organización.
+
+A un usuario de New Relic se le otorga permiso para usar una característica de New Relic mediante la combinación de su a) tipo de usuario y sus b) permisos de rol. Para que un usuario de New Relic acceda a algo, su tipo de usuario y los roles asignados deben permitir ese acceso.
+
+Por ejemplo, digamos que un usuario básico tiene un rol con amplio acceso a New Relic, como [<DNT>**All product admin**</DNT>](#standard-roles) (que tienen los grupos predeterminados <DNT>**User**</DNT> y <DNT>**Admin**</DNT> ). Su tipo de usuario (usuario básico) les impediría utilizar muchas de las características a las que puede acceder un usuario principal o un usuario de plataforma completa con ese rol. Para obtener más acceso, el usuario básico tendría que convertirse en usuario principal o de plataforma completa.
+
+Como otro ejemplo: digamos que un usuario de plataforma completa tiene un rol restrictivo asignado para una cuenta específica (como [<DNT>**Read only**</DNT>](#standard-roles)). En teoría, un usuario de plataforma completa puede acceder a todo New Relic, pero en este caso su función asignada para esa cuenta restringe en gran medida su acceso. Para obtener más acceso, sería necesario cambiar sus roles asignados (por ejemplo, asignándolos a un grupo diferente o ajustando los roles asignados a su grupo).
+
+Para obtener más información sobre roles y grupos, consulte [conceptos de gestión de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts).
+
+## Administrar el tipo de usuario y las solicitudes de actualización [#manage-user-type]
+
+La forma de administrar el tipo de usuario de un usuario depende del [modelo de usuario](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models) en el que se encuentran los usuarios de su organización:
+
+* [Documentos para nuestro modelo de usuario más nuevo](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks#edit-user-type)
+* [Documentos para nuestro modelo de usuario original](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#update-user-type)
+
+Para conocer las reglas sobre facturación y degradación de usuario, consulte [Reglas de facturación y degradación](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/user-count-billing).
+
+## ¿No tienes acceso a algo? [#access]
+
+Para preguntas relacionadas con la falta de acceso a cuentas o características de New Relic, consulte [Factores que afectan el acceso](/docs/accounts/accounts-billing/general-account-settings/factors-affecting-access-features-data/#account-access).

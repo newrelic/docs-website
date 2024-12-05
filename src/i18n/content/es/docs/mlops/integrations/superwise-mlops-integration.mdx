@@ -1,0 +1,214 @@
+---
+title: Integración Superwise
+metaDescription: Send your machine learning model data from Superwise to New Relic to understand your model's performance.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Superwise incluye un [monitoreo del rendimiento de los modelos](/docs/alerts-applied-intelligence/mlops/get-started/intro-mlops/) de integración con New Relic para ayudar al usuario a agregar el estado de su IA monitoreado por Superwise a su vista operativa centralizada en New Relic.
+
+## Migrar datos de Superwise con New Relic [#integrate-superwise]
+
+La integración de KPI e incidentes de Superwise agiliza los resultados de nuestros KPI modelo listos para usar, incluida la deriva, la actividad, el incidente y cualquier KPI personalizado que configure, directamente en New Relic. Obtendrá una descripción general inmediata de qué modelos se están comportando mal y que se puede adaptar a cualquier caso de uso, lógica, segmentación, umbral y sensibilidad.
+
+Para recibir datos de Superwise en New Relic, deberá hacer lo siguiente:
+
+1. <DNT>
+     **Login into your New Relic account:**
+   </DNT>
+
+   Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > + Add more data**
+   </DNT>
+
+   .
+
+2. <DNT>
+     **Click on Superwise:**
+   </DNT>
+
+   En la barra de búsqueda, escriba
+
+   <DNT>
+     **Superwise**
+   </DNT>
+
+   .
+
+3. <DNT>
+     **Select an account ID:**
+   </DNT>
+
+   Seleccione el ID de cuenta con el que desea integrar Superwise.
+
+4. <DNT>
+     **Create two access tokens:**
+   </DNT>
+
+   * Una vez que seleccione una ID de cuenta, verá la pantalla de integración de New Relic. En
+
+     <DNT>
+       **Model Metrics Data**
+     </DNT>
+
+     , haga clic en
+
+     <DNT>
+       **Create a key**
+     </DNT>
+
+     . Esto genera un
+
+     <InlinePopover type="licenseKey"/>
+
+     .
+
+   * Además, opcionalmente, puede copiar el token de autenticación en
+
+     <DNT>
+       **Incident Insights**
+     </DNT>
+
+     . Mantenga abierta la página New Relic para pasos futuros.
+
+5. <DNT>
+     **Log into the Superwise portal:**
+   </DNT>
+
+   Ahora log en el portal Superwise y vaya a
+
+   <DNT>
+     **Notification channel settings**
+   </DNT>
+
+   . Seleccione
+
+   <DNT>
+     **New Relic**
+   </DNT>
+
+   y cree un nombre de canal.
+
+6. <DNT>
+     **Copy and paste the key and token in Superwise:**
+   </DNT>
+
+   Vuelva al dashboard de integración de New Relic y copie la clave y el token opcional que creó haciendo clic en los íconos
+
+   <DNT>
+     **copy**
+   </DNT>
+
+   . En el portal de Superwise, en el canal
+
+   <DNT>
+     **New Relic**
+   </DNT>
+
+   , pegue el
+
+   <DNT>
+     **API key**
+   </DNT>
+
+   debajo de
+
+   <DNT>
+     **Model Metrics Data**
+   </DNT>
+
+   y el
+
+   <DNT>
+     **Auth token**
+   </DNT>
+
+   debajo de
+
+   <DNT>
+     **Incidents**
+   </DNT>
+
+   . Termine haciendo clic en
+
+   <DNT>
+     **Save**
+   </DNT>
+
+   .
+
+7. <DNT>
+     **Verify the Token:**
+   </DNT>
+
+   Haga clic en el botón
+
+   <DNT>
+     **Test**
+   </DNT>
+
+   en el portal del canal Superwise para verificar que ambos tokens estén funcionando correctamente. Debería aparecer un cuadro de estado
+
+   <DNT>
+     **green**
+   </DNT>
+
+   o
+
+   <DNT>
+     **red**
+   </DNT>
+
+   para indicar la verificación.
+
+<InstallFeedback/>
+
+## Vea y explore sus modelos Superwise en el panel de New Relic
+
+Una vez que un usuario configura la integración de New Relic en Superwise, las métricas del modelo estándar se envían a New Relic y los usuarios obtienen [un panel de observabilidad](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/) del modelo dentro de New Relic. El usuario también puede configurar cualquier métrica de modelo específica y política de incidentes y enviarlas a New Relic para una observabilidad del modelo adaptada a su contexto empresarial.
+
+1. <DNT>**Go to the integration dashboard:**</DNT> Una vez que haya probado su token y haya confirmado que la integración está configurada correctamente, regrese al dashboard integración de New Relic y haga clic en <DNT>**See your data**</DNT>. Esto lo redireccionará a un dashboard generado automáticamente con tecnología Superwise.
+
+2. <DNT>**Analyze Superwise's dashboard.**</DNT> Dashboard de Superwise en New Relic contiene 3 gráficos:
+
+   * El gráfico
+
+     <DNT>
+       **Model activity**
+     </DNT>
+
+     muestra la cantidad de modelos activos, su actividad y la cantidad total de predicciones durante un período de tiempo filtrado.
+
+   * El gráfico de detección
+
+     <DNT>
+       **Model input drift**
+     </DNT>
+
+     muestra qué modelos se están desviando y pueden requerir reentrenamiento usando un nivelador de desviación del modelo, escalado entre 0 y 100.
+
+   * El gráfico
+
+     <DNT>
+       **Incident Insights**
+     </DNT>
+
+     muestra cuántos modelos tienen incidentes abiertos, cómo se distribuyen los incidentes y detalles más profundos sobre el incidente del modelo en sí.
+
+   <img
+     title="Superwise's dashboards"
+     alt="Superwise dashboards."
+     src="/images/model-performance-monitoring_screenshot-crop_superwise-dashboard.webp"
+   />
+
+3. <DNT>**Customize metrics and incidents in Superwise:**</DNT> Los equipos pueden personalizar fácilmente cualquier métrica del modelo y tipo de incidente en la plataforma Superwise. Luego pueden buscar estas métricas en la pestaña New Relic <DNT>**Browser**</DNT> debajo de <DNT>**Metrics**</DNT>. Para hacer esto, siga [las instrucciones del paso 4 en los documentos de Superwise](https://docs.superwise.ai/docs/new-relic#4-customize-metrics-and-incidents-you-would-like-to-send).
+
+4. <DNT>**Set up alert notifications:**</DNT> Una vez que haya creado un panel, podrá recibir alertas sobre sus datos. Para crear una condición NRQL <InlinePopover type="alerts"/>a partir de un gráfico, haga clic en el widget del gráfico y luego haga clic en <DNT>**Create alert condition**</DNT>. Una vez que haya nombrado y personalizado su condición, puede agregarla a una póliza existente o crear una nueva.
+
+5. <DNT>**Get notified:**</DNT> Una vez que haya creado una condición de alerta, puede elegir cómo desea que se le notifique. Consulte nuestros documentos sobre [cómo configurar el canal de notificación](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts/).
+
+6. <DNT>**Correlate your incidents:**</DNT> Además de la notificación, puede utilizar la inteligencia de incidentes para correlacionar su incidente. Consulte nuestros documentos sobre [cómo correlacionar incidentes mediante decisiones](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/).
+
+Ahora ha integrado con éxito New Relic con Superwise. La alerta recién creada ahora se correlacionará con su alerta New Relic y debería poder ver datos sobre las predicciones recientemente informadas.

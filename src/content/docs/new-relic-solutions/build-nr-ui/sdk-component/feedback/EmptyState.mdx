@@ -1,0 +1,644 @@
+---
+title: 'EmptyState'
+metaDescription: 'Learn how to work the EmptyState component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Use empty states to inform and provide instructions when:
+
+* The user interacts for the first time with a product or a feature with no data yet. e.g. After the creation of a new element.
+* Providing feedback to the user based on an action. e.g. Using the search or filter bar elements.
+* Troubleshooting is required. e.g. Configuration or permissions.
+* Data is being loaded.
+
+The empty state component should always be wrapped in with a `<Card>` component.
+
+### Usage
+
+```js
+import { EmptyState } from 'nr1'
+```
+
+### Examples
+
+#### Default
+
+```js
+<EmptyState
+  iconType={
+EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE__SOFTWARE__ALL_ENTITIES}
+  title="Add the entities you want to group"
+  description="Fill this workload with any entities from front-end to back-end across your stack."
+  additionalInfoLink={{
+    label: 'See our docs',
+    onClick: console.log,
+    to: 'https://docs.newrelic.com/',
+  }}
+  action={{
+    label: 'Add entities',
+    onClick: console.log,
+  }}
+/>
+```
+
+#### Error
+
+```js
+<EmptyState
+  type={EmptyState.TYPE.ERROR}
+  iconType={
+    
+EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE__SOFTWARE__SERVICE__S_ERROR
+  }
+  title="We couldn’t reach the database"
+  description="Refresh the page to try again. If this keeps happening, visit our support center."
+  additionalInfoLink={{
+    label: 'Visit support center',
+    onClick: console.log,
+    to: 'https://docs.newrelic.com/',
+  }}
+  action={{ label: 'Refresh the page', onClick: console.log }}
+/>
+```
+
+#### Loading
+
+```js
+<EmptyState
+  title="Hold tight—we’re fetching your data"
+  type={EmptyState.TYPE.LOADING}
+/>
+```
+
+#### Center in container
+
+```js
+<Card style={{ height: 400 }}>
+  <EmptyState
+    fullHeight
+    fullWidth
+    iconType={
+      
+EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE__SOFTWARE__ALL_ENTITIES
+    }
+    title="Add the entities you want to group"
+    description="Fill this workload with any entities from front-end to back-end across your stack."
+    additionalInfoLink={{
+      label: 'See our docs',
+      onClick: console.log,
+      to: 'https://docs.newrelic.com/',
+    }}
+    action={{
+      label: 'Add entities',
+      onClick: console.log,
+    }}
+  />
+</Card>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `action` <h5>shape</h5>
+      </td>
+
+      <td>
+        You may specify an action to provide the user with some actionable next steps to avoid leading them to a dead end.
+
+        <h3>
+          shape
+        </h3>
+
+        `ariaLabel` <h5>string</h5>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        `onClick` <h5>function</h5>
+        Callback fired any time the user clicks on the button.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+            <h4>shape</h4>
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+
+        `type` <h5>enum</h5>
+
+        <OptionReference>
+          EmptyState.ACTION_TYPE.NORMALEmptyState.ACTION_TYPE.PRIMARY
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `additionalInfoLink`<h5>shape</h5>
+      </td>
+
+      <td>
+        The information shown in the title and description can be complemented/extended with a link. This link should only be used to provide contextual information and not as an Action.
+
+        <h3>
+          shape
+        </h3>
+
+        `ariaLabel` <h5>string</h5>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        `onClick` <h5>function</h5>
+        Callback fired any time the user clicks on the link.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+            <h4>shape</h4>
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Should be used to explain why the space is empty and how to populate it.Note: `title` and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the empty state to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the empty state to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `iconType` <h5>enum</h5>
+      </td>
+
+      <td>
+        You may specify an icon which relates to the situation.
+
+        <OptionReference>
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**AREA_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**BAR_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**BILLBOARD_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**BULLET_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_ADD,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_EDIT,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**CHART**A_REMOVE,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_ADD,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_EDIT,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_FILTER,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**DASHBOARD**A_REMOVE,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**EVENT_FEED_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**HEATMAP_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**LINE_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**MARKDOWN,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**PIE_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**SCATTER_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**SERVICE_MAP_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_BAR_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**STACKED_HORIZONTAL_BAR_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**TABLE_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**TRAFFIC_LIGHTS_CHART,
+          EmptyState.ICON_TYPE.DATAVIZ**DATAVIZ**VERTICAL_BAR_CHART,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_ADD,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**DATE**A_REMOVE,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_ADD,
+          EmptyState.ICON_TYPE.DATE_AND_TIME**DATE_AND_TIME**TIME**A_REMOVE,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**ATTACHMENT,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**DOCUMENTATION,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**EMAIL**V_ALTERNATE,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_ADD,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FILE**A_REMOVE,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_ADD,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**FOLDER**A_REMOVE,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_ADD,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_EDIT,
+          EmptyState.ICON_TYPE.DOCUMENTS**DOCUMENTS**NOTES**A_REMOVE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**ANOMALIES,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**A_INSPECT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CLUSTER**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**CPU,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**DESKTOP**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MEMORY,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**MOBILE**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**A_INSPECT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**NETWORK**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_ADD,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_CONFIGURE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_EDIT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_INSPECT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_PAUSE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**A_REMOVE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**SERVER**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**HARDWARE**STORAGE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CLUSTER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_CONTAINER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_DEPLOYMENT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_MASTER_NODE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NAMESPACE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_NODE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_POD,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**KUBERNETES**K8S_SERVICE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**ALL_ENTITIES,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**APPLICATION**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**BROWSER**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CLOUD,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CODE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTAINER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CONTROL_CENTER,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**CORRELATION_REASONING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DATABASE**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DECISIONS,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DESTINATIONS,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_CONNECTION,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**DOWNSTREAM_DEPLOYMENT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**EVENT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**FEED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LIVE_VIEW,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**LOGS,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MOBILE_APPLICATION**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**MONITORING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**NODE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**OVERVIEW,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PATHWAY,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**PLUGIN**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**QUERY,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**A_CHECKED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_DISABLED,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_ERROR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_OK,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SERVICE**S_WARNING,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SOURCES,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**STACK_TRACE,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHESIZED_ENTITY,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYNTHETICS_MONITOR,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**SYSTEM,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRACES,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**TRAFFIC,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_CONNECTION,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**UPSTREAM_DEPLOYMENT,
+          EmptyState.ICON_TYPE.HARDWARE_AND_SOFTWARE**SOFTWARE**WORKLOADS,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_BOTTOM**V_ALTERNATE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_BOTTOM_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_DIAGONAL_TOP_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_HORIZONTAL,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_LEFT**V_ALTERNATE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_RIGHT**V_ALTERNATE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_TOP**V_ALTERNATE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**ARROW_VERTICAL,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**EXPAND,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**GO_TO,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**MOVE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**RESIZE,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**RETURN_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**RETURN_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**SHRINK,
+          EmptyState.ICON_TYPE.INTERFACE**ARROW**SORT,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_BOTTOM**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_LEFT**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_RIGHT**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_TOP,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_TOP**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_TOP**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CARET**CARET_TOP**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_BOTTOM**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_LEFT**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_RIGHT**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**CHEVRON**CHEVRON_TOP**WEIGHT_BOLD**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**INFO**ANNOUNCEMENT,
+          EmptyState.ICON_TYPE.INTERFACE**INFO**HELP,
+          EmptyState.ICON_TYPE.INTERFACE**INFO**INFO,
+          EmptyState.ICON_TYPE.INTERFACE**INFO**INFO**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ADJUST,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ALERT,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**A_REMOVE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_OFF,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ALERT**S_ON,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**ARCHIVE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**CENTER,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**CLOSE**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**CONFIGURE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**COPY_TO_CLIPBOARD,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**DOWNLOAD,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**DRAG,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**EDIT,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**EXPORT,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**EXTERNAL_LINK,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**FILTER,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_ADD,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**A_REMOVE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**FILTER**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**FOLLOW,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**GROUP,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**A_REMOVE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**GROUP**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**HIDE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**HIDE_OTHERS,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**HIGHLIGHT,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**IMPORT,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**MORE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**PAUSE_ALTERNATE**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**PIN,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**PLAY,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**PLAY_ALTERNATE**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**REARRANGE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**REDO,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**REFRESH,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**REMOVE**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**REPLY**A_REPLY,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SEARCH**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SELECTION**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SHARE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SHARE_LINK,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SHOW,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_BACK,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**SKIP_FORWARD,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**TAG,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**TRASH,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**TV_MODE**A_TV_MODE,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**UNDO,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**UNPIN,
+          EmptyState.ICON_TYPE.INTERFACE**OPERATIONS**UPLOAD,
+          EmptyState.ICON_TYPE.INTERFACE**PLACEHOLDERS**CUSTOM_PLACEHOLDER,
+          EmptyState.ICON_TYPE.INTERFACE**PLACEHOLDERS**ICON_PLACEHOLDER,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**ASTERISK,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**CHECKMARK,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**CHECKMARK**V_ALTERNATE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**CLOSE,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**DOLLAR_SIGN,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**EXCLAMATION**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**MINUS,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**MINUS**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**NUMBER,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**PLUS,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**PLUS**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**TIMES,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**TIMES**SIZE_8,
+          EmptyState.ICON_TYPE.INTERFACE**SIGN**TIMES**V_ALTERNATE,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**CLOSED,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**CRITICAL,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**CRITICAL**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**DISABLED,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**ENABLED,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**HEALTHY,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**LOADING,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**LOCK,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**OPEN,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**PRIVATE,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**PUBLIC,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**UNAVAILABLE,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**UNLOCK,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**WARNING,
+          EmptyState.ICON_TYPE.INTERFACE**STATE**WARNING**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**ENTER_FULL_SCREEN,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**EXIT_FULL_SCREEN,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**GRID_VIEW,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**HIGH_DENSITY_VIEW,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**LAYER_LIST,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**LIST_VIEW,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**SIXTH_SENSE,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_DARK,
+          EmptyState.ICON_TYPE.INTERFACE**VIEW**THEME_TOGGLE**S_LIGHT,
+          EmptyState.ICON_TYPE.LOCATION**LOCATION**HOME,
+          EmptyState.ICON_TYPE.LOCATION**LOCATION**MAP,
+          EmptyState.ICON_TYPE.LOCATION**LOCATION**PIN,
+          EmptyState.ICON_TYPE.LOCATION**LOCATION**WORLD,
+          EmptyState.ICON_TYPE.PROFILES**EVENTS**COMMENT,
+          EmptyState.ICON_TYPE.PROFILES**EVENTS**COMMENT**A_EDIT,
+          EmptyState.ICON_TYPE.PROFILES**EVENTS**FAVORITE,
+          EmptyState.ICON_TYPE.PROFILES**EVENTS**FAVORITE**WEIGHT_BOLD,
+          EmptyState.ICON_TYPE.PROFILES**EVENTS**LIKE,
+          EmptyState.ICON_TYPE.PROFILES**USERS**ORGANIZATION,
+          EmptyState.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_ADD,
+          EmptyState.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_EDIT,
+          EmptyState.ICON_TYPE.PROFILES**USERS**ORGANIZATION**A_REMOVE,
+          EmptyState.ICON_TYPE.PROFILES**USERS**TEAM,
+          EmptyState.ICON_TYPE.PROFILES**USERS**TEAM**A_ADD,
+          EmptyState.ICON_TYPE.PROFILES**USERS**TEAM**A_EDIT,
+          EmptyState.ICON_TYPE.PROFILES**USERS**TEAM**A_REMOVE,
+          EmptyState.ICON_TYPE.PROFILES**USERS**USER,
+          EmptyState.ICON_TYPE.PROFILES**USERS**USER**A_ADD,
+          EmptyState.ICON_TYPE.PROFILES**USERS**USER**A_EDIT,
+          EmptyState.ICON_TYPE.PROFILES**USERS**USER\_\_A_REMOVE,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title` <h5>string</h5>
+      </td>
+
+      <td>
+        Title of the empty state. It informs and gives a concise explanation of why the space is empty.Note: `title` and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Normal (default) — use it when it's the first time the user interacts with a product/feature with no data yet or to provide feedback after a user action.
+        * Error — use it to show system issues or when a configuration is needed.
+        * Loading — use it to indicate that data is being fetched or loaded.
+
+          <OptionReference>
+            EmptyState.TYPE.ERROR,
+            EmptyState.TYPE.LOADING,
+            EmptyState.TYPE.NORMAL
+          </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

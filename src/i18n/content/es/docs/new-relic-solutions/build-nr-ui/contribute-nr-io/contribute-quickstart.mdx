@@ -1,0 +1,62 @@
+---
+title: Contribuya con un inicio rápido para New Relic I/O
+metaDescription: Quickstarts course
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Imagine que desarrolló una nueva base de datos llamada FlashDB, la base de datos más ligera y rápida del espacio. Su base de datos ya es muy popular entre los desarrolladores. Usted sabe que New Relic proporciona excelentes herramientas de observabilidad, por lo que recomienda a su usuario que emplee New Relic para obtener insights de su stack. Hasta ahora, su usuario debe configurar manualmente el panel y las alertas en New Relic. Recientemente conoció la observabilidad instantánea (I/O) de New Relic , que le proporciona componentes básicos de observabilidad para obtener valor de sus datos más rápidamente.
+
+Con la creciente popularidad de su base de datos, decide ayudar al usuario de FlashDB a observarla rápida y fácilmente en New Relic.
+
+Para lograr su objetivo, contribuya con un inicio rápido a New Relic I/O para que otros usuarios puedan monitor rápidamente FlashDB.
+
+## Observabilidad instantánea [#instant-observability]
+
+[New Relic Instant observabilidad (I/O)](https://newrelic.com/instant-observability) es un ecosistema unificado de recursos de observabilidad listos para usar que lo ayudan a obtener valor inmediato de sus datos. Le permite instrumentar, monitor y analizar su pila de tecnología mientras evita la carga de la configuración manual.
+
+Con New Relic I/O, usted:
+
+* Comience más rápido
+* Reduzca el trabajo de la instrumentación manual
+* Aprenda de los expertos en observabilidad
+
+<Video
+  id="c9zprczTXj8"
+  type="youtube"
+/>
+
+Puede elegir entre cientos de inicios rápidos que agrupan los componentes básicos necesarios para instrumentar y monitorear su pila de tecnología, instalarlos con un clic e iniciar el monitoreo.
+
+## Inicio rapido [#quickstart]
+
+Con New Relic, puede recopilar, monitor e informar datos de diferentes fuentes. Puede emplear el panel para ver, explorar, personalizar, comprender y correlacionar los datos que recopila mediante diferentes gráficos fáciles de usar. También puede configurar una política de alertas para monitor el rendimiento métrico clave y recibir notificaciones de anomalías.
+
+Tradicionalmente, el usuario de FlashDB tendría que dedicar horas de desarrollo cruciales a crear paneles, alertas y otras entidades para monitor su base de datos. Pero con los inicios rápidos, puedes hacer ese trabajo por ellos. Los inicios rápidos brindan valor inmediato para su caso de uso específico. Incluyen:
+
+* Instrucciones claras para instrumentar sus servicios.
+* Bloques de construcción de observabilidad como tablero y alertas.
+
+Todo esto está disponible a través de New Relic I/O, donde los desarrolladores, socios y clientes de New Relic aportan sus soluciones de mejores prácticas. Ustedes, como desarrolladores de FlashDB, son un gran candidato para contribuir con un inicio rápido para ayudar a su usuario monitor rápidamente su instancia.
+
+## Objetivos [#objectives]
+
+* Enviar telemetry data a New Relic
+
+* Crear dashboard y alertas
+
+* Crear un inicio rápido
+
+  * Añade tu dashboard
+  * Agrega tus alertas
+  * Agregar una fuente de datos
+  * Contribuir al inicio rápido de GitHub
+
+## Requisito previo [#prerequisite]
+
+* Crea una [cuenta gratis de New Relic](https://login.newrelic.com/login)
+* Instalar [Python](https://www.python.org/downloads/)
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Antes de comenzar a crear un inicio rápido, [configure su entorno](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/deploy-your-application).
+</Callout>

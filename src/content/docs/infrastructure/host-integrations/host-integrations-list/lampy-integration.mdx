@@ -1,0 +1,118 @@
+---
+title: LAMPy stack monitoring integration
+tags:
+  - New Relic integrations
+  - LAMPy
+  - Linux
+  - Apache
+  - Python
+  - MySQL
+metaDescription: Use New Relic Linux, Apache, Python and MySQL monitoring to get a dashboard with metrics from your LAMPy application.
+redirects:
+  - /docs/infrastructure/host-integrations/host-integrations-list/lampy-integration
+  - /docs/more-integrations/open-source-telemetry-integrations/lampy/lampy-integration
+freshnessValidatedDate: never
+---
+
+Our LAMPy integration makes use of the infrastructure agent, MySQL integration, Apache integration, and Python agent to provide you with a pre-built dashboard with your most important metrics like response time, CPU utilization, traffic, and login frequencies.
+
+<img
+  title="Lampy dashboard"
+  alt="A screenshot depicting the LAMPy prebuilt dashboard"
+  src="/images/infrastructure_screenshot-full_lampy-dashboard-1.webp"
+/>
+
+<figcaption>
+  After setting up our LAMPy integration, we give you a dashboard for your LAMPy web app metrics.
+</figcaption>
+
+## Step 1: Install the infrastructure agent [#infra-install]
+
+To do this, follow [the infrastructure agent install steps](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux) for the host containing your LAMPy application.
+
+## Step 2: Install the MySQL integration [#mysql-install]
+
+Our LAMPy integration relies on the MySQL integration to work. To learn more and check requirements review our [MySQL docs](/install/mysql/).
+
+1. From [one.newrelic.com](https://one.newrelic.com) click <DNT>**Integrations & Agents > Infrastructure & OS  > MySQL**</DNT>.
+2. Follow the instructions to install the MySQL agent.
+
+## Step 3: Install the Apache integration [#apache-install]
+
+Our LAMPy integration relies on the Apache integration to work. To learn more and check requirements review our [Apache docs](/docs/infrastructure/host-integrations/host-integrations-list/apache-monitoring-integration/).
+
+1. From [one.newrelic.com](https://one.newrelic.com) click <DNT>**Integrations & Agents > Infrastructure & OS  > Apache**</DNT>.
+2. Follow the instructions on the screen to install Apache agent.
+
+## Step 4: Install the Python agent [#python-install]
+
+Our LAMPy integration relies on the Python agent to work. To learn more and check requirements review our [Python docs](/docs/apm/agents/python-agent/getting-started/introduction-new-relic-python/).
+
+1. From [one.newrelic.com](https://one.newrelic.com) click <DNT>**Integrations & Agents > Application monitoring  > Python**</DNT>.
+
+2. Name your application.
+
+3. Download the configuration file and place it in your application's root directory.
+
+4. Integrate your python agent that is connected to Django web site. This python agent also runs on the Apache server.
+
+5. Add this line to your `settings.py` file:
+
+   ```py
+     NEW_RELIC_CONFIG_FILE = BASE_DIR / 'newrelic.ini'
+   ```
+
+6. Add these lines to your `wsgi.py` file:
+
+   ```py
+   import newrelic.agent
+
+   from django.conf import settings 
+   from django.core.wsgi import get_wsgi_application
+
+   application = get_wsgi_application()
+
+   newrelic.agent.initialize(settings.NEW_RELIC_CONFIG_FILE)
+   newrelic.agent.WSGIApplicationWrapper(application)
+
+   ```
+
+## Step 5: Restart your Apache server
+
+Wait for a few minutes and then proceed to finding your data in New Relic.
+
+## Find your data [#find-data]
+
+To get your LAMPy dashboard:
+
+1. From [one.newrelic.com](https://one.newrelic.com), go to the [<DNT>**Integrations & Agents**</DNT> page](https://one.newrelic.com/marketplace).
+2. Click on <DNT>**Dashboards**</DNT>.
+3. In the search bar, type `LAMPy`.
+4. The LAMPy dashboard should appear. Click on it to install it.
+
+Your LAMPy dashboard is considered a custom dashboard and can be found in the <DNT>**Dashboards**</DNT> UI. For docs on using and editing dashboards, see [our dashboard docs](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+For information about data reported, see the docs for each of the tools you installed:
+
+* [Linux data](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux/)
+* [MySQL data](/install/mysql/#metrics)
+* [Apache data](/docs/infrastructure/host-integrations/host-integrations-list/apache-monitoring-integration/)
+* [Python data](/docs/apm/agents/python-agent/getting-started/introduction-new-relic-python/)
+
+If you installed the infrastructure agent, you'll also receive [infrastructure data](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data/#infrastructure-events).
+
+Here is an example NRQL query to check bytes sent per request:
+
+```sql
+SELECT (average(`apache.server.net.bytesPerSecond`) / average(`apache.server.net.requestsPerSecond`)) as 'Bytes sent per request' 
+FROM Metric 
+TIMESERIES auto
+```
+
+## What's next? [#whats-next]
+
+To learn more about querying your data and creating custom dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)
+* [Introduction to custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard)

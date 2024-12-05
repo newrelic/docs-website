@@ -1,0 +1,105 @@
+---
+subject:  Java agent
+releaseDate:  '2024-01-31'
+version:  8.9.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.9.0/'
+features: [“Instrumentation for Spring Webclient 5/6 captures http status code and message”, “Add status code to `grpc-1.40.0` client instrumentation”, “Add config to set the size limit of attributes on custom events”, “Add Spring instrumentation modules to support proper transaction naming”, “Add instrumentation for Vert.x 4.5.x web client and futures”, “Update Security Agent to Public Release version `1.1.0`”, “The browser header injection API now adds both the header and footer scripts”]
+bugs: [“Remove erroneous printing of stack trace in `SlowTransactionManager`”, “Convert the `ProcessPointCut` over to a weaver instrumentation module”, “Remove support for setting agent config with lower-case, dotted environment variable names”]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.9.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Instrumentation for Spring Webclient 5/6 now captures http status code and http status message [1658](https://github.com/newrelic/newrelic-java-agent/pull/1658)
+* Add status code to `grpc-1.40.0` client instrumentation  [1673](https://github.com/newrelic/newrelic-java-agent/pull/1673)
+* Add config to set the size limit of attributes on custom events (i.e. `newrelic.config.custom_insights_events.max_attribute_value`). Default size is `255` characters and the max is `4095`. [1683](https://github.com/newrelic/newrelic-java-agent/pull/1683)
+* Add Spring instrumentation modules to support proper transaction naming (route + HTTP method) of traditional annotated spring controllers as well as controllers that inherit annotations from interfaces, super classes or custom annotations. Note that because the new instrumentation can change transaction names, enabling this "enhanced transaction naming" is gated by the `newrelic.config.class_transformer.enhanced_spring_transaction_naming` agent configuration option, which is `false` by default. Thanks to @mgr32 for their help with validating the naming changes. [1675](https://github.com/newrelic/newrelic-java-agent/pull/1675)
+* Add instrumentation for Vert.x 4.5.x web client and futures [1704](https://github.com/newrelic/newrelic-java-agent/pull/1704)
+
+## Fixes
+
+* Remove erroneous printing of stack trace in `SlowTransactionManager` [1684](https://github.com/newrelic/newrelic-java-agent/pull/1684)
+* Convert the `ProcessPointCut` over to a weaver instrumentation module to better handle cases where it is used in a multi-threaded environment. [1685](https://github.com/newrelic/newrelic-java-agent/pull/1685)
+
+## Removals
+
+* Remove support for setting agent config with rarely used lower-case, dotted environment variable names (e.g. `newrelic.config.labels`). Customers relying on lower-case, dotted environment variables should switch to the standard upper-case, underscore names (e.g. `NEW_RELIC_CONFIG_LABELS`). There are no changes to documented system property behavior (via `newrelic.config.`, server-side config, YAML, or standard environment variable (via `NEW_RELIC_`). [1598](https://github.com/newrelic/newrelic-java-agent/pull/1598)
+
+## Deprecations
+
+* The browser footer injection APIs have been deprecated and will be removed in a future agent release. The header injection API now adds both the header and footer scripts. [1679](https://github.com/newrelic/newrelic-java-agent/pull/1679)
+
+The following instrumentation modules are deprecated and will be removed in the next major release:
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1`
+
+## IAST
+
+* Update Security Agent to Public Release version `1.1.0` [1710](https://github.com/newrelic/newrelic-java-agent/pull/1710)
+* Changelog: [https://github.com/newrelic/csec-java-agent/releases/tag/1.1.0](https://github.com/newrelic/csec-java-agent/releases/tag/1.1.0)
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes)
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you are moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

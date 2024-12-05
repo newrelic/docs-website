@@ -1,0 +1,154 @@
+---
+title: createTracer (SPA API)
+type: apiDoc
+shortDescription: 'Cotiza los subcomponentes de una interacción SPA por separado, incluido el tiempo de espera y el tiempo de ejecución de JS.'
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: 'SPA API call for browser to time an interaction''s sub-components separately, including wait time and JS execution time.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.interaction().createTracer(string $name[, function $callback])
+```
+
+Cotiza los subcomponentes de una interacción SPA por separado, incluido el tiempo de espera y el tiempo de ejecución de JS.
+
+## Requisitos
+
+* Browser Pro o agente Pro+SPA (v963 o superior)
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar la característica `spa` al crear una instancia de la clase `BrowserAgent` . En la matriz `features` , agregue lo siguiente:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  Para obtener más información, consulte la [documentación de instalación del navegador npm](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+Este método proporciona una forma de cronometrar los subcomponentes de una interacción SPA por separado en browser. Cada subcomponente medirá:
+
+* Tiempo de espera hasta que se ejecute la devolución de llamada
+* Tiempo de ejecución de JS de devolución de llamada una vez que se invoca
+
+Este método también se puede utilizar para cerrar la brecha asincrónica creada por métodos asíncronos no instrumentados.
+
+Si se guarda la interacción actual, New Relic creará un [evento`BrowserTiming` ](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browsertiming-attributes).
+
+El método `createTracer()` devuelve un método de devolución de llamada ajustado, que debes invocar desde tu código. La devolución de llamada envuelta hará tres cosas cuando se invoque:
+
+1. Registra el final de la parte asíncrona del rastreador personalizado.
+2. Ejecuta la devolución de llamada original pasada a `createTracer()` con los mismos argumentos y contexto.
+3. Veces la ejecución de la devolución de llamada original.
+
+Un [`BrowserInteraction`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browserinteraction-attributes) que ejecuta `createTracer()` creará un [evento`BrowserTiming` ](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browsertiming-attributes). Cualquier XHR nuevo o traza personalizada creada durante la devolución de llamada se incluirá como parte de la interacción.
+
+Una interacción no se considerará completa hasta que finalice todo su rastreador. Esto es lo que permite al rastreador incluir funciones asíncronas que el agente del navegador no maneja de forma predeterminada.
+
+## Parámetros
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$name`
+
+        _cadena_
+      </td>
+
+      <td>
+        Requerido. Este se utilizará como nombre del rastreador.
+
+        Si no incluye un nombre, browser no agrega un nodo al árbol de interacción. El tiempo de devolución de llamada será un atributo del nodo padre.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$callback`
+
+        _función_
+      </td>
+
+      <td>
+        Opcional. Una devolución de llamada que contiene el trabajo sincrónico que se ejecutará al final del trabajo asíncrono. Para ejecutar esta devolución de llamada, llame a la función contenedora devuelta usando `createTracer()`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Valores de retorno
+
+Devuelve un método que envuelve la devolución de llamada original. Cuando se invoca este método, llama a la devolución de llamada original y finaliza el tiempo asíncrono.
+
+## Ejemplos
+
+### Crear rastreador [#tracer-example]
+
+Si simplemente desea medir cuánto tiempo tarda una llamada a una función de JavaScript en particular, puede pasar la función a `createTracer()` como una devolución de llamada. Esto invoca inmediatamente la devolución de llamada del contenedor devuelto:
+
+```js
+newrelic
+  .interaction()
+  .createTracer('customSegment', function myCallback () {
+    // ... do your work ...
+  })();
+```
+
+En este escenario, el rastreador personalizado resultante tendrá una duración de espera asíncrona insignificante, así como una duración síncrona igual al tiempo de ejecución de `myCallback()`.
+
+### Traza un API asincrónico no instrumentado [#asynch-api-tracer]
+
+De forma predeterminada, el agente del navegador incluye muchas de las funciones asincrónicas más comunes (como `setTimeout()`). Sin embargo, hay algunas funciones que no se manejan automáticamente (por ejemplo, `requestAnimationFrame()`). Además, se producen algunos casos en los que no se puede determinar fácilmente la causalidad (por ejemplo, una implementación RPC personalizada a través de websockets). Para estos casos, puede utilizar `createTracer()` para asegurarse de que la devolución de llamada a estas funciones no instrumentadas se considere parte de la interacción.
+
+El uso de `createTracer()` no es necesario para ningún sistema de programación asíncrono basado en API asíncronas empaquetadas de forma nativa por el agente del navegador, como `setTimeout()`, `setImmediate()`, `Promise()`, `fetch()` y `XMLHttpRequest()`. El agente del navegador salvará automáticamente los límites asíncronos creados por estas API.
+
+En el código de ejemplo siguiente, tiene una función, `doAsyncWork()`, que acepta una devolución de llamada y la ejecuta de forma asincrónica en algún momento en el futuro. Desea medir tanto el tiempo entre el momento en que se invoca `doAsyncWork()` y el momento en que la devolución de llamada comienza a ejecutarse (el tiempo de espera asíncrono) y el tiempo necesario para ejecutar la devolución de llamada (el tiempo de devolución de llamada sincrónica).
+
+```js
+var wrappedCallback = newrelic
+  .interaction()
+  .createTracer('customSegment', doTheWork);
+
+doAsyncWork(wrappedCallback);
+
+function doTheWork() {
+  // ... do your work ...
+}
+```
+
+Aquí hay una línea de tiempo de eventos para el tiempo del rastreador:
+
+<img
+  title="spa-trace-async-timeline.png"
+  alt="SPA async timeline image"
+  src="/images/browser_diagram_async-timeline.webp"
+/>

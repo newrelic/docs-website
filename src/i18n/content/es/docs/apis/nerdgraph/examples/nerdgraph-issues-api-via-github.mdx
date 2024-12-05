@@ -1,0 +1,2115 @@
+---
+title: 'Tutorial de Nerdgraph: API de consulta de problemas e incidentes'
+metaDescription: Configure issues in alerts and applied intelligence
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta página es un lugar para que usted y su equipo aprendan cómo consultar sus datos para problemas e incidentes y luego configurar características usando nuestra API NerdGraph.
+
+Nuestros dos tipos de datos principales son `Issue Type` y `Incident Type`.
+
+## Tipo de problema [#issue-type]
+
+Puede obtener más información sobre los tipos de datos de New Relic aquí:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Nombre
+      </th>
+
+      <th>
+        Tipo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ID de cuenta
+      </td>
+
+      <td>
+        \[Int!]!
+      </td>
+
+      <td>
+        Una lista de ID de cuenta. Como problema podría correlacionarse con otros de otras cuentas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        acknowledgedAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se reconoció el problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        acknowledgedBy
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        El usuario que reconoció el problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        activatedAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        Hora en que se activó el problema: createdAt + gracePeriod.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        closedAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se cerró el problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        closedBy
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        El usuario que cerró manualmente el problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        createdAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se creó el problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        descripción
+      </td>
+
+      <td>
+        \[String!]!
+      </td>
+
+      <td>
+        Una lista de descripciones de incidentes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityGuids
+      </td>
+
+      <td>
+        \[EntityGuid!]
+      </td>
+
+      <td>
+        Una lista de identificador de entidad único.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityNames
+      </td>
+
+      <td>
+        \[String!]
+      </td>
+
+      <td>
+        Una lista de nombres de entidades.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityTypes
+      </td>
+
+      <td>
+        \[String!]
+      </td>
+
+      <td>
+        Una lista de tipos de entidades.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ID del entorno
+      </td>
+
+      <td>
+        \[Int!]!
+      </td>
+
+      <td>
+        Consulte [la descripción general de la inteligencia aplicada](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/) para obtener información sobre los entornos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        eventType
+      </td>
+
+      <td>
+        ¡Cadena!
+      </td>
+
+      <td>
+        Un evento de problema que podría ser `INCIDENT_ADDED`, `USER_ACTION`, `INCIDENT_CLOSED`, etc.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        incidentIds
+      </td>
+
+      <td>
+        \[String!]
+      </td>
+
+      <td>
+        Una lista de identificaciones de incidentes en este número. En algunos casos puede haber miles de incidentes en un problema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        isCorrelated
+      </td>
+
+      <td>
+        ¡Booleano!
+      </td>
+
+      <td>
+        Verdadero significa que otros problemas estaban correlacionados con éste.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        está inactivo
+      </td>
+
+      <td>
+        ¡Booleano!
+      </td>
+
+      <td>
+        Consulte nuestra documentación para conocer los problemas inactivos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        issueId
+      </td>
+
+      <td>
+        ¡IDENTIFICACIÓN!
+      </td>
+
+      <td>
+        Identificador de emisión.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        orígenes
+      </td>
+
+      <td>
+        \[String!]!
+      </td>
+
+      <td>
+        Una lista de orígenes de incidentes como incidente, anomalía y externo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        prioridad
+      </td>
+
+      <td>
+        ¡Prioridad!
+      </td>
+
+      <td>
+        La cuestión prioritaria. Puede ser uno de: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        fuentes
+      </td>
+
+      <td>
+        \[String!]!
+      </td>
+
+      <td>
+        Una lista de fuentes del incidente como newrelic o externas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        estado
+      </td>
+
+      <td>
+        ¡Estado del problema!
+      </td>
+
+      <td>
+        El estado del problema puede ser uno de: `CREATED`, `ACTIVATED`, `DEACTIVATED`, `CLOSED`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        título
+      </td>
+
+      <td>
+        \[String!]!
+      </td>
+
+      <td>
+        Una lista de títulos de incidentes subyacentes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        totalIncidents
+      </td>
+
+      <td>
+        ¡En t!
+      </td>
+
+      <td>
+        El recuento del incidente subyacente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        updatedAt
+      </td>
+
+      <td>
+        EpochMilliseconds!
+      </td>
+
+      <td>
+        La hora en que se actualizó el problema por última vez.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ciclo de vida y estado del problema [#issue-lifecycle]
+
+Problemas inactivos:
+
+* Un problema puede quedar inactivo si es demasiado grande, lo que significa que contiene 5000 incidentes o más.
+* Un asunto ocioso no acepta más incidentes.
+* Un problema inactivo no se correlacionará con otros problemas.
+
+## Tipo de incidente [#incident-type]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Campo
+      </th>
+
+      <th>
+        Tipo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ID de cuenta
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Una identificación de cuenta en la que se almacena este incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        closedAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se cerró el incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        createdAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se creó el incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        descripción
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        La descripción se genera a partir del nombre de la política y el nombre de la condición o se proporciona a través de API.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityGuids
+      </td>
+
+      <td>
+        EntityGuid
+      </td>
+
+      <td>
+        Un identificador de entidad único.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityNames
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Un nombre de entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entityTypes
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Un tipo de entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ID del entorno
+      </td>
+
+      <td>
+        ¡En t!
+      </td>
+
+      <td>
+        Consulte [nuestra documentación](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/) para obtener información sobre los entornos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ID de incidente
+      </td>
+
+      <td>
+        IDENTIFICACIÓN
+      </td>
+
+      <td>
+        identificador de incidentes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        prioridad
+      </td>
+
+      <td>
+        Prioridad
+      </td>
+
+      <td>
+        Prioridad del incidente. Puede ser uno de: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        estado
+      </td>
+
+      <td>
+        Estado del incidente.
+      </td>
+
+      <td>
+        Estado del incidente. Puede ser uno de:`CREATED`, `CLOSED`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        timestamp
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        Timestamp del evento del incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        título
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        La descripción que el usuario dio a la condición, si la proporcionó.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        updatedAt
+      </td>
+
+      <td>
+        EpochMilliseconds
+      </td>
+
+      <td>
+        La hora en que se actualizó el incidente por última vez.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        anomalyId
+      </td>
+
+      <td>
+        Opcional
+      </td>
+
+      <td>
+        Si este incidente se originó a partir de una anomalía de New Relic, tendrá una identificación de anomalía.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        conditionFamilyId
+      </td>
+
+      <td>
+        Opcional
+      </td>
+
+      <td>
+        La identificación de la condición
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ID de política
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        El ID de la política que generó este incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        aggregationTags
+      </td>
+
+      <td>
+        \[KeyValue!]
+      </td>
+
+      <td>
+        Agregación de etiquetas relacionadas con este incidente.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Listar y filtrar problemas [#list-filter-issues]
+
+La consulta `issues` le permite paginar todos sus problemas por cuenta. También permite algunas funciones de filtrado de los problemas.
+
+<CollapserGroup>
+  <Collapser
+    id="list-issues"
+    title="Listar problemas"
+  >
+    Si no proporciona ningún dato de filtrado, obtendrá los datos del problema de las últimas 24 horas.
+
+    ### Pedido
+
+    ```graphql
+    {
+      currentUser {
+        account(id: ACCOUNT_ID) {
+          aiIssues {
+            issues {
+              issues {
+                issueId
+                priority
+                state
+                title
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "issueId": "f0668430-60c4-4bfd-8188-fcbeefb1d5ca",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": [
+                      "NrAiIncident query result is > 30.0 for 1 minutes on 'ROI test for photon with checkbox'"
+                    ]
+                  },
+                  {
+                    "issueId": "12427573-fe89-4be1-9411-30158e0a9874",
+                    "priority": "MEDIUM",
+                    "state": "CLOSED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+                  {
+                    "issueId": "2b3fcffe-5330-4766-bc51-392b6db5eedc",
+                    "priority": "MEDIUM",
+                    "state": "CLOSED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cursor"
+    title="Paginación del cursor"
+  >
+    Tenga en cuenta que la cantidad máxima de problemas que se pueden devolver a través de la paginación está establecida por NRQL [LIMIT MAX](/docs.newrelic.com/docs/nrql/nrql-syntax-clauses-functions/#sel-limit) y será necesario filtrar si se excede este límite.
+
+    ### Solicitud inicial
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issues(cursor: "") {
+              issues {
+                issueId
+                priority
+                state
+                title
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados iniciales
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "issueId": "bda33b52-c70b-47b9-abe3-9e859a394037",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "Signal lost for 5 minutes on 'Percent All Facet'"
+                    ]
+                  },
+                  {
+                    "issueId": "242c713c-7654-491c-808e-3aa7fc44812b",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": [
+                      "Anomaly: Non-web throughput"
+                    ]
+                  },
+
+
+                  {
+                    "issueId": "f19c9803-fb24-4d5d-9c35-16f659bceb3a",
+                    "priority": "MEDIUM",
+                    "state": "CLOSED",
+                    "title": [
+                      "Anomaly: Error rate"
+                    ]
+                  }
+                ],
+                "nextCursor": "=ATN"
+              }
+            }
+          }
+        }
+      },
+    ```
+
+    Luego, en su solicitud posterior, proporcione el valor del cursor de la respuesta anterior `nextCursor` , hasta que `nextCursor` esté vacío.
+
+    La solicitud posterior debería gustar:
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issues(cursor: "=ATN") {
+              issues {
+                issueId
+                priority
+                state
+                title
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="filter"
+    title="Problemas de filtro"
+  >
+    Filtre los problemas por guías de entidad, tipos de entidad, prioridad de problemas o estados de problemas o cualquier combinación de esos atributos.
+
+    ```graphql
+    "Filter issues"
+    input FilterIssues {
+      "entityGuids"
+      entityGuids: [EntityGuid!]
+      "entityTypes"
+      entityTypes: [String!]
+      "ids"
+      ids: [ID!]
+      "priority"
+      priority: [String!]
+      "states"
+      states: [IssueState!]
+    }
+    ```
+
+    Aquí `entityGuides` y `entityTypes` son atributos de entidad definidos en la página [Más información sobre entidades de New Relic](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) .
+
+    * La prioridad del problema podría ser una de las siguientes: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
+    * Los estados del problema podrían ser uno de los siguientes: `CREATED`, `ACTIVATED`, `DEACTIVATED`, `CLOSED`
+    * `timeWindow` Con horas de inicio y finalización en formato EpochMillisegundos. Si no se proporciona, el valor predeterminado son las últimas 24 horas.
+    * Y `cursor` como ya hemos visto
+
+    Busquemos problemas con prioridad `CRITICAL` y estado `CLOSED`:
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issues(filter: {priority: "CRITICAL", states: CLOSED}) {
+              issues {
+                issueId
+                priority
+                state
+                title
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "issueId": "5948472b-f7dd-4a6e-aec0-de0390732495",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "team_store_validation_error query result is > 0.0 on 'Team Store Domain Specific Validation Error'"
+                    ]
+                  },
+                  {
+                    "issueId": "570c2770-efd2-4c0f-8dc8-fbc1ae69a4df",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "PageViewTiming query deviated from the baseline at least once in 5 minutes on 'Onyx_check_Mark test'"
+                    ]
+                  },
+                  {
+                    "issueId": "d056be64-829e-4a83-bfb1-e3232eb3a59b",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "Transaction query result is > 2.0 on 'Error fetching commitments (TF)'"
+                    ]
+                  },
+    ```
+
+    Los resultados se pueden filtrar aún más por `entityGuid`.
+
+    ```graphql
+    {
+      actor {
+        account(id: 1) {
+          aiIssues {
+            issues(filter: {priority: "CRITICAL", states: CLOSED, 
+              entityGuids: ["MXxBUE18QVBQTElDQVRJT058MzIxNjY2NA", "MXxBUE18QVBQTElDQVRJT058MzIxNzY1NA"]}) {
+              issues {
+                entityTypes
+                entityNames
+                entityGuids
+                issueId
+                priority
+                state
+                title
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "entityGuids": [
+                      "MXxBUE18QVBQTElDQVRJT058MzIxNjY2NA",
+                      "MXxBUE18QVBQTElDQVRJT058MzIxNzY1NA"
+                    ],
+                    "entityNames": [
+                      "hour-timeslice-writer (eu-production)",
+                      "metric-timeslice-service (eu-production)"
+                    ],
+                    "entityTypes": [
+                      "Application"
+                    ],
+                    "issueId": "1a3a0581-aefc-4027-91a0-a941072101c0",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "'Custom/CassandraClient/hour_timeslice_cluster_main/percentile/95th' > 0.5 for at least 5 minutes on 'hour-timeslice-writer (eu-production)'",
+                      "'Custom/CassandraClient/hour_timeslice_cluster_main/percentile/95th' > 0.5 for at least 5 minutes on 'metric-timeslice-service (eu-production)'"
+                    ]
+                  },
+                  {
+                    "entityGuids": [
+                      "MXxBUE18QVBQTElDQVRJT058MzIxNzY1NA"
+                    ],
+                    "entityNames": [
+                      "metric-timeslice-service (eu-production)"
+                    ],
+                    "entityTypes": [
+                      "Application"
+                    ],
+                    "issueId": "fd5fda9e-6bfe-469a-8cf7-822986401033",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "'Custom/CassandraClient/hour_timeslice_cluster_main/percentile/95th' > 0.5 for at least 5 minutes on 'metric-timeslice-service (eu-production)'"
+                    ]
+                  }
+                ],
+                "nextCursor": null
+              }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find"
+    title="Buscar problemas por ID"
+  >
+    NerdGraph también te permite realizar consultas por ID de problema.
+
+    ### Pedido
+
+    ```graphql
+    {
+      actor {
+        account(id: 1) {
+          aiIssues {
+            issues(filter: {ids: ["e506476f-d804-4e5c-92b5-da8db622f10d", 
+            "1bd514d9-2682-4366-8f28-5d742fd000af"]}) {
+              issues {
+                entityTypes
+                entityNames
+                entityGuids
+                issueId
+                priority
+                state
+                title
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "entityGuids": [
+                      ""
+                    ],
+                    "entityNames": [
+                      "Metric query"
+                    ],
+                    "entityTypes": [
+                      "Query"
+                    ],
+                    "issueId": "e506476f-d804-4e5c-92b5-da8db622f10d",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "Metric query result is > 1.4 for 1 minutes on 'Hillel March Demo'"
+                    ]
+                  },
+                  {
+                    "entityGuids": [
+                      "MXxFWFR8U0VSVklDRXw1ODIzMTc1ODk4Mjc1OTI4Mjk5"
+                    ],
+                    "entityNames": [
+                      "clm-10"
+                    ],
+                    "entityTypes": [
+                      "Query"
+                    ],
+                    "issueId": "1bd514d9-2682-4366-8f28-5d742fd000af",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": [
+                      "clm-10 query result is > 30.0 for 7 minutes on 'SPIKE: signal-accumulation-service (production) — Kafka lag'"
+                    ]
+                  }
+                ],
+                "nextCursor": null
+              }
+            }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Listar y filtrar evento de problema [#list-filter-issue-events]
+
+La consulta `issuesEvents` le permite paginar todos los eventos de incidencias por cuenta. También permite algunas funciones de filtrado sobre los problemas del evento.
+
+<CollapserGroup>
+  <Collapser
+    id="list-issue-events"
+    title="Listar eventos de problemas"
+  >
+    Si no proporciona ningún dato de filtrado, obtendrá los datos del evento del problema de las últimas 24 horas.
+
+    ### Pedido
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issuesEvents {
+              issues {
+                issueId
+                priority
+                state
+                title
+                eventType
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "issuesEvents": {
+                "issues": [
+                  {
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "e6da1499-cb1c-4522-bb04-6fdb487e8e2b",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "notification-request-builder query result is < 10.0 for 1 minutes on 'error logs in nrb'",
+                      "notification-request-builder query result is > 1600.0 for 5 minutes on 'nrb debug logs'"
+                    ]
+                  },
+                  {
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "e6da1499-cb1c-4522-bb04-6fdb487e8e2b",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "notification-request-builder query result is < 10.0 for 1 minutes on 'error logs in nrb'",
+                      "notification-request-builder query result is > 1600.0 for 5 minutes on 'nrb debug logs'"
+                    ]
+                  },
+                  {
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "e6da1499-cb1c-4522-bb04-6fdb487e8e2b",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "notification-request-builder query result is < 10.0 for 1 minutes on 'error logs in nrb'",
+                      "notification-request-builder query result is > 1600.0 for 5 minutes on 'nrb debug logs'"
+                    ]
+                  },
+                  {
+                    "eventType": "INCIDENT_ADDED",
+                    "issueId": "e6da1499-cb1c-4522-bb04-6fdb487e8e2b",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "notification-request-builder query result is < 10.0 for 1 minutes on 'error logs in nrb'",
+                      "notification-request-builder query result is > 1600.0 for 5 minutes on 'nrb debug logs'"
+                    ]
+                  },
+
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="filter-issues-events"
+    title="Evento de problema de filtro"
+  >
+    Filtre el evento del problema por `entityGuids`, `entityTypes`, prioridad del problema o estados del problema o cualquier combinación de esos atributos.
+
+    ```handlebars
+    "Filter issues events"
+    input FilterIssuesEvents {
+      "entityGuids"
+      entityGuids: [EntityGuid!]
+      "entityTypes"
+      entityTypes: [String!]
+      "ids"
+      ids: [ID!]
+    }
+    ```
+
+    * `timeWindow` Con horas de inicio y finalización en formato `EpochMilliseconds` . Si no se proporciona, el valor predeterminado son las últimas 24 horas.
+    * Y `cursor` como ya hemos visto
+
+    Busquemos `issuesEvents` para un `issueId` específico.
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issuesEvents(filter: {ids: "fe0d512f-36c7-4b7a-8a80-4c47c040807a"}) {
+              issues {
+                issueId
+                priority
+                state
+                title
+                eventType
+                entityGuids
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    <DNT>
+      **Results**
+    </DNT>
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "issuesEvents": {
+                "issues": [
+                  {
+                    "entityGuids": [
+                      "MXxTWU5USHxNT05JVE9SfGUyMzA0MjczLTQzNjUtNDRlZS1iODcxLTM5MGRhNDc1ODUxNA"
+                    ],
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "fe0d512f-36c7-4b7a-8a80-4c47c040807a",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "Test for alert emails query result is > 1.0 for 1 minutes on 'Matan email condition'"
+                    ]
+                  },
+                  {
+                    "entityGuids": [
+                      "MXxTWU5USHxNT05JVE9SfGUyMzA0MjczLTQzNjUtNDRlZS1iODcxLTM5MGRhNDc1ODUxNA"
+                    ],
+                    "eventType": "STATE_CHANGE",
+                    "issueId": "fe0d512f-36c7-4b7a-8a80-4c47c040807a",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "Test for alert emails query result is > 1.0 for 1 minutes on 'Matan email condition'"
+                    ]
+                  },
+                  {
+                    "entityGuids": [
+                      "MXxTWU5USHxNT05JVE9SfGUyMzA0MjczLTQzNjUtNDRlZS1iODcxLTM5MGRhNDc1ODUxNA"
+                    ],
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "fe0d512f-36c7-4b7a-8a80-4c47c040807a",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": [
+                      "Test for alert emails query result is > 1.0 for 1 minutes on 'Matan email condition'"
+                    ]
+                  },
+                  {
+                    "entityGuids": [
+                      "MXxTWU5USHxNT05JVE9SfGUyMzA0MjczLTQzNjUtNDRlZS1iODcxLTM5MGRhNDc1ODUxNA"
+                    ],
+                    "eventType": "ATTRIBUTES_UPDATED",
+                    "issueId": "fe0d512f-36c7-4b7a-8a80-4c47c040807a",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": [
+                      "Test for alert emails query result is > 1.0 for 1 minutes on 'Matan email condition'"
+                    ]
+                  },
+    ...
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Listar y filtrar incidentes [#list-filter-incidents]
+
+La consulta `incidents` le permite paginar todos sus incidentes por cuenta. También permite algunas funciones de filtrado en cada incidente.
+
+Se admiten los siguientes tipos de incidencia:
+
+* NewRelicIncident
+* AnomalyIncident
+* RestIncident
+
+<CollapserGroup>
+  <Collapser
+    id="list incidents"
+    title="Lista de incidentes"
+  >
+    Si no proporcionas ningún dato de filtrado, obtendrás los datos de incidentes de las últimas 24 horas.
+
+    El siguiente ejemplo recupera `NewRelicIncident` incidente:
+
+    ### Peticiones
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            incidents {
+              incidents {
+                priority
+                state
+                title
+                description
+                incidentId
+                updatedAt
+                ... on AiIssuesNewRelicIncident {
+                  policyIds
+                  conditionFamilyId
+                  accountIds
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "incidents": {
+                "incidents": [
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "685305",
+                    "description": [
+                      "Policy: 'Roi nov Test'. Condition: 'RB PV '"
+                    ],
+                    "incidentId": "a86493e4-2d25-4023-a9e5-975bfaae19a8",
+                    "policyIds": "195617",
+                    "priority": "HIGH",
+                    "state": "CREATED",
+                    "title": "[\"PageView query result is > 1.3 for 2 minutes on 'RB PV '\"]",
+                    "updatedAt": 1651058532782
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "1284850",
+                    "description": [
+                      "Policy: 'Itzik first policy'. Condition: 'error logs in nrb'"
+                    ],
+                    "incidentId": "5de80214-6444-4e0c-aaee-fb1c42fb2f23",
+                    "policyIds": "707052",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"notification-request-builder query result is < 10.0 for 1 minutes on 'error logs in nrb'\"]",
+                    "updatedAt": 1651058523473
+                  },
+                  {
+                    "description": [
+                      "Anomaly: Error rate"
+                    ],
+                    "incidentId": "df4ba4f3-9463-4389-873f-b13efb67dca5",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": "[\"Anomaly: Error rate\"]",
+                    "updatedAt": 1651058478828
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "685305",
+                    "description": [
+                      "Policy: 'Roi nov Test'. Condition: 'RB PV '"
+                    ],
+                    "incidentId": "0063f153-9152-476d-b435-54cc38ce0245",
+                    "policyIds": "195617",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"PageView query result is > 1.3 on 'RB PV '\"]",
+                    "updatedAt": 1651058472738
+                  },
+                  {
+                    "description": [
+                      "Anomaly: It was different from normal"
+                    ],
+                    "incidentId": "2cb820d1-a070-4c27-860b-fb862ecd42a7",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": "[\"Anomaly: It was different from normal\"]",
+                    "updatedAt": 1651058449078
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "751197",
+                    "description": [
+                      "Policy: 'slide_Test'. Condition: 'SumOf'"
+                    ],
+                    "incidentId": "07104b47-0263-4529-b27d-6aff95eecd87",
+                    "policyIds": "199127",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"TransactionError query result is > 3.0 on 'SumOf'\"]",
+                    "updatedAt": 1651058442361
+                  },
+    ```
+  </Collapser>
+
+  <Collapser
+    id="filter-incidents"
+    title="Filtrar incidente"
+  >
+    ### Paginación del cursor
+
+    Tenga en cuenta que el número máximo de incidentes que se pueden devolver a través de la paginación lo establece NRQL [LIMIT MAX](/docs.newrelic.com/docs/nrql/nrql-syntax-clauses-functions/#sel-limit) y será necesario filtrar si se excede este límite.
+
+    ### Filtrar incidente
+
+    Filtre el incidente por guías de entidad, tipos de entidad, prioridad de problemas o estados de problemas o cualquier combinación de ellos.
+
+    ```handlebars
+    "Filter incidents"
+    input FilterIncidents {
+      "entityGuids"
+      entityGuids: [EntityGuid!]
+      "entityTypes"
+      entityTypes: [String!]
+      "ids"
+      ids: [ID!]
+      "priority"
+      priority: [String!]
+      "states"
+      states: [IncidentState!]
+    }
+    ```
+
+    * `timeWindow` Con horas de inicio y finalización en formato `EpochMilliseconds` . Si no se proporciona, el valor predeterminado son las últimas 24 horas.
+    * Y `cursor` como ya hemos visto.
+    * Busquemos un incidente con prioridad `CRITICAL` y estado `CREATED`.
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            incidents(filter: {priority: "CRITICAL", states: CREATED}) {
+              incidents {
+                priority
+                state
+                title
+                description
+                incidentId
+                updatedAt
+                ... on AiIssuesNewRelicIncident {
+                  policyIds
+                  conditionFamilyId
+                  accountIds
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "incidents": {
+                "incidents": [
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "195908",
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Production'"
+                    ],
+                    "incidentId": "44630d21-9d32-4107-a308-3ed1c4f72bce",
+                    "policyIds": "40053",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Production'\"]",
+                    "updatedAt": 1651059983674
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "195908",
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Production'"
+                    ],
+                    "incidentId": "3e2b2b2a-e45b-46d6-b45d-637b74b5efda",
+                    "policyIds": "40053",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Production'\"]",
+                    "updatedAt": 1651059983607
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "195907",
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Staging'"
+                    ],
+                    "incidentId": "6e934358-d16b-494d-abb2-6300c4d96f11",
+                    "policyIds": "40053",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Staging'\"]",
+                    "updatedAt": 1651059983223
+                  },
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "195907",
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Staging'"
+                    ],
+                    "incidentId": "97373770-caad-46cd-a69d-a358de3be090",
+                    "policyIds": "40053",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Staging'\"]",
+                    "updatedAt": 1651059983059
+                  },
+
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-incidents-by-id"
+    title="Buscar incidentes por ID de incidente"
+  >
+    La API te permite consultar por ID de incidente:
+
+    ### Pedido
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            incidents(filter: {ids: "97373770-caad-46cd-a69d-a358de3be090"}) {
+              incidents {
+                priority
+                state
+                title
+                description
+                incidentId
+                updatedAt
+                ... on AiIssuesNewRelicIncident {
+                  policyIds
+                  conditionFamilyId
+                  accountIds
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultado
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "incidents": {
+                "incidents": [
+                  {
+                    "accountIds": "1",
+                    "conditionFamilyId": "195907",
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Staging'"
+                    ],
+                    "incidentId": "97373770-caad-46cd-a69d-a358de3be090",
+                    "policyIds": "40053",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Staging'\"]",
+                    "updatedAt": 1651059983059
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Listar y filtrar evento de incidente [#list-filter-incident-events]
+
+La consulta `incidentsEvents` le permite paginar todos los eventos de su incidente por cuenta. También permite alguna funcionalidad de filtrado sobre el evento de incidente.
+
+<CollapserGroup>
+  <Collapser
+    id="list-incident-events"
+    title="Listar evento incidente"
+  >
+    Si no proporciona ningún dato de filtrado, obtendrá los datos del evento incidente de las últimas 24 horas.
+
+    ### Pedido
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            incidentsEvents {
+              incidents {
+                priority
+                incidentId
+                state
+                title
+                updatedAt
+                description
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "incidentsEvents": {
+                "incidents": [
+                  {
+                    "description": [
+                      "Policy: 'e2e: hrr9ISoLd'. Condition: 'e2e: VceqCmtcT'"
+                    ],
+                    "incidentId": "693b7dcb-5a6b-4923-acaa-9d4e7e568ae5",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": "[\"Provider . Burst Balance . Average < 1 at least once in 2 minutes on 'vol-03e3199dd4b4ffac4'\"]",
+                    "updatedAt": 1651060591602
+                  },
+                  {
+                    "description": [
+                      "Policy: 'e2e: hrr9ISoLd'. Condition: 'e2e: VceqCmtcT'"
+                    ],
+                    "incidentId": "fb0dcb8b-052f-4056-8579-ff7cae8fa879",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": "[\"Provider . Burst Balance . Average < 1 at least once in 2 minutes on 'vol-00163b96c3ccd2199'\"]",
+                    "updatedAt": 1651060587005
+                  },
+                  {
+                    "description": [
+                      "Policy: 'AirMonitor ML Dashboard Staging'. Condition: 'Latency in Staging'"
+                    ],
+                    "incidentId": "42bcd3e2-bc2d-4a3d-9e85-ebd8597e6eba",
+                    "priority": "CRITICAL",
+                    "state": "CLOSED",
+                    "title": "[\"Metric query result is > 0.69 for 5 minutes on 'Latency in Staging'\"]",
+                    "updatedAt": 1651060560312
+                  },
+
+    ```
+  </Collapser>
+
+  <Collapser
+    id="filter-incident-events"
+    title="Filtrar incidente evento"
+  >
+    ### Paginación del cursor
+
+    Para paginar sus datos, debe incluir el campo `nextCursor` en su consulta inicial.
+
+    ### Filtrar incidente evento
+
+    Filtre el evento de incidente por guías de entidad, tipos de entidad, prioridad del incidente o estados del incidente o cualquier combinación de estos.
+
+    ```handlebars
+    "Filter incidents events"
+    input FilterIncidentsEvents {
+      "entityGuids"
+      entityGuids: [EntityGuid!]
+      "entityTypes"
+      entityTypes: [String!]
+      "ids"
+      ids: [ID!]
+    }
+    ```
+
+    * `timeWindow` Con horas de inicio y finalización en formato `EpochMilliseconds` . Si no se proporciona, el valor predeterminado son las últimas 24 horas.
+    * Y `cursor` como ya hemos visto.
+
+    Vamos a consultar incidente evento, para que podamos obtener sus 'incidentId's:
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            incidentsEvents(filter: {ids: "cd512082-6ebe-46ac-a6dc-d387dc86dc80"}) {
+              incidents {
+                priority
+                incidentId
+                state
+                title
+                updatedAt
+                description
+                createdAt
+                timestamp
+                ... on AiIssuesNewRelicIncident {
+                  accountIds
+                  policyIds
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "incidentsEvents": {
+                "incidents": [
+                  {
+                    "accountIds": "1",
+                    "createdAt": "1651060523109",
+                    "description": [
+                      "Policy: 'KPT: Low-urgency'. Condition: 'Kafka broker offline'"
+                    ],
+                    "incidentId": "cd512082-6ebe-46ac-a6dc-d387dc86dc80",
+                    "policyIds": "80113",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "timestamp": 1651060523110,
+                    "title": "[\"Signal lost for 35 minutes on 'Kafka broker offline'\"]",
+                    "updatedAt": 1651060523110
+                  },
+                  {
+                    "accountIds": "1",
+                    "createdAt": "1651060523109",
+                    "description": [
+                      "Policy: 'KPT: Low-urgency'. Condition: 'Kafka broker offline'"
+                    ],
+                    "incidentId": "cd512082-6ebe-46ac-a6dc-d387dc86dc80",
+                    "policyIds": "80113",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "timestamp": 1651060523110,
+                    "title": "[\"Signal lost for 35 minutes on 'Kafka broker offline'\"]",
+                    "updatedAt": 1651060523110
+                  },
+                  {
+                    "accountIds": "1",
+                    "createdAt": "1651060523109",
+                    "description": [
+                      "Policy: 'KPT: Low-urgency'. Condition: 'Kafka broker offline'"
+                    ],
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Configurar problemas característicos [#configure-some-issues-features]
+
+El servicio de incidencias tiene algún parámetro de configuración.
+
+Para obtener el parámetro de configuración actual para su entorno, puede ejecutar la consulta `configByEnvironment` .
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="configbyenvironment"
+    title="Consulta ConfigByEnvironment"
+  >
+    ### Pedido
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            configByEnvironment {
+              config {
+                flappingInterval
+                inactivePeriod
+                incidentTimeout
+                issueTtl
+                maxIssueSize
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "currentUser": {
+          "account": {
+            "aiIssues": {
+              "configByEnvironment": {
+                "config": {
+                  "flappingInterval": 0,
+                  "gracePeriod": [
+                    {
+                      "period": 60,
+                      "priority": "CRITICAL"
+                    },
+                    {
+                      "period": 300,
+                      "priority": "HIGH"
+                    },
+                    {
+                      "period": 600,
+                      "priority": "MEDIUM"
+                    },
+                    {
+                      "period": 900,
+                      "priority": "LOW"
+                    }
+                  ],
+                  "inactivePeriod": 14400,
+                  "incidentTimeout": 90000,
+                  "issueTtl": 259200,
+                  "maxIssueSize": 5000
+                }
+              }
+            }
+          }
+        }
+      }
+    ```
+
+    Aquí, cada configuración de entorno tiene el siguiente parámetro:
+
+    ```graphql
+    "Environment configuration object"
+    type EnvironmentConfiguration {
+      "Flapping interval in seconds"
+      flappingInterval: Seconds
+      "Grace periods per priority"
+      gracePeriod: [GracePeriodConfig!]
+      "Inactive period in seconds"
+      inactivePeriod: Seconds
+      "Incident timeout in seconds"
+      incidentTimeout: Seconds
+      "Issue TTL in seconds"
+      issueTtl: Seconds
+      "Max incidents in the issue"
+      maxIssueSize: Int
+    }
+    ```
+
+    Usando el `mutations` correspondiente, también puede cambiar el parámetro de configuración del entorno `issueTtl` y `gracePeriod` .
+
+    * `aiIssuesUpdateIssueTtl`
+    * `aiIssuesUpdateGracePeriod`
+
+    ### Pedido
+
+    ```graphql
+    mutation {
+      aiIssuesUpdateIssueTtl(accountId: YOUR_ACCOUNT_ID, issueTtl: 259200) {
+        error
+        config {
+          flappingInterval
+          gracePeriod {
+            period
+            priority
+          }
+          inactivePeriod
+          incidentTimeout
+          issueTtl
+          maxIssueSize
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "aiIssuesUpdateIssueTtl": {
+          "config": {
+            "flappingInterval": 0,
+            "gracePeriod": [
+              {
+                "period": 60,
+                "priority": "CRITICAL"
+              },
+              {
+                "period": 300,
+                "priority": "HIGH"
+              },
+              {
+                "period": 600,
+                "priority": "MEDIUM"
+              },
+              {
+                "period": 900,
+                "priority": "LOW"
+              }
+            ],
+            "inactivePeriod": 14400,
+            "incidentTimeout": 90000,
+            "issueTtl": 259200,
+            "maxIssueSize": 5000
+          },
+          "error": null
+        }
+      },
+
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Reconocer o no reconocer problemas [#resolve-ack-issues]
+
+Con `mutations` puede reconocer o no reconocer y resolver el problema determinado mediante su `issueId`.
+
+* aiIssuesAckIssue
+* aiIssuesResolveIssue
+* aiIssuesUnackIssue
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="ackissues"
+    title="Reconocer o no reconocer problemas"
+  >
+    ### Pedido
+
+    ```graphql
+    mutation {
+      aiIssuesResolveIssue(accountId: 10581561, issueId: "f0846f5e-fc9d-4dc0-afdd-07cce7cc6fc4") {
+        error
+        result {
+          action
+          accountId
+          issueId
+          routingKey
+        }
+      }
+    }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+    "data": {
+        "aiIssuesResolveIssue": {
+          "error": null,
+          "result": {
+            "accountId": 10581561,
+            "action": "RESOLVE",
+            "issueId": "f0846f5e-fc9d-4dc0-afdd-07cce7cc6fc4",
+            "routingKey": "93538a443af520d10e7999fdb183ebf21e4cb6bd"
+          }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Ejecutando desde la línea de comando [#running-from-command-line]
+
+Para ejecutar consulta desde la línea de comando:
+
+1 Obtenga su clave de API, obtenga o cree una en la [UIde clave de API](https://staging-one.newrelic.com/api-keys-ui).
+
+2 Exportarlo a tu shell con `export API_KEY=my_api_key`
+
+3 Ejecute estos ejemplos:
+
+<Callout variant="important">
+  Debe incluir un encabezado de suscripción experimental en sus solicitudes. De lo contrario, obtendrá errores de acceso como este:
+
+  ```json
+  {"data":{"actor":{"account":{"aiIssues":{"issues":null}}}},"errors":[{"extensions":{"errorClass":"ACCESS_DENIED","nrOnly":{}},"locations":[{"column":70,"line":1}],"message":"You must opt in to using experimental schemas by passing the 'nerd-graph-unsafe-experimental-opt-in: AiIssues' header.\n\nProviding the header indicates that you acknowlege that the field(s) you are querying are subject to breaking changes.\n","path":["actor","account","aiIssues","issues"]}]}%
+  ```
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="listallissues"
+    title="Ejemplo: enumerar todos los problemas"
+  >
+    Enumere todos los problemas de las últimas 24 horas
+
+    ### Cómo se ven las solicitudes en UIde GraphQL
+
+    ```graphql
+    {
+      currentUser {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiIssues {
+            issues {
+              issues {
+                issueId
+                priority
+                state
+                title
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ### Desde la línea de comando la misma solicitud.
+
+    ```json
+    {
+    "data": {
+        "aiIssuesResolveIssue": {
+          "error": null,
+          "result": {
+            "accountId": 10581561,
+            "action": "RESOLVE",
+            "issueId": "f0846f5e-fc9d-4dc0-afdd-07cce7cc6fc4",
+            "routingKey": "93538a443af520d10e7999fdb183ebf21e4cb6bd"
+          }
+        }
+    ```
+
+    ### Resultados
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "aiIssues": {
+              "issues": {
+                "issues": [
+                  {
+                    "issueId": "eb152a9f-def7-45bd-9b3f-34ec61ef8c82",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+                  {
+                    "issueId": "9ae6a86a-582f-4102-8757-ee11c1a20dfc",
+                    "priority": "HIGH",
+                    "state": "CREATED",
+                    "title": [
+                      "Web throughput < 50 for at least 5 minutes on 'error-group-control-plane (staging)'"
+                    ]
+                  },
+                  {
+                    "issueId": "e19aa2d0-2b12-4148-aedd-848577e9c4fc",
+                    "priority": "CRITICAL",
+                    "state": "CREATED",
+                    "title": [
+                      "clm-10 query result is > 1.0 for 15 minutes on 'NO_CONSUMER'"
+                    ]
+                  },
+                  {
+                    "issueId": "9184ab3c-4e45-4bc9-b2a5-f78c23a13197",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+                  {
+                    "issueId": "e2d05a25-2a7e-4b3c-b5bf-8a236f2a0360",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+                  {
+                    "issueId": "b478bd0e-baa1-42ed-8911-d32249d45010",
+                    "priority": "CRITICAL",
+                    "state": "ACTIVATED",
+                    "title": [
+                      "PageViewTiming query deviated from the baseline at least once in 5 minutes on 'Onyx_check_Mark test'"
+                    ]
+                  },
+                  {
+                    "issueId": "f672153a-262b-4405-85a7-874709ed21ff",
+                    "priority": "MEDIUM",
+                    "state": "CREATED",
+                    "title": [
+                      "Anomaly: It was different from normal"
+                    ]
+                  },
+                  ...
+    ```
+  </Collapser>
+</CollapserGroup>

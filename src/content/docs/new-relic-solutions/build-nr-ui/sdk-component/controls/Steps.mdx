@@ -1,0 +1,284 @@
+---
+title: 'Steps'
+metaDescription: 'Learn how to work the Steps component'
+freshnessValidatedDate: 2024-06-03
+---
+
+### Usage
+
+```js
+import { Steps } from 'nr1'
+```
+
+### Examples
+
+#### Default active step
+
+```js
+<Steps defaultValue="monitor-workflows">
+  <StepsItem label="Add your data" value="add-data" checked>
+    Connect your data to New Relic and gain insights in 5 minutes.
+  </StepsItem>
+  <StepsItem label="Explore your data" value="explore-data" checked>
+    Traverse your entire stack in one place.
+  </StepsItem>
+  <StepsItem label="Monitor critical workflows" value="monitor-workflows">
+    <Stack
+      directionType={Stack.DIRECTION_TYPE.VERTICAL}
+      gapType={Stack.GAP_TYPE.LARGE}
+    >
+      <StackItem>
+        Detect outages and poor performance before your users notice.
+      </StackItem>
+      <StackItem>
+        <Button sizeType={Button.SIZE_TYPE.SMALL}>Learn more</Button>
+      </StackItem>
+    </Stack>
+  </StepsItem>
+  <StepsItem label="Configure an alert" value="configure-alert">
+    Configure an alert and we'll tell you when to worry.
+  </StepsItem>
+  <StepsItem label="Query your data" value="query-data">
+    Write your first query in our powerful New Relic Query Language (NRQL).
+  </StepsItem>
+  <StepsItem label="Set up a dashboard" value="setup-dashboard">
+    Create and share dashboards that matter to you and your team.
+  </StepsItem>
+</Steps>
+```
+
+#### Linear steps
+
+```js
+function render() {
+  const STEP_IDS = {
+    ACCOUNT: 'ACCOUNT',
+    CONDITIONS: 'CONDITIONS',
+  };
+  const CONDITIONS = [
+    'Critical Throughput (web)',
+    'Critical Error rate',
+    'Critical Response time (web)',
+    'Critical Background throughput',
+  ];
+  const CONDITIONS_DESCRIPTION =
+    'Recommendations based on the number of similar entities using this condition.';
+  class ConditionCreationSteps extends React.PureComponent {
+    constructor() {
+      super(...arguments);
+      this.state = {
+        activeStep: STEP_IDS.CONDITIONS,
+        conditions: [],
+        invalid: undefined,
+      };
+      this._onClickNext = this._onClickNext.bind(this);
+    }
+    _onChangeCondition(evt, condition) {
+      const { checked } = evt.target;
+      if (checked) {
+        return this.setState((state) => ({
+          conditions: [...state.conditions, condition],
+        }));
+      }
+      this.setState((state) => ({
+        conditions: state.conditions.filter((curr) => curr !== condition),
+      }));
+    }
+    _onClickNext() {
+      const { conditions } = this.state;
+      const conditionsStepCompleted = conditions.length > 0;
+      if (conditionsStepCompleted) {
+        return this.setState({
+          activeStep: STEP_IDS.ACCOUNT,
+          invalid: null,
+        });
+      }
+      this.setState({ invalid: 'Select at least one condition' });
+    }
+    renderConditions() {
+      const { invalid, activeStep, conditions } = this.state;
+      const showSummary = activeStep !== STEP_IDS.CONDITIONS;
+      if (showSummary) {
+        return (
+          <ul>
+            {conditions.map((condition, index) => (
+              <li key={index}>{condition}</li>
+            ))}
+          </ul>
+        );
+      }
+      return (
+        <Stack
+          directionType={Stack.DIRECTION_TYPE.VERTICAL}
+          gapType={Stack.GAP_TYPE.LARGE}
+        >
+          <StackItem>
+            <CheckboxGroup
+              invalid={invalid}
+              description={CONDITIONS_DESCRIPTION}
+            >
+              {CONDITIONS.map((condition, index) => (
+                <Checkbox
+                  key={index}
+                  label={condition}
+                  checked={conditions.includes(condition)}
+                  onChange={(evt) => this._onChangeCondition(evt, condition)}
+                />
+              ))}
+            </CheckboxGroup>
+          </StackItem>
+          <StackItem>
+            <Button
+              sizeType={Button.SIZE_TYPE.SMALL}
+              spacingType={[
+                Button.SPACING_TYPE.NONE,
+                Button.SPACING_TYPE.NONE,
+                Button.SPACING_TYPE.LARGE,
+              ]}
+              type={Button.TYPE.PRIMARY}
+              onClick={this._onClickNext}
+            >
+              Next
+            </Button>
+          </StackItem>
+        </Stack>
+      );
+    }
+    render() {
+      const { activeStep, conditions } = this.state;
+      const conditionsStepCompleted = conditions.length > 0;
+      return (
+        <Steps
+          defaultValue="conditions"
+          value={activeStep}
+          onChange={(evt, value) => this.setState({ activeStep: value })}
+        >
+          <StepsItem
+            label="Create recommended conditions"
+            value={STEP_IDS.CONDITIONS}
+            checked={conditionsStepCompleted}
+            expanded
+          >
+            {this.renderConditions()}
+          </StepsItem>
+          <StepsItem
+            label="Select an account"
+            value={STEP_IDS.ACCOUNT}
+            disabled={
+              !conditionsStepCompleted || activeStep === STEP_IDS.CONDITIONS
+            }
+          >
+            <Dropdown title="Select an account">
+              <DropdownItem>Example Account 1</DropdownItem>
+              <DropdownItem>Example Account 2</DropdownItem>
+              <DropdownItem>Example Account 3</DropdownItem>
+            </Dropdown>
+          </StepsItem>
+        </Steps>
+      );
+    }
+  }
+  return <ConditionCreationSteps />;
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Steps items to render inside the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>any</h5>
+      </td>
+
+      <td>
+        The initial step that should be active.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Function called when the user clicks over a step.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":"Event source of the callback."},{"name":"stepValue","type":"any","description":"The value of the step."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Steps.SPACING_TYPE.EXTRA_LARGE,
+          Steps.SPACING_TYPE.LARGE,
+          Steps.SPACING_TYPE.MEDIUM,
+          Steps.SPACING_TYPE.NONE,
+          Steps.SPACING_TYPE.OMIT,
+          Steps.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>any</h5>
+      </td>
+
+      <td>
+        The step with the matching value will be marked as active. Active steps are automatically expanded. If you don't want the step to be expanded you should mark it as `disabled`.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,193 @@
+---
+title: Monitor los procesos en segundo plano de Ruby
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: How to configure New Relic's Ruby agent to instrument background jobs.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro agente Ruby instrumentó automáticamente varios marcos de trabajo en segundo plano comunes. También puedes personalizarlo para trazar cualquier tarea en segundo plano. Los datos de los trabajos en segundo plano aparecen en la [página<DNT>**Transactions**</DNT> ](/docs/apm/applications-menu/monitoring/transactions-page)de APM como <DNT>**Non-web transactions**</DNT>.
+
+## Marco soportado [#supported_frameworks]
+
+El siguiente marco de trabajo en segundo plano se admite de forma predeterminada en versiones recientes del agente Ruby:
+
+* [Resque instrumentación](/docs/agents/ruby-agent/background-jobs/resque-instrumentation) (Agente Ruby 3.4.0)
+* [Instrumentación Sidekiq](/docs/agents/ruby-agent/background-jobs/sidekiq-instrumentation) (agente Ruby 3.6.0)
+* [Delayed::Job instrumentación](/docs/agents/ruby-agent/background-jobs/delayedjob) (Ruby agent 2.10)
+
+<Callout variant="important">
+  El usuario [de JRuby](/docs/agents/ruby-agent/miscellaneous/new-relic-jruby) puede ver problemas con la CPU métrica.
+</Callout>
+
+Si está utilizando estos marcos, los trabajos de monitoreo en segundo plano generalmente no requieren configuración adicional.
+
+## Monitor trabajos en segundo plano personalizados [#custom_background_jobs]
+
+Puede implementar trabajos en segundo plano personalizados para que aparezcan en la [página APM<DNT>**Transactions**</DNT> ](/docs/apm/applications-menu/monitoring/transactions-page)como <DNT>**Non-web transactions**</DNT>. Para monitor <DNT>**Non-web transactions**</DNT> mientras usa un framework no compatible, debe agregar instrumentación personalizada.
+
+Por ejemplo, un trabajo en segundo plano ejecuta periódicamente una tarea llamada `SalesOrganization#find_new_leads`.
+
+1. Agregue el módulo `ControllerInstrumentation` .
+
+2. Utilice la directiva `add_transaction_tracer` <DNT>**below**</DNT> la definición del método
+
+3. Agregue `:category => :task` para decirle al agente que esta traza es un <DNT>**Non-web transaction**</DNT>.
+
+   ```ruby
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     include
+       ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+     def find_new_leads
+       ...
+     end
+     add_transaction_tracer :find_new_leads, :category => :task
+   end
+   ```
+
+   Puede pasar una cadena a `:category`, pero los valores solo aparecerán en la página APM <DNT>**Transactions**</DNT> si la cadena comienza con `OtherTransaction/`.
+
+## Monitor métodos de fondo personalizados [#custom_methods]
+
+Usando la API del agente Ruby, puedes designar métodos específicos para trazar el <DNT>**Non-web transactions**</DNT>. Esto recopila trazas para trabajos de ejecución lenta y asocia errores capturados a la transacción.
+
+Para instrumentar un método de clase, use la clase `singleton`.
+
+Por ejemplo, un trabajo en segundo plano ejecuta periódicamente una tarea llamada `SalesOrganization#find_new_leads`.
+
+1. Agregue el módulo `ControllerInstrumentation` <DNT>**below**</DNT> la definición del método.
+
+2. Utilice la directiva `add_transaction_tracer`
+
+3. Agregue `:category => :task` para decirle al agente que esta traza es un <DNT>**Non-web transaction**</DNT>.
+
+   ```ruby
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     def self.find_new_leads
+       ...
+     end
+     class << self
+         include
+           ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+       add_transaction_tracer :find_new_leads, :category => :task
+     end
+   end
+   ```
+
+   Para más información, consulte [Ruby métrica personalizada](/docs/agents/ruby-agent/features/ruby-custom-metrics).
+
+## Monitor procesos de corta duración [#short]
+
+Asegúrese de que el proceso no se esté ejecutando antes de que el agente se conecte a los servidores backend. Para hacerlo, haga que el agente Ruby se conecte sincrónicamente a New Relic, en lugar del comportamiento asincrónico predeterminado.
+
+Primero, en su Gemfile, agregue `require: false` al final de su instalación de gema `newrelic_rpm` :
+
+```ruby
+gem 'newrelic_rpm', require: false
+```
+
+Luego, llame [`manual_start`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic%2FAgent%3Amanual_start) y pase la opción `:sync_startup => true` :
+
+```ruby
+require 'new_relic/agent'
+NewRelic::Agent.manual_start(:sync_startup => true)
+```
+
+<DNT>**Note:**</DNT> La mayoría de las opciones de configuración se pueden pasar al inicio manual.
+
+El uso `require 'new_relic/agent'` requerirá el código del agente y garantizará que el agente no se ejecute hasta que lo inicie manualmente.
+
+Si el proceso es más corto que el [ciclo de recolección](/docs/using-new-relic/welcome-new-relic/get-started/glossary#harvest-cycle) del agente, deberá cerrar manualmente el agente con [`::NewRelic::Agent.shutdown`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent:shutdown) para garantizar que se envíen todos los datos en cola.
+
+## Configurar newrelic.yml para procesos en segundo plano [#config_file]
+
+La configuración de su <DNT>**newrelic.yml**</DNT> depende del contexto de la aplicación en segundo plano.
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails"
+    title="Aplicación en segundo plano sin Rails"
+  >
+    Si su aplicación en segundo plano no es una aplicación Rails que ya ejecuta el agente Ruby, copie su archivo <DNT>**newrelic.yml**</DNT> en el directorio donde lanzó el trabajo en segundo plano o en el subdirectorio <DNT>**config**</DNT> . Asegúrate de que incluya tu <InlinePopover type="licenseKey"/>.
+
+    Los trabajos en segundo plano que no se ejecutan en un contexto Rails examinarán la variable de entorno `NEW_RELIC_ENV` para determinar qué sección del archivo de configuración leer, recurriendo a las variables de entorno `RUBY_ENV`, `RAILS_ENV` y `RACK_ENV` en secuencia. y finalmente, de forma predeterminada, `development` si no se establece ninguna de estas variables de entorno.
+  </Collapser>
+
+  <Collapser
+    id="existing_rails_app"
+    title="Monitor de entorno de trabajo en segundo plano de New Relic"
+  >
+    Si su trabajo en segundo plano se ejecuta en el contexto de una aplicación web existente que ya está monitoreada con New Relic, el agente Ruby seleccionará automáticamente su archivo <DNT>**newrelic.yml**</DNT> existente. Los trabajos en segundo plano que inician el entorno Rails de su aplicación utilizarán la variable de entorno `RAILS_ENV` para determinar qué sección del archivo <DNT>**newrelic.yml**</DNT> leer.
+  </Collapser>
+</CollapserGroup>
+
+## Informar a un nombre de aplicación alternativo [#reporting_to_an_alternate_application_name]
+
+Puede hacer que los trabajos que se ejecutan en el contexto de una aplicación web New Relic existente aparezcan con un [nombre de aplicación diferente](/docs/apm/new-relic-apm/installation-configuration/naming-your-application) en la UI de APM.
+
+1. El código de trabajador requiere comenzar <DNT>**before**</DNT> `newrelic_rpm` .
+
+2. Establezca la variable de entorno `NEW_RELIC_APP_NAME` en el nombre de la aplicación que se utilizará para sus trabajos en segundo plano al iniciar sus procesos de trabajo en segundo plano. Esto anulará la configuración `app_name` en su `newrelic.yml`.
+
+   ```bash
+   NEW_RELIC_APP_NAME="My Background Jobs"
+   ./bin/my_background_worker.rb
+   ```
+
+## Asegúrese de que el agente comience [#start_agent]
+
+El agente Ruby se iniciará automáticamente en la mayoría de los casos tan pronto como usted `require 'newrelic_rpm'`, a menos que el agente detecte un nombre de ejecutable, un nombre de tarea de rake o una constante en la lista negra. Esto evita que se inicie durante tareas comunes de rake y sesiones de consola interactiva.
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails_standalone"
+    title="Script independiente Non-Rails"
+  >
+    El script independiente que se ejecuta sin Rails generalmente iniciará el agente tan pronto como `require 'newrelic_rpm'`. Si tiene un script que se bifurca o demoniza antes de comenzar su trabajo principal, es posible que desee posponer esta llamada `require` hasta que finalice la configuración inicial.
+  </Collapser>
+
+  <Collapser
+    id="existin_rails_app"
+    title="Tareas en segundo plano con gema daemon"
+  >
+    Si utiliza la [gema daemon](https://rubygems.org/gems/daemons) para iniciar tareas en segundo plano, es posible que el agente Ruby no se inicie y tampoco emita ningún registro. Esto sucede porque la gema daemon cambia el directorio de trabajo a `/` antes de ejecutar su código en segundo plano. Luego, el agente intenta resolver las rutas a su archivo de configuración y archivo de registro relativo al directorio de trabajo actual del proceso host.
+
+    Para permitir que el agente se inicie en esta situación, establezca variables de entorno con las ubicaciones del archivo de configuración del agente y el archivo de registro; Por ejemplo:
+
+    ```ruby
+    ENV['NRCONFIG'] ||= File.dirname(__FILE__) +
+      '/../../config/newrelic.yml'
+    ENV['NEW_RELIC_LOG'] ||= File.dirname(__FILE__) +
+      '/../../log/newrelic_agent.log'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para obtener más información, consulte la documentación sobre [cómo controlar el inicio del agente.](/docs/agents/ruby-agent/troubleshooting/controlling-when-ruby-agent-starts)
+
+## Monitor de secuencia de comandos [#monitoring_scripts]
+
+Las [instrucciones de inicio del agente](#start_agent) se aplican cuando se ejecutan trabajos en segundo plano en un daemon. Si un script ejecuta una única tarea en segundo plano y sale, cierre manualmente el agente con `::NewRelic::Agent.shutdown` cuando finalice el script. Esto garantiza que el recolector de New Relic reciba los datos. Por ejemplo:
+
+```ruby
+require 'newrelic_rpm'
+
+class SalesOrganization
+  include
+    ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+  def find_new_leads
+    ...
+  end
+  add_transaction_tracer :find_new_leads, :category => :task
+end
+
+SalesOrganization.new.find_new_leads
+::NewRelic::Agent.shutdown
+```

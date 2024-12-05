@@ -1,0 +1,46 @@
+---
+title: Ejemplos de tiempo de respuesta promedio (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: Some examples of how to use the New Relic API Explorer (v2) to get your app's average application response time.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A continuación se muestra un ejemplo de cómo utilizar New Relic API Explorer (v2) para obtener el tiempo de respuesta promedio de su aplicación durante un período de tiempo específico.
+
+## Tiempo de respuesta promedio [#average_response]
+
+El tiempo de respuesta promedio (milisegundos) es el valor que aparece en el gráfico principal de su aplicación en la [página APM <DNT>**Summary**</DNT> ](/docs/applications-menu/applications-overview). New Relic utiliza esta fórmula para calcular el tiempo de respuesta:
+
+```
+Response time = HttpDispatcher:average_call_time + ((WebFrontend/Queue:call_count * WebFrontend/Queue:average_response_time) / HttpDispatcher:call_count)
+```
+
+Para obtener los valores métricos, utilice los siguientes dos comandos.
+
+En estos ejemplos, se ha utilizado el mismo período de tiempo para cada uno y ambos están resumidos (promediados).
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.xml" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=HttpDispatcher&values[]=average_call_time&values[]=call_count&from=2014-03-01T20:59:00+00:00&to=2014-03-01T21:59:00+00:00&summarize=true'
+```
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.xml" \
+     -H "X-Api-Key:${API_KEY}" -i \
+     -d 'names[]=WebFrontend/QueueTime&values[]=call_count&values[]=average_response_time&from=2014-03-01T20:59:00+00:00&to=2014-03-01T21:59:00+00:00&summarize=true'
+```
+
+Es posible que su aplicación no tenga tiempo de cola durante el período de tiempo en cuestión. En ese caso, la métrica `WebFrontend/QueueTime` tendrá un valor cero.
+
+<Callout variant="tip">
+  Si su aplicación <DNT>**never**</DNT> informó un tiempo de cola, la métrica `WebFrontend/QueueTime` no existirá.
+</Callout>
+
+## Tiempo de respuesta [#app_rep_time]
+
+En la [página APM <DNT>**Summary**</DNT> ](/docs/applications-menu/applications-overview), [el tiempo de respuesta](/docs/data-analysis/user-interface-functions/view-your-data/response-time) es la línea superpuesta dentro del gráfico principal de su aplicación. Para obtener los valores métricos que se muestran en esta línea, use la misma fórmula y dos comandos descritos anteriormente, pero elimine `summarize=true` de los comandos.

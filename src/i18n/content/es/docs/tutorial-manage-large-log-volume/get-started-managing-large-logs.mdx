@@ -1,0 +1,220 @@
+---
+title: Cómo gestionar un gran volumen log
+metaDescription: Discover actionable steps for managing large amounts of log data to reduce toil and save on cost. Learn more about log ingestion in this documentation.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Los sistemas modernos crean un gran volumen de datos log . Es posible que hoy en día esté tratando con cientos de gigabytes a docenas de terabytes, y la cantidad seguirá aumentando a medida que su sistema crezca. Cuando necesite buscar en su registro, encontrará horas de trabajo tratando de descubrir un registro valioso y relevante. Enviar todos sus registros a una herramienta de administración de registros puede ayudar a reducir esta tarea, pero rápidamente encontrará obstáculos organizativos y costos crecientes a medida que ingiera más registros. New Relic resuelve este problema proporcionando herramientas para ingerir solo registros valiosos para reducir costos, una UI unificada para correlacionar su registro con sus servicios y varias formas de organizar su registro antes de ahogarse en ellos.
+
+Ya sea que esté configurando una plataforma de administración de registros por primera vez o esté migrando a New Relic, este tutorial le explicará cómo usar New Relic para administrar una gran cantidad de datos log . Comenzará reenviando su registro a New Relic, lo que significa enviar sus datos log a New Relic automáticamente. Luego identificará qué registro ingerir y cuál descartar. Finalmente, organizará su registro mediante particiones y análisis.
+
+<img
+  title="log-dashboard"
+  alt="An image displaying New Relic's log monitoring dashboard"
+  src="/images/logs_screenshot-crop_journey-dash.webp"
+/>
+
+## Elegir una plataforma de administración de registros [#choose]
+
+Una vez que haya identificado que tiene un problema con la administración de registros, es hora de elegir una plataforma de administración de registros. Hay muchas plataformas por ahí. Algunos se centran en la automatización rápida pero sacrifican la facilidad de uso. Otros se centran en características complejas, pero ocultan sus precios.
+
+La filosofía de New Relic cuando se trata de <InlinePopover type="logs"/>se centra en tres cosas: queremos que nuestra solución de registro sea <DNT>**flexible, transparent, and usage-based**</DNT>. Hablemos rápidamente de lo que significan:
+
+* <DNT>
+    **Flexible**
+  </DNT>
+
+  : Cada uno necesita cosas diferentes de su registro. Es posible que algunos necesiten ingerir una gran cantidad para mantener registros, mientras que otros pueden necesitar ingerir una pequeña cantidad. Es posible que algunos necesiten analizar en gran medida su registro, mientras que otros apenas lo analizan. Nuestra plataforma de administración de logs te brinda herramientas para administrar lo que nos envías.
+
+* <DNT>
+    **Transparent**
+  </DNT>
+
+  : No hay sorpresas en la facturación. New Relic le cobra solo por los datos que ingiere a un precio fijo por gigabyte.
+
+* <DNT>
+    **Usage-based**
+  </DNT>
+
+  : Pague solo por el registro que ingiera. No todos los registros son valiosos, por lo que no sirve de nada ingerir y pagar por registros que nunca utilizará. En este tutorial exploraremos cómo ingerir registros de forma selectiva de una manera asequible y eficaz.
+
+## Comencemos: reenvía tu registro [#forward]
+
+Para reenviar sus datos log a New Relic, elija una o más de estas opciones:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Opción de reenvío de registros
+      </th>
+
+      <th>
+        Cuándo usar
+      </th>
+
+      <th>
+        Instalar
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Agente APM
+      </td>
+
+      <td>
+        Por defecto, nuestro agente APM hace tres cosas:
+
+        * Agregue metadatos a su registro, lo que le brinda logs en el contexto (capacidad de ver datos de registro en varios lugares relevantes de nuestra plataforma)
+
+        * Envía tu registro a New Relic.
+
+        * Reporte métrico de desempeño para su aplicación [Lea más sobre nuestras capacidades APM](/introduction-apm/)
+
+          Esta es una opción popular para equipos de DevOps y organizaciones más pequeñas porque le permite informar fácilmente el registro de la aplicación, sin necesidad de soluciones adicionales de terceros. [Obtenga más información sobre el registro de APM.](/docs/apm/new-relic-apm/getting-started/get-started-logs-context)
+      </td>
+
+      <td>
+        <SideBySide>
+          <Side>
+            <TechTileGrid>
+              <TechTile
+                name="Go agent"
+                icon="logo-go"
+                to="https://docs.newrelic.com/docs/apm/agents/go-agent/configuration/go-agent-logging/"
+              />
+
+              <TechTile
+                name="Java agent"
+                icon="logo-java"
+                to="https://one.newrelic.com/marketplace?account=&state=bc1aa4bb-2cbb-cce1-db7e-df9debdf4b27"
+              />
+
+              <TechTile
+                name=".NET agent"
+                icon="logo-dotnet"
+                to="https://one.newrelic.com/marketplace?account=&state=97a39162-d880-5fd3-a5f0-330bb44595fa"
+              />
+
+              <TechTile
+                name="Node.js agent"
+                icon="logo-nodejs"
+                to="https://one.newrelic.com/marketplace/install-data-source?account=&state=c4521520-1485-7926-fc41-3f12bf575964"
+              />
+            </TechTileGrid>
+          </Side>
+
+          <Side>
+            <TechTileGrid>
+              <TechTile
+                name="PHP agent"
+                icon="logo-php"
+                to="https://one.newrelic.com/nr1-core?state=aa633b41-72d4-009c-3abf-55dcf64894fe"
+              />
+
+              <TechTile
+                name="Python agent"
+                icon="logo-python"
+                to="https://one.newrelic.com/nr1-core?state=20fda75b-58fb-a92a-f9e1-7b052035c6e8"
+              />
+
+              <TechTile
+                name="Ruby agent"
+                icon="logo-ruby"
+                to="https://one.newrelic.com/nr1-core?state=d69143ab-605c-579b-25bf-cc6e5fee5b80"
+              />
+            </TechTileGrid>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente de infraestructura
+      </td>
+
+      <td>
+        Con nuestro agente de infraestructura, puede capturar cualquier registro presente en su host, incluido el registro de su aplicación.
+
+        En comparación con el uso de un agente APM para informar el registro, esto puede requerir un poco más de configuración, pero le brinda opciones mucho más poderosas (por ejemplo, la capacidad de recopilar atributos personalizados, lo cual no puede hacer con <InlinePopover type="apm"/>agente).
+      </td>
+
+      <td>
+        <TechTileGrid>
+          <TechTile
+            name="Infrastructure agent"
+            icon="logo-newrelic"
+            to="/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/"
+          />
+        </TechTileGrid>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Servicios log de terceros
+      </td>
+
+      <td>
+        Contamos con [una amplia gama de integración para otros servicios de registro](/docs/logs/forward-logs/enable-log-management-new-relic), incluidos Amazon, Microsoft, Fluentd, Fluent Bit, Kubernetes, Logstash y más.
+      </td>
+
+      <td>
+        [Soluciones log de terceros](https://one.newrelic.com/marketplace?account=1606862&state=2ae57d9a-eb5e-d8ab-c5aa-31c9c00bceb7)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Log API o extremo TCP
+      </td>
+
+      <td>
+        Cuando desee un control más preciso sobre qué y cómo se envían los registros a New Relic.
+      </td>
+
+      <td>
+        [Registro API](/docs/logs/log-api/introduction-log-api/) o [extremo TCP](/docs/logs/log-api/use-tcp-endpoint-forward-logs-new-relic)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SDK de OpenTelemetry
+      </td>
+
+      <td>
+        Reenvíe el registro de sus aplicaciones a un recolector OpenTelemetry, que puede reenviarlos a New Relic a través de OTLP.
+      </td>
+
+      <td>
+        [Recolector OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener más información sobre las opciones de reenvío de registros y casos de uso específicos, consulte [Reenviar registros](/docs/logs/forward-logs/enable-log-management-new-relic).
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    label={{text: 'You are here', color: '#FCD672'}}
+    path="/docs/tutorial-large-logs/get-started-managing-large-logs"
+  />
+
+  <DocTile
+    title="Filter and reduce your log ingest"
+    path="/docs/tutorial-large-logs/filter-large-logs"
+  />
+
+  <DocTile
+    title="Organize your logs"
+    path="/docs/tutorial-large-logs/organize-large-logs"
+  />
+</DocTiles>

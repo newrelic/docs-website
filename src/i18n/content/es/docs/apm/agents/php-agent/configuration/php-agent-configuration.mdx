@@ -1,0 +1,4399 @@
+---
+title: Configuración del agente PHP
+tags:
+  - Agents
+  - PHP agent
+  - Configuration
+metaDescription: 'New Relic PHP agent configuration: How to edit newrelic.ini config settings (like app name, slow traces, parameters, log file levels, custom frameworks).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro agente PHP tiene una serie de configuraciones para ajustar los tipos y cantidades de datos reportados. Para la mayoría de los usuarios, los valores predeterminados producen la mejor combinación posible de gastos generales y utilidad. Sin embargo, puede cambiar la configuración según sus necesidades específicas.
+
+<Callout variant="important">
+  Reinicie siempre su servidor web después de cambiar la configuración de INI. De lo contrario, es posible que no [surtan efecto inmediatamente](/docs/agents/php-agent/troubleshooting/ini-settings-not-taking-effect-immediately).
+</Callout>
+
+## Orden de precedencia de configuración [#config-options-precedence]
+
+A continuación se muestra una ilustración sencilla del orden de precedencia que sigue el agente PHP para la configuración. [La configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration) no es aplicable. Los únicos valores que puede cambiar en la UI para aplicaciones que utilizan el agente PHP son el alias de la aplicación y su valor Apdex-T.
+
+<img
+  title="php-config-order.png"
+  alt="php-config-order.png"
+  src="/images/apm_diagram_php-agent-configuration-hierarchy.webp"
+/>
+
+<figcaption>
+  Con la configuración del agente PHP API de New Relic anula [la configuración por directorio](/docs/agents/php-agent/configuration/php-directory-ini-settings). La configuración por directorio anula la configuración del archivo `php.ini` . La configuración del lado del servidor no es aplicable.
+</figcaption>
+
+## Variables del archivo de configuración [#inivar-background]
+
+Durante la instalación, el script [`newrelic-install`](/docs/agents/php-agent/installation/newrelic-install-script) proporciona información sobre los archivos de configuración que creó o una lista de los archivos que necesita editar. De forma predeterminada, intentará crear un archivo de configuración llamado `newrelic.ini`.
+
+En algunos casos, es posible que se le indique que agregue opciones de configuración a su archivo `php.ini` . Haga esto sólo si es necesario. Exactamente qué archivo necesita editar depende de cómo se configuró su versión (o versiones) particular de PHP.
+
+Las dos configuraciones más comunes son:
+
+* Utilice un único archivo `newrelic.ini` . Este suele ser el valor predeterminado si ha instalado o compilado PHP usted mismo sin opciones especiales.
+* Escanee un directorio determinado en busca de todos los archivos `.ini` .
+
+Si no está seguro de qué archivo editar:
+
+* Desde la línea de comando, revise el resultado de `php -i`.
+
+* En un browser, revise el resultado de una página que contiene el script:
+
+  ```php
+  <?php phpinfo(); ?>
+  ```
+
+* Si aparece el archivo `newrelic.ini` , úselo.
+
+## Alcance variable [#inivar-scope]
+
+Cada variable de su archivo `newrelic.ini` tiene un alcance definido. El alcance controla dónde se puede establecer o modificar la configuración.
+
+Los dos ámbitos admitidos para la configuración de New Relic son:
+
+* <DNT>
+    **SYSTEM**
+  </DNT>
+
+  : Valores establecidos globalmente en el archivo global `newrelic.ini` .
+
+* <DNT>
+    **PERDIR**
+  </DNT>
+
+  : Valores establecidos [por directorio](/docs/agents/php-agent/configuration/php-directory-ini-settings) .
+
+Cada uno también puede establecerse a un nivel más general. Las ubicaciones válidas para cada uno son:
+
+<table>
+  <thead>
+    <tr>
+      <th width={275}>
+        <DNT>
+          **Can be set for:**
+        </DNT>
+      </th>
+
+      <th>
+        SISTEMA
+      </th>
+
+      <th>
+        PERDIR
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Establecido en el archivo global `newrelic.ini` .
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Establecido por directorio.
+      </td>
+
+      <td/>
+
+      <td>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  No puedes usar `ini_set()` para la configuración de New Relic.
+</Callout>
+
+## Tipo de variable [#inivar-type]
+
+Cada variable de su archivo `newrelic.ini` tiene un tipo definido. El tipo especifica la sintaxis del valor que utiliza.
+
+<table>
+  <thead>
+    <tr>
+      <th width={100}>
+        <DNT>
+          **Variable type**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Formatting and contents**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **String**
+        </DNT>
+      </td>
+
+      <td>
+        Los valores de cadena pueden contener cualquier carácter alfanumérico y puntuación. El valor está delimitado por comillas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Boolean**
+        </DNT>
+      </td>
+
+      <td>
+        Una configuración lógica de verdadero o falso. Los valores válidos son:
+
+        * Para verdadero o habilitado: `on`, `true`, el número `1`.
+        * Para falso o deshabilitado: `off`, `false`, el número `0`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Number**
+        </DNT>
+      </td>
+
+      <td>
+        Los valores numéricos solo pueden contener dígitos, más un punto para indicar flotante. A menos que se indique lo contrario, todos los números son enteros, no flotantes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Duration**
+        </DNT>
+      </td>
+
+      <td>
+        Un valor de cadena delimitado por comillas que representa una duración de tiempo. Utilice banderas de caracteres para delimitar los componentes del tiempo. Si no hay banderas, el tiempo está en milisegundos.
+
+        * `w`\\= semanas
+
+        * `d`\\= días
+
+        * `h`\\= horas
+
+        * `m`\\= minutos
+
+        * `s`\\= segundos
+
+        * `ms`\\= milisegundos
+
+        * `us`\\= microsegundos
+
+          Duraciones de ejemplo:
+
+        * `"1w3d23h10m"`\\= 1 semana, 3 días, 23 horas y 10 minutos
+
+        * `"5h30m"`\\= 5 horas y 30 minutos
+
+        * `"500"`\\= 500 milisegundos
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ajustes de configuración generales [#inivar-settings]
+
+Estas configuraciones están disponibles en el archivo `newrelic.ini` .
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-appname"
+    title="newrelic.appname (MUY RECOMENDABLE)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"PHP Application"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción de configuración establece el nombre de la aplicación bajo la cual se informan los datos en APM. Le recomendamos encarecidamente que reemplace el nombre predeterminado con un nombre descriptivo para evitar confusión y agregación involuntaria de datos. Los datos de todas las aplicaciones con el mismo nombre se fusionarán en New Relic, así que configúrelo con cuidado.
+
+    Para conocer todas las opciones de nomenclatura de aplicaciones, incluida la configuración por directorio, consulte [Asigne un nombre a su aplicación PHP](/docs/agents/php-agent/configuration/name-your-php-application).
+
+    El valor de la configuración es una lista separada por punto y coma de hasta tres nombres de aplicaciones. El primer nombre de la lista es el nombre de la aplicación <DNT>**primary**</DNT> . [Debe ser único](/docs/apm/new-relic-apm/installation-configuration/name-your-application#app-name) para cada cuenta. El nombre de la aplicación se utiliza como clave en un caché. Cuando se utilizan [varios nombres para una aplicación](/docs/agents/manage-apm-agents/app-naming/use-multiple-names-app), New Relic solo utiliza el primer nombre para el almacenamiento en caché. Por lo tanto, el nombre de cada aplicación solo puede aparecer como el primer elemento <DNT>**once**</DNT>.
+
+    <CollapserGroup>
+      <Collapser
+        id="cache-example"
+        title="Ejemplo de almacenamiento en caché"
+      >
+        Si configura `newrelic.appname="App1;App2"` y más adelante en el conjunto de códigos `newrelic.appname="App1;App3"`, el segundo parecerá no funcionar. Informará a <DNT>**App1**</DNT> y <DNT>**App2**</DNT> debido al almacenamiento en caché.
+      </Collapser>
+    </CollapserGroup>
+
+    Si necesita [nombres de aplicaciones superpuestos](/docs/agents/manage-apm-agents/app-naming/use-multiple-names-app), establezca el nombre de la aplicación común en la segunda o tercera posición. Por ejemplo: `newrelic.appname="App2;App1"` y `newrelic.appname="App3;App1"`. Esto es útil, por ejemplo, cuando desea realizar un seguimiento de un superconjunto de aplicaciones.
+  </Collapser>
+
+  <Collapser
+    id="inivar-capture_params"
+    title="newrelic.capture_params"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="caution">
+      Esta configuración ha quedado obsoleta y es posible que no se comporte como se esperaba. En su lugar, utilice [propiedades de atributo](/docs/agents/php-agent/attributes/enable-or-disable-attributes#deprecated-properties).
+    </Callout>
+
+    Para establecer este valor mediante programación, utilice la función API [`newrelic_capture_params()`](/docs/agents/php-agent/php-agent-api/newrelic_capture_params) .
+
+    Si pasa información confidencial directamente en la URL, manténgala desactivada.
+
+    Si se establece en `true`, esto permitirá el registro del parámetro pasado a un script PHP a través de la URL (todo lo que sigue al `?` en la URL) en la traza de la transacción. Estos aparecerán debajo del menú desplegable <DNT>**Parameters**</DNT> cuando se muestre la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="inivar-framework"
+    title="newrelic.framework"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (detectado automáticamente)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El agente PHP de New Relic detecta automáticamente el marco que admite, pero pueden surgir problemas si está utilizando nuevas versiones experimentales o si ha personalizado el framework. Esta configuración deshabilita la detección automática framework , en lugar de indicarle al agente que intente nombrar la transacción de acuerdo con el framework especificado.
+
+    Al especificar `"no_framework"`, se desactivarán por completo los nombres de transacciones relacionadas con framework .
+
+    Utilice cualquiera de los siguientes valores, según corresponda:
+
+    * `"cakephp"`
+
+    * `"codeigniter"`
+
+    * `"drupal"` (para Drupal 6 y 7)
+
+    * `"drupal8"` (para Drupal 8 y 9)
+
+    * `"joomla"`
+
+    * `"laravel"`
+
+    * `"magento"`
+
+    * `"magento2"`
+
+    * `"mediawiki"`
+
+    * `"slim"`
+
+    * `"symfony2"` (para Symfony 3: Symfony 2.x no es compatible)
+
+    * `"symfony4"` (para Symfony 4 y 5)
+
+    * `"wordpress"`
+
+    * `"yii"`
+
+    * `"zend"`
+
+    * `"zend2"` (para Zend framework 2 y 3)
+
+    * `"no_framework"` (para no forzar ningún framework incluso si se detectara uno)
+
+      Si falla la detección automática framework , este comando también fallará.
+
+      <Callout variant="tip">
+        Consulte la [página de compatibilidad de PHP](/docs/apm/agents/php-agent/getting-started/php-agent-compatibility-requirements/) para obtener la información más reciente sobre los marcos compatibles.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-ignored_params"
+    title="newrelic.ignored_params"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="caution">
+      Esta configuración ha quedado obsoleta y es posible que no se comporte como se esperaba. En su lugar, utilice [propiedades de atributo](/docs/agents/php-agent/attributes/enable-or-disable-attributes#deprecated-properties).
+    </Callout>
+
+    Utilice la configuración `newrelic.ignored_params` para especificar una lista de nombres de parámetros separados por comas que se excluirán de la lista de parámetros enviados a los servidores de New Relic. Encierre los valores de cadena entre comillas.
+
+    Si habilita la captura de parámetros con [`newrelic.capture_params`](#inivar-capture_params), puede haber parámetros con datos de usuario confidenciales que no desea que New Relic capture o que sean visibles en la traza de la transacción. Utilice esto para bloquear el registro de estos datos.
+  </Collapser>
+
+  <Collapser
+    id="inivar-license"
+    title="newrelic.license (REQUIRED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Notas:
+          </th>
+
+          <td>
+            Introducido en la versión 3.0 del agente.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece la New Relic <InlinePopover type="licenseKey"/>que se utilizará. En un sistema multiinquilino, esto se puede configurar por directorio.
+
+    <Callout variant="tip">
+      Cuando actualiza desde una versión anterior del agente a 3.0 o superior, la licencia se eliminará del archivo de configuración de su daemon (con un comentario que explica por qué) y se almacenará en el archivo `/etc/newrelic/upgrade_please.key`. Copie la licencia de ese archivo y configúrela en su archivo `newrelic.ini` . Elimine el archivo `upgrade_please.key` .
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-loglevel"
+    title="newrelic.loglevel"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"info"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nivel de detalle de los mensajes enviados al archivo de registro. Los valores posibles, en orden creciente de detalle, incluyen:
+
+    * `error`
+
+    * `warning`
+
+    * `info`
+
+    * `verbose`
+
+    * `debug`
+
+    * `verbosedebug`
+
+      Al informar cualquier problema de agente al soporte técnico de New Relic, `verbosedebug` es la configuración más útil. Sin embargo, esto puede generar mucha información muy rápidamente, así que [evite mantener el agente en el nivel `verbosedebug` ](/docs/agents/php-agent/troubleshooting/generating-logs-troubleshooting-php)durante más tiempo del necesario para reproducir el problema que está experimentando.
+
+      Al informar cualquier problema con el agente al soporte técnico de New Relic, es posible que se le solicite que lo configure en un nivel personalizado, habilitando la depuración solo para ciertos subsistemas. Los niveles personalizados están más allá del alcance de este documento.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-detail"
+    title="newrelic.transaction_tracer.detail"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `1`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Notas:
+          </th>
+
+          <td id="inivar-tt-top100">
+            Esto solía ser `newrelic.transaction_tracer.top100`.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nivel de detalle en una traza de la transacción:
+
+    * Cuando se establece en `1`, todas las llamadas al servidor son traza.
+
+    * Cuando se establece en `0`, traza solo incluye llamadas instrumentadas internamente por New Relic y aquellas definidas por el usuario usando [`newrelic.transaction_tracer.custom`](#inivar-tt-custom).
+
+      El nivel predeterminado de `1` tiene un impacto en el rendimiento. Si necesita mejorar el rendimiento, intente establecer el nivel de detalle en `0`.
+
+      Cuando no se rastrean todas las llamadas al servidor, los bloques de tiempo en la traza de la transacción se etiquetarán como <DNT>**uninstrumented time**</DNT> y solo se instrumentarán ciertas funciones (definidas internamente por el agente). Incluso al reportar todas las llamadas, puede haber [tiempo no instrumentado](/docs/agents/php-agent/troubleshooting/uninstrumented-time-traces) en la traza.
+  </Collapser>
+
+  <Collapser
+    id="inivar-high-security"
+    title="newrelic.high_security"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite alta seguridad para todas las aplicaciones. Cuando la seguridad alta se establece en `true`, se aplican los siguientes comportamientos:
+
+    * Los datos no se enviarán a New Relic a menos quedaemon esté utilizando una conexión segura (HTTPS). Si el proceso PHP genera un newrelic-daemon, se configurará para usar HTTPS independientemente del valor de `newrelic.daemon.ssl`.
+
+    * Nunca se recopilarán cadenas de consulta sin procesar, independientemente del valor de `newrelic.transaction_tracer.record_sql`.
+
+    * El atributo de solicitud nunca se capturará, independientemente de los ajustes de configuración `newrelic.attributes` .
+
+    * Las funciones API [`newrelic_add_custom_parameter`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_parameter) y [`newrelic_set_user_attributes`](/docs/agents/php-agent/php-agent-api/newrelic_set_user_attributes) no tendrán ningún efecto y devolverán `false`.
+
+    * La función API [`newrelic_record_custom_event`](/docs/agents/php-agent/php-agent-api/newrelic_record_custom_event) no enviará ningún evento a [New Relic](/docs/insights/new-relic-insights/understanding-insights/new-relic-insights).
+
+    * El agente elimina los mensajes de excepción de los errores.
+
+      <Callout variant="caution">
+        Si cambia la configuración `newrelic.high_security` , debe <DNT>**also**</DNT> cambiar la configuración de seguridad en la interfaz de usuario de APM. Si las dos configuraciones no coinciden, no se recopilarán datos. Para obtener más información, consulte [Alta seguridad](/docs/subscriptions/high-security).
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-labels"
+    title="newrelic.labels"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Agrega [etiqueta](/docs/apm/new-relic-apm/maintenance/labels-categories-organize-your-apps-servers).
+
+    <DNT>
+      **Example tags**
+    </DNT>
+
+    ```ini
+    "Server:One;Data Center:Primary"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="inivar-process_host-display_name"
+    title="newrelic.process_host.display_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nombre de host que se [mostrará en la UIde APM](/docs/apm/new-relic-apm/maintenance/add-rename-remove-hosts#display_name). Si se establece, esto anula el nombre de host predeterminado que el agente captura automáticamente.
+  </Collapser>
+</CollapserGroup>
+
+Si está utilizando New Relic CodeStream para monitor el rendimiento de su IDE, es posible que también desee [asociar el repositorio con sus servicios](/docs/codestream/how-use-codestream/performance-monitoring#repo-association) y [asociar SHA de compilación o etiqueta de lanzamiento con errores](/docs/codestream/how-use-codestream/performance-monitoring#buildsha).
+
+## Daemon .ini ajustes [#inivar-daemon-settings]
+
+Los valores de estas configuraciones controlan el inicio daemon . Cuando el agente detecta que es necesario iniciar el daemon , convertirá estas opciones en las opciones de línea de comando apropiadas para el daemon.
+
+Todas estas configuraciones reflejan la configuración del archivo `newrelic.cfg` . Se repiten aquí para conservar todos los .ini. configuraciones en un solo lugar. Cada configuración en `newrelic.cfg` tiene su contraparte aquí, con `newrelic.daemon.` como prefijo. Por ejemplo, la configuración `ssl` en `newrelic.cfg` es `newrelic.daemon.ssl` en un .ini archivo.
+
+<Callout variant="important">
+  Si el archivo `/etc/newrelic/newrelic.cfg` existe, el agente ignora esta configuración y **no** iniciará el daemon automáticamente.
+</Callout>
+
+Para obtener más información sobre las formas de iniciar el daemon y cuándo usar un archivo de configuración externo, consulte [Modos de inicio daemon PHP](/docs/agents/php-agent/installation/starting-php-daemon).
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-daemon-app_timeout"
+    title="newrelic.daemon.app_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena de especificación de tiempo; por ejemplo, `"5m"` o `"1h20m"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"10m"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el tiempo transcurrido después del cual una aplicación se considerará inactiva. Las aplicaciones inactivas no cuentan contra el límite máximo de 250 aplicaciones. Las unidades permitidas son `"ns"`, `"us"`, `"ms"`, `"s"`, `"m"` y `"h"`.
+
+    Un valor de `0` se interpretará como "sin tiempo de espera". Esto dará como resultado que las nuevas aplicaciones siempre cuenten para el límite de 250 aplicaciones, además de que el daemon no podrá liberar una pequeña cantidad de memoria por aplicación al sistema operativo.
+
+    <DNT>**Recommendation:**</DNT> No utilice este valor a menos que el soporte de New Relic lo solicite. En su lugar, para transacciones en segundo plano ocasionales, utilice un valor del doble del intervalo. Por ejemplo, para un trabajo en segundo plano por horas, establezca el tiempo de espera en 2 horas.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-app_connect_timeout"
+    title="newrelic.daemon.app_connect_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena de especificación de tiempo; por ejemplo, `"1s"` o `"5m"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"0"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el tiempo máximo que el agente debe esperar a que el daemon conecte una aplicación. Un valor de `"0"` hace que el agente solo haga un intento de conectarse al daemon. Las unidades permitidas son `"ns"`, `"us"`, `"ms"`, `"s"`, `"m"` y `"h"`.
+
+    Con este tiempo de espera establecido, el agente no cancelará inmediatamente una transacción cuando el daemon aún no se haya conectado al backend, sino que le otorgará tiempo al daemon para establecer la conexión.
+
+    <DNT>**Recommendation**</DNT>: Si configura un tiempo de espera, el valor recomendado es `"15s"`. Establezca este tiempo de espera solo cuando instrumente tareas en segundo plano de larga duración, ya que en caso de problemas de conexión, el agente se bloqueará durante el tiempo de espera determinado en cada inicio de transacción.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-auditlog"
+    title="newrelic.daemon.auditlog"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La configuración especifica el nombre de un log de auditoría, que contendrá todos los datos enviados desde el daemon a los servidores de New Relic, incluida la URL completa, la fecha, la hora y los datos sin comprimir y codificar para cada solicitud.
+
+    Este archivo no puede ser el mismo archivo que el daemon log.
+
+    <Callout variant="important">
+      Este log de auditoría puede llegar a ser muy grande y muy rápidamente. Evite utilizar la configuración `newrelic.daemon.auditlog` durante períodos prolongados. Su objetivo principal es permitir al administrador del sistema realizar revisiones de seguridad y observar exactamente qué datos se transmiten.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-collector"
+    title="newrelic.daemon.collector_host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"collector.newrelic.com"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nombre y el puerto opcional del host recolector con el que el daemon se comunicará para verificar su <InlinePopover type="licenseKey"/>y enviar datos del agente.
+
+    Este es solo el nombre del host o el nombre y número de puerto en el formato `"hostname:port"`. Al especificar un número de puerto de `0` se utilizará el puerto predeterminado, que es 80.
+
+    <Callout variant="caution">
+      No cambie este valor sin la guía del soporte de New Relic.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-launch"
+    title="newrelic.daemon.dont_launch"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si prefiere que el daemon se lance externamente antes de que se inicie el agente, este valor determina cuándo el agente puede iniciar el daemon:
+
+    * `0`: No se imponen restricciones al inicio daemon y el agente puede iniciar el daemon en cualquier momento.
+
+    * `1`: El agente que no es de línea de comando (como Apache o php-fpm) puede iniciar el daemon.
+
+    * `2`: Sólo el agente de línea de comando puede iniciar el daemon.
+
+    * `3`: El agente nunca iniciará el daemon. Utilice esta configuración si está configurando el daemon a través de `newrelic.cfg` y lo inicia fuera del agente.
+
+      <Callout variant="important">
+        Si `/etc/newrelic/newrelic.cfg` existe, el agente asume que el daemon debe iniciarse mediante su script de inicio, no a través del agente. Esta configuración no tiene significado y no aparece en `newrelic.cfg`.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-location"
+    title="newrelic.daemon.location"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"/usr/bin/newrelic-daemon"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nombre del daemon ejecutable en lanzamiento.
+
+    Esta variable identifica la ruta completa al archivo ejecutable daemon . Si el sistema New Relic se instaló utilizando los paquetes estándar, la ubicación predeterminada será la correcta. Si ha instalado en una ubicación personalizada utilizando la distribución tar (y no tiene permiso para escribir en `/usr/bin`), entonces el daemon puede residir en otra ubicación.
+
+    Esta configuración no aparece en el archivo `newrelic.cfg` ya que solo es relevante para PHP.
+
+    <Callout variant="important">
+      En OpenSolaris, `/usr` suele ser un sistema de archivos de sólo lectura. La ubicación predeterminada daemon para OpenSolaris es `/opt/newrelic/bin/newrelic-daemon`.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-logfile"
+    title="newrelic.daemon.logfile"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"/var/log/newrelic/newrelic-daemon.log"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nombre del archivo de registro para registrar el mensaje de registro específico daemon . El daemon debe poder escribir en este archivo. El caso más común es que el usuario de Apache terminará iniciando el daemon cuando se inicie Apache, por lo que debe asegurarse de que cualquier usuario que ejecute el proceso de Apache pueda escribir en el archivo.
+
+    <Callout variant="caution">
+      Si el daemon archivo de registro no se puede escribir, el daemon no se iniciará automáticamente, lo que impedirá que se informen datos.
+
+      Puede utilizar permisos de escritura en este archivo como medio para restringir quién puede iniciar el daemon.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-loglevel"
+    title="newrelic.daemon.loglevel"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"info"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nivel de detalle de los mensajes grabados en el archivo de registro daemon de New Relic. Los valores posibles, en orden creciente de detalle, son:
+
+    * `error`
+
+    * `warning`
+
+    * `info`
+
+    * `healthcheck`
+
+    * `debug`
+
+      Las configuraciones más detalladas pueden generar mucha información muy rápidamente. `healthcheck` registra el número exacto de aplicaciones conectadas. Cuando sea necesario, configure `debug` durante períodos cortos de tiempo para identificar problemas.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-pidfile"
+    title="newrelic.daemon.pidfile"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (depende del sistema operativo)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nombre del archivo en el que el daemon registrará su ID de proceso (pid).
+
+    Este archivo lo utiliza el script de inicio y apagado daemon para determinar si el daemon ya se está ejecutando o no.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-port"
+    title="newrelic.daemon.address (alias de newrelic.daemon.port)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena o número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"@newrelic"` en Linux, `"/tmp/.newrelic.sock"` en caso contrario
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Desde [v9.2.0.247](/docs/release-notes/agent-release-notes/php-release-notes/php-agent-920247), el agente PHP admite una nueva configuración, `newrelic.daemon.address`, que sirve como alias para `newrelic.daemon.port`. Puede utilizar cualquiera de los dos para especificar la ubicación del daemon PHP de New Relic. Si se establecen ambos valores, `newrelic.daemon.address` tiene prioridad.
+    </Callout>
+
+    Establece el extremo del socket para las comunicaciones entre el agente y daemon .
+
+    Esto se puede especificar de cuatro maneras.
+
+    * Para utilizar un archivo específico como socket de dominio UNIX (UDS), proporcione un nombre de ruta <DNT>**absolute**</DNT> como una cadena. Este es el valor predeterminado en sistemas que no son Linux.
+
+    * Para utilizar un puerto TCP estándar, especifique un número en el rango de 1 a 65534.
+
+    * Para utilizar un socket abstracto, utilice el valor `@newrelic-daemon` (disponible para la versión del agente [5.2.0.141](/docs/release-notes/agent-release-notes/php-release-notes/php-agent-520141) o superior). Este es el valor predeterminado en los sistemas Linux.
+
+    * Para conectarse a un daemon que se ejecuta en un host diferente (útil para [entornos de contenedor](/docs/agents/php-agent/advanced-installation/install-php-agent-docker)), establezca este valor en `host:port`, donde `host` indica un nombre de host o una IP, y `port` indica un número de puerto válido. Se admiten tanto IPv4 como IPv6. Está disponible para la versión del agente 9.2.0.247 o superior.
+
+      <Callout variant="caution">
+        Los datos transmitidos desde el agente al daemon **no** están cifrados. La única excepción a esto es la [ofuscación de SQL](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-tt-sql) que ocurre antes de enviar datos al daemon. Recomendamos utilizar únicamente una conexión de red privada entre el agente y daemon (esto solo se aplica cuando el agente y daemon se ejecutan en hosts diferentes).
+      </Callout>
+
+      Si utiliza números de puerto, los sistemas Unix requieren que los puertos en el rango del 1 al 1023 requieran que el daemon se ejecute como superusuario. En caso de que el daemon utilice un puerto no estándar, esta variable también establece el número de puerto que utilizará el agente para comunicarse con el daemon.
+
+      <Callout variant="important">
+        Si está utilizando el mecanismo de inicio `newrelic.cfg` para el daemon, esta configuración y la configuración [`address`](/docs/agents/php-agent/configuration/proxy-daemon-newreliccfg-settings#cfgvar-port) en ese archivo deben coincidir.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-proxy"
+    title="newrelic.daemon.proxy"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece las credenciales de host y usuario para usar como proxy de salida.
+
+    Esto solo se usa si su sitio requiere un proxy para acceder a los servidores de recopilación de datos de New Relic. Puede adoptar cualquiera de las siguientes formas, según la configuración del proxy:
+
+    * `hostname`
+
+    * `hostname:port`
+
+    * `user@hostname`
+
+    * `user@hostname:port`
+
+    * `user:password@hostname`
+
+    * `user:password@hostname:port`
+
+    * `proxytype://user:password@hostname:port`
+
+      Se supone un tipo de proxy HTTP a menos que se especifique otro tipo de proxy. En ese caso, el tipo de proxy puede ser http, calcetines4, calcetines4a o calcetines5.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-ssl"
+    title="newrelic.daemon.ssl"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se ignora en las versiones 8.0 y superiores del agente PHP, y siempre se utilizará HTTPS para comunicarse con New Relic.
+
+    En versiones del agente PHP inferiores a 8.0, controla si la comunicación con el recolector New Relic debe utilizar una conexión HTTP segura. El agente se comunica con New Relic a través de HTTPS de forma predeterminada, y New Relic [requiere HTTPS](/docs/apis/rest-api-v2/troubleshooting/301-response-rest-api-calls) para todo el tráfico hacia APM y la API REST de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-ssl-ca-bundle"
+    title="newrelic.daemon.ssl_ca_bundle"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece la ubicación de un archivo que contiene certificados de CA en formato PEM. Cuando se configuran, los certificados de este archivo se utilizarán para autenticar el recolector New Relic. En la mayoría de los casos, no debería ser necesario configurar un paquete de CA. El agente PHP de New Relic viene incluido con los certificados CA necesarios.
+
+    Si también se establece [`newrelic.daemon.ssl_ca_path`](#inivar-daemon-ssl-ca-path) , se buscarán primero los certificados de este archivo, seguidos de los certificados contenidos en el directorio `newrelic.daemon.ssl_ca_path` .
+
+    Esta configuración no tiene ningún efecto cuando [`newrelic.daemon.ssl`](#inivar-daemon-ssl) se establece en `false`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-ssl-ca-path"
+    title="newrelic.daemon.ssl_ca_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece la ubicación de un directorio que contiene certificados de CA confiables en formato PEM. Cuando se configuran, los certificados en este directorio se utilizarán para autenticar el recolector New Relic. En la mayoría de los casos, no debería ser necesario configurar una ruta de CA. El agente PHP de New Relic viene incluido con los certificados CA necesarios.
+
+    Si también se establece [`newrelic.daemon.ssl_ca_bundle`](#inivar-daemon-ssl-ca-bundle) , se buscará primero seguido de los certificados contenidos en `newrelic.daemon.ssl_ca_path`.
+
+    Esta configuración no tiene ningún efecto cuando [`newrelic.daemon.ssl`](#inivar-daemon-ssl) se establece en `false`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-daemon-start_timeout"
+    title="newrelic.daemon.start_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena de especificación de tiempo; por ejemplo, `"1s"` o `"5m"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"0"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el tiempo máximo que el agente debe esperar para que se inicie el daemon después de que se activó el lanzamiento daemon . Un valor de `"0"` hace que el agente no espere. Las unidades permitidas son `"ns"`, `"us"`, `"ms"`, `"s"`, `"m"` y `"h"`.
+
+    El valor de tiempo de espera especificado se pasará al daemon mediante el indicador `--wait-for-port`. Esto hace que el inicio daemon se bloquee hasta que se adquiera un socket o hasta que transcurra el tiempo de espera.
+
+    <DNT>**Recommendation:**</DNT> Si establece un tiempo de espera, el valor recomendado es de `"2s"` a `"5s"`. Se recomienda establecer este tiempo de espera solo cuando se instrumentan tareas en segundo plano de larga duración, ya que en caso de problemas de inicio daemon , el agente se bloqueará durante el tiempo de espera determinado en cada inicio de transacción.
+  </Collapser>
+</CollapserGroup>
+
+## Logs en contexto [#logs-in-context]
+
+Agente PHP versión 10.1.0 le permite reenviar su registro PHP con [el registro APM en contexto](/docs/apm/new-relic-apm/getting-started/get-started-logs-context). A partir de la versión 10.3.0, la característica logging métrica y agent reenvío de logs están habilitadas de forma predeterminada. El valor `newrelic.application_logging.enabled` controla si la característica de contexto de inicio de sesión está activa o inactiva.
+
+Tenga en cuenta que cambiar la configuración en el archivo de configuración del agente local (`newrelic.ini`) requiere reiniciar el servidor web para que surta efecto. Si no lo hace, es posible que los cambios no [surtan efecto inmediatamente](/docs/agents/php-agent/troubleshooting/ini-settings-not-taking-effect-immediately).
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_forwarding-enabled"
+    title="newrelic.application_logging.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Configúrelo en `true` para habilitar la característica principal de inicio de sesión en contexto. Cuando está habilitado, se habilita la instrumentación adicional framework de registro, ya sea que el registro se envíe o no a New Relic.
+    * Establezca en `false` para deshabilitar completamente esta característica, incluida la recopilación de log métricos y reenvío de registros.
+    * El contexto de inicio de sesión ahora está habilitado de forma predeterminada. Si deshabilitó esta característica, asegúrese de reiniciar su aplicación o sus cambios no surtirán efecto de inmediato.
+
+      Un archivo de configuración de ejemplo:
+
+      ```ini
+      newrelic.application_logging.enabled = true
+      newrelic.application_logging.metrics.enabled = true
+      newrelic.application_logging.forwarding.enabled = true
+      ```
+  </Collapser>
+</CollapserGroup>
+
+### Reenvío log [#log-forwarding]
+
+Si está utilizando un [frameworkde registro compatible](/docs/logs/logs-context/configure-logs-context-php), puede indicarle al agente que reenvíe el registro de su aplicación a New Relic.
+
+* `newrelic.application_logging.forward.enabled` habilita o deshabilita el reenvío de registros
+* `newrelic.application_logging.forwarding.max_samples_stored` limita la cantidad de registros que su aplicación reenvía a New Relic
+* `newrelic.application_logging.forwarding.log_level` te permite elegir qué tipo de registro reenvía tu aplicación a New Relic
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_forwarding-enabled"
+    title="newrelic.application_logging.forwarding.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita el envío de log de aplicación a New Relic.
+
+    * Establezca esto en `true` para que su registro se envíe a New Relic. Esto reenvía el registro directamente desde el agente PHP con metadatos de enlace que permiten que funcione nuestra característica de contexto de inicio de sesión. El agente PHP no escribe ningún metadato en la salida del registro de aplicación.
+
+    * Establezca esto en `false` si no desea que su registro se envíe a New Relic. Cuando `enabled` se establece en `false`, no se envían datos log a New Relic y la salida del registro de aplicación no se modifica.
+
+      Archivo de configuración de ejemplo (`newrelic.ini`):
+
+      ```ini
+      newrelic.application_logging.enabled = true
+      ```
+
+      Si ya tiene una solución de reenvío de registros y está actualizando su agente para usar el registro automático en contexto, asegúrese de <DNT>**disable your old log forwarder**</DNT>. De lo contrario, su aplicación enviará líneas log dobles. Dependiendo de su cuenta, esto podría resultar en una doble facturación. Para obtener más información, siga los procedimientos para desactivar su [reenviador de registros específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+
+      <Callout variant="important">
+        El uso de la característica de reenvío de registros aumenta la ingesta de datos, lo que puede afectar su facturación. Para obtener más información, consulte nuestra documentación sobre [el seguimiento de su ingesta de datos](/docs/apm/new-relic-apm/getting-started/get-started-logs-context#ingest).
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding-max_samples_stored"
+    title="newrelic.application_logging.forwarding.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Máximo:
+          </th>
+
+          <td>
+            `20000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Establezca el valor en un entero positivo para especificar el número máximo de líneas log por minuto para enviar.
+
+    * Establezca esto en `0` para deshabilitar efectivamente el envío de registros.
+
+    * Establezca esto en un valor más bajo para reducir la cantidad de líneas log enviadas. Esto puede provocar un muestreo log .
+
+    * Establezca esto en un valor más alto para enviar más líneas log .
+
+      Cada log recibe la misma prioridad que su transacción asociada. Es posible que algunos registros no se incluyan porque están limitados por `max_samples_stored`. Por ejemplo, si el registro `max_samples_stored` se establece en 10 000 y una transacción 1 tiene 10 000 entradas log , solo se registrarán las entradas log de la transacción 1. Si la transacción 1 tiene menos de 10 000 registros, recibirá todos los registros de la transacción 1. Si todavía hay espacio, recibirás todo el registro de la transacción 2, y así sucesivamente. Las entradas log con prioridades más altas se mantienen sobre aquellas con prioridades más bajas.
+
+      <Callout variant="tip">
+        Esto se refiere a la cantidad de registros enviados _por minuto_. Establecer `max_samples_stored` en un valor inferior a 12 tendrá el efecto de no enviar ningún registro. Cualquier número entero no negativo es válido, pero actualmente el valor máximo admitido es 20.000.
+      </Callout>
+
+      Archivo de configuración de ejemplo (`newrelic.ini`):
+
+      ```ini
+      newrelic.application_logging.forwarding.max_samples_stored = 10000
+      ```
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding-log-level"
+    title="newrelic.application_logging.forwarding.log_level"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"WARNING"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Es posible controlar el nivel de logs de mensajes reenviados por el agente. El nivel de registros reconocidos sigue la especificación [PSR-3](https://www.php-fig.org/psr/psr-3/) y es el siguiente (de mayor a menor gravedad):
+
+    * `EMERGENCY`
+    * `ALERT`
+    * `CRITICAL`
+    * `ERROR`
+    * `WARNING`
+    * `NOTICE`
+    * `INFO`
+    * `DEBUG`
+
+      Cuando se especifica un nivel de registros para el agente, se informarán todos los mensajes de este nivel de registros y superiores. Por ejemplo, si establece su nivel de registros en `ALERT`, recibirá registros para la gravedad `ALERT` y `EMERGENCY` . El nivel de registros predeterminado es `WARNING`.
+
+      Archivo de configuración de ejemplo (`newrelic.ini`):
+
+      ```ini
+      newrelic.application_logging.forwarding.log_level = "INFO"
+      ```
+  </Collapser>
+</CollapserGroup>
+
+#### Log datos de contexto [#log-context-data]
+
+El agente PHP captura datos de contexto para la biblioteca Monolog y agrega ese contexto como atributo a su registro reenviado. Puede controlar qué contexto agrega su agente a través de la configuración en la sección `context_data` , dentro de la sección `forwarding` .
+
+* `newrelic.application_logging.forwarding.context_data.enabled` agrega datos de contexto de Monolog a su atributo de registro
+* `newrelic.application_logging.forwarding.context_data.include` define qué claves de atributo se encuentran en su registro reenviado
+* `newrelic.application_logging.forwarding.context_data.exclude` define qué claves de atributos se excluyen en su registro reenviado
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-enabled"
+    title="newrelic.application_logging.forwarding.context_data.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Establezca esto en `true` para agregar datos de contexto como atributo de registro.
+    * Establezca esto en `false` si no desea que se agreguen datos de contexto como atributo a su registro.
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-include"
+    title="newrelic.application_logging.forwarding.context_data.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando aplica reglas de atributo al atributo de contexto log , la regla `include` descarta todos los atributos no definidos en el conjunto de reglas. Este es un comportamiento diferente al de otros tipos de atributos de agente.
+
+    * Si el atributo de contexto log no aparece como se esperaba, entonces debe revisar el conjunto de reglas `newrelic.attributes.include` para confirmar que el atributo que falta es parte de la exclusión. Le recomendamos que configure `newrelic.loglevel=verbosedebug` para habilitar también los mensajes de registro detallados del agente. Una vez actualizado, busque mensajes del agente sobre el atributo excluido. Esto puede darle pistas sobre cómo ajustar las reglas de inclusión/exclusión.
+    * Si `context_data` está habilitado para el reenvío de registros, todas las claves de atributos que se encuentran en esta lista aparecerán en log . Una lista vacía enviará todas las claves de atributos de forma predeterminada.
+    * Si todas las listas `include` están vacías, se reenvían todos los atributos de contexto log .
+  </Collapser>
+
+  <Collapser
+    id="cfg-application_logging_forwarding_context_data-exclude"
+    title="newrelic.application_logging.forwarding.context_data.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Lista de cadenas
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Si `context_data` está habilitado para el reenvío de registros, todas las claves de atributos que se encuentran en esta lista se excluyen de log .
+    * Dejar este campo vacío da como resultado el comportamiento predeterminado. El atributo aún puede excluirse si [existe una regla`include` ](#cfg-application_logging_forwarding_context_data-include).
+    * La lista `include` y `exclude` sigue las reglas definidas en [Habilitación y deshabilitación del atributo](/docs/php/php-agent-enabling-and-disabling-attributes#cfg-attributes-enabled).
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  El agente PHP solo reenvía datos de contexto log que tienen una clave de cadena y un valor que es una cadena o un escalar (int, double, boolean).
+</Callout>
+
+### Decoración log [#log-decoration]
+
+El agente PHP puede recopilar y agregar metadatos de enlace a log de Monolog para permitir que el registro en contexto funcione con los datos log reenviados por un reenviador de registros de terceros. Para habilitar esta característica utilice la opción `newrelic.application_logging.local_decorating.enable` :
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_local_decorating-enabled"
+    title="newrelic.application_logging.local_decorating.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto permite agregar metadatos de enlace a log de Monolog. Establezca esto en `true` para habilitar esta característica. Deje esto configurado en `false` si usa la característica de reenvío de registros de APM para reenviar su registro a New Relic.
+
+    <Callout variant="important">
+      La característica de decoración log aparece por primera vez en la versión 10.13.0.1 del agente PHP.
+
+      La característica de decoración log requiere pasos adicionales para garantizar que los metadatos de enlace estén contenidos en el mensaje de registro. Consulte la página (contexto de inicio de sesión PHP)\[/docs/log/log-context/configure-log-context-php] para obtener más información sobre el uso de esta característica.
+
+      Si habilita tanto el reenvío de registros como la decoración log , es muy probable que su registro se envíe a New Relic por duplicado.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### Log métrico [#log-metrics]
+
+El agente PHP puede recopilar métricas relacionadas con el registro de eventos para [el marco de registro compatible](/docs/logs/logs-context/configure-logs-context-php). La creación de estas métricas está controlada por la opción `newrelic.application_logging.metrics.enable` :
+
+<CollapserGroup>
+  <Collapser
+    id="cfg-application_logging_metrics-enabled"
+    title="newrelic.application_logging.metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite capturar información métrica sobre su registro y nivel de registros, que se muestra en un gráfico en la página APM <DNT>**Summary**</DNT> .
+
+    Deje esto configurado en verdadero para permitir que el agente capture información métrica sobre su registro.
+
+    Establezca esto en `false` para desactivar esta característica.
+
+    <Callout variant="important">
+      Si desactiva la recopilación de log métrica, el gráfico log en la página de resumen aparecerá en blanco.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  Si ya tiene una solución de reenvío de registros y está actualizando su agente para usar el registro automático en contexto, asegúrese de <DNT>**disable your manual log forwarder**</DNT>. De lo contrario, su aplicación enviará el doble de datos log . Dependiendo de su cuenta, esto podría resultar en una doble facturación. Para obtener más información, siga los procedimientos para desactivar su [reenviador de registros específico](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding).
+</Callout>
+
+## Rastreador de transacciones .ini ajustes [#inivar-tt-settings]
+
+Los valores de estas configuraciones se utilizan para controlar la traza de la transacción.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-tt-custom"
+    title="newrelic.transaction_tracer.custom"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en una lista separada por comas de funciones o métodos definidos por el usuario para instrumento:
+
+    ```
+    "myfunction,myclass::method,otherfunction"
+    ```
+
+    Las funciones internas de PHP no pueden tener seguimiento personalizado.
+
+    Puede agregar a la lista de funciones personalizadas con cada archivo PERDIR, pero no puede eliminar una función o método que ya se haya agregado. Si desea agregar funciones o métodos mediante programación para instrumentarlos, utilice la llamada de función API [`newrelic_add_custom_tracer()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_tracer) .
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-enable"
+    title="newrelic.transaction_tracer.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita el rastreador de transacciones.
+
+    El rastreador crea una traza detallada de la transacción para las transacciones que toman más tiempo que el umbral, según lo establecido por el valor `newrelic.transaction_tracer.threshold` . Solo se almacena una traza de la transacción por aplicación por ciclo de cosecha y siempre es la transacción más lenta durante ese ciclo.
+
+    [La traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces) es útil para diagnosticar por qué una transacción en particular fue lenta. A menos que la memoria y el rendimiento sean críticos, casi nunca deberían desactivarse. Habilitar esto tiene un impacto muy leve en el rendimiento y utiliza más memoria.
+
+    Para obtener más información, consulte [`newrelic.transaction_tracer.detail`](#inivar-tt-detail).
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-expenable"
+    title="newrelic.transaction_tracer.explain_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita la solicitud de planes explicativos de MySQLi y PDO MySQL biblioteca para llamadas de consulta lenta. Los planes explicativos solo estarán disponibles cuando [`newrelic.transaction_tracer.slow_sql`](#inivar-tt-slowsql) esté configurado en `true` y [`newrelic.transaction_tracer.record_sql`](#inivar-tt-sql) **no** esté configurado en `"off"`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-epthreshold"
+    title="newrelic.transaction_tracer.explain_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Duración
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"500"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el umbral más allá del cual las consultas se consideran "lentas" y, por lo tanto, candidatas para la página [<DNT>**Slow Queries**</DNT>](/docs/apm/applications-menu/monitoring/databases-slow-queries-dashboard) . Especifique la duración como un valor absoluto con unidades. La unidad predeterminada es milisegundos si no se especifica ninguna.
+
+    <DNT>
+      **Example durations**
+    </DNT>
+
+    * `"200ms"`
+    * `"1s250ms"`
+    * `"1h30m"`
+    * `"750us"`
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-internalfun"
+    title="newrelic.transaction_tracer.internal_functions_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita el soporte para el seguimiento de funciones internas (es decir, funciones escritas en C y proporcionadas a través de la biblioteca estándar PHP o extensiones PECL). Cuando está habilitada, las funciones internas aparecen en la [traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces) como funciones escritas en PHP.
+
+    Habilitar esta opción puede hacer que la transacción sea más lenta, especialmente cuando se recopilan muchas trazas de PHP 5.x. Solo se recomienda habilitar esta opción cuando se depuran específicamente problemas de rendimiento en los que se sospecha que una función interna es lenta.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-sql"
+    title="newrelic.transaction_tracer.record_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"obfuscated"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece cómo se registran las consultas (si es que se registran).
+
+    Al registrar internamente la traza de la transacción, se registra la consulta completa de llamadas de consulta lenta. Enviar esta consulta a New Relic puede tener graves implicaciones de seguridad, por lo que, de forma predeterminada, todas las declaraciones de la base de datos se ofuscan antes de enviarse a New Relic. La ofuscación no es reversible, ya que reemplaza cadenas y números en cualquier consulta con signos de interrogación. Lo único que sobrevive intacto son los nombres de los campos, no ninguno de sus valores.
+
+    * Si está realizando pruebas con datos que no son confidenciales y necesita ver la consulta sin procesar en la traza de la transacción, configúrelo en `"raw"`.
+
+    * Si no desea que la consulta se grabe en absoluto, configúrelo en `"off"`.
+
+      <Callout variant="important">
+        Vuelva a establecerlo siempre en `"obfuscated"` o `"off"` en cualquier entorno de producción.
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-slowsql"
+    title="newrelic.transaction_tracer.slow_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice esta configuración para habilitar o deshabilitar la característica de consulta lenta. Cuando esté habilitado,:
+
+    * Registre las 10 consultas de la base de datos más lentas por aplicación por minuto.
+
+    * Cree un rastreo del stack que conduzca a la consulta.
+
+      Si esta variable se establece en `false` o la grabación SQL está deshabilitada, el agente New Relic no recopila ningún dato de consulta lenta.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-stthreshold"
+    title="newrelic.transaction_tracer.stack_trace_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Duración
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"500"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto establece el umbral por encima del cual el agente registrará la stack PHP completa para la traza de la transacción para la cual se está registrando la consulta.
+
+    Especifique la duración como un valor absoluto con unidades. La unidad predeterminada es milisegundos si no se especifica ninguna.
+
+    <DNT>
+      **Example durations**
+    </DNT>
+
+    * `"200ms"`
+
+    * `"1s250ms"`
+
+    * `"1h30m"`
+
+    * `"750us"`
+
+      Rastreo del stack puede consumir memoria, así que tenga cuidado de no establecer este valor demasiado bajo. Esta variable no tiene significado si [`newrelic.transaction_tracer.record_sql`](#inivar-tt-sql) se establece en `"off"`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-threshold"
+    title="newrelic.transaction_tracer.threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Duración
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"apdex_f"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice esta variable para establecer el umbral más allá del cual las transacciones son elegibles para ser traza. Los valores disponibles incluyen:
+
+    * Utilice `"apdex_f"` para establecer el umbral en 4 veces el valor [apdex_t](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#apdex_t) de la aplicación. Para obtener más información, consulte [Apdex: Medición de la satisfacción del usuario](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction).
+
+    * Utilice cualquier otra cadena de duración para establecer un umbral de tiempo específico. Especifique la duración como valor absoluto y la unidad de medida. Si no se especifica ninguno, la unidad por defecto es milisegundo.
+
+      <DNT>
+        **Example durations**
+      </DNT>
+
+    * `"200ms"`
+
+    * `"1s250ms"`
+
+    * `"1h30m"`
+
+    * `"750us"`
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-gather-input-queries"
+    title="newrelic.transaction_tracer.gather_input_queries"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Utilice esta configuración para habilitar o deshabilitar la recopilación de consulta de entrada DQL con consulta lenta y traza de la transacción. Cuando estén habilitados, aparecerán junto con consulta lenta y traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-maxsegweb"
+    title="newrelic.transaction_tracer.max_segments_web"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica el número máximo de segmentos que el agente PHP registrará para la transacción web. Una vez que se alcance ese máximo, se realizará el muestreo.
+
+    El agente PHP informa la traza de la transacción y el rastreo distribuido como una colección de segmentos. Cada segmento representa un método o una llamada a función en una traza de la transacción. El valor predeterminado para esta configuración es `0`, lo que indica que el agente PHP capturará todos los segmentos durante una transacción web. Al final de una transacción, reúne los segmentos de mayor prioridad para informar en una traza de la transacción.
+
+    Para procesos PHP de larga duración con cientos de miles o millones de llamadas a funciones, establecer esto en un valor mayor que `1` evita que el agente PHP agote la memoria del sistema al grabar segmentos.
+
+    El tamaño del segmento puede variar según la longitud del nombre del método correspondiente, la longitud de su nombre de clase y la cantidad de llamadas posteriores realizadas por el método. Dicho esto, una estimación conservadora es 400 bytes por segmento. Para limitar el agente PHP a 40 MB para la captura de segmentos, establezca este valor en `100000`. Si este valor se establece por debajo de `2000`, limita aún más el número total de segmentos reportados para la traza de la transacción.
+
+    Esta configuración es sólo para procesos web PHP; no afectará los procesos PHP CLI. Para establecer un límite para los procesos CLI, utilice `newrelic.transaction_tracer.max_segments_cli`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-tt-maxsegcli"
+    title="newrelic.transacción.max_segments_cli"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `100000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica el número máximo de segmentos que el agente PHP registrará para la transacción CLI. Una vez que se alcance ese máximo, se realizará el muestreo.
+
+    El agente PHP informa la traza de la transacción y el rastreo distribuido como una colección de segmentos. Cada segmento representa un método o una llamada a función en una traza de la transacción. El valor predeterminado para esta configuración es `100000`, lo que indica que el agente PHP capturará todos los segmentos durante una transacción web. Al final de una transacción, reúne los segmentos de mayor prioridad para informar en una traza de la transacción.
+
+    Para procesos PHP de larga duración con cientos de miles o millones de llamadas a funciones, establecer esto en un valor mayor que `1` evita que el agente PHP agote la memoria del sistema al grabar segmentos.
+
+    El tamaño del segmento puede variar según la longitud del nombre del método correspondiente, la longitud de su nombre de clase y la cantidad de llamadas posteriores realizadas por el método. Dicho esto, una estimación conservadora es 400 bytes por segmento. Para limitar el agente PHP a 40 MB para la captura de segmentos, establezca este valor en `100000`. Si este valor se establece por debajo de `2000`, limita aún más el número total de segmentos reportados para la traza de la transacción.
+
+    Esta configuración es solo para procesos PHP CLI; no afectará los procesos web PHP. Para establecer un límite para los procesos web, utilice `newrelic.transaction_tracer.max_segments_web`.
+  </Collapser>
+</CollapserGroup>
+
+## Otro rastreador .ini ajustes [#inivar-misctt-settings]
+
+Los valores de estas configuraciones se utilizan para controlar varias características del rastreador.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-cross-app-tracer-enabled"
+    title="newrelic.cross_application_tracer.enabled"
+  >
+    <Callout variant="important">
+      El seguimiento de aplicaciones múltiples está en desuso y en agente PHP la versión 9.21.0.311 se ha deshabilitado de forma predeterminada. Recomendamos el [rastreo distribuido](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent) característico, que mejora el [rastreo multiaplicación](/docs/traces/cross-application-traces).
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva el rastreador multiaplicación. El rastreador de aplicaciones múltiples inserta encabezados HTTP en las solicitudes salientes y en la respuesta para vincular la transacción web métrica y la traza de la transacción entre aplicaciones.
+
+    El rastreo distribuido y el rastreo multiaplicación no se pueden utilizar simultáneamente. La configuración predeterminada del agente PHP habilita el rastreo distribuido y deshabilita el rastreo multiaplicación.
+  </Collapser>
+
+  <Collapser
+    id="inivar-distributed-enabled"
+    title="newrelic.distributed_tracing_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      Al habilitar rastreo distribuido se deshabilita [el rastreo multiaplicación](#inivar-cross-app-tracer-enabled). Lea la [guía de transición](/docs/apm/distributed-tracing/getting-started/transition-guide-distributed-tracing) para comprender los efectos de la característica New Relic.
+    </Callout>
+
+    Activa o desactiva [el rastreo distribuido](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent). Está activado de forma predeterminada en agente PHP 9.21.0 y superior. Cuando el rastreador de transacciones del agente y la característica de rastreo distribuido están habilitados, el agente insertará encabezados en las solicitudes salientes y escaneará las solicitudes entrantes en busca de encabezados de rastreo distribuido.
+
+    ```ini
+    newrelic.transaction_tracer.enabled = true
+    newrelic.distributed_tracing_enabled = true
+    ```
+
+    Para más información, consulta [rastreo distribuido para tus servicios PHP](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent).
+  </Collapser>
+
+  <Collapser
+    id="inivar-dt-exclude-newrelic"
+    title="newrelic.distributed_tracing_exclude_newrelic_header"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en verdadero para excluir el encabezado de rastreo distribuido de New Relic que se adjunta a las solicitudes salientes y, en su lugar, confiar únicamente en los encabezados W3C Trace Context para rastreo distribuido. Si esto es falso, ambos tipos de encabezados se adjuntan a las solicitudes salientes.
+
+    El encabezado rastreo distribuido de New Relic permite la interoperabilidad con agentes más antiguos que no admiten encabezados W3C Trace Context . Las versiones del agente que admiten encabezados W3C Trace Context los priorizarán sobre los encabezados New Relic para rastreo distribuido.
+  </Collapser>
+
+  <Collapser
+    id="inivar-span-enabled"
+    title="newrelic.span_events_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Span evento son reportados para [rastreo distribuido](#inivar-distributed-enabled). Los informes de eventos de span requieren que [rastreo distribuido](/docs/apm/agents/php-agent/configuration/distributed-tracing-php-agent) esté habilitado. Esta opción habilita/deshabilita el informe del evento de intervalo.
+  </Collapser>
+
+  <Collapser
+    id="inivar-span-events-max-samples-stored"
+    title="newrelic.span_events.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Span evento son reportados para [rastreo distribuido](#inivar-distributed-enabled). Este valor establece el número máximo de eventos de intervalo enviados al recolector por ciclo de recolección. Un valor de `0` utilizará el agente predeterminado de `2000`. La configuración máxima es `10000`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-inftr-host"
+    title="newrelic.infinite_tracing.trace_observer.host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configura la traza Observer utilizada para Infinite Tracing. Si está vacío, se desactivará la compatibilidad con Infinite Tracing. Esto requiere que [rastreo distribuido](#inivar-distributed-enabled) y span evento estén habilitados.
+  </Collapser>
+
+  <Collapser
+    id="inivar-inftr-port"
+    title="newrelic.infinite_tracing.trace_observer.port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `443`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configura el puerto TCP/IP utilizado para comunicarse con el Infinite Tracing traza Observer. Esta configuración se ignora si `newrelic.infinite_tracing.trace_observer.host` está vacío. Por lo general, no será necesario cambiar esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="inivar-inftr-queue"
+    title="newrelic.infinite_tracing.span_events.queue_size"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero (1000 o superior)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `100000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el número de eventos de intervalo que se pueden poner en cola para su transmisión al Infinite Tracing traza Observer. El agente gestiona internamente el evento de intervalo para Infinite Tracing en lotes de intervalo. Esos lotes de tramos pueden contener un máximo de 1000 tramos. Por lo tanto, el tamaño de la cola de eventos de intervalo no puede ser inferior a `1000`, de lo contrario ni siquiera se podrá poner en cola un solo lote de intervalo. Si se especifica un tamaño de cola inferior a 1000, se utiliza el tamaño mínimo de `1000` .
+  </Collapser>
+
+  <Collapser
+    id="inivar-err-enabled"
+    title="newrelic.error_collector.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite o deshabilite el selector de errores. Cuando está habilitado, el agente recopila e informa errores de PHP a la UI de New Relic.
+
+    El agente registra solo el error más grave de cada transacción y hasta 20 errores por [ciclo de recolección](/docs/apm/new-relic-apm/getting-started/glossary#harvest-cycle).
+
+    <Callout variant="tip">
+      Para obtener una descripción general de la configuración de errores en APM, consulte [Administrar errores en APM](/docs/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-mark-expected).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-err-db"
+    title="newrelic.error_collector.record_database_errors"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando [está habilitado](#inivar-err-enabled), el agente recopila los errores devueltos por las funciones de MySQL como si fueran errores de PHP.
+  </Collapser>
+
+  <Collapser
+    id="inivar-err-priority"
+    title="newrelic.error_collector.prioritize_api_errors"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `true` para asignar la prioridad más alta a los errores identificados a través de la función API [`newrelic_notice_error()`](/docs/agents/php-agent/php-agent-api/newrelic_notice_error) .
+  </Collapser>
+
+  <Collapser
+    id="inivar-err-ignore-exceptions"
+    title="newrelic.error_collector.ignore_exceptions"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista separada por comas de nombres de clases de excepción completos que el agente debe ignorar. Cuando se produce una excepción no controlada, el agente realizará el equivalente a `$exception instanceof Class` para cada una de las clases enumeradas. Si alguna de esas comprobaciones resulta verdadera, el agente no registrará una excepción.
+
+    Según la [versión de PHP admitida](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements#php-release), estos valores equivalen a <DNT>**disabling**</DNT> informe de excepciones:
+
+    * Versiones PHP 5 compatibles: `newrelic.error_collector.ignore_exceptions = Exceptions`
+    * Versiones de PHP 7 compatibles: `newrelic.error_collector.ignore_exceptions = Throwable`
+  </Collapser>
+
+  <Collapser
+    id="inivar-err-ignore-errors"
+    title="newrelic.error_collector.ignore_errors"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero o una expresión bit a bit de [constantes de error definidas por PHP](http://php.net/manual/en/errorfunc.constants.php)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `0`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece los [niveles de error](http://php.net/manual/en/errorfunc.constants.php) para el agente PHP en <DNT>**ignore**</DNT>. El valor de esta configuración utiliza una sintaxis similar a [la opción `error_reporting` de PHP](http://php.net/manual/en/errorfunc.configuration.php#ini.error-reporting). Por ejemplo, para configurar el agente PHP para ignorar los errores de nivel `E_WARNING` y `E_ERROR` , utilice:
+
+    ```ini
+    newrelic.error_collector.ignore_errors = E_WARNING | E_ERROR
+    ```
+
+    o
+
+    ```ini
+    newrelic.error_collector.ignore_errors = 3
+    ```
+
+    Para configurar el agente PHP para que ignore todo excepto `E_WARNING`, use:
+
+    ```ini
+    newrelic.error_collector.ignore_errors = E_ALL & ~E_WARNING
+    ```
+  </Collapser>
+
+  <Collapser
+    id="inivar-framework-drupal-modules"
+    title="newrelic.framework.drupal.modules"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Notas:
+          </th>
+
+          <td>
+            En agente antes de la versión 3.0, el valor predeterminado para este valor era `false`. Establecer esta opción implicaba `newrelic.transaction_tracer.detail = 1`.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para habilitar el seguimiento del módulo Drupal, configúrelo en `true`. Esta opción tiene el mismo impacto en el rendimiento que [`newrelic.transaction_tracer.detail`](#inivar-tt-detail). Permitirá el registro de las funciones del módulo Drupal y el recuento de llamadas, y se mostrarán en la pestaña <DNT>**Modules**</DNT> , al igual que las transacciones web.
+  </Collapser>
+
+  <Collapser
+    id="inivar-framework-wordpress-hooks"
+    title="newrelic.framework.wordpress.hooks"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para habilitar el seguimiento de enlaces de WordPress, configúrelo en `true`. Permitirá la grabación de ganchos, complementos y temas de WordPress, y se mostrarán en la pestaña [<DNT>**WordPress**</DNT>](/docs/agents/php-agent/frameworks-libraries/wordpress-specific-functionality) en la UI de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="inivar-framework-wordpress-hooks-options"
+    title="newrelic.framework.wordpress.hooks.options"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"all_callbacks"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece las opciones sobre cómo se instrumentan los ganchos de WordPress. El agente New Relic puede proporcionar diferentes niveles de información valiosa en los enlaces de WordPress. De forma predeterminada, todas las funciones de devolución de llamadas están instrumentadas ("all_callbacks"). Para reducir los gastos generales del agente, es posible limitar la instrumentación a solo el complemento/tema de devolución de llamada ("complemento"). La tercera opción es monitor los ganchos sin devolución de llamada instrumentada ("umbral"). Esta opción no proporciona información valiosa sobre complementos/temas. Lea más sobre la instrumentación específica de WordPress [aquí](/docs/agents/php-agent/frameworks-libraries/wordpress-specific-functionality).
+  </Collapser>
+
+  <Collapser
+    id="inivar-framework-wordpress-hooks-threshold"
+    title="newrelic.framework.wordpress.hooks.threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Duración
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `1ms`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el umbral por encima del cual el agente New Relic registrará la ejecución del enlace de WordPress. Se utiliza cuando newrelic.framework.wordpress.hooks.options está configurado en "threshold".
+  </Collapser>
+
+  <Collapser
+    id="inivar-wt-files"
+    title="newrelic.webtransaction.name.files"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Es lo mismo que [`newrelic.webtransaction.name.functions`](#inivar-wt-funcs), excepto que utiliza nombres de archivos para nombrar la transacción web. Los nombres de los archivos pueden ser expresiones regulares POSIX estándar para usarse con PCRE; por ejemplo, `"controllers/actions/.*"`.
+  </Collapser>
+
+  <Collapser
+    id="inivar-wt-funcs"
+    title="newrelic.webtransaction.name.functions"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    A menos que el agente New Relic detecte un framework específico, como Drupal o Wordpress, las transacciones web llevan el nombre del archivo PHP inicial; por ejemplo, `article.php`.
+
+    Cuando el archivo inicial es un despachador, este esquema de nombres produce datos poco útiles. Utilice esta variable para especificar una lista de funciones que son las "acciones" generadas por el despachador. El nombre de la transacción web será la primera función de acción ejecutada.
+
+    <DNT>
+      **Example dispatch function naming**
+    </DNT>
+
+    Si `index.php` se envía a funciones denominadas:
+
+    * `login`,
+
+    * `logout`,
+
+    * `admin`,
+
+    * `show`, y
+
+    * `edit`
+
+      Establecería este valor en `"login,logout,admin,show,edit"`.
+
+      La web de transacción se llamará `login`, `logout`, etc. en lugar de `/index.php` (el nombre del archivo inicial).
+  </Collapser>
+
+  <Collapser
+    id="inivar-wt-remove-path"
+    title="newrelic.webtransaction.name.remove_trailing_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, esto elimina cualquier contenido en el URI de solicitud después del nombre del script. Por ejemplo, esto eliminaría el `/xyz/zy` final de `/path/to/foo.php/xyz/zy`.
+  </Collapser>
+
+  <Collapser
+    id="ini-var-dt-instance-reporting"
+    title="newrelic.datastore_tracer.instance_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `false`, el agente no reportará almacenamiento de datos instancia métrica, ni agregará `host` o `port_path_or_id` parámetro a la transacción o traza sql lenta.
+  </Collapser>
+
+  <Collapser
+    id="ini-var-dt-database-name-reporting"
+    title="newrelic.datastore_tracer.database_name_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `false`, el agente no agregará el parámetro `database_name` a la transacción o ralentizará la traza SQL.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración de atributos [#inivar-attribute-settings]
+
+Esta sección enumera las configuraciones que afectan la recopilación y los informes de atributos.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-attributes-enabled"
+    title="newrelic.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita la colección de atributos generados por el agente PHP o generados por el usuario a través de [`newrelic_add_custom_parameter()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_parameter). Esta configuración tendrá prioridad sobre todas las demás configuraciones de atributos.
+
+    Para obtener más información, consulte [Habilitación y deshabilitación de atributos](/docs/php/php-agent-enabling-and-disabling-attributes#cfg-attributes-enabled).
+  </Collapser>
+
+  <Collapser
+    id="inivar-attributes-enabled"
+    title="newrelic.{destination}.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`, excepto por `browser_monitoring.attributes.enabled`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla qué destinos reciben atributo. Estos ajustes de configuración anularán los [ajustes](#inivar-attributes-include-exclude) `.include` y `.exclude` .
+
+    Para obtener más información sobre los destinos disponibles, consulte [Habilitación y deshabilitación del atributo](/docs/agents/php-agent/attributes/enabling-and-disabling-attributes#properties).
+  </Collapser>
+
+  <Collapser
+    id="inivar-attributes-include-exclude"
+    title="newrelic.attributes.{include|exclude}"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta es una familia de opciones de configuración que permiten un control preciso sobre los destinos del atributo. Para obtener más información, consulte [Habilitación y deshabilitación de atributos](/docs/php/php-agent-enabling-and-disabling-attributes#cfg-attributes-include).
+  </Collapser>
+</CollapserGroup>
+
+## Evento personalizado [#inivar-custom-events]
+
+Esta sección enumera las configuraciones que afectan los informes de eventos personalizados.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-custom-events-enabled"
+    title="newrelic.custom_insights_events.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite o deshabilite la colección de eventos generados por el usuario a través de [`newrelic_record_custom_event()`](/docs/agents/php-agent/php-agent-api/newrelic_record_custom_event). Esta configuración tendrá prioridad sobre todas las demás configuraciones de atributos.
+
+    Para obtener más información, consulte [Informe de evento personalizado y atributo](/docs/data-apis/custom-data/custom-events/apm-report-custom-events-attributes/#php-att).
+  </Collapser>
+
+  <Collapser
+    id="inivar-custom-events-maxsamples"
+    title="newrelic.custom_events.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `30000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Máximo:
+          </th>
+
+          <td>
+            `100000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un entero positivo que especifica el número máximo de eventos personalizados por minuto para enviar.
+
+    Establecer esto en `0` deshabilitará efectivamente el envío de eventos personalizados. Configurar [`newrelic.custom_insights_events.enabled`](#inivar-custom-events-enabled) es la forma preferida de habilitar o deshabilitar la generación de eventos personalizados.
+
+    Establezca esto en un valor más bajo para reducir la cantidad de eventos personalizados enviados (puede causar muestreo de eventos personalizados). Establezca esto en un valor más alto para enviar más líneas de eventos personalizados.
+
+    <Callout variant="important">
+      La variable INI `newrelic.custom_events.max_samples_stored` se agregó en la versión 10.4.0.316.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Métrica a nivel de código [#inivar-code-level-metrics]
+
+Esta sección enumera las configuraciones que afectan los informes de métricas a nivel de código.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-code-level-metrics-enabled"
+    title="newrelic.code_level_metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva la recopilación de métricas a nivel de código.
+
+    <Callout variant="important">
+      La variable INI `newrelic.code_level_metrics.enabled` se agregó en la versión 10.4.0.316 y estaba deshabilitada de forma predeterminada. Las métricas a nivel de código están habilitadas de forma predeterminada a partir de la versión 10.6.0.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="NEW_RELIC_METADATA_COMMIT"
+    title="NEW_RELIC_METADATA_COMMIT"
+  >
+    <Callout variant="important">
+      Esto solo se puede configurar a través de una variable de entorno.
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            Variable ambiental
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El compromiso sha. Se puede utilizar el sha completo o sólo los primeros siete caracteres (por ejemplo, 734713b).
+  </Collapser>
+
+  <Collapser
+    id="NEW_RELIC_METADATA_RELEASE_TAG"
+    title="NEW_RELIC_METADATA_RELEASE_TAG"
+  >
+    <Callout variant="important">
+      Esto solo se puede configurar a través de una variable de entorno.
+    </Callout>
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Establecer en](#options)
+          </th>
+
+          <td>
+            Variable ambiental
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una etiqueta de lanzamiento (como v0.1.209 o release-209).
+  </Collapser>
+</CollapserGroup>
+
+## Configuración Errors Inbox [#errors-inbox-configuration]
+
+Configurar una de las siguientes etiquetas le ayudará a identificar qué versiones de su software están produciendo los errores.
+
+* `NEW_RELIC_METADATA_SERVICE_VERSION` creará tags.service.version en los datos del evento que contienen la versión de su código que se desplegará, en muchos casos una versión semántica como 1.2.3, pero no siempre.
+* `NEW_RELIC_METADATA_RELEASE_TAG `creará tags.releaseTag en los datos del evento que contienen la etiqueta de lanzamiento (como v0.1.209 o release-209).
+* `NEW_RELIC_METADATA_COMMIT` creará tags.commit on event data containing the commit sha. Se puede utilizar el sha completo o sólo los primeros siete caracteres (por ejemplo, 734713b).
+
+Una próxima versión de Errors Inbox rastreará automáticamente qué versiones de su software están produciendo errores. Todos los datos de la versión también se mostrarán en [CodeStream](/docs/codestream/how-use-codestream/performance-monitoring/#buildsha).
+
+## Otro .ini ajustes [#inivar-rare-settings]
+
+Esta sección enumera las configuraciones restantes de newrelic.ini.
+
+<CollapserGroup>
+  <Collapser
+    id="inivar-enabled"
+    title="newrelic.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite o deshabilite el agente New Relic. De forma predeterminada, el agente PHP New Relic está habilitado para todos los directorios.
+
+    Si tiene varios sitios en su servidor web pero solo desea que el agente PHP monitor sitios específicos:
+
+    1. Asegúrese de que `newrelic.enabled` esté configurado en `true` en el nivel global (SISTEMA) en su archivo `newrelic.ini` .
+
+    2. Establezca `newrelic.enabled` en `false` para uno o más sitios específicos por directorio (PERDIR).
+
+       Si necesita deshabilitar el agente globalmente, establezca el valor `newrelic.enabled` en `false` en el archivo `newrelic.ini` .
+
+       Cuando el agente está globalmente deshabilitado, no se inicializa por completo. Se supone que lo está deshabilitando globalmente por una razón crítica, y el agente intentará tener un impacto lo más cercano posible a cero en PHP.
+
+       <Callout variant="important">
+         No puede deshabilitar globalmente el agente y luego habilitarlo selectivamente por directorio usando `.htaccess`.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="inivar-logfile"
+    title="newrelic.logfile"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Cadena (use comillas)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `"/var/log/newrelic/php_agent.log"`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto identifica el nombre del archivo para registrar mensajes. Esto es útil para depurar cualquier problema con el agente. Independientemente de lo que establezca, asegúrese de que:
+
+    * Los permisos para el directorio que lo contiene y el archivo en sí son correctos.
+    * El usuario que ejecuta PHP puede escribir en el archivo. Normalmente se trata del mismo usuario que el servidor web.
+  </Collapser>
+
+  <Collapser
+    id="inivar-analytics-events"
+    title="newrelic.transaction_events.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, el agente recopilará e informará datos de eventos analíticos. Los datos del evento permiten que la UI de New Relic muestre información adicional como [histograma](/docs/applications-menu/histograms-viewing-data-distribution) y [percentil](/docs/applications-menu/percentiles-comparing-ranked-data).
+  </Collapser>
+
+  <Collapser
+    id="inivar-error-events"
+    title="newrelic.error_collector.capture_events"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, el agente recopilará e informará datos del evento de error. Los datos del evento permiten que la UI de New Relic muestre análisis de errores.
+  </Collapser>
+
+  <Collapser
+    id="inivar-feature-flag"
+    title="newrelic.feature_flag"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración habilita características nuevas y experimentales dentro del agente PHP. Estos indicadores se utilizan para habilitar selectivamente características que deben habilitarse de forma predeterminada en versiones posteriores del agente PHP.
+  </Collapser>
+
+  <Collapser
+    id="inivar-autorum"
+    title="newrelic.browser_monitoring.auto_instrument"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esto permite la inserción automática de fragmentos de JavaScript para <InlinePopover type="browser"/>. Cuando está habilitado, el agente insertará un encabezado y un pie de página en la salida HTML que generará métricas en el tiempo de carga de la página para la experiencia del usuario final. Para obtener más información, consulte [Tiempo de carga de la página en PHP](/docs/php/page-load-timing-in-php).
+  </Collapser>
+
+  <Collapser
+    id="inivar-autorum"
+    title="newrelic.guzzle.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            PERDIR
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva la compatibilidad con la [biblioteca Guzzle cuando se utiliza con New Relic](/docs/agents/php-agent/frameworks-libraries/guzzle).
+
+    * Agente PHP versión 6.4 o superior: esta configuración está establecida en `true` de forma predeterminada.
+  </Collapser>
+
+  <Collapser
+    id="inivar-autorum"
+    title="newrelic.preload_framework_library_detection"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Notas:
+          </th>
+
+          <td>
+            Introducido en la versión 9.4 del agente PHP
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita la detección de framework y biblioteca cuando la precarga está habilitada. La precarga se introdujo en la versión PHP 7.4. `newrelic.preload_framework_library_detection` solo tendrá efecto cuando `opcache.preload` esté configurado en el archivo `php.ini` .
+  </Collapser>
+
+  <Collapser
+    id="inivar-package-detection"
+    title="newrelic.vulnerability_management.package_detection.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Alcance:
+          </th>
+
+          <td>
+            SISTEMA
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Tipo:
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto:
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Notas:
+          </th>
+
+          <td>
+            Introducido en la versión 10.17 del agente PHP
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, el agente enviará información de detección de paquetes que se puede ver en la página del entorno.
+  </Collapser>
+</CollapserGroup>

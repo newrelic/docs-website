@@ -1,0 +1,674 @@
+---
+title: Administrar tiempos de ejecución del monitor
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Using monitors
+metaDescription: 'Manage monitor runtimes: version runtime environments (supported modules and dependencies).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  A partir del 26 de agosto de 2024, ya no podrás crear un nuevo monitor usando tiempos de ejecución legacy en ubicaciones públicas o privadas. El 22 de octubre de 2024 [pondremos fin a la vida útil](/whats-new/2024/04/whats-new-04-09-eol-synthetics-runtime-cpm) de las versiones minion privado (llamadas por minuto) en contenedores y tiempo de ejecución sintético legacy .
+
+  * Para la ubicación pública, emplee [la UI de actualización de tiempo de ejecución](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/) para actualizar su monitor a los tiempos de ejecución más nuevos.
+  * Para la ubicación privada, revise nuestros [pasos de migración recomendados](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-transition-guide/#monitorMigration) para evitar la degradación monitor .
+</Callout>
+
+Browser simple, browser con secuencias de comandos y el monitor API se ejecutan en el entorno de ejecución utilizado cuando se creó el monitor. Su monitor no se convertirá automáticamente a tiempos de ejecución más nuevos cuando se lancen esos tiempos de ejecución.
+
+El monitor que se ejecuta en tiempos de ejecución más antiguos pierde la nueva característica de tiempo de ejecución, por lo que es importante que comprenda qué tiempos de ejecución utiliza su monitor.
+
+Continúe leyendo para aprender cómo:
+
+* [Actualizar un monitor Sintético](#how_to)
+* [Ver el historial de actualización de un monitor Sintético](#query)
+* [Utilice variables de entorno en tiempos de ejecución](#env)
+* [Revisar la dependencia del tiempo de ejecución](#dependencies)
+
+<Callout variant="tip">
+  El monitor de ping no se ve afectado por los cambios en las versiones de tiempo de ejecución.
+</Callout>
+
+## Utilice diferentes entornos de ejecución [#how\_to][#how_to]
+
+El monitor existente utiliza de forma predeterminada el tiempo de ejecución utilizado en el momento de su creación. Para evitar que su monitor crítico se rompa durante los procesos de fin de vida útil, le recomendamos convertir su monitor público lo antes posible. Para convertir:
+
+1. Vaya a <DNT>**[one.newrelic.com &gt; Synthetic monitoring](https://one.newrelic.com/synthetics-nerdlets)**</DNT> y luego seleccione el monitor que desea actualizar.
+2. Haga clic en <DNT>**General**</DNT> en el panel de navegación izquierdo.
+3. Utilice el menú desplegable para cambiar la versión actual del tiempo de ejecución.
+4. Haga clic en <DNT>**Validate**</DNT> para comprobar que su monitor funciona en el nuevo tiempo de ejecución. Realice modificaciones en el script si es necesario.
+5. Clic en **Save**.
+
+<Callout variant="tip">
+  La [UIde actualizaciones del tiempo de ejecución](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/) se puede utilizar para actualizar el tiempo de ejecución de varios monitores.
+</Callout>
+
+## Ver el historial de actualizaciones de monitoreo sintético [#query]
+
+Para ver un historial de actualizaciones de la versión del monitor, consulte el [`NrAuditEvent`](/docs/synthetics/new-relic-synthetics/administration/synthetics-audit-log-track-changes-made-users).
+
+## Utilice variables de entorno en tiempos de ejecución [#env]
+
+Haga que su monitor con secuencias de comandos sea más consciente del contexto mediante el uso de las propiedades de la variable `$env` . Cuando se ejecuta el script, estas propiedades representan información importante sobre el entorno de ejecución.
+
+No es necesario importar `$env`, es similar a las variables `$browser` y `$http` . Por ejemplo:
+
+```js
+console.log('running in ' + $env.LOCATION);
+$browser.get('https://example.com');
+```
+
+<table id="env-prop">
+  <thead>
+    <tr>
+      <th>
+        `$env` propiedad
+      </th>
+
+      <th width={100}>
+        Tipo
+      </th>
+
+      <th width={125}>
+        Browser con script
+      </th>
+
+      <th width={125}>
+        Prueba de API con script
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `JOB_ID`
+
+        ID única (`UUIDv4`) que identifica el trabajo en ejecución
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MONITOR_ID`
+
+        ID única (`UUIDv4`) que identifica el monitor en ejecución
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ACCOUNT_ID`
+
+        ID única (`number`) que identifica la cuenta propietaria del monitor
+      </td>
+
+      <td>
+        `number`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MONITOR_TYPE`
+
+        Tipo de monitor que ejecuta este trabajo
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `API_VERSION`
+
+        Versión de API que utiliza este monitor
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LOCATION`
+
+        Ubicación donde se ejecuta este trabajo. Ejemplos:
+
+        * `aws-us-east-1`
+        * `123-my_location-81D` (para ubicación privada)
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PROXY_HOST`
+
+        Host del [proxy](#h2_list_example) que recoge tráfico HTTP métrica
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td />
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `PROXY_PORT`
+
+        Puerto del [proxy](#h2_list_example) que recoge tráfico HTTP métrica
+      </td>
+
+      <td>
+        `number`
+      </td>
+
+      <td />
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `BROWSER`
+
+        El tipo browser que se emplea (CHROME o FIREFOX)
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td />
+    </tr>
+
+    <tr>
+      <td>
+        `USER_DEFINED_VARIABLES` (ubicación privada)
+
+        Un conjunto configurable de variables especificadas por el usuario.
+
+        Consulte la documentación sobre [la configuración de minions privados en contenedores (llamadas por minuto)](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration).
+      </td>
+
+      <td>
+        `string`
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+
+      <td className="fcenter">
+        <Icon name="fe-check" />
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Revisar la dependencia del tiempo de ejecución del monitor API [#apidependencies]
+
+Comenzando con Node.js 16.10.0 lanzamiento del tiempo de ejecución, el tiempo de ejecución de la API se administrará por separado del [tiempo de ejecución browser ](/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime). Este es el primer tiempo de ejecución de API con script basado en el módulo `got` en lugar del módulo `request` obsoleto. El módulo `got` se expone en un formato compatible con `request` a través del objeto `$http` . La experiencia similar a `request`proporcionada por el objeto `$http` también se devolverá para cualquier cliente que intente usar `request` directamente en Node.js 16 y tiempos de ejecución de API con script más recientes.
+
+El tiempo de ejecución de API se utiliza para estos tipos de monitor:
+
+* Monitor de enlaces rotos
+* Monitor de verificación de certificados
+* Monitor de API con script
+
+<Callout variant="tip">
+  Si no está seguro de la versión de tiempo de ejecución de su monitor, [monitor](/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime/#runtime-convert) y marque el menú desplegable <DNT>**&quot;Runtime&quot;**</DNT> en la pestaña &amp;quot;Configurar monitor&amp;quot;. También puedes consultar el atributo `runtimeTypeVersion` en el `SyntheticCheck` evento donde está el `runtimeType = 'NODE_API'`.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="Node16"
+    title={<>Node.js 16.10.0 (<strong>El último</strong>)</>
+    }
+  >
+    Node.js 16.10.0 detalles:
+
+    * <DNT>**Node:**</DNT> 16.10.0
+
+    * <DNT>**Proxy settings:**</DNT> Sí
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [async](https://www.npmjs.com/package/async) 3.2.5
+      * [async-retry](https://www.npmjs.com/package/async-retry) 1.3.3
+      * [atob](https://www.npmjs.com/package/atob) 2.1.2
+      * [aws-sdk](https://www.npmjs.com/package/aws-sdk/v/2.1007.0) 2.1007.0
+      * [basic-ftp](http://npmjs.com/package/basic-ftp) 4.6.6
+      * [btoa](https://www.npmjs.com/package/btoa) 1.2.1
+      * [chai](http://chaijs.com/) 4.3.4
+      * [colors](https://www.npmjs.com/package/colors) 1.4.0
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.4
+      * [crypto-js](https://code.google.com/p/crypto-js/) 4.1.1
+      * [form-data](https://www.npmjs.com/package/form-data/v/4.0.0) 4.0.0
+      * [fs-extra](https://www.npmjs.com/package/fs-extra) 10.0.0
+      * [google-auth-library](https://www.npmjs.com/package/google-auth-library) 8.7.0
+      * [got](https://www.npmjs.com/package/got) 11.8.6
+      * [joi](https://github.com/hapijs/joi) 17.4.2
+      * [js-yaml](https://www.npmjs.com/package/js-yaml) 4.1.0
+      * [ldapauth-fork](https://www.npmjs.com/package/ldapauth-fork) 5.0.1
+      * [lodash](https://lodash.com/) 4.17.21
+      * [moment](http://momentjs.com/) 2.29.4
+      * [net-ping](https://www.npmjs.com/package/net-ping) 1.2.3
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 3.5.5
+      * [Nodemailer](https://www.npmjs.com/package/nodemailer) 6.7.3
+      * [node-vault](https://www.npmjs.com/package/node-vault) 0.9.22
+      * [nodejs-traceroute](https://github.com/zulhilmizainuddin/nodejs-traceroute) 1.2.0
+      * [otpauth](https://www.npmjs.com/package/otpauth) 9.0.2
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 4.2.0
+      * [q](https://github.com/kriskowal/q) 1.5.1
+      * [request](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests) a través de nuestra experiencia `request`similar a `got`
+      * [should](https://github.com/shouldjs/should.js) 13.2.3
+      * [ssh2-sftp-client](https://www.npmjs.com/package/ssh2-sftp-client) 7.0.4
+      * [ssl-checker](https://github.com/dyaa/ssl-checker) 2.0.7
+      * [thrift](https://www.npmjs.com/package/thrift) 0.15.0
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 4.0.0
+      * [underscore](http://underscorejs.org/) 1.13.1
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.5.10
+      * [urllib](https://github.com/node-modules/urllib) 3.10.0
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [uuid](https://www.npmjs.com/package/uuid) 8.3.2
+      * [ws](https://github.com/websockets/ws) 8.2.3
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.23
+  </Collapser>
+</CollapserGroup>
+
+## Revisar la dependencia del tiempo de ejecución del monitor browser [#browserdependencies]
+
+Con la versión del tiempo de ejecución de Chrome 100+, el [tiempo de ejecución browser ](/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime)se administra por separado del tiempo de ejecución de la API. Esto también se conoce como nuestro tiempo de ejecución de próxima generación.
+
+El tiempo de ejecución browser se utiliza para estos tipos monitor :
+
+* Monitor de navegador con script
+* Monitor browser sencillo
+* Monitor de pasos
+
+<Callout variant="tip">
+  Si no está seguro acerca de la versión de tiempo de ejecución de su monitor, monitor y marque el menú desplegable &quot;Tiempo de ejecución&quot; en la pestaña &quot;Configurar monitor&quot;. También puede consultar el atributo runtimeTypeVersion en el evento SyntheticCheck donde runtimeType = &apos;CHROME\_BROWSER&apos;.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="Chrome100"
+    title={<>Chrome 100+ (<strong>más reciente</strong>)</>
+    }
+  >
+    Detalles de Chrome 100+:
+
+    * <DNT>**Browser**</DNT>: Chrome 117 (Esto requiere la versión 2.2+ de la imagen Sintético-node-browser-runtime para la ubicación privada. Las imágenes de tiempo de ejecución browser más antiguas utilizarán Chrome 112 o 100).
+
+    * <DNT>**Selenium WebDriver**</DNT>: 4.1.0 (expuesto a través de `$selenium` y `$webDriver` con sintaxis de Selenium Webdriver 3.6 compatible con versiones anteriores expuesta a través de `$browser` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> Sí
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [async](https://www.npmjs.com/package/async) 3.2.5
+      * [async-retry](https://www.npmjs.com/package/async-retry) 1.3.3
+      * [atob](https://www.npmjs.com/package/atob) 2.1.2
+      * [aws-sdk](https://www.npmjs.com/package/aws-sdk/v/2.1007.0) 2.1007.0
+      * [basic-ftp](http://npmjs.com/package/basic-ftp) 4.6.6
+      * [btoa](https://www.npmjs.com/package/btoa) 1.2.1
+      * [chai](http://chaijs.com/) 4.3.4
+      * [colors](https://www.npmjs.com/package/colors) 1.4.0
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.4
+      * [crypto-js](https://code.google.com/p/crypto-js/) 4.1.1
+      * [form-data](https://www.npmjs.com/package/form-data/v/4.0.0) 4.0.0
+      * [fs-extra](https://www.npmjs.com/package/fs-extra) 10.0.0
+      * [got](https://www.npmjs.com/package/got) 11.8.5
+      * [joi](https://github.com/hapijs/joi) 17.4.2
+      * [js-yaml](https://www.npmjs.com/package/js-yaml) 4.1.0
+      * [ldapauth-fork](https://www.npmjs.com/package/ldapauth-fork) 5.0.1
+      * [lodash](https://lodash.com/) 4.17.21
+      * [moment](http://momentjs.com/) 2.29.4
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 3.5.5
+      * [Nodemailer](https://www.npmjs.com/package/nodemailer) 6.7.3
+      * [node-vault](https://www.npmjs.com/package/node-vault) 0.9.22
+      * [nodejs-traceroute](https://github.com/zulhilmizainuddin/nodejs-traceroute) 1.2.0
+      * [otpauth](https://www.npmjs.com/package/otpauth) 9.0.2
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 4.2.0
+      * [q](https://github.com/kriskowal/q) 1.5.1
+      * [should](https://github.com/shouldjs/should.js) 13.2.3
+      * [ssh2-sftp-client](https://www.npmjs.com/package/ssh2-sftp-client) 7.0.4
+      * [ssl-checker](https://github.com/dyaa/ssl-checker) 2.0.7
+      * [thrift](https://www.npmjs.com/package/thrift) 0.15.0
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 4.0.0
+      * [underscore](http://underscorejs.org/) 1.13.1
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.5.10
+      * [urllib](https://github.com/node-modules/urllib) 2.37.4
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [uuid](https://www.npmjs.com/package/uuid) 8.3.2
+      * [ws](https://github.com/websockets/ws) 8.2.3
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.23
+  </Collapser>
+</CollapserGroup>
+
+## Revisar la dependencia del tiempo de ejecución legacy [#dependencies]
+
+<Callout variant="important">
+  A partir del 26 de agosto de 2024, ya no podrás crear un nuevo monitor usando tiempos de ejecución legacy en ubicaciones públicas o privadas.
+
+  El minion privado en contenedor (llamadas por minuto) y el tiempo de ejecución sintético legacy [finalizarán el 22 de octubre de 2024](/whats-new/2024/04/whats-new-04-09-eol-synthetics-runtime-cpm/). Complete su migración al [administrador de trabajos Sintético](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-transition-guide/) y [nuevos tiempos de ejecución](/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui/) antes de esa fecha para evitar que se produzca la degradación del monitoreo sintético.
+</Callout>
+
+La versión del monitor siempre coincide con su versión de ejecución y determina qué característica puede ejecutar el monitor. La siguiente sección enumera los tiempos de ejecución con sus características disponibles.
+
+<Callout variant="tip">
+  Si no está seguro de la versión de su monitor, vaya a <DNT>**[one.newrelic.com &gt; Synthetic monitoring](https://one.newrelic.com/synthetics-nerdlets) &amp;gt; Upgrade monitors**</DNT>. No verá la opción <DNT>**Upgrade monitors**</DNT> si tiene la última versión del motor de ejecución.
+</Callout>
+
+Aquí están los detalles de la versión del monitor para todos [los tipos de monitor](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors/#setting-type) excepto ping:
+
+<CollapserGroup>
+  <Collapser
+    id="v06"
+    title={<>Versión 0.6.x</>
+    }
+  >
+    Monitor sintético versión 0.6.x detalles:
+
+    <Callout variant="important">
+      El tiempo de ejecución de monitoreo sintético no admite la sintaxis async/await admitida en Node.js 10.
+    </Callout>
+
+    * <DNT>**Browser**</DNT>: Chrome 72
+
+    * <DNT>**Node**</DNT>: 10.15.0
+
+    * <DNT>**Selenium WebDriver**</DNT>: 3.6.0 (expuesto a través de `$browser` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> Sí
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [atob](https://www.npmjs.com/package/atob) 2.1.0
+      * [aws-sdk](https://www.npmjs.com/package/aws-sdk/v/2.465.0) 2.465.0
+      * [basic-ftp](http://npmjs.com/package/basic-ftp) 4.6.2
+      * [btoa](https://www.npmjs.com/package/btoa) 1.1.2
+      * [chai](http://chaijs.com/) 4.2.0
+      * [chai-webdriver](https://www.npmjs.org/package/chai-webdriver) 1.2.0
+      * [colors](https://www.npmjs.com/package/colors) 1.3.3
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.1
+      * [crypto-js](https://code.google.com/p/crypto-js/) 3.1.9-1
+      * [faker](https://github.com/marak/Faker.js/) 4.1.0
+      * [joi](https://github.com/hapijs/joi) 14.3.1
+      * [ldapauth-fork](https://www.npmjs.com/package/ldapauth-fork) 4.3.3
+      * [lodash](https://lodash.com/) 4.17.11
+      * [moment](http://momentjs.com/) 2.24.0
+      * [net-ping](https://www.npmjs.com/package/net-ping) 1.2.3
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 1.2.4
+      * [Nodemailer](https://www.npmjs.com/package/nodemailer) 6.4.13
+      * [nodejs-traceroute](https://github.com/zulhilmizainuddin/nodejs-traceroute) 1.1.1
+      * [uuid](https://www.npmjs.com/package/uuid) 3.1.0
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 4.1.0
+      * [q](https://github.com/kriskowal/q) 1.5.1
+      * [request](https://www.npmjs.com/package/request) 2.88.0
+      * [should](https://github.com/shouldjs/should.js) 13.2.3
+      * [ssh2-sftp-client](https://www.npmjs.com/package/ssh2-sftp-client) 5.3.1
+      * [ssl-checker](https://github.com/dyaa/ssl-checker) 2.0.5
+      * [text-encoding](https://www.npmjs.com/package/text-encoding) 0.7.0
+      * [thrift](https://www.npmjs.com/package/thrift) 0.11.0
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 3.0.0
+      * [underscore](http://underscorejs.org/) 1.9.0
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.4.4
+      * [urllib](https://github.com/node-modules/urllib) 2.33.0
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [validator](https://www.npmjs.com/package/validator) 10.11.0
+      * [ws](https://github.com/websockets/ws) 6.1.3
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.19
+  </Collapser>
+
+  <Collapser id="v05" title="Versión 0.5.x">
+    Monitor sintético versión 0.5.x detalles:
+
+    * <DNT>**Browser**</DNT>: Chrome 60
+
+    * <DNT>**Node**</DNT>: 6.11.2
+
+    * <DNT>**Selenium WebDriver**</DNT>: 3.5.0 (expuesto a través de `$browser>` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> Sí
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [atob](https://www.npmjs.com/package/atob) 2.0.3
+      * [btoa](https://www.npmjs.com/package/btoa) 1.1.2
+      * [chai](http://chaijs.com/) 4.1.1
+      * [chai-webdriver](https://www.npmjs.org/package/chai-webdriver) 0.9.3
+      * [colors](https://www.npmjs.com/package/colors) 1.1.2
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.1
+      * [crypto-js](https://code.google.com/p/crypto-js/) 3.1.9-1
+      * [faker](https://github.com/marak/Faker.js/) 4.1.0
+      * [joi](https://github.com/hapijs/joi) 10.6.0
+      * [lodash](https://lodash.com/) 4.17.4
+      * [moment](http://momentjs.com/) 2.18.1
+      * [net-ping](https://www.npmjs.com/package/net-ping) 1.2.1
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 1.2.0
+      * [nodejs-traceroute](https://github.com/zulhilmizainuddin/nodejs-traceroute) 1.1.1
+      * [uuid](https://www.npmjs.com/package/uuid) 3.1.0
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 3.2.1
+      * [q](https://github.com/kriskowal/q) 1.5.0
+      * [request](https://www.npmjs.com/package/request) 2.81.0
+      * [should](https://github.com/shouldjs/should.js) 11.2.1
+      * [text-encoding](https://www.npmjs.com/package/text-encoding) 0.6.4
+      * [thrift](https://www.npmjs.com/package/thrift) 0.10.0
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 2.3.2
+      * [underscore](http://underscorejs.org/) 1.8.3
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.1.9
+      * [urllib](https://github.com/node-modules/urllib) 2.24.0
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [validator](https://www.npmjs.com/package/validator) 8.0.0
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.17
+  </Collapser>
+
+  <Collapser id="v04" title="Versión 0.4.x">
+    Monitor sintético versión 0.4.x detalles:
+
+    * <DNT>**Browser**</DNT>: Chrome 44
+
+    * <DNT>**Node**</DNT>: 0.1.2
+
+    * <DNT>**Selenium WebDriver**</DNT>: 2.47.0 (expuesto a través de `$browser>` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> Sí
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [atob](https://www.npmjs.com/package/atob) 2.0.3
+      * [btoa](https://www.npmjs.com/package/btoa) 1.1.2
+      * [chai](http://chaijs.com/) 2.3.0
+      * [chai-webdriver](https://www.npmjs.org/package/chai-webdriver) 1.1.1
+      * [colors](https://www.npmjs.com/package/colors) 1.1.2
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.1
+      * [crypto-js](https://code.google.com/p/crypto-js/) 3.1.5
+      * [faker](https://github.com/marak/Faker.js/) 3.0.1
+      * [joi](https://github.com/hapijs/joi) 6.6.1
+      * [lodash](https://lodash.com/) 2.4.2
+      * [moment](http://momentjs.com/) 2.10.6
+      * [net-ping](https://www.npmjs.com/package/net-ping) 1.1.12
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 1.1.14
+      * [node-uuid](https://www.npmjs.com/package/node-uuid) 1.4.3
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 3.1.6
+      * [q](https://github.com/kriskowal/q) 1.4.1
+      * [request](https://www.npmjs.com/package/request) 2.60.0
+      * [should](https://github.com/shouldjs/should.js) 7.0.3
+      * [text-encoding](https://www.npmjs.com/package/text-encoding) 0.6.4
+      * [thrift](https://www.npmjs.com/package/thrift) 0.9.2
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 2.0.0
+      * [underscore](http://underscorejs.org/) 1.8.3
+      * [urllib](https://github.com/node-modules/urllib) 2.3.11
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.1.9
+      * [validador](https://www.npmjs.com/package/validator) 4.0.2
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.17
+  </Collapser>
+
+  <Collapser id="v02" title="Versión 0.2.x">
+    La única diferencia entre la versión del monitor 0.2.x y 0.4.x es que la 0.4.x tiene habilitada [la configuración del proxy de red](/docs/synthetics/new-relic-synthetics/scripting-monitors/set-proxy-settings-scripted-monitors) .
+
+    Detalles del monitor Sintético versión 0.2.x:
+
+    * <DNT>**Browser**</DNT>: Chrome 44
+
+    * <DNT>**Node**</DNT>: 0.1.2
+
+    * <DNT>**Selenium WebDriver**</DNT>: 2.47.0 (expuesto a través de `$browser>` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> No
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [atob](https://www.npmjs.com/package/atob) 2.0.3
+      * [btoa](https://www.npmjs.com/package/btoa) 1.1.2
+      * [chai](http://chaijs.com/) 2.3.0
+      * [chai-webdriver](https://www.npmjs.org/package/chai-webdriver) 1.1.1
+      * [colors](https://www.npmjs.com/package/colors) 1.1.2
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.1
+      * [crypto-js](https://code.google.com/p/crypto-js/) 3.1.5
+      * [faker](https://github.com/marak/Faker.js/) 3.0.1
+      * [joi](https://github.com/hapijs/joi) 6.6.1
+      * [lodash](https://lodash.com/) 2.4.2
+      * [moment](http://momentjs.com/) 2.10.6
+      * [net-ping](https://www.npmjs.com/package/net-ping) 1.1.12
+      * [net-snmp](https://www.npmjs.com/package/net-snmp) 1.1.14
+      * [node-uuid](https://www.npmjs.com/package/node-uuid) 1.4.3
+      * [protocol-buffers](https://developers.google.com/protocol-buffers/) 3.1.6
+      * [q](https://github.com/kriskowal/q) 1.4.1
+      * [request](https://www.npmjs.com/package/request) 2.60.0
+      * [should](https://github.com/shouldjs/should.js) 7.0.3
+      * [text-encoding](https://www.npmjs.com/package/text-encoding) 0.6.4
+      * [thrift](https://www.npmjs.com/package/thrift) 0.9.2
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 2.0.0
+      * [underscore](http://underscorejs.org/) 1.8.3
+      * [urllib](https://github.com/node-modules/urllib) 2.3.11
+      * [urllib-sync](https://github.com/node-modules/urllib-sync) 1.1.4
+      * [url-parse](https://www.npmjs.com/package/url-parse) 1.1.9
+      * [validador](https://www.npmjs.com/package/validator) 4.0.2
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.17
+  </Collapser>
+
+  <Collapser id="v010" title="Versión 0.1.0">
+    Monitor sintético versión 0.1.0 detalles:
+
+    * <DNT>**Browser**</DNT>: Phantomjs 1.9.8
+
+    * <DNT>**Node**</DNT>: 0.1.0
+
+    * <DNT>**Selenium WebDriver**</DNT>: 2.44.0 (expuesto a través de `$browser>` y `$driver`)
+
+    * <DNT>**Proxy settings:**</DNT> No
+
+    * <DNT>
+        **Supported third-party modules:**
+      </DNT>
+
+      * [chai](http://chaijs.com) 1.9.1
+      * [chai-webdriver](https://www.npmjs.org/package/chai-webdriver) 0.9.3
+      * [colors](https://www.npmjs.com/package/colors) 1.1.2
+      * [consoleplusplus](https://www.npmjs.com/package/consoleplusplus) 1.4.1
+      * [crypto-js](https://code.google.com/p/crypto-js/) 3.1.2-5
+      * [faker](https://github.com/marak/Faker.js/) 2.0.1
+      * [lodash](https://lodash.com/) 2.4.2
+      * [moment](http://momentjs.com/) 2.8.3
+      * [node-uuid](https://www.npmjs.com/package/node-uuid) 1.4.3
+      * [q](https://github.com/kriskowal/q) 1.1.1
+      * [should](https://github.com/shouldjs/should.js) 4.0.4
+      * [tough-cookie](https://github.com/SalesforceEng/tough-cookie) 0.12.1
+      * [underscore](http://underscorejs.org/) 1.7.0
+      * [validator](https://www.npmjs.com/package/validator) 3.18.1
+      * [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) 0.4.17
+  </Collapser>
+</CollapserGroup>

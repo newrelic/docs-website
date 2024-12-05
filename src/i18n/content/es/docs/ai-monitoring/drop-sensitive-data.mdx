@@ -1,0 +1,189 @@
+---
+title: Elimine datos confidenciales con filtros de caída
+metaDescription: Drop filters prompts AI monitoring to drop attributes containing sensitive data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Tiene dos opciones para eliminar datos confidenciales de IA antes de enviarlos a New Relic. Este documento lo guía a través de estos dos métodos para que pueda tener un mejor control sobre los tipos de datos que recopila el agente.
+
+## Deshabilitar ai.monitoring.record\_content.enabled [#disable-event]
+
+Cuando deshabilitas `ai_monitoring.record_content.enabled`, los datos del evento que contienen el símbolo final de usuario y las respuestas IA no se enviarán a NRDB. Puede leer más sobre la configuración de agentes en nuestro [documento de monitoreo de configuración de IA](/docs/ai-monitoring/customize-agent-ai-monitoring).
+
+## Crear filtros de caída [#create-filter]
+
+<Callout variant="caution">
+  Tenga cuidado al decidir eliminar datos. Los datos que usted suelta no son recuperables. Antes de utilizar esta característica, [revise sus responsabilidades de cumplimiento de datos](#responsibilities).
+</Callout>
+
+Un filtro de gota única tiene como objetivo un atributo específico dentro de un tipo de evento, pero la información confidencial de una única interacción de IA se almacena en múltiples eventos. Para eliminar información antes de que ingrese a NRDB, necesita seis filtros de eliminación separados.
+
+<img title="Create a set of drop filters by adding events you want to drop data from" alt="A gif displaying the workflow for creating a set of drop filters" src="/images/ai_screenshot-crop_drop-filter-modal.gif" />
+
+<figcaption>
+  De <DNT>**[one.newrelic.com](https://one.newrelic.com) &amp;gt; All capabilities &amp;gt; AI monitoring &amp;gt; Drop filters**</DNT>: para crear un filtro de colocación, seleccione el evento que puede contener datos confidenciales y luego elija la expresión regular que corresponda con el tipo de datos que desea descartar.
+</figcaption>
+
+1. Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com) &amp;gt; All capabilities &amp;gt; AI monitoring &amp;gt; Drop filters**</DNT> y luego haga clic en <DNT>**Create drop filter**</DNT>.
+2. Crea un nombre de filtro. Recomendamos crear nombres basados en la información incluida, como &quot;tarjeta de crédito&quot;, &quot;emails&quot;, &quot;direcciones&quot;, etc.
+3. Elija el evento del que desea eliminar información o elija eliminar de todos los eventos.
+4. Asigne expresiones regulares al filtro de caída. Tenga en cuenta que, si bien puede seleccionar varios eventos al crear un conjunto de filtros desplegables, solo puede seleccionar un tipo de expresión regular por creación de filtro.
+5. Repita los pasos anteriores para otros tipos de información que desee eliminar. Por ejemplo, si asignó expresiones regulares a su primer conjunto para incluir información de tarjetas de crédito, entonces su siguiente conjunto debería eliminar atributos para otro tipo de información.
+
+## Cómo funcionan los filtros de caída [#drop-rules-work]
+
+En una interacción típica de IA, un símbolo o solicitud pasa por ciertos procesos (como la incrustación) que se registran como un evento discreto. Por ejemplo, digamos que un cliente solicita una dirección postal registrada. El modelo procesa el símbolo, que extrae contexto adicional a través de varios servicios y base de datos. Luego, su asistente de IA regresa con una respuesta que contiene la información solicitada.
+
+Un filtro de gota puede contener tres partes:
+
+* **Evento**: Un registro almacenado de una interacción dentro de su sistema.
+* **Regex**: una cadena de caracteres y operadores que corresponde a tipos de información.
+* **Criterios coincidentes** (opcional): una cláusula NRQL que agrega especificidad al filtro de caída. Por ejemplo, si solo desea eliminar datos de `openai`, puede agregar `vendor IN ('openai')`
+
+Un filtro de caída evalúa los datos reenviados por el agente dentro del proceso de ingesta de datos para que se pueda descartar información confidencial.
+
+### Expresión regular
+
+Dado que el comportamiento predeterminado del agente es capturar todas las partes de los datos del evento antes de enviarlos a New Relic, debe dirigir la canalización de ingesta para que haga coincidir la información confidencial con la expresión regular. Al apuntar a un atributo con expresiones regulares, aún puedes capturar el evento en sí sin almacenar información confidencial en nuestra base de datos.
+
+Consulte la expresión regular a continuación para comenzar a crear su primera consulta:
+
+<CollapserGroup>
+  <Collapser id="cahcn" title="Número de tarjeta sanitaria de Canadá">
+    **Expresión:**
+
+    ```regex
+    (\d{10})
+    ```
+  </Collapser>
+
+  <Collapser id="caphin" title="Número de seguro social/salud personal de Canadá (PHIN/SIN)">
+    **Expresión:**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{3}[-\s\.]?\d{3})
+    ```
+  </Collapser>
+
+  <Collapser id="email" title="Dirección de correo electrónico">
+    **Expresión:**
+
+    ```regex
+    ([a-zA-Z0-9!#$'*+?^_`{|}~.-]+(?:@|%40)(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+)
+    ```
+  </Collapser>
+
+  <Collapser id="indiapanid" title="ID PAN de la India">
+    **Expresión:**
+
+    ```regex
+    ([a-zA-Z]){5}([0-9]){4}([a-zA-Z]){1}?
+    ```
+  </Collapser>
+
+  <Collapser id="indiaaadhaar" title="ID de AADHAAR de India">
+    **Expresión:**
+
+    ```regex
+    ([2-9]{1}[0-9]{3}\s\d{4}\s\d{4})
+    ```
+  </Collapser>
+
+  <Collapser id="ipv4" title="Dirección IP (ipv4)">
+    **Expresión:**
+
+    ```regex
+    ([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})
+    ```
+  </Collapser>
+
+  <Collapser id="japanid" title="Número de identidad nacional de Japón (Mi número)">
+    **Expresión:**
+
+    ```regex
+    (d{4}\sd{4}\sd{4})
+    ```
+  </Collapser>
+
+  <Collapser id="spainnid" title="DNI de España (NIE/DNI/NIF)">
+    **Expresión:**
+
+    ```regex
+    ([a-zA-Z]?[-\s]?\d{7,8}[-\s]?[a-zA-Z])
+    ```
+  </Collapser>
+
+  <Collapser id="ssn" title="Número de Seguro Social EE.UU">
+    **Expresión:**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{2}[-\s\.]?\d{4})
+    ```
+  </Collapser>
+
+  <Collapser id="uknino" title="Número de seguro nacional del Reino Unido (NINO)">
+    **Expresión:**
+
+    ```regex
+    ([a-zA-Z]{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?[a-dA-D])
+    ```
+  </Collapser>
+
+  <Collapser id="usstreetaddress" title="Dirección postal en EE. UU.">
+    **Expresión:**
+
+    ```regex
+    \d{1,}(\s{1}\w{1,})(\s{1}?\w{1,})
+    ```
+  </Collapser>
+
+  <Collapser id="usphone" title="Número de teléfono de EE. UU.">
+    **Expresión:**
+
+    ```regex
+    (^[\+]?[1]?[\W]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4})
+    ```
+  </Collapser>
+
+  <Collapser id="uspassport" title="Número de pasaporte estadounidense">
+    **Expresión:**
+
+    ```regex
+    ([a-zA-Z]?\d?\d{5,8})
+    ```
+  </Collapser>
+
+  <Collapser id="dob" title="Fecha de nacimiento de EE. UU.">
+    **Expresión:**
+
+    ```regex
+    ((?:\d{2})?\d\d(?:\\)?(?:\/)?\d\d(?:\\)?(?:\/)?\d{2}(?:\d{2})?)
+    ```
+  </Collapser>
+
+  <Collapser id="ccn" title="Número de Tarjeta de Crédito">
+    **Expresión:**
+
+    ```regex
+    ((?:(?:4\d{3})|(?:5[1-5]\d{2})|6(?:011|5[0-9]{2}))(?:-?|\040?)(?:\d{4}(?:-?|\040?)){3}|(?:3[4,7]\d{2})(?:-?|\040?)\d{6}(?:-?|\040?)\d{5})
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Sus responsabilidades de cumplimiento de datos [#responsibilities]
+
+New Relic no puede garantizar que esta funcionalidad resuelva por completo sus inquietudes sobre la divulgación de datos, ni podemos brindarle asistencia para desarrollar su consulta NRQL . Le recomendamos que:
+
+* Revise sus filtros de caída y confirme que estén identificando y descartando con precisión los datos que desea eliminar.
+* Verifique que sus filtros de caída sigan arrojando información confidencial después de haberlos creado.
+
+Si bien los filtros de caída ayudan a garantizar que la información personal sobre su usuario final no se almacene en NRDB, la creación de las reglas en sí implica los tipos de datos que mantiene, incluido el formato de sus datos o sistemas. Esto es importante al determinar los permisos de control para ciertos usuarios en su organización, ya que ciertos permisos le permiten al usuario ver y editar toda la información en las reglas que usted crea.
+
+## ¿Que sigue? [#whats-next]
+
+Ahora que ha protegido los datos de sus clientes, puede explorar el monitoreo de IA:
+
+* [Aprenda a explorar sus datos de IA](/docs/ai-monitoring/view-ai-data).
+* ¿Quiere ajustar su ingesta de datos? [Obtenga información sobre cómo configurar el monitoreo de IA](/docs/ai-monitoring/customize-agent-ai-monitoring).
+* ¿Habilitaste el registro? Aprenda cómo [ocultar información confidencial](/docs/logs/ui-data/obfuscation-ui) de su registro o [eliminar mensajes de registro completos si contienen información confidencial](/docs/logs/ui-data/drop-data-drop-filter-rules).

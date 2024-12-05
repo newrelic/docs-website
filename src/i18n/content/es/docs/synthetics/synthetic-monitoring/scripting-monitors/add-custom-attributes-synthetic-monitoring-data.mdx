@@ -1,0 +1,135 @@
+---
+title: Agregar atributo personalizado al monitoreo sintético de datos
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Scripting monitors
+metaDescription: $util.insights is a set of tools to set and manipulate synthetic event data in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+`$util.insights` de New Relic es un conjunto de herramientas para configurar y manipular [eventos](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) reportados desde el monitoreo sintético.
+
+Puedes agregar datos personalizados como atributo personalizado, con el prefijo `custom`, al [evento](/docs/data-apis/understand-data/new-relic-data-types/#event-data) `SyntheticCheck` . Estos atributos se suman al [atributo predeterminado](/docs/insights/new-relic-insights/decorating-events/synthetics-default-attributes-insights#syntheticcheck-table) del evento.
+
+## Compatibilidad [#h2-compatibility]
+
+Esta funcionalidad está disponible para [las versiones de monitor 0.2.0 o posteriores](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment).
+
+## Funciones [#h2-functions]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Función
+      </th>
+
+      <th style={{ width: "100px" }}>
+        Valor de retorno
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$util.insights.set(key: string, value: ?)`
+
+        Establece un par principal de valor.
+      </td>
+
+      <td>
+        vacío
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$util.insights.get(key: string)`
+
+        Devuelve el valor de la clave proporcionada.
+      </td>
+
+      <td>
+        objeto
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$util.insights.getKeys()`
+
+        Devuelve una matriz de claves actualmente configuradas.
+      </td>
+
+      <td>
+        objeto
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$util.insights.has(key: string)`
+
+        Devuelve `true` si la clave existe en los datos.
+      </td>
+
+      <td>
+        booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$util.insights.unset(key: string)`
+
+        Elimina el par principal de valor.
+      </td>
+
+      <td>
+        vacío
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$util.insights.unsetAll()`
+
+        Elimina todos los datos personalizados.
+      </td>
+
+      <td>
+        vacío
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplo
+
+El ejemplo obtiene el último incidente de la fuente de estado RSS de New Relic y guarda los detalles de este evento.
+
+```javascript
+var parseString = require('xml2js').parseString;
+ 
+// Get the New Relic status RSS feed
+$http.get('https://status.newrelic.com/history.rss', function(err, response, body) {
+  parseString(body, function(err, result){
+    // Parse the RSS, and get the latest incident
+    var latestIncident = result.rss.channel[0].item[0];
+    
+    // Push the incident details to New Relic 
+    $util.insights.set('Incident', latestIncident.title[0]);
+    $util.insights.set('Description', latestIncident.description[0]);
+    $util.insights.set('Date', latestIncident.pubDate[0]);
+  });
+});
+```
+
+Para ver los datos del incidente enviados a New Relic en este ejemplo, utilice esta consulta:
+
+```sql
+FROM SyntheticCheck SELECT latest(custom.Date), latest(custom.Incident), latest(custom.Description) WHERE monitorName = "Monitor Name Here"
+```

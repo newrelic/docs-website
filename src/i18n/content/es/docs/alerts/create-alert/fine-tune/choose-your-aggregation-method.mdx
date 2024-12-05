@@ -1,0 +1,124 @@
+---
+title: Elija su método de agregación
+tags:
+  - Alerts
+metaDescription: Use this for guidance on choosing the best aggregation method for your alerting conditions and notification thresholds.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La condición de alerta proporciona un conjunto sofisticado de herramientas para describir cuándo desea recibir una notificación sobre algo que sucedió o no sucedió en algo que está monitoreando. Para obtener mejores resultados, elija el método de agregación que mejor se adapte a la forma en que llegan sus datos.
+
+Los tres métodos de agregación son flujo de eventos, temporizador de eventos y cadencia. Si está interesado en una descripción general conceptual, consulte nuestro documento sobre [alerta de transmisión, términos y conceptos clave](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/streaming-alerts-key-terms-concepts/).
+
+## ¿Qué es la agregación? [#aggregation]
+
+Cuando New Relic monitorea una aplicación o servicio, los datos pueden llegar de diferentes maneras. Algunos datos llegan de manera consistente y predecible, mientras que otros llegan de manera inconsistente y esporádica.
+
+La agregación es la forma en que nuestro sistema de alerta recopila datos antes de analizarlos para detectar niveles de umbral críticos o de advertencia excedidos.
+
+Sus datos se recopilan como puntos de datos en una ventana de agregación y luego se convierten en un valor numérico único. Los puntos de datos se agregan en función de su consulta NRQL utilizando métodos como suma, promedio, mínimo y máximo, entre otros. Este valor numérico único es lo que se utiliza para evaluar el umbral de la condición.
+
+Una vez que se han agregado los datos, no se les pueden agregar más puntos de datos. Nuestros diferentes métodos de agregación lo ayudarán a lograr un equilibrio entre agregar sus datos rápidamente y esperar a que lleguen suficientes puntos de datos.
+
+## Por qué es importante [#why]
+
+Con el método de agregación correcto, es más probable que reciba las notificaciones que le interesan y, al mismo tiempo, evite las que no.
+
+Las preguntas más importantes a considerar al decidir su método de agregación: ¿Con qué frecuencia llegan mis datos? ¿Con qué regularidad llegan mis datos?
+
+Cuando los datos llegan de forma frecuente y consistente de forma lineal, recomendamos utilizar el flujo de eventos.
+
+Cuando los datos llegan de forma esporádica, inconsistente y desordenada, recomendamos utilizar la agregación de temporizador de eventos.
+
+## Cuando usar el flujo de eventos [#event-flow]
+
+<img
+  title="Diagram showing regularly arriving data points."
+  alt="Diagram showing regularly arriving data points"
+  src="/images/accounts_diagram_time-series-data-points.webp"
+/>
+
+Con el flujo de eventos, los datos se agregan según la marca de tiempo del punto de datos, por lo que es importante que los puntos de datos lleguen de manera consistente y lineal. Este método de agregación no funciona tan bien para marcas de tiempo de puntos de datos que llegan desordenadas o con un amplio lapso de tiempo en un período corto.
+
+Evento flow es el método de agregación predeterminado, porque se aplica a los casos de uso más comunes.
+
+## Cómo funciona el flujo de eventos [#event-flow-detail]
+
+Evento flow utiliza la marca de tiempo del punto de datos para determinar cuándo abrir y cerrar una ventana de agregación.
+
+Por ejemplo, si está utilizando un flujo de eventos con una ventana de retraso de 2 minutos, entonces se cerrará una ventana de agregación cuando llegue una timestamp dos minutos más tarde que la última timestamp que se recibió.
+
+Llega un punto de datos con una timestamp de las 12:00 p.m. Se abre una ventana de agregación. En algún momento, llega un punto de datos de las 12:03 p.m. evento flow cierra la ventana, excluyendo el punto de datos de las 12:03, y evalúa esa ventana cerrada con respecto a su umbral.
+
+La ventana de agregación de flujo de eventos continuará recopilando puntos de datos hasta esa timestamp posterior. La marca de tiempo posterior es la que hace avanzar el sistema, no los puntos de datos en sí. evento flow esperará el tiempo necesario hasta que llegue el siguiente punto de datos posterior a su configuración de retraso, antes de agregar los datos.
+
+Evento flow funciona mejor para datos que llegan de forma frecuente y consistente.
+
+<Callout variant="caution">
+  Si espera que sus puntos de datos lleguen con más de 65 minutos de diferencia, utilice el método del temporizador de eventos que se describe a continuación.
+</Callout>
+
+## Casos de uso de flujo de eventos [#event-flow-use-cases]
+
+A continuación se muestran algunos casos de uso típicos de flujo de eventos:
+
+* <InlinePopover type="apm"/>
+
+  datos del agente.
+
+* Datos del agente de infraestructura.
+
+* Cualquier dato proveniente de un tercero que llegue de manera frecuente y confiable.
+
+* La mayoría de las métricas de AWS de CloudWatch provienen de AWS Metric Streams (NO sondeos). La principal excepción es que algunos datos de AWS CloudWatch son muy poco frecuentes (como los datos del volumen S3) independientemente de si se trata de transmisión o sondeo y, en ese caso, usaría
+
+  <DNT>
+    **Event timer**
+  </DNT>
+
+  .
+
+## Cuándo usar el temporizador de eventos [#event-timer]
+
+<img
+  title="A screenshot showing where you can find the NRQL query builder button in the UI."
+  alt="A screenshot showing where you can find the NRQL query builder button in the UI."
+  src="/images/accounts_diagram_signal-consistency-.webp"
+/>
+
+La agregación de temporizadores de eventos se basa en un temporizador que cuenta regresivamente cuando llega un punto de datos. El temporizador se reinicia cada vez que llega un nuevo punto de datos. Si el temporizador realiza una cuenta regresiva antes de que llegue un nuevo punto de datos, el temporizador de eventos agrega todos los puntos de datos recibidos durante ese tiempo.
+
+El temporizador de eventos es mejor para alertar sobre eventos que ocurren esporádicamente y con grandes intervalos de tiempo.
+
+## Cómo funciona el temporizador de eventos [#event-timer-detail]
+
+Los errores son un tipo de evento que ocurre de forma esporádica, impredecible y, a menudo, con grandes lapsos de tiempo.
+
+Por ejemplo, es posible que tenga una condición con una consulta que devuelva un recuento de errores. Pueden pasar muchos minutos sin ningún error y de repente llegan 5 errores en un minuto.
+
+En este ejemplo, el evento timer no haría nada hasta que llegue el primero de los 5 errores. Luego iniciaría el cronómetro, reiniciándolo cada vez que llegue un nuevo error. Si la cuenta regresiva del temporizador llega a 0 sin un nuevo error, el temporizador de eventos agrega los datos y los evalúa según su umbral.
+
+## Casos de uso del temporizador de eventos [#event-timer-use-cases]
+
+A continuación se muestran algunos casos de uso típicos del temporizador de eventos:
+
+* Datos de uso New Relic .
+* Datos de integración en la nube que se están sondeando (como con los métodos de sondeo de GCP, Azure o AWS).
+* Consultas que entregan datos escasos o poco frecuentes, como recuentos de errores.
+
+## Cadencia [#cadence]
+
+La cadencia es nuestro método de agregación original. Agrega datos en intervalos de tiempo específicos detectados por el reloj de pared interno de New Relic, independientemente de la marca de tiempo de los datos.
+
+Le recomendamos que utilice uno de nuestros otros métodos de agregación en su lugar, a menos que su evento sea susceptible a un desfase del reloj y no tenga control sobre el productor para corregirlo. Por ejemplo, el evento `PageAction` está instrumentado en el navegador del usuario y depende del reloj del dispositivo del usuario para asignar una timestamp. Un solo evento con una timestamp sesgada puede afectar el flujo del evento o incluso la alerta del temporizador, ya que las ventanas pueden agregarse demasiado pronto y dar como resultado un falso positivo.
+
+Fuera de este escenario, querrás elegir uno de los otros métodos de agregación. evento flow es mejor para puntos de datos consistentes y predecibles. evento timer es mejor para puntos de datos esporádicos e inconsistentes.
+
+## Agregación y pérdida de señal. [#loss-signal]
+
+Nuestro sistema de pérdida de señal se ejecuta por separado de estos métodos y configuraciones de agregación.
+
+Si configura su condición de alerta para abrir un nuevo incidente cuando su señal se pierde durante 10 minutos, una pérdida de servicio de señal espera que lleguen los puntos de datos. Si un nuevo punto de datos no llega en 10 minutos, la pérdida de señal provoca que se abra un incidente.
+
+Para obtener más información sobre cuándo usar el relleno de espacios y la pérdida única, consulte nuestra publicación en el foro sobre [cuándo usar el relleno de espacios y la pérdida de señal](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401).

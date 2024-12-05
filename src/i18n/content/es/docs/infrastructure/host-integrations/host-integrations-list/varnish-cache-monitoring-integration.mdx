@@ -1,0 +1,2199 @@
+---
+title: Varnish Cache monitoreo integración
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: 'New Relic''s Varnish Cache integration: how to install it and configure it, and what data it reports.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La [integración de Varnish Cache en el host](/docs/integrations/host-integrations/getting-started/introduction-host-integrations) recopila y envía inventario y métrica desde su entorno de Varnish Cache a New Relic para que pueda monitor su estado. Recopilamos métrica a nivel de instancia, bloqueo, grupo de memoria, almacenamiento y backend .
+
+Continúe leyendo para instalar la integración y ver qué datos recopilamos.
+
+## Compatibilidad y requisitos [#comp-req]
+
+Nuestra integración es compatible con Varnish Cache 1.0 o superior.
+
+Antes de instalar la integración, asegúrese de cumplir con los siguientes requisitos:
+
+* [Instale el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic).
+* Distribución Linux o versión Windows [compatible con nuestro agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/compatibility-requirements-new-relic-infrastructure).
+
+## Inicio rápido [#quick]
+
+Instrumente su entorno Varnish Cache rápidamente y envíe sus telemetry data con instalación guiada. Nuestra instalación guiada crea un comando CLI personalizado para su entorno que descarga e instala la CLI de New Relic y el agente de infraestructura.
+
+¿Listo para comenzar? Haga clic en uno de estos botones para probarlo.
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://one.newrelic.com/marketplace/install-data-source?state=eda6d17b-58b5-5e7a-18ca-3b4ce777ecff"
+    variant="primary"
+  >
+    Instalación
+  </ButtonLink>
+
+  <ButtonLink
+    role="button"
+    to="https://one.eu.newrelic.com/marketplace/install-data-source?state=eda6d17b-58b5-5e7a-18ca-3b4ce777ecff"
+    variant="primary"
+  >
+    Instalación de la UE
+  </ButtonLink>
+</ButtonGroup>
+
+Nuestra instalación guiada utiliza el agente de infraestructura para configurar la integración de Varnish Cache. No solo eso, descubre otras aplicaciones y fuentes log que se ejecutan en su entorno y luego recomienda cuáles debería utilizar.
+
+La instalación guiada funciona con la mayoría de las configuraciones. Pero si no se adapta a sus necesidades, puede encontrar otros métodos a continuación para comenzar a monitorear su entorno Varnish Cache.
+
+## Instalar y activar [#install]
+
+Para instalar la integración de Varnish Cache:
+
+<CollapserGroup>
+  <Collapser
+    id="linux-install"
+    title="Instalación de linux"
+  >
+    1. Instale [el agente de infraestructura](/docs/integrations/host-integrations/installation/install-infrastructure-host-integrations/#install) y reemplace la variable `INTEGRATION_FILE_NAME` con `nri-varnish`.
+
+    2. Cambiar directorio a la carpeta de integración:
+
+       ```
+       cd /etc/newrelic-infra/integrations.d
+       ```
+
+    3. Copia del archivo de configuración de muestra:
+
+       ```
+       sudo cp varnish-config.yml.sample varnish-config.yml
+       ```
+
+    4. Edite el archivo `varnish-config.yml` como se describe en los [ajustes de configuración](#config).
+  </Collapser>
+
+  <Collapser
+    id="windows-install"
+    title="Instalación de Windows"
+  >
+    1. Descargue la imagen del instalador `nri-varnish` .MSI desde:
+
+       [https://download.newrelic.com/infrastructure_agent/windows/integrations/nri-varnish/nri-varnish-amd64.msi](https://download.newrelic.com/infrastructure_agent/windows/integrations/nri-varnish/nri-varnish-amd64.msi)
+
+    2. Para instalar desde el símbolo del sistema de Windows, ejecute:
+
+       ```
+       msiexec.exe /qn /i PATH\TO\nri-varnish-amd64.msi
+       ```
+
+    3. En el directorio de integración, `C:\Program Files\New Relic\newrelic-infra\integrations.d\`, cree una copia del archivo de configuración de muestra ejecutando:
+
+       ```
+       cp varnish-config.yml.sample varnish-config.yml
+       ```
+
+    4. Edite el archivo `varnish-config.yml` como se describe en los [ajustes de configuración](#config).
+  </Collapser>
+</CollapserGroup>
+
+Notas adicionales:
+
+* <DNT>
+    **Advanced:**
+  </DNT>
+
+  También es posible [instalar la integración desde un archivo tarball](/docs/integrations/host-integrations/installation/install-host-integrations-built-new-relic#tarball). Esto le brinda control total sobre el proceso de instalación y configuración.
+
+* <DNT>
+    **On-host integrations do not automatically update.**
+  </DNT>
+
+  Para obtener mejores resultados, [actualice periódicamente el paquete de integración](/docs/integrations/host-integrations/installation/update-infrastructure-host-integration-package) y [el agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+<InstallFeedback/>
+
+## Configurar la integración [#config]
+
+La configuración de formato YAML de una integración es donde puede colocar las credenciales de inicio de sesión requeridas y configurar cómo se recopilan los datos. Las opciones que cambie dependen de su configuración y preferencia.
+
+El archivo de configuración tiene configuraciones comunes aplicables a todas las integraciones como `interval`, `timeout`, `inventory_source`. Para leer todo sobre estas configuraciones comunes, consulte nuestro documento [Formato de configuración](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-newer-configuration-format/#configuration-basics) .
+
+<Callout variant="important">
+  Si todavía utiliza nuestros archivos de configuración/definición legacy, consulte este [documento](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/) para obtener ayuda.
+</Callout>
+
+Las configuraciones específicas relacionadas con Varnish se definen usando la sección `env` del archivo de configuración. Estas configuraciones controlan la conexión a su instancia de Varnish, así como otras configuraciones y características de seguridad. La lista de configuraciones válidas se describe en la siguiente sección.
+
+### Configuración de instancia de Varnish Cache [#instance-settings]
+
+La integración Varnish Cache recopila información métrica (<strong>M</strong>) e inventario (<strong>I</strong>). Consulte la columna <DNT>**Applies To**</DNT> a continuación para encontrar qué configuraciones se pueden usar para cada colección específica:
+
+' '
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '150px' }}>
+        Configuración
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Por defecto
+      </th>
+
+      <th>
+        Se aplica a
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **INSTANCE_NAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre definido por el usuario para identificar los datos de esta instancia en New Relic. <DNT>**Required**</DNT>.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **PARAMS_CONFIG_FILE**
+        </DNT>
+      </td>
+
+      <td>
+        La ubicación del archivo de configuración `varnish.params` . Si se omite este argumento, se comprobarán las siguientes ubicaciones:
+
+        * `/etc/default/varnish/varnish.params`
+
+        * `/etc/sysconfig/varnish/varnish.params`
+
+          Nota: La ubicación y el nombre del archivo de configuración de Varnish pueden variar. Para obtener más información, consulte [Diferentes ubicaciones del archivo de configuración de Varnish](https://book.varnish-software.com/4.0/chapters/Getting_Started.html#different-locations-of-the-varnish-configuration-file). Para Varnish 6 y superiores, este parámetro no es necesario y la integración debe configurarse solo para recolección métrica. Vea [el ejemplo de Barniz 6](#example6).
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **VARNISH_NAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre utilizado al ejecutar el daemon `varnishd` con un indicador `-n` personalizado. <DNT>**Optional**</DNT>.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **METRICS**
+        </DNT>
+      </td>
+
+      <td>
+        Establezca en `true` para habilitar la recopilación solo métrica.
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td style={{ "text-align": "center" }}/>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **INVENTORY**
+        </DNT>
+      </td>
+
+      <td>
+        Configúrelo en `true` para habilitar la recopilación solo de inventario.
+      </td>
+
+      <td>
+        `false`
+      </td>
+
+      <td style={{ "text-align": "center" }}/>
+    </tr>
+  </tbody>
+</table>
+
+Los comandos `varnish-config.yml` aceptan los siguientes argumentos:
+
+Los valores para estas configuraciones se pueden definir de varias maneras:
+
+* Agregando el valor directamente en el archivo de configuración. Esta es la forma más común.
+* Reemplazar los valores de las variables de entorno usando la notación `{{}}` . Esto requiere el agente de infraestructura v1.14.0+. Leer más [aquí](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#passthrough).
+* Utilizando la gestión de secretos. Utilícelo para proteger información confidencial, como contraseñas que quedarían expuestas en texto sin formato en el archivo de configuración. Para obtener más información, consulte [Gestión de secretos](/docs/integrations/host-integrations/installation/secrets-management).
+
+### Etiquetas/atributo personalizado [#labels]
+
+Las variables de entorno se pueden utilizar para controlar los ajustes de configuración, como su <InlinePopover type="licenseKey"/>, y luego se pasan al agente de infraestructura. Para obtener instrucciones sobre cómo utilizar esta característica, consulte [Configurar el agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent#passthrough). Puedes decorar aún más tu métrica usando etiquetas. Las etiquetas le permiten agregar valor de pares principales de atributos a su métrica que luego puede usar para consultar, filtrar o agrupar su métrica.<br/> Nuestro archivo de configuración de muestra predeterminado incluye ejemplos de etiquetas pero, como no son obligatorias, puede eliminar, modificar o agregar nuevas de su elección.
+
+```
+ labels:
+   env: production
+   role: varnish
+```
+
+## Configuración de ejemplo [#example-config]
+
+Ejemplo de configuración del archivo `varnish-config.yml` :
+
+<CollapserGroup>
+  <Collapser
+    id="example"
+    title="Configuración de ejemplo"
+  >
+    Esta es la configuración muy básica para recopilar métricas e inventario:
+
+    ```
+    integrations:
+      - name: nri-varnish
+        env:
+          INSTANCE_NAME: new_relic
+          PARAMS_CONFIG_FILE: /etc/default/varnish/varnish.params
+        interval: 15s
+        labels:
+          env: production
+          role: varnish
+        inventory_source: config/varnish
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example6"
+    title="Configuración para Varnish 6+"
+  >
+    Esta es una configuración básica para Varnish 6 o superior. Solo se recopilará métrica porque, a partir de Varnish 6, el archivo de parámetros quedó obsoleto.
+
+    ```
+    integrations:
+      - name: nri-varnish
+        env:
+          INSTANCE_NAME: new_relic
+          METRICS: true
+        interval: 15s
+        labels:
+          env: production
+          role: varnish
+        inventory_source: config/varnish
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para obtener más información sobre la estructura general de la configuración de integración en el host, consulte [Configuración](/docs/integrations/integrations-sdk/file-specifications/host-integration-configuration-overview).
+
+## Buscar y utilizar datos [#find-and-use]
+
+Para encontrar sus datos de integración en New Relic, vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Third-party services**</DNT> y seleccione uno de los enlaces de integración de Varnish Cache.
+
+En New Relic, los datos de Varnish Cache se adjuntan al siguiente tipo de evento:
+
+* `VarnishSample`
+* `VarnishLockSample`
+* `VarnishStorageSample`
+* `VarnishMempoolSample`
+* `VarnishBackendSample`
+
+Para obtener más información sobre cómo encontrar y utilizar sus datos, consulte [Comprender los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Datos métricos [#metrics]
+
+La integración Varnish Cache recopila el siguiente atributo de datos métricos. Cada nombre de métrica tiene como prefijo un indicador de categoría y un punto, como `bans.` o `main.`.
+
+<Callout variant="tip">
+  Varias métricas se calculan como tasas (por segundo) en lugar de totales, como podrían sugerir los nombres de las métricas. Para obtener más detalles sobre qué métricas se calculan como tasas, consulte el [archivo spec.csv](https://github.com/newrelic/nri-varnish/blob/master/spec.csv).
+</Callout>
+
+### Muestra de Varnish métrica [#varnish-sample]
+
+Estos atributos se pueden encontrar consultando los tipos de eventos VarnishSample.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `backend.connectionBusy`
+      </td>
+
+      <td>
+        Número de veces que se ha alcanzado la conexión máxima.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionFails`
+      </td>
+
+      <td>
+        Número de conexiones fallidas al respaldado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionRecycles`
+      </td>
+
+      <td>
+        Número de conexiones backend que se han reciclado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionRetries`
+      </td>
+
+      <td>
+        Número de conexiones de backend que se han reintentado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionReuses`
+      </td>
+
+      <td>
+        Número de reutilizaciones de conexiones backend.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionSuccess`
+      </td>
+
+      <td>
+        Número de conexiones backend exitosas,
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionUnHealthy`
+      </td>
+
+      <td>
+        Número de conexiones de backend que no se intentaron debido a un estado de backend "incorrecto".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.fetches`
+      </td>
+
+      <td>
+        Número total de recuperaciones de backend iniciadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.requests`
+      </td>
+
+      <td>
+        Número total de solicitudes de conexión de backend realizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.added`
+      </td>
+
+      <td>
+        Contador de prohibiciones agregado a la lista de prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.completed`
+      </td>
+
+      <td>
+        Número de prohibiciones marcadas como "completas".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.cutoffLurkerKilled`
+      </td>
+
+      <td>
+        Número de objetos asesinados por prohibiciones de corte (lurker).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.deleted`
+      </td>
+
+      <td>
+        Contador de prohibiciones eliminado de la lista de prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.dups`
+      </td>
+
+      <td>
+        Recuento de prohibiciones reemplazadas por prohibiciones idénticas posteriores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.fragmentationInBytes`
+      </td>
+
+      <td>
+        Bytes adicionales en listas de prohibiciones persistentes debido a la fragmentación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lookupKilled`
+      </td>
+
+      <td>
+        Número de objetos eliminados por prohibiciones durante la búsqueda de objetos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lookupTestsTested`
+      </td>
+
+      <td>
+        Recuento de cuántas pruebas y objetos se han probado entre sí durante la búsqueda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lurkerCon`
+      </td>
+
+      <td>
+        Número de veces que el acechador de la prohibición tuvo que esperar a que se realizaran búsquedas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lurkerKilled`
+      </td>
+
+      <td>
+        Número de objetos asesinados por el acechador de la prohibición.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lurkerTested`
+      </td>
+
+      <td>
+        Cuente cuántas prohibiciones y objetos han sido probados entre sí por el acechador de prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.lurkerTestsTested`
+      </td>
+
+      <td>
+        Recuento de cuántas pruebas y objetos han sido probados entre sí por el acechador de la prohibición.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.obj`
+      </td>
+
+      <td>
+        Número de prohibiciones que utilizan `obj.*` variables. Estas prohibiciones posiblemente puedan ser eliminadas por el que acecha las prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.persistedInBytes`
+      </td>
+
+      <td>
+        Bytes utilizados por las listas de prohibiciones persistentes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.req`
+      </td>
+
+      <td>
+        Número de prohibiciones que utilizan `req.*` variables. Estas prohibiciones no pueden ser eliminadas por el que acecha las prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bans.tested`
+      </td>
+
+      <td>
+        Recuento de cuántas prohibiciones y objetos se han probado entre sí durante la búsqueda de hash.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cache.graceHits`
+      </td>
+
+      <td>
+        Conde de acierto de caché con gracia. Un acierto de caché con gracia es un acierto de caché en el que el objeto ha caducado. Estas visitas también se incluyen en el contador `cache_hit` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cache.hits`
+      </td>
+
+      <td>
+        Número de veces que un objeto se entregó a un cliente sin recuperarlo de un servidor backend.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cache.misses`
+      </td>
+
+      <td>
+        Número de veces que se obtuvo el objeto del backend antes de entregarlo al cliente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cache.missHits`
+      </td>
+
+      <td>
+        Número de veces que se devolvió un objeto visitado por una respuesta errónea.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cache.passHits`
+      </td>
+
+      <td>
+        Número de veces que se devolvió un objeto de impacto como respuesta de aprobación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `esi.errors`
+      </td>
+
+      <td>
+        Errores de análisis de Edge Side Incluye (ESI) (desbloqueo).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `esi.warnings`
+      </td>
+
+      <td>
+        Edge Side incluye advertencias de análisis (ESI) (desbloqueo).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.bad`
+      </td>
+
+      <td>
+        No se pudo determinar la longitud/búsqueda de `beresp.body` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.chuncked`
+      </td>
+
+      <td>
+        El `beresp.body` fragmentado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.contentLength`
+      </td>
+
+      <td>
+        El `beresp.body` con longitud del contenido.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.eof`
+      </td>
+
+      <td>
+        El `beresp.body` con EOF.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.failed`
+      </td>
+
+      <td>
+        El `beresp` falló.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.head`
+      </td>
+
+      <td>
+        El `beresp` sin cuerpo porque la solicitud es HEAD.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.noBody`
+      </td>
+
+      <td>
+        El `beresp` sin cuerpo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.noBody1xx`
+      </td>
+
+      <td>
+        El `beresp` sin cuerpo por respuesta 1XX.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.noBody204`
+      </td>
+
+      <td>
+        El `beresp` sin cuerpo por respuesta 204.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.noBody304`
+      </td>
+
+      <td>
+        El `beresp` sin cuerpo por respuesta 304.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetch.noThreadFail`
+      </td>
+
+      <td>
+        La recuperación de `beresp` falló, no hay hilo disponible.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hcb.inserts`
+      </td>
+
+      <td>
+        Número de inserciones de hash basado en árbol de bits (HCB) críticas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hcb.lock`
+      </td>
+
+      <td>
+        Número de búsquedas de HCB con bloqueo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hcb.noLock`
+      </td>
+
+      <td>
+        Número de búsquedas de HCB sin bloqueo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `lru.limited`
+      </td>
+
+      <td>
+        Número de veces que se necesitó más espacio de almacenamiento, pero se alcanzó el límite.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `lru.moved`
+      </td>
+
+      <td>
+        Número de operaciones de movimiento realizadas en la lista LRU.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `lru.nuked`
+      </td>
+
+      <td>
+        Número de objetos usados menos recientemente (LRU) desalojados por la fuerza del almacenamiento para dejar espacio para un nuevo objeto.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.backends`
+      </td>
+
+      <td>
+        Número de backend.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.bans`
+      </td>
+
+      <td>
+        Recuento de prohibiciones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.busyKilled`
+      </td>
+
+      <td>
+        Número de solicitudes canceladas después de dormir en objhdr ocupado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.busySleep`
+      </td>
+
+      <td>
+        Número de solicitudes enviadas para dormir en objhdr ocupado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.busyWakeup`
+      </td>
+
+      <td>
+        Número de solicitudes que se despiertan después de dormir en un objhdr ocupado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.expired`
+      </td>
+
+      <td>
+        Número de objetos caducados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.expiredMailed`
+      </td>
+
+      <td>
+        Número de objetos enviados por correo al hilo de vencimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.expiredReceived`
+      </td>
+
+      <td>
+        Número de objetos recibidos por hilo de vencimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.gunzip`
+      </td>
+
+      <td>
+        Número de operaciones gunzip.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.gunzipTest`
+      </td>
+
+      <td>
+        Número de operaciones de prueba de gunzip.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.gzip`
+      </td>
+
+      <td>
+        Número de operaciones gzip.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.objectcores`
+      </td>
+
+      <td>
+        Número de estructuras de núcleo de objeto realizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.objectheads`
+      </td>
+
+      <td>
+        Número de estructuras objetadas realizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.objects`
+      </td>
+
+      <td>
+        Número de estructuras de objetos realizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.passedRequests`
+      </td>
+
+      <td>
+        Total de solicitudes aprobadas vistas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.pipeSessions`
+      </td>
+
+      <td>
+        Total de sesiones de tubería vistas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.pools`
+      </td>
+
+      <td>
+        Número de grupos de subprocesos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.purgeObjects`
+      </td>
+
+      <td>
+        Número de objetos purgados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.purgeOperations`
+      </td>
+
+      <td>
+        Número de operaciones de purga ejecutadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.reqDropped`
+      </td>
+
+      <td>
+        Se redujo el número de solicitudes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.sessions`
+      </td>
+
+      <td>
+        Número total de sesiones vistas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.sessQueueLength`
+      </td>
+
+      <td>
+        Longitud de la cola de sesión en espera de subprocesos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.summs`
+      </td>
+
+      <td>
+        Número de veces que se sumaron las estadísticas por subproceso en los contadores globales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.syntheticResponses`
+      </td>
+
+      <td>
+        Total de respuestas sintéticas realizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.threads`
+      </td>
+
+      <td>
+        Número total de subprocesos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.threadsCreated`
+      </td>
+
+      <td>
+        Número total de subprocesos creados en todos los grupos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.threadsDestroyed`
+      </td>
+
+      <td>
+        Número total de subprocesos destruidos en todos los grupos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.threadsFailed`
+      </td>
+
+      <td>
+        Número de veces que falló la creación de un hilo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.threadsLimited`
+      </td>
+
+      <td>
+        Número de veces que se necesitaron más subprocesos, pero se alcanzó el límite en un grupo de subprocesos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.unresurrectedObjects`
+      </td>
+
+      <td>
+        Número de objetos no resucitados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.uptimeInMilliseconds`
+      </td>
+
+      <td>
+        El tiempo de actividad del proceso secundario, en milisegundos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.vclAvailable`
+      </td>
+
+      <td>
+        Número de lenguajes de configuración de Varnish (VCL) disponibles.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.vclDiscarded`
+      </td>
+
+      <td>
+        Número de VCL descartados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.vclFails`
+      </td>
+
+      <td>
+        Número de fallas de VCL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.vclLoaded`
+      </td>
+
+      <td>
+        Número de VCL cargados en total.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `main.vmodsLoaded`
+      </td>
+
+      <td>
+        Número de módulos Varnish cargados (VMOD).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childDied`
+      </td>
+
+      <td>
+        Número de veces que el proceso hijo ha muerto debido a señales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childDump`
+      </td>
+
+      <td>
+        Número de veces que el proceso hijo ha producido volcados de memoria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childExit`
+      </td>
+
+      <td>
+        Número de veces que el proceso secundario se ha detenido limpiamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childPanic`
+      </td>
+
+      <td>
+        Número de veces que el proceso de gestión ha pillado a un niño en pánico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childStart`
+      </td>
+
+      <td>
+        Número de veces que se ha iniciado el proceso hijo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.childStop`
+      </td>
+
+      <td>
+        Número de veces que el proceso secundario se ha detenido limpiamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mgt.uptimeInMilliseconds`
+      </td>
+
+      <td>
+        El tiempo de actividad del proceso de gestión, en milisegundos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.400Errors`
+      </td>
+
+      <td>
+        Número de solicitudes de clientes recibidas, sujetas a 400 errores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.417Errors`
+      </td>
+
+      <td>
+        Número de solicitudes de clientes recibidas, sujetas a 417 errores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.httpOverflow`
+      </td>
+
+      <td>
+        Número de desbordamientos de encabezado HTTP.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.pipe.inInBytes`
+      </td>
+
+      <td>
+        Número total de bytes reenviados desde clientes en sesiones de canalización.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.pipe.outInBytes`
+      </td>
+
+      <td>
+        Número total de bytes reenviados a clientes en sesiones de canalización.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.pipereq.headerInBytes`
+      </td>
+
+      <td>
+        Total de bytes de solicitud recibidos para sesiones canalizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.request.bodyInBytes`
+      </td>
+
+      <td>
+        Cuerpo total de la solicitud transmitida, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.request.headerInBytes`
+      </td>
+
+      <td>
+        Total de encabezados de solicitud transmitidos, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.requests`
+      </td>
+
+      <td>
+        Número de solicitudes de buenos clientes recibidas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.response.bodyInBytes`
+      </td>
+
+      <td>
+        Cuerpo total de respuesta transmitido, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.response.headerInBytes`
+      </td>
+
+      <td>
+        Encabezados de respuesta totales transmitidos, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.backendClose`
+      </td>
+
+      <td>
+        El número de sesiones se cierra con el error `RESP_CLOSE`(el backend/VCL solicitó el cierre).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.badClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `Error RX_BAD`(se recibió una solicitud/respuesta incorrecta).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.bodyFailClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `Error RX_BODY`(Error al recibir req.body).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.clientClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `REM_CLOSE`(Cliente cerrado).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.clientReqClose`
+      </td>
+
+      <td>
+        El número de sesiones se cierra con el error `REQ_CLOSE`(el cliente solicitó el cierre).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.closed`
+      </td>
+
+      <td>
+        Número total de sesiones cerradas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.closedError`
+      </td>
+
+      <td>
+        Número total de sesiones cerradas con errores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.dropped`
+      </td>
+
+      <td>
+        Número de sesiones abandonadas por subproceso.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.eofTxnClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `TX_EOF`(transmisión EOF).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.errorTxnClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `TX_ERROR`(transacción de error).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.herd`
+      </td>
+
+      <td>
+        Número de veces que se activó `timeout_linger` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.junkClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `RX_JUNK`(datos basura recibidos).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.overflowClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `RX_OVERFLOW`(desbordamiento del búfer recibido).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.overloadClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `OVERLOAD`(Sin algún recurso).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.pipeOverflowClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `PIPE_OVERFLOW`(desbordamiento de canal de sesión).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.pipeTxnClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `TX_PIPE`(transacción canalizada).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.queued`
+      </td>
+
+      <td>
+        Número de sesiones en cola para el hilo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.readAhead`
+      </td>
+
+      <td>
+        Sesión de lectura anticipada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.requestHTTP10Close`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `REQ_HTTP10`(Proto &lt;HTTP/1.1).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.requestHTTP20Close`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `REQ_HTTP20`(HTTP2 no aceptado).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.shortRangeClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `RANGE_SHORT`(datos insuficientes para el rango).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.timeoutClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `RX_TIMEOUT`(tiempo de espera de recepción).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sess.vclFailClose`
+      </td>
+
+      <td>
+        El número de sesión se cierra con el error `VCL_FAILURE`(fallo de VCL).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `session.connections`
+      </td>
+
+      <td>
+        Recuento de sesiones aceptadas con éxito.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `session.drops`
+      </td>
+
+      <td>
+        El recuento de sesiones disminuyó silenciosamente debido a la falta de subproceso de trabajo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `session.fail`
+      </td>
+
+      <td>
+        Recuento de errores al aceptar la conexión TCP.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `shm.contentions`
+      </td>
+
+      <td>
+        Número de contenciones MTX de memoria compartida (SHM).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `shm.cycles`
+      </td>
+
+      <td>
+        Número de ciclos de SHM a través del búfer.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `shm.flushes`
+      </td>
+
+      <td>
+        Número de descargas de SHM debido a desbordamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `shm.records`
+      </td>
+
+      <td>
+        Número de registros SHM.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `shm.writes`
+      </td>
+
+      <td>
+        Número de escrituras SHM.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `workspace.backendOverflow`
+      </td>
+
+      <td>
+        Número de veces que nos quedamos sin espacio en `workspace_backend`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `workspace.clientOverflow`
+      </td>
+
+      <td>
+        Número de veces que nos quedamos sin espacio en `workspace_client`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `workspace.deliveryFail`
+      </td>
+
+      <td>
+        La entrega falló debido a espacio de trabajo insuficiente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `workspace.sessionOverflow`
+      </td>
+
+      <td>
+        Número de veces que nos quedamos sin espacio en `workspace_session`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `workspace.threadOverflow`
+      </td>
+
+      <td>
+        Número de veces que nos quedamos sin espacio en `workspace_thread`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Muestra de cerradura de Varnish métrica [#varnish-lock-sample]
+
+Estos atributos se pueden encontrar consultando el tipo de evento `VarnishLockSample` .
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `lock.created`
+      </td>
+
+      <td>
+        Recuento de bloqueos creados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `lock.destroyed`
+      </td>
+
+      <td>
+        Recuento de cerraduras destruidas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `lock.locks`
+      </td>
+
+      <td>
+        Recuento de operaciones de bloqueo.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Muestra de almacenamiento de Varnish métrica [#varnish-storage-sample]
+
+Estos atributos se pueden encontrar consultando el tipo de evento `VarnishStorageSample` .
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `storage.allocFails`
+      </td>
+
+      <td>
+        Número de veces que el almacenamiento no pudo proporcionar un segmento de almacenamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.allocInBytes`
+      </td>
+
+      <td>
+        Número total de bytes asignados por este almacenamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.allocOustanding`
+      </td>
+
+      <td>
+        Número de asignaciones de almacenamiento pendientes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.allocReqs`
+      </td>
+
+      <td>
+        Número de veces que se ha solicitado al almacenamiento que proporcione un segmento de almacenamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.availableInBytes`
+      </td>
+
+      <td>
+        Número de bytes que quedan en el almacenamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.freeInBytes`
+      </td>
+
+      <td>
+        Número total de bytes devueltos a este almacenamiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `storage.outstandingInBytes`
+      </td>
+
+      <td>
+        Número de bytes asignados desde el almacenamiento.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Muestra de Varnish mempool métrica [#varnish-mempool-sample]
+
+Estos atributos se pueden encontrar consultando el tipo de evento `VarnishMempoolSample` .
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `mempool.allocatedSizeInBytes`
+      </td>
+
+      <td>
+        Tamaño asignado del grupo de memoria, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.allocs`
+      </td>
+
+      <td>
+        Asignaciones de grupos de memoria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.frees`
+      </td>
+
+      <td>
+        Número de grupos de memoria libres.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.live`
+      </td>
+
+      <td>
+        Número de grupos de memoria en uso.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.pool`
+      </td>
+
+      <td>
+        Cuente en el grupo de memoria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.ranDry`
+      </td>
+
+      <td>
+        La piscina se secó.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.recycles`
+      </td>
+
+      <td>
+        Reciclado de piscina.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.requestSizeInBytes`
+      </td>
+
+      <td>
+        Tamaño de solicitud del grupo de memoria, en bytes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.surplus`
+      </td>
+
+      <td>
+        Demasiados para la piscina.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.timeouts`
+      </td>
+
+      <td>
+        Se agotó el tiempo de salida de la piscina.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mempool.tooSmall`
+      </td>
+
+      <td>
+        Demasiado pequeño para reciclar.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Muestra backend de Varnish métrica [#varnish-backend-sample]
+
+Estos atributos se pueden encontrar consultando el tipo de evento `VarnishBackendSample` .
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Métrica
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `backend.busyFetches`
+      </td>
+
+      <td>
+        No se intentaron recuperaciones debido a que el backend estaba ocupado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connections`
+      </td>
+
+      <td>
+        Número de conexiones simultáneas al backend.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionsFailed`
+      </td>
+
+      <td>
+        Error en el número de conexiones de backend.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.connectionsNotAttempted`
+      </td>
+
+      <td>
+        Número de aperturas de conexión de backend no intentadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.happy`
+      </td>
+
+      <td>
+        Felices sondas de salud.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `backend.unhealtyFetches`
+      </td>
+
+      <td>
+        No se intentaron recuperaciones debido a que el backend no estaba en buen estado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.pipeHeaderInBytes`
+      </td>
+
+      <td>
+        Total de bytes de solicitud enviados para sesiones canalizadas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.pipeInInBytes`
+      </td>
+
+      <td>
+        Número total de bytes reenviados desde el backend en sesiones de canalización.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.pipeOutInBytes`
+      </td>
+
+      <td>
+        Número total de bytes reenviados al backend en sesiones de canalización.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.requestBodyInBytes`
+      </td>
+
+      <td>
+        Total de bytes del cuerpo de la solicitud de backend enviados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.requestHeaderInBytes`
+      </td>
+
+      <td>
+        Total de bytes de encabezado de solicitud de backend enviados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.requests`
+      </td>
+
+      <td>
+        Número de solicitudes de backend enviadas,
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.responseBodyInBytes`
+      </td>
+
+      <td>
+        Total de bytes del cuerpo de respuesta de backend recibidos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.backend.responseHeaderInBytes`
+      </td>
+
+      <td>
+        Total de bytes de encabezado de respuesta de backend recibidos.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Datos de inventario [#inventory]
+
+La integración Varnish Cache captura el parámetro de configuración. Analiza el archivo de configuración `varnish.params` para todos los parámetros que están activos.
+
+Los datos están disponibles en la [página Inventario](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure), en la fuente <DNT>**config/varnish**</DNT> . Para obtener más información sobre los datos de inventario, consulte [Comprender los datos de integración](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#inventory-data).
+
+## Comprueba el código fuente [#source-code]
+
+Esta integración es software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/nri-varnish) y enviar mejoras, o crear tu propia bifurcación y compilarla.

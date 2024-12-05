@@ -1,0 +1,69 @@
+---
+title: Sirve tu aplicación New Relic
+metaDescription: Locally serve your New Relic application
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Crear un Nerdpack, antes de comenzar esta.
+</Callout>
+
+Cuando crea una aplicación New Relic, es valioso verla en la plataforma. Esto lo ayuda a diseñar, implementar y depurar su aplicación en el entorno en el que eventualmente se publicará. Con `nr1`, puedes lanzar un servidor de desarrollo que aloje tu aplicación para que New Relic pueda presentártela.
+
+<Steps>
+  <Step>
+    Desde dentro del directorio raíz de Nerdpack, entregue su Nerdpack:
+
+    ```bash
+    nr1 nerdpack:serve
+    ```
+
+    Cuando Nerdpack logró construir y su aplicación esté lista para ser vista, verá un mensaje con un enlace a New Relic:
+
+    ```bash
+    [output] {green}✔{plain}  Server ready! Test it at: {purple}https://one.newrelic.com/?nerdpacks=local
+    [output] {blue}↩{plain}  Server will reload automatically if you modify any file!
+    ```
+
+    Observe el parámetro de consulta adjunto `nerdpacks=local`. Este parámetro de consulta le dice a New Relic que muestre Nerdpacks servidos localmente.
+
+    <Callout variant="tip">
+      Si no ve su aplicación en la plataforma New Relic, cerciorar de incluir `nerdpacks=local` en su cadena de consulta.
+    </Callout>
+  </Step>
+
+  <Step>
+    Navegue hasta la URL proporcionada. Desde la página de inicio, seleccione **Apps** para ver la aplicación New Relic.
+  </Step>
+
+  <Step>
+    En la sección **Your apps**, busca tu launcher, llamado "Prueba A/B Launcher".
+  </Step>
+
+  <Step>
+    Seleccione su launcher para ver su Nerdlet raíz y su mensaje de bienvenida predeterminado.
+  </Step>
+</Steps>
+
+¡Felicitaciones, sirvió su primera aplicación New Relic !
+
+Observe, en la salida del comando, que el servidor se recarga cuando cambia archivos en su Nerdpack. Pruébelo actualizando `nerdlets/ab-test-nerdlet/index.js`:
+
+```js fileName=nerdlets/ab-test-nerdlet/index.js lineHighlight=5
+import React from 'react';
+
+export default class AbTestNerdletNerdlet extends React.Component {
+    render() {
+        return <h1>A/B test results</h1>;
+    }
+}
+```
+
+Su aplicación se actualiza automáticamente para mostrar el nuevo encabezado.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: Agregue componentes de gráficos a su aplicación Prueba A/B.
+</Callout>

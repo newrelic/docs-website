@@ -1,0 +1,69 @@
+---
+title: Obtener la memoria del host utilizada para una aplicación
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: Use New Relic's REST API v2 or the API Explorer to get average CPU usage per by host.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar la API REST de New Relic (v2) para obtener el uso de memoria promedio para su aplicación en un solo host. Este valor aparece en la [página APM <DNT>**Summary**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page)de la tabla <DNT>**Hosts**</DNT> , en la columna denominada <DNT>**Memory**</DNT> o en el gráfico correspondiente.
+
+## Obtener el uso de memoria para un host
+
+Para obtener el uso de memoria promedio para uno de los hosts de su aplicación, use el siguiente comando para obtener la métrica `names[]=Memory/Physical` con `values[]=percent`.
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/hosts/$HOST_ID/metrics/data.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d 'names[]=Memory/Physical&values[]=used_mb_by_host&summarize=true'
+```
+
+* Reemplace `$APP_ID` y `$API_KEY` con su [ID de aplicación](/docs/apm/apis/requirements/identification-code) y su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+* Reemplace `$HOST_ID` con el [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) de su host objetivo.
+
+Este ejemplo muestra el rango de tiempo para el [período de tiempo predeterminado](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) (últimos 30 minutos). Para detalles adicionales:
+
+* Elimine el `summarize=true` para obtener [datos detallados de series temporales.](/docs/apis/rest-api-v2/requirements/calculating-average-metric-values-summarize)
+* Especifique un [rango de tiempo](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) diferente.
+
+Para obtener la misma información del [New Relic API Explorer (v2)](https://rpm.newrelic.com/api/explore):
+
+1. Seleccione
+
+   <DNT>
+     [**Application Hosts > GET Metric Data**](https://rpm.newrelic.com/api/explore/application_hosts/data)
+   </DNT>
+
+   e incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+2. Agregue su [ID de la aplicación](/docs/apm/apis/requirements/identification-code), [ID del host](/docs/apis/rest-api-v2/requirements/listing-host-instance-application-server-ids#locating_host_id) y las métricas `names[]=Memory/Physical` y `values[]=used_mb_by_host` en los campos correspondientes.
+
+## Obtenga uso de memoria para toda la aplicación [#api-call]
+
+Para obtener el uso promedio de memoria para su aplicación, use un comando similar al del ejemplo anterior, pero elimine la referencia a <DNT>**hosts**</DNT> y `$HOST_ID`. Reemplace `$APP_ID` y `$API_KEY` con su [ID de aplicación](/docs/apm/apis/requirements/identification-code) y su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d 'names[]=Memory/Physical&values[]=total_used_mb&summarize=true'
+```
+
+Para detalles adicionales:
+
+* Elimine el `summarize=true` para obtener [datos detallados de series temporales.](/docs/apis/rest-api-v2/requirements/calculating-average-metric-values-summarize)
+* Especifique un [rango de tiempo](/docs/apis/rest-api-v2/requirements/specifying-time-range-v2) diferente.
+
+Para obtener la misma información del [New Relic API Explorer (v2)](https://rpm.newrelic.com/api/explore):
+
+1. Seleccione
+
+   <DNT>
+     [**Applications > GET Metric Data**](https://rpm.newrelic.com/api/explore/applications/data)
+   </DNT>
+
+   e incluya su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+2. Añade tu [ID de la aplicación](/docs/apm/apis/requirements/identification-code) y la métrica `names[]=Memory/Physical` y `values[]=total_used_mb` en los campos correspondientes.

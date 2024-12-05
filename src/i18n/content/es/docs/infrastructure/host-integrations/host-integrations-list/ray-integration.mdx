@@ -1,0 +1,162 @@
+---
+title: Integración para Ray
+tags:
+  - Ray integration
+  - New Relic integrations
+metaDescription: Install our Ray dashboards and see your ray data in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra integración Ray monitorea el rendimiento de su Ray, ayudándolo a diagnosticar y optimizar el clúster Ray, tareas de ML como preprocesamiento de datos, capacitación distribuida, ajuste de hiperparámetros, aprendizaje por refuerzo y servicio de modelos y escalamiento de la aplicación Python. Nuestra integración Ray hace uso de nuestro agente de infraestructura y NRI-Prometheus le brinda un dashboard prediseñado con su métrica Ray más importante.
+
+<img
+  src="/images/infrastructure_screenshot-full_ray-dashboard.webp"
+  title="Ray dashboard"
+  alt="Ray dashboard"
+/>
+
+<figcaption>
+  Después de configurar la integración con New Relic, vea sus datos en un panel como este, listo para usar.
+</figcaption>
+
+<Steps>
+  <Step>
+    ## Instalar el agente de infraestructura
+
+    Para emplear la integración de Ray, primero debe [instalar el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) en el mismo host. El agente de infraestructura monitorea el propio host, mientras que la integración Ray extiende su monitoreo con datos específicos del clúster Ray.
+  </Step>
+
+  <Step>
+    ## Instalar la integración de Prometheus
+
+    1. Descargue la última versión de Prometheus desde la [página de descarga de Prometheus](https://prometheus.io/download/). Seleccione la versión adecuada para su sistema operativo y arquitectura. Para Linux, probablemente elijas la versión linux-amd64. Copie el enlace de descarga del archivo tarball (archivo `.tar.gz` ).
+
+    2. Una vez descargado Prometheus, extraiga el archivo tar de descarga:
+
+       ```shell
+       tar -xvzf <filename.tar.gz>
+       ```
+
+    3. Navegue hasta la carpeta Prometheus extraída y ejecute el siguiente comando para iniciar el servicio Prometheus:
+
+       ```shell
+       cd /DOWNLOADED-FOLDER/
+       ```
+
+       ```shell
+       ./prometheus --config.file=/tmp/ray/session_latest/metrics/prometheus/prometheus.yml
+       ```
+
+    4. Cuando se inicia Prometheus, opera en el puerto 9090. Navegue a la interfaz web de Prometheus, seleccione `Status` y haga clic en el objetivo deseado para ver las URL del extremo Ray métrica, como se muestra a continuación: `http://YOUR_DOMAIN:64415/metrics, http://YOUR_DOMAIN:44217/metrics, http://YOUR_DOMAIN:44227/metrics`
+  </Step>
+
+  <Step>
+    ## Configurar `nri-prometheus` [#configure]
+
+    1. Cree un archivo llamado `nri-prometheus-config.yml` en la siguiente ruta:
+
+       ```shell
+       /etc/newrelic-infra/integrations.d
+       ```
+
+    2. Agregue el siguiente fragmento a su archivo `nri-prometheus-config.yml` que permite al agente capturar datos de Ray:
+
+       ```yml
+       integrations:
+         - name: nri-prometheus
+           config:
+           standalone: false
+           # Defaults to true. When standalone is set to `false`, `nri-prometheus` requires an infrastructure agent to send data.
+           emitters: infra-sdk
+           # When running with infrastructure agent emitters will have to include infra-sdk
+           cluster_name: Ray_Metrics
+           # Match the name of your cluster with the name seen in New Relic. 
+           targets:
+             - description: Ray_Metrics
+               urls: ["http://<YOUR_HOST_IP>:64747/metrics", "http://<YOUR_HOST_IP>:44217/metrics", "http://<YOUR_HOST_IP>:44227/metrics"]
+               # tls_config:
+                 # ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+                 # cert_file_path: "/etc/etcd/etcd-client.crt"
+                 # key_file_path: "/etc/etcd/etcd-client.key"
+           verbose: false
+           # Defaults to false. This determines whether or not the integration should run in verbose mode.
+           audit: false
+           # Defaults to false and does not include verbose mode. Audit mode logs the uncompressed data sent to New Relic and can lead to a high log volume.
+           # scrape_timeout: "YOUR_TIMEOUT_DURATION"
+           # `scrape_timeout` is not a mandatory configuration and defaults to 30s. The HTTP client timeout when fetching data from endpoints.
+           scrape_duration: "5s"
+           # worker_threads: 4
+           # `worker_threads` is not a mandatory configuration and defaults to `4` for clusters with more than 400 endpoints. Slowly increase the worker thread until scrape time falls between the desired `scrape_duration`. Note: Increasing this value too much results in huge memory consumption if too many metrics are scraped at once.
+           insecure_skip_verify: false
+           # Defaults to false. Determins if the integration should skip TLS verification or not.
+           timeout: 10s
+       ```
+  </Step>
+
+  <Step>
+    ## Reenviar log de Ray a New Relic [#Forward-log]
+
+    Puede utilizar nuestra capacidad de reenvío de logs para reenviar el log de Ray a New Relic.
+
+    1. Edite el archivo de registro llamado `logging.yml` ubicado en la siguiente ruta:
+
+       ```shell
+       cd /etc/newrelic-infra/logging.d/
+       ```
+
+    2. Agregue el siguiente script al archivo `logging.yml` :
+
+       ```yml
+       - name: dashboard.log
+         file: /tmp/ray/session_latest/logs/dashboard.log
+         attributes:
+           logtype: ray_dashboard_logs
+       - name: monitor.log
+         file: /tmp/ray/session_latest/logs/monitor.log
+         attributes:
+           logtype: ray_monitor_logs
+       - name: log_monitor.log
+         file: /tmp/ray/session_latest/logs/log_monitor.log
+         attributes:
+           logtype: ray_log_monitor_logs
+       ```
+  </Step>
+
+  <Step>
+    ## Reiniciar el agente de infraestructura. [#restart-infra]
+
+    Utilice las instrucciones de nuestros [documentos del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) para reiniciar su agente de infraestructura. Este es un comando básico que debería funcionar para la mayoría de las personas:
+
+    ```shell
+    sudo systemctl restart newrelic-infra.service
+    ```
+  </Step>
+
+  <Step>
+    ## Visualiza tu Rayo métrico en New Relic [#view-data]
+
+    Una vez que haya completado la configuración anterior, podrá ver su métrica utilizando nuestra plantilla dashboard prediseñadas. Para acceder a este dashboard:
+
+    1. Vaya a **[one.newrelic.com](https://one.newrelic.com/) &amp;gt; + Integrations &amp;amp; Agents**.
+    2. Haga clic en la pestaña del **Dashboards** .
+    3. En el cuadro de búsqueda, escriba `Ray`.
+    4. Selecciónelo y haga clic en **Install**.
+
+       Para instrumentar el <DNT>Apache Druid</DNT> inicio rápido y ver métricas y alertas, también puedes seguir nuestra [página Ray inicio rápido](https://newrelic.com/instant-observability/ray) haciendo clic en el botón **Install now**.
+
+       Aquí hay una consulta de ejemplo para verificar los nodos activos en su clúster Ray:
+
+       ```sql
+       SELECT latest(ray_cluster_active_nodes) FROM Metric
+       ```
+  </Step>
+</Steps>
+
+## ¿Que sigue?
+
+Para obtener más información sobre cómo crear una consulta NRQL y generar un panel, consulte estos documentos:
+
+* [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para crear consultas básicas y avanzadas.
+* [Introducción al panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) para personalizar tu dashboard y realizar diferentes acciones.
+* [Administre su dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) para ajustar el modo de visualización de su panel o para agregar más contenido a su dashboard.

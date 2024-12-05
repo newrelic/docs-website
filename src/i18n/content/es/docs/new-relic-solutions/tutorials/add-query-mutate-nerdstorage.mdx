@@ -1,0 +1,219 @@
+---
+title: 'Agregue, consulte y modifique datos usando NerdStorage'
+description: 'NerdStorage es una base de datos de documentos a la que se puede acceder desde New Relic. Le permite modificar, almacenar y recuperar documentos de una sesión a la siguiente.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+NerdStorage es una base de datos de documentos a la que se puede acceder desde New Relic. Le permite modificar, almacenar y recuperar documentos de una sesión a la siguiente.
+
+Con NerdStorage, puede crear documentos individuales de hasta 64 kb de tamaño, crear diferentes colecciones de documentos y almacenar datos por entidad, cuenta o nivel de usuario.
+
+Esta guía explica cómo agregar datos y documentos a NerdStorage.
+
+## Antes de que empieces [#begin]
+
+Esta guía requiere que tenga una clave de API y la CLI New Relic One.
+
+## Empezar [#start]
+
+Primero, haga que la aplicación NerdStorage se ejecute correctamente dentro de New Relic.
+
+<Steps>
+  <Step>
+    Clona la aplicación de ejemplo del [repositorio de GitHub](https://github.com/newrelic/nr1-how-to/tree/master/use-nerdstorage).
+  </Step>
+
+  <Step>
+    Emplee la CLI de New Relic One para actualizar el UUID de la aplicación y ejecutar la aplicación localmente.
+
+    1. En la terminal, cambie al directorio `/nr1-how-to/use-nerdstorage` :
+
+       ```bash
+       cd /nr1-how-to/use-nerdstorage
+       ```
+
+    2. Actualice el UUID y entregue la aplicación:
+
+       ```bash
+       nr1 update
+       nr1 nerdpack:uuid -gf
+       nr1 nerdpack:serve
+       ```
+  </Step>
+
+  <Step>
+    Una vez que la aplicación se entregó correctamente, su terminal devolverá la URL para ver la aplicación en ejecución en [New Relic](https://one.newrelic.com/?nerdpacks=local).
+
+    Cargue la URL. Haz clic en **Apps** y en **Your apps** verás la aplicación **Use Nerdstorage** en la lista. Haga clic para iniciar la aplicación.
+  </Step>
+</Steps>
+
+## Agregar datos a NerdStorage [#add-data]
+
+Una vez que la aplicación esté funcionando en New Relic, puede prepararla y comenzar a agregar datos.
+
+En la pantalla de la aplicación **How To Use NerdStorage** , hay un panel **Saved to NerdStorage** con un campo para agregar datos. Sin embargo, si escribe algo, recibirá un mensaje de error. Esto se debe a que necesita estar configurado para almacenar datos en el nivel `User` . Puede hacer esto con la ayuda del componente `UserStorageMutation` .
+
+<Steps>
+  <Step>
+    Abra el archivo `./nerdlets/use-nerdstorage-nerdlet/index.js` de la aplicación en el editor de texto de su elección y busque el código para `TextField` y `Button` empleados para ingresar datos. El accesorio `Button onClick` realiza una llamada a un método auxiliar llamado `_addToNerdStorage` y debes actualizarlo para agregar `UserStorageMutation`
+
+    Los `UserStorage` componentes de NerdStorage requieren `collection` y `documentId`. En el método constructor del archivo `index.js` de la aplicación, puede ver las variables que se proporcionan. En el archivo `.js` , se verá así:
+
+    ```jsx
+    constructor(props) {
+        super(props)
+        this.collectionId = 'mycollection';
+        this.documentId = 'learning-nerdstorage';
+        this.state = {
+            isOpen: true,
+            storage: [],
+            text: '',
+        };
+        this._addToNerdStorage = this._addToNerdStorage.bind(this);
+        this._removeFromNerdStorage = this._removeFromNerdStorage.bind(this);
+        this._deleteDocument = this._deleteDocument.bind(this);
+    }
+    ```
+  </Step>
+
+  <Step>
+    Importe el `UserStorageMutation` agregándolo a su declaración `import` en la parte superior del archivo `index.js` :
+
+    ```jsx
+    import { UserStorageMutation } from 'nr1';
+    ```
+
+    Luego actualice el asistente con este código que comienza con `_addToNerdStorage`:
+
+    ```jsx
+    _addToNerdStorage(){
+        const { text, storage } = this.state;
+        storage.push(text);
+        this.setState({storage}, () => {
+            UserStorageMutation.mutate({
+                actionType: UserStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+                collection: this.collectionId,
+                documentId: this.documentId,
+                document: { storage },
+            })
+            .then((res) => {
+                this.setState({text: ''});
+                Toast.showToast({ title: "NerdStorage Update.", type: Toast.TYPE.NORMAL });
+            })
+            .catch((err) => console.log(err));
+        });
+    }
+    ```
+  </Step>
+
+  <Step>
+    1. Regrese a la pantalla de la aplicación **How To Use NerdStorage** en ejecución en New Relic y vuelva a cargar la página.
+    2. Agregue algo de texto en el campo de entrada de texto y haga clic en el botón de verificación. Esto actualizará NerdStorage y activará una notificación `Toast` dentro de la aplicación. Luego debería ver el texto que escribió mostrado como una fila de la tabla debajo del campo de entrada de texto.
+  </Step>
+</Steps>
+
+## Consultar datos de NerdStorage [#query-data]
+
+Una vez que el almacenamiento de datos funcione como se describe en la sección anterior, también deberá hacer que la aplicación lea correctamente los datos de NerdStorage, o la aplicación se recargará con un estado vacío cada vez que salga de la página de la aplicación y regrese. Para hacer esto, agregue el componente `UserStorageQuery` y actualice el método `componentDidMount` .
+
+<Steps>
+  <Step>
+    Importe el `UserStorageQuery` agregándolo a la declaración de importación en el archivo `./nerdlets/use-nerdstorage-nerdlet/index.js` de la aplicación.
+
+    ```jsx
+    import { UserStorageMutation, UserStorageQuery } from 'nr1';
+    ```
+  </Step>
+
+  <Step>
+    Luego, agregue el siguiente método `componentDidMount` a su aplicación:
+
+    ```jsx
+    componentDidMount(){
+        UserStorageQuery.query({
+            collection: this.collectionId,
+            documentId: this.documentId,
+        })
+        .then(({ data }) => {
+            if(data !== null) {
+                this.setState({storage: data.storage});
+            }
+        })
+        .catch(err => console.log(err));
+    }
+    ```
+  </Step>
+
+  <Step>
+    De vuelta dentro de la aplicación NerdStorage, prueba tus cambios agregando algunas filas más usando el campo de entrada de texto. Luego salga y resetear la aplicación. La aplicación debería cargar y mostrar todos los datos que ingresó antes de navegar.
+  </Step>
+</Steps>
+
+## Mutar datos en NerdStorage [#mutate-data]
+
+Cada entrada de NerdStorage que se muestra en la tabla dentro de la aplicación tiene un botón de papelera que se puede usar para actualizar una entrada específica. El botón de la papelera funciona llamando al método auxiliar `_removeFromNerdStorage` .
+
+Para que este proceso funcione, actualice el código en `_removeFromNerdStorage`:
+
+```jsx
+_removeFromNerdStorage(index, data){
+    const { storage } = this.state;
+    storage.pop(data);
+
+    this.setState({storage}, () => {
+        UserStorageMutation.mutate({
+            actionType: UserStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+            collection: this.collectionId,
+            documentId: this.documentId,
+            document: { storage },
+        })
+        .then((res) => {
+            Toast.showToast({ title: "NerdStorage Update.", type: Toast.TYPE.NORMAL });
+        })
+        .catch((err) => console.log(err));
+    });
+}
+```
+
+Una vez hecho esto, al hacer clic en el botón de la papelera se elimina el elemento al que está asociado y la aplicación se actualiza para mostrar el cambio.
+
+## Eliminar colección de NerdStorage [#delete]
+
+Si bien el botón de la papelera es un buen método para eliminar entradas específicas una a la vez, es posible que también desees poder eliminar un documento completo de NerdStorage a la vez. Puede hacer esto agregando el botón **Delete Document** a su aplicación.
+
+<Steps>
+  <Step>
+    Agregue un nuevo `GridItem` a la aplicación inmediatamente antes de la etiqueta de cierre `Grid` . En el nuevo `GridItem` agregue el siguiente código para mostrar su nuevo botón:
+
+    ```jsx
+    <Button
+      onClick={() => this._deleteDocument()}
+      type={Button.TYPE.DESTRUCTIVE}
+      sizeType={Button.SIZE_TYPE.SMALL}
+      iconType={Button.ICON_TYPE.INTERFACE__OPERATIONS__TRASH}
+    >
+      Delete Document
+    </Button>
+    ```
+  </Step>
+
+  <Step>
+    Debido a que el nuevo botón **Delete Document** llamará al método auxiliar `_deleteDocument` , deberás actualizarlo usando este código:
+
+    ```jsx
+    _deleteDocument(){
+        this.setState({storage: []});
+        UserStorageMutation.mutate({
+            actionType: UserStorageMutation.ACTION_TYPE.DELETE_DOCUMENT,
+            collection: this.collectionId,
+            documentId: this.documentId,
+        });
+        Toast.showToast({ title: "NerdStorage Update.", type: Toast.TYPE.CRITICAL });
+    }
+    ```
+  </Step>
+</Steps>
+
+De vuelta dentro de la aplicación, ahora debería ver los botones de papelera individuales y el botón **Delete Document** recién agregado.

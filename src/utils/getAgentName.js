@@ -34,6 +34,7 @@ const AGENTS = {
   'react-native-release-notes': 'react native',
   'ruby-release-notes': 'ruby',
   'service-levels-release-notes': 'service levels',
+  'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
 };
 

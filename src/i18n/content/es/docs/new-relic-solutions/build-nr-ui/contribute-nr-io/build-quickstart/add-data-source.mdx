@@ -1,0 +1,83 @@
+---
+title: Agregar una fuente de datos al inicio rápido
+metaDescription: Add a data source to your quickstart
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Si aún no lo hiciste, consulta la [introducción del curso](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  Como este procedimiento se basa en los últimos del laboratorio, cerciorar de[crear un dashboard](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-a-dashboard) y [alertas](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) antes de continuar con este.
+</Callout>
+
+Las fuentes de datos representan un solo tipo de instrumentación, como un agente, un atributo en una transacción, una integración de un proveedor de la nube, una integración de un tercero, etc.
+
+Hay dos tipos de fuentes de datos:
+
+* CORE
+* COMMUNITY
+
+Las fuentes de datos CORE son proporcionadas por New Relic One y no existen dentro de este repositorio, las fuentes de datos COMMUNITY se definen dentro del repositorio inicio rápido.
+
+Las fuentes de datos COMMUNITY se encuentran en el directorio `data-sources/`. En este procedimiento, aprenderá cómo agregar una fuente de datos a su inicio rápido.
+
+<Steps>
+  <Step>
+    Si aún no lo hizo, bifurque el repositorio [de inicios rápidosNew Relic ](https://github.com/newrelic/newrelic-quickstarts)y clónelo en su máquina local.
+  </Step>
+
+  <Step>
+    Abra su proyecto en el IDE de su elección y navegue hasta el directorio `\_template`.
+  </Step>
+
+  <Step>
+    Aquí, copie el directorio `data-sources/example-data-source` y su contenido en el directorio `data-sources` en el nivel raíz. Cambie el nombre del directorio a `flashdb`.
+
+    Este directorio contiene un archivo YAML de muestra para crear una fuente de datos.
+  </Step>
+
+  <Step>
+    Navegue hasta el archivo `datasources/flashdb/config.yml` y agregue detalles de su fuente de datos. Para su referencia, la fuente de datos flashdb debería ser similar a la siguiente:
+
+    ```yml
+    id: flashdb
+    displayName: FlashDB
+    description: |
+      FlashDB is the fastest and lightest database in the universe. First, it can handle a large number of concurrent users without slowing down. Second, it has a very low latency, so queries are processed quickly. And finally, it scales easily as your data grows.
+      This quickstart allows users to monitor their database to ensure peak performance. It also notifies you if there's any problem the database. 
+
+      The flashdb quickstart includes: 
+      ## a dashboard 
+        where users can easily monitor:
+        - Database methods
+        - Average response time
+        - Errors
+        - Database size
+        - Cache hits
+        - Keys
+      ## alert conditions
+        where users are notified on:
+        - slow read responses
+        - low cache hit 
+    icon: logo.svg
+    install:
+      primary:
+        link:
+          url: https://www.newrelic.com
+    keywords:
+      - infrastructure
+      - database
+    categoryTerms:
+      - database
+    ```
+  </Step>
+
+  <Step>
+    Agregue un logotipo para su fuente de datos. Puede ser `.svg` o `.png`.
+  </Step>
+</Steps>
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Continúe con la siguiente lección: [contribuya con su inicio rápido](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/contribute-quickstart).
+</Callout>

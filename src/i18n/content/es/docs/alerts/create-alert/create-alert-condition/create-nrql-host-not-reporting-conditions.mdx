@@ -1,0 +1,110 @@
+---
+title: Crear condición de alerta NRQL "host no informa"
+metaDescription: Create guided mode NRQL conditions for "host not reporting" infrastructure errors.
+freshnessValidatedDate: '2024-08-01T00:00:00.000Z'
+translationType: machine
+---
+
+import alertsTellUsWheretoLook from 'images/alerts_screenshot-crop_tell-us-where-to-look.webp'
+
+import alertsHostNotReportingSelection from 'images/alerts_screenshot-crop_host-not-reporting-selection.webp'
+
+import alertsSetConditionThresholds from 'images/alerts_screenshot-crop_set-condition-thresholds.webp'
+
+import alertsSignalsLostOptions from 'images/alerts_screenshot-crop_signals-lost-options.webp'
+
+El modo guiado por condición NRQL simplifica la creación de alertas de &quot;host no informa&quot; (HNR). En lugar de construir manualmente una consulta NRQL , este enfoque guiado lo ayuda a definir rápidamente las condiciones para detectar cuándo los agentes de infraestructura dejan de enviar datos. Este método ofrece una mayor flexibilidad para apuntar a grupos de host específicos, personalizar el umbral de alerta y refinar los criterios de incidencia en comparación con las alertas HNR tradicionales.
+
+## Característica [#features]
+
+Se genera un evento HNR cuando el agente de infraestructura no puede transmitir datos a nuestro recolector dentro de un periodo de tiempo específico.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>**Host not reporting condition**</DNT>
+      </th>
+
+      <th>
+        <DNT>**Features**</DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Que monitor
+      </td>
+
+      <td>
+        Puede emplear la [barra de filtro de entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities) para seleccionar qué hosts desea que la condición de alerta NRQL monitor. En función de sus selecciones, la consulta NRQL se creará automáticamente para usted. La condición también se aplicará automáticamente a cualquier host que agregue en el futuro que coincida con los filtros de su condición.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Como notificar
+      </td>
+
+      <td>
+        Las condiciones de NRQL están contenidas en [las políticas](/docs/using-new-relic/welcome-new-relic/get-started/glossary#alert-policy). Las políticas emplean [flujo de trabajo y destinos](/docs/alerts/get-notified/intro-notifications/) para determinar cómo notificarle cuando se crea un incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cuándo abrir un incidente
+      </td>
+
+      <td>
+        El modo guiado HNR lo guía a través de la creación de una condición de pérdida de señal NRQL. Esto significa que tiene acceso completo a todas las [configuraciones del umbral de pérdida de señal](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/#signal-loss) , incluida la configuración de la ventana de tiempo que activa un evento HNR y la selección entre las opciones: <DNT>**Close all current open incidents**</DNT>, <DNT>**Open new &quot;lost signal&quot; incident**</DNT> y <DNT>**Do not open &quot;lost signal&quot; incident on expected termination**</DNT>. Estas configuraciones, en combinación con las [preferencias de incidentes](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents) de la política, determinan cuándo se abrirá un incidente.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Crear una condición de alerta NRQL HNR [#create-nrql-hnr-alert-condition]
+
+1. Navegación a una página de política de alertas.
+
+2. Haga clic en **New alert condition**.
+
+3. Seleccione **Use guided mode**.
+
+4. Seleccione **Hosts** en la categoría **Tell us where to look** . (Nota: Si no ve la opción &amp;quot;hosts&amp;quot;, es posible que necesite seguir [instrucciones para instrumentar su infraestructura](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview/)).
+
+   <img title="creating a condition step 2" alt="screenshot of alert condition step 2" src={alertsTellUsWheretoLook} />
+
+5. Si **Hosts** no se selecciona automáticamente para usted en **Select an entity type**, elija **Hosts** nuevamente.
+
+6. Haga clic en **Next**.
+
+7. En **Select signal catgory**, seleccione **Host**.
+
+8. En **Select a metric to monitor**, seleccione **Host not reporting**.
+
+   <img title="host not reporting selection" alt="screenshot of selecting host not reporting option" src={alertsHostNotReportingSelection} />
+
+9. Ahora, puedes usar el filtro de entidad para limitar el alcance de los hosts que deseas monitor.
+
+10. Haga clic en **Next**.
+
+    <img title="set condition thresholds" alt="screenshot of setting remaining thresholds" src={alertsSetConditionThresholds} />
+
+11. En **Consider the signal lost after**, tienes la opción de ajustar la ventana de tiempo de 30 segundos a 48 horas. También tiene la opción de ajustar la [configuración de pérdida de señal](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/#signal-loss) , incluida la opción de omitir la apertura de un incidente cuando se espera que la señal finalice (por ejemplo, si se espera que su host se apague).
+
+12. Siga los pasos restantes para finalizar la configuración y almacenar su condición de alerta.
+
+## Opción: No abrir incidente de &quot;pérdida de señal&quot; en la finalización prevista [#do-not-open-lost-signal]
+
+Cuando marca la opción **Do not open &quot;lost signal&quot; incident on expected termination**, le está indicando a New Relic que omita la apertura de un incidente cuando se espera que la señal finalice. Esto es útil cuando sabes que un host se va a apagar.
+
+Para habilitar esta opción, también debe tener marcada la opción **Open new &quot;lost signal&quot; incident** . De esta manera, New Relic sabe que debe abrir un nuevo incidente cuando se pierde la señal, pero no cuando se espera que se pierda.
+
+<img title="signal loss options" alt="screenshot of signal loss options" src={alertsSignalsLostOptions} width="50%" />
+
+<Callout variant="important">
+  Para evitar que se abra un incidente de pérdida de señal cuando se dice &quot;No abrir el incidente de &quot;señal perdida&quot; en la finalización esperada&quot;, se debe agregar la etiqueta `termination: expected` a la entidad del host. Esta etiqueta nos dice que se esperaba que la señal terminara. Vea cómo agregar la etiqueta [directamente a la entidad host](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags).
+</Callout>

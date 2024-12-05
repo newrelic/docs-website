@@ -1,0 +1,494 @@
+---
+title: 'Stack'
+metaDescription: 'Learn how to work the Stack component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Stack is a 1-dimensional layout system with options to control the direction, spacing, distribution and relative sizing of its children elements.
+
+### Usage
+
+```js
+import { Stack } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Example--stack">
+  <div className="nr1-Example--stack--directionHorizontal">
+    <span className="nr1-Example--stack--title">Horizontal (default)</span>
+    <Stack preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+</div>
+```
+
+#### Direction
+
+```js
+<div className="nr1-Example--stack">
+  <div className="nr1-Example--stack--directionHorizontal">
+    <span className="nr1-Example--stack--title">Horizontal (default)</span>
+    <Stack directionType={Stack.DIRECTION_TYPE.HORIZONTAL} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--directionVertical">
+    <span className="nr1-Example--stack--title">Vertical</span>
+    <Stack directionType={Stack.DIRECTION_TYPE.VERTICAL} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+</div>
+```
+
+#### Gap
+
+```js
+<div className="nr1-Example--stack">
+  <div className="nr1-Example--stack--gapNone">
+    <span className="nr1-Example--stack--title">None</span>
+    <Stack gapType={Stack.GAP_TYPE.NONE} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--gapSmall">
+    <span className="nr1-Example--stack--title">Small</span>
+    <Stack gapType={Stack.GAP_TYPE.SMALL} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--gapMedium">
+    <span className="nr1-Example--stack--title">Medium (default)</span>
+    <Stack gapType={Stack.GAP_TYPE.MEDIUM} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--gapLarge">
+    <span className="nr1-Example--stack--title">Large</span>
+    <Stack gapType={Stack.GAP_TYPE.LARGE} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--gapExtraLarge">
+    <span className="nr1-Example--stack--title">Extra large</span>
+    <Stack gapType={Stack.GAP_TYPE.EXTRA_LARGE} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+</div>
+```
+
+#### Horizontal alignment
+
+```js
+<div className="nr1-Example--stack">
+  <div className="nr1-Example--stack--horizontalAlignmentLeft">
+    <span className="nr1-Example--stack--title">Left (default)</span>
+    <Stack horizontalType={Stack.HORIZONTAL_TYPE.LEFT} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--horizontalAlignmentCenter">
+    <span className="nr1-Example--stack--title">Center</span>
+    <Stack horizontalType={Stack.HORIZONTAL_TYPE.CENTER} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--horizontalAlignmentRight">
+    <span className="nr1-Example--stack--title">Right</span>
+    <Stack horizontalType={Stack.HORIZONTAL_TYPE.RIGHT} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--horizontalAlignmentFill">
+    <span className="nr1-Example--stack--title">Fill</span>
+    <Stack horizontalType={Stack.HORIZONTAL_TYPE.FILL} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--horizontalAlignmentFillEvenly">
+    <span className="nr1-Example--stack--title">Fill evenly</span>
+    <Stack horizontalType={Stack.HORIZONTAL_TYPE.FILL_EVENLY} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+</div>
+```
+
+#### Vertical alignment
+
+```js
+<div className="nr1-Example--stack">
+  <div className="nr1-Example--stack--verticalAlignmentTop">
+    <span className="nr1-Example--stack--title">Top (default)</span>
+    <Stack verticalType={Stack.VERTICAL_TYPE.TOP} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--verticalAlignmentCenter">
+    <span className="nr1-Example--stack--title">Center</span>
+    <Stack verticalType={Stack.VERTICAL_TYPE.CENTER} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--verticalAlignmentBottom">
+    <span className="nr1-Example--stack--title">Bottom</span>
+    <Stack verticalType={Stack.VERTICAL_TYPE.BOTTOM} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--verticalAlignmentFill">
+    <span className="nr1-Example--stack--title">Fill</span>
+    <Stack verticalType={Stack.VERTICAL_TYPE.FILL} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+
+
+  <div className="nr1-Example--stack--verticalAlignmentFillEvenly">
+    <span className="nr1-Example--stack--title">Fill evenly</span>
+    <Stack verticalType={Stack.VERTICAL_TYPE.FILL_EVENLY} preview>
+      <StackItem>
+        <div className="nr1-Box--a">1</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--b">2</div>
+      </StackItem>
+      <StackItem>
+        <div className="nr1-Box--c">3</div>
+      </StackItem>
+    </Stack>
+  </div>
+</div>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Stack items to display.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `directionType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Direction of the stack items.
+
+        <OptionReference>
+          Stack.DIRECTION_TYPE.HORIZONTAL,
+          Stack.DIRECTION_TYPE.VERTICAL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the stack to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the stack to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `gapType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Space between each stack item.
+
+        <OptionReference>
+          Stack.GAP_TYPE.EXTRA_LARGE,
+          Stack.GAP_TYPE.LARGE,
+          Stack.GAP_TYPE.MEDIUM,
+          Stack.GAP_TYPE.NONE,
+          Stack.GAP_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `horizontalType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Sets the horizontal alignment and distribution of the stack items.
+
+        <OptionReference>
+          Stack.HORIZONTAL_TYPE.CENTER,
+          Stack.HORIZONTAL_TYPE.FILL,
+          Stack.HORIZONTAL_TYPE.FILL_EVENLY,
+          Stack.HORIZONTAL_TYPE.LEFT,
+          Stack.HORIZONTAL_TYPE.RIGHT,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `preview` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Visually draws the boxes of the Stack and its StackItems.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Stack.SPACING_TYPE.EXTRA_LARGE,
+          Stack.SPACING_TYPE.LARGE,
+          Stack.SPACING_TYPE.MEDIUM,
+          Stack.SPACING_TYPE.NONE,
+          Stack.SPACING_TYPE.OMIT,
+          Stack.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `verticalType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Sets the vertical alignment and distribution of the stack items.
+
+        <OptionReference>
+          Stack.VERTICAL_TYPE.BOTTOM,
+          Stack.VERTICAL_TYPE.CENTER,
+          Stack.VERTICAL_TYPE.FILL,
+          Stack.VERTICAL_TYPE.FILL_EVENLY,
+          Stack.VERTICAL_TYPE.TOP
+        </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

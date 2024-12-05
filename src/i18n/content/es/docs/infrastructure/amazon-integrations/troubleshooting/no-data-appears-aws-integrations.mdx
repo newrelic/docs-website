@@ -1,0 +1,85 @@
+---
+title: 'No aparecen datos: sondeo de API de integración de AWS'
+type: troubleshooting
+tags:
+  - Integrations
+  - Amazon integrations
+  - Troubleshooting
+metaDescription: Troubleshooting suggestions if you do not see data for your Amazon/AWS integrations in the New Relic infrastructure UI.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Instaló el agente de infraestructura y luego conectó su cuenta de Amazon. Después de esperar unos minutos, todavía no ve los datos de su integración AWS en la UI de monitoreo de infraestructura o al consultar los datos.
+
+## Solución
+
+Si no ve datos después de esperar al menos 10 minutos, pruebe estas sugerencias de resolución de problemas:
+
+1. Asegúrese de que el agente de infraestructura esté [instalado y ejecutándose correctamente](/docs/infrastructure/new-relic-infrastructure/troubleshooting/no-data-appears-infrastructure). Debe instalar el agente de infraestructura <DNT>**first**</DNT> y luego conectarse a su cuenta de AWS.
+
+   <Callout variant="tip">
+     Si ve nombres de atributos, pero no datos, en <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Events**</DNT> o <DNT>**Infrastructure > Settings > Agents**</DNT>, es posible que no haya instalado el agente de infraestructura.
+   </Callout>
+
+2. Corrija cualquier error que vea en el panel de estado de la cuenta. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > AWS**</DNT> y seleccione el <DNT>**Account status dashboard**</DNT> para cada una de sus cuentas.
+
+   Si ve informes <DNT>**Role errors**</DNT> o <DNT>**Permission errors**</DNT>, consulte nuestras [políticas administradas y de integración](/docs/integrations/amazon-integrations/getting-started/integrations-managed-policies) y verifique que haya otorgado New Relic los permisos necesarios para leer los datos relevantes de su cuenta.
+
+   Si ve otros informes de errores, vaya a la [consola de AWS IAM](https://console.aws.amazon.com/iam/home?#/roles) y asegúrese de que la configuración de su ARN de AWS coincida con lo siguiente:
+
+   <table>
+     <thead>
+       <tr>
+         <th>
+           Configuración
+         </th>
+
+         <th>
+           Valor
+         </th>
+       </tr>
+     </thead>
+
+     <tbody>
+       <tr>
+         <td>
+           <DNT>
+             **Account ID**
+           </DNT>
+         </td>
+
+         <td>
+           `754728514883`
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           <DNT>
+             **External ID**
+           </DNT>
+         </td>
+
+         <td>
+           su [ID de cuenta](/docs/accounts-partnerships/accounts/account-setup/account-id)de New Relic
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           <DNT>
+             **Policy**
+           </DNT>
+         </td>
+
+         <td>
+           `ReadOnlyAccess`
+         </td>
+       </tr>
+     </tbody>
+   </table>
+
+3. Asegúrese de [buscar sus datos en el lugar correcto](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#metric) . Puedes encontrar todos los datos de integración en [métrica y evento](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer).

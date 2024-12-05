@@ -1,0 +1,79 @@
+---
+title: Soporte de agente PHP para Guzzle
+tags:
+  - Agents
+  - PHP agent
+  - Frameworks and libraries
+metaDescription: New Relic PHP agent notes about the Guzzle library (supported as of PHP agent release 7.0).
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic admite las versiones 3, 4, 5, 6 y 7 de <DNT>**Guzzle HTTP client library**</DNT> con [el agente PHP de New Relic versión 7.0](/docs/release-notes/agent-release-notes/php-release-notes) o superior.
+
+La biblioteca Guzzle permite solicitudes tanto secuenciales como paralelas. Esta página describe cómo aparecerá cada tipo de solicitud en la [página<DNT>**Summary**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page)en la UI de New Relic. Para descubrir qué llamada fue la más lenta, consulte la [página Servicios externos](/docs/apm/applications-menu/monitoring/external-services-page) que muestra el tiempo para llamadas externas individuales.
+
+## Solicitudes secuenciales [#more_help]
+
+Este código PHP realiza múltiples solicitudes secuenciales con Guzzle:
+
+```php
+$client = new \GuzzleHttp\Client;
+$response = $client->get('http://YOUR_SITE.com/api/foo');
+$client->delete('http://YOUR_SITE.com/api/foo/'.$response->getBody());
+```
+
+Este código aparecería en la UI de New Relic como:
+
+<img
+  title="Sequential requests with Guzzle"
+  alt="guzzle_sequential.png"
+  src="/images/apm_screenshot-crop_guzzle-sequence.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Overview > Web transactions time**</DNT>: Solicitudes secuenciales con Guzzle en la UI de New Relic.
+</figcaption>
+
+[El tiempo de respuesta](/docs/data-analysis/user-interface-functions/response-time) se muestra como la línea azul oscuro. El verde <DNT>**web external time**</DNT> representa el tiempo pasado en la biblioteca de Guzzle. Debido a que las solicitudes se realizaron de forma secuencial, el tiempo de respuesta es <DNT>**equal**</DNT> del [tiempo total](/docs/data-analysis/user-interface-functions/response-time#response-time-total-time) dedicado a PHP, MySQL y actividades externas web.
+
+## Solicitudes paralelas [#more_help]
+
+Este código PHP realiza múltiples solicitudes en paralelo desenvolviendo una matriz de promesas:
+
+```php
+$client = new \GuzzleHttp\Client;
+
+$promises = [
+    $client->getAsync('http://YOUR_SITE.com/api/foo'),
+    $client->getAsync('http://YOUR_SITE.com/api/bar'),
+    $client->getAsync('http://YOUR_SITE.com/api/quux'),
+];
+
+\GuzzleHttp\Promise\unwrap($promises);
+```
+
+Este código aparecería en la UI de New Relic como:
+
+<img
+  title="Parallel requests with Guzzle"
+  alt="Parallel requests with Guzzle"
+  src="/images/apm_screenshot-crop_guzzle-parallel.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Summary > Web transactions time**</DNT>: Solicitudes paralelas con Guzzle en la UIde New Relic
+</figcaption>
+
+El verde <DNT>**web external time**</DNT> representa el tiempo pasado en la biblioteca de Guzzle. Debido a que las solicitudes se realizaron de forma asincrónica, el [tiempo total](/docs/data-analysis/user-interface-functions/response-time#response-time-total-time) invertido en PHP, MySQL y web externa es <DNT>**greater**</DNT> mayor que el tiempo de respuesta.
+
+## Sincronización con Guzzle 6 y 7 [#timing]
+
+A diferencia de las versiones anteriores, Guzzle 6 y 7 no generan un evento cuando se envía una solicitud. En cambio, el agente comienza a cronometrar una solicitud cuando se crea el objeto de solicitud. Si se crea un objeto de solicitud y se realiza trabajo adicional antes de enviarlo, New Relic puede informar que la solicitud tardó más de lo que realmente tardó.
+
+## Deshabilitar el soporte de Guzzle
+
+Para desactivar la compatibilidad con Guzzle:
+
+1. Agregue `newrelic.guzzle.enabled = false` a su archivo `newrelic.ini` .
+2. [Reinicie su servidor web](/docs/agents/php-agent/troubleshooting/why-when-restart-your-web-server-php) (Apache, Nginx, PHP-FPM, etc.).

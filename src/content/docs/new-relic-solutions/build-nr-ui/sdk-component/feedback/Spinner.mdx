@@ -1,0 +1,114 @@
+---
+title: 'Spinner'
+metaDescription: 'Learn how to work the Spinner component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Spinners are used to indicate to your users that content is loading on the screen.
+
+### Usage
+
+```js
+import { Spinner } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Spinner />
+```
+
+#### Dot
+
+```js
+<Spinner type={Spinner.TYPE.DOT} />
+```
+
+#### Inline
+
+```js
+<Spinner inline />
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `inline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the spinner will be displayed inline.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Spinner.SPACING_TYPE.EXTRA_LARGE,
+          Spinner.SPACING_TYPE.LARGE,
+          Spinner.SPACING_TYPE.MEDIUM,
+          Spinner.SPACING_TYPE.NONE,
+          Spinner.SPACING_TYPE.OMIT,
+          Spinner.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type of loading animation.
+
+        <OptionReference>
+          Spinner.TYPE.CIRCLE,
+          Spinner.TYPE.DOT
+        </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

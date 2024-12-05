@@ -1,0 +1,423 @@
+---
+title: 'Optimización de errores: Mejora tu rastreo de errores'
+tags:
+  - Observability maturity
+  - UPR
+  - 'Uptime, performance, and reliability'
+  - Error optimization
+  - Error tracking
+  - Implementation guide
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Esta guía le muestra cómo optimizar sus errores para que pueda mejorar la tasa de errores, la detección de errores y la experiencia de los clientes. Es parte de [nuestra serie sobre madurez de observabilidad](/docs/new-relic-solutions/observability-maturity/introduction).
+
+## Descripción general [#overview]
+
+Rastreo de errores es la práctica de capturar errores de aplicación y tasa de errores para que pueda abordar los problemas que afectan la experiencia de sus clientes con su software.
+
+El monitoreo de IA de esta guía tiene como objetivo permitir a un cliente o equipo de New Relic:
+
+* Calibre la forma en que New Relic entiende los errores, de modo que las métricas relacionadas con los errores reflejen solo los errores que sean significativos para usted.
+* Reducir la incidencia de errores a lo largo del tiempo.
+
+## Resultado deseado [#desired-outcome]
+
+Mejore la experiencia y confiabilidad de los clientes al reducir la tasa de errores de la aplicación y el tiempo medio de resolución.
+
+## Indicadores de rendimiento clave [#kpis]
+
+### KPI comerciales
+
+Reducir los errores que experimentan los clientes mejora la confiabilidad. Las organizaciones que mejoran la confiabilidad experimentan una mayor tasa de conversión (tasas de finalización del recorrido del usuario) y una mayor participación del usuario. Esto acerca a la organización al cumplimiento de su objetivo de ingresos (comercial) o de impacto social (sin fines de lucro).
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-error-bus-conversion-rate"
+    title="Tasa de conversión"
+  >
+    La tasa de conversión se utiliza a menudo para indicar la tasa de compras o clics en anuncios. En este caso, la tasa de conversión se utiliza para medir los viajes de usuario completados. Los recorridos de usuario completos incluyen cosas como generar un ticket, enviar un formulario y ver un video, así como seguir un anuncio en un sitio o realizar una compra en línea.
+
+    <DNT>**Goal:**</DNT> Aumente la proporción de finalización del recorrido del usuario con respecto a las sesiones de usuario.
+
+    <DNT>
+      **Best practices**
+    </DNT>
+
+    Los errores ocurren tanto en la aplicación frontend como en la backend, pero generalmente se miden en la interfaz. [Los embudos consulta](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/funnels-evaluate-data-series-related-events) son populares para medir las conversiones, pero puedes hacerlo aún más simplemente contando el número de conversiones sobre el número total de sesiones durante un período de tiempo determinado.
+
+    Si proporciona un servicio API y la tasa de conversión se aplica a su negocio, puede medirlas comparando la cantidad de llamadas al servicio final que recibe la llamada con la cantidad de llamadas al primer servicio. Por ejemplo:
+
+    ```
+    FROM Transaction SELECT 
+       (FROM Transaction select count(*) WHERE request.uri = '/api/v1/lastStep') /
+       (FROM Transaction select count(*) WHERE request.uri = '/api/v1/firstStep') AS conversionRate
+    ```
+
+    Para obtener más ejemplos de cómo mejorar las conversiones, consulte la [guía de análisis de la parte inferior de los embudos](/docs/new-relic-solutions/observability-maturity/customer-experience/bottom-funnel-analysis-customer-journey-guide), que explica cómo mejorar la tasa de conversión comenzando con los pasos finales del recorrido del usuario.
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-bus-page-views"
+    title="Recuento de vistas de página"
+  >
+    Mida el aumento o la disminución de la participación contando las visitas a la página.
+
+    <DNT>**Goal:**</DNT> Aumentar las visitas a la página
+
+    <DNT>
+      **Best practices**
+    </DNT>
+
+    Los errores ocurren tanto en la aplicación frontend como en la backend, pero generalmente se miden en la interfaz. Mida el impacto de mejorar los errores en la participación del usuario mediante el seguimiento de las visitas a la página de la aplicación frontend en relación con dónde está realizando mejoras.
+
+    Su consulta NRQL se verá así:
+
+    ```
+    FROM PageView SELECT count(*) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    Si proporciona una API como servicio y es relevante para su negocio, puede realizar un seguimiento del equivalente a las visitas a la página mediante el seguimiento del recuento de transacciones:
+
+    ```
+    FROM Transaction count(*) WHERE appName = 'apiService'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-bus-users"
+    title="Recuento de usuarios"
+  >
+    Mida el aumento o la disminución de la participación contando las visitas a la página.
+
+    <DNT>**Goal:**</DNT> Incrementa el número de usuarios que acceden a tu sitio
+
+    <DNT>
+      **Best practices**
+    </DNT>
+
+    Los errores ocurren tanto en la aplicación frontend como en la backend, pero generalmente se miden en la interfaz. Mida el impacto de mejorar los errores en la participación de los usuarios mediante el seguimiento de la cantidad de usuarios que acceden a su sitio durante un período de tiempo determinado. Si no ha agregado instrumentación personalizada para rastrear al usuario, puede rastrear las sesiones en su lugar.
+
+    Su consulta NRQL se verá así:
+
+    ```
+    FROM PageView SELECT uniqueCount(userId) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    O
+
+    ```
+    FROM PageView SELECT uniqueCount(session) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    Si proporciona una API como servicio, captura ID de clientes y es relevante para su negocio, puede rastrear el equivalente de usuario mediante el seguimiento de clientes en transacciones:
+
+    ```
+    FROM Transaction uniqueCount(customerId) WHERE appName = 'apiService'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Los KPI empresariales anteriores funcionan bajo el supuesto de que usted apoya a su usuario proporcionándole una aplicación frontend. Si brinda soporte a sus clientes a través de API, es posible que los KPI anteriores se ajusten al tipo de entidad de transacción. Algunas organizaciones que brindan API como servicio utilizan KPI operativos como los que se muestran a continuación para promover la calidad de su oferta.
+
+### KPI operativos
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-error-operational-error-rate"
+    title="Tasa de errores"
+  >
+    La tasa de errores es la relación entre errores y solicitudes.
+
+    Un error puede ser un código de respuesta HTTP de más de 300, una excepción no controlada, una falla móvil o un evento que alguien de su equipo configuró como un error.
+
+    <DNT>**Goal:**</DNT> Reduzca la tasa de error en la aplicación que administra.
+
+    <DNT>
+      **Best practices**
+    </DNT>
+
+    Este es el KPI principal que utilizará para realizar un seguimiento de su progreso y mejorar el rastreo de errores. Los pasos para mejorar la tasa de errores incluyen filtrar errores intrascendentes y resolver errores impactantes.
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-operational-error-mean-time"
+    title="Tiempo medio para cerrar errores"
+  >
+    El tiempo medio de cierre mide el tiempo desde que una alerta le notifica sobre un problema hasta que se cierra el problema, justo después de que se haya resuelto. Este KPI se rastrea como parte de [la gestión de calidad de alerta](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide#key-perf-indicators)
+
+    <DNT>**Goal:**</DNT> Reduzca el tiempo medio de cierre de los problemas reduciendo la tasa de errores.
+
+    <DNT>
+      **Best practices**
+    </DNT>
+
+    Desarrolle una sólida práctica de errores para que, cuando ocurra un problema, pueda detectarlo más rápidamente:
+
+    * Si el problema está relacionado o no con un aumento en los errores
+    * Qué error es responsable del problema, si el problema es causado por un error
+
+      La [guía de gestión de calidad de alerta](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) le muestra cómo realizar un seguimiento de este KPI.
+  </Collapser>
+</CollapserGroup>
+
+## Requisitos previos [#prerequisites]
+
+### Instalación y configuración requeridas
+
+* Asegúrese de que nuestras soluciones
+
+  <InlinePopover type="apm"/>
+
+  ,
+
+  <InlinePopover type="browser"/>
+
+  , monitoreo de móviles, monitoreo sin servidor u OpenTelemetry estén recibiendo sus errores.
+
+* [Mapas fuente](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api) actualizados para la aplicación web
+
+* [Simbología](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/ios-tvos-crash-reporting) actualizada para aplicaciones móviles.
+
+## Establecer el estado actual [#establish-current-state]
+
+* [Crea una carga de trabajo para tu aplicación](#create-workload)
+* [Cree un nivel de servicio para su carga de trabajo](#create-service-level)
+
+### Crea una carga de trabajo para tu aplicación [#create-workload]
+
+Defina la lista de aplicaciones y servicios para los que está intentando optimizar los errores. El equipo que lleva a cabo el proceso de optimización de errores debe tener total responsabilidad y control sobre estas aplicaciones y servicios. Una vez que lo hayas decidido, configura una [carga de trabajo](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) para estas entidades.
+
+Carga de trabajo son un grupo de entidades (aplicación, instancia, etc.) de las que es responsable un equipo específico. Le permiten ver datos solo de la entidad sobre la que puede hacer algo. Basaremos la mayor parte de nuestro trabajo en el futuro en torno a la carga de trabajo que configure aquí.
+
+Solo lleva unos minutos configurar una carga de trabajo. Consulte [las instrucciones de carga de trabajo](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster).
+
+Si ya está familiarizado con la carga de trabajo y prefiere dividir su aplicación y servicios en múltiples cargas de trabajo, puede hacerlo. Simplemente siga los pasos a continuación para cada carga de trabajo.
+
+### Cree un nivel de servicio para su carga de trabajo [#create-service-level]
+
+[nivel de servicio](/docs/service-level-management/intro-slm) le permite configurar y ver fácilmente [los objetivos de nivel de servicio (SLO)](https://sre.google/sre-book/service-level-objectives) para un grupo determinado de entidades. Usar nivel de servicio es una forma de monitor y comunicar el éxito de su proyecto de gestión de errores.
+
+Desde su carga de trabajo, navegue hasta la pestaña <DNT>**Service levels**</DNT> . Cree un nivel de servicio que mida la tasa de errores para cada entidad en la carga de trabajo. Esto se configura en el Paso 2 en la UI del nivel de servicio. Para cada nivel de servicio, utilice las cláusulas WHERE para filtrar buenas solicitudes o errores que no deben tenerse en cuenta.
+
+<img
+  title="Add a service level to your workload"
+  alt="Add a service level to your workload"
+  src="/images/oma-eto_screenshot-full_add-service-level.webp"
+/>
+
+<br/>
+
+<br/>
+
+<CollapserGroup>
+  <Collapser
+    id="apm-service-level"
+    title="Crear un nivel de servicio de tasa de errores para cada servicio de aplicación"
+  >
+    Para el paso 2 de la creación del servicio, elija <DNT>**Success**</DNT> SLI.
+
+    <img
+      title="Set the service level type"
+      alt="Set the service level type"
+      src="/images/oma-eto_screenshot-full_sl-type-apm.webp"
+    />
+
+    Agrega una etiqueta al nivel de servicio para que puedas ver todas las tasas de errores en una sola vista. Puedes usar la etiqueta predeterminada. `category:success`
+
+    <img
+      title="Create a service level tag"
+      alt="Create a service level tag"
+      src="/images/oma-eto_screenshot-crop_sl-tag-apm.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="browser-service-level"
+    title="Crear un nivel de servicio de tasa de errores para cada aplicación browser"
+  >
+    * Para el paso 2 de la creación del servicio, elija
+
+      <DNT>
+        **Success**
+      </DNT>
+
+      SLI.
+
+      <img
+        title="Set the service level type"
+        alt="Set the service level type"
+        src="/images/oma-eto_screenshot-crop_sl-type-browser.webp"
+      />
+
+    * Para el paso 4, agregue una etiqueta al nivel de servicio. Puedes usar la etiqueta predeterminada. `category:success`
+
+      <img
+        title="Create a service level tag"
+        alt="Create a service level tag"
+        src="/images/oma-eto_screenshot-crop_sl-tag-browser.webp"
+      />
+  </Collapser>
+
+  <Collapser
+    id="mobile-service-level"
+    title="Crear un nivel de servicio de tasa de errores para cada aplicación móvil"
+  >
+    Crear un nivel de servicio para fallas móviles
+
+    * Para el paso 2, elija `MobileSession` como fuente del evento válido. Elija `MobileCrash` como fuente de malas respuestas.
+
+      <img
+        title="Set the service level type"
+        alt="Set the service level type"
+        src="/images/oma-eto_screenshot-full_sl-type-mobile-crash.webp"
+      />
+
+    * Para el paso 4, agregue una etiqueta al nivel de servicio. Puede utilizar la etiqueta predeterminada `category:success`.
+
+      Crear un nivel de servicio para errores de solicitud móvil
+
+    * Para el paso 2, elija `MobileRequest` como fuente del evento válido. Elija `MobileRequestError` como fuente de malas respuestas.
+
+      <img
+        title="Set the service level type"
+        alt="Set the service level type"
+        src="/images/oma-eto_screenshot-full_sl-type-mobile-request-error.webp"
+      />
+
+    * Para el paso 4, agregue una etiqueta al nivel de servicio. Puede utilizar la etiqueta predeterminada `category:success`.
+  </Collapser>
+
+  <Collapser
+    id="serverless-service-level"
+    title="Cree un nivel de servicio de tasa de errores para cada aplicación sin servidor"
+  >
+    Cree un nivel de servicio de tasa de errores para la función Lambda de AWS integrada con nuestro [monitoreo sin servidor](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/monitoring-aws-lambda-serverless-monitoring):
+
+    * Para el Paso 1, seleccione `Lambda function` como tipo de entidad
+
+    * Para el paso 2, seleccione `AWSLambdaInvocation` para eventos válidos y `AwsLambdaInvocationError` para respuestas incorrectas
+
+      <img
+        title="Set the service level type"
+        alt="Set the service level type"
+        src="/images/oma-eto_screenshot-full_sl-type-serverless.webp"
+      />
+
+    * Para el paso 4, agregue una etiqueta al nivel de servicio. Puedes usar la etiqueta predeterminada. `category:success`
+
+      <img
+        title="Create a service level tag"
+        alt="Create a service level tag"
+        src="/images/oma-eto_screenshot-crop_sl-tag-browser.webp"
+      />
+
+      Actualmente, el nivel de servicio solo admite tasa de errores para la función Lambda AWS utilizando [el monitoreo New Relic sin servidor para AWS Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/monitoring-aws-lambda-serverless-monitoring). Puede capturar la tasa de errores fuera del nivel de servicio utilizando la siguiente consulta:
+
+      ```
+      SELECT sum(provider.errors.Sum)/sum(provider.invocations.Sum)*100 FROM ServerlessSample
+      ```
+  </Collapser>
+
+  <Collapser
+    id="otel-service-level"
+    title="Crear un nivel de servicio de tasa de errores para cada aplicación de telemetría abierta"
+  >
+    * Para el paso 1, seleccione `Service - OpenTelemetry`.
+    * Para el evento válido del Paso 2, utilice el tipo de entidad `Span` para buenos tipos de eventos. Agregue lo siguiente a la cláusula WHERE: `(span.kind LIKE 'server' OR span.kind LIKE 'consumer' OR kind LIKE 'server' OR kind LIKE 'consumer')`
+    * Para el evento no válido del paso 2, utilice el tipo de entidad `Span` y la opción `Repeat WHERE clause` . Agregue lo siguiente a la cláusula WHERE para detectar malas respuestas: `otel.status_code = 'ERROR'`
+    * Para el paso 4, agregue una etiqueta al nivel de servicio. Puede utilizar la etiqueta predeterminada `category:success`.
+  </Collapser>
+</CollapserGroup>
+
+### Utilice el nivel de servicio para realizar un seguimiento de su progreso frente a la tasa de errores actual
+
+Utilizando el proceso documentado anteriormente, ha creado un nivel de servicio basado en su tasa de errores actual.
+
+* La columna SLO le muestra la tasa de errores objetivo que seleccionó utilizando una línea de base.
+* El modo de vista operativa le muestra el rendimiento reciente en comparación con su objetivo.
+* El modo de vista Período tras período le muestra el rendimiento frente a su objetivo durante un período de tiempo más largo.
+* Puede actualizar la tasa de errores objetivo a medida que se realicen mejoras.
+
+<img
+  title="Group service levels by category"
+  alt="Group service levels by category"
+  src="/images/oma-eto_screenshot-full_sl-filter.webp"
+/>
+
+## Proceso de mejora [#improvement-process]
+
+* [Identificar errores intrascendentes](#create-workload)
+* [Elimina errores intrascendentes de tu tasa de errores](#create-service-level)
+* [Configurar alerta de tasa de errores](#error-rate-alerts)
+* [Establecer una lista de héroes de error](#error-hero)
+* [Clasificación de errores mediante Errors Inbox](#errors-inbox)
+* [Errores de enlace a JIRA](#jira)
+* [Errores de enlace a Slack](#slack)
+* [Utilice CodeStream](#codestream)
+
+### Identificar errores intrascendentes [#inconsequential-errors]
+
+Explora tus errores como te resulte más cómodo. Puedes hacer esto usando:
+
+* Vistas listas para usar para APM, monitoreo de móviles, errores de JavaScript, monitoreo sin servidor y OpenTelemetry
+* Errors Inbox filtrada según su carga de trabajo
+* Tipos de datos NRQL como `TransactionError`, `JavaScriptError`, `MobileRequestError`, `AwsLambdaInvocationError`, `Span`
+
+### Elimina errores intrascendentes de tu tasa de errores [#remove-inconsequential-errors]
+
+Puede eliminar errores que no importan de dos maneras:
+
+* Evite que se ingieran mediante [la configuración](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/#ignore) (solo APM) o mediante [reglas de eliminación](/docs/data-apis/manage-data/drop-data-using-nerdgraph). Este enfoque solo funciona para errores que usted está seguro de que no es necesario capturar. La ventaja adicional de este enfoque es la reducción de la ingesta de errores ruidosos.
+* Utilice NRQL para filtrar los errores de los cálculos del nivel de servicio. Haga esto agregando a la cláusula WHERE un filtro de malas respuestas. Asegúrese de volver a basar el nivel de servicio si esto mejora significativamente la tasa de errores. Hacerlo mejorará la precisión de las alertas de errores.
+
+### Configurar alerta de tasa de errores [#error-rate-alerts]
+
+Revise cada uno de los niveles de servicio configurados en [Crear nivel de servicio para su carga de trabajo](#create-service-level) y cree una alerta para notificar al equipo cuando la tasa de errores aumente más allá de lo aceptable.
+
+### Establecer una lista de héroes de error [#error-hero]
+
+Las alertas le permitirán saber si está cumpliendo con los niveles actuales de rendimiento de errores, pero no le ayudarán a mejorarlos. Para mejorar el sentimiento de los clientes, cree un proceso en el que un miembro de su equipo revise los errores diariamente. El héroe del error debería:
+
+* Inicialmente, céntrese en los errores que ocurren en la mitad superior de la página. Para un proceso de revisión diario, esto significa centrarse en los errores que ocurrieron sólo en las últimas 24 horas.
+* Clasificación de errores mediante [Errors Inbox](/docs/errors-inbox/errors-inbox)
+
+### Clasificación de errores mediante Errors Inbox [#errors-inbox]
+
+Errors Inbox es un lugar único para detectar, clasificar y tomar medidas proactivas sobre todos los errores antes de que afecten a los clientes. Los errores similares se agruparán para evitar la duplicación del trabajo y permitirle priorizar los errores por número de ocurrencias.
+
+Al acceder Errors Inbox, asegúrese de seleccionar su carga de trabajo para que solo vea errores relevantes para su equipo.
+
+Reserve un tiempo regular para revisar Errors Inbox como equipo. Para empezar, tiene sentido hacerlo diariamente o algunas veces a la semana, ya que tendrá que revisar muchos grupos de errores. Posteriormente, puede ser más apropiado semanal o quincenal.
+
+Revise los errores uno por uno haciendo clic en la pantalla de detalles del error cuando sea necesario para obtener más información como traza, registro, etc. Esto señalará la causa del error o proporcionará un punto de partida para una investigación adicional.
+
+Después de una breve discusión, es posible que pueda marcar el grupo de errores como uno de los siguientes:
+
+* Ignorar: para usar cuando el error no es problemático. Esto ocultará el grupo de errores de la vista de la bandeja de entrada a partir de ese momento.
+* Resuelto: para usar cuando el error fue el resultado de un problema conocido que ya se ha solucionado. Esto eliminará el grupo de errores de la lista a menos que se repita. Si vuelve a ocurrir, se debe repensar la solución implementada anteriormente.
+
+Nota: Ignorar y/o resolver errores a través de Errors Inbox no impedirá que cuenten para la tasa de error métrica.
+
+Si ninguno de los estados anteriores es adecuado, asigne el error al miembro correspondiente del equipo para que lo investigue y lo resuelva en mayor profundidad. Ese miembro del equipo puede realizar más investigaciones a su propio ritmo, actualizando las notas del grupo de errores con su progreso y/o pidiendo ayuda a otros miembros del equipo a través de la sección de notas.
+
+En la próxima reunión de clasificación, puede volver a visitar estos grupos de errores para ver si ahora se pueden marcar como resueltos. A medida que pasa el tiempo, debería comenzar a ver que aparecen menos grupos de errores nuevos y un movimiento positivo en sus KPI.
+
+### Errores de enlace a JIRA [#jira]
+
+A medida que se adentre en casos más extremos o en errores complejos, es posible que necesite pedir ayuda a otros equipos. Vincular Errors Inbox a Jira puede ayudar con esto. [Conecte su Errors Inbox a Jira](/docs/errors-inbox/error-external-services#jira) para poder crear fácilmente tickets conectados a grupos de errores. Puedes controlar la información enviada a Jira a través de las plantillas de Jira.
+
+### Errores de enlace a Slack [#slack]
+
+A medida que disminuye la velocidad de los errores que llegan a Errors Inbox , es posible que una sesión regular del equipo ya no sea un buen uso del tiempo. Una alternativa es [vincular Errors Inbox a Slack](/docs/errors-inbox/error-external-services#slack) y a) designar una persona rotativa para monitor el canal y resolver/ignorar/asignar grupos de errores a medida que ingresan o b) permitir que el equipo responda proactivamente a los grupos de errores.
+
+### Utilice CodeStream [#codestream]
+
+Muchos de sus grupos de errores requerirán cambios de código para resolverse. [Conecte CodeStream a su cuenta de New Relic](/docs/codestream/start-here/what-is-codestream) para abrir el código infractor directamente en su IDE para investigar el código directamente. También puede dejar notas y comentarios sobre líneas de código específicas para que los desarrolladores las revisen y viceversa.
+
+New Relic con CodeStream le brinda más contexto sobre sus grupos de errores, como poder ver números de versión o confirmar SHA. Además, utilizar Errors Inbox como un lugar centralizado para identificar, discutir y rectificar problemas de código le permite responder a los problemas de código de manera eficiente y evitar la duplicación del trabajo.
+
+## Realización de valor [#value-realization]
+
+Revise la tasa de errores semanalmente a medida que avanza en la práctica. A medida que disminuye la tasa de errores, debería ver un tiempo medio de resolución más rápido y una mayor satisfacción de los clientes.

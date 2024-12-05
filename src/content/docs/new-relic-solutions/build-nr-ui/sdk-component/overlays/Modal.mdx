@@ -1,0 +1,291 @@
+---
+title: 'Modal'
+metaDescription: 'Learn how to work the Modal component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Modals are used for single-step create, add, edit, or delete actions. They are also used to display additional metadata about a screen or specific object on the screen.
+
+### Usage
+
+```js
+import { Modal } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor() {
+    super(...arguments);
+
+
+    this._onClose = this._onClose.bind(this);
+
+
+    this.state = {
+      hidden: true,
+    };
+  }
+
+
+  _onClose() {
+    this.setState({ hidden: true });
+  }
+
+
+  render() {
+    return (
+      <>
+        <Button onClick={() => this.setState({ hidden: false })}>
+          Open modal
+        </Button>
+
+
+        <Modal hidden={this.state.hidden} onClose={this._onClose}>
+          <HeadingText type={HeadingText.TYPE.HEADING_3}>Modal</HeadingText>
+
+
+          <BlockText
+            spacingType={[
+              BlockText.SPACING_TYPE.EXTRA_LARGE,
+              BlockText.SPACING_TYPE.OMIT,
+            ]}
+          >
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+            eiusmod tempor incididunt ut labore et dolore magna aliqua. Dictumst
+            quisque sagittis purus sit amet.
+          </BlockText>
+
+
+          <Button onClick={this._onClose}>Close</Button>
+        </Modal>
+      </>
+    );
+  }
+}
+```
+
+#### Unmounting
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor() {
+    super(...arguments);
+
+
+    this._onClick = this._onClick.bind(this);
+    this._onClose = this._onClose.bind(this);
+    this._onHideEnd = this._onHideEnd.bind(this);
+
+
+    this.state = {
+      hidden: true,
+      mounted: false,
+    };
+  }
+
+
+  _onClick() {
+    this.setState({
+      hidden: false,
+      mounted: true,
+    });
+  }
+
+
+  _onClose() {
+    this.setState({ hidden: true });
+  }
+
+
+  _onHideEnd() {
+    this.setState({ mounted: false });
+  }
+
+
+  render() {
+    return (
+      <>
+        <Button onClick={this._onClick}>Open modal</Button>
+
+
+        {this.state.mounted && (
+          <Modal
+            hidden={this.state.hidden}
+            onClose={this._onClose}
+            onHideEnd={this._onHideEnd}
+          >
+            <HeadingText type={HeadingText.TYPE.HEADING_3}>Modal</HeadingText>
+
+
+            <BlockText
+              spacingType={[
+                BlockText.SPACING_TYPE.EXTRA_LARGE,
+                BlockText.SPACING_TYPE.OMIT,
+              ]}
+            >
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+              eiusmod tempor incididunt ut labore et dolore magna aliqua.
+              Dictumst quisque sagittis purus sit amet.
+            </BlockText>
+
+
+            <Button onClick={this._onClose}>Close</Button>
+          </Modal>
+        )}
+      </>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabelledBy` <h5>string</h5>
+      </td>
+
+      <td>
+        Pass the string of the text content which should better describe the purpose of the modal to be correctly announced by screen readers.
+
+        ```js
+        const modalLabelId = 'my-nerdlet.my-modal';
+
+        <Modal ariaLabelledBy={modalLabelId}>
+          <span id={modalLabelId}>
+            <HeadingText>My modal</HeadingText>
+          </span>
+        </Modal>;
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Content to render inside the modal.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `hidden` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the modal is hidden.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClose` <h5>REQUIRED</h5><h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when clicking on the Modal's close button.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHideEnd` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when the Modal finishes the closing animation.Use this to unmount the Modal component. This ensures that the closing animation works properly.
+
+        ```js
+        function render() {
+          <>
+            {this.state.mounted && (
+              <Modal
+                hidden={this.state.hidden}
+                onHideEnd={() => this.setState({ mounted: false })}
+                onClose={() => this.setState({ hidden: true })}
+              >
+                <h1>Modal</h1>
+                <p>
+                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+                  eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                </p>
+              </Modal>
+            )}
+          </>;
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHideStart` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when the Modal starts the closing animation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onShowEnd` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when the Modal finishes the opening animation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onShowStart` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when the Modal starts the opening animation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

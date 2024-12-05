@@ -1,0 +1,93 @@
+---
+title: Anomaly detection
+tags:
+  - Anomaly detection
+  - Alerts
+metaDescription: Learn how anomaly detection in New Relic notifies you of unusual app behavior.
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/other-condition-types/create-anomaly-alert-conditions
+  - /docs/alerts/new-relic-alerts/defining-conditions/create-anomaly-alert-conditions
+  - /docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-anomaly-alert-conditions
+  - /docs/alerts/new-relic-alerts/defining-conditions/create-anomaly-alert-conditions
+  - /docs/alerts/new-relic-alerts/configuring-alert-policies/create-anomaly-alert-conditions/
+  - /docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/custom-anomalies/
+  - /docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/anomaly-detection-applied-intelligence/
+  - /docs/nerdgraph-anomaly-detector-configurations-api-tutorial/
+  - /docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection
+freshnessValidatedDate: never
+---
+
+Anomaly detection allows your team the most versatility when detecting unusual behavior in your system. Anomaly detection gives your team the ability to alert on any entity or signal and to adjust and optimize your sensitivity thresholds. Anomaly detection uses the same streaming-alerting pipeline as static threshold alerts and shares the same advanced tuning settings. This ensures that the stream processing is aligned to your telemetry signal's characteristics to reduce false alerting.
+
+You can also enrich your anomaly detection configuration with additional metadata to provide further context and add custom incident descriptions that can provide additional instructions to your on-call engineers.
+
+## Configure anomaly sensitivity thresholds [#configure-custom-anomalies]
+
+You can create anomaly sensitivity thresholds from an [alert condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). Here are some tips for setting anomaly thresholds:
+
+* Set the [anomaly direction](#anomaly-direction) to monitor incidents that happen either above or below the anomaly.
+* Use the slider bar to adjust the  <DNT>**Critical**</DNT> sensitivity threshold, represented in the preview chart by the light gray area around the signal. The tighter the band around the signal, the more sensitive it is and the more incidents it will generate.
+* You can create a [<DNT>**Warning**</DNT> threshold](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/#threshold-levels) (the darker gray area around the anomaly).
+
+Follow these steps to create an anomaly detection alert condition:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert Conditions**</DNT>.
+
+2. Click <DNT>**+ New alert condition > Use guided mode**</DNT> (or the more advanced Query mode).
+
+3. Go through the guided steps until you get to <DNT>**Set thresholds**</DNT>.
+
+4. Select <DNT>**Anomaly**</DNT>.
+
+   <img
+     width="80%;"
+     title="Set anomoly thresholds"
+     alt="Screenshot of the anomoly thresholds options"
+     src="/images/alerts_screenshot-crop_try-anomaly-thresholds.webp"
+   />
+
+5. Configure the settings for one or more thresholds. Anomaly detection makes a prediction on what the next data point will be based on prior activity. The threshold value for anomaly detection controls the sensitivity of the alert condition for tolerating how far off the actual value is from the predicted value. The threshold is the number of standard deviations your signal value is away from the value that was predicted. We track the standard deviation between the predicted value and the actual value for the prior 7 days of data.
+
+   To configure the threshold, you'll need to:
+
+   * Set the 'threshold direction' to either upper, lower, or both. This means that we'll only create an incident if the signal value (the output of the query) is above the predicted value, below the predicted value, or either, respectively.
+
+     This field dictates how many of the data points during a specified time period must be outside of the threshold. The options are <DNT>**for at least**</DNT> and <DNT>**at least once in**</DNT>. Selecting <DNT>**for at least**</DNT> means that ALL of your signal's data points must be outside of the threshold for the specified time period before an incident is opened. The inverse must be true to close the incident. The <DNT>**at least once in**</DNT> option simply means that as soon as any of your signal's data points are outside of the threshold, an incident will open. With this option, the time duration is not relevant for determining when to open an incident. However, it's relevant for closing incidents. All of your signal's data points must be within the threshold for the specified period of time
+
+   * Set the 'threshold duration'. Think of this as how long the signal value must remain outside the threshold before an incident is opened.   Conversely, it's also how long a signal must be within the threshold for an incident to be closed.
+
+     This field answers to the time period mentioned above. It's how long the signal exceeds the threshold being defined. This is the actual threshold duration.
+
+   * Set the 'threshold level'. For custom anomaly detection, this is the number of standard deviations the signal's data point is from the value that we predicted it would be.
+
+6. Add the details of the alert condition and click <DNT>**Save condition**</DNT>.
+
+## Setting thresholds for multi-signal conditions (faceted queries) [#faceted-queries]
+
+Depending on how you defined your query in step 1, the alert condition may be monitoring many signals, not just one. When working with NRQL, these queries use the [`FACET` clause](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet). The maximum number of signals that one alert condition can monitor is 5,000. The threshold settings that you specify apply the same to all signals being monitored by this condition. Each signal is individually monitored and evaluated, but the settings apply consistently to all signals.
+We'll only show a maximum of 500 signals on the preview chart. But, we don't show the predicted signal and threshold bands when there is more than one signal shown on the chart. To show that information while determining the ideal threshold value, select one of the time series signals from the legend to filter the chart down a single time series.
+
+## Anomaly direction: select upper or lower ranges [#anomaly-direction]
+
+You can choose whether you want the condition to look for behavior that goes above the predicted value ("upper") or that goes below the predicted value ("lower"), or that goes either above or below. You choose these with the prediction direction selector.
+
+Example use cases for this:
+
+* You might use the Upper setting for a data source like error rate, because you generally are only concerned if it goes up, and aren't concerned if it goes down.
+* You might use the Lower setting for a data source like throughput, because sudden upward fluctuations are quite common, but a large sudden downswing would indicate a problem.
+
+Here are examples of how large fluctuations in your data would be treated under the different anomaly direction settings. The red areas represent incidents.
+
+<img
+  title="A screenshot of anomaly details in the New Relic UI"
+  alt="A screenshot demonstrating how to select upper and lower ranges for anomalies"
+  src="/images/alerts_screenshot-full_anomalies-set-upper-and-lower-ranges.webp"
+/>
+
+## Rules governing calculation of the predicted value [#anomaly-rules]
+
+The algorithm for calculating the prediction is mathematically complex. Here are some of the major rules governing its predictive abilities:
+
+* <DNT>**Age of data**</DNT> On initial creation, the prediction is calculated using between 1 to 4 weeks of data, depending on data availability and prediction type. Currently, queries that use the `FACET` clause aren't trained on stored data. After its creation, the algorithm takes into account ongoing data fluctuations over a long time period, although greater weight is given to more recent data. For data that has only existed for a short time, the predicted value will likely fluctuate a good deal and not be very accurate. This is because there isn't enough data to determine its usual values and behavior. The more history the data has, the more accurate the prediction will become.
+* <DNT>**Consistency of data**</DNT> For metric values that remain in a consistent range or that trend slowly and steadily, their more predictable behavior means that their sensitivity thresholds will become tighter around the prediction. Data that is more varied and unpredictable will have looser (wider) sensitivity thresholds.
+* <DNT>**Regular fluctuations**</DNT> For shorter-than-one-week cyclical fluctuations (such as weekly Wednesday 1pm deployments or nightly reports), the prediction algorithm looks for these cyclical fluctuations and attempts to adjust to them.

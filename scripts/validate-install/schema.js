@@ -160,7 +160,7 @@ const InstallConfig = object({
 
 const outputErrors = (error) => {
   const errors = error.failures();
-  console.log(`❌ Found ${errors.length} errors:`);
+  console.log(`❌ \x1b[93m Found ${errors.length} install errors:\x1b[0m`);
   for (const failure of error.failures()) {
     console.error(
       '\x1b[31m%s\x1b[0m',

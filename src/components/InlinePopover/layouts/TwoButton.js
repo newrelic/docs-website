@@ -17,8 +17,6 @@ const TwoButton = ({
   learnMoreUrl,
   primaryButton,
   primaryButtonUrl,
-  secondaryButton,
-  secondaryButtonUrl,
   type,
   ...props
 }) => {
@@ -36,21 +34,12 @@ const TwoButton = ({
     noop,
     instrumentation('primaryButton')
   );
-  const onSecondaryClick = useInstrumentedHandler(
-    noop,
-    instrumentation('secondaryButton')
-  );
 
   return (
     <Popover {...props}>
       <Container>
         <Heading>{header}</Heading>
-        <Text>
-          {text}{' '}
-          <Link onClick={onLearnMore} href={learnMoreUrl}>
-            {learnMore}
-          </Link>
-        </Text>
+        <Text>{text}</Text>
         <PrimaryButton
           as="a"
           href={primaryButtonUrl}
@@ -66,15 +55,17 @@ const TwoButton = ({
             name="fe-external-link"
           />
         </PrimaryButton>
-        <SecondaryButton
-          as="a"
-          href={secondaryButtonUrl}
-          onClick={onSecondaryClick}
-          tabIndex={0}
-          variant={Button.VARIANT.OUTLINE}
-        >
-          {secondaryButton}
-        </SecondaryButton>
+        {learnMore && (
+          <LearnMoreButton
+            as="a"
+            href={learnMoreUrl}
+            onClick={onLearnMore}
+            tabIndex={0}
+            variant={Button.VARIANT.OUTLINE}
+          >
+            {learnMore}
+          </LearnMoreButton>
+        )}
       </Container>
     </Popover>
   );
@@ -90,20 +81,11 @@ const Container = styled.div`
 
 const Heading = styled.h2`
   color: currentColor;
-  font-size: 0.75rem;
+  font-size: 1rem;
   font-weight: 500;
   grid-column: 1 / 3;
   justify-self: start;
   margin: 0;
-`;
-
-const Link = styled.a`
-  color: currentColor;
-  text-decoration: underline;
-
-  &:hover {
-    color: currentColor;
-  }
 `;
 
 const PrimaryButton = styled(Button)`
@@ -111,7 +93,7 @@ const PrimaryButton = styled(Button)`
   width: 100%;
 `;
 
-const SecondaryButton = styled(Button)`
+const LearnMoreButton = styled(Button)`
   border-color: var(--system-background-app-light);
   color: var(--system-background-app-light);
   cursor: pointer;
@@ -123,7 +105,8 @@ const SecondaryButton = styled(Button)`
 `;
 
 const Text = styled.p`
-  font-size: 0.75rem;
+  font-size: 1rem;
+  font-weight: 300;
   grid-column: 1 / 3;
   margin: 0 0 8px;
 `;

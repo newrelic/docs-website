@@ -1,0 +1,152 @@
+---
+title: 'Catalog commands'
+tags:
+    - New Relic One CLI
+    - Catalog commands
+metaDescription: 'An overview of the CLI commands you can use to manage your New Relic app catalog information.'
+freshnessValidatedDate: 2024-04-29
+---
+
+To manage your catalog, use the commands below. You can click any command to see its usage options and additional details about the command.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Command
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`nr1 catalog:info`](#nr1-cataloginfo)
+      </td>
+
+      <td>
+        Shows the Nerdpack info stored in the catalog.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 catalog:submit`](#nr1-catalogsubmit)
+      </td>
+
+      <td>
+        Gathers and submits the catalog info on the current folder.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `nr1 catalog:info` [#nr1-cataloginfo]
+
+### Get catalog details [#nr1-cataloginfo-details]
+
+Shows the information about your application that's displayed in the catalog.
+
+If run within a specific Nerdpack folder, the info from that Nerdpack will be shown. If you don't want to get info from your local Nerdpack, use the `--nerdpack-id=NERDPACK_ID` option to query from a specific Nerdpack.
+
+### Usage [#nr1-cataloginfo-usage]
+
+`$ nr1 catalog:info`
+
+### Options [#nr1-cataloginfo-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-f, --field=FIELD`
+      </td>
+
+      <td>
+        Specifies which field you want info from.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-i, --nerdpack-id=NERDPACK_ID`
+      </td>
+
+      <td>
+        Specifies which Nerdpack to get info from.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        The authentication profile you want to use.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Adds extra information to the output.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `nr1 catalog:submit` [#nr1-catalogsubmit]
+
+### Send info to the catalog [#nr1-catalogsubmit-send]
+
+Gathers the information you add to the catalog directory for your application and saves it to the catalog.
+
+This command must be run on a Nerdpack folder. The command will search for specific files using convention names.
+
+### Usage [#nr1-catalogsubmit-usage]
+
+`$ nr1 catalog:submit`
+
+### Options [#nr1-catalogsubmit-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-P, --skip-screenshots`
+      </td>
+
+      <td>
+        Skips upload of screenshot assets.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=PROFILE`
+      </td>
+
+      <td>
+        The authentication profile you want to use.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Adds extra information to the output.
+      </td>
+    </tr>
+  </tbody>
+</table>

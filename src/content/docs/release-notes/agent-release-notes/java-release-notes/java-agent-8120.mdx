@@ -1,0 +1,96 @@
+---
+subject:  Java agent
+releaseDate:  '2024-05-23'
+version:  8.12.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.12.0/'
+features: [“Add Support for Java 22”, “Add AI Monitoring Support or Java v2 Bedrock Runtime Client versions 2.20.157 and above”,  “Add support for Pekko Http”, “Enhance log forwarding to include ‘caused by’ section”]
+bugs: [“Resolve various thread hopping issues with Spring Reactor call chains”, “Refactor the daily logfile rolling job to support all platforms”, “Fix Ning memory leak”]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.12.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Add support for Java 22 [1819](https://github.com/newrelic/newrelic-java-agent/pull/1819)
+* Add AI Monitoring support for AWS SDK for Java v2 Bedrock Runtime Client versions 2.20.157 and above [1837](https://github.com/newrelic/newrelic-java-agent/pull/1837)
+* Enhance log forwarding to include **caused by** section [1857](https://github.com/newrelic/newrelic-java-agent/pull/1857)
+* Add support for Pekko Http [1850](https://github.com/newrelic/newrelic-java-agent/pull/1850)
+* Add local decorating for Log4j 2 users utilizing JsonTemplateLayout [1866](https://github.com/newrelic/newrelic-java-agent/pull/1866)
+* Performance improvements on SQL checks [1887](https://github.com/newrelic/newrelic-java-agent/pull/1887)
+
+## Fixes
+
+* Resolve various thread hopping issues with Spring Reactor call chains [1883](https://github.com/newrelic/newrelic-java-agent/pull/1883)
+* Refactor the daily logfile rolling job to support all platforms [1888](https://github.com/newrelic/newrelic-java-agent/pull/1888)
+* Fix Ning memory leak [1903](https://github.com/newrelic/newrelic-java-agent/pull/1903)
+
+## IAST
+
+* Update Security Agent to Public Release version `1.3.0` [1896](https://github.com/newrelic/newrelic-java-agent/pull/1896)
+* [Changes/Fixes](https://github.com/newrelic/csec-java-agent/releases/tag/1.3.0)
+
+## Deprecations
+
+* The browser footer injection APIs have been deprecated and will be removed in a future agent release. The header injection API now adds both the header and footer scripts. [1679](https://github.com/newrelic/newrelic-java-agent/pull/1679)
+
+* The following instrumentation modules are deprecated and will be removed in the next major release:
+  * `aws-wrap-0.7.0`
+  * `java.completable-future-jdk8`
+  * `play-2.3`
+  * `spring-3.0.0`
+  * `netty-3.4`
+  * `Struts v1`
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+
+```

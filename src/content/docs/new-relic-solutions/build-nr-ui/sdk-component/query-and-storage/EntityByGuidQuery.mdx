@@ -1,0 +1,174 @@
+---
+title: 'EntityByGuidQuery'
+metaDescription: 'Learn how to work the EntityByGuidQuery component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Query a list of entities by their GUIDs.
+
+You can fetch a maximum of 25 entities in one query.
+
+### Usage
+
+```js
+import { EntityByGuidQuery } from 'nr1'
+```
+
+### Examples
+
+#### Declarative Query
+
+```js
+<EntityByGuidQuery entityGuid={'MTIzNDU2fEZPT3xCQVJ8OTg3NjU0MzIx'}>
+  {({ loading, error, data }) => {
+    if (loading) {
+      return <Spinner />;
+    }
+
+
+    if (error) {
+      return 'Error!';
+    }
+
+
+    return (
+      <List items={data.entities} rowHeight={20}>
+        {({ item }) => <ListItem key={item.guid}>{item.name}</ListItem>}
+      </List>
+    );
+  }}
+</EntityByGuidQuery>
+```
+
+#### Imperative query
+
+```js
+EntityByGuidQuery.query({
+  entityGuid: 'MTIzNDU2fEZPT3xCQVJ8OTg3NjU0MzIx',
+}).then(({ data }) => console.log(data));
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>function</h5>
+      </td>
+
+      <td>
+        Render prop function as a child.
+
+        <FunctionDefinition
+          returnValue={[{"type":"React.ReactNode","description":""}]}
+          arguments={[{"name":"queryResult","type":"QueryResult","description":"Results of the query."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entityFragmentExtension` <h5>object</h5>
+      </td>
+
+      <td>
+        GraphQL fragment document parsed into an AST by `graphql-tag`.The Query components return the most commonly used fields available on an entity. You can use this prop when you want to request additional fields for the entities returned by your query. The fragment should be named `EntityFragmentExtension` and apply to the `EntityOutline` type.
+
+        ```js
+        const entityFragmentExtension = ngql`
+          fragment EntityFragmentExtension on EntityOutline {
+            indexedAt
+            guid
+          }
+        `;
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entityGuid` <h5>REQUIRED</h5><h5>string</h5>
+      </td>
+
+      <td>
+        GUID of the entity to query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetchPolicyType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Allows you to specify how you want your query to interact with the cached data.
+
+        * `CACHE_AND_NETWORK`: The query returns your initial data from the cache if available. However, regardless of whether or not the full data is in your cache, the query always makes a request using your network interface and returns the updated data. This option is not available when using the static `query()` method of the component.
+        * `CACHE_FIRST`: The query makes a request using your network interface **only** if the data for your query is not already in the cache.
+        * `CACHE_ONLY`: The query **never** makes a request using your network interface. Instead it returns the data available in the cache. If the data for your query does not exist in the cache, then an error is thrown.
+        * `NETWORK_ONLY`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface.
+        * `NO_CACHE`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface. Unlike the `NETWORK_ONLY` policy, it does not write any data to the cache after the query completes.
+
+          <OptionReference>
+            EntityByGuidQuery.FETCH_POLICY_TYPE.CACHE_AND_NETWORK,
+            EntityByGuidQuery.FETCH_POLICY_TYPE.CACHE_FIRST,
+            EntityByGuidQuery.FETCH_POLICY_TYPE.CACHE_ONLY,
+            EntityByGuidQuery.FETCH_POLICY_TYPE.NETWORK_ONLY,
+            EntityByGuidQuery.FETCH_POLICY_TYPE.NO_CACHE,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `includeSummaryMetrics` <h5>boolean</h5>
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `includeTags` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the returned entities include their tags.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `pollInterval` <h5>number</h5>
+      </td>
+
+      <td>
+        Interval in milliseconds to poll for new data. Set to zero to avoid any kind of regular polling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `skip` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When set to `true`, the query will be skipped entirely from rendering.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `EntityByGuidQuery.query`
+
+<FunctionDefinition
+  arguments={[{"description":"Object containing the query options. Any `EntityByGuidQuery` prop is a valid option except `children` and `pollInterval`.","name":"props","type":"Object"}]}
+  returnValue={{"description":"","type":"PromiseQueryResult"}}
+/>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"PromiseQueryResult","properties":[{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/><TypeDefReference typeDef={{"name":"QueryResult","properties":[{"description":"Indicates that the request is in flight.","name":"loading","type":"boolean"},{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>

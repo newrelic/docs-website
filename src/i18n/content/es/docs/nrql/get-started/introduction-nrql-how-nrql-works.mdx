@@ -1,0 +1,148 @@
+---
+title: 'Cómo consultar con NRQL: la mecánica de la consulta'
+tags:
+  - Query your data
+  - 'NRQL: New Relic query language'
+  - Get started
+metaDescription: 'Learn how to query with NRQL, NRQL syntax, and how you can explore your data.'
+freshnessValidatedDate: '2024-03-19T00:00:00.000Z'
+translationType: machine
+---
+
+Antes de utilizar cualquier herramienta, es mejor saber cómo utilizarla. Existe un proceso para crear, estructurar y redactar consultas con NRQL. Comprender las reglas de consulta con NRQL le permite aprovechar al máximo sus datos. Incluso si nunca antes ha consultado nada, solo una comprensión básica de las reglas le permitirá acceder a (casi) cualquier dato que necesite y visualizarlo en [gráficos](/docs/query-your-data/explore-query-data/use-charts/use-your-charts) y [paneles](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+## Exploración de datos [#explore-data]
+
+Una de las mejores formas de aprender a utilizar NRQL es acceder a una [herramienta de consulta](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language#where) de New Relic y utilizarla para consultar sus datos. A continuación se muestra un ejemplo de cómo explorar sus datos utilizando el [generador de consultas](/docs/chart-builder/use-chart-builder/get-started/introduction-chart-builder) y las entradas sugeridas desde la interfaz.
+
+<Callout variant="tip">
+  ¡No tengas miedo de jugar con tus datos! No romperás nada usando ninguna de nuestras interfaces de consulta, ¡así que siéntete libre de modificar todo lo que quieras!
+</Callout>
+
+La consulta comienza con `FROM` seguido de un espacio. La interfaz sugiere tipos de datos disponibles y usted selecciona `Transaction` de esa lista.
+
+<img
+  title="nrql_query01.png"
+  alt="A screenshot of a NRQL query beginning with From"
+  src="/images/queries-nrql_screenshot-crop_event-definitions-query-builder.webp"
+/>
+
+A continuación, elija un [atributo](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute) usando `SELECT` y la consulta tendrá el siguiente aspecto:
+
+```sql
+FROM Transaction SELECT
+```
+
+Al presionar la barra espaciadora nuevamente, la interfaz sugiere un atributo disponible. En el siguiente ejemplo, elige `appId`.
+
+<img
+  title="nrql_query02.png"
+  alt="A screenshot of a NRQL query using the previous screenshot and adding Select"
+  src="/images/queries-nrql_screenshot-crop_attribute-definitions-query-builder.webp"
+/>
+
+Esto da como resultado una consulta NRQL muy básica que utiliza la cláusula y la declaración requeridas (`FROM` y `SELECT`) y proporciona una lista de <InlinePopover type="apm"/>transacciones y las `appId` asociadas para cada una, como se muestra a continuación.
+
+<img
+  title="basic_nrql_example.png"
+  alt="A screenshot of a basic NRQL query, From Transaction Select appId"
+  src="/images/queries-nrql_screenshot-crop_basic-nrql-query-example.webp"
+/>
+
+Otra excelente manera de explorar sus datos es ingresar a cualquier panel existente que tenga, hacer clic en <DNT>**View query**</DNT> y ejecutar su gráfico en el generador de consultas.<img title="new-relic-view-chart-nrql-query.png" alt="New Relic view chart NRQL query" src="/images/queries-nrql_screenshot-crop_view-query-for-chart.webp"/>
+
+<figcaption>
+  Los gráficos creados con NRQL tendrán <DNT>**View query**</DNT> como opción. Luego puede editar y personalizar esa consulta para ver cómo sus cambios afectan la visualización resultante.
+</figcaption>
+
+## Ejemplos de consultas NRQL [#examples]
+
+A continuación se muestra un ejemplo de una consulta NRQL ligeramente más detallada de `Transaction` datos informados por [APM](/docs/apm). Para esta consulta:
+
+* Elige `Transaction` como tipo de datos.
+* Utilice `Select` para determinar la duración promedio.
+* Agrupa los resultados por nombre de aplicación usando `Facet`.
+* Utilice `Timeseries` para mostrar los datos durante un período de tiempo automatizado.
+
+```sql
+FROM Transaction 
+SELECT average(duration) 
+  FACET appName 
+  TIMESERIES auto
+```
+
+Esto genera un gráfico que se parece a:
+
+<img
+  title="nrql_example.png"
+  alt="nrql_example.png"
+  src="/images/queries-nrql_screenshot-crop_nrql-example-timeseries.webp"
+/>
+
+Aquí hay algunos ejemplos más de consultas:
+
+<CollapserGroup>
+  <Collapser
+    id="basic-browser-nrql"
+    title="Consulta NRQL básica de datos del navegador."
+  >
+    Aquí hay una consulta NRQL de `PageView` datos de [<InlinePopover type="browser"/>](/docs/browser).
+
+    ```sql
+    SELECT uniqueCount(user) FROM PageView 
+      WHERE userAgentOS = 'Mac' 
+      FACET countryCode
+      SINCE 1 day ago 
+      LIMIT 20
+    ```
+  </Collapser>
+
+  <Collapser
+    id="attribute-with-space"
+    title="Nombre del atributo con un espacio."
+  >
+    Si el nombre de un [atributo personalizado](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes) tiene un espacio, utilice comillas invertidas alrededor del nombre del atributo:
+
+    ```sql
+    SELECT count(*)
+     FROM Transaction
+     FACET `Logged-in user`
+    ```
+  </Collapser>
+
+  <Collapser
+    id="query-multiple-events-columns"
+    title="Consultar múltiples fuentes de datos"
+  >
+    Para devolver datos de dos fuentes de datos, separe sus tipos de datos con una coma. Por ejemplo, esta consulta devuelve un recuento de todas [las transacciones APM](/docs/insights/new-relic-insights/decorating-events/insights-attributes#transaction-defaults) y [eventos del navegador](/docs/insights/new-relic-insights/decorating-events/insights-attributes#browser-defaults) durante los últimos tres días:
+
+    ```sql
+    SELECT count(*) FROM Transaction, PageView SINCE 3 days ago
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="Consulta devolviendo múltiples columnas"
+  >
+    Para devolver varias columnas de un conjunto de datos, separe los argumentos del agregador con una coma:
+
+    ```sql
+    SELECT function(attribute), function(attribute) ...
+      FROM ...
+    ```
+
+    Esta consulta devuelve la duración mínima, promedio y máxima del evento de monitoreo del navegador `PageView` durante la última semana:
+
+    ```sql
+    SELECT min(duration), max(duration), average(duration)
+      FROM PageView SINCE 1 week ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  Para explorar tus datos sin tener que usar NRQL, utiliza el [explorador de datos de métrica y eventos](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/). Obtenga más información sobre [cómo consultar datos en New Relic](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/).
+</Callout>
+
+¿Listo para aprender más? Asegúrese de consultar nuestra [introducción a NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language/) si aún no lo ha hecho, o aprenda [a usar gráficos y paneles con NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/charts-and-dashboards-with-nrql/). Si desea comenzar a utilizar NRQL de inmediato, vaya directamente a nuestro [tutorial guiado de NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-tutorial/).

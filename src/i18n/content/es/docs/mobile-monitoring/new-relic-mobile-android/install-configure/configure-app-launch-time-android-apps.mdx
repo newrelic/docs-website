@@ -1,0 +1,61 @@
+---
+title: Configurar los tiempos de lanzamiento de la aplicación
+tags:
+  - Mobile monitoring
+  - New Relic Mobile Android
+  - Install configure
+metaDescription: How to configure the New Relic Android agent to report app launch time
+freshnessValidatedDate: '2024-06-11T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout variant="important">
+  Esta característica está disponible para las versiones del agente 6.9.0 y superiores.
+</Callout>
+
+Con el agente de Android, puede informar el tiempo de lanzamiento de la aplicación, también conocido como "tiempo frío" y "tiempo caliente".
+
+## Configurar el tiempo de lanzamiento de la aplicación [#configure-app-launch-time]
+
+Para permitir que el agente de Android informe el tiempo de lanzamiento de la aplicación, agregue lo siguiente al `AndroidManifest.xml` de su aplicación:
+
+```xml
+<application>
+
+    <!-- Make sure to provide unique authorities if applied to multiple apps on the same device -->
+    <provider
+    android:name="com.newrelic.agent.android.rum.contentprovider.NewRelicAppContentProvider"
+    android:authorities="com.newrelic.android.agent.nrprovider.${applicationId}"
+    android:initOrder="200"
+    android:exported="false"/>
+    
+</application>
+```
+
+## Ver el tiempo de lanzamiento de la aplicación [#app-launch-time]
+
+El tiempo de lanzamiento de tu aplicación se reporta con las métricas `AppLaunch/Cold` y `AppLaunch/Hot`. Para realizar un seguimiento de estos tiempos de lanzamiento métricos:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Capabilities > Query builder**
+   </DNT>
+
+   .
+
+2. Ejecute una [consulta NRQL](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-query-data/), como por ejemplo:
+
+   ```sql
+   SELECT average(newrelic.timeslice.value ) AS 'AppLaunch/Cold' FROM Metric WHERE metricTimesliceName = 'AppLaunch/Cold' AND entity.guid = 'YOUR_APP_TOKEN' SINCE 1664218800000 UNTIL 1664220600000 TIMESERIES
+   ```
+
+3. Haga clic en
+
+   <DNT>
+     **Add to dashboard**
+   </DNT>
+
+   y agréguelo a un dashboard existente o cree uno nuevo.
+
+Si no aparece ningún dato, revise el resultado de `logcat` para detectar errores.

@@ -1,0 +1,739 @@
+---
+title: Opciones de configuración
+tags:
+  - Custom visualization
+metaDescription: Configure your custom visualization
+freshnessValidatedDate: '2024-04-29T00:00:00.000Z'
+translationType: machine
+---
+
+En este documento, aprenderá cómo configurar su visualización personalizada y qué hay en el archivo `nr1.json` de su visualización. Sabrá cómo modificarlo y cómo emplearlo para hacer su visualización más flexible y reutilizable.
+
+## Edite los metadatos de su visualización [#edit]
+
+El archivo `nr1.json` es un archivo de metadatos que se encuentra en su directorio de visualización y tiene un aspecto similar a este:
+
+```json fileName=nr1.json
+{
+  "schemaType": "VISUALIZATION",
+  "id": "fun-visualization",
+  "displayName": "FunVisualization",
+  "description": "",
+  "configuration": []
+}
+```
+
+Contiene estas claves de nivel superior:
+
+* `schemaType`: Todos los elementos de Nerdpack tienen `nr1.json` archivos de metadatos. El `schemaType` describe el esquema del elemento. Para todas las visualizaciones, `schemaType` es `VISUALIZATION`.
+* `id`: el identificador de cadena de su visualización. Esto debe ser único dentro de un Nerdpack determinado, pero no es necesario que sea único en todos los Nerdpacks.
+* `displayName`: El nombre legible por humanos que New Relic muestra en **Custom Visualizations**.
+* `description`: La descripción que New Relic muestra en **Custom Visualizations**.
+* `configuration`: una lista de propiedades configurables para su visualización. Puede editar estas propiedades en la UI sitio web y sus valores se pasan a su componente de visualización.
+
+## Declare las propiedades configurables de su visualización [#declare]
+
+Para declarar las propiedades configurables de su visualización, enumerelas bajo la clave `configuration` en el archivo `nr1.json` :
+
+```json
+"configuration": [
+    {
+      "name": "nrqlQueries",
+      "title": "NRQL Queries",
+      "type": "collection",
+      "items": [
+        {
+          "name": "accountId",
+          "title": "Account ID",
+          "description": "Account ID to be associated with the query",
+          "type": "number"
+        },
+        {
+          "name": "query",
+          "title": "Query",
+          "description": "NRQL query for visualization",
+          "type": "nrql"
+        }
+      ]
+    },
+    {
+      "name": "fill",
+      "title": "Fill color",
+      "description": "A fill color to override the default fill color",
+      "type": "string"
+    },
+    {
+      "name": "stroke",
+      "title": "Stroke color",
+      "description": "A stroke color to override the default stroke color",
+      "type": "string"
+    }
+]
+```
+
+En este ejemplo, `nrqlQueries` es una colección de objetos de consulta. Cada objeto de consulta consta de un `accountId` y un `query`. Como colección, puede tener varios objetos de consulta en esta visualización. `fill` y `stroke` son cadenas que definen un color que puede usar al representar la visualización.
+
+Este es un ejemplo de `configuration` resultados en los siguientes campos en la UI de configuración de la visualización:
+
+<img
+  title="Configure visualization properties"
+  alt="Configure visualization properties"
+  src="/images/queries-nrql_screenshot-crop_conf-visualization-prop.webp"
+/>
+
+Observe el **+** junto a **NRQL Queries**, que puede usar para agregar objetos de consulta a la colección. También puedes eliminar consultas colocando el cursor sobre ellas y haciendo clic en **-**, si tienes más de una. Observe también la información sobre herramientas proporcionada para la mayoría de los campos. Cada información sobre herramientas en la UI corresponde al `description` de su campo, si lo tiene.
+
+En su código de React, puede acceder a los valores de estos campos en los accesorios de su componente de visualización:
+
+```js
+export default class MyCustomVisualization extends React.Component {
+  render() {
+    const { nrqlQueries, stroke, fill } = this.props;
+    return <div>
+      <p>Fill color: { fill }</p>
+      <p>Stroke color: { stroke }</p>
+      <p>First query account ID: { nrqlQueries[0].accountId }</p>
+      <p>First query: { nrqlQueries[0].query }</p>
+    </div>
+  }
+```
+
+Todos los objetos `configuration` tienen las siguientes claves opcionales:
+
+* `name`: El nombre de la propiedad del componente React
+* `title`: El nombre para mostrar UI
+* `description`: una descripción de información sobre herramientas
+
+Todos los objetos `configuration` requieren una clave `type` que haga referencia al tipo de datos del campo. Cada tipo de datos es único en cuanto a cómo se configura y presenta.
+
+### `boolean`
+
+Una propiedad `boolean` se representa en la UI como un interruptor y representa un estado verdadero o falso.
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "showLabels",
+        "title": "Show labels",
+        "description": "Toggles the visibility of the chart's labels.",
+        "type": "boolean"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=7-8,17
+import React from 'react';
+import data from './data';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { showLabels } = this.props;
+        const label = showLabels ? { fill: '#666' } : false
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={data}
+            >
+                <RadialBar
+                    label={label}
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+### `string`
+
+Una propiedad `string` se representa en la UI como un campo de texto y representa una cadena de caracteres.
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+      "name": "title",
+      "title": "Chart title",
+      "description": "The chart's title.",
+      "type": "string"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=8,12-14
+import React from 'react';
+import data from './data';
+import { HeadingText } from 'nr1';
+import { RadialBarChart, RadialBar, Legend, Label } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { title } = this.props;
+
+        return (
+            <div>
+                <HeadingText className="chart-heading">
+                    {title}
+                </HeadingText>
+                <RadialBarChart
+                    width={1000}
+                    height={700}
+                    data={data}
+                >
+                    <RadialBar
+                        background dataKey='val'
+                    />
+                    <Legend
+                        layout='vertical'
+                        verticalAlign='middle'
+                        align="right"
+                    />
+                </RadialBarChart>
+            </div>
+        )
+    }
+}
+```
+
+### `number`
+
+Una propiedad `number` se representa en la UI como un campo de texto y representa un número. Los accesorios `number` toman tres claves opcionales adicionales:
+
+* `min`: El valor mínimo que puede tomar el campo de texto.
+* `max`: El valor máximo que puede tomar el campo de texto.
+* `step`: El intervalo entre valores válidos
+
+Si bien estas claves están disponibles, no se aplican. Son exclusivamente para fines UI .
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "iconSize",
+        "title": "Icon size",
+        "description": "The size of legend icons.",
+        "type": "number"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=7,22
+import React from 'react';
+import data from './data';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { iconSize } = this.props;
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={data}
+            >
+                <RadialBar
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                    iconSize={iconSize}
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+### `json`
+
+Una propiedad `json` se representa en la UI como un cuadro de texto y representa un objeto JSON.
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+      "name": "data",
+      "title": "Chart data",
+      "description": "The data in the chart",
+      "type": "json"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=6,12
+import React from 'react';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { data } = this.props;
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={JSON.parse(data)}
+            >
+                <RadialBar
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+### `enum`
+
+Una propiedad `enum` se representa en la UI como un menú desplegable y representa una lista predefinida de opciones. Un `enum` toma una matriz de `items`, cada una con su propio `title` y `value`. El `title` de un elemento es el título de visualización UI . Su `value` es el nombre de propiedad del componente React.
+
+```json fileName=nr1.json lineHighlight=6-35
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "iconType",
+        "title": "Icon shape",
+        "description": "The shape of legend icons.",
+        "type": "enum",
+        "items": [
+            {
+                "title": "square",
+                "value": "square"
+            },
+            {
+                "title": "circle",
+                "value": "circle"
+            },
+            {
+                "title": "diamond",
+                "value": "diamond"
+            },
+            {
+                "title": "star",
+                "value": "star"
+            },
+            {
+                "title": "triangle",
+                "value": "triangle"
+            }
+        ]
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=7,22
+import React from 'react';
+import data from './data';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { iconType } = this.props;
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={data}
+            >
+                <RadialBar
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                    iconType={iconType}
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+### `nrql`
+
+Una propiedad `nrql` se representa en la UI como un cuadro de texto y representa una consulta NRQL . Puede emplear el componente `NrqlQuery` de la biblioteca de componentes `nr1` para consultar la base de datos de New Relic. Es posible que necesite transformar los datos para que se ajusten a las necesidades de su visualización.
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "query",
+        "title": "Query",
+        "description": "The query for chart data.",
+        "type": "nrql"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=8-17,20,23-27,31,42-43
+import React from 'react';
+import inputData from './data';
+import { NrqlQuery } from 'nr1';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+
+    transformData(rawData) {
+        if (rawData) {
+            return rawData.map((entry) => ({
+                "name": entry.metadata.name,
+                "val": entry.data[0].y,
+                "fill": entry.metadata.color
+            }));
+        }
+    }
+
+    render() {
+        const { query } = this.props;
+
+        return (
+            <NrqlQuery
+                accountId={inputData.accountId}
+                query={query}
+            >
+                {({ data }) => {
+                    return <RadialBarChart
+                        width={1000}
+                        height={700}
+                        data={this.transformData(data)}
+                    >
+                        <RadialBar
+                            background dataKey='val'
+                        />
+                        <Legend
+                            layout='vertical'
+                            verticalAlign='middle'
+                            align="right"
+                        />
+                    </RadialBarChart>
+                }}
+            </NrqlQuery>
+        )
+    }
+}
+```
+
+<Callout variant="important">
+  Aunque la propiedad NRQL puede aparecer en cualquier parte de su configuración, recomendamos encarecidamente colocarla dentro de la colección nrqlQueries y acompañarla con `account-id`. De esta manera, podremos brindarle la mejor experiencia de edición NRQL y otras características útiles (como el filtrado dashboard ) listas para usar.
+</Callout>
+
+```json fileName=nr1.json lineHighlight=7-25
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+      "name": "nrqlQueries",
+      "title": "NRQL Queries",
+      "type": "collection",
+      "items": [
+        {
+          "name": "query",
+          "title": "Query",
+          "description": "NRQL query for visualization",
+          "type": "nrql"
+        },
+        {
+          "name": "accountId",
+          "title": "Account ID",
+          "description": "Account ID to run query against",
+          "type": "account-id"
+        }
+      ]
+    },
+  ]
+}
+```
+
+### `account-id`
+
+Una propiedad `account-id` se representa en la UI como un menú desplegable y representa una cuenta de New Relic . Desde el menú, puede buscar y seleccionar una cuenta.
+
+```json fileName=nr1.json lineHighlight=6-13
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+      "name": "account",
+      "title": "Account",
+      "description": "Select the appropriate New Relic account",
+      "type": "account-id"
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=18,23
+import React from 'react';
+import { NrqlQuery } from 'nr1';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+
+    transformData(rawData) {
+        if (rawData) {
+            return rawData.map((entry) => ({
+                "name": entry.metadata.name,
+                "val": entry.data[0].y,
+                "fill": entry.metadata.color
+            }));
+        }
+    }
+
+    render() {
+        const { account } = this.props;
+        const query = "SELECT count(*) FROM Public_APICall FACET `http.method`"
+
+        return (
+            <NrqlQuery
+                accountId={account}
+                query={query}
+            >
+                {({ data }) => {
+                    return <RadialBarChart
+                        width={1000}
+                        height={700}
+                        data={this.transformData(data)}
+                    >
+                        <RadialBar
+                            background dataKey='val'
+                        />
+                        <Legend
+                            layout='vertical'
+                            verticalAlign='middle'
+                            align="right"
+                        />
+                    </RadialBarChart>
+                }}
+            </NrqlQuery>
+        )
+    }
+}
+```
+
+### `namespace`
+
+Un `namespace` agrupa propiedades en la UI bajo un solo encabezado. Un namespace tiene `items` al que se accede en código, por nombre, como atributo de la propiedad del namespace .
+
+```json fileName=nr1.json lineHighlight=6-48
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "legend",
+        "title": "Legend",
+        "type": "namespace",
+        "items": [
+            {
+                "name": "iconSize",
+                "title": "Icon size",
+                "description": "The size of legend icons.",
+                "type": "number"
+            },
+            {
+                "name": "iconType",
+                "title": "Icon shape",
+                "description": "The shape of legend icons.",
+                "type": "enum",
+                "items": [
+                    {
+                        "title": "square",
+                        "value": "square"
+                    },
+                    {
+                        "title": "circle",
+                        "value": "circle"
+                    },
+                    {
+                        "title": "diamond",
+                        "value": "diamond"
+                    },
+                    {
+                        "title": "star",
+                        "value": "star"
+                    },
+                    {
+                        "title": "triangle",
+                        "value": "triangle"
+                    }
+                ]
+            }
+        ]
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=7,22-23
+import React from 'react';
+import data from './data';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { legend } = this.props;
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={data}
+            >
+                <RadialBar
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                    iconSize={legend.iconSize}
+                    iconType={legend.iconType}
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+### `collection`
+
+Un `collection` es un grupo de conjuntos de propiedades repetibles o espacios de nombres bajo un único encabezado. Cuando crea una colección, especifica propiedades para los elementos secundarios de la colección. Cuando configura una colección en la UI, puede aumentar o disminuir la cantidad de elementos secundarios en la colección.
+
+En código, accedes a la colección como una matriz de elementos.
+
+```json fileName=nr1.json lineHighlight=6-32
+{
+  "schemaType": "VISUALIZATION",
+  "id": "custom-viz",
+  "displayName": "CustomViz",
+  "description": "MyCustomViz",
+  "configuration": [
+    {
+        "name": "data",
+        "title": "Chart data",
+        "type": "collection",
+        "items": [
+            {
+                "name": "name",
+                "title": "Age group",
+                "description": "The age range of the group.",
+                "type": "string"
+            },
+            {
+                "name": "val",
+                "title": "Amount",
+                "description": "The amount of people in the age group.",
+                "type": "number",
+                "min": 0
+            },
+            {
+                "name": "fill",
+                "title": "Bar color",
+                "description": "The color of the chart bar.",
+                "type": "string"
+            }
+        ]
+    }
+  ]
+}
+```
+
+```js fileName=index.js lineHighlight=6,12
+import React from 'react';
+import { RadialBarChart, RadialBar, Legend } from 'recharts';
+
+export default class CustomVizVisualization extends React.Component {
+    render() {
+        const { data } = this.props;
+
+        return (
+            <RadialBarChart
+                width={1000}
+                height={700}
+                data={data}
+            >
+                <RadialBar
+                    background dataKey='val'
+                />
+                <Legend
+                    layout='vertical'
+                    verticalAlign='middle'
+                    align="right"
+                />
+            </RadialBarChart>
+        )
+    }
+}
+```
+
+## Usar `nr1.json`
+
+Puede editar `nr1.json` libremente, pero a diferencia de `index.js` su visualización servida localmente requiere resetear para ver sus cambios. Entonces, si estás entregando tu visualización localmente, desactiva tu servidor local con `CTRL+C` y vuelve a activarlo:
+
+```sh
+nr1 nerdpack:serve
+```
+
+Si su visualización ya está publicada, debe actualizar la versión de su Nerdpack en `package.json` y publicar y suscribir a la nueva versión:
+
+```sh
+nr1 nerdpack:publish
+nr1 nerdpack:subscribe
+```

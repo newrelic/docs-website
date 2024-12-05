@@ -1,0 +1,207 @@
+---
+title: Configure su integración de escritura remota de Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure remote write
+metaDescription: How to set up or remove your Prometheus remote write integration to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede hacer que los datos de Prometheus fluyan en New Relic con solo unos simples pasos. Una vez que se integre, sus datos serán visibles en el panel de control basado en consultas (y en otros resultados de consultas), a menudo en unos cinco minutos. Esta página cubre la configuración básica para la integración de escritura remota, así como algunos temas comunes de resolución de problemas. Para obtener información sobre la integración de servidores Prometheus en una configuración de alta disponibilidad (HA), consulte nuestra documentación [de alta disponibilidad de Prometheus](/docs/prometheus-high-availability-ha) .
+
+### (Opcional) Configuración del operador Prometheus
+
+Si está utilizando el [Operador Prometheus](https://github.com/prometheus-operator/prometheus-operator), deberá crear un secreto con New Relic <InlinePopover type="licenseKey"/>para la cuenta a la que desea informar datos. Asegúrate de que la clave de API sea del tipo `Ingest - License`.
+
+```shell
+kubectl -n YOUR_PROM_NAMESPACE create secret generic nr-license-key --from-literal=value=YOUR_LICENSE_KEY
+```
+
+A continuación, agregue lo siguiente a su CRD de Prometheus (`kind:Prometheus`) en el campo correspondiente del [gráfico Helm](https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml):
+
+```yaml
+  prometheus:
+    prometheusSpec:
+      remoteWrite:
+          - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=YOUR_CLUSTER_NAME
+            authorization:
+              credentials:
+                key: value
+                name: nr-license-key
+```
+
+## Configurar la integración [#setup]
+
+Vaya al [iniciador de configuración de escritura remota de Prometheus en la UI](https://one.newrelic.com/marketplace/install-data-source?state=c8c296ea-4be7-405a-eb38-53215c68d0bb) y complete estos pasos para agregar datos de Prometheus.
+
+<ButtonLink
+  role="button"
+  to="https://one.newrelic.com/marketplace/install-data-source?state=c8c296ea-4be7-405a-eb38-53215c68d0bb"
+  variant="primary"
+>
+  Agregar datos de Prometeo
+</ButtonLink>
+
+1. Introduzca un nombre para el servidor Prometheus que se conectará y su URL `remote_write` .
+
+   <Callout variant="important">
+     El nombre que ingresa para el servidor crea un atributo en sus datos. Este es también el nombre que identifica qué servidor Prometheus está enviando datos a New Relic.
+   </Callout>
+
+2. Agregue una nueva URL `remote_write` a su archivo YML de Prometheus. Agregue esta información debajo de `global_config` en el archivo, en el mismo nivel de sangría que la sección `global` .
+
+   Utilice la siguiente sintaxis:
+
+   Prometheus v2.26 y superior
+
+   ```yaml
+   remote_write:
+   - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=YOUR_DATA_SOURCE_NAME
+     authorization:
+       credentials: YOUR_LICENSE_KEY
+   ```
+
+   Prometheus inferior a v2.26
+
+   ```yaml
+   remote_write:
+   - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=YOUR_DATA_SOURCE_NAME
+     bearer_token:YOUR_LICENSE_KEY
+   ```
+
+   O
+
+   Cualquier versión de Prometheus
+
+   ```yaml
+   remote_write:
+   - url: https://metric-api.newrelic.com/prometheus/v1/write?X-License-Key=YOUR_LICENSE_KEY&prometheus_server=YOUR_DATA_SOURCE_NAME
+   ```
+
+   _Este enfoque pasa credenciales en la URL. No recomendamos usarlo a menos que uno de estos otros enfoques no funcione en su entorno._
+
+   Cuentas de la Unión Europea: si te conectas desde la UE, emplea la siguiente URL:
+
+   ```yaml
+   https://metric-api.eu.newrelic.com/prometheus/v1/write
+   ```
+
+   Integración de escritura remota Kubernetes y Helm: agregue la URL de escritura remota a su archivo Helm [`values.yaml`](https://github.com/helm/charts/blob/c40486ab2eba0391119b7cc1509d6958fd21c31d/stable/prometheus/values.yaml#L631). Reemplace `remoteWrite: []` con dos líneas similares al siguiente ejemplo. Cerciorar de emplear su URL de escritura remota y emplear una sangría que coincida con el resto del archivo:
+
+   ```yaml
+   remoteWrite:
+   - url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=YOUR_DATA_SOURCE_NAME
+     bearer_token:YOUR_LICENSE_KEY
+   ```
+
+3. Reinicie su servidor Prometheus.
+
+4. Vea sus datos en la New Relic UI. Por ejemplo, utilice el [dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) de escritura remota que creamos automáticamente cuando configura su integración.
+
+<InstallFeedback/>
+
+## Mapa de tipos métricos de Prometheus y New Relic [#mapping]
+
+El protocolo de escritura remota de Prometheus no incluye información [de tipo métrica](/docs/telemetry-data-platform/ingest-manage-data/understand-data/metric-data-type#metric-types) u otros metadatos métricos útiles al enviar métrica a New Relic, por lo que inferimos el tipo métrica según las convenciones de nomenclatura de Prometheus. Es posible que métrica que no siga estas convenciones de nomenclatura no se asigne correctamente.
+
+Mapeamos los tipos métricos de Prometheus en tipos métricos New Relic según las convenciones de nomenclatura de Prometheus métrica de la siguiente manera:
+
+* `metricName_bucket` se almacena como un tipo de conteo métrico New Relic .
+* `metricName_count` se almacena como un tipo de conteo métrico New Relic .
+* `metricName_total` se almacena como un tipo de conteo métrico New Relic .
+* `metricName_sum` se almacena como un tipo de métrica de resumen de New Relic.
+
+Todo lo demás se almacena como un medidor métrico tipo New Relic .
+
+## Anular mapeo tipo métrica [#override-mapping]
+
+Si tiene métricas que no siguen las convenciones de nomenclatura de Prometheus, puede configurar la escritura remota para etiquetar la métrica con una etiqueta `newrelic_metric_type` que indique el tipo de métrica. Esta etiqueta se elimina cuando New Relic la recibe.
+
+<DNT>**Example:**</DNT> Tiene una métrica de contador denominada `my_counter`, que no tiene nuestro sufijo de convención de nomenclatura de `_bucket`, `_count` o `_total`. En esta situación, su métrica se identificaría como un medidor en lugar de un contador. Para corregir esto, agregue la siguiente configuración de reetiqueta a su `prometheus.yml`:
+
+```yaml
+- url: https://metric-api.newrelic.com/prometheus/v1/write?X-License-Key=...
+  write_relabel_configs:
+  - source_labels: [__name__]
+    regex: ^my_counter$
+    target_label: newrelic_metric_type
+    replacement: "counter"
+    action: replace
+```
+
+Esta regla coincide con cualquier métrica con el nombre `my_counter` y agrega una etiqueta `newrelic_metric_type` que la identifica como un contador. Puede utilizar lo siguiente (¡distingue entre mayúsculas y minúsculas!) valores como valor de reposición:
+
+* encimera
+* medidor
+* resumen
+
+Cuando una etiqueta `newrelic_metric_type` está presente en una métrica recibida y configurada en uno de los valores válidos, New Relic asignará el tipo indicado a la métrica (y quitará la etiqueta) antes del consumo posterior en el pipeline de datos. Si tiene varias métricas que no siguen las convenciones de nomenclatura anteriores, puede agregar varias reglas y cada regla coincida con diferentes etiquetas de origen.
+
+## Establecer listas de permitir o denegar para envío métrico [#allow-deny]
+
+Si necesitas un mayor control sobre los datos que envías a New Relic, puedes enviar un subconjunto de tu métrica. Para hacer esto, configure `remote-write` con el parámetro `write_relabel_configs` con un valor de subparámetro `action` de `keep` o `deny`.
+
+En este ejemplo, solo enviarás la métrica que coincida con la expresión regular. No se enviarán métricas no coincidentes. Alternativamente, puede usar `action: drop` para eliminar todas las métricas que coincidan con la expresión regular.
+
+```yaml
+- url: https://metric-api.newrelic.com/prometheus/v1/write?X-License-Key=...
+  write_relabel_configs:
+  - source_labels: [__name__]
+    regex: "coredns_(.*)|etcd_(.*)"
+    action: keep
+```
+
+Este ejemplo de Kubernetes utiliza el archivo [`values.yaml`](https://github.com/helm/charts/blob/c40486ab2eba0391119b7cc1509d6958fd21c31d/stable/prometheus/values.yaml#L631) de este gráfico de Helm. Si está utilizando un gráfico Helm diferente, consulte su documentación `remoteWrite` (por ejemplo, algunos archivos Helm usan camelcase `writeRelabelConfigs` en su lugar).
+
+```yaml
+  remoteWrite:
+    - url: https://metric-api.newrelic.com/prometheus/v1/write?X-License-Key=...
+      write_relabel_configs:
+      - source_labels: [__name__]
+        regex: "coredns_(.*)|etcd_(.*)"
+        action: keep
+```
+
+## Personaliza el comportamiento de escritura remota [#customize]
+
+Puede personalizar el siguiente parámetro si está escribiendo en más de una cuenta en New Relic o está conectando más de una fuente de datos de Prometheus a la misma cuenta en New Relic. Para obtener más información, consulte los [documentos sobre ajuste de escritura remota](https://prometheus.io/docs/practices/remote_write/).
+
+<CollapserGroup>
+  <Collapser
+    id="x-license-key"
+    title="X-clave de licencia"
+  >
+    Tu <InlinePopover type="licenseKey"/>no es una clave de API. La clave de licencia se utiliza para la autenticación y para identificar en qué cuenta escribir datos. Si está configurando Prometheus para escribir en diferentes cuentas de New Relic, use una clave diferente en cada URL de escritura remota.
+  </Collapser>
+
+  <Collapser
+    id="prometheus_server-url-parameter"
+    title={<><InlineCode>
+      prometheus_server
+    </InlineCode> Parámetro de URL</>}
+  >
+    El parámetro `prometheus_server` es una etiqueta o atributo que se utiliza para agregar estadísticas escritas en [NRDB](https://newrelic.com/resources/ebooks/inside-nrdb-flexible-unified-database). Utilice esta misma etiqueta cuando [configure su fuente de datos de Grafana](/docs/configure-prometheus-data-source-grafana) para limitar los resultados solo a aquellos de un `prometheus_server` en particular.
+  </Collapser>
+
+  <Collapser
+    id="optimize-throughput"
+    title="Optimice el rendimiento y el consumo de memoria."
+  >
+    La escritura remota [aumenta el consumo total de memoria](https://prometheus.io/docs/practices/remote_write/#memory-usage) de sus servidores Prometheus.
+
+    Si tiene problemas, le recomendamos lo siguiente:
+
+    * Incrementar [`max_samples_per_send`](https://prometheus.io/docs/practices/remote_write/#max_samples_per_send) para mayor rendimiento carga de trabajo, junto con un aumento proporcional en [`capacity`](https://prometheus.io/docs/practices/remote_write/#capacity).
+    * Si el consumo de memoria sigue siendo un problema, intente limitar la cantidad de [`max_shards`](https://prometheus.io/docs/practices/remote_write/#max_shards) por servidor.
+  </Collapser>
+</CollapserGroup>
+
+## Solucionar mensajes de error [#error-messages]
+
+Si recibe un mensaje de error de integración de New Relic o un mensaje de error en el registro de su servidor Prometheus después de reiniciar su servidor Prometheus, revise nuestra [documentación sobre resolución de problemas de escritura remota](/docs/integrations/prometheus-integrations/install-configure-remote-write/remote-write-errors-error-messages). Esto incluye corregir errores comunes, como caracteres faltantes o incorrectos, solicitudes incorrectas, entidad de solicitud demasiado grande y errores de límite de velocidad.
+
+## Quitar la integración [#remove-integration]
+
+Cuando elimina la integración de escritura remota de Prometheus, esto detiene el flujo de nuevos datos, pero no purga ni elimina ningún dato histórico. Para eliminar la integración, elimine el fragmento de código de configuración de su archivo YML de Prometheus y luego reinicie el servidor.

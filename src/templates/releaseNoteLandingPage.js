@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
 import MDXContainer from '../components/MDXContainer';
+import { getTitle } from '../utils/releaseNotes';
 
 const sortByVersion = (
   { frontmatter: { version: versionA } },
@@ -105,6 +106,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
       </PageTitle>
       <Layout.Content
         css={css`
+          overflow-wrap: anywhere;
           & img {
             max-height: 460px;
           }
@@ -136,9 +138,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0.5rem;
                         `}
                       >
-                        {post.frontmatter.title
-                          ? post.frontmatter.title
-                          : `${subject} v${post.frontmatter.version}`}
+                        {getTitle(post.frontmatter)}
                       </Link>
                       <p
                         css={css`
@@ -242,6 +242,7 @@ export const pageQuery = graphql`
           slug
         }
         frontmatter {
+          subject
           title
           version
           releaseDate(formatString: "MMMM D, YYYY")

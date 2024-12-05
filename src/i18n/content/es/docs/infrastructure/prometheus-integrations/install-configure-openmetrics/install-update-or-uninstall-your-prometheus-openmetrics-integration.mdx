@@ -1,0 +1,89 @@
+---
+title: 'Instale, actualice o desinstale su integración de Prometheus OpenMetrics'
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: 'How to install, update, or uninstall your Prometheus OpenMetrics integration with New Relic for your Docker or Kubernetes environment.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Docker [#docker]
+
+### Instalar [#docker-install]
+
+Para instalar la integración New Relic Prometheus OpenMetrics en un entorno docker :
+
+1. Cree un archivo de configuración `config.yaml`. Utilice el [archivo de configuración de ejemplo](/docs/integrations/prometheus-integrations/install-configure/configure-prometheus-openmetrics-integration#example-configuration-file) o consulte el archivo de manifiesto [`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) , que incluye el mapa de configuración `nri-prometheus-cfg` y una configuración de ejemplo.
+
+   * <DNT>
+       **Required:**
+     </DNT>
+
+     Agregue su
+
+     <InlinePopover type="licenseKey"/>
+
+     y un nombre de clúster para identificar su contenedor docker .
+
+   * Agrega el extremo para raspar; por ejemplo, agregue el extremo `http://localhost:8080/metrics` para recopilar métrica sobre la integración misma.
+
+   * Especifica qué métrica deseas ignorar o incluir según los prefijos de métrica y etiquetas. Para más información consulte la documentación [de filtrado métrica](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/setup-prometheus-agent/#drop-keep-metrics) .
+
+2. Inicie la integración en segundo plano:
+
+   ```
+   docker run -d --restart unless-stopped \
+       --name nri-prometheus \
+       -e LICENSE_KEY="YOUR_LICENSE_KEY" \
+       -v "$(pwd)/config.yaml:/config.yaml" \
+       newrelic/nri-prometheus:2.18.0
+   ```
+
+3. Confirme que el contenedor esté funcionando correctamente:
+
+   ```
+   docker ps -f "name=nri-prometheus"
+   ```
+
+4. Confirme que la integración se haya configurado correctamente: espere unos minutos, luego vaya a la New Relic UI y ejecute esta NRQL consulta para ver si se han reportado datos:
+
+   ```
+   FROM Metric SELECT count(*) WHERE clusterName = 'YOUR_CLUSTER_NAME'  since 1 hour ago
+   ```
+
+<InstallFeedback/>
+
+### Actualizar la integración [#docker-update]
+
+Para actualizar la integración de Prometheus OpenMetrics, siga los procedimientos para docker según corresponda:
+
+1. Retire el contenedor docker .
+2. Siga [los procedimientos de instalación estándar](#docker-install) para iniciar un nuevo contenedor Docker.
+
+La integración registra su versión actual cuando se inicia. Para determinar la versión en ejecución:
+
+```
+docker logs nri-prometheus 2>&1 | grep "Integration version"
+```
+
+Salida de ejemplo:
+
+```
+time="2019-02-26T09:21:21Z" level=info msg="Starting New Relic's Prometheus OpenMetrics Integration version 1.0.0"
+```
+
+### Desinstalar [#docker-uninstall]
+
+Para desinstalar la integración de Prometheus OpenMetrics para docker o Kubernetes, ejecute el siguiente comando:
+
+```
+docker rm -f nri-prometheus
+```
+
+## Kubernetes [#kubernetes]
+
+Para instrumento Prometheus carga de trabajo en un clúster de Kubernetes, consulte [Instalar y configurar el agente Prometheus en clúster de Kubernetes](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent).
+
+En caso de que necesites migrar de Prometheus Open métrica integración a Open métrica consulta la siguiente [guía de migración](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/migration-guide).

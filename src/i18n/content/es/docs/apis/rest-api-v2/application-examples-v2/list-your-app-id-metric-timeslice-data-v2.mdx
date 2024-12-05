@@ -1,0 +1,257 @@
+---
+title: Enumere el ID de su aplicación y el intervalo de tiempo de datos métricos (v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: 'How to use the New Relic REST API (v2) to get your application ID, metric names, and metric values.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A continuación se muestran ejemplos de cómo utilizar la API REST de New Relic (v2) para obtener nombres métricos y valores [promedio](/docs/apm/apis/requirements/calculating-average-metric-values-summarize) para un [ID de aplicación](/docs/apm/apis/requirements/identification-code) y [una clave API](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing) específicos. Los ejemplos también muestran diferentes [rangos de tiempo](/docs/apm/apis/api-v2-examples/specifying-time-range-v2).
+
+Al adquirir datos, los valores devueltos pueden verse afectados por el período de tiempo que especifique y la forma en que se almacenan los datos. Para obtener más información, consulte [Extracción de datos de intervalo de tiempo de métrica](/docs/apis/extracting-metric-data).
+
+## Listar todos los ID de la aplicación [#view_all_app_id]
+
+También puede utilizar [el Explorador de API](/docs/apm/apis/api-explorer-v2/parts-api-explorer) REST de New Relic para obtener el mismo [intervalo de tiempo de datos métrico para la información de su aplicación](/docs/apm/apis/api-v2-examples/metric-data-examples-api-v2) que en este ejemplo.
+
+Para ver todos los ID de sus aplicaciones, use el siguiente comando.
+
+```bash
+curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+     -H "Api-Key:$API_KEY" -i
+```
+
+* Reemplace `$API_KEY` con su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+La salida será una matriz de datos donde el elemento es una aplicación y los datos asociados a ella. Por ejemplo, estos son los dos primeros elementos del ID de aplicación 96785 ("GreatTimes de prueba") y 1622 ("GreatTimes Prod"):
+
+```json
+{
+  "applications": [
+    {
+      "id": 96785,
+      "name": "GreatTimes Staging",
+      "language": "ruby",
+      "health_status": "gray",
+      ...
+    },
+    {
+      "id": 1622,
+      "name": "GreatTimes Prod",
+      "language": "ruby",
+      "health_status": "green",
+      ...
+    }
+  ]
+}
+```
+
+## Mostrar ID de aplicación por nombre [#view_single_app_id]
+
+Para ver el ID de una aplicación específica si conoce el nombre, sustituya el nombre de `$NAME` y `$API_KEY` con su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) en el siguiente comando:
+
+```bash
+curl -X GET 'https://api.newrelic.com/v2/applications.json' \
+     -H "Api-Key:$API_KEY" -i \
+     -d "filter[name]=$NAME"
+```
+
+El resultado será el mismo que se muestra en la [lista de ejemplo de todos los ID de aplicaciones](#view_all_app_id) , pero solo para la aplicación específica.
+
+## Pautas de listado de nombres métricos [#name_list_guidelines]
+
+Enumerar los nombres métricos disponibles para su aplicación puede ser una operación muy intensiva y sólo debe usarse cuando sea necesario. Enumerar una gran cantidad de nombres métricos puede tener un efecto perjudicial en su capacidad de respuesta, así como en la de otros usos, y puede llevar a invocar [protección contra sobrecarga](/docs/apis/rest-api-v2/requirements/api-overload-protection-handling-429-errors).
+
+Siga estas pautas para optimizar su uso:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Listado de nombres métricos
+      </th>
+
+      <th>
+        Pautas
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Nombres métricos
+      </td>
+
+      <td>
+        Considere cuidadosamente los nombres métricos que necesita. Si conoce alguna parte del nombre de la métrica, utilice el filtro `name=` para limitar la cantidad de datos devueltos. Este filtro es una simple coincidencia de caracteres (no hay expresión regular disponible), pero puede reducir significativamente la cantidad de datos recuperados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Cache
+      </td>
+
+      <td>
+        Una vez que obtenga sus nombres métricos, considere almacenar en caché esta lista para uso futuro. En la mayoría de los casos los nombres métricos no son volátiles y pueden reutilizarse, ahorrando tiempo de procesamiento.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Lista de nombres métricos para tu aplicación [#view_app_metrics_names]
+
+Para ver los nombres métricos disponibles para su aplicación:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics.json" \
+     -H "Api-Key:$API_KEY" -i
+```
+
+* Reemplace `$API_KEY` con su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+El resultado será similar al siguiente. Esto muestra dos de los muchos nombres métricos disponibles y sus valores. Estas listas pueden ser largas. Considere las [pautas](#name_list_guidelines) para enumerar sus nombres métricos.
+
+```json
+{
+  "metrics": [
+    {
+      "name": "ActiveRecord/Account/create",
+      "values": [
+        "average_response_time",
+        "calls_per_minute",
+        "call_count",
+        "min_response_time",
+        "max_response_time",
+        "average_exclusive_time",
+        "average_value",
+        "requests_per_minute",
+        "standard_deviation"
+      ]
+    },
+    ...
+    {
+      "name": "Apdex/members/destroy",
+      "values": [
+        "s",
+        "t",
+        "f",
+        "count",
+        "score",
+        "value",
+        "threshold",
+        "threshold_min"
+      ]
+    },
+    ...
+  ]
+}
+```
+
+Filtre la salida del nombre de su métrica, para devolver una lista más pequeña, especificando el filtro `name=` de esta manera:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d "name=Controller/welcome/index"
+```
+
+* Reemplace `$API_KEY` con su [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key).
+
+## Obtenga los valores de datos de intervalo de tiempo de métrica de su aplicación [#app_metric_data_values]
+
+Para ver los datos del intervalo de tiempo de métrica para su aplicación:
+
+```bash
+curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+     -H "Api-Key:$API_KEY" -i \
+     -d 'names[]=EndUser&values[]=call_count&values[]=average_response_time&summarize=true'
+```
+
+<CollapserGroup>
+  <Collapser
+    id="multiple-same-name"
+    title="Un nombre de métrica, múltiples valores"
+  >
+    Puede obtener varios valores del mismo nombre de métrica en una sola llamada, como se muestra en este ejemplo.
+
+    ```json
+    {
+      "metric_data": {
+        "from": "2014-05-20T23:41:15+00:00",
+        "to": "2014-05-21T00:11:15+00:00",
+        "metrics": [
+          {
+            "name": "EndUser",
+            "timeslices": [
+              {
+                "from": "2014-05-20T23:39:00+00:00",
+                "to": "2014-05-21T00:08:59+00:00",
+                "values": {
+                  "call_count": 724,
+                  "average_response_time": 2110
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="multiple-same-name"
+    title="Múltiples nombres métricos, valores individuales."
+  >
+    Si solicita valores de varias métricas que no comparten todos los campos de valores solicitados, solo podrá obtener los valores de un nombre de métrica a la vez.
+
+    Por ejemplo, si cambia el comando para que contenga dos nombres de métrica (usando dos condiciones `"names[]="` y las condiciones `"values[]="` correspondientes), solo se devolverán los valores asociados para el primer nombre de métrica (`EndUser`).
+
+    ```bash
+    curl -X GET "https://api.newrelic.com/v2/applications/${APP_ID}/metrics/data.json" \
+         -H "Api-Key:$API_KEY" -i \
+         -d "names[]=EndUser&names[]=EndUser/Apdex&values[]=call_count&values[]=average_response_time&values[]=score&summarize=true"
+    ```
+
+    El nombre `EndUser` en este ejemplo tiene valores `call_count` y `average_response_time` asociados, pero no `score.`
+
+    ```json
+    {
+      "metric_data": {
+        "from": "2014-05-20T23:41:15+00:00",
+        "to": "2014-05-21T00:11:15+00:00",
+        "metrics": [
+          {
+            "name": "EndUser",
+            "timeslices": [
+              {
+                "from": "2014-05-20T23:39:00+00:00",
+                "to": "2014-05-21T00:08:59+00:00",
+                "values": {
+                  "call_count": 724,
+                  "average_response_time": 2110
+                }
+              }
+            ]
+          },
+          {
+            "name": "EndUser/Apdex",
+            "timeslices": [
+              {
+                "from": "2015-03-31T20:33:00+00:00",
+                "to": "2015-03-31T21:02:59+00:00",
+                "values": {}
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

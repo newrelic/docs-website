@@ -1,11 +1,10 @@
 import React from 'react';
-import { useTessen } from '@newrelic/gatsby-theme-newrelic';
+import { addPageAction } from '@newrelic/gatsby-theme-newrelic';
 import ErrorBoundaryCC from './ErrorBoundaryCC';
 
 const ErrorBoundary = ({ eventName, children }) => {
-  const tessen = useTessen();
   return (
-    <ErrorBoundaryCC tessen={tessen} eventName={eventName}>
+    <ErrorBoundaryCC addPageAction={addPageAction} eventName={eventName}>
       {children}
     </ErrorBoundaryCC>
   );

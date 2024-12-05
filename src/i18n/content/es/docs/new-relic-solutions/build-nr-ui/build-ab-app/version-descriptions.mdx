@@ -1,0 +1,155 @@
+---
+title: Agregar descripciones de versión
+metaDescription: Add version descriptions
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Agregar encabezados de gráficos, antes de comenzar esta.
+</Callout>
+
+Con sus gráficos organizados y títulos descriptivos encima de cada uno, su aplicación New Relic se está volviendo más utilizable. En esta lección, continuarás esa tendencia creando descripciones para cada versión de diseño en tu Prueba A/B.
+
+<Steps>
+  <Step>
+    Cambie al directorio _add-version-descriptions/ab-test_ del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-version-descriptions/ab-test
+    ```
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet`, agregue un nuevo archivo Javascript llamado `description.js`:
+
+    ```sh
+    touch description.js
+    ```
+  </Step>
+
+  <Step>
+    En este nuevo archivo, cree un nuevo componente de React, llamado `VersionDescription`, que usa un `HeadingText` y un `BlockText` para representar una descripción de la versión que usted pasa, usando el accesorio `description` :
+
+    ```js
+    import React from 'react';
+    import { BlockText, HeadingText } from 'nr1';
+
+    export default class VersionDescription extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return (
+                <div>
+                    <HeadingText className="versionHeader">
+                        Version {this.props.version}
+                    </HeadingText>
+                    <BlockText className="versionText">
+                        {this.props.description}
+                    </BlockText>
+                </div>
+            )
+        }
+    }
+    ```
+
+    Empleará esta clase para crear una descripción de versión para cada versión de diseño en su Prueba A/B.
+  </Step>
+
+  <Step>
+    En el archivo `index.js` de su Nerdlet, importe `VersionDescription`, cree descripciones para cada versión de diseño y cree un nuevo componente `GridItem` para cada versión de diseño:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='a' /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='b' /></GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    Aquí, creó dos componentes `VersionDescription`. Pasaste los accesorios `description` y `version` , que corresponden a una versión de diseño.
+
+    También agregó una regla horizontal para separar visualmente las descripciones de los gráficos en su aplicación. Para esto, agregó un `GridItem` con un `columnSpan` de 12, para extender la regla a todo el ancho de la cuadrícula.
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-version-descriptions/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vaya a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea su aplicación en **Apps > Your apps**.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+Ahora agregó descripciones para los diseños de la competencia y sus gráficos. En la siguiente lección, creará una nueva sección de su aplicación a partir de componentes de la interfaz de usuario. Esta sección se empleará para finalizar la Prueba A/B con solo hacer clic en un botón.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: agregue una sección para finalizar su prueba.
+</Callout>

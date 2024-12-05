@@ -1,0 +1,304 @@
+---
+title: Agregar encabezados de gráficos
+metaDescription: Add chart headings
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Agregar una cuadrícula, antes de comenzar esta.
+</Callout>
+
+Organizar gráficos es una forma de aclarar la información que intenta transmitir a su usuario. Los títulos son otra. Dado que tiene varios gráficos en la misma página, emplee encabezados para describir la información que muestran.
+
+La guía de diseño detalla qué datos muestra cada gráfico. Emplee esos detalles para crear títulos útiles para sus gráficos.
+
+<Steps>
+  <Step>
+    Cambie al directorio _add-chart-headings/ab-test_ del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-chart-headings/ab-test
+    ```
+  </Step>
+
+  <Step>
+    En `newsletter-signups.js`, `page-views.js`, `past-tests.js`, `total-cancellations.js`, `total-subscriptions.js` y `totals.js`, importe `HeadingText` y agregue un encabezado descriptivo encima del gráfico en cada uno de sus componentes personalizados:
+
+    ```js
+    import React from 'react';
+    import { HeadingText, LineChart } from 'nr1';
+
+    export default class NewsletterSignups extends React.Component {
+        render() {
+            const versionASignups = {
+                metadata: {
+                    id: 'version-a-newsletter-signups',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { x: 0, y: 0 },
+                    { x: 10, y: 10 },
+                    { x: 20, y: 15 },
+                    { x: 30, y: 5 },
+                    { x: 40, y: 30 },
+                    { x: 50, y: 25 },
+                ],
+            }
+            const versionBSignups = {
+                metadata: {
+                    id: 'version-b-newsletter-signups',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { x: 0, y: 20 },
+                    { x: 10, y: 5 },
+                    { x: 20, y: 25 },
+                    { x: 30, y: 45 },
+                    { x: 40, y: 50 },
+                    { x: 50, y: 35 },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Newsletter subscriptions per version
+                </HeadingText>
+                <LineChart data={[versionASignups, versionBSignups]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ```js
+    import React from 'react';
+    import { HeadingText, LineChart } from 'nr1';
+
+    export default class VersionPageViews extends React.Component {
+        render() {
+            const versionPageViews = {
+                metadata: {
+                    id: `page-views-${this.props.version}`,
+                    name: `Version ${this.props.version.toUpperCase()}`,
+                    viz: 'main',
+                    color: 'blue',
+                    units_data: {
+                        y: 'MS'
+                    }
+                },
+                data: [
+                    { x: 0, y: 10 },
+                    { x: 10, y: 13 },
+                    { x: 20, y: 11.5 },
+                    { x: 30, y: 10 },
+                    { x: 40, y: 8.75 },
+                    { x: 50, y: 9 },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views
+                </HeadingText>
+                <LineChart data={[versionPageViews]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ```js
+    import React from 'react';
+    import { HeadingText, TableChart } from 'nr1';
+
+    export default class PastTests extends React.Component {
+        render() {
+            const historicalData = {
+                metadata: {
+                    id: 'past-tests',
+                    name: 'Past tests',
+                    columns: ['endDate', 'versionADescription', 'versionBDescription', 'winner'],
+                },
+                data: [
+                    {
+                        "endDate": "12-15-2020",
+                        "versionADescription": "The homepage's CTA button was green.",
+                        "versionBDescription": "The homepage's CTA button was blue.",
+                        "winner": "A"
+                    },
+                    {
+                        "endDate": "09-06-2019",
+                        "versionADescription": "The 'Deals' page showed sales in a carousel.",
+                        "versionBDescription": "The 'Deals' page showed sales in a grid.",
+                        "winner": "B"
+                    }
+                ],
+            }
+
+            return <div>
+                <HeadingText className="chartHeader">
+                    Past tests
+                </HeadingText>
+                <TableChart data={[historicalData]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ```js
+    import React from 'react';
+    import { HeadingText, PieChart } from 'nr1';
+
+    export default class TotalCancellations extends React.Component {
+        render() {
+            const cancellationsA = {
+                metadata: {
+                    id: 'cancellations-A',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { y: 118 },
+                ],
+            }
+            const cancellationsB = {
+                metadata: {
+                    id: 'cancellations-B',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { y: 400 },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Total cancellations per version
+                </HeadingText>
+                <PieChart data={[cancellationsA, cancellationsB]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ```js
+    import React from 'react';
+    import { HeadingText, PieChart } from 'nr1';
+
+    export default class TotalSubscriptions extends React.Component {
+        render() {
+            const subscriptionsA = {
+                metadata: {
+                    id: 'subscriptions-A',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { y: 259 },
+                ],
+            }
+            const subscriptionsB = {
+                metadata: {
+                    id: 'subscriptions-B',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { y: 318 },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Total subscriptions per version
+                </HeadingText>
+                <PieChart data={[subscriptionsA, subscriptionsB]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ```js
+    import React from 'react';
+    import { HeadingText, TableChart } from 'nr1';
+
+    export default class VersionTotals extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            const versionATotals = {
+                metadata: {
+                    id: `totals-${this.props.version}`,
+                    name: `Version ${this.props.version}`,
+                    columns: ['name', 'count'],
+                },
+                data: [
+                    {
+                        name: 'Subscriptions',
+                        count: 0
+                    },
+                    {
+                        name: 'Page views',
+                        count: 0
+                    },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views vs. subscriptions
+                </HeadingText>
+                <TableChart data={[versionATotals]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    Observe la nueva etiqueta `<div>` en cada `render()`, que le permite devolver varios elementos a la vez. Además, recuerde que le proporcionamos una hoja de estilos CSS que aplica estilo a la clase `chartHeader`. Puedes mirar `nerdlets/ab-test-nerdlet/styles.scss` para ver más.
+
+    No necesita modificar el método `render()` de su Nerdlet en `index.js` porque sus componentes encapsulan el nuevo código.
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-a-grid/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vea sus cambios en [New Relic](https://one.newrelic.com?nerdpacks=local).
+
+    Aquí verá que sus gráficos tienen títulos descriptivos.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+¡Bien hecho! Creó todos los gráficos que se presentan en su guía de diseño. También los organizó en una cuadrícula ordenada y agregó títulos para que los gráficos sean inteligibles. Si bien los encabezados de los gráficos te ayudan a comprender lo que muestra cada gráfico, sería bueno agregar descripciones para ayudarte a recordar lo que representa cada versión en tu Prueba A/B. En la siguiente lección, agregará una descripción para cada versión de diseño.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: Agregar descripciones de versiones.
+</Callout>

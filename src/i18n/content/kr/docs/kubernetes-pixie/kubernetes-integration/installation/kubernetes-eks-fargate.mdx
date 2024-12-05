@@ -1,0 +1,517 @@
+---
+title: AWS EKS Fargate에 설치
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+  - EKS Fargate
+metaDescription: 'New Relic''s Kubernetes integration: The installation of Kubernetes on AWS EKS Fargate'
+freshnessValidatedDate: '2024-04-29T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [출시 전 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) 에 따라 미리보기 프로그램의 일부로 제공됩니다.
+</Callout>
+
+New Relic은 모니터링해야 하는 각 포드에 인프라 에이전트 및 `nri-kubernetes` 통합이 포함된 사이드카를 자동으로 삽입하여 EKS Fargate에서 Kubernetes 워크로드 모니터링을 지원합니다.
+
+동일한 Kubernetes 클러스터에 EC2 노드도 포함되어 있는 경우 우리 솔루션도 모든 노드에 `DaemonSet` 으로 배포됩니다. EC2 노드에서 예약된 포드에는 사이드카가 삽입되지 않으며 Fargate 노드에는 `DaemonSet` 이 배포되지 않습니다. 다음은 Fargate 및 EC2 노드가 모두 있는 하이브리드 인스턴스의 예입니다.
+
+<img
+  title="Diagram showing an EKS cluster with Fargat and EC2 nodes"
+  alt="Diagram showing an EKS cluster with Fargat and EC2 nodes"
+  src="/images/kubernetes_diagram_fargate-overview.svg"
+/>
+
+<figcaption>
+  혼합 환경에서 통합은 Fargate 노드용 사이드카만 사용합니다.
+</figcaption>
+
+New Relic은 예약된 위치에 관계없이 Fargate 또는 EC2 노드에 관계없이 모든 Kubernetes 개체에 대해 지원되는 모든 메트릭을 수집합니다. Fargate에 의해 부과된 제한으로 인해 New Relic 통합은 Fargate 노드에서 [권한 없는](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure/#unprivileged) 모드로 실행하는 것으로 제한됩니다. 즉, 실행 중인 프로세스와 같이 일반적으로 호스트에서 직접 가져오는 메트릭은 Fargate 노드에서 사용할 수 없습니다.
+
+두 시나리오의 에이전트는 KSM(Kube State Metrics), Kubelet 및 cAdvisor에서 데이터를 스크랩하고 동일한 형식으로 데이터를 보냅니다.
+
+<Callout variant="important">
+  다른 Kubernetes 클러스터와 마찬가지로 당사 솔루션을 사용하려면 KSM(Kube State Metrics) 인스턴스를 배포하고 모니터링해야 합니다. Helm 차트 및/또는 설치 프로그램은 기본적으로 자동으로 수행하지만 클러스터에 이미 작동 중인 KSM 인스턴스가 있는 경우 이 동작을 비활성화할 수 있습니다. 이 KSM 인스턴스는 다른 워크로드로 모니터링됩니다. Fargate 노드에서 예약된 경우 사이드카를 삽입하고 EC2 노드에서 예약된 경우 `DaemonSet` 의 로컬 인스턴스로 모니터링합니다.
+</Callout>
+
+`nri-prometheus` , `nri-metadata-injection` 및 `nri-kube-events` 와 같은 Kubernetes용 New Relic 솔루션의 다른 구성요소는 특이 사항이 없으며 Fargate가 아닌 환경에서와 같이 일반적으로 Helm 차트에 의해 배포됩니다.
+
+EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 위한 두 가지 대안 중에서 선택할 수 있습니다.
+
+* [자동 주입(권장)](#fargate-automatic)
+* [수동 주입](#fargate-manual)
+
+선택한 접근 방식에 관계없이 설치 후 경험은 완전히 동일합니다. 유일한 차이점은 컨테이너가 주입되는 방식입니다. 모니터링하려는 각 배포를 수동으로 편집할 필요가 없기 때문에 New Relic 인프라 모니터링 연산자로 자동 주입을 설정하는 것이 좋습니다.
+
+## 자동 주입(권장) [#fargate-automatic]
+
+기본적으로 Fargate 지원이 활성화되면 New Relic은 클러스터( `newrelic-infra-operator` )에 운영자를 배포합니다. 배포되면 이 운영자는 Fargate 노드에 예약된 포드에 모니터링 사이드카를 자동으로 삽입하는 동시에 `Secrets` , `ClusterRoleBindings` 및 기타 관련 리소스의 생성 및 업데이트를 관리합니다.
+
+이 연산자는 포드와 네임스페이스 모두에 대한 레이블 선택기를 사용하여 주입 범위를 좁히거나 넓히는 데 사용할 수 있는 다양한 고급 구성 옵션을 허용합니다.
+
+**운영자가 하는 일**
+
+뒤에서 운영자는 클러스터에서 생성될 포드 객체를 수정할 수 있도록 `MutatingWebhookConfiguration` 을 설정합니다. 이 이벤트에서 생성되는 포드가 사용자의 구성과 일치하면 운영자는 다음을 수행합니다.
+
+1. New Relic Kubernetes 통합이 포함된 포드에 사이드카 컨테이너를 추가합니다.
+
+2. 시크릿이 존재하지 않으면 뉴렐릭
+
+   <InlinePopover type="licenseKey"/>
+
+   을 포함하는 파드와 동일한 네임스페이스에 시크릿을 생성합니다. 이는 사이드카가 데이터를 보고하는 데 필요합니다.
+
+3. 연산자 차트에서 이전에 생성한 `ClusterRoleBinding`에 파드의 서비스 계정을 추가하면, 이 사이드카에 쿠버네티스 메트릭 엔드포인트에 도달하는 데 필요한 권한이 부여됩니다.
+
+`ClusterRoleBinding` 은 주입 중인 포드에 다음 권한을 부여합니다.
+
+```yml
+- apiGroups: [""]
+  resources:
+    - "nodes"
+    - "nodes/metrics"
+    - "nodes/stats"
+    - "nodes/proxy"
+    - "pods"
+    - "services"
+    - "namespaces"
+  verbs: ["get", "list"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+```
+
+<Callout variant="tip">
+  사이드카가 주입되고 따라서 운영자가 설치되기 전에 배포된 포드에서 메트릭을 얻으려면 영향을 받는 배포의 롤아웃(다시 시작)을 수동으로 수행해야 합니다. 이렇게 하면 포드가 생성될 때 운영자가 모니터링 사이드카를 삽입할 수 있습니다. New Relic은 예기치 않은 서비스 중단 및 리소스 사용량 급증을 방지하기 위해 이 작업을 자동으로 수행하지 않도록 선택했습니다.
+</Callout>
+
+<Callout variant="important">
+  `newrelic` 네임스페이스(또는 설치를 위해 선택한 네임스페이스)를 선언하는 선택기를 사용하여 Fargate 프로필을 생성해야 합니다.
+</Callout>
+
+주입 워크플로는 다음과 같습니다.
+
+<img
+  title="Diagram showing the workflow of sidecar injection"
+  alt="Diagram showing the workflow of sidecar injection"
+  src="/images/kubernetes_diagram_fargate-workflow.svg"
+/>
+
+<Callout variant="tip">
+  다음 단계는 기본 설정을 위한 것입니다. 이 작업을 완료하기 전에 아래의 [구성](#config-auto) 섹션을 살펴보고 자동 주입의 측면을 수정하고 싶은지 확인하는 것이 좋습니다.
+</Callout>
+
+<Steps>
+  <Step>
+    ### 뉴클릭 Helm 사자 추가
+
+    이전에 추가하지 않은 경우 다음 명령을 실행하여 뉴렐릭 Helm 위치를 추가하세요.
+
+    ```shell
+    helm repo add newrelic https://helm-charts.newrelic.com
+    ```
+  </Step>
+
+  <Step>
+    ### 라는 이름의 파일을 생성합니다. `values.yaml`
+
+    인프라 사이드카 삽입을 담당하는 연산자를 설치하려면 `values.yaml` 이라는 파일을 만듭니다. 이 파일은 귀하의 설정을 정의합니다:
+
+    ```yaml
+    ## Global values
+
+    global:
+    # -- The cluster name for the Kubernetes cluster.
+    cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+    # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+    licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+    # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+    # @default -- false
+    privileged: true
+
+    # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+    # @default -- false
+    fargate: true
+
+    ## Enable nri-bundle sub-charts
+
+    newrelic-infra-operator:
+    # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
+    enabled: true
+    tolerations: 
+        - key: "eks.amazonaws.com/compute-type"
+        operator: "Equal"
+        value: "fargate"
+        effect: "NoSchedule"
+    config:
+        ignoreMutationErrors: true
+        infraAgentInjection:
+        # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+        policies:
+        - namespaceName: namespace-a
+        - namespaceName: namespace-b
+
+    newrelic-infrastructure:
+    # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+    enabled: true
+
+    nri-metadata-injection:
+    # Deploy our mutating admission webhook to link APM and Kubernetes entities
+    enabled: true
+
+    kube-state-metrics:
+    # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+    enabled: true
+
+    nri-kube-events:
+    # Deploy the Kubernetes events integration.
+    enabled: true
+
+    newrelic-logging:
+    # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+    enabled: true
+
+    newrelic-prometheus-agent:
+    # Deploys the Prometheus agent for scraping Prometheus endpoints.
+    enabled: true
+    config:
+        kubernetes:
+        integrations_filter:
+            enabled: true
+            source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+            app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
+    ```
+  </Step>
+
+  <Step>
+    ### 배포
+
+    파일을 생성하고 조정한 후 다음 Helm 명령을 사용하여 솔루션을 구현하고 배포할 수 있습니다.
+
+    ```shell
+    helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
+    ```
+
+    <Callout variant="important">
+      하이브리드 클러스터(EC2 및 Fargate 노드 포함)에 솔루션을 배포할 때 솔루션이 Fargate 프로파일에 의해 선택되지 않았는지 확인하십시오. 그렇지 않으면 `DaemonSet` 인스턴스가 보류 상태에 있게 됩니다. Fargate 전용 환경의 경우 `DaemonSet` 인스턴스가 생성되지 않으므로 이는 문제가 되지 않습니다.
+    </Callout>
+  </Step>
+</Steps>
+
+### 자동 주입: 알려진 제한사항 [#known-limitations]
+
+다음은 자동 주입을 사용할 때 알아야 할 몇 가지 문제입니다.
+
+1. 현재 더 이상 필요하지 않은 비밀이 가비지 수집되는지 확인하기 위해 전체 클러스터를 감시하는 컨트롤러는 없습니다. 그러나 모든 개체는 필요한 경우 모든 리소스를 제거하는 데 사용할 수 있는 동일한 레이블을 공유합니다. 단일 명령으로 리소스를 삭제하는 데 사용할 수 있는 `newrelic/infra-operator-created: true` 레이블을 삽입합니다.
+2. 현재로서는 주입된 사이드카를 사용하여 포드에서 실행 중인 서비스를 모니터링할 수 없습니다. 사이드카는 Kubernetes 자체만 모니터링합니다. 그러나 고급 사용자는 이러한 포드를 자동 삽입에서 제외하고 사이드카를 구성하고 적절한 위치에 구성을 마운트하여 활성화된 온-호스트 통합이 있는 맞춤형 버전의 사이드카를 수동으로 삽입할 수 있습니다. 도움이 필요하면 이 [튜토리얼](/docs/integrations/kubernetes-integration/link-apps-services/tutorial-monitor-redis-running-kubernetes/) 을 참조하십시오.
+
+### 자동 등록: 설정 [#automatic-configuration]
+
+자동 주입의 다양한 측면을 구성할 수 있습니다. 기본적으로 운영자는 `Job` 또는 `BatchJob` 의 일부가 아닌 Fargate 노드에 배포된 모든 포드에 모니터링 사이드카를 삽입합니다.
+
+이 동작은 설정 옵션을 통해 변경할 수 있습니다. 예를 들어, 주입되는 파드의 선택 범위를 좁히거나 넓히는 선택기를 정의하고, 운영자에게 리소스를 할당하고, 사이드카를 튜닝할 수 있습니다. 또한 다른 속성, 라벨, 환경 변수를 추가할 수도 있습니다. [`README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infra-operator/README.md) 및 [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infra-operator/values.yaml) 차트를 참조하세요.
+
+<Callout variant="important">
+  고유한 사용자 지정 주입 규칙을 지정하면 Fargate에서 예약되지 않은 포드에서 사이드카 주입을 방지하는 기본 규칙 세트가 삭제됩니다. 사용자 정의 규칙이 동일한 효과를 가지는지 확인하십시오. 그렇지 않으면 `DaemonSet` 도 배포된 하이브리드 클러스터에서 EC2에 예약된 포드가 두 번 모니터링되어 데이터가 잘못되거나 중복됩니다.
+</Callout>
+
+### 최신 버전 또는 새 구성으로 업데이트 [#automatic-update]
+
+최신 버전의 EKS Fargate 통합으로 업데이트하려면 `helm repo update newrelic` 을 사용하여 Helm 리포지토리를 업그레이드하고 위의 명령을 다시 실행하여 번들을 다시 설치하세요.
+
+주입된 인프라 에이전트 또는 운영자 자체의 구성을 업데이트하려면 `values-newrelic.yaml` 을 수정하고 새 구성으로 Helm 릴리스를 업그레이드하십시오. 운영자는 즉시 업데이트되고 워크로드는 다음에 다시 시작할 때 새 버전으로 계측됩니다. 즉시 업그레이드하려면 다음을 실행하여 워크로드를 강제로 다시 시작할 수 있습니다.
+
+```shell
+kubectl rollout restart deployment YOUR_APP
+```
+
+### 자동 주입: 제거 [#automatic-uninstall]
+
+자동 삽입을 수행하는 사이드카를 제거하지만 Helm을 사용하여 New Relic 솔루션의 나머지 부분을 유지하려면 `values.yaml` 파일이나 명령줄에서 `infra-operator.enabled` 을 `false` 로 설정하여 인프라 연산자를 비활성화합니다. ( `--set` ) 위의 설치 명령을 다시 실행합니다.
+
+자동 삽입을 활성화하지 않지만 설치의 다른 구성 요소가 Fargate를 인식하도록 하여 원치 않는 동작을 방지하기 때문에 `--set global.fargate=true` 플래그를 유지하는 것이 좋습니다.
+
+전체 솔루션을 제거하려면:
+
+1. Helm 릴리스를 완전히 제거합니다.
+
+2. 사이드카를 제거하기 위해 포드를 롤아웃합니다.
+
+   ```shell
+   kubectl rollout restart deployment YOUR_APP
+   ```
+
+3. 쓰레기 수집 비밀:
+
+   ```shell
+   kubectl delete secrets -n YOUR_NAMESPACE -l newrelic/infra-operator-created=true
+   ```
+
+## 수동 주입 [#fargate-manual]
+
+자동 주입에 대해 우려 사항이 있는 경우 Fargate 노드에 예약될 예정인 워크로드의 매니페스트를 수정하여 직접 사이드카를 주입할 수 있습니다. EC2 노드에 예약된 배포에 사이드카를 추가하면 데이터가 잘못되거나 중복될 수 있습니다. 특히 해당 노드가 이미 `DaemonSet` 으로 모니터링되고 있는 경우에는 더욱 그렇습니다.
+
+사이드카가 데이터를 성공적으로 보고하려면 다음 개체가 필요합니다.
+
+* `nri-kubernetes` 통합에 필요한 권한을 제공하는 `ClusterRole` 입니다.
+* `ClusterRole` 과 파드의 서비스 계정을 연결하는 `ClusterRoleBinding` 입니다.
+* 각 Fargate 지우스페이스에 뉴렐릭 `licenseKey` 을(를) 저장하는 비밀입니다.
+* 모니터링되는 워크로드의 특정 템플릿에 있는 사이드카 컨테이너입니다.
+
+<Callout variant="tip">
+  이러한 수동 설정 단계는 일반 설치를 위한 것입니다. 이 작업을 완료하기 전에 아래 [설정](#manual-configuration) 섹션을 살펴보고 자동 입력의 어떤 측면을 수정하고 싶은지 확인하세요.
+</Callout>
+
+수동 주입의 경우 다음 단계를 완료하세요.
+
+<Steps>
+  <Step>
+    ### `ClusterRole` [#manual-clusterrole]
+
+    `ClusterRole` 이 존재하지 않는 경우 이를 생성하고 메트릭 엔드포인트에 도달하는 데 필요한 권한을 부여합니다. 동일한 클러스터에서 여러 애플리케이션을 모니터링하는 경우에도 이 작업은 한 번만 수행하면 됩니다. 이 스니펫을 아무런 변경 없이 아래와 같이 사용할 수 있습니다.
+
+    ```yml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+        labels:
+        app: newrelic-infrastructure
+        name: newrelic-newrelic-infrastructure-infra-agent
+    rules:
+        - apiGroups:
+            - ""
+        resources:
+            - nodes
+            - nodes/metrics
+            - nodes/stats
+            - nodes/proxy
+            - pods
+            - services
+        verbs:
+            - get
+            - list
+        - nonResourceURLs:
+            - /metrics
+        verbs:
+            - get
+    ```
+  </Step>
+
+  <Step>
+    ### 주입된 사이드카 [#manual-injected-sidecar]
+
+    모니터링하려는 각 워크로드에 대해 `newrelic/infrastructure-k8s` 이미지에 대한 추가 사이드카 컨테이너를 추가합니다. 다음 스니펫의 컨테이너를 가져와 모니터링할 워크로드에 삽입하고 `customAttributes` 변수에 `FargateProfile` 이름을 지정합니다. 볼륨은 `emptyDir: {}` 으로 정의될 수 있습니다.
+
+    <Callout variant="tip">
+      KSM 배포의 특수한 경우에는 `DISABLE_KUBE_STATE_METRICS` 환경 변수도 제거하고 리소스 요청 및 제한을 늘려야 합니다.
+    </Callout>
+
+    ```yml
+    apiVersion: apps/v1
+    kind: Deployment
+    spec:
+        template:
+        spec:
+            containers:
+            - name: newrelic-infrastructure
+            env:
+            - name: NRIA_LICENSE_KEY
+                valueFrom:
+                secretKeyRef:
+                    key: license
+                    name: newrelic-newrelic-infrastructure-config
+            - name: NRIA_VERBOSE
+                value: "1"
+            - name: DISABLE_KUBE_STATE_METRICS
+                value: "true"
+            - name: CLUSTER_NAME
+                value: testing-injection
+            - name: COMPUTE_TYPE
+                value: serverless
+            - name: NRK8S_NODE_NAME
+                valueFrom:
+                fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName
+            - name: NRIA_DISPLAY_NAME
+                valueFrom:
+                fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName
+            - name: NRIA_CUSTOM_ATTRIBUTES
+                value: '{"clusterName":"$(CLUSTER_NAME)", "computeType":"$(COMPUTE_TYPE)", "fargateProfile":"[YOUR FARGATE PROFILE]"}'
+            - name: NRIA_PASSTHROUGH_ENVIRONMENT
+                value: KUBERNETES_SERVICE_HOST,KUBERNETES_SERVICE_PORT,CLUSTER_NAME,CADVISOR_PORT,NRK8S_NODE_NAME,KUBE_STATE_METRICS_URL,KUBE_STATE_METRICS_POD_LABEL,TIMEOUT,ETCD_TLS_SECRET_NAME,ETCD_TLS_SECRET_NAMESPACE,API_SERVER_SECURE_PORT,KUBE_STATE_METRICS_SCHEME,KUBE_STATE_METRICS_PORT,SCHEDULER_ENDPOINT_URL,ETCD_ENDPOINT_URL,CONTROLLER_MANAGER_ENDPOINT_URL,API_SERVER_ENDPOINT_URL,DISABLE_KUBE_STATE_METRICS,DISCOVERY_CACHE_TTL
+            image: newrelic/infrastructure-k8s:2.4.0-unprivileged
+            imagePullPolicy: IfNotPresent
+            resources:
+                limits:
+                memory: 100M
+                cpu: 200m
+                requests:
+                cpu: 100m
+                memory: 50M
+            securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsUser: 1000
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+            - mountPath: /var/db/newrelic-infra/data
+                name: tmpfs-data
+            - mountPath: /var/db/newrelic-infra/user_data
+                name: tmpfs-user-data
+            - mountPath: /tmp
+                name: tmpfs-tmp
+            - mountPath: /var/cache/nr-kubernetes
+                name: tmpfs-cache
+    [...]
+    ```
+
+    사이드카 에이전트의 매니페스트를 수동으로 추가할 때 에이전트 구성 옵션을 사용하여 에이전트 동작을 구성할 수 있습니다. 도움이 필요하면 [인프라 에이전트 구성 설정](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/) 을 참조하십시오.
+  </Step>
+
+  <Step>
+    ### `ClusterRoleBinding` [#manual-cluster-role-binding]
+
+    `ClusterRoleBinding` 을 만들거나 모니터링할 애플리케이션의 `ServiceAccount` 을(를) 이전에 만든 항목에 추가합니다. 모든 워크로드는 동일한 `ClusterRoleBinding` 를 공유할 수 있지만 각 워크로드의 `ServiceAccount` 를 여기에 추가해야 합니다.
+
+    모니터링하려는 포드의 서비스 계정을 주체로 하는 다음 `ClusterRoleBinding` 을 생성합니다.
+
+    <Callout variant="tip">
+      동일한 서비스 계정을 두 번 반복할 필요가 없습니다. 아직 포함되지 않은 서비스 계정으로 포드를 모니터링할 때마다 목록에 추가하기만 하면 됩니다.
+    </Callout>
+
+    ```yml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+        name: newrelic-newrelic-infrastructure-infra-agent
+    roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: newrelic-newrelic-infrastructure-infra-agent
+    subjects:
+        - kind: ServiceAccount
+        name: [INSERT_SERVICE_ACCOUNT_NAME_OF_WORKLOAD]
+        namespace: [INSERT_SERVICE_ACCOUNT_NAMESPACE_OF_WORKLOAD]
+    ```
+  </Step>
+
+  <Step>
+    ### 비밀이 포함된 [#secret-containing]
+
+    뉴렐릭<InlinePopover type="licenseKey"/>을 포함하는 시크릿을 생성합니다. 각 네임스페이스에는 고유한 시크릿이 필요합니다.
+
+    <InlinePopover type="licenseKey"/>의 Base64 인코딩 값을 사용하여 라이선스가 있는 다음과 같은 `Secret`을 생성합니다. 모니터링하려는 파드가 실행되는 각 네임스페이스에는 하나의 시크릿이 필요합니다.
+
+    ```yml
+    apiVersion: v1
+    data:
+        license: INSERT_YOUR_NEW_RELIC_LICENSE_ENCODED_IN_BASE64
+    kind: Secret
+    metadata:
+        name: newrelic-newrelic-infrastructure-config
+        namespace: [INSERT_NAMESPACE_OF_WORKLOAD]
+    type: Opaque
+    ```
+  </Step>
+</Steps>
+
+### 수동 주입: 최신 버전으로 업데이트 [#manual-update-version]
+
+구성 요소를 업데이트하려면 구현하다, 배포하다 yaml만 수정하면 됩니다. 주입된 컨테이너의 필드를 업데이트하면 파드가 다시 생성됩니다.
+
+<Callout variant="important">
+  에이전트는 뉴렐릭 <InlinePopover type="licenseKey"/>을 핫로드할 수 없습니다. 시크릿을 업데이트한 후 배포를 다시 롤아웃해야 합니다.
+</Callout>
+
+### 수동 주입: Fargate 통합 제거 [#manual-uninstall]
+
+주입된 컨테이너 및 관련 리소스를 제거하려면 다음을 제거하기만 하면 됩니다.
+
+* 더 이상 모니터링하지 않아야 하는 워크로드의 사이드카입니다.
+* newrelic 라이센스를 포함하는 모든 비밀.
+* `ClusterRole` 및 `ClusterRoleBinding` 개체.
+
+사이드카 컨테이너를 제거하면 포드가 다시 생성됩니다.
+
+## 벌채 반출 [#fargate-logging]
+
+New Relic 로깅은 AWS의 보안 제약으로 인해 Fargate 노드에서 사용할 수 없지만 몇 가지 로깅 옵션은 다음과 같습니다.
+
+* 로깅에 Fluentbit를 사용하는 경우 [로그 전달을 위한 Kubernetes 플러그인을](/docs/logs/forward-logs/kubernetes-plugin-log-forwarding/)참조하세요.
+* 로그 데이터가 이미 AWS FireLens에서 모니터링되고 있는 경우 [로그 전달을 위한 AWS FireLens 플러그인 을](/docs/logs/forward-logs/aws-firelens-plugin-log-forwarding/)참조하십시오.
+* Amazon CloudWatch Logs에서 로그 데이터를 이미 모니터링하고 있는 경우 [Kinesis Data Firehose를 사용하여 로그 스트리밍 을](/docs/logs/forward-logs/stream-logs-using-kinesis-data-firehose/)참조하십시오.
+* [CloudWatch 로그 전송에 대해서는 AWS Lambda를](/docs/logs/forward-logs/aws-lambda-sending-cloudwatch-logs/)참조하십시오.
+* [Amazon ECS에서 New Relic으로 로그를 전달하는 세 가지 방법을](https://newrelic.com/blog/how-to-relic/forward-logs-from-amazon-ecs-to-new-relic)참조하십시오.
+
+## 문제점 해결 [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="daemonset"
+    title="DaemonSet 복제본이 Fargate 노드에 배포되고 있습니다."
+  >
+    Fargate 노드에서 Infra `DaemonSet` 복제본이 예약되고 있는 것을 발견하면 `nodeAffinity` 규칙이 제대로 구성되지 않았기 때문일 수 있습니다.
+
+    명령줄(`--set global.fargate=true`) 또는 `values.yaml` 파일을 통해 `true` 에 대한 `global.fargate` 옵션을 사용하여 솔루션이 설치되었는지 다시 확인하세요. 설치 방법이 Helm이 아닌 경우 Fargate 노드를 제외하려면 `nodeAffinity` 규칙을 수동으로 추가해야 합니다.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event-untolerated"
+    title={<>허용되지 않는 오염으로 인한 이벤트 <InlineCode>FailedScheduling</InlineCode></>}
+  >
+    포드를 생성하려고 시도하는 동안 다음 이벤트가 발생하는 경우 [자동 삽입 설치](#auto-injection-install) 에 설명된 `tolerations` 를 `values.yaml` 파일에 추가해야 합니다.
+
+    ```yaml
+    LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+    :--|:--|:--|:--|:--
+    3m9s (x2 over 8m10s) | Warning | FailedScheduling | Pod/no-fargate-deploy-cbddd6ccf-8f9x4 | 0/2 nodes are available: 2 node(s) had untolerated taint {eks.amazonaws.com/compute-type: fargate}. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling..
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event-many-pods"
+    title={<>포드가 너무 많아 이벤트 <InlineCode>FailedScheduling</InlineCode></>}
+  >
+    포드를 생성하려고 시도하는 동안 다음 이벤트가 발생하는 경우 설치가 발생하는 네임스페이스의 이름을 지정하는 선택기가 있는 Fargate 프로필이 있는지 확인하세요.
+
+    ```yaml
+    LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+    :--|:--|:--|:--|:--
+    61s | Warning | FailedScheduling | Pod/newrelic-bundle-newrelic-infra-operator-admission-create-d8ggt | 0/2 nodes are available: 2 Too many pods. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod..
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## EKS 데이터 보기 [#view-data]
+
+다음은 New Relic UI에서 Fargate 노드가 어떻게 보이는지 보여주는 예입니다.
+
+<img
+  title="Screenshot showing the Kubernetes explorer with a Fargate node"
+  alt="Screenshot showing the Kubernetes explorer with a Fargate node"
+  src="/images/kubernetes_screenshot-crop_fargate-ui.webp"
+/>
+
+AWS 데이터를 보려면:
+
+1. <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes**</DNT>로 이동하여 다음 중 하나를 수행합니다.
+
+   * 데이터를 보려면 통합 이름을 선택하세요.
+   * 데이터 탐색 아이콘을 선택하여 AWS 데이터를 봅니다.
+
+2. 두 개의 Fargate 태그를 사용하여 데이터를 필터링합니다.
+
+   * `computeType=serverless`
+   * `fargateProfile=[name of the Fargate profile to which the workload belongs]`

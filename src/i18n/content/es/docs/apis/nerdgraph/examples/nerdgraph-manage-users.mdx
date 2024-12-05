@@ -1,0 +1,278 @@
+---
+title: 'Tutorial de NerdGraph: crear y administrar usuarios'
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: 'How to use New Relic''s NerdGraph API to create and manage users, and view user information.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar nuestra [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) para ver y administrar usuarios. Puede agregar y eliminar usuarios, editar la dirección de correo electrónico y el tipo de usuario de sus usuarios y devolver otros tipos de información de usuario.
+
+Para saber cómo hacer esto en la UI, consulte los [documentos de la UI de usuario de administración de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks).
+
+## Requisitos [#requirements]
+
+Algunos requisitos para gestionar usuarios a través de NerdGraph:
+
+* Esto es para administrar usuarios en [nuestro modelo de usuario más nuevo](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models#determine-user-model). Otros requisitos relacionados con los permisos:
+
+  * [Tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) requerido: usuario principal o usuario de plataforma completa.
+
+  * [Configuración de administración](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#admin-settings) requerida: para ver y realizar cambios en el usuario se requiere
+
+    <DNT>
+      **Authentication domain settings**
+    </DNT>
+
+    . Para ver y realizar cambios a nivel de organización se requiere
+
+    <DNT>
+      **Organization settings**
+    </DNT>
+
+    .
+
+## Antes de que empieces [#concepts]
+
+Antes de utilizar NerdGraph para gestionar usuarios, algunos puntos importantes:
+
+* Asegúrese de tener una comprensión adecuada de nuestros [conceptos de gestión de usuarios.](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts#understand-concepts)
+* El [explorador NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#explorer) tiene documentos integrados que definen los campos utilizados en estas solicitudes.
+* Puede [realizar un seguimiento de los cambios en su cuenta New Relic](/docs/data-apis/understand-data/event-data/query-account-audit-logs-nrauditevent).
+
+A continuación se muestran algunos ejemplos de cómo consultar información de usuario y realizar cambios en sus usuarios.
+
+## Campos de tipo de usuario [#user-type]
+
+Los valores de tipo de usuario disponibles son:
+
+* `FULL_USER_TIER`
+* `CORE_USER_TIER`
+* `BASIC_USER_TIER`
+
+## Consultar información del usuario [#user-type]
+
+Aquí hay una consulta de ejemplo para ver todos los [tipos de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) en su organización:
+
+```
+{
+  actor {
+    organization {
+      userManagement {
+        types {
+          displayName
+          id
+        }
+      }
+    }
+  }
+}
+```
+
+A continuación se muestra una consulta de ejemplo para obtener la última fecha activa y el tipo de usuario para los usuarios en un dominio de autenticación específico:
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains (id:"YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            users {
+              users {
+                id
+                name
+                email
+                lastActive
+                type {
+                  displayName
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Crear usuario [#create-users]
+
+A continuación se muestra un ejemplo de cómo crear un usuario básico:
+
+```graphql
+mutation {
+  userManagementCreateUser(createUserOptions: {
+    authenticationDomainId: "YOUR_AUTH_DOMAIN_ID", 
+    email: "EMAIL_OF_YOUR_USER", 
+    name: "NAME_OF_YOUR_USER", 
+    userType: BASIC_USER_TIER}) {
+    createdUser {
+      authenticationDomainId
+      email
+      id
+      name
+      type {
+        displayName
+        id
+      }
+    }
+  }
+}
+```
+
+A continuación se muestra un ejemplo de respuesta de error al intentar crear un usuario dentro de un dominio de autenticación no configurado para usuarios aprovisionados manualmente:
+
+```
+{
+  "data": {
+    "userManagementCreateUser": null
+  },
+  "errors": [
+    {
+      "message": "This API can only be used to create users within Authentication Domains set for manually provisioned users."
+    }
+  ]
+}
+```
+
+A continuación se muestra un ejemplo de respuesta de error al intentar crear un usuario que ya existe en un dominio de autenticación:
+
+```
+{
+  "data": {
+    "userManagementCreateUser": null
+  },
+  "errors": [
+    {
+      "message": "User with email: <USER_EMAIL> and authentication domain: <AUTH_DOMAIN_ID> already exists."
+    }
+  ]
+}
+```
+
+## Actualizar usuario [#update-users]
+
+A continuación se muestra un ejemplo de cómo actualizar el tipo de usuario de un usuario para que sea usuario de plataforma completa:
+
+```graphql
+mutation {
+  userManagementUpdateUser(updateUserOptions: {id: "ID_OF_YOUR_USER", userType: FULL_USER_TIER}) {
+    user {
+      id
+      type {
+        displayName
+        id
+      }
+    }
+  }
+}
+```
+
+A continuación se muestra un ejemplo de cómo actualizar la dirección de correo electrónico de un usuario:
+
+```graphql
+mutation {
+  userManagementUpdateUser(updateUserOptions: {id: "ID_OF_YOUR_USER", email: "EMAIL_OF_YOUR_USER"}) {
+    user {
+      id
+      email
+    }
+  }
+}
+```
+
+## Agregar usuario a grupos [#groups]
+
+Para saber cómo administrar grupos y agregar usuarios a los grupos, consulte [Administrar grupos de usuarios con NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-manage-groups).
+
+## Eliminar usuario [#delete-users]
+
+A continuación se muestra un ejemplo de eliminación de un usuario:
+
+```
+mutation {
+  userManagementDeleteUser(deleteUserOptions: {id: "ID_OF_YOUR_USER"}) {
+    deletedUser {
+      id
+    }
+  }
+}
+```
+
+A continuación se muestra un ejemplo de respuesta de error al intentar eliminar un usuario en un dominio de autenticación proporcionado por SCIM:
+
+```
+{
+  "data": {
+    "userManagementDeleteuser": null
+  },
+  "errors": [
+    {
+      "message": "This API can only be used to delete users within Authentication Domains set for manually provisioned users."
+    }
+  ]
+}
+```
+
+## Paginación [#pagination]
+
+De forma predeterminada, la API solo devuelve como máximo 500 usuarios o 10 dominios de autenticación. Si tiene más que eso, puede usar los cursores para obtener los siguientes 500 usuarios o 10 dominios de autenticación. Esta llamada devolverá `nextCursor`, que se puede introducir en otra llamada, utilizando la entrada del cursor:
+
+```graphql
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(id: "YOUR_AUTH_DOMAIN_ID") {
+          authenticationDomains {
+            users(cursor: "=abcdEFGH2356X") {
+              nextCursor
+              totalCount
+              users {
+                email
+                id
+                lastActive
+                name
+                type {
+                  displayName
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+A continuación se muestra un ejemplo de cómo iniciar una devolución paginada de todos los dominios de autenticación de una organización:
+
+```
+{
+  actor {
+    organization {
+      userManagement {
+        authenticationDomains(cursor: "=123xyzABCx") {
+          nextCursor
+          totalCount
+          authenticationDomains {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Administrar grupos [#manage-groups]
+
+Para saber cómo administrar grupos y agregar y eliminar usuarios de los grupos, consulte [Administrar grupos](/docs/apis/nerdgraph/examples/nerdgraph-user-mgmt).

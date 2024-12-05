@@ -1,0 +1,313 @@
+---
+title: 'HistogramChart'
+metaDescription: 'Learn how to work the HistogramChart component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Creates a histogram chart. Data can either be obtained by performing a NRQL query against a particular account, or it can be passed through the `data` prop.
+
+The `data` format is a series of objects, each containing `metadata` and `data`. Each `data` contains both values from this point, and `x` and `y` keys used to plot the chart.
+
+If you want to display a histogram with multiple series, consider using `HeatmapChart`.
+
+### Usage
+
+```js
+import { HistogramChart } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<HistogramChart accountIds={[1]} query="SELECT histogram(duration, width:10, buckets:20) FROM PageView SINCE 1 month ago" />
+```
+
+#### With multiple accounts
+
+```js
+<HistogramChart accountIds={[1, 1067061]} query="SELECT histogram(duration, width:10, buckets:20) FROM PageView SINCE 1 month ago" />
+```
+
+#### Fill container
+
+```js
+<HistogramChart
+  accountIds={[1]}
+  query="SELECT histogram(duration, width:10, buckets:20) FROM PageView SINCE 1 month ago"
+  fullWidth
+  fullHeight
+/>
+```
+
+#### With custom data
+
+```js
+function render() {
+  const data = [
+     {
+       metadata: {
+         id: 'series-1',
+         name: 'Serie 1',
+         color: '#a35ebf',
+         viz: 'main',
+       },
+       data: [
+         {
+           x0: 0,
+           x1: 1,
+           y: 221,
+         },
+         {
+           x0: 1,
+           x1: 2,
+           y: 581,
+         },
+         {
+           x0: 2,
+           x1: 3,
+           y: 1330,
+         },
+         {
+           x0: 3,
+           x1: 4,
+           y: 2220,
+         },
+         {
+           x0: 4,
+           x1: 5,
+           y: 1810,
+         },
+         {
+           x0: 5,
+           x1: 6,
+           y: 1290,
+         },
+         {
+           x0: 6,
+           x1: 7,
+           y: 895,
+         },
+         {
+           x0: 7,
+           x1: 8,
+           y: 755,
+         },
+         {
+           x0: 8,
+           x1: 9,
+           y: 460,
+         },
+         {
+           x0: 9,
+           x1: 310,
+           y: 414,
+         },
+       ],
+     },
+   ];;
+
+
+  return <HistogramChart data={data} fullWidth />;
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `accountId` <h5>DEPRECATED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        <Callout variant="caution" title="Due November 1st, 2022">The accountId is deprecated, use accountIds instead </Callout>Sets the account ID to perform the query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `accountIds` <h5>number\[]</h5>
+      </td>
+
+      <td>
+        Sets the account IDs to perform the query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `data` <h5>object\[]</h5>
+      </td>
+
+      <td>
+        Data is an array of objects where each object represents a series to be drawn. Each series comprises visualization metadata and an array of data points.
+
+        ```js
+        const data = [
+          {
+            metadata: {
+              id: 'series-1',
+              name: 'Serie 1',
+              color: '#a35ebf',
+              viz: 'main',
+            },
+            data: [
+              {
+                x0: 0,
+                x1: 1,
+                y: 221,
+              },
+              {
+                x0: 1,
+                x1: 2,
+                y: 581,
+              },
+              {
+                x0: 2,
+                x1: 3,
+                y: 1330,
+              },
+              {
+                x0: 3,
+                x1: 4,
+                y: 2220,
+              },
+              {
+                x0: 4,
+                x1: 5,
+                y: 1810,
+              },
+              {
+                x0: 5,
+                x1: 6,
+                y: 1290,
+              },
+              {
+                x0: 6,
+                x1: 7,
+                y: 895,
+              },
+              {
+                x0: 7,
+                x1: 8,
+                y: 755,
+              },
+              {
+                x0: 8,
+                x1: 9,
+                y: 460,
+              },
+              {
+                x0: 9,
+                x1: 310,
+                y: 414,
+              },
+            ],
+          },
+        ];
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the chart to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the chart to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `onClickEvent` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a click listener that gets triggered when the user clicks over the corresponding event.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClickHistogram` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a click listener that gets triggered when the user clicks over the corresponding histogram.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHoverEvent` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a hover listener that gets triggered when the cursor is hovered over the corresponding event.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHoverHistogram` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a hover listener that gets triggered when the cursor is hovered over the corresponding histogram.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query` <h5>string</h5>
+      </td>
+
+      <td>
+        NRQL query used for fetching data. The query is performed against the provided `accountIds`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+  </tbody>
+</table>

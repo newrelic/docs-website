@@ -1,0 +1,180 @@
+---
+title: CloudWatch fallback
+metaDescription: This doc guides you through shipping your telemetry data with Cloudwatch as a fail-safe option.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede enviar datos de monitoreo de New Relic Lambda de diferentes maneras según sus necesidades. La opción que proporciona el rendimiento más estable de su función y la seguridad más estable incluye configurar CloudWatch como alternativa. Esto significa que enviarás telemetría a New Relic a través de la extensión y, si hay un problema con la extensión, New Relic seguirá recibiendo carga a través de CloudWatch.
+
+Beneficios del CloudWatch fallback:
+
+* **Ejecución independiente**: captura todos los logs de CloudWatch independientemente de la ejecución de su función. Es muy poco probable que interfiera con el funcionamiento normal de su función o afecte la duración de la invocación de su función.
+* **Funciona con redes seguras**: útil para funciones en una VPC que no puede tener tráfico saliente a New Relic.
+* **Permite un monitoreo mejorado**: Necesario para otras formas de infraestructura y telemetría de base de datos. Para obtener más información, consulte nuestra [documentación de integración de monitoreo mejorado de Amazon RDS](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-rds-enhanced-monitoring-integration/).
+
+Si bien esta opción de envío ofrece la seguridad más estable, es importante tener en cuenta que el servicio AWS CloudWatch puede generar una gran cantidad de datos. Tenga en cuenta la ingesta de datos cuando piense en los costos y en el plan de precios de New Relic que elija.
+
+## Cómo funciona el CloudWatch fallback [#works]
+
+Si la extensión no se inicia, también conocido como modo noop, o falla, no podrá codificar la línea `NR_LAMBDA_MONITORING` generada por nuestro agente. En su lugar, la línea `NR_LAMBDA_MONITORING` aparecerá en el log de CloudWatch. Si la función `newrelic-log-ingestion` está instalada en la misma región que su función, configurada para enviar carga y es activada por el grupo log de CloudWatch de su función, entonces puede actuar como una alternativa a la extensión para enviar carga.
+
+## Antes de que empieces [#requirements]
+
+Antes de configurar una opción alternativa, deberá completar lo siguiente:
+
+* Instale la función `newrelic-log-ingestion` en la región AWS desde donde desea enviar su log.
+* Si envía un log, cree un patrón de filtro igual a nulo o cree un patrón personalizado que coincida con el log de función que desea enviar. New Relic recibirá el log de CloudWatch para su función. Para evitar logs duplicados, la extensión debe tener deshabilitado el envío log . El envío log de la extensión está deshabilitado de forma predeterminada.
+
+Estas son algunas de las mejores prácticas antes de actualizar su capa New Relic Lambda:
+
+* Antes de actualizar a una versión de capa más nueva, tenga en cuenta que la capa más reciente puede introducir cambios que rompan la extensión o una dependencia de terceros.
+* Fije una versión de capa que se sepa que funciona bien para su función y solo actualice a una versión de capa más nueva según sea necesario para resolver errores, obtener nuevas características y parches de seguridad, o porque un agente alcanzó el EOL.
+* Revise cuidadosamente todos los cambios y notas de la versión y pruebe en un entorno de desarrollo o de prueba antes de implementar una nueva capa en producción.
+
+## Opciones de implementación [#fallback]
+
+Hay tres formas de implementar un respaldo de CloudWatch:
+
+1. **Habilite la extensión para carga de telemetría y envíe el log a través de CloudWatch**: en este escenario, la carga de telemetría se envía a través de la extensión y el log a través de CloudWatch y, en caso de que la extensión falle, la carga también.
+2. **Extensión habilitada para carga y log de telemetría**: En este escenario, la carga y el log de telemetría se envían a través de la extensión.
+3. **Extensión deshabilitada**: en este escenario, CloudWatch siempre se usa para enviar logs y carga.
+
+<CollapserGroup>
+  <Collapser id="optional" title="Respaldo de carga con log de CloudWatch opcional">
+    Si no envía el log a CloudWatch, esta opción es la forma más económica y estable de garantizar que la carga instrumentada siempre llegue a New Relic. Si envía un log, esta opción introducirá algunos costos de CloudWatch por el envío log . Consulte [Ingesta de datos: facturación y reglas](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/) para obtener más información sobre los precios.
+
+    Luego de agregar una capa New Relic Lambda, la extensión está habilitada y tiene el envío log deshabilitado de forma predeterminada.
+
+    1. Establezca [variables de entorno de extensión](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go) en su función:
+
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`: `true` (predeterminado)
+       * `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`: `false` (predeterminado)
+
+    2. Establezca las variables de entorno de su función `newrelic-log-ingestion` :
+
+       * `INFRA_ENABLED`: `true`
+       * `LOGGING_ENABLED`: `true` (si envía el registro)
+
+    O, si estás usando [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers), configura:
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: true
+        enableFunctionLogs: false
+        enableIntegration: true
+        cloudWatchFilter: "*"
+    ```
+
+    <Callout variant="tip">
+      El parámetro `enableIntegration` solo debe incluir si su función se está implementando en una cuenta AWS que aún no tiene una integración. Una vez configurada la integración, esta opción debe eliminar del `serverless.yml` empleado para implementar su función.
+    </Callout>
+
+    O, si estás usando [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli), configura:
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY> --enable-logs
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID>
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern ""
+    ```
+  </Collapser>
+
+  <Collapser id="optional" title="Respaldo de carga con log de extensión opcional">
+    Esta opción proporciona la ruta de menor costo que garantiza que la carga instrumentada siempre llegue a New Relic. Esta opción envía el log de funciones a través de la extensión New Relic Lambda, por lo que si la extensión no se inicia o falla, el log de funciones faltará en New Relic.
+
+    Si está enviando un log de función, cerciorar de que la extensión esté configurada para hacerlo. Estos logs solo los enviará la extensión y no habrá un respaldo de CloudWatch para el log para evitar duplicados.
+
+    Luego de agregar una capa New Relic Lambda, la extensión está habilitada y tiene el envío log deshabilitado de forma predeterminada. Si desea ver el log de funciones en New Relic, deberá usar variables de entorno para permitir que la extensión envíe el log de funciones.
+
+    Es importante tener en cuenta que los logs de funciones son solo eso, logs que registra la función durante su invocación. La extensión no enviará logs de Lambda plataforma como `START` y `END`.
+
+    1. Establezca [variables de entorno de extensión](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go) en su función:
+
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`: `true` (predeterminado)
+       * `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`: `true` 2 Configure las variables de entorno de su función `newrelic-log-ingestion` :
+       * `INFRA_ENABLED`: `true`
+       * `LOGGING_ENABLED`: `false` (deshabilite el reenvío de logpara evitar duplicados o configure el patrón de filtro de subscripción de CloudWatch para que coincida solo con `NR_LAMBDA_MONITORING` líneas)
+
+    O, si estás usando [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers), configura:
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: true
+        enableFunctionLogs: true
+        enableIntegration: true
+        cloudWatchFilter: "NR_LAMBDA_MONITORING" # (only send payloads)
+    ```
+
+    <Callout variant="tip">
+      El parámetro `enableIntegration` solo debe incluir si su función se está implementando en una cuenta AWS que aún no tiene una integración. Una vez configurada la integración, esta opción debe eliminar del `serverless.yml` empleado para implementar su función.
+    </Callout>
+
+    O, si estás usando [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli), configura:
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY>
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID>
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern "NR_LAMBDA_MONITORING"
+    ```
+  </Collapser>
+
+  <Collapser id="always-send" title="Enviar siempre log y carga a través de CloudWatch">
+    Esta opción depende completamente de CloudWatch y nuestra función `newrelic-log-ingestion` para enviar logs y carga a New Relic. Esta opción tiene la extensión deshabilitada para evitar posibles tiempos de inactividad causados por fallas de la extensión.
+
+    Para este método, la extensión New Relic Lambda debe estar completamente deshabilitada para que no impida que la línea `NR_LAMBDA_MONITORING` se escriba en CloudWatch. Con la extensión New Relic Lambda desactivada, toda la telemetría saldrá a través de CloudWatch, el filtro de subscripción y la función `newrelic-log-ingestion`.
+
+    Luego de agregar una capa New Relic Lambda, la extensión está habilitada y tiene el envío log deshabilitado de forma predeterminada. Deberá deshabilitar la extensión con una variable de entorno.
+
+    1. Configure [las variables de entorno de extensión](https://github.com/newrelic/newrelic-lambda-extension/blob/main/config/config.go) en su función de la siguiente manera:
+       * `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`: `false`
+
+    2. Configure las variables de entorno de su función `newrelic-log-ingestion` de la siguiente manera:
+
+       * `INFRA_ENABLED`: `true`
+       * `LOGGING_ENABLED`: `true`
+
+    O, si estás usando [`serverless-newrelic-lambda-layers`](https://github.com/newrelic/serverless-newrelic-lambda-layers), configura:
+
+    ```yaml
+    custom:
+      newRelic:
+        enableExtension: false
+        enableIntegration: true
+        cloudWatchFilter: "*"
+    ```
+
+    <Callout variant="tip">
+      El parámetro `enableIntegration` solo debe incluir si su función se está implementando en una cuenta AWS que aún no tiene una integración. Una vez configurada la integración, esta opción debe eliminar del `serverless.yml` empleado para implementar su función.
+    </Callout>
+
+    O, si estás usando [`newrelic-lambda-cli`](https://github.com/newrelic/newrelic-lambda-cli), configura:
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id <YOUR_ACCOUNT_ID> --nr-api-key <YOUR_API_KEY>
+    newrelic-lambda layers install --function <name or arn> --nr-account-id <YOUR_NEW_RELIC_ACCOUNT_ID> --disable-extension
+    newrelic-lambda subscriptions install --function <name or arn> --filter-pattern ""
+    ```
+
+    También puede elegir manualmente enviar datos solo a CloudWatch. Para hacer esto:
+
+    1. Deshabilite la extensión agregando la variable de entorno `NEW_RELIC_LAMBDA_EXTENSION_ENABLED` a su función, con el valor `false`.
+    2. Cree un filtro de suscripción de logs de CloudWatch para invocar la función `newrelic-log-ingestion` con el log de su función.
+
+    * La CLI puede hacer esto por usted: `newrelic-lambda subscriptions install --function FUNCTION_NAME`
+    * Alternativamente, use la consola AWS para crear un filtro de subscripción desde el grupo log de CloudWatch de su función para invocar la función `newrelic-log-ingestion` Lambda.
+
+    O puede seguir estos pasos para transmitir el log de CloudWatch a New Relic Lambda:
+
+    1. Abra CloudWatch y seleccione <DNT>**Logs**</DNT> en el menú de la izquierda y luego seleccione el grupo log para la función que está monitoreando.
+    2. Seleccione <DNT>**Actions &gt; Subscription filters &gt; Create Lambda subscription filter**</DNT>.
+    3. En <DNT>**Lambda function**</DNT>, seleccione la función `newrelic-log-ingestion` .
+    4. Establezca el <DNT>**Log format**</DNT> en `JSON`.
+    5. Establezca el <DNT>**Subscription filter pattern to**</DNT> `?REPORT ?NR_LAMBDA_MONITORING ?"Task timed out" ?RequestId`. Alternativamente, si está empleando la variable de entorno `LOGGING_ENABLED` [, transmita todo su log](#stream-all-logs) a nuestro log, deje este campo en blanco.
+
+    <Callout variant="important">
+      Asegúrese de que la función Lambda `newrelic-log-ingestion` que seleccione en el método anterior esté en la misma región de AWS que su función Lambda.
+    </Callout>
+  </Collapser>
+</CollapserGroup>

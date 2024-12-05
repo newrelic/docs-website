@@ -1,0 +1,8394 @@
+---
+title: Configuración del agente Ruby
+tags:
+  - Agents
+  - Ruby agent
+  - Configuration
+metaDescription: 'APM for Ruby: how to configure the Ruby agent, including editing the config file and setting environment variables.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede configurar el agente New Relic Ruby con configuraciones en un archivo de configuración, variables de entorno o mediante programación con configuración del lado del servidor. Este documento resume las opciones de configuración disponibles para el agente Ruby.
+
+Si el valor predeterminado para una opción de configuración es `(Dynamic)`, esto significa que el agente Ruby calcula el valor predeterminado en tiempo de ejecución. El valor de la configuración es el valor predeterminado de otra configuración, según corresponda.
+
+## Métodos de configuración y precedencia. [#Options]
+
+El método principal (predeterminado) para configurar el agente Ruby es a través del archivo de configuración (`newrelic.yml`) en el subdirectorio `config` . Para establecer valores de configuración utilizando variables de entorno:
+
+1. Agregue el prefijo `NEW_RELIC_` al nombre de la configuración.
+2. Reemplace los puntos `.` con guiones bajos `_`.
+
+También puede configurar algunos valores en la UI mediante [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration).
+
+El agente Ruby sigue este orden de precedencia para la configuración:
+
+1. Variables de entorno
+2. Configuración del lado del servidor
+3. Archivo de configuración (`newrelic.yml`)
+4. Ajustes de configuración predeterminados
+
+En otras palabras, las variables de entorno anulan todas las demás configuraciones e información de configuración, la configuración del lado del servidor anula el archivo de configuración y las configuraciones predeterminadas, y así sucesivamente.
+
+## Ver y editar opciones de archivos de configuración [#Edit]
+
+El `newrelic.yml` del agente Ruby es un archivo de configuración YAML estándar. Por lo general, incluye una sección `Defaults` en la parte superior, además de secciones a continuación para cada entorno de aplicación; por ejemplo, `Development`, `Testing` y `Production`.
+
+El agente Ruby determina desde qué sección del archivo de configuración `newrelic.yml` leer observando ciertas variables de entorno para derivar el entorno de la aplicación. Esto puede ser útil, por ejemplo, cuando desea utilizar `info` para la configuración `log_level` en su entorno de producción y desea configuraciones de configuración `log_level` más detalladas (como `debug` en su entorno de desarrollo.
+
+A continuación se muestra un archivo de configuración `newrelic.yml` de ejemplo:
+
+```yaml
+common: &default_settings
+  license_key: 'YOUR_LICENSE_KEY'
+  app_name: 'My Application Name'
+production:
+  <<: *default_settings
+  log_level: info
+development:
+  <<: *default_settings
+  log_level: debug
+```
+
+Para aplicaciones que no son Rails, el agente Ruby busca las siguientes variables de entorno, en este orden, para determinar el entorno de la aplicación:
+
+1. `NEW_RELIC_ENV`
+2. `RUBY_ENV`
+3. `RAILS_ENV`
+4. `APP_ENV`
+5. `RACK_ENV`
+
+Si el agente Ruby no detecta valores para ninguna de esas variables de entorno, establecerá de forma predeterminada el entorno de la aplicación en `development` y leerá desde la sección `development` del archivo de configuración `newrelic.yml` .
+
+Al ejecutar el agente Ruby en una aplicación Rails, el agente primero busca la variable de entorno `NEW_RELIC_ENV` para determinar el entorno de la aplicación y qué sección de `newrelic.yml` usar. Si `NEW_RELIC_ENV` no está presente, el agente utiliza el entorno Rails (`RAILS_ENV` o `RAILS.env`, según la versión de Rails).
+
+Cuando edite el archivo de configuración, asegúrese de:
+
+* Sangría sólo con dos espacios.
+
+* Sangra solo cuando sea relevante, en secciones como
+
+  <DNT>
+    **`error_collector`**
+  </DNT>
+
+  .
+
+Si no aplica la sangría correctamente, el agente puede generar un error `Unable to parse configuration file` al iniciar.
+
+Para ver la lista más actualizada de opciones de configuración del agente Ruby disponibles, utilice el comando `rake newrelic:config:docs` . Este documento describe las opciones más comunes.
+
+## Actualizar el archivo de configuración [#Updates]
+
+Esta documentación se aplica a la última versión del agente Ruby. Para obtener detalles sobre versiones anteriores, consulte los comentarios en el propio `newrelic.yml` .
+
+Para actualizar el archivo `newrelic.yml` después de una nueva versión, utilice la plantilla en el directorio base de la gema del agente. Cuando actualice a nuevas versiones de gemas, examine o diferencie `config/newrelic.yml` y `newrelic.yml` en el [directorio de instalación](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#ruby-agent) para aprovechar las nuevas opciones de configuración.
+
+<Callout variant="important">
+  La actualización de la gema no actualiza automáticamente `config/newrelic.yml`.
+</Callout>
+
+## General [#general]
+
+Estas configuraciones están disponibles para la configuración del agente. Algunas configuraciones dependen de su nivel de suscripción a New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="agent_enabled"
+    title="agent_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AGENT_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, permite que se ejecute el agente Ruby.
+  </Collapser>
+
+  <Collapser
+    id="app_name"
+    title="app_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `(Dynamic)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APP_NAME`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique el [nombre de la aplicación](/docs/apm/new-relic-apm/installation-configuration/name-your-application) utilizada para agregar datos en la UI de New Relic. Para informar datos a [varias aplicaciones al mismo tiempo](/docs/apm/new-relic-apm/installation-configuration/using-multiple-names-app), especifique una lista de nombres separados por un punto y coma `;`. Por ejemplo, `MyApp` o `MyStagingApp;Instance1`.
+  </Collapser>
+
+  <Collapser
+    id="license_key"
+    title="license_key"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_LICENSE_KEY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Tu New Relic <InlinePopover type="licenseKey"/>.
+  </Collapser>
+
+  <Collapser
+    id="log_level"
+    title="log_level"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"info"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG_LEVEL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nivel de detalle del mensaje de log. Los posibles niveles de registros, con mayor detalle, son: `error`, `warn`, `info` o `debug`.
+  </Collapser>
+
+  <Collapser
+    id="active_support_custom_events_names"
+    title="active_support_custom_events_names"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ACTIVE_SUPPORT_CUSTOM_EVENTS_NAMES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una matriz de nombres personalizados de eventos ActiveSupport para suscribirse e instrumento. Por ejemplo,
+
+    * one.custom.event
+    * another.event
+    * a.third.event
+  </Collapser>
+
+  <Collapser
+    id="api_key"
+    title="api_key"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_API_KEY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Tu New Relic <InlinePopover type="userKey"/>. Requerido cuando se utiliza la API REST v2 de New Relic para registrar el despliegue usando el comando `newrelic deployments` .
+  </Collapser>
+
+  <Collapser
+    id="backport_fast_active_record_connection_lookup"
+    title="backport_fast_active_record_connection_lookup"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_BACKPORT_FAST_ACTIVE_RECORD_CONNECTION_LOOKUP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Respalda la búsqueda de conexiones ActiveRecord más rápida introducida en Rails 6, lo que mejora el rendimiento del agente cuando se instrumenta ActiveRecord. Tenga en cuenta que esta configuración puede no ser compatible con otras gemas que parchean ActiveRecord.
+  </Collapser>
+
+  <Collapser
+    id="ca_bundle_path"
+    title="ca_bundle_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `nil`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CA_BUNDLE_PATH`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Anulación manual de la ruta a su paquete de CA local. Este paquete de CA se utilizará para validar el certificado SSL presentado por el servicio de recopilación de datos de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="capture_memcache_keys"
+    title="capture_memcache_keys"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CAPTURE_MEMCACHE_KEYS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita la captura de claves de Memcache de la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="capture_params"
+    title="capture_params"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CAPTURE_PARAMS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente captura el parámetro de solicitud HTTP y los adjunta a la traza de la transacción, los errores de traza y [`TransactionError` evento](/attribute-dictionary?attribute_name=&events_tids%5B%5D=8241).
+
+    <Callout variant="caution">
+      Cuando se utiliza la configuración `capture_params` , el agente Ruby no intentará filtrar información secreta. `Recommendation:` Para filtrar información secreta del parámetro de solicitud, utilice la [configuración`attributes.include` ](/docs/agents/ruby-agent/attributes/enable-disable-attributes-ruby)en su lugar. Para obtener más información, consulte los <a href="/docs/agents/ruby-agent/attributes/ruby-attribute-examples#ex_req_params">ejemplos de atributos de Ruby</a>.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="clear_transaction_state_after_fork"
+    title="clear_transaction_state_after_fork"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CLEAR_TRANSACTION_STATE_AFTER_FORK`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente borrará `Tracer::State` en `Agent.drop_buffered_data`.
+  </Collapser>
+
+  <Collapser
+    id="config_path"
+    title="config_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `(Dynamic)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CONFIG_PATH`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Ruta a `newrelic.yml`. Si no está definido, el agente verifica los siguientes directorios (en orden):
+
+    * `config/newrelic.yml`
+    * `newrelic.yml`
+    * `$HOME/.newrelic/newrelic.yml`
+    * `$HOME/newrelic.yml`
+  </Collapser>
+
+  <Collapser
+    id="exclude_newrelic_header"
+    title="exclude_newrelic_header"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_EXCLUDE_NEWRELIC_HEADER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite suprimir los encabezados distribuidos de newrelic rastreo en solicitudes salientes.
+  </Collapser>
+
+  <Collapser
+    id="force_install_exit_handler"
+    title="force_install_exit_handler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_FORCE_INSTALL_EXIT_HANDLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Obliga a que se instale el controlador de salida que envía todos los datos almacenados en caché al recolector antes de apagarse, independientemente de detectar escenarios en los que generalmente no debería estarlo. El caso de uso conocido de esta opción es cuando Sinatra se ejecuta como un servicio integrado dentro de otro framework y el agente detecta la aplicación Sinatra y, como resultado, omite el controlador `at_exit`. Sinatra clásicamente ejecuta toda la aplicación en un bloque `at_exit` y, de lo contrario, se comportaría mal si el controlador `at_exit` del agente también se instalara en esas circunstancias. Nota: `send_data_on_exit` también debe establecerse en `true` junto con esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="high_security"
+    title="high_security"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_HIGH_SECURITY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, habilita [el modo de alta seguridad](/docs/accounts-partnerships/accounts/security/high-security). Asegúrese de comprender las implicaciones del modo de alta seguridad antes de habilitar esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="labels"
+    title="etiquetas"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_LABELS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un diccionario de [nombres y valores de etiquetas](/docs/data-analysis/user-interface-functions/labels-categories-organize-your-apps-servers) que se aplicarán a los datos enviados desde este agente. También se puede expresar como una cadena `;` delimitada por punto y coma de pares `:` separados por dos puntos. Por ejemplo, `Server:One;Data Center:Primary`.
+  </Collapser>
+
+  <Collapser
+    id="log_file_name"
+    title="log_file_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"newrelic_agent.log"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG_FILE_NAME`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un nombre para el archivo de registro.
+  </Collapser>
+
+  <Collapser
+    id="log_file_path"
+    title="log_file_path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"log/"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG_FILE_PATH`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define una ruta al archivo de registro del agente, excluyendo el nombre del archivo.
+  </Collapser>
+
+  <Collapser
+    id="marshaller"
+    title="marshaller"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"json"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_MARSHALLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica un señalizador para transmitir datos al [recolector](/docs/apm/new-relic-apm/getting-started/glossary#collector) New Relic. Actualmente `json` es el único valor válido para esta configuración.
+  </Collapser>
+
+  <Collapser
+    id="monitor_mode"
+    title="monitor_mode"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_MONITOR_MODE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, el agente transmite datos sobre su aplicación al [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="prepend_active_record_instrumentation"
+    title="prepend_active_record_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PREPEND_ACTIVE_RECORD_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, utiliza `Module#prepend` en lugar de `alias_method` para la instrumentación de ActiveRecord.
+  </Collapser>
+
+  <Collapser
+    id="proxy_host"
+    title="proxy_host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `nil`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_HOST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un host para comunicarse con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic a través de un servidor proxy.
+  </Collapser>
+
+  <Collapser
+    id="proxy_pass"
+    title="proxy_pass"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `nil`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_PASS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define una contraseña para comunicarse con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic a través de un servidor proxy.
+  </Collapser>
+
+  <Collapser
+    id="proxy_port"
+    title="proxy_port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `8080`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_PORT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un puerto para comunicarse con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic a través de un servidor proxy.
+  </Collapser>
+
+  <Collapser
+    id="proxy_user"
+    title="proxy_user"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `nil`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_USER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un usuario para comunicarse con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic a través de un servidor proxy.
+  </Collapser>
+
+  <Collapser
+    id="security_policies_token"
+    title="security_policies_token"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_POLICIES_TOKEN`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Aplica la configuración de la política de seguridad del agente de idioma.
+  </Collapser>
+
+  <Collapser
+    id="send_data_on_exit"
+    title="send_data_on_exit"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SEND_DATA_ON_EXIT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita el controlador de salida que envía datos al [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic antes de apagarse.
+  </Collapser>
+
+  <Collapser
+    id="sync_startup"
+    title="sync_startup"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SYNC_STARTUP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, fuerza una conexión sincrónica con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic durante el inicio de la aplicación. Para procesos de muy corta duración, esto ayuda a garantizar que el agente de New Relic tenga tiempo para informar.
+  </Collapser>
+
+  <Collapser
+    id="timeout"
+    title="se acabó el tiempo"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `120`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TIMEOUT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de segundos que el agente debe dedicar a intentar conectarse al recolector.
+  </Collapser>
+
+  <Collapser
+    id="allow_all_headers"
+    title="allow_all_headers"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ALLOW_ALL_HEADERS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la captura de todos los encabezados de solicitud HTTP para todos los destinos.
+  </Collapser>
+
+  <Collapser
+    id="defer_rails_initialization"
+    title="defer_rails_initialization"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DEFER_RAILS_INITIALIZATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, cuando el agente esté en una aplicación que utilice Ruby on Rails, se iniciará después de ejecutar `config/initializers` .
+
+    <Callout variant="caution">
+      Esta opción solo puede establecerse mediante una variable de entorno.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Rastreador de transacciones [#transaction-tracer]
+
+La [traza de la transacción](/docs/apm/traces/transaction-traces/transaction-traces) característica recopila información detallada de una selección de transacciones, incluido un resumen de la secuencia de llamadas, un desglose del tiempo invertido y una lista de consultas SQL y sus planes de consulta (en MySQL y postgresql). La característica disponible depende de su nivel de suscripción a New Relic.
+
+<CollapserGroup>
+  <Collapser
+    id="transaction_tracer-enabled"
+    title="transaction_tracer.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la recopilación de la [traza de la transacción](/docs/apm/traces/transaction-traces/transaction-traces).
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-explain_enabled"
+    title="transaction_tracer.explain_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_EXPLAIN_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la recopilación de planos explicativos en la traza de la transacción. Esta configuración también se aplicará para explicar planes en traza SQL lenta si [`slow_sql.explain_enabled`](#slow_sql-explain_enabled) no se configura por separado.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-explain_threshold"
+    title="transaction_tracer.explain_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.5`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_EXPLAIN_THRESHOLD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Umbral (en segundos) por encima del cual el agente recopilará planes explicativos. Relevante solo cuando [`explain_enabled`](#transaction_tracer.explain_enabled) es verdadero.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-limit_segments"
+    title="transaction_tracer.limit_segments"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `4000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_LIMIT_SEGMENTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Número máximo de nodos de traza de la transacción a registrar en una única traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-record_redis_arguments"
+    title="transaction_tracer.record_redis_arguments"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_RECORD_REDIS_ARGUMENTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente registra los argumentos del comando Redis en la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-record_sql"
+    title="transaction_tracer.record_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"obfuscated"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_RECORD_SQL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Nivel de ofuscación para consulta SQL reportado en los nodos de traza de la transacción.
+
+    De forma predeterminada, está configurado en `obfuscated`, lo que elimina los literales numéricos y de cadena.
+
+    * Si no desea que el agente capture información de la consulta, configúrelo en `none`.
+    * Si desea que el agente capture toda la información de la consulta en su formato original, configúrelo en `raw`.
+    * Cuando habilita [el modo de alta seguridad](/docs/agents/manage-apm-agents/configuration/high-security-mode), se establece automáticamente en `obfuscated`.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-stack_trace_threshold"
+    title="transaction_tracer.stack_trace_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.5`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_STACK_TRACE_THRESHOLD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique un umbral en segundos. El agente incluye el rastreo del stack en los nodos de traza de la transacción cuando la duración del rastreo del stack excede este umbral.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-transaction_threshold"
+    title="transaction_tracer.transaction_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `(Dynamic)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_TRANSACTION_THRESHOLD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique un umbral en segundos. Las transacciones con una duración superior a este umbral son elegibles para la traza de la transacción. Especifique un valor flotante o la cadena `apdex_f`.
+  </Collapser>
+</CollapserGroup>
+
+## Recolector de errores [#error-collector]
+
+El agente recopila e informa todas las excepciones no detectadas de forma predeterminada. Estas opciones de configuración le permiten personalizar la recopilación de errores.
+
+Para obtener información sobre errores ignorados y esperados, [consulte esta página sobre Análisis de errores en APM](/docs/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/). Para configurar el error esperado mediante el método Ruby `NewRelic::Agent.notice_error` , [consulte la API del agente Ruby](/docs/agents/ruby-agent/api-guides/sending-handled-errors-new-relic/).
+
+<CollapserGroup>
+  <Collapser
+    id="error_collector-ignore_classes"
+    title="error_collector.ignore_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `["ActionController::RoutingError", "Sinatra::NotFound"]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `None`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista de clases de error que el agente debe ignorar.
+
+    <Callout variant="caution">
+      Esta opción no se puede configurar mediante una variable de entorno.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_collector-capture_events"
+    title="error_collector.capture_events"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_CAPTURE_EVENTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente recopila [`TransactionError` evento](/docs/insights/new-relic-insights/decorating-events/error-event-default-attributes-insights).
+  </Collapser>
+
+  <Collapser
+    id="error_collector-enabled"
+    title="error_collector.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura los errores de traza y el recuento de errores métrico.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-expected_classes"
+    title="error_collector.expected_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `None`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista de clases de errores que el agente debe tratar como se esperaba.
+
+    <Callout variant="caution">
+      Esta opción no se puede configurar mediante una variable de entorno.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_collector-expected_messages"
+    title="error_collector.expected_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Hash
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `{}`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `None`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un mapa de clases de error a una lista de mensajes. Cuando ocurre un error de una de las clases especificadas aquí, si su mensaje de error contiene una de las cadenas correspondientes aquí, ese error se tratará como se esperaba.
+
+    <Callout variant="caution">
+      Esta opción no se puede configurar mediante una variable de entorno.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_collector-expected_status_codes"
+    title="error_collector.expected_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_EXPECTED_STATUS_CODES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista de códigos de estado separados por comas, que posiblemente incluya rangos. Los errores asociados con estos códigos de estado, cuando corresponda, se tratarán como se espera.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-ignore_messages"
+    title="error_collector.ignore_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Hash
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `{}`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `None`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un mapa de clases de error a una lista de mensajes. Cuando ocurre un error de una de las clases especificadas aquí, si su mensaje de error contiene una de las cadenas correspondientes aquí, ese error será ignorado.
+
+    <Callout variant="caution">
+      Esta opción no se puede configurar mediante una variable de entorno.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_collector-ignore_status_codes"
+    title="error_collector.ignore_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_IGNORE_STATUS_CODES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista de códigos de estado separados por comas, que posiblemente incluya rangos. Se ignorarán los errores asociados con estos códigos de estado, cuando corresponda.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-max_backtrace_frames"
+    title="error_collector.max_backtrace_frames"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `50`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_MAX_BACKTRACE_FRAMES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de fotogramas en un seguimiento de error. Los retrocesos que superan esta cantidad se truncan al principio y al final.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-max_event_samples_stored"
+    title="error_collector.max_event_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `100`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_MAX_EVENT_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de [`TransactionError` eventos](/docs/insights/new-relic-insights/decorating-events/error-event-default-attributes-insights) informados por ciclo de recolección.
+  </Collapser>
+</CollapserGroup>
+
+## Monitoreo de IA [#ai-monitoring]
+
+Esta sección incluye la configuración del agente Ruby para configurar el monitoreo de IA.
+
+<Callout variant="important">
+  Debe habilitar rastreo distribuido para capturar datos de traza y retroalimentación. Está activado de forma predeterminada en Ruby agente 8.0.0 y superiores.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="ai-monitoring-enabled"
+    title="ai_monitoring.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, habilita el monitoreo de IA.
+  </Collapser>
+
+  <Collapser
+    id="ruby-openai"
+    title="instrumentation.ruby_openai"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RUBY_OPENAI`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * En modo de alta seguridad, el valor predeterminado es `false`.
+
+    * Permite al agente instrumentar una aplicación. Admitimos `prepend` para anteponer módulo y `chain` para cadena de método de alias.
+
+      * El agente Ruby usa `prepend` de forma predeterminada.
+      * Si tiene varias bibliotecas que actualizan la misma clase, puede actualizar esta configuración a `chain`.
+  </Collapser>
+
+  <Collapser
+    id="ai-monitoring-record-content"
+    title="ai_monitoring.record_content.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_RECORD_CONTENT_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Si se establece en `false`, el agente omite el contenido de entrada y salida (como cadenas de texto de símbolo y respuestas) capturado en el evento LLM.
+
+      * Elimina `content` atributo de `LlmChatCompletionMessage` evento
+      * Suelta `input` atributo from `LlmEmbedding` evento
+
+    * Esta es una configuración de seguridad opcional si no desea registrar datos confidenciales enviados y recibidos de sus LLM.
+  </Collapser>
+</CollapserGroup>
+
+## Monitoreo del navegador [#browser-monitoring]
+
+La característica[de tiempo de carga de la página](/docs/browser/new-relic-browser/page-load-timing/page-load-timing-process) <InlinePopover type="browser"/>(a veces denominada monitoreo de usuarios reales o RUM) le brinda información valiosa sobre el rendimiento que los usuarios reales están experimentando con su sitio web. Esto se logra midiendo el tiempo que le toma al navegador de su usuario descargar y representar sus páginas web inyectando una pequeña cantidad de código JavaScript en el encabezado y pie de página de cada página.
+
+<CollapserGroup>
+  <Collapser
+    id="browser_monitoring-auto_instrument"
+    title="browser_monitoring.auto_instrument"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_AUTO_INSTRUMENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita [la inyección automática](/docs/browser/new-relic-browser/installation-configuration/adding-apps-new-relic-browser#select-apm-app) del encabezado de JavaScript para el tiempo de carga de la página (a veces denominado monitoreo de usuarios reales o RUM).
+  </Collapser>
+</CollapserGroup>
+
+## Evento de transacción [#transaction-events]
+
+<CollapserGroup>
+  <Collapser
+    id="transaction_events-enabled"
+    title="transaction_events.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita el muestreo de eventos de transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_events-max_samples_stored"
+    title="transaction_events.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `1200`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos de transacción reportados de una sola cosecha.
+  </Collapser>
+</CollapserGroup>
+
+## Registro de aplicaciones [#application-logging]
+
+El agente Ruby admite [el logs en el contexto de APM](/docs/apm/new-relic-apm/getting-started/get-started-logs-context). Para obtener algunos consejos sobre cómo configurar el registro para el agente Ruby, consulte [Configurar el logs en el contexto de Ruby](/docs/logs/logs-context/configure-logs-context-ruby).
+
+Las opciones de configuración disponibles relacionadas con el registro incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="application_logging-enabled"
+    title="application_logging.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la decoración log y la recopilación de registros de evento y métrica.
+  </Collapser>
+
+  <Collapser
+    id="application_logging-forwarding-enabled"
+    title="application_logging.forwarding.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura los log emitidos por su aplicación.
+  </Collapser>
+
+  <Collapser
+    id="application_logging-forwarding-log_level"
+    title="application_logging.forwarding.log_level"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"debug"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_LOG_LEVEL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el nivel mínimo que debe tener un registro de eventos para reenviarse a New Relic.
+
+    Esto se basa en los valores enteros de las constantes `Logger::Severity` de Ruby: [https://github.com/ruby/ruby/blob/master/lib/logger/severity.rb](https://github.com/ruby/ruby/blob/master/lib/logger/severity.rb)
+
+    La intención es reenviar el log con el nivel dado a la configuración, así como cualquier log con un nivel de severidad mayor.
+
+    Por ejemplo, establecer este valor en "depurar" reenviará todo el registro de eventos a New Relic. Establecer este valor en "error" solo reenviará el registro de eventos con los niveles "error", "fatal" y "desconocido".
+
+    Valores válidos (ordenados de menor a mayor):
+
+    * "depurar"
+    * "información"
+    * "advertir"
+    * "error"
+    * "fatal"
+    * "desconocido"
+  </Collapser>
+
+  <Collapser
+    id="application_logging-forwarding-custom_attributes"
+    title="application_logging.forwarding.custom_attributes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Hash
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `{}`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_CUSTOM_ATTRIBUTES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un hash con pares principales de valor para agregar como atributo personalizado a todos los registros de eventos reenviados a New Relic. Si se envía utilizando una variable de entorno, el valor debe tener el formato siguiente: "clave1=valor1,clave2=valor2"
+  </Collapser>
+
+  <Collapser
+    id="application_logging-forwarding-max_samples_stored"
+    title="application_logging.forwarding.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de log que se almacenarán en el buffer en la memoria a la vez.
+  </Collapser>
+
+  <Collapser
+    id="application_logging-local_decorating-enabled"
+    title="application_logging.local_decorating.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente decora el registro con metadatos para vincularlo a entidad, hosts, traza y spans.
+  </Collapser>
+
+  <Collapser
+    id="application_logging-metrics-enabled"
+    title="application_logging.metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura métricas relacionadas con el registro de su aplicación.
+  </Collapser>
+</CollapserGroup>
+
+## Monitoreo de IA [#ai-monitoring]
+
+Esta sección incluye la configuración del agente Ruby para configurar el monitoreo de IA. [rastreo distribuido](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#distributed-tracing) debe estar habilitado para capturar datos de traza y retroalimentación. Está activado de forma predeterminada en Ruby agente 8.0.0 y superiores.
+
+<CollapserGroup>
+  <Collapser
+    id="ai_monitoring-enabled"
+    title="ai_monitoring.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `false`, toda la instrumentación LLM (OpenAI solo por ahora) se deshabilitará y no se enviará ninguna métrica, evento o span. El monitoreo de IA se desactiva automáticamente si el modo `high_security` está activado.
+  </Collapser>
+
+  <Collapser
+    id="ai_monitoring-record_content-enabled"
+    title="ai_monitoring.record_content.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_RECORD_CONTENT_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `false`, LLM instrumentación (OpenAI solo por ahora) no capturará contenido de entrada y salida en un evento LLM específico.
+
+    Los atributos excluidos incluyen:
+
+    * `content` del evento LlmChatCompletionMessage
+    * `input` del evento LlmEmbedding
+  </Collapser>
+</CollapserGroup>
+
+## Atributo [#attributes]
+
+[Los atributos](/docs/features/agent-attributes) son pares de valores principales que contienen información que determina las propiedades de un evento o transacción. Estos pares de valores principales se pueden ver dentro de la traza de la transacción en APM, errores de traza en APM, evento de transacción en el tablero y vistas de página en el tablero. Puedes personalizar exactamente qué atributo se enviará a cada uno de estos destinos.
+
+<CollapserGroup>
+  <Collapser
+    id="attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la captura del atributo para todos los destinos.
+  </Collapser>
+
+  <Collapser
+    id="attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir de todos los destinos. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en todos los destinos. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="browser_monitoring-attributes-enabled"
+    title="browser_monitoring.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura un atributo del monitoreo del navegador.
+  </Collapser>
+
+  <Collapser
+    id="browser_monitoring-attributes-exclude"
+    title="browser_monitoring.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir del monitoreo del navegador. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="browser_monitoring-attributes-include"
+    title="browser_monitoring.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en el monitoreo del navegador. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-attributes-enabled"
+    title="error_collector.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura el atributo de la colección de errores.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-attributes-exclude"
+    title="error_collector.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo del atributo a excluir de la colección de errores. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="error_collector-attributes-include"
+    title="error_collector.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo del atributo a incluir en la colección de errores. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="span_events-attributes-enabled"
+    title="span_events.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura el atributo en el evento span.
+  </Collapser>
+
+  <Collapser
+    id="span_events-attributes-exclude"
+    title="span_events.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir del evento span. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="span_events-attributes-include"
+    title="span_events.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en el evento span. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_events-attributes-enabled"
+    title="transaction_events.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura el atributo del evento de transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_events-attributes-exclude"
+    title="transaction_events.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir del evento de transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_events-attributes-include"
+    title="transaction_events.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en evento de transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_segments-attributes-enabled"
+    title="transaction_segments.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_SEGMENTS_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura el atributo en los segmentos de transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_segments-attributes-exclude"
+    title="transaction_segments.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_SEGMENTS_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir de segmentos de transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_segments-attributes-include"
+    title="transaction_segments.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_SEGMENTS_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en segmentos de transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-attributes-enabled"
+    title="transaction_tracer.attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura atributo de la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-attributes-exclude"
+    title="transaction_tracer.attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir de la traza de la transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="transaction_tracer-attributes-include"
+    title="transaction_tracer.attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en la traza de la transacción. Permite `*` como comodín al final.
+  </Collapser>
+</CollapserGroup>
+
+## Log de auditoría [#audit-log]
+
+<CollapserGroup>
+  <Collapser
+    id="audit_log-enabled"
+    title="audit_log.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUDIT_LOG_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, habilita un log de auditoría que registra las comunicaciones con el [recolector](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#collector) New Relic.
+  </Collapser>
+
+  <Collapser
+    id="audit_log-endpoints"
+    title="audit_log.endpoints"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[".*"]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUDIT_LOG_ENDPOINTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Lista de extremos permitidos para incluir en log de auditoría.
+  </Collapser>
+
+  <Collapser
+    id="audit_log-path"
+    title="audit_log.path"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `log/newrelic_audit.log`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUDIT_LOG_PATH`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica una ruta al archivo de registro de auditoría (incluido el nombre del archivo).
+  </Collapser>
+</CollapserGroup>
+
+## Autoencendido [#autostart]
+
+<CollapserGroup>
+  <Collapser
+    id="autostart-denylisted_constants"
+    title="autostart.denylisted_constants"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"Rails::Command::ConsoleCommand,Rails::Command::CredentialsCommand,Rails::Command::Db::System::ChangeCommand,Rails::Command::DbConsoleCommand,Rails::Command::DestroyCommand,Rails::Command::DevCommand,Rails::Command::EncryptedCommand,Rails::Command::GenerateCommand,Rails::Command::InitializersCommand,Rails::Command::NotesCommand,Rails::Command::RoutesCommand,Rails::Command::SecretsCommand,Rails::Console,Rails::DBConsole"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUTOSTART_DENYLISTED_CONSTANTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique una lista de constantes que deberían impedir que el agente se inicie automáticamente. Separe las constantes individuales con una coma `,`. Por ejemplo, `"Rails::Console,UninstrumentedBackgroundJob"`.
+  </Collapser>
+
+  <Collapser
+    id="autostart-denylisted_executables"
+    title="autostart.denylisted_executables"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"irb,rspec"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUTOSTART_DENYLISTED_EXECUTABLES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define una lista delimitada por comas de ejecutables que el agente no debe utilizar. Por ejemplo, `"rake,my_ruby_script.rb"`.
+  </Collapser>
+
+  <Collapser
+    id="autostart-denylisted_rake_tasks"
+    title="autostart.denylisted_rake_tasks"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"about,assets:clean,assets:clobber,assets:environment,assets:precompile,assets:precompile:all,db:create,db:drop,db:fixtures:load,db:migrate,db:migrate:status,db:rollback,db:schema:cache:clear,db:schema:cache:dump,db:schema:dump,db:schema:load,db:seed,db:setup,db:structure:dump,db:version,doc:app,log:clear,middleware,notes,notes:custom,rails:template,rails:update,routes,secret,spec,spec:features,spec:requests,spec:controllers,spec:helpers,spec:models,spec:views,spec:routing,spec:rcov,stats,test,test:all,test:all:db,test:recent,test:single,test:uncommitted,time:zones:all,tmp:clear,tmp:create,webpacker:compile"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_AUTOSTART_DENYLISTED_RAKE_TASKS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define una lista delimitada por comas de tareas de Rake que el agente no debe realizar. Por ejemplo, `"assets:precompile,db:migrate"`.
+  </Collapser>
+</CollapserGroup>
+
+## Un nivel de código métrico [#code-level-metrics]
+
+<CollapserGroup>
+  <Collapser
+    id="code_level_metrics-enabled"
+    title="code_level_metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CODE_LEVEL_METRICS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente informará el nivel de código fuente métrico para los métodos de traza. ver: [https://docs.newrelic.com/docs/apm/agents/ruby-agent/features/ruby-codestream-integration/](https://docs.newrelic.com/docs/apm/agents/ruby-agent/features/ruby-codestream-integration/)
+  </Collapser>
+</CollapserGroup>
+
+## Configuración Errors Inbox [#errors-inbox-configuration]
+
+Configurar una de las siguientes etiquetas le ayudará a identificar qué versiones de su software están produciendo los errores.
+
+* `NEW_RELIC_METADATA_SERVICE_VERSION` creará tags.service.version en los datos del evento que contienen la versión de su código que se desplegará, en muchos casos una versión semántica como 1.2.3, pero no siempre.
+* `NEW_RELIC_METADATA_RELEASE_TAG `creará tags.releaseTag en los datos del evento que contienen la etiqueta de lanzamiento (como v0.1.209 o release-209).
+* `NEW_RELIC_METADATA_COMMIT` creará tags.commit on event data containing the commit sha. Se puede utilizar el sha completo o sólo los primeros siete caracteres (por ejemplo, 734713b).
+
+Una próxima versión de Errors Inbox rastreará automáticamente qué versiones de su software están produciendo errores. Todos los datos de la versión también se mostrarán en [CodeStream](/docs/codestream/how-use-codestream/performance-monitoring/#buildsha).
+
+## Rastreador multiaplicación [#cross-application-tracer]
+
+<CollapserGroup>
+  <Collapser
+    id="cross_application_tracer-enabled"
+    title="cross_application_tracer.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CROSS_APPLICATION_TRACER_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <DNT>**DEPRECATED**</DNT> Consulte: [distributed_tracing.enabled](#distributed_tracing-enabled).
+
+    Si es `true`, habilita [el seguimiento de múltiples aplicaciones](/docs/agents/ruby-agent/features/cross-application-tracing-ruby/) cuando `distributed_tracing.enabled` está establecido en `false`.
+  </Collapser>
+</CollapserGroup>
+
+## Atributo personalizado [#custom-attributes]
+
+<CollapserGroup>
+  <Collapser
+    id="custom_attributes-enabled"
+    title="custom_attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CUSTOM_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `false`, el atributo personalizado no se enviará en el evento.
+  </Collapser>
+</CollapserGroup>
+
+## Evento personalizado [#custom-events]
+
+<CollapserGroup>
+  <Collapser
+    id="custom_insights_events-enabled"
+    title="custom_insights_events.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura [el evento personalizado](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-new-relic-apm-agents).
+  </Collapser>
+
+  <Collapser
+    id="custom_insights_events-max_samples_stored"
+    title="custom_insights_events.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `3000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Especifique un número máximo de eventos personalizados para almacenar en el buffer en la memoria a la vez.
+    * Al configurar el agente para [el monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring), configúrelo en el valor máximo `100000`. Garantiza que el agente capture la cantidad máxima de eventos LLM.
+  </Collapser>
+</CollapserGroup>
+
+## Almacenamiento de datos rastreador [#datastore-tracer]
+
+<CollapserGroup>
+  <Collapser
+    id="datastore_tracer-database_name_reporting-enabled"
+    title="datastore_tracer.database_name_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DATASTORE_TRACER_DATABASE_NAME_REPORTING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `false`, el agente no agregará el parámetro `database_name` a la transacción o ralentizará la traza SQL.
+  </Collapser>
+
+  <Collapser
+    id="datastore_tracer-instance_reporting-enabled"
+    title="datastore_tracer.instance_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DATASTORE_TRACER_INSTANCE_REPORTING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `false`, el agente no reportará almacenamiento de datos de instancia métrica, ni agregará `host` o `port_path_or_id` parámetro a la transacción o traza SQL lenta.
+  </Collapser>
+</CollapserGroup>
+
+## Deshabilitar [#disabling]
+
+Utilice esta configuración para alternar tipos de instrumentación durante el inicio del agente.
+
+<CollapserGroup>
+  <Collapser
+    id="disable_action_cable_instrumentation"
+    title="disable_action_cable_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTION_CABLE_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de Action Cable.
+  </Collapser>
+
+  <Collapser
+    id="disable_action_controller"
+    title="disable_action_controller"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTION_CONTROLLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación del Controlador de acciones.
+  </Collapser>
+
+  <Collapser
+    id="disable_action_mailbox"
+    title="disable_action_mailbox"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTION_MAILBOX`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, deshabilita la instrumentación del buzón de acciones.
+  </Collapser>
+
+  <Collapser
+    id="disable_action_mailer"
+    title="disable_action_mailer"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTION_MAILER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de Action Mailer.
+  </Collapser>
+
+  <Collapser
+    id="disable_activejob"
+    title="disable_activejob"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTIVEJOB`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación del trabajo activo.
+  </Collapser>
+
+  <Collapser
+    id="disable_active_storage"
+    title="disable_active_storage"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTIVE_STORAGE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de Active Storage.
+  </Collapser>
+
+  <Collapser
+    id="disable_active_support"
+    title="disable_active_support"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTIVE_SUPPORT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de soporte activo.
+  </Collapser>
+
+  <Collapser
+    id="disable_active_record_instrumentation"
+    title="disable_active_record_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTIVE_RECORD_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de Active Record.
+  </Collapser>
+
+  <Collapser
+    id="disable_active_record_notifications"
+    title="disable_active_record_notifications"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_ACTIVE_RECORD_NOTIFICATIONS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, desactiva la instrumentación para Active Record 4+
+  </Collapser>
+
+  <Collapser
+    id="disable_cpu_sampler"
+    title="disable_cpu_sampler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_CPU_SAMPLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente no probará el uso de CPU del proceso del host.
+  </Collapser>
+
+  <Collapser
+    id="disable_delayed_job_sampler"
+    title="disable_delayed_job_sampler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_DELAYED_JOB_SAMPLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente no medirá la profundidad de las colas de trabajos retrasados.
+  </Collapser>
+
+  <Collapser
+    id="disable_gc_profiler"
+    title="disable_gc_profiler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_GC_PROFILER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita el uso de `GC::Profiler` para medir el tiempo dedicado a la recolección de basura
+  </Collapser>
+
+  <Collapser
+    id="disable_memory_sampler"
+    title="disable_memory_sampler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_MEMORY_SAMPLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente no probará el uso de memoria del proceso del host.
+  </Collapser>
+
+  <Collapser
+    id="disable_middleware_instrumentation"
+    title="disable_middleware_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_MIDDLEWARE_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente no incluirá middlewares de terceros en la instrumentación (independientemente de si están instalados a través de `Rack::Builder` o Rails).
+
+    <Callout variant="important">
+      Cuando la instrumentación de middleware está deshabilitada, si una aplicación utiliza middleware que podría alterar el código de respuesta, es posible que el código de estado HTTP informado en la transacción no refleje el valor modificado.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="disable_samplers"
+    title="disable_samplers"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_SAMPLERS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la recolección de muestra métrica. Las métricas de sampler son métricas que no se basan en eventos (como el tiempo de CPU o el uso de memoria).
+  </Collapser>
+
+  <Collapser
+    id="disable_sequel_instrumentation"
+    title="disable_sequel_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_SEQUEL_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, deshabilita [la instrumentación de Sequel](/docs/agents/ruby-agent/frameworks/sequel-instrumentation).
+  </Collapser>
+
+  <Collapser
+    id="disable_sidekiq"
+    title="disable_sidekiq"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_SIDEKIQ`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, deshabilita [la instrumentación de Sidekiq](/docs/agents/ruby-agent/background-jobs/sidekiq-instrumentation).
+  </Collapser>
+
+  <Collapser
+    id="disable_roda_auto_middleware"
+    title="disable_roda_auto_middleware"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_RODA_AUTO_MIDDLEWARE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, deshabilita el middleware del agente para Roda. Este middleware es responsable del soporte de características avanzadas, como [el tiempo de carga de la página](/docs/browser/new-relic-browser/getting-started/new-relic-browser) y [la recopilación de errores](/docs/apm/applications-menu/events/view-apm-error-analytics).
+  </Collapser>
+
+  <Collapser
+    id="disable_sinatra_auto_middleware"
+    title="disable_sinatra_auto_middleware"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_SINATRA_AUTO_MIDDLEWARE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, deshabilita el middleware del agente para Sinatra. Este middleware es responsable del soporte de características avanzadas como [el seguimiento de múltiples aplicaciones](/docs/apm/transactions/cross-application-traces/cross-application-tracing), [el tiempo de carga de la página](/docs/browser/new-relic-browser/getting-started/new-relic-browser) y [la recopilación de errores](/docs/apm/applications-menu/events/view-apm-error-analytics).
+
+    <Callout variant="important">
+      El rastreo de multiaplicación está en desuso en favor del [rastreo distribuido](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing). rastreo distribuido está activado de forma predeterminada para las versiones 8.0.0 y superiores del agente Ruby. No se requieren middlewares para admitir el rastreo distribuido.
+
+      Para continuar usando el seguimiento de múltiples aplicaciones, actualice las siguientes opciones en su archivo de configuración `newrelic.yml` :
+
+      ```yaml
+      # newrelic.yml
+
+        cross_application_tracer:
+          enabled: true
+        distributed_tracing:
+          enabled: false
+      ```
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="disable_view_instrumentation"
+    title="disable_view_instrumentation"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_VIEW_INSTRUMENTATION`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, deshabilita la instrumentación de visualización.
+  </Collapser>
+
+  <Collapser
+    id="disable_vm_sampler"
+    title="disable_vm_sampler"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISABLE_VM_SAMPLER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente no [tomará muestras de las mediciones de rendimiento de la máquina virtual (VM) de Ruby](/docs/agents/ruby-agent/features/ruby-vm-measurements).
+  </Collapser>
+</CollapserGroup>
+
+## Rastreo distribuido [#distributed-tracing]
+
+<CollapserGroup>
+  <Collapser
+    id="distributed_tracing-enabled"
+    title="distributed_tracing.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Rastreo distribuido te permite ver el recorrido que sigue una solicitud a través de tus sistemas distribuidos. Habilitar rastreo distribuido cambia el comportamiento de algunas características de New Relic, así que consulte atentamente la [guía de transición](/docs/transition-guide-distributed-tracing) antes de habilitar esta característica.
+  </Collapser>
+</CollapserGroup>
+
+## Elasticsearch [#elasticsearch]
+
+<CollapserGroup>
+  <Collapser
+    id="elasticsearch-capture_queries"
+    title="elasticsearch.capture_queries"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ELASTICSEARCH_CAPTURE_QUERIES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura la consulta de Elasticsearch en la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="elasticsearch-obfuscate_queries"
+    title="elasticsearch.obfuscate_queries"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_ELASTICSEARCH_OBFUSCATE_QUERIES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente confunde la consulta de Elasticsearch en la traza de la transacción.
+  </Collapser>
+</CollapserGroup>
+
+## Heroku [#heroku]
+
+<CollapserGroup>
+  <Collapser
+    id="heroku-use_dyno_names"
+    title="heroku.use_dyno_names"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_HEROKU_USE_DYNO_NAMES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente utiliza nombres de dinamómetro Heroku como nombre de host.
+  </Collapser>
+
+  <Collapser
+    id="heroku-dyno_name_prefixes_to_shorten"
+    title="heroku.dyno_name_prefixes_to_shorten"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `["scheduler", "run"]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_HEROKU_DYNO_NAME_PREFIXES_TO_SHORTEN`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Normalmente, el agente informa los nombres de los dinamómetros con un punto final y un ID de proceso (por ejemplo, `worker.3`). Puede eliminar estos datos finales especificando los prefijos que desea informar sin datos finales (por ejemplo, `worker`).
+  </Collapser>
+</CollapserGroup>
+
+## Rastreo infinito [#infinite-tracing]
+
+<CollapserGroup>
+  <Collapser
+    id="infinite_tracing-trace_observer-host"
+    title="infinite_tracing.trace_observer.host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configura el nombre de host para el host del observador de traza. Cuando se configura, permite la muestreo tail-based enviando todos los intervalos registrados a un observador de traza para tomar decisiones de muestreo adicionales, independientemente de cualquier decisión de muestreo habitual del agente.
+  </Collapser>
+
+  <Collapser
+    id="infinite_tracing-trace_observer-port"
+    title="infinite_tracing.trace_observer.port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `443`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_PORT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configura el puerto TCP/IP para el Host de traza observer
+  </Collapser>
+
+  <Collapser
+    id="infinite_tracing-batching"
+    title="infinite_tracing.batching"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_BATCHING`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true` (el valor predeterminado), los datos enviados al observador de traza se agrupan en lugar de enviar cada tramo individualmente.
+  </Collapser>
+
+  <Collapser
+    id="infinite_tracing-compression_level"
+    title="infinite_tracing.compression_level"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Símbolo
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `:high`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_COMPRESSION_LEVEL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configure el nivel de compresión de los datos enviados al observador de traza.
+
+    Puede ser uno de: `:none`, `:low`, `:medium`, `:high`.
+
+    Establezca el nivel en `:none` para desactivar la compresión.
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentación [#instrumentation]
+
+<CollapserGroup>
+  <Collapser
+    id="instrumentation-active_support_broadcast_logger"
+    title="instrumentation.active_support_broadcast_logger"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_ACTIVE_SUPPORT_BROADCAST_LOGGER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `ActiveSupport::BroadcastLogger` al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`. Utilizado en versiones de Rails >= 7.1.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-active_support_logger"
+    title="instrumentation.active_support_logger"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_ACTIVE_SUPPORT_LOGGER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `ActiveSupport::Logger` al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`. Utilizado en versiones de Rails inferiores a 7.1.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-async_http"
+    title="instrumentation.async_http"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_ASYNC_HTTP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Async::HTTP al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-bunny"
+    title="instrumentation.bunny"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_BUNNY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controles de instrumentación automática de conejito en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-fiber"
+    title="instrumentation.fiber"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_FIBER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la clase Fibra en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-concurrent_ruby"
+    title="instrumentation.concurrent_ruby"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_CONCURRENT_RUBY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la biblioteca concurrente-ruby al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-curb"
+    title="instrumentation.curb"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_CURB`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Curb en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-delayed_job"
+    title="instrumentation.delayed_job"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_DELAYED_JOB`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática del trabajo retrasado al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-elasticsearch"
+    title="instrumentation.elasticsearch"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_ELASTICSEARCH`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la biblioteca elasticsearch al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-ethon"
+    title="instrumentation.ethon"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_ETHON`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de ethon en el arranque. Puede ser uno de \[auto|prepend|chain|disabled]
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-excon"
+    title="instrumentation.excon"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `enabled`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_EXCON`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Excon al inicio. Puede ser uno de: `enabled`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-grape"
+    title="instrumentation.grape"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_GRAPE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Grape en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-grpc_client"
+    title="instrumentation.grpc_client"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_GRPC_CLIENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de los clientes gRPC al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-grpc-host_denylist"
+    title="instrumentation.grpc.host_denylist"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_GRPC_HOST_DENYLIST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica una lista de patrones de nombre de host separados por comas que coincidirán con el nombre de host de gRPC para el cual New Relic ignorará el tráfico. La instrumentación del cliente gRPC de New Relic ignorará el tráfico transmitido a un host que coincida con cualquiera de estos patrones, y la instrumentación del servidor gRPC de New Relic ignorará el tráfico de un servidor que se ejecuta en un host cuyo nombre de host coincida con cualquiera de estos patrones. De forma predeterminada, no se ignora ningún tráfico cuando la instrumentación gRPC está habilitada. Por ejemplo, `"private.com$,exception.*"`
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-grpc_server"
+    title="instrumentation.grpc_server"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_GRPC_SERVER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de los servidores gRPC al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-httpclient"
+    title="instrumentation.httpclient"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_HTTPCLIENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de HTTPClient al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-httprb"
+    title="instrumentation.httprb"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_HTTPRB`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la gema http.rb al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-httpx"
+    title="instrumentation.httpx"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_HTTPX`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de httpx al inicio. Puede ser uno de \[auto|prepend|chain|disabled]
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-logger"
+    title="instrumentation.logger"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_LOGGER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática del logger de la biblioteca estándar de Ruby al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-memcache"
+    title="instrumentation.memcache"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_MEMCACHE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de dalli gem para Memcache al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-memcached"
+    title="instrumentation.memcached"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_MEMCACHED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la gema Memcache para Memcache al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-memcache_client"
+    title="instrumentation.memcache_client"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_MEMCACHE_CLIENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la gema memcache-client para Memcache al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-mongo"
+    title="instrumentation.mongo"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `enabled`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_MONGO`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Mongo en el arranque. Puede ser uno de: `enabled`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-net_http"
+    title="instrumentation.net_http"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_NET_HTTP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `Net::HTTP` al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-ruby_openai"
+    title="instrumentation.ruby_openai"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RUBY_OPENAI`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la gema ruby-openai al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-puma_rack"
+    title="instrumentation.puma_rack"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_PUMA_RACK`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `Puma::Rack`. Cuando está habilitado, el agente se conecta al método `to_app` en `Puma::Rack::Builder` para buscar gemas para el instrumento durante el inicio de la aplicación. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-puma_rack_urlmap"
+    title="instrumentation.puma_rack_urlmap"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_PUMA_RACK_URLMAP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `Puma::Rack::URLMap` al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-rack"
+    title="instrumentation.rack"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RACK`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controles de instrumentación automática de Rack. Cuando está habilitado, el agente se conecta al método `to_app` en `Rack::Builder` para buscar gemas para el instrumento durante el inicio de la aplicación. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-rack_urlmap"
+    title="instrumentation.rack_urlmap"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RACK_URLMAP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de `Rack::URLMap` al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-rake"
+    title="instrumentation.rake"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RAKE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controles de instrumentación automática de rastrillo en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-redis"
+    title="instrumentation.redis"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_REDIS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Redis al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-resque"
+    title="instrumentation.resque"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RESQUE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de resque en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-roda"
+    title="instrumentation.roda"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_RODA`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Roda en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-sinatra"
+    title="instrumentation.sinatra"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_SINATRA`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Sinatra en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-stripe"
+    title="instrumentation.stripe"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"enabled"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_STRIPE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Stripe al inicio. Puede ser uno de: `enabled`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-view_component"
+    title="instrumentation.view_component"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_VIEW_COMPONENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de ViewComponent al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-thread"
+    title="instrumentation.thread"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_THREAD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la clase Thread al inicio para permitir que el agente anide correctamente los intervalos dentro de una transacción asincrónica. Esto no permite al agente trazar automáticamente todos los hilos creados (ver `instrumentation.thread.tracing`). Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-thread-tracing"
+    title="instrumentation.thread.tracing"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_THREAD_TRACING`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la clase Thread al inicio para agregar automáticamente seguimiento a todos los Threads creados en la aplicación.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-tilt"
+    title="instrumentation.tilt"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"auto"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_TILT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de la biblioteca de renderizado de plantillas Tilt al inicio. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+
+  <Collapser
+    id="instrumentation-typhoeus"
+    title="instrumentation.typhoeus"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `auto`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_INSTRUMENTATION_TYPHOEUS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Controla la instrumentación automática de Typhoeus en el arranque. Puede ser uno de: `auto`, `prepend`, `chain`, `disabled`.
+  </Collapser>
+</CollapserGroup>
+
+## Rastreador de mensajes [#message-tracer]
+
+<CollapserGroup>
+  <Collapser
+    id="message_tracer-segment_parameters-enabled"
+    title="message_tracer.segment_parameters.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_MESSAGE_TRACER_SEGMENT_PARAMETERS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente recopilará metadatos sobre los mensajes y los adjuntará como parámetro de segmento.
+  </Collapser>
+</CollapserGroup>
+
+## Mongo [#mongo]
+
+<CollapserGroup>
+  <Collapser
+    id="mongo-capture_queries"
+    title="mongo.capture_queries"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_MONGO_CAPTURE_QUERIES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura Mongo consulta en la traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="mongo-obfuscate_queries"
+    title="mongo.obfuscate_queries"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_MONGO_OBFUSCATE_QUERIES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente confunde a Mongo consulta en la traza de la transacción.
+  </Collapser>
+</CollapserGroup>
+
+## Anfitrión del proceso [#process-host]
+
+<CollapserGroup>
+  <Collapser
+    id="process_host-display_name"
+    title="process_host.display_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `(Dynamic)`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_PROCESS_HOST_DISPLAY_NAME`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique un nombre de host personalizado para [mostrar en la UIde New Relic](/docs/apm/new-relic-apm/maintenance/add-rename-remove-hosts#display_name).
+  </Collapser>
+</CollapserGroup>
+
+## Rastrillo [#rake]
+
+<CollapserGroup>
+  <Collapser
+    id="rake-tasks"
+    title="rake.tasks"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_RAKE_TASKS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique una matriz de tareas de Rake para instrumento automáticamente. Esta opción de configuración convierte la matriz en una lista RegEx. Si desea permitir todas las tareas de forma predeterminada, utilice `rake.tasks: [.+]`. No se instrumentarán tareas de rake a menos que se agreguen a esta lista. Para obtener más información, visite los [documentos de instrumentación de New Relic Rake](/docs/apm/agents/ruby-agent/background-jobs/rake-instrumentation).
+  </Collapser>
+
+  <Collapser
+    id="rake-connect_timeout"
+    title="rake.connect_timeout"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_RAKE_CONNECT_TIMEOUT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Tiempo de espera para esperar a que se complete la conexión antes de una tarea de rake
+  </Collapser>
+</CollapserGroup>
+
+## Normas [#rules]
+
+<CollapserGroup>
+  <Collapser
+    id="rules-ignore_url_regexes"
+    title="rules.ignore_url_regexes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_RULES_IGNORE_URL_REGEXES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Defina la transacción que desea que el agente ignore, especificando una lista de patrones que coincidan con el URI que desea ignorar. Para obtener más detalles, consulte [los documentos sobre cómo ignorar transacciones específicas](/docs/agents/ruby-agent/api-guides/ignoring-specific-transactions/#config-ignoring).
+  </Collapser>
+</CollapserGroup>
+
+## Sidekiq [#sidekiq]
+
+<CollapserGroup>
+  <Collapser
+    id="sidekiq-args-include"
+    title="sidekiq.args.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SIDEKIQ_ARGS_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una matriz de cadenas que servirán colectivamente como una lista de permitidos para filtrar qué argumentos de trabajo de Sidekiq se informan a New Relic. Para capturar cualquier argumento de Sidekiq, 'job.sidekiq.args.\*' debe agregarse a la opción de configuración `:'attributes.include'` separada. Cada cadena de esta matriz se convertirá en una expresión regular mediante `Regexp.new` para permitir una coincidencia avanzada. Para los hash de argumentos de trabajo, si una clave o un valor coinciden, se incluirá el par. Se incluirán todos los elementos de la matriz de argumentos del trabajo y los escalares de argumentos del trabajo que coincidan.
+  </Collapser>
+
+  <Collapser
+    id="sidekiq-args-exclude"
+    title="sidekiq.args.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SIDEKIQ_ARGS_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una matriz de cadenas que servirán colectivamente como una lista de denegados para filtrar qué argumentos de trabajo de Sidekiq se informan a New Relic. Para capturar cualquier argumento de Sidekiq, 'job.sidekiq.args.\*' debe agregarse a la opción de configuración `:'attributes.include'` separada. Cada cadena de esta matriz se convertirá en una expresión regular mediante `Regexp.new` para permitir una coincidencia avanzada. Para los hash de argumentos de trabajo, si una clave o un valor coinciden, el par se excluirá. Se excluirán todos los elementos de la matriz de argumentos del trabajo y los escalares de argumentos del trabajo que coincidan.
+  </Collapser>
+</CollapserGroup>
+
+## SQL lento [#slow-sql]
+
+<CollapserGroup>
+  <Collapser
+    id="slow_sql-enabled"
+    title="slow_sql.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente recopila [una consulta SQL lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details).
+  </Collapser>
+
+  <Collapser
+    id="slow_sql-explain_threshold"
+    title="slow_sql.explain_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Flotante
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.5`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_EXPLAIN_THRESHOLD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique un umbral en segundos. El agente recopila [consultas SQL lentas](/docs/apm/applications-menu/monitoring/viewing-slow-query-details) y explica los planes que superan este umbral.
+  </Collapser>
+
+  <Collapser
+    id="slow_sql-explain_enabled"
+    title="slow_sql.explain_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_EXPLAIN_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente recopila planes explicativos en una consulta SQL lenta. Si se omite esta configuración, la configuración [`transaction_tracer.explain_enabled`](#transaction_tracer-explain_enabled) también se aplicará como configuración predeterminada para los planes de explicación en SQL lento.
+  </Collapser>
+
+  <Collapser
+    id="slow_sql-record_sql"
+    title="slow_sql.record_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `obfuscated`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_RECORD_SQL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define un nivel de ofuscación para consultas SQL lentas. Las opciones válidas son `obfuscated`, `raw` o `none`.
+  </Collapser>
+
+  <Collapser
+    id="slow_sql-use_longer_sql_id"
+    title="slow_sql.use_longer_sql_id"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_USE_LONGER_SQL_ID`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Genere un `sql_id` más largo para traza SQL lenta. `sql_id` se utiliza para agregar consultas similares.
+  </Collapser>
+</CollapserGroup>
+
+## Evento de duración [#span-events]
+
+<CollapserGroup>
+  <Collapser
+    id="span_events-enabled"
+    title="span_events.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita el muestreo de eventos de intervalo.
+  </Collapser>
+
+  <Collapser
+    id="span_events-queue_size"
+    title="span_events.queue_size"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_QUEUE_SIZE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establece el número máximo de eventos de intervalo que se almacenarán en el búfer cuando se transmite al observador de traza.
+  </Collapser>
+
+  <Collapser
+    id="span_events-max_samples_stored"
+    title="span_events.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `2000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Define el número máximo de eventos de intervalo reportados de una sola cosecha. Cualquier número entero entre `1` y `10000` es válido.
+    * Al configurar el agente para [el monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring), configúrelo en el valor máximo `10000`. Garantiza que el agente capture la máxima cantidad de rastreo distribuido.
+  </Collapser>
+</CollapserGroup>
+
+## Eliminar mensajes de excepción [#strip-exception-messages]
+
+<CollapserGroup>
+  <Collapser
+    id="strip_exception_messages-enabled"
+    title="strip_exception_messages.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es verdadero, el agente elimina los mensajes de todas las excepciones excepto aquellos en la [lista de permitidos](#strip_exception_messages-allowlist). Habilitado automáticamente en [modo de alta seguridad](/docs/accounts-partnerships/accounts/security/high-security).
+  </Collapser>
+
+  <Collapser
+    id="strip_exception_messages-allowed_classes"
+    title="strip_exception_messages.allowed_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `""`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ALLOWED_CLASSES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique una lista de excepciones que no desea que el agente elimine cuando [strip_exception_messages](#strip_exception_messages-enabled) sea `true`. Separe las excepciones con una coma. Por ejemplo, `"ImportantException,PreserveMessageException"`.
+  </Collapser>
+</CollapserGroup>
+
+## Raya [#stripe]
+
+<CollapserGroup>
+  <Collapser
+    id="stripe-user_data-include"
+    title="stripe.user_data.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_STRIPE_USER_DATA_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una matriz de cadenas para especificar qué claves dentro del hash `user_data` de un evento Stripe deben informarse a New Relic. Cada cadena de esta matriz se convertirá en una expresión regular mediante `Regexp.new` para permitir una coincidencia avanzada. Establecer el valor en `["."]` informará todos `user_data`.
+  </Collapser>
+
+  <Collapser
+    id="stripe-user_data-exclude"
+    title="stripe.user_data.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_STRIPE_USER_DATA_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una matriz de cadenas para especificar qué claves y/o valores dentro del hash `user_data` de un evento Stripe no deben informarse a New Relic. Cada cadena de esta matriz se convertirá en una expresión regular mediante `Regexp.new` para permitir una coincidencia avanzada. Para cada par hash, si la clave o el valor coinciden, no se informará el par. De forma predeterminada, no se informa ningún `user_data` , por lo que esta opción solo debe usarse si se usa la opción `stripe.user_data.include` .
+  </Collapser>
+</CollapserGroup>
+
+## Hilo generador de perfiles [#thread-profiler]
+
+<CollapserGroup>
+  <Collapser
+    id="thread_profiler-enabled"
+    title="thread_profiler.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_THREAD_PROFILER_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, habilita el uso del [generador de perfiles de subprocesos](/docs/apm/applications-menu/events/thread-profiler-tool).
+  </Collapser>
+</CollapserGroup>
+
+## Utilización [#utilization]
+
+<CollapserGroup>
+  <Collapser
+    id="utilization-detect_aws"
+    title="utilization.detect_aws"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_AWS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente detecta automáticamente que se está ejecutando en un entorno de AWS.
+  </Collapser>
+
+  <Collapser
+    id="utilization-detect_azure"
+    title="utilization.detect_azure"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_AZURE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente detecta automáticamente que se está ejecutando en un entorno de Azure.
+  </Collapser>
+
+  <Collapser
+    id="utilization-detect_docker"
+    title="utilization.detect_docker"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_DOCKER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente detecta automáticamente que se está ejecutando en Docker.
+  </Collapser>
+
+  <Collapser
+    id="utilization-detect_gcp"
+    title="utilization.detect_gcp"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_GCP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente detecta automáticamente que se está ejecutando en un entorno de Google Cloud Platform.
+  </Collapser>
+
+  <Collapser
+    id="utilization-detect_kubernetes"
+    title="utilization.detect_kubernetes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_KUBERNETES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente detecta automáticamente que se está ejecutando en Kubernetes.
+  </Collapser>
+
+  <Collapser
+    id="utilization-detect_pcf"
+    title="utilization.detect_pcf"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Variable ambiental
+          </th>
+
+          <td>
+            `NEW_RELIC_UTILIZATION_DETECT_PCF`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente detecta automáticamente que se está ejecutando en un entorno de Pivotal Cloud Foundry.
+  </Collapser>
+</CollapserGroup>

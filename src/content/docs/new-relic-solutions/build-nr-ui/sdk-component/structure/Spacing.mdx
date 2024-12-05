@@ -1,0 +1,97 @@
+---
+title: 'Spacing'
+metaDescription: 'Learn how to work the Spacing component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Provides spacing to any wrapped component. Spacing is provided as a tuple that can contain zero, one, two, three or four values. Each of these values is coming from the TYPE static property.
+
+The structure of the tuple is very similar to how `margin` or `padding` properties work: specifying one value replicates them across the four sides, two across `top`/`bottom` and `left`/`right`, etc. If you are willing to omit a specific value, while passing others, you can use `OMIT` as a placeholder. The space on the side (or sides) where it is used will be left intact.
+
+Other components from the SDK have spacing capabilities built-in. If you would like to replicate the same capability on your own component, you can use `Spacing.add` and pass the component; the component returned by the method will contain the `type` prop as well as the statics.
+
+### Usage
+
+```js
+import { Spacing } from 'nr1'
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Element to space. Spacing can only be applied to one signle element at a time; to space multiple ones, each of them needs to be wrapped individually.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `TYPE.OMIT`.
+
+        <OptionReference array>
+          Spacing.TYPE.EXTRA_LARGE,
+          Spacing.TYPE.LARGE,
+          Spacing.TYPE.MEDIUM,
+          Spacing.TYPE.NONE,
+          Spacing.TYPE.OMIT,
+          Spacing.TYPE.SMALL,
+        </OptionReference>
+
+        Basic
+
+        ```js
+        <Spacing type={[Spacing.TYPE.MEDIUM]}>
+          <Button>Spaced button</Button>
+        </Spacing>;            
+        ```
+
+        Omit margins
+
+        ```js
+        <Spacing type={[Spacing.TYPE.OMIT, Spacing.TYPE.LARGE]}>
+          <Button>Spaced button (only left and right)</Button>
+        </Spacing>; 
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `Spacing.add`
+
+<FunctionDefinition
+  arguments={[{"description":"Class or function component","name":"Base","type":"React.ComponentType"}]}
+  returnValue={{"description":"","type":"React.ComponentType"}}
+/>

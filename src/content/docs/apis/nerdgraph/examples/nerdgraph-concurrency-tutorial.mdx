@@ -1,0 +1,184 @@
+---
+title: 'NerdGraph tutorial: handle concurrency limits'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: Code examples for handling New Relic NerdGraph concurrency limits.
+freshnessValidatedDate: never
+---
+
+New Relic's NerdGraph API enforces a limit of <DNT>**25 concurrent requests per user**</DNT>. The following code examples can be used as starting points for avoiding these limits or receiving HTTP `429` status codes. Both examples below follow the same use case where you run a query against many New Relic accounts in parallel, but still fall under the NerdGraph concurrency limit.
+
+## Javascript
+
+One way to handle concurrency is to use a worker pool. The below example uses the [async module](https://caolan.github.io/async/v3/docs.html#queue) to do so. It creates a queue that has a set concurrency execution limit, pushes requests as tasks onto that queue, and empties the queue once completeing all tasks.
+
+```node
+import got from 'got';
+import async from 'async';
+
+const API_KEY = '<key>' //GraphQL User Key
+const MAX_CONCURRENCY = 25; //Maximum amount of requests in queue at a given time
+
+const GRAPH_API = 'https://api.newrelic.com/graphql';
+const HEADERS = { 'Content-Type': 'application/json', 'Api-Key': API_KEY };
+
+
+async function main() {
+  let accounts = await getAccounts(); //All accounts to run a query against
+  var allResults = [];
+
+  //Queue initialization
+  const q = async.queue(async (task, cb) => {
+    let result = await makeRequest(task.acct)
+    allResults.push({'transactionCount': result[0].count, 'account': task.acct.id});
+    cb();
+  }, MAX_CONCURRENCY);
+
+  //Push requests on to the queue (one for each account)
+  accounts.forEach(acct => {
+    q.push({acct: acct});
+  });
+
+  await q.drain(); //Drain event listener when all tasks are complete
+
+  console.log(allResults);
+}
+
+async function makeRequest(acct) {
+  let nrql = `SELECT count(*) FROM Transaction`;
+  let gql = `{
+      actor {
+        account(id: ${acct.id}) {
+          nrql(query: "${nrql}", timeout: 90) {
+            results
+          }
+        }
+      }
+    }`;
+
+  let opts = {
+    url: GRAPH_API,
+    headers: HEADERS,
+    json: {'query': gql, 'variables': {}}
+  };
+
+  let response = await got.post(opts).json();
+  if (!response.errors) {
+    return response.data.actor.account.nrql.results;
+  } else {
+    console.log('Query Error');
+    console.log(response.errors);
+  }
+}
+
+async function getAccounts() {
+  var q = `{
+            actor {
+              accounts {
+                id
+                name
+              }
+            }
+          }`
+
+  var opts = {
+    url: GRAPH_API,
+    headers: HEADERS,
+    json: {'query': q, 'variables': {}}
+  }
+
+  let resp = await got.post(opts).json();
+  return resp.data.actor.accounts;
+}
+
+
+main();
+
+```
+
+## Python
+
+You can also use Python by leveraging the following packages to handle asynchronous requests and concurrency:
+
+* [aiohttp](https://docs.aiohttp.org/en/stable/) - Used to make async http requests
+* [asyncio](https://docs.python.org/3/library/asyncio.html) - Used to handle concurrency
+
+Below sets a [Semaphore](https://docs.python.org/3/library/asyncio-sync.html?highlight=semaphore#asyncio.Semaphore) that manages the amount of concurrent simultaneous requests. It then uses `asyncio.gather()` to execute multiple co-routines concurrently and waits for their completion.
+
+```
+import aiohttp
+import asyncio
+
+API_KEY = '<key>'
+MAX_CONCURRENCY = 25
+GRAPHQL_API = 'https://api.newrelic.com/graphql'
+HEADERS = {'Content-Type': 'application/json', 'Api-Key': API_KEY}
+
+
+async def main():
+    #All accounts to run a query against
+    accounts = await get_accounts()
+
+    # Semaphore for controlling concurrency
+    limit = asyncio.Semaphore(MAX_CONCURRENCY)
+
+    #Add all accounts to run a query against
+    tasks = [send_request(acct, limit) for acct in accounts]
+
+    #Schedule all tasks to run concurrently
+    allResults = await asyncio.gather(*tasks)
+
+    print(allResults)
+
+
+async def send_request(acct, limit):
+    nrql = "SELECT count(*) FROM Transaction"
+    gql = f'''
+    {{
+      actor {{
+        account(id: {acct['id']}) {{
+          nrql(query: "{nrql}", timeout: 90) {{
+            results
+          }}
+        }}
+      }}
+    }}
+    '''
+
+    async with limit:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(GRAPHQL_API, json={"query": gql, "variables":{}}, headers=HEADERS) as response:
+                    result = await response.json()
+                    return {'transactionCount': result['data']['actor']['account']['nrql']['results'][0]['count'], 'account': acct['id']}
+        except Exception as error:
+            print("Query Error")
+            raise error
+
+
+async def get_accounts():
+    gql = """
+    {
+      actor {
+        accounts {
+          id
+          name
+        }
+       }
+     }
+    """
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(GRAPHQL_API, json={"query": gql, "variables":{}}, headers=HEADERS) as response:
+            result = await response.json()
+            return result['data']['actor']['accounts']
+
+
+if __name__ == '__main__':
+    asyncio.run(main()) #Run event loop
+
+```
+
+For more detail on NerdGraph limits, see [NerdGraph usage limits](/docs/apis/nerdgraph/nerdgraph-usage-limits).

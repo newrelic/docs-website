@@ -1,0 +1,168 @@
+---
+title: Introducción al servicio Azure Native New Relic
+metaDescription: Manage New Relic and Azure integrations with agents installed directly through the Azure Portal
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si su equipo implementa software y servicios en la nube a través de Azure, nuestro [servicio Azure Native New Relic ](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg)le permite administrar la integración Azure-New Relic , y administrar e instalar nuestro agente de infraestructura y nuestro agente <InlinePopover type="apm"/>de .NET y Java, todo directamente desde el Portal de Azure.
+
+El servicio Azure Native New Relic le permite:
+
+* Incorpore y utilice fácilmente New Relic como un servicio integrado de forma nativa creado en Azure.
+* Obtenga una factura única por todos los recursos que consume en Azure, incluido New Relic.
+* Monitor automáticamente la actividad de suscripción de Azure y el registro de recursos para New Relic.
+* Monitor automáticamente Azure métrica usando New Relic.
+* Utilice una experiencia única para instalar y desinstalar el agente New Relic en la máquina virtual y los servicios de aplicaciones.
+
+Además de eso, puede usar New Relic para otros monitoreos no relacionados con Azure que pueda necesitar, utilizando cualquiera de [nuestras más de 500 integraciones](https://newrelic.com/instant-observability).
+
+<Callout variant="important">
+  Este servicio solo está disponible para clientes que optan por que Azure aloje sus datos de New Relic.
+</Callout>
+
+## Notas sobre la característica New Relic disponible [#features]
+
+* Nuestra [edición Enterprise](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) no está disponible actualmente.
+* Este servicio viene con nuestra opción Data Plus, pero no todas las características Data Plus están disponibles. Por ejemplo, los datos que cumplen con HIPAA y FedRAMP aún no están disponibles. Para obtener más información, consulte [Datos Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus).
+
+Para obtener más información sobre las características y la facturación relacionadas con Azure, consulte [Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg).
+
+Las ofertas privadas de Azure también están disponibles, ofreciendo precios, términos y condiciones personalizados a nuestros clientes. Si está interesado en esto, comuníquese con su representante de cuenta de New Relic. Puede ver las ofertas privadas de New Relic Azure en [Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc-privateoffers.nr-privateoffers1?tab=Overview).
+
+## Obtenga el servicio Azure Native New Relic [#get-it]
+
+Aquí hay un breve vídeo sobre cómo configurar esto:
+
+<Video
+  id="48LHdqOMAsQ"
+  type="youtube"
+/>
+
+Para obtener documentos detallados, consulte el [sitio de documentos de Microsoft Azure](https://learn.microsoft.com/en-us/azure/partner-solutions/new-relic/new-relic-overview). Aquí hay un breve resumen de cómo configurar este servicio:
+
+1. En Azure Marketplace, suscríbase al servicio Azure Native New Relic.
+
+2. En su Portal de Azure, cree un recurso New Relic.
+
+3. Seleccione
+
+   <DNT>
+     **Create a New Relic resource**
+   </DNT>
+
+   para crear una nueva cuenta de New Relic, o puede
+
+   <DNT>
+     **Link an existing New Relic resource**
+   </DNT>
+
+   vincularla a un recurso existente.
+
+4. Completa el símbolo que aparece y selecciona
+
+   <DNT>
+     **Review + create**
+   </DNT>
+
+   .
+
+5. Configura cómo tu servicio reporta métricamente e inicia sesión en la pestaña
+
+   <DNT>
+     **Resource configuration**
+   </DNT>
+
+   .
+
+6. Vaya a
+
+   <DNT>
+     **App services**
+   </DNT>
+
+   para habilitar nuestro
+
+   <InlinePopover type="apm"/>
+
+   agente. Vaya a
+
+   <DNT>
+     **Virtual machines**
+   </DNT>
+
+   para habilitar nuestro agente de infraestructura.
+
+7. Verifique que New Relic esté recibiendo datos en la pestaña
+
+   <DNT>
+     **Monitored resources**
+   </DNT>
+
+   del Portal de Azure. Los recursos con una marca de verificación verde envían datos a New Relic.
+
+Para obtener detalles sobre la configuración, consulte el [sitio de documentos de Microsoft Azure.](https://learn.microsoft.com/en-us/azure/partner-solutions/new-relic/new-relic-overview)
+
+<img
+  title="monitor-resources"
+  alt="An image showing the monitor resources tab of azure"
+  src="/images/monitored-resources.webp"
+/>
+
+<figcaption>
+  La pestaña <DNT>**Monitored resources**</DNT> en el Portal de Azure muestra todos sus recursos y su estado de informes métricos y log .
+</figcaption>
+
+## Log en New Relic [#login-newrelic]
+
+Una vez que haya creado su recurso New Relic y haya verificado que Azure le está enviando datos, puede ingresar a New Relic.
+
+Para log en New Relic:
+
+1. En la página de Azure
+
+   <DNT>
+     **Overview**
+   </DNT>
+
+   para el nuevo recurso, haga clic en
+
+   <DNT>
+     **Login to New Relic account**
+   </DNT>
+
+   .
+
+2. Deberá crear una nueva contraseña. Para hacer esto, haga clic en
+
+   <DNT>
+     **Forgot your password**
+   </DNT>
+
+   .
+
+3. Ingrese su dirección de correo electrónico. Debe ser el mismo que usas para tu cuenta de Azure.
+
+## Próximos pasos en New Relic [#view-newrelic]
+
+Una vez que estés en New Relic, aquí tienes algunas ideas sobre qué hacer a continuación:
+
+* [Ver tus datos de APM](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data)
+* [Ver los datos de su infraestructura](/docs/infrastructure/infrastructure-ui-pages/infra-hosts-ui-page)
+* [Ver tu registro](/docs/logs/ui-data/use-logs-ui)
+* [Configurar alertas](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition)
+* [Agregue más integración New Relic ](https://newrelic.com/instant-observability).
+
+## Detalles de precios [#pricing]
+
+Para obtener detalles sobre precios y otras explicaciones de características, consulte [Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg).
+
+## Detalles de integración [#tech-details]
+
+Este servicio se basa en [nuestro monitoreo de integración de Azure](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-monitor).
+
+## Nota sobre el centro de datos [#datacenters]
+
+El servicio Azure Native New Relic almacena sus datos directamente en el centro de datos Azure de Microsoft. Actualmente, el servicio Azure Native almacena todos los datos en la región este de EE. UU. de Azure.
+
+El servicio de patrones de registros de New Relic opera únicamente en Amazon Web Services. Al utilizar los patrones de New Relic Logs, usted acepta que New Relic pueda mover sus datos y procesarlos en Amazon Web Services. Esto se aplica ya sea que almacene sus datos en el centro de datos Azure de New Relic o en nuestro centro de datos de Amazon Web Services.

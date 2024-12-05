@@ -1,0 +1,327 @@
+---
+title: サードパーティ製計測器
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: This document provides guidance for instrumenting unsupported third party gems or libraries you have authored yourself with the Ruby agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このドキュメントでは、 Rubyエージェントを使用してサードパーティの gem を計量する方法と、エージェントと対話するためのいくつかのベストプラクティスについて詳しく説明します。 これは、 <DNT>Ruby</DNT>エージェントがデフォルトで計装しない gem を使用している場合、または gem の作成者がライブラリにインストゥルメンテーションを追加したい場合に便利です。
+
+## サードパーティ製エクステンションの検索
+
+誰でも<DNT>Ruby</DNT>エージェント上に構築される gem を作成できます。 New Relic は、これらの拡張機能を追跡し、 <DNT>Ruby</DNT>エージェントを構築する他の gem へのリンクを提供するために、 [extends_newrelic_rpm](https://github.com/newrelic/extends_newrelic_rpm)というリポジトリを維持しています。
+
+これらの拡張機能はNewRelicではサポートされて**いません**。 New Relicは、これらのリンクをお客様へのサービスとして収集します。これらのgemに関する問題は、GitHubのそれぞれのプロジェクトに報告する必要があります。
+
+## 珠玉のエクステンション
+
+New Relic では、サードパーティの拡張機能を gem として維持することを推奨しています。たとえば、 `newrelic-redis`は`redis` gem のインストルメンテーションを提供します。
+
+## トランザクションの開始
+
+ライブラリが New Relic で完全なトランザクションとして表現されるべきコードを提供している場合 (たとえば、Ruby エージェントが計測していないウェブリクエストやバックグラウンドジョブなど)、トランザクションを開始するためにこれらのメカニズムのいずれかを使用してください。
+
+<CollapserGroup>
+  <Collapser
+    id="add_transaction_tracer"
+    title="add_transaction_tracer"
+  >
+    トランザクションを開始する最も簡単な方法は、メソッドで`add_transaction_tracer`を呼び出すことです。これは、 `NewRelic::Agent::Instrumentation::ControllerInstrumentation`がクラスに含まれていることを前提としています。
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+        # execute a transaction
+      end
+
+      add_transaction_tracer :transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="perform_action_with_newrelic_trace"
+    title="新生児のトレースを使ったアクションの実行"
+  >
+    場合によっては、New Relic が生成するトランザクションをもう少し制御する必要があります。その場合は、 `perform_action_with_newrelic_trace`を使用できます。オーバーライドできるパラメーターには、トランザクション名とカテゴリ (Web トランザクションかバックグラウンド トランザクションか) が含まれます。
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+       perform_action_with_newrelic_trace(:name    => "custom_name",
+                                         :category => :task) do
+         # your work here...
+       end
+      end
+
+    end
+    ```
+
+    パラメータと使用法の詳細については [、perform_action_with_newrelic_trace の完全なドキュメントを](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Instrumentation/ControllerInstrumentation#perform_action_with_newrelic_trace-instance_method) 参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## トランザクショントレース内のノード [#nodes-transaction-traces]
+
+メソッドへの呼び出しに関するタイミング情報をNew Relicに追加したい場合がありますが、これは完全なトランザクションを表すものではありません。New Relic では、これを実現するためにメソッドトレーサーを追加することを推奨します。
+
+<CollapserGroup>
+  <Collapser
+    id="add_method_tracer"
+    title="add_method_tracer"
+  >
+    ```ruby
+    require 'new_relic/agent/method_tracer'
+    class Foo
+      include ::NewRelic::Agent::MethodTracer
+
+      def generate_image
+        # ...
+      end
+
+      add_method_tracer :generate_image, 'Custom/generate_image'
+    end
+    ```
+
+    上記の例では、名前`'Custom/generate_image'`のメトリクスが記録され、メソッド呼び出しを含むトランザクション トレースのエントリが記録されます。
+  </Collapser>
+</CollapserGroup>
+
+## カスタムデータストア
+
+Rubyエージェントは、Datastoresへのコールを記録するための特別な機能を提供します。Datastoresは、SQLとNoSQLの両方のデータベースをサポートし、サードパーティのgemが使用できるように一貫したインターフェースを提供することを目的としています。
+
+`NewRelic::Agent::Datastores`モジュール関数を介して記録されたメトリクスは[、New Relic のデータベース UI に](/docs/apm/applications-menu/monitoring/databases-slow-queries-dashboard)表示されます。
+
+<CollapserGroup>
+  <Collapser
+    id="trace"
+    title="NewRelic::Agent::Datastores.trace"
+  >
+    `trace` メソッドのデータストアを記録する最も簡単な方法です。
+
+    ```ruby
+    class FauxDB
+
+     def find
+       # FauxDB lookup
+     end
+
+     NewRelic::Agent::Datastores.trace self, :find, "FauxDB"
+
+    end
+    ```
+
+    最初のパラメータはインストゥルメントするクラス、2番目は検索するメソッド、3番目はデータストアの製品名です。最後のパラメータには、オプションで操作名を指定することができますが、そうでない場合は、メトリクスで操作を表現するためにメソッド名が使用されます。
+
+    このインターフェースで記録されたデータストア メトリックでは、コレクション/テーブル名を追加できないことに注意してください。そのためには、以下の`wrap`メソッドを参照してください。
+  </Collapser>
+
+  <Collapser
+    id="wrap"
+    title="NewRelic::Agent::Datastores.wrap"
+  >
+    `wrap` メトリック名に追加のコレクション/テーブル情報を使用してデータストア メトリックを記録できます。また、遅いステートメントに気付くなどの操作のためのコールバックも提供します。
+
+    ```ruby
+    class FauxDB
+
+      def find(table)
+        NewRelic::Agent::Datastores.wrap("FauxDB", "find", table) do
+        # FauxDB lookup
+        end
+      end
+
+    end
+    ```
+
+    データストア呼び出しに関する追加情報を記録する場合は、 `wrap`でオプションのコールバック パラメータを使用できます。
+
+    ```ruby
+    class FauxDB
+
+     def find(query)
+       callback = Proc.new do |result, scoped_metric, elapsed|
+         NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+       end
+
+       NewRelic::Agent::Datastores.wrap("FauxDB", "find", "items", callback) do
+         # execute query
+       end
+     end
+
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="notice_sql"
+    title="NewRelic::Agent::Datastores.notice_sql"
+  >
+    このヘルパー・メソッドは、トランザクション・トレースやスローSQLページで表示するために、遅いSQLクエリを記録します。SQLはユーザーの設定に基づいてフィルタリングされ、難読化されます。
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+    ```
+
+    非 SQL クエリは`notice_sql`を介して送信しないでください。代わりに`notice_statement`を使用してください。
+
+    <Callout variant="caution">
+      New Relic のTransaction Tracing と Slow SQL 機能は、渡されたクエリに難読化を適用しようとしますが、クエリのフォーマットがサポートされておらず、キャプチャされたクエリに埋め込まれたユーザー情報が公開されてしまう可能性があります。
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="notice_statement"
+    title="NewRelic::Agent::Datastores.notice_statement"
+  >
+    このヘルパーメソッドは、トランザクショントレースへの遅いデータストア呼び出しのステートメントを記録します。これらは難読化されて**いません**。
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_statement(statement, elapsed)
+    ```
+
+    `notice_statement`を介して SQL クエリを送信しないでください。代わりに`notice_sql`を使用してください。
+
+    <Callout variant="caution">
+      このメソッドは、ユーザーがクエリのキャプチャをオフにした場合のステートメントを適切に無視しますが、任意のデータを難読化することはできません!キャプチャされたクエリに埋め込まれたユーザー情報の漏洩を防ぐために、このメソッドに渡されるすべてのデータが、New Relic に送信しても安全であることを確認してください。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## エクステンションのテスト
+
+New Relic を拡張する gem をオーサリングすると、自動テストを書くことができます。エージェント自体が使用するテストヘルパーは、いくつかの一般的なテスト作業を簡略化するために利用できます。
+
+<CollapserGroup>
+  <Collapser
+    id="require_test_helper"
+    title="NewRelic::Agent.require_test_helper"
+  >
+    このセクションに記載されているテスト メソッドには、テスト コード (通常は`test_helper.rb`ファイル) からこれを呼び出すことでアクセスできます。
+
+    ```ruby
+    NewRelic::Agent.require_test_helper
+    ```
+  </Collapser>
+
+  <Collapser
+    id="assert_metrics_recorded"
+    title="assert_metrics_recorded"
+  >
+    この方法は、予想されるメトリクスが Ruby エージェントによって確実に記録されるようにするための主要な方法です。`refute_metrics_recorded`も利用できます。
+
+    最も単純な形式では、 `assert_metrics_recorded`は次のように呼び出すことができます。
+
+    ```ruby
+    assert_metrics_recorded(["MetricA", "MetricB"])
+    ```
+
+    特定の値を持つメトリクスは、この構文でアサートできます。
+
+    ```ruby
+    assert_metrics_recorded('MetricA' => {
+                             :call_count => 1,
+                             :total_call_time => 1.0 })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="in_web_transaction"
+    title="in_web_transaction/in_background_transaction"
+  >
+    これらの方法は、ウェブやバックグラウンドでのトランザクションの実行をシミュレートするものです。
+
+    ```ruby
+    in_web_transaction do
+      # Perform work to test behavior in transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="with_config"
+    title="with_config"
+  >
+    エージェントの構成は、 `with_config`を介してテスト用に変更できます。エージェントの他の構成値に適用されるハッシュを取得します。
+
+    ```ruby
+    with_config(:enabled => false) do
+      # Check what happens when agent's disabled
+    end
+    ```
+
+    <Callout variant="tip">
+      通常、これらの構成値は`require`でインストルメンテーションが発生したときにチェックされ、テストでの設定変更の影響を受けないため、この方法はインストルメンテーションのインストールのテストには役立ちません。
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="multiverse"
+    title="マルチバース。複数のGemバージョンでのテスト"
+  >
+    複数のgemバージョンに対して拡張機能をテストする必要がある場合は、Rubyエージェント自身のテストコードの一部であるMultiverseを使うことができます。Multiverse のテスト例は、エージェントファイルの [suites ディレクトリを参照してください](https://github.com/newrelic/newrelic-ruby-agent/tree/master/test/multiverse/suites) 。
+
+    自分のgemにMultiverseを設定するには
+
+    1. <DNT>**Require `tasks/multiverse` in Rakefile**</DNT>`rake test:multiverse`コマンドを有効にするには、Rakefile に次のコードを追加します。
+
+       ```rb
+       require "tasks/multiverse"
+       ```
+
+    2. <DNT>**Create the Multiverse test directory**</DNT>マルチバース テストには特定のファイル レイアウトが必要です。 次のファイルの場所を含む`test/multiverse/YOUR_PROJECT`という名前のディレクトリを作成します。
+
+       ```
+       test/multiverse/YOUR_PROJECT
+       test/multiverse/YOUR_PROJECT/Envfile
+       test/multiverse/YOUR_PROJECT/config/newrelic.yml
+       test/multiverse/YOUR_PROJECT/FILE_WITH_A_TEST.rb
+       ```
+
+    3. <DNT>**Configure your Envfile**</DNT><DNT>**Envfile**</DNT>を使用して、Multiverse テストの gem 依存関係のセットを宣言します。 たとえば、 <DNT>**Envfile**</DNT>は次のようになります。
+
+       ```rb
+       gemfile <-RB
+         gem 'your-project', '~> 1.0.0'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_your-project', path: '../../..'
+       RB
+
+       gemfile <-RB
+         gem 'your-project', '~> 2.1.0'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_your-project', path: '../../..'
+       RB
+       ```
+
+       <Callout variant="tip">
+         マルチバース テストが確実に機能するように、 `newrelic_rpm`と`rack`の`gem`行を含めます。
+       </Callout>
+
+    4. <DNT>**Detect dependencies**</DNT>。必要に応じて、Multiverse テストから追加の依存関係検出を実行して、拡張機能の インストゥルメンテーションが読み込まれていることを確認します。
+
+       ```rb
+       require 'newrelic/your-project'
+
+       DependencyDetection.detect!
+
+       class YourProjectTest > Minitest::Test
+       end
+       ```
+
+       <DNT>**Envfile**</DNT>内の gem 依存関係に対して Multiverse テストを実行するには:
+
+    * Gem の Multiverse を設定したら、 `rake test:multiverse`を実行してディレクトリでテストを実行します。
+  </Collapser>
+</CollapserGroup>

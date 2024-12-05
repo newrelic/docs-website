@@ -1,0 +1,445 @@
+---
+title: Ejemplos de API para informes SLA
+tags:
+  - APM
+  - Reports
+  - Service level agreements
+metaDescription: 'How to use New Relic''s REST API to create service level agreement reports (SLAs) for selected time periods, such as 12 days, weeks, or months.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic almacena datos de SLA para siempre para [las cuentas elegibles](http://newrelic.com/application-monitoring/pricing), por lo que puede usar la [API REST de New Relic](/docs/apm/apis/requirements/new-relic-rest-api-v2-getting-started) para generar informes de acuerdos de nivel de servicio durante cualquier período de tiempo. Por ejemplo, puede crear informes SLA que se remontan a más de 12 días, semanas o meses.
+
+<Callout variant="tip">
+  El acceso a esta característica depende de tu [nivel de suscripción](https://newrelic.com/application-monitoring/features/edition).
+</Callout>
+
+## Browser métrico para SLAs [#browser-metrics]
+
+Las métricas del navegador para el [nivel](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#tier) <DNT>**End user**</DNT> están disponibles solo si ha [instalado el agente <InlinePopover type="browser"/>](/docs/browser/new-relic-browser/getting-started/browser-settings).
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Browser (End user tier)**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **SLA metric name:value (and formula)**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Vistas de página miles
+      </td>
+
+      <td>
+        EndUser : call_count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tiempo de carga segundos
+      </td>
+
+      <td>
+        EndUser : average_response_time
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Apdex
+      </td>
+
+      <td>
+        Usuario final/Apdex: puntuación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % Satisfecho
+      </td>
+
+      <td>
+        EndUser/Apdex : s dividido por EndUser : call_count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % tolerante
+      </td>
+
+      <td>
+        EndUser/Apdex : t dividido por Enduser : call_count
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % Frustrado
+      </td>
+
+      <td>
+        EndUser/Apdex : f dividido por Enduser : call_count
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Servidor de aplicaciones métricas para SLA [#app-metrics]
+
+Aquí están los SLA métricos para servidores de aplicaciones.
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **App server**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **SLA metric name:value (and formula)**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Solicita millones
+      </td>
+
+      <td>
+        HttpDispatcher : call_count (escalado apropiadamente)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Resp. tiempo ms
+      </td>
+
+      <td>
+        HttpDispatcher : average_response_time (multiplicado por 1000)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Apdex
+      </td>
+
+      <td>
+        Apdex: puntuación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % Satisfecho
+      </td>
+
+      <td>
+        Apdex: s dividido por Apdex: recuento
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % tolerante
+      </td>
+
+      <td>
+        Apdex: t dividido por Apdex: recuento
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        % Frustrado
+      </td>
+
+      <td>
+        Apdex: f dividido por Apdex: recuento
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Consejos para el cobro métrico [#tips]
+
+A continuación se ofrecen algunos consejos para planificar qué métrica recopilar.
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **SLA tips**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Comments**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Requisitos
+      </td>
+
+      <td>
+        Cuando utilice los ejemplos de comando curl, asegúrese de reemplazar el texto del marcador de posición con su [ID de cuenta](/docs/accounts-partnerships/accounts/account-setup/account-id), una [clave de API](/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key) y el [ID de la aplicación](/docs/apm/apis/requirements/finding-product-id).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rangos de tiempo
+      </td>
+
+      <td>
+        No está limitado a rangos de tiempo estándar de días, semanas o meses. Por ejemplo, puedes [extraer datos métricos](/docs/apm/apis/requirements/extracting-metric-data) para un "fin de semana festivo" del 23/12 al 26/12 o "los 20 minutos después de que nuestro sitio tuvo problemas" o cualquier otro período que te interese.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Formato de hora UTC XML
+      </td>
+
+      <td>
+        Debe especificar la hora en formato XML UTC, así que asegúrese de ajustarla a su [zona horaria en comparación con UTC](/docs/apm/apis/requirements/specifying-time-range-api-v2). Por ejemplo, New Relic comienza a las 16:00:00 del día anterior a los datos seleccionados, ya que la sede de New Relic está en UTC-8.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informes resumidos
+      </td>
+
+      <td>
+        Cuando solicite métrica para usar con [informes resumidos](/docs/apm/apis/requirements/calculating-average-metric-values-summarize), incluya el parámetro de cadena de consulta `summarize=true` (v2) o `summary=1` (v1) como se muestra en los ejemplos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Estadísticas escaladas
+      </td>
+
+      <td>
+        Su informe tiene algunas estadísticas que se escalan en los [informes SLA en la interfaz de usuario de New Relic](/docs/apm/reports/service-level-agreements/sla-reports). New Relic cambia la escala de visitas a la página en su informe para mostrar números pequeños. Dependiendo de su tráfico, normalmente puede mostrarse en miles, millones o miles de millones.
+
+        <DNT>**Recommendation:**</DNT> Para evitar una serie de ceros, divida este número de manera adecuada para sus propios fines.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Estadísticas finales de usuario
+      </td>
+
+      <td>
+        Las estadísticas del usuario final reflejarán solo las llamadas en las que el agente recopiló datos del navegador. Por ejemplo, es posible que las estadísticas del usuario final no aparezcan en situaciones como:
+
+        * Tipos browser
+
+        * Clientes (es posible que hayan deshabilitado el agente de JavaScript o bloqueado el tráfico a los sitios de New Relic para la ubicación del código JavaScript
+
+        * Transacción que no esté en una de esas categorías, en caso de que la carga de la página no se complete por algún motivo
+
+          Esta es la razón por la que hay menos (a veces muchas menos) páginas vistas en la sección <DNT>**End User**</DNT> (datos del navegador) que en la sección de datos <DNT>**App server**</DNT> .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ejemplos
+
+Las siguientes secciones contienen ejemplos de código para adquirir los datos de los valores descritos anteriormente para las estadísticas SLA diarias (24 horas) en la zona horaria GMT/UTC predeterminada. Ajuste `from=` y `to=` para su [rango de tiempo](/docs/apm/apis/requirements/specifying-time-range-api-v2) como desee.
+
+Existen diferencias sintácticas entre la API REST v2 y v1 de New Relic. Los ejemplos muestran cómo utilizar cada uno.
+
+## Comandos de la API REST v2 [#examples_v2]
+
+<CollapserGroup>
+  <Collapser
+    id="browser-v2"
+    title="Tiempo de carga browser y recuento de vistas de página (v2)"
+  >
+    Para obtener el tiempo de carga browser (Usuario final/RUM) y el recuento de vistas de página para v2, desde la línea de comando, escriba:
+
+    ```bash
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml"\
+        -H "Api-Key:$API_KEY" -i  \
+        -d "names[]=EndUser&values[]=call_count&values[]=average_response_time&from=2014-06-09T00:00:00+00:00&to=2014-06-09T23:00:00+00:00&summarize=true"
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.http_get("https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml?names[]=EndUser&values[]=call_count&values[]=average_response_time&from=2012-01-01T00:00:00+00:00&to=2012-01-08T00:00:00+00:00&summarize=true") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+      curl.header_in_body=true
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+
+  <Collapser
+    id="app-v2"
+    title="Tiempo de respuesta de la aplicación y recuento de solicitudes (v2)"
+  >
+    Para obtener el tiempo de respuesta de la aplicación y el recuento de solicitudes para v2, desde la línea de comando, escriba:
+
+    ```bash
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+         -H "Api-Key:$API_KEY" -i \
+         -d "names[]=HttpDispatcher&values[]=average_response_time&values[]=call_count&from=2014-06-09T00:00:00+00:00&to=2014-06-09T23:00:00+00:00&summarize=true"
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.http_get("https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml?names[]=HttpDispatcher&values[]=average_response_time&values[]=call_count&from=2012-01-01T00:00:00+00:00&to=2012-01-08T00:00:00+00:00&summarize=true") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+      curl.header_in_body=true
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+
+  <Collapser
+    id="apdex-v2"
+    title="Datos de Apdex SLA (v2)"
+  >
+    Para obtener los datos relacionados con Apdex para v2, desde la línea de comando, escriba:
+
+    ```bash
+    curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+         -H "Api-Key:$API_KEY" -i \
+         -d 'names[]=Apdex&names[]=EndUser/Apdex&from=2014-06-09T00:00:00+00:00&to=2014-06-09T23:00:00+00:00&summarize=true'
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.http_get("https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml?names[]=EndUser/Apdex&from=2012-01-01T00:00:00+00:00&to=2012-01-08T00:00:00+00:00&summarize=true") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+      curl.header_in_body=true
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Comandos de la API REST v1 (en desuso) [#examples_v1]
+
+La API REST v1 está en desuso.
+
+<CollapserGroup>
+  <Collapser
+    id="browser-v1"
+    title="Tiempo de carga browser y recuento de vistas de página (v1)"
+  >
+    Para obtener el tiempo de carga browser (Usuario final/RUM) y el recuento de vistas de página para v1, desde la línea de comando, escriba:
+
+    ```bash
+    curl -gH "api-key:$API_KEY" "https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=EndUser&field=call_count&field=average_response_time&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z"
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.perform("https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=EndUser&field=call_count&field=average_response_time&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+
+  <Collapser
+    id="app-v1"
+    title="Tiempo de respuesta de la aplicación y recuento de solicitudes (v1)"
+  >
+    Para obtener el tiempo de respuesta de la aplicación y el recuento de solicitudes para v1, desde la línea de comando, escriba:
+
+    ```bash
+    curl -gH "api-key:$API_KEY" "https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=HttpDispatcher&field=average_response_time&field=call_count&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z"
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.perform("https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=HttpDispatcher&field=average_response_time&field=call_count&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+
+  <Collapser
+    id="apdex-v1"
+    title="Datos de Apdex SLA (v1)"
+  >
+    Para obtener los datos relacionados con Apdex para v1, desde la línea de comando, escriba:
+
+    ```bash
+    curl -gH "api-key:$API_KEY" "https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=Apdex&metrics[]=EndUser/Apdex&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z"
+    ```
+
+    En Ruby:
+
+    ```ruby
+    require 'rubygems'
+    require 'curb'
+
+    response = Curl::Easy.perform("https://api.newrelic.com/api/v1/accounts/$ACCOUNT_ID/applications/$APP_ID/data.xml?metrics[]=Apdex&metrics[]=EndUser/Apdex&summary=1&begin=2012-01-01T00:00:00Z&end=2012-01-08T00:00:00Z") do |curl|
+      curl.headers["api-key"] = "$API_KEY"
+    end
+    puts response.body_str
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Analiza tus datos [#insights]
+
+APM incluye varios informes en la interfaz de usuario. Para recopilar, analizar y visualizar datos sobre su software en otros formatos, utilice [el panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).

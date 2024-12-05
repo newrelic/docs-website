@@ -1,0 +1,352 @@
+---
+title: Pasar opciones de línea de comando para nrdiag
+tags:
+  - Using New Relic
+  - Cross-product functions
+  - Diagnostics CLI (nrdiag)
+metaDescription: Command line options for New Relic's Diagnostics CLI (nrdiag).
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para utilizar las siguientes opciones de línea de comando con la CLI de diagnóstico:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Opción
+      </th>
+
+      <th>
+        Uso
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `-a`
+
+        `-attach`
+      </td>
+
+      <td>
+        Adjunte para carga automática a una cuenta de New Relic. El tamaño máximo de carga es de 4 GB. Esto utiliza un <InlinePopover type="licenseKey"/>validado de su entorno.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-api-key`
+      </td>
+
+      <td>
+        Clave de usuario de API que se utilizará al cargar resultados en su cuenta New Relic . El tamaño máximo de carga es de 4 GB. Esto evita el uso de una clave de licencia y utiliza su <InlinePopover type="userKey"/>para adjuntar resultados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-r`
+
+        `-region`
+      </td>
+
+      <td>
+        La [región](/docs/accounts/accounts-billing/account-setup/choose-your-data-center/) en la que está alojada su cuenta New Relic. Valores aceptados: UE o EE.UU. No distingue entre mayúsculas y minúsculas. Predeterminado: EE. UU.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="browser-check">
+        `-browser-url STRING`
+      </td>
+
+      <td>
+        CLI de diagnóstico versión 1.1.9 o mas alto
+
+        Cuando se invoca, esto solo ejecutará comprobaciones de diagnóstico relacionadas con <InlinePopover type="browser"/>. Este comando verifica que el agente de monitoreo del navegador de New Relic esté presente y devuelve la versión del agente, el método de inyección ([a través de <InlinePopover type="apm"/>](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#select-apm-app)o [mediante copiar/pegar](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#copy-paste-app)) y el tipo de cargador (Pro, Lite, SPA). Se utilizará para proporcionar detalles al soporte de New Relic cuando se resuelvan problemas en sitios de intranet.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-c STRING`
+
+        `-config-file STRING`
+      </td>
+
+      <td>
+        Anule la ubicación predeterminada del archivo de configuración del agente. Se puede utilizar para especificar una carpeta para buscar además de las carpetas predeterminadas o una ruta a un archivo de configuración específico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-filter STRING`
+      </td>
+
+      <td>
+        Filtre los resultados de las tareas por estado de resultado. Acepta una lista separada por comas. Acepta `Success`, `Warning`, `Failure`, `Error`, `None` o `Info`. Sintaxis de ejemplo:
+
+        ```
+        "Success,Warning,Failure"
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-h`
+
+        `-help`
+      </td>
+
+      <td>
+        Muestra la lista completa de opciones de la línea de comando. Para enumerar todas las tareas que se ejecutarán, utilice `-h tasks`. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-include STRING`
+      </td>
+
+      <td>
+        Incluya un archivo o directorio (incluidos subdirectorios) en `nrdiag-output.zip`. Límite de 4 GB. Utilice la bandera `-a` o `-api-key` para cargar los resultados en New Relic.
+
+        Sintaxis de ejemplo:
+
+        ```
+        -include ./path/to/file
+        ```
+
+        ```
+        -include \some\path\
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-interactive`
+      </td>
+
+      <td>
+        Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-output-path STRING`
+      </td>
+
+      <td>
+        Especifica un directorio de salida diferente para escribir los resultados de `nrdiag-output.zip`, `nrdiag-output.json` y `nrdiag-filelist.txt`. La ubicación predeterminada es `./`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-o`
+
+        `-override STRING`
+      </td>
+
+      <td>
+        Pase argumentos para anular cuando lo solicite el soporte de New Relic. Formato: `identifier.property=value`.
+
+        Sintaxis de ejemplo:
+
+        ```
+        -override Java/Config/Agent.Status=Success
+        ```
+
+        ```
+        -o Base/Config/Validate.agentlanguage=PHP
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-p STRING`
+
+        `-proxy STRING`
+      </td>
+
+      <td>
+        Proporcionar proxy para ser utilizado en tareas de conexión HTTP. Puede ser HTTP o HTTPS. El proxy debe tener el formato `http(s)://proxyIp:proxy`. Si la CLI de diagnóstico encuentra un proxy en el archivo de configuración del agente, utilizará ese proxy de forma predeterminada. En la mayoría de los casos `port` no es necesario. Si la CLI de diagnóstico encuentra un proxy en el archivo de configuración del agente, utilizará ese proxy de forma predeterminada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-proxy-pw STRING`
+      </td>
+
+      <td>
+        Contraseña de proxy, si es necesario. Si la CLI de diagnóstico encuentra un proxy en el archivo de configuración del agente, utilizará ese proxy de forma predeterminada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-proxy-user STRING`
+      </td>
+
+      <td>
+        Nombre de usuario proxy, si es necesario. Si la CLI de diagnóstico encuentra un proxy en el archivo de configuración del agente, utilizará ese proxy de forma predeterminada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-q`
+      </td>
+
+      <td>
+        La salida silenciosa solo imprime los resultados de alto nivel y no la salida explicativa. Suprime las advertencias de adición de archivos si también se utiliza `-y` . No contradice `-v`. Los filtros de inclusión se ignoran. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-qq`
+      </td>
+
+      <td>
+        La salida muy silenciosa solo imprime una única línea de resumen para la salida (implica `q`). Suprime las advertencias de adición de archivos si también se utiliza `-y` . No contradice `-v`. Los filtros de inclusión se ignoran. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-skip-version-check`
+      </td>
+
+      <td>
+        Omita la verificación automática de una versión más reciente de la aplicación. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-s STRING`
+
+        `-suites STRING`
+      </td>
+
+      <td>
+        Ejecute una [suite](/docs/using-new-relic/cross-product-functions/diagnostics-cli-nrdiag/run-diagnostics-cli-nrdiag/#suites), una colección de tareas que apuntan a productos o problemas específicos. Para especificar varias suites, sepárelas con comas. Para obtener una lista de todas las suites, ejecute:
+
+        ```
+        ./nrdiag -h suites
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t STRING`
+
+        `-tasks STRING`
+      </td>
+
+      <td>
+        Ejecute solo un subconjunto de tareas, ya sea por agente o por tipo de tarea. Para especificar varias tareas, sepárelas con comas y/o con un comodín `*`. Para obtener una lista de todas las tareas, ejecute:
+
+        ```
+        ./nrdiag -h tasks
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-usage-opt-out`
+      </td>
+
+      <td>
+        Rechazar el envío de datos anónimos de uso de la herramienta CLI de diagnóstico a New Relic para esta ejecución. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-list-scripts`
+      </td>
+
+      <td>
+        Lista de scripts disponibles.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-script STRING`
+      </td>
+
+      <td>
+        Ver el script especificado. Úselo con `-run` para ejecutar el script.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-run`
+      </td>
+
+      <td>
+        Úselo con `-script` para ejecutar el script.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-script-flags`
+      </td>
+
+      <td>
+        Úselo con `-run -script` para pasar indicadores de línea de comando al script.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-v`
+
+        `-verbose`
+      </td>
+
+      <td>
+        Muestra el registro detallado durante la ejecución de la verificación. Deshabilitado por defecto. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-version`
+      </td>
+
+      <td>
+        Muestra la versión actual de la CLI de diagnóstico. Este también es un símbolo para buscar una versión más reciente y un símbolo para descargar si hay una versión más nueva disponible. Tiene prioridad sobre `-skip-version-check`. Tipo: booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-y`
+
+        `-yes`
+      </td>
+
+      <td>
+        Responde `yes` a cualquier símbolo que aparezca mientras estás ejecutando. Deshabilitado por defecto. Tipo: booleano
+      </td>
+    </tr>
+  </tbody>
+</table>

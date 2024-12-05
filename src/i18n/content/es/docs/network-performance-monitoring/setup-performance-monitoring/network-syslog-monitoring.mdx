@@ -1,0 +1,406 @@
+---
+title: Configurar el monitoreo de syslog de red
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+metaDescription: Set up network syslog monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar nuestro proceso de instalación guiada para instalar el agente de monitoreo syslog o instalar el agente manualmente. Este documento cubre los requisitos previos para iniciar este proceso de instalación y un recorrido paso a paso por las opciones de instalación.
+
+## Requisitos previos [#prerequisites]
+
+Antes de poder comenzar, deberá [registrarse para obtener una cuenta New Relic](https://newrelic.com/signup). Si elige instalar el agente manualmente, también necesitará:
+
+* Una [identificación de cuenta](/docs/accounts/accounts-billing/account-setup/account-id) de New Relic.
+
+* Una New Relic
+
+  <InlinePopover type="licenseKey"/>
+
+  .
+
+<CollapserGroup>
+  <Collapser
+    id="docker"
+    title="Requisitos previos Docker"
+  >
+    Recomendamos utilizar un contenedor Docker para desplegar el agente para la recopilación de mensajes syslog. Para usarlo, necesitas:
+
+    * [Docker](https://docs.docker.com/engine/install) instalado en un host Linux
+    * Capacidad para lanzar un nuevo contenedor a través de línea de comando
+  </Collapser>
+
+  <Collapser
+    id="podman"
+    title="Requisitos previos del Podman"
+  >
+    Si está empleando un contenedor Podman para lanzar el agente, necesita:
+
+    * [Podman](https://podman.io/docs/installation) instalado en un host Linux
+    * Capacidad para lanzar un nuevo contenedor a través de línea de comando
+  </Collapser>
+
+  <Collapser
+    id="linux"
+    title="Requisitos previos del host Linux"
+  >
+    Si utiliza Linux para instalar el agente como servicio, necesita:
+
+    * Acceso SSH al host
+
+    * Acceso para instalar/eliminar aplicaciones y servicios.
+
+    * Uno de estos sistemas operativos soportados:
+
+      * CentOS 8
+      * Debian 12 (ratón de biblioteca)
+      * Debian 11 (Diana)
+      * Debian 10 (Buster)
+      * RedHat Enterprise Linux 9
+      * Ubuntu 20.04 (LTS focal)
+      * Ubuntu 22.04 (Jammy LTS)
+      * Ubuntu 23.04 (Lunar)
+
+      <Callout variant="important">
+        Para recibir mensajes de syslog, el agente debe vincularse a UDP 514. En una instalación basada en host, se incluirá el siguiente comando durante el proceso de instalación. Cuando se ejecute, KTranslate se ejecutará con privilegios elevados.
+
+        `sudo setcap cap_net_bind_service=+ep /usr/bin/ktranslate`
+      </Callout>
+  </Collapser>
+
+  <Collapser
+    id="net-sys"
+    title="Requisitos previos de los dispositivos syslog de red"
+  >
+    <Callout variant="important">
+      `ktranslate` maneja syslog en los siguientes formatos automáticamente: [RFC3164](https://datatracker.ietf.org/doc/html/rfc3164), [RFC5424](https://datatracker.ietf.org/doc/html/rfc5424) y [RFC6587](https://datatracker.ietf.org/doc/html/rfc6587). Cualquier mensaje recibido fuera de estos formatos se descartará a menos que configure [-syslog.format=NoFormat](/docs/network-performance-monitoring/advanced/ktranslate-container-management/#container-runtime-options) marcar en tiempo de ejecución.
+    </Callout>
+
+    Debe configurar los dispositivos de origen para enviar mensajes syslog al host que ejecuta el Monitoreo de red agente. A continuación se explica cómo configurar la exportación de syslog de red en algunos dispositivos (esta no es una lista exhaustiva):
+
+    * [Punto de control: puerta de enlace de seguridad](https://sc1.checkpoint.com/documents/R80.40/WebAdminGuides/EN/CP_R80.40_LoggingAndMonitoring_AdminGuide/Topics-LMG/Working-with-Syslog-Servers.htm). Debes iniciar sesión en el punto de control del Centro de usuarios/PartnerMAP.
+    * [Cisco - ASA](https://www.cisco.com/c/en/us/support/docs/security/pix-500-series-security-appliances/63884-config-asa-00.html)
+    * [Cisco - IOS](https://community.cisco.com/t5/networking-documents/how-to-configure-logging-in-cisco-ios/ta-p/3132434)
+    * [Cisco-NX-OS](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/6-x/system_management/configuration/guide/_Cisco_Nexus_9000_Series_NX-OS_System_Management_Configuration_Guide/sm_5syslog.html)
+    * [F5 - IP GRANDE](https://support.f5.com/csp/article/K13080)
+    * [Fortinet Fortigate](https://help.fortinet.com/fadc/4-5-1/olh/Content/FortiADC/handbook/log_remote.htm)
+    * [Enebro - Junos](https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/ref/statement/syslog-edit-system.html)
+    * [Palo Alto - PAN-OS](https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/monitoring/use-syslog-for-monitoring/configure-syslog-monitoring.html)
+  </Collapser>
+
+  <Collapser
+    id="net-sec"
+    title="Requisitos previos de seguridad de la red"
+  >
+    Verifique los [requisitos previos de seguridad de la red para syslog de red](/install/npm).
+  </Collapser>
+</CollapserGroup>
+
+## Configurar el monitoreo de syslog de red en New Relic [#setup-network-syslog-monitoring]
+
+Para la mayoría de los casos de uso, recomendamos nuestra instalación guiada para configurar el monitoreo de datos del flujo de red. Si su configuración es más avanzada con configuraciones personalizadas, le recomendamos instalarla manualmente.
+
+<CollapserGroup>
+  <Collapser
+    id="guided-install-setup"
+    title="Configurar con la instalación guiada"
+  >
+    1. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Add more data**</DNT>.
+
+    2. Desplácese hacia abajo hasta que vea <DNT>**Network**</DNT> y haga clic en <DNT>**Syslog**</DNT>.
+
+    3. Siga los pasos descritos en el proceso de instalación guiada. Puedes usar Docker o Linux.
+
+       <ButtonLink
+         role="button"
+         to="https://one.newrelic.com/nr1-core?state=cb5cc243-9406-375a-fc7e-176ed282565c"
+         variant="primary"
+       >
+         Agregar datos de syslog de red
+       </ButtonLink>
+
+       <img
+         title="Syslog guided installation"
+         alt="A screenshot depicting the syslog guided installation process"
+         src="/images/network_screenshot-full_syslog-guided-install.webp"
+       />
+
+       <figcaption>
+         <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Add more data > Network > Syslog**</DNT> para configurar el monitoreo de mensajes syslog.
+       </figcaption>
+
+    4. Investigue los mensajes de syslog de su dispositivo en la New Relic <InlinePopover type="logs"/>UI mediante la siguiente consulta:
+
+       ```sql
+       "plugin.type":"ktranslate-syslog"
+       ```
+
+       Aquí hay un video corto (2:56 minutos) que muestra cómo configurar el monitoreo de syslog de red:
+
+       <Video
+         id="8cNJFt2L9M8"
+         type="youtube"
+       />
+  </Collapser>
+
+  <Collapser
+    id="manual-container-setup"
+    title="Configuración manual del contenedor"
+  >
+    Antes de leer sobre la instalación manual del agente syslog, considere emplear nuestro proceso de instalación guiada para evitar errores:
+
+    <ButtonLink
+      role="button"
+      to="https://one.newrelic.com/nr1-core?state=cb5cc243-9406-375a-fc7e-176ed282565c"
+      variant="primary"
+    >
+      Agregar datos de syslog de red
+    </ButtonLink>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="dockerInstall">
+          Contenedor docker
+        </TabsBarItem>
+
+        <TabsBarItem id="podmanInstall">
+          Contenedor Podman
+        </TabsBarItem>
+
+        <TabsBarItem id="linuxInstall">
+          Servicio de Linux
+        </TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="dockerInstall">
+          1. En un host Linux con Docker instalado, descargue la imagen <DNT>**ktranslate**</DNT> ejecutando una de las siguientes opciones:
+
+             * [Centro Docker](https://hub.docker.com/):
+
+               ```shell
+               docker pull kentik/ktranslate:v2
+               ```
+
+             * [Quay.io](https://quay.io/):
+
+               ```shell
+               docker pull quay.io/kentik/ktranslate:v2
+               ```
+
+          2. Copie el archivo `snmp-base.yaml` en el directorio local `$HOME` de su usuario Docker y descarte el contenedor ejecutando:
+
+             ```shell
+             cd ~
+             id=$(docker create kentik/ktranslate:v2)
+             docker cp $id:/etc/ktranslate/snmp-base.yaml .
+             docker rm -v $id
+             ```
+
+          3. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos syslog dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               syslog_device1:
+                 device_name: syslog_device1
+                 device_ip: x.x.x.x/yy
+                 ping_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+             <Callout variant="important">
+               Si ya está monitoreando dispositivos de datos SNMP que también conectarán mensajes syslog en red, querrá cerciorar de que el valor de `device_name` sea idéntico para ambos archivos de configuración para garantizar que los mensajes syslog sean atributos de la entidad correcta en New Relic UI.
+             </Callout>
+
+          4. Ejecute `ktranslate` para escuchar los flujos de red con el comando:
+
+             ```shell
+             docker run -d --name ktranslate-$CONTAINER_SERVICE --restart unless-stopped --pull=always -p 514:5143/udp \
+             -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+             -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+             kentik/ktranslate:v2 \
+               -snmp /snmp-base.yaml \
+               -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+               -metrics=jchf \
+               -tee_logs=true \
+               -dns=local \
+               # Use this field to create a unique value for `tags.container_service` inside of New Relic
+               -service_name=$CONTAINER_SERVICE \
+               nr1.syslog
+             ```
+
+             <Callout variant="tip">
+               El puerto predeterminado en el que el contenedor escucha los mensajes de syslog es `514/udp`. Si sus mensajes se envían a través de un puerto diferente, deberá cambiar el argumento `-p 514:5143/udp` a `-p $srcPort:5143/udp`.
+             </Callout>
+
+          5. Investigue los mensajes de syslog de su dispositivo en la New Relic <InlinePopover type="logs"/>UI mediante la siguiente consulta:
+
+             ```sql
+             "plugin.type":"ktranslate-syslog"
+             ```
+        </TabsPageItem>
+
+        <TabsPageItem id="podmanInstall">
+          1. En un host con Podman instalado, descargue la imagen <DNT>**ktranslate**</DNT> ejecutando el siguiente comando:
+
+             * [Centro Docker](https://hub.docker.com/):
+
+               ```shell
+               podman pull docker.io/kentik/ktranslate:v2
+               ```
+
+          2. Copie el archivo `snmp-base.yaml` en el directorio local `$HOME` de su usuario de Podman y descarte el contenedor ejecutando:
+
+             ```shell
+             cd ~
+             id=$(podman create kentik/ktranslate:v2)
+             podman cp $id:/etc/ktranslate/snmp-base.yaml .
+             podman rm -v $id
+             ```
+
+          3. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos syslog dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               syslog_device1:
+                 device_name: syslog_device1
+                 device_ip: x.x.x.x/yy
+                 ping_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+             <Callout variant="important">
+               Si ya está monitoreando dispositivos de datos SNMP que también enviarán mensajes syslog de red, querrá cerciorar de que el valor de `device_name` sea idéntico para ambos archivos de configuración para garantizar que los mensajes syslog se atribuyan a la entidad correcta en New Relic UI.
+             </Callout>
+
+          4. El contenedor Rootless Podman no puede vincular a puertos inferiores a 1024. Para manejar la redirección de paquetes para sus mensajes de syslog, deberá crear una regla `iptables` que apunte al puerto al que llegan sus paquetes en UDP (`$scrPort`) con el comando:
+
+             ```shell
+             sudo iptables -t nat -A PREROUTING -p udp --dport $scrPort -j REDIRECT --to-port 5143
+             ```
+
+          5. Ejecute `ktranslate` para escuchar mensajes de syslog con el comando:
+
+             ```shell
+             podman run -d --name ktranslate-$CONTAINER_SERVICE --userns=keep-id --restart unless-stopped --pull=always --net=host \
+             -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+             -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+             kentik/ktranslate:v2 \
+               -snmp /snmp-base.yaml \
+               -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+               -metrics=jchf \
+               -tee_logs=true \
+               -dns=local \
+               -service_name=ktranslate-$CONTAINER_SERVICE \
+               nr1.syslog
+             ```
+
+          6. Investigue los mensajes de syslog de su dispositivo en la New Relic <InlinePopover type="logs"/>UI mediante la siguiente consulta:
+
+             ```sql
+             "plugin.type":"ktranslate-syslog"
+             ```
+        </TabsPageItem>
+
+        <TabsPageItem id="linuxInstall">
+          1. Dependiendo de su administrador de paquetes, use uno de los siguientes comandos para instalar `ktranslate`:
+
+          * Yum:
+
+            ```shell
+              curl -s https://packagecloud.io/install/repositories/kentik/ktranslate/script.rpm.sh | sudo bash && \
+              sudo yum install ktranslate
+            ```
+
+          * Apt:
+
+            ```shell
+              curl -s https://packagecloud.io/install/repositories/kentik/ktranslate/script.deb.sh | sudo bash && \
+              sudo apt-get install ktranslate
+            ```
+
+          2. Defina las variables de entorno empleadas por `ktranslate`:
+
+             ```shell
+             sudo tee "/etc/default/ktranslate.env" > /dev/null <<'EOF'
+             NR_ACCOUNT_ID=$YOUR_NR_ACCOUNT_ID
+             NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY
+             KT_FLAGS="-snmp /etc/ktranslate/snmp-base.yaml \
+               -metrics=jchf \
+               -tee_logs=true \
+               -dns=local \
+               -service_name=$CONTAINER_SERVICE \
+               -syslog.source=0.0.0.0:514 \
+               nr1.syslog"
+             EOF
+
+             # ensure /etc/default/ktranslate.env is owned by ktranslate user
+             sudo chown ktranslate:ktranslate /etc/default/ktranslate.env
+
+             # Syslog binds to privileged port 514. Allow ktranslate to bind to this point with the following command
+             sudo setcap cap_net_bind_service=+ep /usr/bin/ktranslate
+             ```
+
+          3. Si no tiene un archivo de configuración `snmp-base.yaml` existente, cree uno con:
+
+             ```shell
+             cd ~
+             touch snmp-base.yaml
+             ```
+
+          4. Edite el archivo `snmp-base.yaml` y agregue sus dispositivos syslog dentro de la clave del diccionario `devices` con la siguiente estructura:
+
+             ```yaml
+             devices:
+               # This key and the corresponding 'device_name'
+               # need to be unique for each device
+               syslog_device1:
+                 device_name: syslog_device1
+                 device_ip: x.x.x.x/yy
+                 ping_only: true
+                 # Optional user tags
+                 user_tags:
+                   owning_team: net_eng
+                   environment: production
+             ```
+
+          5. Resetear el servicio `ktranslate` para aplicar los cambios al archivo `snmp-base.yaml` :
+
+             ```shell
+             sudo systemctl restart ktranslate
+             ```
+
+          6. Investigue los mensajes de syslog de su dispositivo en la New Relic <InlinePopover type="logs"/>UI mediante la siguiente consulta:
+
+             ```sql
+             "plugin.type":"ktranslate-syslog"
+             ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## ¿Que sigue? [#whats-next]
+
+Puede configurar algún agente adicional para complementar los datos de syslog de su red:
+
+* Para obtener una mejor visibilidad del rendimiento de su dispositivo de red, [configure el monitoreo de datos SNMP](/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring).
+* Para obtener una mejor visibilidad de cómo se utiliza su red, [configure el monitoreo de datos de flujo de red](/docs/network-performance-monitoring/setup-performance-monitoring/network-flow-monitoring).

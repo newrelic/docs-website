@@ -1,0 +1,161 @@
+---
+title: Swift administrador de paquetes manual instalación
+metaDescription: How to instrument to your iOS applications using Swift Package Manager.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Le recomendamos que utilice nuestra [instalación guiada](https://onenr.io/0qwLv87gkj5) para configurar el monitoreo de iOS. Sin embargo, si necesita instalar el agente manualmente, siga los pasos a continuación para instalar el agente New Relic iOS con el administrador de paquetes Swift.
+
+## Instala tu aplicación iOS [#installation]
+
+Como parte del proceso de instalación, New Relic genera automáticamente un [token de aplicación](/docs/mobile-apps/viewing-your-application-token). Esta es una cadena hexadecimal de 40 caracteres para autenticar cada aplicación móvil que monitor en New Relic.
+
+Para instalar y configurar su aplicación iOS/tvOS:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+   </DNT>
+
+   .
+
+2. Si corresponde: en la lista
+
+   <DNT>
+     **Mobile Apps**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **Add a new app**
+   </DNT>
+
+   .
+
+3. Desde la página
+
+   <DNT>
+     **Get Started**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **iOS**
+   </DNT>
+
+   como plataforma de monitoreo de móviles.
+
+4. Escriba un nombre para su aplicación móvil y luego seleccione
+
+   <DNT>
+     **Continue**
+   </DNT>
+
+   .
+
+Continúe con los pasos para configurar New Relic para monitoreo de móviles.
+
+## Configurar usando Swift administrador de paquetes
+
+1. Seleccione <DNT>**File > Swift Packages > Add Package Dependency...**</DNT>.
+
+2. Agregue la URL de Github del archivo del paquete:
+
+   ```
+   https://github.com/newrelic/newrelic-ios-agent-spm
+   ```
+
+   <Callout variant="tip">
+     Si recibe un error `artifact of binary target 'NewRelic' failed extraction: The operation couldn’t be completed. (TSCBasic.StringError error 1.)` al extraer el paquete, cierre Xcode, elimine la carpeta Datos derivados, vuelva a abrir Xcode y vuelva a intentarlo.
+   </Callout>
+
+3. Seleccione el producto del paquete NewRelic, seleccione su objetivo y seleccione <DNT>**Finish**</DNT>.
+
+4. En su archivo `AppDelegate.swift` , agregue esta llamada como la primera línea de `applicationDidFinishLaunchWithOptions`, reemplazando `APP_TOKEN` con su [token de aplicación](/docs/mobile-apps/viewing-your-application-token): (si su aplicación está escrita en SwiftUI, siga estas [instrucciones](/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/swiftui-appdelegate) para agregar un AppDelegate a su proyecto).
+
+   ```swift
+   NewRelic.start(withApplicationToken:"APP_TOKEN")
+   ```
+
+   <Callout variant="important">
+     Para garantizar una instrumentación adecuada, debe llamar al agente en la primera línea de `didFinishLaunchingWithOptions()` y ejecutar el agente en el hilo principal. Iniciar la llamada más tarde, en un subproceso en segundo plano o de forma asincrónica puede provocar un comportamiento inesperado o inestable.
+   </Callout>
+
+5. Según la versión de su agente de iOS, agregue el siguiente script de compilación al <DNT>**Build Phases**</DNT> de su objetivo. Asegúrese de que el script sea el último script de compilación y reemplace `APP_TOKEN` con [el token de su aplicación](/docs/mobile-apps/viewing-your-application-token).
+
+   * Para agente iOS 7.4.0 o superior:
+
+   ```shell
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+   * Para el agente iOS 7.3.8 o bajo:
+
+   ```shell
+   SCRIPT=`/usr/bin/find "${SRCROOT}" -name newrelic_postbuild.sh | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+6. (Opcional) Agregue las siguientes líneas al script de compilación anterior para omitir la carga de símbolos durante la depuración:
+
+   ```shell
+   if [ ${CONFIGURATION} = "Debug" ]; then
+       echo "Skipping DSYM upload CONFIGURATION: ${CONFIGURATION}"
+       exit 0
+   fi
+   ```
+
+7. Si hay una casilla de verificación que dice "Ejecutar script: basado en análisis de dependencia", asegúrese de que no esté marcada.
+
+8. Limpie y cree su aplicación, luego ejecútela en el simulador u otro dispositivo.
+
+<InstallFeedback/>
+
+## Resolución de problemas [#troubleshooting]
+
+Es posible que vea los siguientes errores al agregar el paquete Swift:
+
+* El artefacto no coincide con la suma de comprobación
+* No se puede descargar framework desde remotoSourceControl
+
+Si ve este tipo de errores, intente lo siguiente:
+
+1. Desintegre el paquete New Relic Swift del proyecto Xcode.
+
+2. Ejecute estos comandos desde la terminal para eliminar cachés de spm:
+
+   ```shell
+   rm -rf ~/Library/Caches/org.swift.swiftpm
+   rm -rf ~/Library/org.swift.swiftpm
+   ```
+
+3. Eliminar datos derivados usando Xcode.
+
+4. Vuelva a integrar el paquete New Relic Swift en el proyecto Xcode.
+
+## (Opcional) Cambiar el nivel de logging [#logging]
+
+De forma predeterminada, el agente de iOS inicia sesión en el nivel `info` . Puedes cambiar el nivel de logs para recopilar más o menos datos. Hay seis niveles de logs admitidos:
+
+* `none`
+* `error`
+* `warning`
+* `info`
+* `verbose`
+* `ALL`
+
+<Callout variant="important">
+  Aumente el nivel de logs solo a `verbose` o superior para la depuración, no para las versiones de lanzamiento.
+</Callout>
+
+Para cambiar el nivel de logging en su aplicación, agregue esta llamada a método antes de llamar a `NewRelic.start(withApplicationToken)`:
+
+```swift
+NRLogger.setLogLevels(NRLogLevelALL.rawValue)
+```

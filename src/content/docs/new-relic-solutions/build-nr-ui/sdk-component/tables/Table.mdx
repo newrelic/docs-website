@@ -1,0 +1,788 @@
+---
+title: 'Table'
+metaDescription: 'Learn how to work the Table component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Renders a table with a fixed header and rows. The table implements the following features:
+
+* Flexible layout: table headers accept a variety of sizes to enable fluid and fixed layouts. You can find more information on how to customize your columns checking `TableHeaderCell`.
+* Sorting: items passed can be internally sorted by the table according to the current sorting state of the table. You can find more information about sorting by checking `TableHeaderCell`.
+* Row selection: rows can be selected through checkboxes on the right hand side. You can find more information in the `selected` prop.
+* Row actions: contextual actions can be triggered per row, enabling users to achieve functionality over them. You can find more information on how to add them in `TableRow`.
+* Custom pre-defined cells: some very common patterns for cells (entity title, metrics, etc.) are already provided by the platform, so that you only need to return it as part of your row.
+* Virtualization: cells are only rendered if they are shown on screen. This enables the table to work with a large dataset with almost no performance penalty.
+
+### Usage
+
+```js
+import { Table } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+class Example extends React.Component {
+  _getActions() {
+    return [
+      {
+        label: 'Show details',
+        onClick: (evt, { item, index }) => {
+          alert(
+            `Show details:Item: ${index}${JSON.stringify(item, null, 2)}`,
+          );
+        },
+      },
+      {
+        label: 'Delete',
+        type: TableRow.ACTION_TYPE.DESTRUCTIVE,
+        onClick: (evt, { item, index }) => {
+          alert(`Delete:Item: ${index}${JSON.stringify(item, null, 2)}`);
+        },
+      },
+    ];
+  }
+
+
+  _getItems() {
+    return [
+      {
+        name: 'Melton Garcia',
+        gender: 'Male',
+        company: 'Comtest',
+        phone: '+1 (867) 477-3284',
+        selected: true,
+      },
+      {
+        name: 'Finley Mendez',
+        gender: 'Male',
+        company: 'Anarco',
+        phone: '+1 (817) 438-3205',
+        selected: false,
+      },
+      {
+        name: 'Coleen Salinas',
+        gender: 'Female',
+        company: 'Macronaut',
+        phone: '+1 (962) 419-3856',
+        selected: true,
+      },
+    ];
+  }
+
+
+  render() {
+    return (
+      <Table items={this._getItems()}>
+        <TableHeader>
+          <TableHeaderCell value={({ item }) => item.name} width="50%">
+            Name
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.gender}>
+            Gender
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.company}>
+            Company
+          </TableHeaderCell>
+          <TableHeaderCell
+            value={({ item }) => item.phone}
+            width="fit-content"
+            alignmentType={TableRowCell.ALIGNMENT_TYPE.RIGHT}
+          >
+            Phone
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow actions={this._getActions()}>
+            <TableRowCell>{item.name}</TableRowCell>
+            <TableRowCell>{item.gender}</TableRowCell>
+            <TableRowCell>{item.company}</TableRowCell>
+            <TableRowCell>{item.phone}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+#### Sorting
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      column_0: TableHeaderCell.SORTING_TYPE.ASCENDING,
+    };
+  }
+
+
+  _getItems() {
+    return [
+      {
+        name: 'Melton Garcia',
+        gender: 'Male',
+        company: 'Comtest',
+        phone: '+1 (867) 477-3284',
+        selected: true,
+      },
+      {
+        name: 'Finley Mendez',
+        gender: 'Male',
+        company: 'Anarco',
+        phone: '+1 (817) 438-3205',
+        selected: false,
+      },
+      {
+        name: 'Coleen Salinas',
+        gender: 'Female',
+        company: 'Macronaut',
+        phone: '+1 (962) 419-3856',
+        selected: true,
+      },
+    ];
+  }
+
+
+  _onClickTableHeaderCell(key, event, sortingData) {
+    this.setState({ [key]: sortingData.nextSortingType });
+  }
+
+
+  render() {
+    return (
+      <Table
+        items={this._getItems()}
+        selected={({ item }) => item.selected}
+        onSelect={(evt, { item }) => (item.selected = evt.target.checked)}
+      >
+        <TableHeader>
+          <TableHeaderCell
+            value={({ item }) => item.name}
+            sortable
+            sortingType={this.state.column_0}
+            sortingOrder={1}
+            onClick={this._onClickTableHeaderCell.bind(this, 'column_0')}
+          >
+            Name
+          </TableHeaderCell>
+          <TableHeaderCell
+            value={({ item }) => item.gender}
+            sortable
+            sortingType={this.state.column_1}
+            sortingOrder={0}
+            onClick={this._onClickTableHeaderCell.bind(this, 'column_1')}
+          >
+            Gender
+          </TableHeaderCell>
+          <TableHeaderCell
+            value={({ item }) => item.company}
+            sortable
+            sortingType={this.state.column_2}
+            sortingOrder={2}
+            onClick={this._onClickTableHeaderCell.bind(this, 'column_2')}
+          >
+            Company
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.phone}>
+            Phone
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell>{item.name}</TableRowCell>
+            <TableRowCell>{item.gender}</TableRowCell>
+            <TableRowCell>{item.company}</TableRowCell>
+            <TableRowCell>{item.phone}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+#### With header actions
+
+```js
+class Example extends React.Component {
+  _getActions() {
+    return [
+      {
+        label: 'Copy details',
+        iconType: TableRow.ACTIONS_ICON_TYPE.INTERFACE__OPERATIONS__COPY_TO,
+        onClick: (evt, { items }) => {
+          alert(`Copy details: ${JSON.stringify(items, null, 2)}`);
+        },
+      },
+      {
+        label: 'Delete',
+        iconType: TableRow.ACTIONS_ICON_TYPE.INTERFACE__OPERATIONS__TRASH,
+        onClick: (evt, { items }) => {
+          alert(`Delete: ${JSON.stringify(items, null, 2)}`);
+        },
+      },
+    ];
+  }
+
+
+  _getItems() {
+    return [
+      {
+        name: 'Melton Garcia',
+        gender: 'Male',
+        company: 'Comtest',
+        phone: '+1 (867) 477-3284',
+        selected: true,
+      },
+      {
+        name: 'Finley Mendez',
+        gender: 'Male',
+        company: 'Anarco',
+        phone: '+1 (817) 438-3205',
+        selected: false,
+      },
+      {
+        name: 'Coleen Salinas',
+        gender: 'Female',
+        company: 'Macronaut',
+        phone: '+1 (962) 419-3856',
+        selected: true,
+      },
+    ];
+  }
+
+
+  render() {
+    return (
+      <Table
+        items={this._getItems()}
+        selected={({ item }) => item.selected}
+        onSelect={(evt, { item }) => (item.selected = evt.target.checked)}
+      >
+        <TableHeader actions={this._getActions()}>
+          <TableHeaderCell value={({ item }) => item.name} width="50%">
+            Name
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.gender}>
+            Gender
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.company}>
+            Company
+          </TableHeaderCell>
+          <TableHeaderCell
+            value={({ item }) => item.phone}
+            width="fit-content"
+            alignmentType={TableRowCell.ALIGNMENT_TYPE.RIGHT}
+          >
+            Phone
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell>{item.name}</TableRowCell>
+            <TableRowCell>{item.gender}</TableRowCell>
+            <TableRowCell>{item.company}</TableRowCell>
+            <TableRowCell>{item.phone}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+#### With single selection type
+
+```js
+class Example extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      selectedRow: null,
+    };
+  }
+
+
+  _getItems() {
+    return [
+      {
+        name: 'Melton Garcia',
+        gender: 'Male',
+        company: 'Comtest',
+        phone: '+1 (867) 477-3284',
+      },
+      {
+        name: 'Finley Mendez',
+        gender: 'Male',
+        company: 'Anarco',
+        phone: '+1 (817) 438-3205',
+      },
+      {
+        name: 'Coleen Salinas',
+        gender: 'Female',
+        company: 'Macronaut',
+        phone: '+1 (962) 419-3856',
+      },
+    ];
+  }
+
+
+  render() {
+    return (
+      <Table
+        selectionType={Table.SELECTION_TYPE.SINGLE}
+        items={this._getItems()}
+        selected={({ index }) => index === this.state.selectedRow}
+        onSelect={(evt, { index }) => {
+          this.setState((prevState) => {
+            const { selectedRow } = prevState;
+
+
+            // When the selected row is clicked, set value to `null`
+            return { selectedRow: selectedRow === index ? null : index };
+          });
+        }}
+      >
+        <TableHeader>
+          <TableHeaderCell value={({ item }) => item.name}>
+            Name
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.gender}>
+            Gender
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.company}>
+            Company
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.phone}>
+            Phone
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell>{item.name}</TableRowCell>
+            <TableRowCell>{item.gender}</TableRowCell>
+            <TableRowCell>{item.company}</TableRowCell>
+            <TableRowCell>{item.phone}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+#### Single column sorting
+
+```js
+class Example extends React.Component {
+  constructor(...args) {
+    super(...args);
+
+
+    this.state = {
+      column: 0,
+      sortingType: TableHeaderCell.SORTING_TYPE.NONE,
+    };
+
+
+    this.exampleItems = [
+      { x: 'A', y: 0 },
+      { x: 'B', y: 0 },
+      { x: 'A', y: 1 },
+    ];
+  }
+
+
+  _onClickTableHeaderCell(column, evt, { nextSortingType }) {
+    if (column === this.state.column) {
+      this.setState({ sortingType: nextSortingType });
+    } else {
+      this.setState({ column: column, sortingType: nextSortingType });
+    }
+  }
+
+
+  render() {
+    const sortingType0 =
+      this.state.column === 0
+        ? this.state.sortingType
+        : TableHeaderCell.SORTING_TYPE.NONE;
+
+
+    const sortingType1 =
+      this.state.column === 1
+        ? this.state.sortingType
+        : TableHeaderCell.SORTING_TYPE.NONE;
+
+
+    return (
+      <Table items={this.exampleItems}>
+        <TableHeader>
+          <TableHeaderCell
+            sortable
+            sortingType={sortingType0}
+            onClick={this._onClickTableHeaderCell.bind(this, 0)}
+            value={({ item }) => item.x}
+          >
+            Column 1
+          </TableHeaderCell>
+
+
+          <TableHeaderCell
+            sortable
+            sortingType={sortingType1}
+            onClick={this._onClickTableHeaderCell.bind(this, 1)}
+            value={({ item }) => item.y}
+          >
+            Column 2
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell>{item.x}</TableRowCell>
+            <TableRowCell>{item.y}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+#### Query with Table
+
+```js
+<EntitiesByDomainTypeQuery entityDomain="APM" entityType="APPLICATION">
+  {({ error, data, fetchMore }) => {
+    if (!data.entities.length && error) {
+      return 'Error!';
+    }
+    return (
+      <Table items={data.entities} rowCount={data.count} onLoadMore={fetchMore}>
+        <TableHeader>
+          <TableHeaderCell value={({ item }) => item.name}>
+            name
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.id}>
+            entityGuid
+          </TableHeaderCell>
+          <TableHeaderCell value={({ item }) => item.accountId}>
+            accountId
+          </TableHeaderCell>
+        </TableHeader>
+        {({ item }) => (
+          <TableRow>
+            <EntityTitleTableRowCell value={item} />
+            <TableRowCell>{item.guid}</TableRowCell>
+            <TableRowCell>{item.accountId}</TableRowCell>
+          </TableRow>
+        )}
+      </Table>
+    );
+  }}
+</EntitiesByDomainTypeQuery>
+```
+
+#### Multivalue table
+
+```js
+class Example extends React.Component {
+  _getItems() {
+    return [
+      {
+        duration: 218,
+        errorCount: 0,
+        rootSpan: {
+          startTimeMs: 1626773604851,
+          entityName: 'log-patterns-training',
+          guid: '5ef23490-54jklfsd09fsd-ef098lkj',
+          name: 'Transactions/Group Log Patterns',
+        },
+        totalSpanCount: 15,
+      },
+      {
+        duration: 110,
+        errorCount: 2,
+        rootSpan: {
+          entityName: 'network-traicing',
+          guid: '4gh2190490-098fsd0123d-ef098lkj',
+          name: 'Other Transactions/Network',
+          startTimeMs: 1626783604851,
+        },
+        totalSpanCount: 7,
+      },
+      {
+        duration: 90,
+        errorCount: 1,
+        rootSpan: {
+          entityName: 'staging-services.io',
+          guid: 'tre2350490-312fsd0123d-ef098lkj',
+          name: 'Staging Environment Transactions/Network',
+          startTimeMs: 1626583604851,
+        },
+        totalSpanCount: 12,
+      },
+    ];
+  }
+
+
+  render() {
+    return (
+      <Table items={this._getItems()} multivalue>
+        <TableHeader>
+          <TableHeaderCell width="30%">Trace group</TableHeaderCell>
+          <TableHeaderCell width="30%">Root entity</TableHeaderCell>
+          <TableHeaderCell alignmentType={TableHeaderCell.ALIGNMENT_TYPE.RIGHT}>
+            Last start time
+          </TableHeaderCell>
+          <TableHeaderCell alignmentType={TableHeaderCell.ALIGNMENT_TYPE.RIGHT}>
+            Trace duration
+          </TableHeaderCell>
+        </TableHeader>
+
+
+        {({ item }) => (
+          <TableRow>
+            <TableRowCell
+              additionalValue={`${item.errorCount} Errors, ${item.totalSpanCount} Spans`}
+            >
+              {item.rootSpan.name}
+            </TableRowCell>
+            <EntityTitleTableRowCell
+              additionalValue={item.rootSpan.guid}
+              value={{ name: item.rootSpan.entityName }}
+            />
+            <MetricTableRowCell
+              additionalValue={new Date(
+                item.rootSpan.startTimeMs,
+              ).toLocaleTimeString()}
+              type={MetricTableRowCell.TYPE.TIMESTAMP}
+              value={item.rootSpan.startTimeMs}
+            />
+            <MetricTableRowCell
+              type={MetricTableRowCell.TYPE.SECONDS}
+              value={item.duration}
+            />
+          </TableRow>
+        )}
+      </Table>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide an accessibility label that describes the purpose of the table, e.g. `"All entities"`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>(node|function)\[]</h5>
+      </td>
+
+      <td>
+        Contents of the table. Table can only contain as children `<TableHeader>` and a function returning `<TableRow>`s.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `compact` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Establishes whether the table should render in compact mode (compact mode has narrower rows). In general, use the standard mode, since compact is reserved for data representation, e.g. in a dashboard.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `items` <h5>any\[]</h5>
+      </td>
+
+      <td>
+        The items to be used when rendering.They are required when rendering items with a render callback.Each item can have any structure and type possible, and will the corresponding one will be provided when rendering each element list.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `mainColumn` <h5>number</h5>
+      </td>
+
+      <td>
+        Column containing the main data identifying the row. Often the first column (index 0) is the relevant one, but actions (like favorites) could be placed before it.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `multivalue` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Enables a second line of content for cell which support the `additionalValue` prop.
+
+        **Note:** The `multivalue` mode works only in the default size, not in `compact`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onLoadMore` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when more items must be loaded. This happens when you're lazy loading the items and the items that are about to render cannot be found in the `items` array.This callback should be used to fetch/load the missing items from the backend or other sources.The returned Promise should be resolved once item data has finished loading. It will be used to determine when to refresh the list with the newly-loaded data. This callback may be called multiple times in reaction to a single scroll event.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"cursor","type":"Cursor","description":"Items to load."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onSelect` <h5>function</h5>
+      </td>
+
+      <td>
+        Function called when the user clicks over a row checkbox.It is called with the event of the checkbox, as well as with an object containing the item representing the row, its index in the `items` array passed to the table, and the items themselves.When the user selects or unselects the header checkbox (select / unselect all), the callback will be called once for every item, representing individual clicks over each row. The header checkbox state is automatically controlled by the table.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":""},{"name":"selectedItem","type":"SelectedCallbackArgument","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rowCount` <h5>number</h5>
+      </td>
+
+      <td>
+        Number of rows.By default it's equal to length of array passed in the items prop.You should specify the `rowCount` when you know the total number of items but you want to lazy load them while scrolling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `selected` <h5>function</h5>
+      </td>
+
+      <td>
+        Function that returns whether a row is selected. It needs to return a boolean representing the state of the row.It is called with an object containing the item representing the row, its index in the `items` array passed to the table, and the items themselves.
+
+        <FunctionDefinition
+          returnValue={[{"type":"boolean","description":""}]}
+          arguments={[{"name":"item","type":"SelectedCallbackArgument","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `selectionType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Sets the selection mode of the `Table`. Use it along with `onSelect` and `selected` props to determine which row is checked by the user.
+
+        * `Table.SELECTION_TYPE.BULK` displays checkboxes per each row, along with a checkbox in the header to select all items. When an item is selected, header actions become available.
+        * `Table.SELECTION_TYPE.SINGLE` doesn't display checkboxes, the user picks a row by just clicking on it. Though not enforced in the component, the `selected` callback should return `true` only for one item. Check the examples of the component to see how it works.
+
+          <OptionReference>
+            Table.SELECTION_TYPE.BULK,
+            Table.SELECTION_TYPE.SINGLE,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Table.SPACING_TYPE.EXTRA_LARGE,
+          Table.SPACING_TYPE.LARGE,
+          Table.SPACING_TYPE.MEDIUM,
+          Table.SPACING_TYPE.NONE,
+          Table.SPACING_TYPE.OMIT,
+          Table.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"Cursor","properties":[{"description":"First index of the range of items to load.","name":"startIndex","type":"number"},{"description":"Last index of the range of items to load.","name":"stopIndex","type":"number"}]}}/>
+
+<TypeDefReference typeDef={{"name":"SelectedCallbackArgument","properties":[{"description":"Item to check.","name":"item","type":"any"},{"description":"Index of the item in the items array.","name":"index","type":"number"},{"description":"Array of all items passed.","name":"items","type":"any[]"}]}}/>

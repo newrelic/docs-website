@@ -1,0 +1,4982 @@
+---
+title: Configuración del agente Node.js
+tags:
+  - Agents
+  - Nodejs agent
+  - Installation and configuration
+metaDescription: 'For New Relic''s Node.js agent: how to set configuration using your config file, environment variables, or server-side config.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede adaptar el agente de Node.js a los requisitos de su aplicación editando su archivo de configuración `newrelic.js` o configurando una variable de entorno. El archivo de configuración reside en el directorio raíz de su aplicación. También puede configurar algunas opciones desde New Relic o utilizar la [API del agente Node.js.](/docs/agents/nodejs-agent/api-guides/nodejs-agent-api)
+
+## Empezar [#requirements]
+
+Podrá configurar nuestro agente Node.js para adaptarlo a su entorno después de [crear una cuenta New Relic](https://newrelic.com/signup) (es gratis, para siempre) e [instalar el agente Node.js.](/docs/apm/agents/nodejs-agent/installation-configuration/install-nodejs-agent/)
+
+La configuración [`license_key`](#license) es obligatoria. Además, recomendamos encarecidamente configurar [`app_name`](#app_name) para que su aplicación tenga un [nombre significativo](/docs/apm/new-relic-apm/installation-configuration/name-your-application) en lugar del `My Application` predeterminado.
+
+## Métodos de configuración y precedencia. [#methods-and-precedence]
+
+El método principal para configurar el agente Node.js es el archivo de configuración del agente (`newrelic.js`). También puede configurar la mayoría de los ajustes con [variables de entorno](#environment). También puedes ajustar algunas configuraciones con [la configuración del lado del servidor](#server-side).
+
+El agente Node.js utiliza este orden de precedencia para los métodos de configuración:
+
+<img
+  title="Node.js agent configuration precedence"
+  alt="Node.js agent configuration precedence"
+  src="/images/apm_diagram_nodejs-agent-configuration-hierarchy.webp"
+/>
+
+<figcaption>
+  <DNT>**Node.js configuration hierarchy:**</DNT> Los ajustes de configuración del lado del servidor anulan las variables de entorno. Las variables de entorno anulan el archivo de configuración del agente. El archivo de configuración anula los valores predeterminados del agente.
+</figcaption>
+
+Aquí hay descripciones detalladas de cada método de configuración:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="config_file"
+    title="Archivo de configuración del agente"
+  >
+    El archivo de configuración (`newrelic.js`) contiene todas las configuraciones del agente Node.js. Cuando [instala el agente de Node.js](/docs/agents/nodejs-agent/installation-configuration/installing-maintaining-nodejs#installing), debe copiar `newrelic.js` en el directorio raíz de su aplicación. La mayoría de las configuraciones están vacías de forma predeterminada; heredan sus valores de `config/default.js`.
+
+    Si su aplicación se ejecuta en CommonJS, simplemente cambie el tipo de archivo de configuración a (`newrelic.cjs`). Este tipo de archivo es compatible a partir de la [versión 7.5.0](/docs/release-notes/agent-release-notes/nodejs-release-notes/node-agent-7-5-0/) del agente Node.js.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="environment"
+    title="Variables de entorno"
+  >
+    Todos los ajustes de configuración en `newrelic.js` tienen variables de entorno equivalentes. Son útiles, por ejemplo, si su agente se ejecuta en un entorno PaaS como Heroku o Microsoft Azure. Las variables de entorno del agente Node.js siempre comienzan con `NEW_RELIC_`.
+
+    Estas variables de entorno se documentan a continuación en opciones de configuración individuales como <DNT>**Environ variable**</DNT>. También hay dos configuraciones que rara vez se utilizan y que [solo se pueden configurar mediante variables de entorno](#environment-variable-overrides). Si no está seguro de cómo especificar tipos más complejos como variables de entorno, [utilice la guía de referencia](#environment-variable-type-reference-guide).
+
+    Si está utilizando New Relic CodeStream para monitor el rendimiento de su IDE, es posible que también desee [asociar el repositorio con sus servicios](/docs/codestream/how-use-codestream/performance-monitoring#repo-association) y [asociar SHA de compilación o etiqueta de lanzamiento con errores](/docs/codestream/how-use-codestream/performance-monitoring#buildsha).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="server-side"
+    title="Configuración del lado del servidor"
+  >
+    Los propietarios y administradores pueden ver y configurar algunas configuraciones [directamente en New Relic](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration). Cuando estén disponibles, las etiquetas de la UI para la configuración del lado del servidor se enumeran en este documento en opciones de configuración individuales como <DNT>**Server-side label**</DNT>.
+  </Collapser>
+</CollapserGroup>
+
+## Variables de exportación [#exports_config]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `exports.config = {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="app_name"
+    title="app_name (REQUIRED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `"My Application"`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APP_NAME`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El [nombre que utiliza New Relic para identificar su aplicación](/docs/apm/new-relic-apm/installation-configuration/name-your-application). Por ejemplo, `app_name: ['MyNodeApp']`. Para [usar varios nombres para su aplicación](/docs/apm/new-relic-apm/installation-configuration/use-multiple-names-app), especifique una lista de nombres delimitada por comas.
+
+    Los datos de todas las aplicaciones con el mismo nombre se fusionarán en la UI de New Relic, así que configúrelo con cuidado. Recomendamos <DNT>**highly recommend**</DNT> que reemplace el nombre predeterminado con un nombre descriptivo para evitar confusión y agregación involuntaria de datos.
+
+    <Callout variant="tip">
+      Para [el usuario de Azure](/docs/agents/nodejs-agent/hosting-services/nodejs-agent-microsoft-azure), el agente de Node.js usará `APP_POOL_ID` si está configurado, por lo que puede usar el nombre que eligió para su servidor web de Azure sin configurarlo dos veces.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="license"
+    title="license_key (REQUIRED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_LICENSE_KEY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración es obligatoria. Tu New Relic <InlinePopover type="licenseKey"/>. Por ejemplo, `license_key: '40HexadecimalCharacters'`.
+  </Collapser>
+
+  <Collapser
+    id="agent-enabled"
+    title="agent_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configúrelo en `false` para evitar que el agente se inicie. Esto es útil cuando la depuración de su código requiere deshabilitar temporalmente el agente. Impide que el agente arranque su instrumentación o configure todas sus piezas, lo que impide que el agente inicie y se conecte a los servidores de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="allow_all_headers"
+    title="allow_all_headers"
+  >
+    Si `true`, habilita la captura de todos los encabezados HTTP, excepto aquellos filtrados por las reglas `exclude` . Si es `false`, los encabezados recopilados se limitan a los definidos en [el atributo del agente de Node.js.](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-attributes)
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ALLOW_ALL_HEADERS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="caution">
+      Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="compressed_content_encoding"
+    title="compressed_content_encoding"
+  >
+    Si se alcanza el umbral de compresión de datos en la carga útil, el agente comprime los datos utilizando la compresión gzip de forma predeterminada. La opción de configuración `compressed_content_encoding` se puede establecer en `deflate` para usar compresión desinflada.
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `gzip`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_COMPRESSED_CONTENT_ENCODING`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="apdex"
+    title="apdex_t (DEPRECATED)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `0.100`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Apdex T`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APDEX_T`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Configure su Apdex T [a través de la UIde New Relic](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/#apm-apdex).
+  </Collapser>
+
+  <Collapser
+    id="certificates"
+    title="certificados"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz de strings
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_CERTIFICATES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Certificados adicionales en los que confiar para conexiones SSL, especificados como una matriz de cadenas en formato PEM. Esto afecta tanto a las conexiones a un proxy HTTPS como a las conexiones a New Relic.
+
+    <Callout variant="tip">
+      También puede configurar el agente para que lea sus certificados desde un archivo:
+
+      ```js
+      certificates: [ fs.readFileSync('myca.crt', {encoding: 'utf8'}) ]
+      ```
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="high_security"
+    title="high_security"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_HIGH_SECURITY`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, habilita [la alta seguridad v2](/docs/accounts-partnerships/accounts/security/high-security#version2description). También debe habilitar la configuración [`ssl`](#ssl) y [habilitar la alta seguridad en la UI](/docs/accounts-partnerships/accounts/security/high-security#version2enabled).
+  </Collapser>
+
+  <Collapser
+    id="host"
+    title="anfitrión"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `collector.newrelic.com`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_HOST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      No edite este valor a menos que New Relic Support le solicite que lo cambie.
+    </Callout>
+
+    nombre de host para que el [coleccionista New Relic](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector) se conecte a Internet; por ejemplo, `host: 'collector.newrelic.com'`.
+  </Collapser>
+
+  <Collapser
+    id="labels"
+    title="etiquetas"
+  >
+    Agrega [etiqueta](/docs/apm/new-relic-apm/maintenance/labels-categories-organize-your-apps-servers). Especifique su etiqueta como objetos o una cadena delimitada por punto y coma de pares separados por dos puntos (por ejemplo, `Server:One;Data Center:Primary`).
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Objeto o cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_LABELS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="port"
+    title="port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `443`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PORT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      No edite este valor a menos que New Relic Support le solicite que lo cambie.
+    </Callout>
+
+    Número de puerto para conectarse al recolector New Relic; por ejemplo, `port: 443`.
+  </Collapser>
+
+  <Collapser
+    id="proxy"
+    title="proxy"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_URL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una URL que especifica el servidor proxy para conectarse a Internet. Por ejemplo, `proxy: 'http://user:pass@10.0.0.1:8000/'`. Consideraciones importantes:
+
+    * La configuración del archivo de configuración `proxy` anula las otras configuraciones del proxy del archivo de configuración (`proxy_host`, `proxy_port`, `proxy_user`, `proxy_pass`) si se utilizan. De manera similar, la variable de entorno `NEW_RELIC_PROXY_URL` anula la configuración del proxy de otras variables de entorno (`NEW_RELIC_PROXY_HOST`, `NEW_RELIC_PROXY_PORT`, `NEW_RELIC_PROXY_USER` y `NEW_RELIC_PROXY_PASS`) si se usa.
+    * Si está utilizando [Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing): [consulte cómo configurar un proxy para Infinite Tracing](/docs/distributed-tracing/infinite-tracing/infinite-tracing-configure-proxy-support/#node-php-python-ruby).
+  </Collapser>
+
+  <Collapser
+    id="proxy_host"
+    title="proxy_host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_HOST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Nombre de host o dirección IP del servidor proxy para conectarse a Internet.
+  </Collapser>
+
+  <Collapser
+    id="proxy_pass"
+    title="proxy_pass"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_PASS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Contraseña para autenticarse en el servidor proxy. El agente solo admite autenticación HTTP básica.
+  </Collapser>
+
+  <Collapser
+    id="proxy_port"
+    title="proxy_port"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_PORT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Número de puerto del servidor proxy para conectarse a Internet.
+  </Collapser>
+
+  <Collapser
+    id="proxy_user"
+    title="proxy_user"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROXY_USER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Nombre de usuario para autenticarse en el servidor proxy. El agente solo admite autenticación HTTP básica.
+  </Collapser>
+</CollapserGroup>
+
+## Variables de registro [#logging_config]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `logging: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="log-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true` (`false` en `serverless_mode`)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita o deshabilita el registro específico del agente.
+  </Collapser>
+
+  <Collapser
+    id="log_level"
+    title="nivel"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `info`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG_LEVEL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el nivel de detalle registrado en el registro del agente. Desde el menor detalle hasta el mayor detalle, los valores posibles son `fatal`, `error`, `warn`, `info`, `debug` o `trace`.
+
+    <Callout variant="caution">
+      No utilice el registro `debug` o `trace` a menos que el soporte de New Relic le solicite que los utilice. Estos niveles de registro pueden generar gastos generales excesivos. Para la mayoría de situaciones, use `info`.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="log"
+    title="ruta de archivo"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `process.cwd()` más `newrelic_agent.log`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_LOG`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Ruta completa al log del agente New Relic, incluido el nombre del archivo. El valor predeterminado es `filepath: require('path').join(process.cwd(), 'newrelic_agent.log')`. El agente cerrará el proceso si no puede crear este archivo. El agente crea un archivo de registro con los mismos permisos que el proceso del agente principal de Node.js.
+
+    * Para escribir todos los registros en
+
+      <DNT>
+        **stdout**
+      </DNT>
+
+      , configúrelo en `stdout`.
+
+    * Para escribir todos los registros en
+
+      <DNT>
+        **stderr**
+      </DNT>
+
+      , configúrelo en `stderr`.
+  </Collapser>
+</CollapserGroup>
+
+## Monitoreo de IA [#ai-monitoring]
+
+Esta sección incluye la configuración del agente Node.js para configurar el monitoreo de IA.
+
+<Callout variant="important">
+  Debe habilitar [el rastreo distribuido](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#dt-main) para capturar datos de IA. Está activado de forma predeterminada en Node.js agente 8.3.0 y versiones posteriores. Si ha habilitado el modo de alta seguridad, el monitoreo de IA no funcionará.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="ai-monitoring-enabled"
+    title="ai_monitoring.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, habilita el monitoreo de IA. Permite al agente capturar datos de eventos LLM.
+  </Collapser>
+
+  <Collapser
+    id="ai-monitoring-streaming"
+    title="ai_monitoring.streaming.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_STREAMING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `false`, deshabilita la instrumentación para datos LLM transmitidos. Establecido en `true`, captura datos transmitidos para el evento LLM.
+  </Collapser>
+
+  <Collapser
+    id="ai-monitoring-record-content"
+    title="ai_monitoring.record_content.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AI_MONITORING_RECORD_CONTENT_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si se establece en `false`, el agente omite el contenido de entrada y salida (como cadenas de texto de símbolo y respuestas) capturado en el evento LLM. Esta es una configuración de seguridad opcional si no desea registrar datos confidenciales enviados y recibidos de sus LLM.
+  </Collapser>
+</CollapserGroup>
+
+## Registro de auditoría [#audit_log]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `audit_log: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="audit_log-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AUDIT_LOG_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente registra la carga que envía al recolector. Estos datos se incluyen en el archivo de registro principal incluso cuando el nivel de registro está establecido en el nivel más bajo.
+  </Collapser>
+
+  <Collapser
+    id="endpoints"
+    title="extremo"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]` (incluye todos los tipos)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_AUDIT_LOG_ENDPOINTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    El agente envía varios tipos diferentes de datos al recolector en cargas separadas. Por defecto, todos ellos están incluidos en el archivo de registro. Esta opción permite limitar el registro solo a tipos específicos de datos.
+
+    Los valores válidos incluyen:
+
+    * `agent_settings`
+    * `analytic_event_data`
+    * `connect`
+    * `custom_event_data`
+    * `error_data`
+    * `error_event_data`
+    * `metric_data`
+    * `preconnect`
+    * `shutdown`
+    * `span_event_data`
+    * `sql_trace_data`
+    * `transaction_sample_data`
+  </Collapser>
+</CollapserGroup>
+
+## Configuración API [#api_config]
+
+Esta sección le permite elegir qué métodos API están habilitados. Cada opción de configuración le permite habilitar de forma modular métodos API que son responsables de enviar información personalizada a New Relic.
+
+<Callout variant="important">
+  Todos estos se configuran en `false` cuando el agente está en modo de alta seguridad.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="custom-attributes"
+    title="custom_attributes_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_API_CUSTOM_ATTRIBUTES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción habilita [`newrelic.addCustomAttribute`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#add-custom-param) y [`newrelic.addCustomAttributes`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#add-custom-params).
+  </Collapser>
+
+  <Collapser
+    id="custom-events"
+    title="custom_events_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_API_CUSTOM_EVENTS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción habilita [`recordCustomEvent`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#record_custom_event).
+  </Collapser>
+
+  <Collapser
+    id="notice-error"
+    title="notice_error_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_API_NOTICE_ERROR`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción habilita [`newrelic.noticeError`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError).
+  </Collapser>
+</CollapserGroup>
+
+## Atributo [#node-js-attributes]
+
+Esta sección define las variables para [el atributo del agente Node.js](/docs/agents/nodejs-agent/attributes/nodejs-agent-attributes) en el orden en que normalmente aparecen en la sección `attributes: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<Callout variant="caution">
+  Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="attributes_enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, habilita la captura del atributo para todos los destinos.
+  </Collapser>
+
+  <Collapser
+    id="attributes_exclude"
+    title="excluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir de todos los destinos. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="attributes_include"
+    title="incluir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir desde todos los destinos. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="attributes_include_enabled"
+    title="include_enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ATTRIBUTES_INCLUDE_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `true`, se pueden agregar patrones a la lista [`attributes.include`](/docs/agents/nodejs-agent/attributes/nodejs-agent-attributes#cfg-attributes-include) .
+  </Collapser>
+</CollapserGroup>
+
+## Variables del recolector de errores [#error_config]
+
+Puede [administrar cómo se manejan los errores](/docs/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-mark-expected) en New Relic. Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `error_collector: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="error_collector"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ENABLED`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Enable error collection?`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente recopila [la traza de error](/docs/apm/applications-menu/events/viewing-apm-errors-error-traces) de su aplicación.
+  </Collapser>
+
+  <Collapser
+    id="error_ignore"
+    title="ignore_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz de números enteros
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[404]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_IGNORE_ERROR_CODES`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Ignore these status codes`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Lista delimitada por comas de códigos de estado HTTP que el recolector de errores debe ignorar.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_ignore_classes"
+    title="ignore_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz|Objeto
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_IGNORE_ERRORS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Lista delimitada por comas de tipos/clases de errores de JavaScript que el selector de errores debe ignorar.
+
+    La siguiente configuración
+
+    ```js
+    error_collector: {
+        /* ... */
+        ignore_classes: ["ReferenceError"]
+    }
+    ```
+
+    Ignoraría todos los errores de referencia.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_ignore_messages"
+    title="ignore_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Objeto
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `{}`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_IGNORE_MESSAGES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un objeto JavaScript que describe una lista de clases vinculadas al mensaje de error para que el recolector las ignore. La siguiente configuración ignoraría todos los errores del tipo `Error` con las cadenas de mensajes exactas (distingue entre mayúsculas y minúsculas) de `Undefined` y `Out of time`:
+
+    ```js
+    error_collector: {
+        /* ... */
+        ignore_messages: {"Error":["Undefined", "Out of time"]}
+    }
+    ```
+
+    Ignoraría todos los errores de tipo `Error`, con las cadenas de mensaje exactas (distingue entre mayúsculas y minúsculas) de `Undefined` y `Out of time`.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="expected_status_codes"
+    title="expected_status_codes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz de números enteros
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERROR_CODES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Lista delimitada por comas de códigos de estado HTTP para que el selector de errores los marque como se esperaba.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="expected_classes"
+    title="expected_classes"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_EXPECTED_ERRORS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La siguiente configuración
+
+    ```js
+    error_collector: {
+        /* ... */
+        expected_classes: ["ReferenceError"]
+    }
+    ```
+
+    Marcaría todos los errores de referencia como se esperaba.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="expected_messages"
+    title="expected_messages"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Objeto
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `{}`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_EXPECTED_MESSAGES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Un objeto de JavaScript que describe una lista de clases de JavaScript vinculadas al mensaje de error de JavaScript para que el recolector lo ignore. La siguiente configuración.
+
+    ```js
+    error_collector: {
+        /* ... */
+        expected_messages: {"Error":["Undefined", "Out of time"]}
+    }
+    ```
+
+    Marcaría todos los errores de tipo `Error`, con las cadenas de mensaje exactas (distingue entre mayúsculas y minúsculas) de `Undefined` y `Out of time`.
+
+    <Callout variant="caution">
+      Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_attributes_enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, el agente captura el atributo de la colección de errores.
+
+    <Callout variant="caution">
+      Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="error_attributes_exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo del atributo a excluir de la colección de errores. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="error_attributes_include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo del atributo a incluir en la colección de errores. Permite `*` como comodín al final.
+  </Collapser>
+</CollapserGroup>
+
+<CollapserGroup>
+  <Collapser
+    id="error_max_event_samples_stored"
+    title="max_event_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `100`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ERROR_COLLECTOR_MAX_EVENT_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos que el agente recopila por minuto. Si hay más que este número, el agente recopila un muestreo estadístico.
+  </Collapser>
+</CollapserGroup>
+
+## Variables rastreadoras de transacciones [#tx_tracer_config]
+
+El agente agrupa sus solicitudes en [transacciones](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction), que sirven para:
+
+* Visualiza dónde pasa el tiempo tu aplicación (en desgloses de transacciones).
+* Identifique solicitudes lentas.
+* Grupo métrico.
+* Aísle otros problemas, como [el rendimiento lento de la base de datos](/docs/apm/applications-menu/monitoring/databases-slow-queries-dashboard).
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `transaction_tracer: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<Callout variant="important">
+  No utilice corchetes `[suffix]` al final del nombre de su transacción. New Relic elimina automáticamente los corchetes del nombre. En su lugar, utilice paréntesis `(suffix)` u otros símbolos si es necesario.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="tracer_enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRACER_ENABLED`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Enable transaction tracing?`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente recopila [la traza lenta de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces).
+  </Collapser>
+
+  <Collapser
+    id="explain_threshold"
+    title="explain_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `500`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_EXPLAIN_THRESHOLD`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Duración mínima de la consulta (en milisegundos) para que una transacción sea elegible para [consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details) en la [traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces).
+  </Collapser>
+
+  <Collapser
+    id="record-sql"
+    title="record_sql"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena (`obfuscated`, `off` o `raw`)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `obfuscated`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_RECORD_SQL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta opción afecta tanto [a consulta lenta](#slow-queries) como `record_sql` para traza de la transacción. Puede tener estos valores: `off`, `obfuscated` o `raw`.
+
+    Cuando se establece en `off` no se capturará ninguna consulta lenta y los backtraces y SQL no se incluirán en la traza de la transacción. Si se establece en `raw` o `obfuscated`, el agente envía SQL sin formato u ofuscado y una muestra de consulta lenta al [recolector](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector). El agente también puede enviar SQL cuando se cumplen otros criterios, como cuando se establece `slow_sql.enabled` .
+  </Collapser>
+
+  <Collapser
+    id="tracer_top"
+    title="top_n"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `20`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRACER_TOP_N`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de solicitudes elegibles para [la traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces).
+
+    Las transacciones se nombran según la solicitud y `top_n` se refiere a las "n transacciones más lentas" agrupadas por estos nombres. El módulo reemplaza una traza registrada con una nueva traza solo si la nueva traza es más lenta que la traza más lenta anterior con ese nombre. El valor predeterminado para esta configuración es `top_n: 20`, porque la [página<DNT>**Transactions**</DNT> ](/docs/apm/transactions/transaction-traces/transaction-traces)también muestra de manera predeterminada las 20 transacciones más lentas.
+
+    El agente de Node.js captura al menos cinco transacciones lentas diferentes en el primer ciclo de recolección después del inicio. También restablecerá y capturará diferentes transacciones si no se han capturado transacciones lentas durante los últimos cinco [ciclos de recolección](/docs/apm/new-relic-apm/getting-started/glossary#harvest-cycle). Esto le permite ver más información sobre más rutas de solicitud de su aplicación, con el posible costo de no centrarse en la solicitud absolutamente más lenta para ese ciclo de recolección.
+
+    <Callout variant="tip">
+      Para registrar la transacción más lenta del último minuto, puede configurar `top_n: 0` o `top_n: 1`. Sin embargo, esto hace que una ruta muy lenta domine su traza de la transacción.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tracer_threshold"
+    title="transaction_threshold"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero o `apdex_f`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `apdex_f`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRACER_THRESHOLD`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Threshold`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Umbral del tiempo de respuesta de una transacción web en segundos más allá del cual una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction) es elegible para [el seguimiento de transacciones](/docs/apm/transactions/transaction-traces/transaction-traces). El valor predeterminado es `apdex_f`; esto establece el umbral de traza en cuatro veces [el Apdex T](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#apdex_t) de su aplicación. También puede ingresar un valor de tiempo específico en milisegundos.
+
+    <DNT>
+      **Example: Threshold set to `apdex_f`**
+    </DNT>
+
+    El `apdex_t` predeterminado es 100 milisegundos. Si su umbral de transacción se establece en `apdex_f`, una transacción "lenta" dura 400 milisegundos.
+  </Collapser>
+
+  <Collapser
+    id="hide-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura atributo de la traza de la transacción.
+
+    <Callout variant="caution">
+      Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="hide-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir de la traza de la transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="hide-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_TRACER_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en la traza de la transacción. Permite `*` como comodín al final.
+  </Collapser>
+</CollapserGroup>
+
+## Variables de reglas [#rules_config]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `rules: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="rules_names"
+    title="nombre"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadenas o expresiones regulares
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_NAMING_RULES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Una lista de reglas delimitadas por comas para hacer coincidir las URL de solicitud entrante y nombrar la transacción New Relic asociada. Utiliza el formato:
+
+    ```js
+    name: [
+        { pattern: 'STRING_OR_REGEX', name: 'NAME' },
+        { pattern: 'STRING_OR_REGEX', name: 'NAME' }
+    ]
+    ```
+
+    Ambos parámetros son obligatorios. Para cadenas, debe escapar de los caracteres de control. No es necesario escapar de los caracteres de control en las expresiones regulares. Se ignoran los atributos adicionales.
+
+    Las expresiones regulares admiten grupos de captura de estilo JavaScript y los nombres utilizan cadenas de reemplazo de estilo `$1` . Las expresiones regulares sólo encuentran el primer resultado coincidente; Las coincidencias posteriores se ignoran. Para obtener más información, consulte [API de nomenclatura de transacciones de Node.js.](/docs/agents/nodejs-agent/api-guides/nodejs-agent-api#ignoring)
+
+    Para la variable de entorno `NEW_RELIC_NAMING_RULES` , pase las reglas como literales de objeto JSON delimitados por comas:
+
+    ```ini
+    NEW_RELIC_NAMING_RULES='{"pattern":"^t","name":"u"},{"pattern":"^u","name":"t"}'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rules_ignore"
+    title="ignorar"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadenas o expresiones regulares
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `['^/socket.io/.*/xhr-polling/']`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_IGNORING_RULES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Defina una lista de URL de solicitud que desea que el agente ignore. Especifique la lista como patrones, que pueden ser cadenas o expresiones regulares. El valor predeterminado es una expresión regular para coincidir con las solicitudes de sondeo prolongado de socket.io.
+  </Collapser>
+
+  <Collapser
+    id="enforce_backstop"
+    title="enforce_backstop"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_ENFORCE_BACKSTOP`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="caution">
+      No cambie esta configuración a menos que comprenda [los problemas de agrupación métrica](/docs/features/metric-grouping-issues).
+    </Callout>
+
+    Cuando está habilitado, el agente cambia el nombre de las transacciones que no se ven afectadas por otra lógica de nombres (como la API, reglas o reglas de normalización métrica) a `NormalizedUri/*`. Si configura esto en `false`, el agente establece los nombres de las transacciones en `Uri/path/to/resource`.
+  </Collapser>
+</CollapserGroup>
+
+## Variables de eventos de transacción [#tx_events]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `transaction_events: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="tx_events_enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente envía el evento de transacción a New Relic. Los datos de este evento incluyen el momento de la transacción, el nombre de la transacción y cualquier atributo personalizado. Si esto está deshabilitado, el agente no recopila estos datos ni los envía a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="tx_events_max_samples_stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos que el agente recopila por minuto. Si hay más que este número, el agente recopila un muestreo estadístico.
+
+    No recomendamos configurar más de 10.000. El servidor limitará los datos a 10.000 por minuto.
+
+    <Callout variant="important">
+      Esta configuración tuvo un comportamiento diferente en versiones del agente inferiores a 6.0.0. Consulte [`max_samples_stored` (DEPRECATED)](#tx_events_max_samples_stored_legacy) para las versiones del agente 5.x o inferiores.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tx_events_max_samples_stored_legacy"
+    title="max_samples_stored (DEPRECADO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `20000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos que el agente almacena si no puede comunicarse con el [recolector de New Relic](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector). Los valores del [ciclo de recolección](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) anterior se fusionarán en el siguiente, limitando esta opción el número máximo. Asegúrese de que este número sea mayor que `max_samples_per_minute`; por ejemplo, configúrelo al doble. Considere la sobrecarga de su memoria antes de aumentar este valor.
+
+    <Callout variant="caution">
+      Esta configuración tiene un comportamiento diferente a partir de la versión 6.0.0 del agente y un nuevo máximo recomendado. Consulte [`max_samples_stored`](#tx_events_max_samples_stored) para conocer las versiones del agente 6.x o superiores.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tx_events_max_samples_per_minute"
+    title="max_samples_per_minute (DEPRECADO)"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de eventos que el agente recopila por minuto. Si hay más que este número, el agente recopila un muestreo estadístico.
+
+    <Callout variant="caution">
+      Esta configuración se reemplazó con `max_samples_stored` a partir de la versión 6.0.0 del agente. Consulte [`max_samples_stored`](#tx_events_max_samples_stored) para agente 6.x o posterior.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tx-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente captura el atributo del evento de transacción.
+
+    <Callout variant="caution">
+      Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tx-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir del evento de transacción. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="tx-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_TRANSACTION_EVENTS_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en evento de transacción. Permite `*` como comodín al final.
+  </Collapser>
+</CollapserGroup>
+
+## Monitoreo de variables del browser [#browser-variables]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `browser_monitoring: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="browser"
+    title="permitir"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITOR_ENABLE`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Etiqueta del lado del servidor](#server-side)
+          </th>
+
+          <td>
+            `Enable browser monitoring?`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Genere encabezados de JavaScript para la instrumentación browser . Si se establece en `true` el agente no inyecta automáticamente el código JS del browser a menos que haya [habilitado <InlinePopover type="browser"/>manualmente](/docs/browser/new-relic-browser/installation-configuration/adding-apps-new-relic-browser). Incluso si lo ha habilitado y [ha agregado el encabezado de sincronización browser ](/docs/agents/nodejs-agent/supported-features/page-load-timing-nodejs#procedures), puede [deshabilitar el monitoreo del browser para su aplicación](/docs/agents/nodejs-agent/supported-features/page-load-timing-nodejs#disabling) configurándolo en `false`.
+  </Collapser>
+
+  <Collapser
+    id="browser-debug"
+    title="depurar"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITOR_DEBUG`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es `true`, solicite fuentes no minificadas del servidor.
+  </Collapser>
+
+  <Collapser
+    id="browser-debug-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si `true`, el agente envía un atributo personalizado al monitoreo del browser.
+
+    <Callout variant="caution">
+      Cualquier regla de inclusión/exclusión relacionada con el encabezado debe estar en formato camelCase para poder filtrarse.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="browser-debug-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a excluir del monitoreo del navegador. Permite `*` como comodín al final.
+  </Collapser>
+
+  <Collapser
+    id="browser-debug-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_BROWSER_MONITORING_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Prefijo de atributo a incluir en el monitoreo del navegador. Permite `*` como comodín al final.
+  </Collapser>
+</CollapserGroup>
+
+## Variables personalizadas para eventos [#custom_events]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `custom_insights_events: {` del archivo de configuración `newrelic.js` de su aplicación.
+
+<CollapserGroup>
+  <Collapser
+    id="custom_events_enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente envía el evento personalizado grabado con [`recordCustomEvent()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#custom-events-api) a [New Relic](/docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-insights-api). Si esto está deshabilitado, el agente no recopila estos datos ni los envía a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="custom_events_max_samples_stored"
+    title="max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `3000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    * Define el número máximo de eventos personalizados que el agente recopila por minuto. Si el número de eventos personalizados excede este límite, el agente recopila un muestreo estadístico.
+
+    * Al configurar el agente para [el monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring), configúrelo en el valor máximo `100000`. Garantiza que se capture la cantidad máxima de eventos LLM.
+
+      <Callout variant="important">
+        Aumentar este límite puede aumentar el uso de memoria.
+      </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Consulta lenta variables [#slow-queries]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `slow_sql: {` del archivo de configuración `newrelic.js` de su aplicación. Estas opciones controlan el comportamiento de consulta lenta, pero no afectan los nodos SQL en la traza de la transacción.
+
+<CollapserGroup>
+  <Collapser
+    id="slow-sql-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SLOW_SQL_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente recopila [detalles de consulta lenta](/docs/apm/applications-menu/monitoring/viewing-slow-query-details).
+  </Collapser>
+
+  <Collapser
+    id="slow-sql-max-samples"
+    title="max_samples"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_MAX_SQL_SAMPLES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Define el número máximo de consultas lentas que cobra el agente por minuto. El agente descarta consultas adicionales una vez alcanzado el límite.
+
+    <Callout variant="important">
+      Aumentar este límite aumenta el uso de memoria.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Variables de nombre de host personalizadas [#custom-hostnames]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `process_host: {` del archivo de configuración `newrelic.js` de su aplicación. Estas opciones controlan el comportamiento relacionado con el nombre para mostrar del host en la UI de APM.
+
+<CollapserGroup>
+  <Collapser
+    id="custom-hostnames-display"
+    title="display_name"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena de 255 bytes o menos
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_PROCESS_HOST_DISPLAY_NAME`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifique un nombre de host personalizado para [mostrar en New Relic](/docs/apm/new-relic-apm/maintenance/add-rename-remove-hosts#display_name). Si no configura este campo, New Relic continuará usando el nombre de host predeterminado que se encuentra al llamar `os.hostname()`.
+
+    * Si utiliza la configuración de nombre de host predeterminada, New Relic encuentra el nombre de host a través de `os.hostname()`.
+    * Si esta llamada falla, New Relic usa la IP del host como nombre.
+    * Si configura `ipv_preference: 4` o `ipv_preference: 6`, puede seleccionar el tipo de dirección IP (IPv4 o IPv6) que aparece en la UI de New Relic.
+  </Collapser>
+
+  <Collapser
+    id="custom-hostnames-ipv"
+    title="ipv_preference"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Entero (`4` o `6`)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `4`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_IPV_PREFERENCE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Almacenamiento de datos rastreador variables [#datastore-tracer]
+
+Esta sección define las variables del agente de Node.js en el orden en que suelen aparecer en la sección `datastore_tracer` del archivo de configuración `newrelic.js` de su aplicación. Estas opciones controlan el comportamiento de recopilación de almacenamiento de datos instancia métrica.
+
+<CollapserGroup>
+  <Collapser
+    id="datastore-instance-enabled"
+    title="instance_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_DATASTORE_INSTANCE_REPORTING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente recopila la instancia de almacenamiento de datos métrica (como host y puerto) para [algún controlador de la base de datos](/docs/agents/nodejs-agent/supported-features/nodejs-instance-level-database-information). Estos se informan en consulta lenta traza y traza de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="datastore-name-enabled"
+    title="database_name_reporting.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_DATASTORE_DATABASE_NAME_REPORTING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente recopila el nombre de la base de datos en consulta lenta traza y traza de la transacción para [algún controlador de la base de datos](/docs/agents/nodejs-agent/supported-features/nodejs-instance-level-database-information).
+  </Collapser>
+</CollapserGroup>
+
+## Rastreo multiaplicación (DEPRECADO) [#cross-app-tracing]
+
+Las variables del agente de Node.js que controlan [el seguimiento de aplicaciones múltiples](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) normalmente aparecen en la sección `cross_application_tracer` del archivo de configuración `newrelic.js` de tu aplicación:
+
+<Callout variant="important">
+  El rastreo de aplicaciones múltiples ha quedado obsoleto en favor de [Distributed tracing](/docs/enable-distributed-tracing) y se eliminará en una versión futura de agente.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="cat-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_CROSS_APPLICATION_TRACER_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando se establece en `true`, permite el seguimiento de transacciones en más de una aplicación de monitor New Relic.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  El rastreo de aplicaciones múltiples (CAT) ha quedado obsoleto y se eliminará en una versión importante futura. Para visibilidad entre servicios, recomendamos utilizar [rastreo distribuido](#distributed-tracing), que está habilitado de forma predeterminada a partir de la versión 8.3.0 del agente. Antes de habilitar, lea la [guía de transición](/docs/transition-guide-distributed-tracing).
+</Callout>
+
+## Mensaje de error redacción variables [#err-message-redact]
+
+Las variables del agente de Node.js que controlan la redacción de mensajes de error aparecen en la sección `strip_exception_messages` del archivo de configuración `newrelic.js` de tu aplicación:
+
+<CollapserGroup>
+  <Collapser
+    id="allow-raw-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_STRIP_EXCEPTION_MESSAGES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando `false`, el agente redactará los mensajes de los errores capturados.
+  </Collapser>
+</CollapserGroup>
+
+## rastreo distribuido [#dt-main]
+
+[rastreo distribuido](/docs/intro-distributed-tracing) te permite ver el camino que sigue una solicitud a medida que viaja a través de un sistema distribuido. Al configurar a través del archivo de configuración, coloque la siguiente opción en la sección `distributed_tracing` . Está activado de forma predeterminada en Node.js agente 8.3.0 y superior.
+
+<Callout variant="important">
+  Habilitar rastreo distribuido deshabilita [el rastreo de múltiples aplicaciones](#cross-app-tracing) y tiene efectos en otras características de APM. Antes de habilitar, lea la [guía de transición](/docs/transition-guide-distributed-tracing). Requiere [la versión 4.7.0 o superior del agente Node.js.](/docs/agents/nodejs-agent/installation-configuration/upgrade-nodejs-agent)
+</Callout>
+
+Para obtener más información sobre cómo configurar rastreo distribuido, consulte [Habilitar rastreo distribuido para su aplicación Node.js.](/docs/apm/agents/nodejs-agent/installation-configuration/distributed-tracing-nodejs-agent)
+
+<CollapserGroup>
+  <Collapser
+    id="dt-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `false` para deshabilitar el rastreo distribuido. Por ejemplo, en el archivo de configuración, usarías:
+
+    ```js
+    distributed_tracing: {
+        enabled: false
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="dt-exclude-newrelic-header"
+    title="exclude_newrelic_header"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_EXCLUDE_NEWRELIC_HEADER`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Establezca esto en `true` para excluir el encabezado New Relic que se adjunta a las solicitudes salientes y, en su lugar, confíe únicamente en los encabezados W3C Trace Context para el rastreo distribuido. Si es `false` , se utilizan ambos tipos de encabezados.
+
+    Por ejemplo, para habilitar esto en el archivo de configuración, usaría:
+
+    ```js
+    distributed_tracing: {
+        enabled: true,
+        exclude_newrelic_header: true
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentación del servidor gRPC [#grpc_server]
+
+La sección `grpc` controla el comportamiento de cómo se instrumenta el servidor gRPC.
+
+<CollapserGroup>
+  <Collapser
+    id="record_errors"
+    title="record_errors"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_GRPC_RECORD_ERRORS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Cuando está habilitado, el agente enviará todos los códigos de estado de gRPC de error a New Relic, es decir, códigos de estado distintos de cero. Si está deshabilitado, la instrumentación del servidor no enviará ningún código de estado distinto de cero a New Relic.
+  </Collapser>
+</CollapserGroup>
+
+<Collapser
+  id="grpc_error_ignore"
+  title="ignore_status_codes"
+>
+  <table>
+    <tbody>
+      <tr>
+        <th>
+          Tipo
+        </th>
+
+        <td>
+          Matriz de números enteros
+        </td>
+      </tr>
+
+      <tr>
+        <th>
+          Por defecto
+        </th>
+
+        <td>
+          `[]`
+        </td>
+      </tr>
+
+      <tr>
+        <th>
+          [Variable ambiental](#environment)
+        </th>
+
+        <td>
+          `NEW_RELIC_GRPC_IGNORE_STATUS_CODES`
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  Lista delimitada por comas de códigos de estado de gRPC que el recolector de errores debe ignorar, tanto en la instrumentación del lado del cliente como del lado del servidor.
+
+  <Callout variant="caution">
+    Los errores registrados usando [`newrelic.noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError) no obedecen a este valor de configuración.
+  </Callout>
+</Collapser>
+
+## Evento de duración
+
+[Los datos de extensión](/docs/apm/distributed-tracing/ui-data/span-event) se reportan para [rastreo distribuido](#distributed-tracing). rastreo distribuido debe estar habilitado para reportar tramos. Establezca la configuración del intervalo en la sección `span_events` . Las opciones incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="span-events-enabled"
+    title="activado"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Activa o desactiva los informes de eventos de intervalo.
+  </Collapser>
+
+  <Collapser
+    id="span-events-attributes-enabled"
+    title="attributes.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Esta configuración se puede utilizar para activar o desactivar los informes de atributos para tramos. Si `attributes.enabled` en el nivel raíz es `false`, no se enviará ningún atributo con intervalos, independientemente de cómo esté configurado.
+  </Collapser>
+
+  <Collapser
+    id="span-events-attributes-include"
+    title="attributes.include"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_INCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si los atributos están habilitados para los tramos, todas las claves de atributos que se encuentran en esta lista se adjuntarán a los tramos. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+
+  <Collapser
+    id="span-events-attributes-exclude"
+    title="attributes.exclude"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Matriz
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `[]`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SPAN_EVENTS_ATTRIBUTES_EXCLUDE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Todas las claves de atributos que se encuentran en esta lista no se enviarán con intervalos. Para obtener más información, consulte las [reglas de atributos del agente](/docs/apm/other-features/attributes/agent-attributes).
+  </Collapser>
+</CollapserGroup>
+
+<Collapser
+  id="span-events-max-samples-stored"
+  title="max_samples_stored"
+>
+  <table>
+    <tbody>
+      <tr>
+        <th>
+          Tipo
+        </th>
+
+        <td>
+          Entero
+        </td>
+      </tr>
+
+      <tr>
+        <th>
+          Por defecto
+        </th>
+
+        <td>
+          `2000`
+        </td>
+      </tr>
+
+      <tr>
+        <th>
+          [Variable ambiental](#environment)
+        </th>
+
+        <td>
+          `NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED`
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  * Define el número máximo de eventos que el agente recopila por minuto. Si hay más que este número, el agente recopila un muestreo estadístico.
+
+  * No recomendamos configurar más de 10k. El servidor limitará los datos a 10k por minuto.
+
+  * Al configurar el agente para [el monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring), configúrelo en el valor máximo `10000`. Garantiza que se capture la máxima cantidad de traza.
+
+    <Callout variant="important">
+      `max_samples_stored` los ajustes de configuración requieren [la versión 8.3.0 o superior del agente Node.JS.](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/)
+    </Callout>
+</Collapser>
+
+## Rastreo infinito
+
+Para activar Infinite Tracing, agregue la configuración a continuación. Establezca la configuración de Infinite Tracing en la sección `infinite_tracing` . Además se debe [habilitar](/docs/apm/agents/nodejs-agent/installation-configuration/distributed-tracing-nodejs-agent) rastreo distribuido. Tenga en cuenta que rastreo distribuido está habilitado de forma predeterminada para las versiones 8.3.0 y posteriores del agente APM de Node.js.
+
+<CollapserGroup>
+  <Collapser
+    id="infinite-tracing-host"
+    title="trace_observer.host"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Para obtener ayuda para obtener una entrada de host de observador de traza Infinite Tracing válida, consulte [Buscar o crear un extremo de observador de traza](/docs/understand-dependencies/distributed-tracing/enable-configure/language-agents-enable-distributed-tracing#provision-trace-observer).
+  </Collapser>
+
+  <Collapser
+    id="infinite-tracing-queue-size"
+    title="span_events.queue_size"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_INFINITE_TRACING_SPAN_EVENTS_QUEUE_SIZE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    La cantidad de tramos de Infinite Tracing que el agente mantendrá en la memoria antes de eliminarlos.
+
+    Rara vez será necesario cambiar esta configuración respecto a la predeterminada, ya que la cola no está en uso la mayor parte del tiempo. La cola está en uso solo durante las reconexiones al extremo Infinite Tracing mientras el agente no puede transmitir datos. Es posible que el agente elimine los intervalos de seguimiento infinito durante estos períodos; en ese caso, aumentar este número puede ser útil.
+  </Collapser>
+</CollapserGroup>
+
+## Registro de aplicaciones [#app-logging]
+
+Los ajustes de configuración del registro de la aplicación requieren [la versión 8.11.0 o superior del agente Node.JS.](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/)
+
+Para obtener sugerencias sobre cómo configurar el registro para el agente de Node.js, consulte [Configurar logs en el contexto de Node.js](/docs/logs/logs-context/configure-logs-context-nodejs).
+
+<CollapserGroup>
+  <Collapser
+    id="application-logging-enabled"
+    title="application_logging.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Permite generar automáticamente [el logs en el contexto](/docs/logs/logs-context/configure-logs-context-nodejs/).
+
+    Por ejemplo, para desactivar esta característica en el archivo de configuración, usaría:
+
+    ```js
+    application_logging: {
+        enabled: false
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="application-logging-metrics-enabled"
+    title="application_logging.metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si el agente recopila la métrica de registro utilizada en el gráfico de registro en la página Resumen de APM.
+  </Collapser>
+
+  <Collapser
+    id="application-logging-forwarding-enabled"
+    title="application_logging.forwarding.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si el agente recopila log para enviarlos a New Relic.
+  </Collapser>
+
+  <Collapser
+    id="application-logging-forwarding-max_samples_stored"
+    title="application_logging.forwarding.max_samples_stored"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Número
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `10000`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_FORWARDING_MAX_SAMPLES_STORED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Número de log para enviar por minuto a New Relic. Controla el consumo general de memoria cuando se utiliza el reenvío de registros.
+
+    Establezca esto en un valor más bajo para reducir la cantidad de líneas log enviadas (puede causar muestreo log ). Establezca esto en un valor más alto para enviar más líneas log .
+
+    Cada log recibe la misma prioridad que su transacción asociada. Los registros que ocurren fuera de una transacción recibirán una prioridad aleatoria. Es posible que algunos registros no se incluyan porque están limitados por `max_samples_stored`. Por ejemplo, si el registro `max_samples_stored` se establece en 10 000 y la transacción 1 tiene 10 000 entradas log , solo se registrarán las entradas log de la transacción 1. Si la transacción 1 tiene menos de 10 000 registros, recibirá todos los registros de la transacción 1. Si todavía hay espacio, recibirás todo el registro de la transacción 2, y así sucesivamente.
+
+    Si después de todo se registran los registros de transacciones muestreadas y no han alcanzado el límite en `max_samples_stored`, entonces se envían mensajes de registro de transacciones que no estaban en nuestro muestreo. Si queda alguno, se registran mensajes de registro fuera de la transacción.
+  </Collapser>
+
+  <Collapser
+    id="application-logging-local_decorating-enabled"
+    title="application_logging.local_decorating.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si el agente realiza la decoración log local en la salida log estándar.
+  </Collapser>
+</CollapserGroup>
+
+## Nivel de código métrico [#code-level-metrics]
+
+Los ajustes de configuración métrica a nivel de código requieren [la versión 9.7.5 o superior del agente Node.JS.](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/)
+
+Para obtener más detalles, consulte [nuestros documentos métricos a nivel de código](/docs/apm/agents/nodejs-agent/installation-configuration/codestream-integration).
+
+<CollapserGroup>
+  <Collapser
+    id="code-level-metrics-enabled"
+    title="code_level_metrics.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_CODE_LEVEL_METRICS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si se deben capturar atributos adicionales en extensiones de middleware para todo el marco web Node.js que ayudan a impulsar [el nivel de código métrico](/docs/codestream/observability/code-level-metrics). Los atributos adicionales son: `code.filepath`, `code.function`, `code.lineno` y `code.column`.
+  </Collapser>
+</CollapserGroup>
+
+## Configuración Errors Inbox [#errors-inbox-configuration]
+
+Configurar una de las siguientes etiquetas le ayudará a identificar qué versiones de su software están produciendo los errores.
+
+* `NEW_RELIC_METADATA_SERVICE_VERSION` creará tags.service.version en los datos del evento que contienen la versión de su código que se desplegará, en muchos casos una versión semántica como 1.2.3, pero no siempre.
+* `NEW_RELIC_METADATA_RELEASE_TAG `creará tags.releaseTag en los datos del evento que contienen la etiqueta de lanzamiento (como v0.1.209 o release-209).
+* `NEW_RELIC_METADATA_COMMIT` creará tags.commit on event data containing the commit sha. Se puede utilizar el sha completo o sólo los primeros siete caracteres (por ejemplo, 734713b).
+
+Una próxima versión de Errors Inbox rastreará automáticamente qué versiones de su software están produciendo errores. Todos los datos de la versión también se mostrarán en [CodeStream](/docs/codestream/how-use-codestream/performance-monitoring/#buildsha).
+
+## Url ofuscación [#url-obfuscation]
+
+Los ajustes de configuración de ofuscación de URL requieren [la versión 9.9.0 o superior del agente Node.js.](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/)
+
+Para ver un ejemplo de configuración, consulte nuestra documentación sobre la [ofuscación de URL del agente de nodo](/docs/url-obfuscation/configure-url-obfuscation-nodejs).
+
+<CollapserGroup>
+  <Collapser
+    id="url-obfuscation-enabled"
+    title="url_obfuscation.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_URL_OBFUSCATION_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilita [la ofuscación de URL del agente de nodo](/docs/url-obfuscation/configure-url-obfuscation-nodejs/) basado en expresiones regulares.
+  </Collapser>
+
+  <Collapser
+    id="url-obfuscation-regex-pattern"
+    title="url_obfuscation.regex.pattern"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena o RegExp
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_URL_OBFUSCATION_REGEX_PATTERN`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica el patrón de expresiones regulares que se utilizará para la ofuscación de URL. Si no se establece esto, no se realizará ninguna ofuscación de URL.
+  </Collapser>
+
+  <Collapser
+    id="url-obfuscation-regex-flags"
+    title="url_obfuscation.regex.flags"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_URL_OBFUSCATION_REGEX_FLAGS`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica los indicadores de expresiones regulares que se utilizarán para la coincidencia de patrones de ofuscación de URL, por ejemplo `g` para coincidencias globales, `i` para coincidencias que no distinguen entre mayúsculas y minúsculas, etc. Se pueden especificar varios indicadores como una cadena, por ejemplo `gi`. Si no se establece esto, no se utilizarán banderas.
+  </Collapser>
+
+  <Collapser
+    id="url-obfuscation-regex-replacement"
+    title="url_obfuscation.regex.replacement"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_URL_OBFUSCATION_REGEX_REPLACEMENT`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Especifica la cadena de reemplazo que se utilizará para la ofuscación de URL. Puede contener referencias para capturar grupos en el patrón, por ejemplo. `$1`. Si no se establece esto, todo será reemplazado por una única cadena vacía.
+  </Collapser>
+</CollapserGroup>
+
+## Agente de seguridad [#security-agent]
+
+[La prueba de seguridad de aplicaciones interactivas (IAST) del agente New Relic Security](/docs/iast/introduction/) prueba su aplicación en busca de vulnerabilidades explotables reproduciendo la solicitud HTTP generada con carga vulnerable.
+
+<Callout variant="caution">
+  Ejecute IAST con despliegue no productivo solo para evitar exponer vulnerabilidades en su software de producción.
+</Callout>
+
+<Callout variant="important">
+  Los ajustes de configuración del agente de seguridad requieren [la versión 10.3.0 o superior del agente Node.js.](/docs/apm/agents/nodejs-agent/installation-configuration/update-nodejs-agent/)
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="security-enabled"
+    title="security.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si los datos del agente de New Relic Security se envían a New Relic o no. Cuando esto está deshabilitado y security.agente.enabled es verdadero, el agente de seguridad se registrará pero no se enviarán datos.
+  </Collapser>
+
+  <Collapser
+    id="security-agent-enabled"
+    title="security.agent.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_AGENT_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Alterna si el agente New Relic Security está cargado. Esta propiedad se lee solo una vez al inicio de la aplicación.
+  </Collapser>
+
+  <Collapser
+    id="security-mode"
+    title="security.mode"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `IAST`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_MODE`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Modo proporcionado por New Relic Security: IAST. El valor predeterminado es IAST. Debido a la naturaleza invasiva del escaneo IAST, NO habilite este modo ni en un entorno de producción ni en un entorno donde se procesen datos de producción.
+  </Collapser>
+
+  <Collapser
+    id="security-validator-url"
+    title="security.validator_service_url"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `wss://csec.nr-data.net`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_VALIDATOR_SERVICE_URL`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    New Relic Security. Este es el extremo al que el agente de seguridad envía datos, debe coincidir con el entorno que ha configurado para el agente Node.js.
+  </Collapser>
+
+  <Collapser
+    id="security-rci-detection"
+    title="security.detection.rci.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_DETECTION_RCI_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad de RCI.
+  </Collapser>
+
+  <Collapser
+    id="security-xss-detection"
+    title="security.detection.rxss.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_DETECTION_RXSS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad RXSS.
+  </Collapser>
+
+  <Collapser
+    id="security-deserialization-detection"
+    title="security.detection.deserialization.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_SECURITY_DETECTION_DESERIALIZATION_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Habilite la detección de eventos de seguridad de deserialización.
+  </Collapser>
+</CollapserGroup>
+
+## Heroku [#heroku]
+
+<CollapserGroup>
+  <Collapser
+    id="heroku-dyno"
+    title="heroku.use_dyno_names"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `true`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_HEROKU_USE_DYNO_NAMES`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es verdadero, el agente utiliza nombres de dinamómetros Heroku como nombre de host.
+  </Collapser>
+</CollapserGroup>
+
+## Hilos de trabajadores [#worker-threads]
+
+En las versiones del agente anteriores a la 11.0.0, el agente se ejecutaba tanto en el subproceso principal como en el subproceso de trabajo. En la versión 11.0.0 el agente dejó de ejecutarse en los hilos de trabajo debido a su incompatibilidad con nuestra distribución asíncrona del contexto. La capacidad de ejecutarse en subprocesos de trabajo se restauró en la versión 11.3.0, pero debe configurar `worker_threads.enabled` en `true`. El comportamiento de ejecución en los subprocesos de trabajo varía y no lo admitimos oficialmente. Algunas cosas como la generación métrica y la traza de la transacción autónoma pueden funcionar, pero este es un uso bajo su propia capacidad de riesgo.
+
+<CollapserGroup>
+  <Collapser
+    id="worker-threads"
+    title="worker_threads.enabled"
+  >
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            [Variable ambiental](#environment)
+          </th>
+
+          <td>
+            `NEW_RELIC_WORKER_THREADS_ENABLED`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si es verdadero, el agente se cargará cuando esté en un subproceso de trabajo si se especifica.
+  </Collapser>
+</CollapserGroup>
+
+## Anulaciones de variables de entorno
+
+Esta sección define dos opciones de configuración que solo están disponibles con variables de entorno. Estas anulaciones no se utilizan en la mayoría de las configuraciones.
+
+<CollapserGroup>
+  <Collapser
+    id="home"
+    title="NEW_RELIC_HOME"
+  >
+    Ruta al directorio que contiene `newrelic.js`. Esto solo está disponible como variable de entorno. No puede configurarlo en su archivo de configuración.
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Cadena
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            (ninguno)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="no_file"
+    title="NEW_RELIC_NO_CONFIG_FILE"
+  >
+    Si se usa, esto evita que el agente lea los ajustes de configuración de `newrelic.js`. Los valores predeterminados y los valores de las variables de entorno aún estarán establecidos.
+
+    Esto solo está disponible como variable de entorno. No puede configurarlo en su archivo de configuración.
+
+    <table>
+      <tbody>
+        <tr>
+          <th>
+            Tipo
+          </th>
+
+          <td>
+            Booleano
+          </td>
+        </tr>
+
+        <tr>
+          <th>
+            Por defecto
+          </th>
+
+          <td>
+            `false`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Guía de referencia de tipos de variables de entorno
+
+Esta sección describe cómo formatear correctamente los tipos de datos complejos.
+
+<CollapserGroup>
+  <Collapser
+    id="array"
+    title="Matriz"
+  >
+    Los tipos de matriz se definen como cadenas delimitadas por comas.
+
+    ```ini
+    NEW_RELIC_ERROR_COLLECTOR_IGNORE_ERROR_CODES=404,500,429
+    ```
+  </Collapser>
+
+  <Collapser
+    id="object"
+    title="Objeto"
+  >
+    Los tipos de objetos se definen como una cadena json.
+
+    ```ini
+    NEW_RELIC_ERROR_COLLECTOR_EXPECTED_MESSAGES='{"Error":["Undefined", "No soup for you!"]}'
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,394 @@
+---
+title: "Add the NerdGraphQuery component to an application"
+metaDescription: "The NerdGraphQuery component allows you to query data from your account and add it to a dropdown menu in an application."
+freshnessValidatedDate: never
+---
+
+This guide steps you through the process of adding the `NerdGraphQuery` component to a sample transaction overview application. This allows you to query data from your New Relic account and add it to a dropdown menu.
+
+NerdGraph is our GraphQL implementation. GraphQL has some key differences when compared to REST:
+
+* The client, not the server, determines what data is returned.
+* You can easily collect data from multiple sources. For example, in a single query, you can get account information, infrastructure data, and issue a NRQL request.
+
+<Callout variant="important">
+  Before completing this exercise, you can experiment with GraphQL queries in our [NerdGraph API explorer](https://api.newrelic.com/graphiql).
+</Callout>
+
+We also have a 14-minute video that covers the steps below.
+
+<Video
+  id="zxunt1u1as"
+  type="wistia"
+/>
+
+## Before you begin [#begin]
+
+To develop projects, you need our New Relic One CLI (command line interface). If you haven't already installed it, do the following:
+
+* Install [Node.js](https://nodejs.org/en/download/).
+* Complete steps 1–4 of our [CLI quick start](https://one.newrelic.com/launcher/developer-center.launcher?pane=eyJuZXJkbGV0SWQiOiJkZXZlbG9wZXItY2VudGVyLmRldmVsb3Blci1jZW50ZXIifQ==), and be sure to make a copy of your account ID from step 1 because you’ll need it later.
+
+<Callout variant="important">
+  If you've already installed the New Relic One CLI, but you can't remember your account ID, start the [CLI quick start](https://one.newrelic.com/launcher/developer-center.launcher?pane=eyJuZXJkbGV0SWQiOiJkZXZlbG9wZXItY2VudGVyLmRldmVsb3Blci1jZW50ZXIifQ==) again, and then click the **Get your API key** down arrow. The account ID is the number preceding your account name.
+</Callout>
+
+For additional details, see [Set up your development environment](/build-apps/set-up-dev-env).
+
+## Prepare the sample code [#sample-code]
+
+To get started, complete these steps to update the [application UUID (unique ID)](https://developer.newrelic.com/build-tools/new-relic-one-applications/guide-to-authentication--data-access--and-permissions) and run the sample application locally:
+
+<Steps>
+  <Step>
+    If you haven't already done so, clone the example applications from our [how-to GitHub repo](https://github.com/newrelic/nr1-how-to). Here's an example using HTTPS&#x3A;
+
+    ```bash
+    git clone https://github.com/newrelic/nr1-how-to.git
+    ```
+  </Step>
+
+  <Step>
+    Change to the directory `use-nerdgraph-nerdlet`:
+
+    ```bash
+    cd nr1-how-to/use-nerdgraph/nerdlets/use-nerdgraph-nerdlet
+    ```
+  </Step>
+
+  <Step>
+    In your preferred text editor, open `index.js`.
+  </Step>
+
+  <Step>
+    Replace `<ADD YOUR ACCOUNT ID>` with your account id:
+
+    <Callout variant="important">
+      Your account ID is available in the CLI quick start (see **Before you begin**).
+    </Callout>
+
+    ```jsx
+    this.accountId = <ADD YOUR ACCOUNT ID>;
+    ```
+  </Step>
+
+  <Step>
+    Change to the `/nr1-howto/use-nerdgraph` directory:
+
+    ```bash
+    cd ../..
+    ```
+  </Step>
+
+  <Step>
+    If this is your first time executing this code run the below command to install all the required modules:
+
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step>
+    Execute these commands to update the UUID and serve the sample application:
+
+    ```bash
+    nr1 update
+    nr1 nerdpack:uuid -gf
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Once the sample application is successfully served, go to the [local New Relic homepage](https://one.newrelic.com/?nerdpacks=local), click **Apps**, and then click **Use NerdGraph**.
+  </Step>
+</Steps>
+
+After launching the **Use NerdGraph** application, you see a dashboard that gives an overview of the transactions in your account.
+
+## Add the `NerdGraphQuery` component [#nerdgraphquery]
+
+Now you can create a dropdown menu for changing the account the application is viewing. The first step is to import the `NerdGraphQuery` component into the application's `index.js` file.
+
+<Steps>
+  <Step>
+    Add the `NerdGraphQuery` component into the first `StackItem` inside of the `return` in the `index.js` file:
+
+    ```jsx
+    <NerdGraphQuery query={query} variables={variables}>
+      {({ loading, error, data }) => {
+        console.log({ loading, error, data });
+        if (loading) {
+          return <Spinner />;
+        }
+        if (error) {
+          return 'Error!';
+        }
+        return null;
+      }}
+    </NerdGraphQuery>
+    ```
+  </Step>
+
+  <Step>
+    The `NerdGraphQuery` component takes a query object that states the source you want to access and the data you want returned.
+
+    <>
+      Add the following code to your `index.js` file in the `render` method:
+
+      <Callout variant="important">
+        In the browser console, you can see the data from your query returned in an object that follows the same structure of the object in the initial query.
+      </Callout>
+    </>
+
+    ```jsx
+    const query = `
+        query($id: Int!) {
+            actor {
+                account(id: $id) {
+                    name
+                }
+            }
+        }
+    `;
+    ```
+  </Step>
+
+  <Step>
+    To take the data returned by the NerdGraph query and display it in the application, replace the `return null` in the current `NerdGraphQuery` component with this `return` statement:
+
+    ```jsx
+    return <HeadingText>{data.actor.account.name} Apps:</HeadingText>;
+    ```
+
+    When you go back to the browser and view your application, you see a new headline showing the name of your account returned from NerdGraph.
+  </Step>
+</Steps>
+
+## How to use `NerdGraphQuery.query` [#how-nerdgraphquery]
+
+At this point, you have implemented the `NerdGraphQuery` component with the application's `render` method and displayed the return data within the transaction overview application.
+
+Here's what you need to do next:
+
+* Query NerdGraph inside of the `componentDidMount` lifecycle method.
+* Save the returned data for later use in the application.
+
+<Steps>
+  <Step>
+    This code takes the response from NerdGraph and makes sure the results are processed, stored into the application state, and logged to the browser console for viewing.
+
+    Add this code into the `index.js` file just under the `constructor`:
+
+    ```jsx
+    componentDidMount() {
+        const accountId = this.state;
+        const gql = `{ actor { accounts { id name } } }`;
+
+        const accounts = NerdGraphQuery.query({query: gql}) //The NerdGraphQuery.query method called with the query object to get your account data is stored in the accounts variable.
+        accounts.then(results => {
+            console.log('Nerdgraph Response:', results);
+            const accounts = results.data.actor.accounts.map(account => {
+                return account;
+            });
+            const account = accounts.length > 0 && accounts[0];
+            this.setState({ selectedAccount: account, accounts });
+        }).catch((error) => { console.log('Nerdgraph Error:', error); })
+    }
+    ```
+  </Step>
+
+  <Step>
+    After the data is stored into state, display a selection so users can change accounts and update the application.
+
+    To do this, add this code to `index.js` for the second `StackItem` in the `return` statement:
+
+    ```jsx
+    {
+      accounts && (
+        <StackItem>
+          <Select
+            value={selectedAccount}
+            onChange={(evt, value) => this.selectAccount(value)}
+          >
+            {accounts.map((a) => {
+              return (
+                <SelectItem key={a.id} value={a}>
+                  {a.name}
+                </SelectItem>
+              );
+            })}
+          </Select>
+        </StackItem>
+      );
+    }
+    ```
+  </Step>
+</Steps>
+
+### Review the results of the NerdGraph query [#review-results]
+
+After you complete these steps, look at the application in your browser, and note the following:
+
+* The dropdown menu now displays the data returned from the `NerdGraphQuery.query` and allows you to select an account.
+* After you select a new account, the application shows data from the new selection.
+
+The final `index.js` file should have code similar to the code below. This completed sample is in your nerdlet `final.js`.
+
+```jsx
+import React from 'react';
+import { PlatformStateContext, NerdGraphQuery, Spinner, HeadingText, Grid, GridItem, Stack, StackItem, Select, SelectItem, AreaChart, TableChart, PieChart } from 'nr1'
+import { timeRangeToNrql } from '@newrelic/nr1-community';
+
+// https://docs.newrelic.com/docs/new-relic-programmable-platform-introduction
+
+export default class UseNerdgraphNerdletNerdlet extends React.Component {
+    constructor(props){
+        super(props)
+        this.state = {
+            accountId: <YOUR ACCOUNT ID>,
+            accounts: null,
+            selectedAccount: null,
+        }
+    }
+
+    componentDidMount() {
+        const accountId = this.state;
+        const gql = `{ actor { accounts { id name } } }`;
+
+        const accounts =  NerdGraphQuery.query({ query: gql })
+        accounts.then(results => {
+            console.log('Nerdgraph Response:', results);
+            const accounts = results.data.actor.accounts.map(account => {
+                return account;
+            });
+            const account = accounts.length > 0 && accounts[0];
+            this.setState({ selectedAccount: account, accounts });
+        }).catch((error) => { console.log('Nerdgraph Error:', error); })
+    }
+
+    selectAccount(option) {
+        this.setState({ accountId: option.id, selectedAccount: option });
+    }
+
+
+    render() {
+        const { accountId, accounts, selectedAccount  } = this.state;
+        console.log({ accountId, accounts, selectedAccount });
+
+        const query = `
+            query($id: Int!) {
+                actor {
+                    account(id: $id) {
+                        name
+                    }
+                }
+            }
+        `;
+
+        const variables = {
+          id: accountId,
+        };
+
+        const avgResTime = `SELECT average(duration) FROM Transaction FACET appName TIMESERIES AUTO `;
+        const trxOverview = `FROM Transaction SELECT count(*) as 'Transactions', apdex(duration) as 'apdex', percentile(duration, 99, 95) FACET appName `;
+        const errCount = `FROM TransactionError SELECT count(*) as 'Transaction Errors' FACET error.message `;
+        const responseCodes = `SELECT count(*) as 'Response Code' FROM Transaction FACET httpResponseCode `;
+
+        return (
+            <Stack
+                fullWidth
+                horizontalType={Stack.HORIZONTAL_TYPE.FILL}
+                gapType={Stack.GAP_TYPE.EXTRA_LOOSE}
+                spacingType={[Stack.SPACING_TYPE.MEDIUM]}
+                directionType={Stack.DIRECTION_TYPE.VERTICAL}>
+                <StackItem>
+                    <NerdGraphQuery query={query} variables={variables}>
+                        {({loading, error, data}) => {
+                            if (loading) {
+                                return <Spinner />;
+                            }
+
+                            if (error) {
+                                return 'Error!';
+                            }
+
+                            return <HeadingText>{data.actor.account.name} Apps:</HeadingText>;
+                        }}
+                    </NerdGraphQuery>
+                </StackItem>
+                {accounts &&
+                    <StackItem>
+                        <Select value={selectedAccount} onChange={(evt, value) => this.selectAccount(value)}>
+                        {accounts.map(a => {
+                            return (
+                              <SelectItem key={a.id} value={a}>
+                                {a.name}
+                              </SelectItem>
+                            )
+                        })}
+                        </Select>
+                    </StackItem>
+                }
+                <StackItem>
+                <hr />
+                    <PlatformStateContext.Consumer>
+                    {(platformState) => {
+                        /* Taking a peek at the platformState */
+                        const since = timeRangeToNrql(platformState);
+                        return (
+                        <>
+                            <Grid
+                            className="primary-grid"
+                            spacingType={[Grid.SPACING_TYPE.NONE, Grid.SPACING_TYPE.NONE]}
+                            >
+                                <GridItem className="primary-content-container" columnSpan={6}>
+                                    <main className="primary-content full-height">
+                                    <HeadingText spacingType={[HeadingText.SPACING_TYPE.MEDIUM]} type={HeadingText.TYPE.HEADING_4}>
+                                        Transaction Overview
+                                    </HeadingText>
+                                    <TableChart fullWidth accountId={accountId} query={trxOverview+since} />
+                                    </main>
+                                </GridItem>
+                                <GridItem className="primary-content-container" columnSpan={6}>
+                                    <main className="primary-content full-height">
+                                    <HeadingText spacingType={[HeadingText.SPACING_TYPE.MEDIUM]} type={HeadingText.TYPE.HEADING_4}>
+                                        Average Response Time
+                                    </HeadingText>
+                                    <AreaChart fullWidth accountId={accountId} query={avgResTime+since} />
+                                    </main>
+                                </GridItem>
+                                <GridItem className="primary-content-container" columnSpan={6}>
+                                    <main className="primary-content full-height">
+                                    <HeadingText spacingType={[HeadingText.SPACING_TYPE.MEDIUM]} type={HeadingText.TYPE.HEADING_4}>
+                                        Response Code
+                                    </HeadingText>
+                                    <PieChart fullWidth accountId={accountId} query={responseCodes+since} />
+                                    </main>
+                                </GridItem>
+                                <GridItem className="primary-content-container" columnSpan={6}>
+                                    <main className="primary-content full-height">
+                                    <HeadingText spacingType={[HeadingText.SPACING_TYPE.MEDIUM]} type={HeadingText.TYPE.HEADING_4}>
+                                        Transaction Errors
+                                    </HeadingText>
+                                    <PieChart fullWidth accountId={accountId} query={errCount+since} />
+                                    </main>
+                                </GridItem>
+                            </Grid>
+                        </>
+                        );
+                    }}
+                    </PlatformStateContext.Consumer>
+                </StackItem>
+            </Stack>
+        )
+    }
+}
+
+```
+
+## Summary [#summary]
+
+Now that you've completed all the steps in this example, you've successfully queried data from your account using the `NerdGraphQuery` component in two methods:
+
+* Using the `NerdGraphQuery` component inside the application's render method and then passing the returned data into the children's components.
+* Using the `NerdGraphQuery.query` method to query data before the application renders.

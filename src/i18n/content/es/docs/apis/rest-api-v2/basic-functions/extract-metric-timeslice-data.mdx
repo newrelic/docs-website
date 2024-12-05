@@ -1,0 +1,416 @@
+---
+title: Extraer datos de intervalo de tiempo de métrica
+tags:
+  - APIs
+  - REST API v2
+  - Basic functions
+metaDescription: 'Time slice averages, data aggregation policy, and non-existent data considerations for extracting metric data from New Relic''s database using the API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Un tipo de datos de New Relic son [los datos de intervalo de tiempo de métrica](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data). Hay varias formas de consultar intervalo de tiempo de datos métricos:
+
+* Puedes [consultar los datos de intervalo de tiempo de métrica APM a través de NRQL](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-apm-metric-timeslice-data-nrql) (y por lo tanto a través de nuestra [API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial)).
+* Puedes consultar cualquier dato de intervalo de tiempo de métrica a través de la API REST
+
+Este documento explica cómo hacer esto con la API REST. Tenga en cuenta que la API no está diseñada para la extracción masiva de datos minuto a minuto.
+
+## Datos basados en el tiempo [#time-based]
+
+Todos los valores de tiempo devueltos por la API REST y el Explorador de API son UTC (hora universal coordinada). Asegúrese de [ajustar los valores de tiempo](/docs/apm/apis/api-v2-examples/specifying-time-range-api-v2) para la recopilación de datos según sea necesario.
+
+## Consideraciones sobre el rango de tiempo [#time]
+
+<Callout variant="important">
+  El rango de tiempo mínimo para las solicitudes de datos es de un minuto (60 segundos). Las solicitudes de cualquier valor inferior generarán un código de estado `422` y no se devolverán datos. New Relic solo recopila datos en intervalos de un minuto.
+</Callout>
+
+La API utiliza el mismo mecanismo para solicitar datos que la UI: depende del rango de tiempo para los datos que solicita. El objetivo es optimizar la cantidad de puntos de datos devueltos y proporcionar un gráfico e informe fácilmente digeribles.
+
+Por ejemplo:
+
+* Si solicita datos de un rango de tiempo de
+
+  <DNT>
+    **three hours or less**
+  </DNT>
+
+  , la API devuelve los valores de datos de un minuto recopilados originalmente.
+
+* Si aumenta el intervalo de tiempo a
+
+  <DNT>
+    **greater than three hours**
+  </DNT>
+
+  , los valores de datos devueltos serán un promedio de dos minutos.
+
+* Si aumenta el intervalo de tiempo a
+
+  <DNT>
+    **over six hours**
+  </DNT>
+
+  , los valores de datos devueltos serán un promedio de cinco minutos, y así sucesivamente.
+
+<Callout variant="tip">
+  Si el tiempo inicial para un intervalo de tiempo solicitado tiene más de ocho días, se devolverán diez puntos de datos espaciados uniformemente para cualquier intervalo de tiempo de menos de cuatro días de duración.
+</Callout>
+
+### Tabla de programación de agregación de datos [#data-aggregation]
+
+A continuación se muestra un resumen de la recuperación del valor de la métrica para los rangos de tiempo disponibles.
+
+<table>
+  <thead>
+    <tr>
+      <th
+        rowSpan={2}
+        width={150}
+      >
+        <DNT>
+          **Between this time range...**
+        </DNT>
+      </th>
+
+      <th
+        rowSpan={2}
+        width={150}
+      >
+        <DNT>
+          **and this time range**
+        </DNT>
+      </th>
+
+      <th colSpan={2}>
+        <DNT>
+          **Granularity of collected data**
+        </DNT>
+      </th>
+    </tr>
+
+    <tr>
+      <th style={{ borderRadius: "0", borderLeft: "1px solid #ccc" }}>
+        antigüedad de los datos ≤ 8 días
+      </th>
+
+      <th style={{ borderRadius: "0", borderRight: "0" }}>
+        antigüedad de los datos > 8 días
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td/>
+
+      <td>
+        ≤ 3 horas
+      </td>
+
+      <td>
+        1 minuto
+      </td>
+
+      <td rowSpan={5}>
+        10 espaciados uniformemente  
+                puntos de datos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 3 horas
+      </td>
+
+      <td>
+        ≤ 6 horas
+      </td>
+
+      <td>
+        2 minutos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 6 horas
+      </td>
+
+      <td>
+        ≤ 14 horas
+      </td>
+
+      <td>
+        5 minutos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 14 horas
+      </td>
+
+      <td>
+        ≤ 24 horas
+      </td>
+
+      <td>
+        10 minutos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 1 día (24 horas)
+      </td>
+
+      <td>
+        ≤ 4 días (96 horas)
+      </td>
+
+      <td>
+        30 minutos
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 4 días
+      </td>
+
+      <td>
+        ≤ 7 días
+      </td>
+
+      <td>
+        1 hora
+      </td>
+
+      <td>
+        1 hora
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 7 días
+      </td>
+
+      <td>
+        ≤ 3 semanas
+      </td>
+
+      <td>
+        3 horas
+      </td>
+
+      <td>
+        3 horas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 3 semanas
+      </td>
+
+      <td>
+        ≤ 6 semanas
+      </td>
+
+      <td>
+        6 horas
+      </td>
+
+      <td>
+        6 horas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 6 semanas
+      </td>
+
+      <td>
+        ≤ 9 semanas
+      </td>
+
+      <td>
+        12 horas
+      </td>
+
+      <td>
+        12 horas
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        \> 63 días
+      </td>
+
+      <td/>
+
+      <td>
+        3 días
+      </td>
+
+      <td>
+        3 días
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Cuando la hora de inicio de un rango de tiempo solicitado tiene más de ocho días, los datos se han agregado o promediado en períodos de una hora debido al programa de agregación de datos. Esto significa que para cualquier período de una hora, solo hay un valor de datos disponible. La obtención de datos en menos de un período de una hora en el rango de tiempo provocaría un sobremuestreo, lo que provocaría que se devolvieran valores duplicados. Devolver sólo diez valores evita el sobremuestreo y presenta un gráfico más fluido, lo que elimina un efecto de "meseta" posiblemente engañoso.
+
+## Controlar la salida del período de tiempo [#period]
+
+A veces, la granularidad de los datos de salida puede ser demasiado fina o el período de tiempo para los datos devueltos puede ser demasiado corto. Para controlar esto, incluya el parámetro `period=` en el comando de consulta como el número de <DNT>**seconds**</DNT> que desea que informe cada período de tiempo. Asegúrese de que sus especificaciones sigan nuestros [programas de agregación de datos](#data-aggregation).
+
+<DNT>**Example #1:**</DNT> Siguiendo [la tabla de New Relic que resume la granularidad de los datos recopilados](#data-aggregation), la siguiente llamada API normalmente devolvería datos en períodos de 30 minutos, ya que la solicitud es por 4 días (`from=2018-02-13` y `to=2018-02-17`). Al agregar `period=3600`, los datos se devolverán como períodos de 60 minutos.
+
+```
+curl -X GET "https://api.newrelic.com/v2/applications/$APP_ID/metrics/data.xml" \
+     -H "Api-Key:<a href='/docs/apis/rest-api-v2/getting-started/introduction-new-relic-rest-api-v2#api_key'>$API_KEY</a>" -i \
+     -d'names[]=CPU/User+Time&from=2018-02-13T04:00:00+00:00&to=2018-02-17T04:00:00+00:00&period=3600'
+```
+
+No puede especificar un período menor que el predeterminado para el rango de tiempo que está solicitando. Por ejemplo:
+
+* En el ejemplo de comando anterior, puede solicitar períodos de 1 hora, ya que es mayor que la granularidad predeterminada (media hora) para el rango de tiempo.
+
+* En el ejemplo de comando anterior,
+
+  <DNT>
+    **cannot**
+  </DNT>
+
+  solicita períodos de 1 minuto, ya que es menor que la granularidad predeterminada (media hora) para el rango de tiempo.
+
+<DNT>**Example #2:**</DNT> Si solicita un rango > 7 días pero ≤ 3 semanas, donde el período predeterminado es 3 horas, puede especificar períodos como 6, 12 o 24 horas. Sin embargo, no puede solicitar períodos de 1 hora porque es menos que el valor predeterminado (3 horas).
+
+## Retención de datos
+
+El tiempo que los datos están disponibles depende de la [retención de datos](/docs/telemetry-data-platform/get-data-new-relic/manage-data/manage-retention-stored-data) para tipos de datos específicos.
+
+## Extracción de datos de intervalo de tiempo de métrica inexistentes [#non-existent_data_help]
+
+Pueden surgir situaciones en las que se soliciten nombres métricos inexistentes. Por ejemplo:
+
+* Los datos de intervalo de tiempo de métrica no se han creado para una aplicación, pero existen para otra. Cuando se utiliza la misma consulta de extracción métrica en ambas aplicaciones, no se ubicará para una.
+* El nombre de la métrica se especificó incorrectamente.
+
+<Callout variant="important">
+  Los valores métricos que han existido en el pasado, pero que ya no se recopilan, devolverán un valor cero.
+</Callout>
+
+Una respuesta exitosa incluirá un código de estado `200` y metadatos sobre la solicitud. Los metadatos contendrán los nombres de las métricas solicitadas y el estado de la solicitud de esos nombres.
+
+<table width={777}>
+  <thead>
+    <tr rowSpan={150}>
+      <th width="30%">
+        Metadatos de respuesta
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Datos métricos de respuesta
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `metrics_not_found`
+      </td>
+
+      <td>
+        Enumera todos los nombres métricos para los cuales no se encontraron datos coincidentes en el período de tiempo solicitado.
+      </td>
+
+      <td>
+        Los datos de intervalo de tiempo de métrica no serán devueltos para estas métricas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metrics_found`
+      </td>
+
+      <td>
+        Enumera todos los nombres métricos para los cuales se encontraron datos coincidentes en el período de tiempo solicitado.
+      </td>
+
+      <td>
+        Se devolverán datos de intervalo de tiempo de métrica para estas métricas.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+A continuación se muestra un ejemplo de resultado para un nombre de métrica válido, `HttpDispatcher`.
+
+```
+HTTP/1.1 200 OK
+etag: "0dc87c63d8dff6b1a9714bdf7531ec09"
+Content-Type: application/json
+cache-control: max-age=0, private, must-revalidate
+{
+  "metric_data": {
+    "from": "2016-01-28T18:06:06+00:00",
+    "to": "2016-01-28T18:36:06+00:00",
+    "metrics_not_found": [], <---<<< INDICATES NO INVALID METRIC NAMES REQUESTED
+    "metrics_found": [
+      "HttpDispatcher"       <---<<< INDICATES THIS METRIC NAME WAS VALID
+    ],
+    "metrics": [             <---<<< DATA RETURNED
+      {
+        "name": "HttpDispatcher",
+        "timeslices": [
+          {
+            "from": "2016-01-28T18:03:00+00:00",
+            "to": "2016-01-28T18:04:00+00:00",
+            "values": {
+              "average_response_time": 364,
+              "calls_per_minute": 99800,
+              "call_count": 99770,
+              "min_response_time": 3.5,
+              "max_response_time": 85000,
+              "average_exclusive_time": 0,
+              "average_value": 0.364,
+              "total_call_time_per_minute": 36300,
+              "requests_per_minute": 99800,
+              "standard_deviation": 1900,
+              "average_call_time": 364
+            ...
+```
+
+A continuación se muestra un ejemplo de resultado para un nombre de métrica no válido, `Foo`.
+
+```
+HTTP/1.1 200 OK
+etag: "e51782cf7c5a5596139a7f5340c3de23"
+Content-Type: application/json
+cache-control: max-age=0, private, must-revalidate
+{
+  "metric_data": {
+    "from": "2016-01-28T18:06:33+00:00",
+    "to": "2016-01-28T18:36:33+00:00",
+    "metrics_not_found": [
+      "Foo"                   <---<<< INDICATES THIS METRIC NAME WAS INVALID
+    ],
+    "metrics_found": [],      <---<<< INDICATES NO VALID METRIC NAMES FOUND
+    "metrics": []             <---<<< NO DATA RETURNED
+  }
+}
+```
