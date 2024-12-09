@@ -9,6 +9,7 @@ We are thrilled to announce New Relic's latest advancement: one-step observabili
 
 # Key benefits of New Relic's log forwarding solution
 
+
 - **Accelerate instrumentation**: Set up instrumentation within minutes to forward logs and metrics, using CloudFormation templates and consolidated multi-service onboarding, all accessed through a unified interface.
 - **Enhanced log management**: After onboarding, New Relic's Intelligent Observability Platform automatically handles both infrastructure and application performance monitoring, eliminating the need for additional configurations and significantly improving operational efficiency.
 - **Improve operational efficiency**: Boost your team's operational efficiency while maintaining stringent security and compliance. New Relic's API keys can now be securely stored in AWS Secrets Management, optimizing operations to seamlessly achieve better business outcomes.
