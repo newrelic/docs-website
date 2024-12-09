@@ -1,6 +1,6 @@
 ---
-title: 'Streamlined AWS logs onboarding with New Relic's one-step observability’
-summary: 'New Relic now supports forwarding logs from AWS services.’
+title: 'Streamlined AWS logs onboarding with New Relic's one-step observability'
+summary: 'New Relic now supports forwarding logs from AWS services.'
 releaseDate: '2024-12-09'
 learnMoreLink: 'https://docs.newrelic.com/install/aws-logs/?service=aws_services'
 getStartedLink: 'https://docs.newrelic.com/docs/logs/get-started/get-started-log-management/'
