@@ -8,7 +8,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/logs/get-started/get-started-log
 
 We are thrilled to announce New Relic's latest advancement: one-step observability for AWS, now enhanced with streamlined log forwarding capabilities. Our comprehensive observability solution empowers enterprises by offering seamless integration and enhanced visibility into AWS services within minutes, all through a single user interface.
 
-# Key benefits of New Relic's log forwarding solution
+## Key benefits of New Relic's log forwarding solution
 
 - **Accelerate instrumentation**: Set up instrumentation within minutes to forward logs and metrics, using CloudFormation templates and consolidated multi-service onboarding, all accessed through a unified interface.
 - **Enhanced log management**: After onboarding, New Relic's Intelligent Observability Platform automatically handles both infrastructure and application performance monitoring, eliminating the need for additional configurations and significantly improving operational efficiency.
