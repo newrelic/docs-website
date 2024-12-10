@@ -1,6 +1,6 @@
 ---
 title: 'Streamlined AWS logs onboarding with New Relic's one-step observability'
-summary: 'New Relic now supports log forwarding from AWS Services.'
+summary: 'New Relic now supports log forwarding from AWS Services'
 releaseDate: '2024-12-10'
 learnMoreLink: 'https://docs.newrelic.com/install/aws-logs/'
 getStartedLink: 'https://docs.newrelic.com/docs/logs/get-started/get-started-log-management/'
@@ -25,6 +25,8 @@ We are thrilled to announce New Relic's latest advancement: one-step observabili
 
 Get started today to achieve a unified, holistic view of your AWS environment, enabling data-driven decision-making while ensuring security and compliance. Discover how New Relic's log management can boost productivity and help you securely scale your cloud-native applications.
 
-Explore our platform to see how New Relic can transform your AWS observability strategy. For more details on setting up and configuring log forwarding, visit our [log management guide](https://docs.newrelic.com/install/aws-logs/?service=aws_services) or [Watch a step-by-step video](https://www.youtube.com/watch?v=pIc1FhI4S4Q).
+Explore our platform to see how New Relic can transform your AWS observability strategy. For more details on setting up and configuring log forwarding, visit our [log management guide](https://docs.newrelic.com/install/aws-logs/?service=aws_services) or wathch the following step-by-step video.
+
+<iframe width="560" height="315" src="https://www.youtube.com/watch?v=pIc1FhI4S4Q" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ![A screenshot showing how to instrument AWS logs.](/images/AWS1.webp "Instrument AWS logs")
