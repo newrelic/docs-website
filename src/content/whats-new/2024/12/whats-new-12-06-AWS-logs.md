@@ -1,10 +1,12 @@
 ---
 title: 'Streamlined AWS logs onboarding with New Relic's one-step observability'
-summary: 'New Relic now supports forwarding logs from AWS services.'
+summary: 'New Relic now supports log forwarding from AWS Services'
 releaseDate: '2024-12-09'
 learnMoreLink: 'https://docs.newrelic.com/install/aws-logs/?service=aws_services'
 getStartedLink: 'https://docs.newrelic.com/docs/logs/get-started/get-started-log-management/'
 ---
+
+
 We are thrilled to announce New Relic's latest advancement: one-step observability for AWS, now enhanced with streamlined log forwarding capabilities. Our comprehensive observability solution empowers enterprises by offering seamless integration and enhanced visibility into AWS services within minutes, all through a single user interface.
 
 # Key benefits of New Relic's log forwarding solution
@@ -16,6 +18,7 @@ We are thrilled to announce New Relic's latest advancement: one-step observabili
 - **Reduced Mean Time to Resolution (MTTR)**: New Relic's centralized platform facilitates quick troubleshooting and speeds up incident resolution with a clear view of performance data and relationships across applications, infrastructures, and AWS services out-of-the-box.
 
 ## How it works
+
 1. **CloudFormation Integration Setup**: Effortlessly configures AWS integration by using the CloudFormation template. Forward metrics and logs by selecting an AWS service and setting up log triggers via S3 or CloudWatch.
 2. **Automatic data correlation**: Automatically correlate performance data to prioritize and address critical issues, eliminating the complexity of manual tagging.
 3. **Comprehensive Data Querying**: Easily access and analyze log data through the logs UI or New Query Explorer, filtering logs via the Lambda forwarder or Kinesis Data Firehose.
