@@ -10,16 +10,16 @@ We're thrilled to announce New Relic's latest advancement: one-step observabilit
 
 ## Key benefits of New Relic's log forwarding solution
 
-- **Accelerate instrumentation**: Set up instrumentation within minutes to forward logs and metrics, using CloudFormation templates and consolidated multi-service onboarding, all accessed through a unified interface.
-- **Enhanced log management**: After onboarding, New Relic's Intelligent Observability Platform automatically handles both infrastructure and application performance monitoring, eliminating the need for additional configurations and significantly improving operational efficiency.
+- **Speed up instrumentation**: Set up instrumentation within minutes to forward logs and metrics, using CloudFormation templates and consolidated multi-service onboarding, all accessed through a unified interface.
+- **Enhanced log management**: After onboarding, New Relic's Intelligent Observability Platform automatically handles both infrastructure and application performance monitoring, eliminating the need for extra configurations and significantly improving operational efficiency.
 - **Improve operational efficiency**: Boost your team's operational efficiency while maintaining stringent security and compliance. New Relic's API keys can now be securely stored in AWS Secrets Management, optimizing operations to seamlessly achieve better business outcomes.
 - **Reduced Mean Time to Resolution (MTTR)**: New Relic's centralized platform facilitates quick troubleshooting and speeds up incident resolution with a clear view of performance data and relationships across applications, infrastructures, and AWS services out-of-the-box.
 
 ## How it works
 
 1. **CloudFormation Integration Setup**: Effortlessly configures AWS integration by using the CloudFormation template. Forward metrics and logs by selecting an AWS service and setting up log triggers via S3 or CloudWatch.
-2. **Automatic data correlation**: Automatically correlate performance data to prioritize and address critical issues, eliminating the complexity of manual tagging.
-3. **Comprehensive Data Querying**: Easily access and analyze log data through the logs UI or New Query Explorer, filtering logs via the Lambda forwarder or Kinesis Data Firehose.
+2. **Automatic data correlation**: Automatically correlate performance data to rank and address critical issues, eliminating the complexity of manual tagging.
+3. **Comprehensive Data Querying**: Access and analyze log data through the logs UI or New Query Explorer, filtering logs via the Lambda forwarder or Kinesis Data Firehose.
 
 ## Getting started
 
