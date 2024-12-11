@@ -29,3 +29,4 @@ Get started today to achieve a unified, holistic view of your AWS environment, e
 Explore our platform to see how New Relic can transform your AWS observability strategy. For more details on setting up and configuring log forwarding, visit our [log management guide](https://docs.newrelic.com/install/aws-logs/?service=aws_services) or <iframe width="560" height="315" src="https://www.youtube.com/embed/pIc1FhI4S4Q?si=R331Vatr0V4MOV1Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>.
 
 ![A screenshot showing how to instrument AWS logs.](/images/aws1.webp "Instrument_AWS_logs")
+
