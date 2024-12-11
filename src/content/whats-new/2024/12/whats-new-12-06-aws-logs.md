@@ -29,4 +29,4 @@ Explore our platform to see how New Relic can transform your AWS observability s
 
 <iframe width="840" height="473" src="https://www.youtube.com/embed/pIc1FhI4S4Q?si=i0vRgymx4CcMbph5" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-![A screenshot showing how to instrument AWS logs.](/images/AWS1.webp "Instrument AWS logs")
+<!-- ![A screenshot showing how to instrument AWS logs.](/images/AWS1.webp "Instrument AWS logs") -->
