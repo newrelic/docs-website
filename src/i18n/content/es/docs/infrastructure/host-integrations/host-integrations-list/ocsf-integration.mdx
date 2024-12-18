@@ -1,0 +1,97 @@
+---
+title: Integración de OCSF
+tags:
+  - New Relic integrations
+  - OCSF integration
+metaDescription: Use New Relic infrastructure agent to get a dashboard with metrics from your OCSF format data.
+freshnessValidatedDate: '2024-09-18T00:00:00.000Z'
+translationType: machine
+---
+
+Emplee New Relic para monitor sin problemas los datos del marco Open Cybersecurity Schema (OCSF). Obtendrá visibilidad integral de los datos relacionados con la seguridad de múltiples fuentes para facilitar la detección de amenazas, la respuesta a incidentes y el cumplimiento.
+
+<img title="OCSF dashboard" alt="OCSF dashboard" src="/images/infrastructure_screenshot-full_ocsf-dashboard.webp" />
+
+<figcaption>
+  Luego de configurar nuestra integración con OCSF, vea sus datos en un dashboard listo para usar.
+</figcaption>
+
+## Configurar la integración de OCSF [#set-up-ocsf]
+
+Complete los siguientes pasos para configurar la integración de OCSF:
+
+<Steps>
+  <Step>
+    ## Instalar el agente de infraestructura [#infra-install]
+
+    Para emplear la integración de OCSF, también debe [instalar el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic/) en el mismo host. El agente de infraestructura monitorea el host en sí, mientras que la integración que instalará en el siguiente paso extiende su monitoreo con datos específicos de OCSF.
+  </Step>
+
+  <Step>
+    ## Habilitar la integración de OCSF con `nri-flex` [#enable]
+
+    1. Cree un archivo llamado `nri-ocsf.yml` en el directorio de integración:
+
+    ```shell
+    touch /etc/newrelic-infra/integrations.d/nri-ocsf.yml
+    ```
+
+    2. Agregue el siguiente fragmento a su archivo `nri-ocsf.yml` para permitir que el agente capture datos de OCSF:
+
+    ```yml
+    integrations:
+      - name: nri-flex
+        config:
+          name: ocsfExample
+          global:
+            base_url: http://ip-address:PORT
+            headers:
+              accept: application/json
+          apis:
+            - event_type: ocsfSampleEvent       # use this name to query the data
+              url: /customEndpoint               # endpoint with OCSF data
+            - event_type: ocsfCustomEvent1      
+              url: /customEndpoint2
+    ```
+  </Step>
+
+  <Step>
+    ## Reinicie el agente New Relic Infrastructure [#restat-agent]
+
+    Emplee las instrucciones de nuestros [documentos del agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) para resetear su agente de infraestructura. Este es un comando que debería funcionar para la mayoría de las personas:
+
+    ```shell
+    sudo systemctl restart newrelic-infra.service
+    ```
+  </Step>
+
+  <Step>
+    ## Encuentra tus datos [#find-data]
+
+    Puede emplear nuestra plantilla dashboard prediseñada para monitor su aplicación métrica OCSF. Siga estos pasos para emplear nuestra plantilla dashboard prediseñada:
+
+    1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; + Integrations &amp;amp; Agents**</DNT>.
+
+    2. Seleccione <DNT>**Dashboards**</DNT> para acceder a los recursos prediseñados.
+
+    3. Busca <DNT>**OCSF**</DNT> y selecciona el dashboard.
+
+    Para instrumentar el inicio rápido de OCSF y ver métricas y alertas, también puede seguir nuestra [página de inicio rápido de OCSF](https://newrelic.com/instant-observability/ocsf) haciendo clic en el botón <DNT>**Install now**</DNT> .
+
+    A continuación se muestra un ejemplo de consulta NRQL para ver el tiempo de actividad del maestro OCSF:
+
+    ```sql
+    SELECT * FROM ocsfSampleEvent
+    ```
+  </Step>
+</Steps>
+
+## ¿Que sigue? [#whats-next]
+
+Para obtener más información sobre cómo crear una consulta NRQL y generar un panel, consulte estos documentos:
+
+* [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para crear consultas básicas y avanzadas.
+
+* [Introducción al panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) para personalizar tu dashboard y realizar diferentes acciones.
+
+* [Administre su dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) para ajustar su <InlinePopover type="dashboards" />modo de visualización o para agregar más contenido a su dashboard.

@@ -10,7 +10,7 @@ The `container_memory_usage_bytes` metric isn't an accurate indicator for out of
 This change will be reflected within New Relic One as follows: 
 ​
 ​
-*   [Kubernetes integration: Predefined alert policy.](https://docs.newrelic.com/docs/integrations/kubernetes-integration/kubernetes-events/kubernetes-integration-predefined-alert-policy/) The “Container memory usage % is too high” alert condition now uses the new `memoryWorkingSetUtilization` attribute instead of (`memoryUsedBytes`/`memoryLimitBytes`)/100. 
+*   [Predefined alert conditions.](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/predefined-alert-conditions) The “Container memory usage % is too high” alert condition now uses the new `memoryWorkingSetUtilization` attribute instead of (`memoryUsedBytes`/`memoryLimitBytes`)/100. 
     * **Please note that existing alert conditions won’t be automatically updated. If you are using our predefined alert policy, we strongly recommend you to update it accordingly.**
 *   The following widgets are now using working set bytes in Kubernetes dashboard:
     *   Resources Used

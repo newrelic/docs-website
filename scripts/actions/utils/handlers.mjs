@@ -479,6 +479,10 @@ export default {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  span: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   sup: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,

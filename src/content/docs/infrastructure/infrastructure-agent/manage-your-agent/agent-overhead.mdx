@@ -1,0 +1,125 @@
+---
+title: Infrastructure agent overhead
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Manage your agent
+metaDescription: The New Relic infrastructure agent is designed to minimize its performance impact. This document outlines resource usage for common scenarios.
+redirects:
+  - /docs/infrastructure/new-relic-infrastructure/getting-started/agent-performance-overhead
+  - /docs/infrastructure/new-relic-infrastructure/getting-started/infrastructure-agent-performance-overhead
+  - /docs/infrastructure/install-infrastructure-agent/manage-your-agent/infrastructure-agent-performance-overhead
+freshnessValidatedDate: never
+---
+
+The infrastructure agent is a lightweight piece of software, designed to minimize its impact on the performance of your hosts. However, the exact load varies depending on your host's workload, particularly on the number of processes running on the host. This is because the agent collects detailed [data](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#event-data) from each individual process.
+
+As a general guideline, New Relic has collected benchmarks for some common types of hosts:
+
+<CollapserGroup>
+  <Collapser
+    id="single-task"
+    title="Linux single-task host"
+  >
+    The agent has very low performance overhead on a classic, single-task host. For example, a server running Apache, Unicorn, or a single Java application.
+
+    Our benchmarks for this type of host are based on an [Amazon EC2 t3.2xlarge](https://aws.amazon.com/ec2/instance-types/):
+
+    * <DNT>**vCPUs**</DNT>: 8 vCPUs
+
+    * <DNT>**Memory**</DNT>: 32.0 GB
+
+    * <DNT>**Storage**</DNT>: 160.0 GB
+
+    * <DNT>**Operating system**</DNT>: CentOS 7
+
+      For this type of classic, single-task host, typical usage is:
+
+    * <DNT>**CPU**</DNT>: about 0.3%
+
+    * <DNT>**Virtual memory**</DNT>: about 1 GB
+
+    * <DNT>**Resident memory**</DNT>: 25 to 35 MB
+
+    * <DNT>**Storage on disk**</DNT>: about 50 MB
+  </Collapser>
+
+  <Collapser
+    id="docker-host"
+    title="Linux Docker host"
+  >
+    The agent has very low performance overhead on a host running Docker, with exact usage depending on the number of Docker containers your machine hosts, and whether those processes are long- or short-lived.
+
+    Our benchmarks for this type of host are based on an [Amazon EC2 t3.2xlarge](https://aws.amazon.com/ec2/instance-types/):
+
+    * <DNT>**vCPUs**</DNT>: 8 vCPUs
+
+    * <DNT>**Memory**</DNT>: 32.0 GB
+
+    * <DNT>**Storage**</DNT>: 160.0 GB
+
+    * <DNT>**Number of containers**</DNT>: 25 containers, about 100 long-lived processes running in containers
+
+    * <DNT>**Operating system**</DNT>: CentOS 7
+
+      For this type of Docker host, typical usage is:
+
+    * <DNT>**CPU**</DNT>: about 0.8%
+
+    * <DNT>**Virtual memory**</DNT>: about 1 GB
+
+    * <DNT>**Resident memory**</DNT>: 25 to 35 MB
+
+    * <DNT>**Storage on disk**</DNT>: about 50 MB
+  </Collapser>
+
+  <Collapser
+    id="windows-host"
+    title="Windows host"
+  >
+    The agent has very low performance overhead on a typical Windows host serving web apps and running the Windows/IIS stack.
+
+    Our benchmarks for this type of host are based on an [Amazon EC2 t2.small](https://aws.amazon.com/ec2/instance-types/):
+
+    * <DNT>**vCPUs**</DNT>: 1
+
+    * <DNT>**Memory**</DNT>: 2.0 GB
+
+    * <DNT>**Storage**</DNT>: 30.0 GB
+
+    * <DNT>**Operating system**</DNT>: Windows Server 2012 R2
+
+      For this type of Windows host, typical usage is:
+
+    * <DNT>**CPU**</DNT>: 2 to 3%
+
+    * <DNT>**Resident Memory**</DNT>: 30 MB
+
+    * <DNT>**Storage on disk**</DNT>: about 50 MB
+  </Collapser>
+
+  <Collapser
+    id="arm64"
+    title="Linux ARM64 host"
+  >
+    The agent has similar performance overhead on an ARM64 (Graviton 2) host on EC2 when compared with AMD64 machines.
+
+    The benchmark is based on [Amazon EC2 t3.2xlarge vs. t4g.2xlarge](https://aws.amazon.com/ec2/instance-types/) instances.
+
+    Amazon Linux 2 EC2 instance with infrastructure agent default settings:
+
+    * <DNT>**CPU**</DNT>: about 0.1% on ARM vs 0.13% AMD
+    * <DNT>**Virtual memory**</DNT>: about 0.75GB ARM vs 1 GB AMD
+    * <DNT>**Resident memory**</DNT>: 20MB ARM vs 22 MB AMD
+  </Collapser>
+</CollapserGroup>
+
+We are always improving the performance of the infrastructure agent. If you see unusually high agent performance overhead, get support at [support.newrelic.com](https://support.newrelic.com).
+
+## Manage data [#manage-data]
+
+To learn how to adjust how much data our infrastructure monitoring ingests and reports, see [Manage infrastructure data](/docs/infrastructure/manage-your-data/data-instrumentation/manage-infrastructure-data-reporting).
+
+## Resource utilization [#resource-utilization]
+
+On Linux systems, infrastructure is installed with default settings for each supported service manager. A memory limit of 1 Gigabyte is enforced. Please consider reviewing and adjusting the default configuration based on your system requirements.
