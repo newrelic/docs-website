@@ -64,7 +64,7 @@ const INCLUDE_AGENTS = new Set([
   'ios',
   'java',
   'kubernetes',
-  'pipeline control gateway', 
+  'pipeline_control_gateway', 
   'node',
   'nodejs',
   'php',
@@ -199,3 +199,4 @@ if (uploadToS3) {
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
+ 

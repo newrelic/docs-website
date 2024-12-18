@@ -17,7 +17,7 @@ const AGENTS = {
   'java-release-notes': 'java',
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
-  'pipeline-control-gateway-release-notes': 'pipeline control gateway',
+  'pipeline-control-gateway-release-notes': 'pipeline_control_gateway',
   'logs-release-notes': 'logs',
   'net-maui-release-notes': '.net maui',
   'net-release-notes': '.net',
