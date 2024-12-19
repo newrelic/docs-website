@@ -1,0 +1,127 @@
+---
+title: recordCustomEvent
+type: apiDoc
+shortDescription: Reports a custom browser event under a specified eventType with custom attributes.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: Browser API call to report a custom browser event under a specified eventType with custom attributes.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-apis/browser-api-newrelicaddpageaction
+  - /docs/browser/new-relic-browser/browser-agent-api/browser-api-newrelicaddpageaction
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/newrelicaddpageaction-browser-agent-api
+  - /docs/browser/browser-monitoring/browser-agent-and-spa-api
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/view-all-methods
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/add-page-action
+freshnessValidatedDate: never
+---
+
+## Syntax [#syntax]
+
+```js
+newrelic.recordCustomEvent(string $eventType[, JSON object $attributes])
+```
+
+Reports a custom browser event under a specified eventType with custom attributes.
+
+## Requirements
+
+* Browser Pro or Pro+SPA agent (v1.277.0 or higher)
+* If you're using npm to install the browser agent, you must enable the `generic_events` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { GenericEvents } from '@newrelic/browser-agent/features/generic_events';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      GenericEvents
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description [#description]
+
+This API call sends a custom browser event with your user-defined eventType and optional attributes to [dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards), along with any custom attributes you may have set for your application. This is useful to track any event that is not already tracked automatically by the browser agent enhanced by rules and attribution you control.
+
+* `custom` events are sent every 30 seconds.
+* If 1,000 events are observed, the agent will harvest the buffered events immediately, bypassing the harvest cycle interval.
+
+## Parameters [#parameters]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$eventType`
+
+        _string_
+      </td>
+
+      <td>
+        Required. The eventType to store the event data under
+
+        Avoid using [reserved NRQL words](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) or pre-existing eventTypes when you name the attribute or value.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$attributes`
+
+        _JSON object_
+      </td>
+
+      <td>
+        Optional. JSON object with one or more key/value pairs. For example: `{key:"value"}`. The key is reported as its own `PageAction` attribute with the specified values.
+
+        Avoid using [reserved NRQL words](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when you name the attribute/value.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Important considerations and best practices include:
+
+You should aim to limit the total number of event types to approximately five. Custom eventTypes are meant to be used to encapsulate high-level categories. For example, you might create an event type Gestures.
+
+Do not use eventType to name custom events. Create eventTypes to house a category of data and attributes within that category to name an event or use the optional name parameter. While you can create numerous custom events, it's important to keep your data manageable by limiting the number of eventTypes reported.
+
+## Examples [#examples]
+
+### Record link clicks (JavaScript) [#example-link-click-js]
+
+This example records a custom event whenever a user clicks the <DNT>**Submit**</DNT> button in a form. The event is recorded with an `eventType` of `FormAction`, which was used to contain many events related to actions taken on a form:
+
+```html
+<a href="/demo" id="try-me">Try Me!</a>
+<script>
+    document.getElementById('submit').addEventListener('click', function(e) {
+        newrelic.recordCustomEvent('FormAction', { element: 'submit', action: 'click' });
+    })
+</script>
+```
+
+You can then query the number of times the <DNT>**Submit**</DNT> button was clicked with the following NRQL query:
+
+```sql
+SELECT count(*) FROM FormAction WHERE element = 'submit' AND action = 'click' SINCE 1 hour ago
+```
+
