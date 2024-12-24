@@ -1,0 +1,37 @@
+---
+title: "Setup session replay"
+metaDescription: "Enable session replay to play back user interactions and improve page performance."
+freshnessValidatedDate: 2024-12-19
+---
+
+Utilize session replay in New Relic, start by enabling this feature in your browser application settings. This step is essential for capturing user interactions on your web app, providing insights into user journeys, and troubleshooting issues effectively. Follow the steps below to enable session replay and ensure your browser agent is configured correctly.
+
+## Enable session replay [#enable-session-replay]
+
+    1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities) > All Capabilities > Browser**</DNT>.
+
+    2. Select your browser app.
+
+    3. In the left-hand menu, click <DNT>**Application settings**</DNT>.
+    
+    4. On the <DNT>**Application settings**</DNT> page, make sure <DNT>**Pro**</DNT> or <DNT>**Pro + SPA**</DNT> browser agent is selected. Session replay is not available for the Lite browser agent.
+
+    5. Toggle <DNT>**Session traces**</DNT> and <DNT>**Session replay**</DNT> ON.
+
+        <Callout variant="important">
+          If you are unable to view <DNT>**Session replay**</DNT> settings. Contact your admin for further assistance.
+        </Callout>
+
+## Setting sampling rates [#configure-sampling-rates]
+
+Set a sampling rate (0%-100%) for the following samples:
+
+  * <DNT>**User sessions**</DNT> records a random sample of all user sessions.
+
+  * <DNT>**Errored session**</DNT> records a random sample of all errored sessions. The agent buffers a sliding window of data for up to 30 seconds on the client-side, and if errors occur, the buffered data will be harvested and the remainder of the session will be recorded. If an error doesn't occur, the replay is never harvested.
+
+  For example, if you set the session sampling rate to 50% and the error sampling rate to 100%, it means that:
+
+  * Half of all user sessions will be recorded.
+
+  * All errored sessions will be recorded, even if they're not part of the 50% sample.
