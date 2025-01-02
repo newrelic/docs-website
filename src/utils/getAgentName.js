@@ -18,6 +18,7 @@ const AGENTS = {
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
   'logs-release-notes': 'logs',
+  'fluentbit-release-notes': 'fluentbit',
   'net-maui-release-notes': '.net maui',
   'net-release-notes': '.net',
   'new-relic-android-release-notes': 'newrelic for android',
