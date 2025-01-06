@@ -1,0 +1,401 @@
+---
+title: Scorecards API 
+---
+All rules of Scorecards belong to the rules collection of the Scorecard. Therefore, both `scorecardId` and `collectionId` are needed to know which scorecard owns a rule.
+
+Below is an example of creating a rule that checks whether your APM services have alerts defined.
+
+1. Create a scorecard
+
+```sql
+mutation CreateScorecard($description: String, $name: String!, $id: ID!) {
+  entityManagementCreateScorecard(
+    scorecardEntity: {description: $description, name: $name, scope: {id: $id, type: ACCOUNT}}
+  ) {
+    entity {
+      description
+      id
+      rules {
+        id // COLLECTION ID
+      }
+      name
+    }
+  }
+}
+// PARAMETERS
+{
+  "description": "NR Engineering Best Practices",
+  "name": "Measure Your Engineering Best Practices",
+  "id": 1
+}
+```
+
+2. Create a rule
+
+```sql
+mutation CreateRule($name: String!, $description: String, $query: String!, $accounts: [Int!]!) {
+  entityManagementCreateScorecardRule(
+    scorecardRuleEntity: {
+      name: $name,
+      description: $description
+      enabled: true,
+      nrqlEngine: {
+        accounts: $accounts,
+        query: $query
+      },
+      scope: {id:1 , type: ACCOUNT}}
+  ) {
+    entity {
+      id // RULE Id
+    }
+  }
+}
+
+
+// PARAMETERS
+{
+  "name": "APM Services Have Alerts Defined",
+  "description": "Check that APM services have alerts associated with them",
+  "query": "SELECT if(latest(alertSeverity) != 'NOT_CONFIGURED', 1, 0) as 'score' FROM Entity WHERE type = 'APM-APPLICATION' AND tags.nr.team IS NOT NULL AND tags.environment IS NOT NULL FACET id as 'entityGuid', tags.nr.team as 'team', tags.environment as 'environment' LIMIT MAX SINCE 1 day ago",
+  "accounts": [1]
+}
+
+
+// ADD RULE TO SCORECARD COLLECTION
+mutation AddRuleToCollection($collectionId: ID!, $rules: [ID!]!){
+  entityManagementAddCollectionMembers(
+    collectionId: $collectionId
+    ids: $rules
+  )
+}
+// PARAMETERS
+{
+  "collectionId": "", // Collection ID is from the rule.id from scorecard enntity
+  "rules": [] // Provide list of all rule ids which are generated during rule creation.
+}
+```
+
+### Use cases
+
+    1. **Get rules in a Scorecard:** Retrieve all rules associated with a specific scorecard.
+
+     **GraphQL Query:**
+
+```sql
+    query FetchScorecardDetails ($scorecardId: ID!) {
+    actor {
+      entityManagement {
+        entity(id: $scorecardId) {
+          ... on EntityManagementScorecardEntity {
+            name
+            description
+            rules {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+```
+
+**Fields:**
+
+- `scorecardId:` The id of the scorecard.
+
+**Response:**
+
+- `rules.id` is the next query `collectionId`.
+
+```sql
+  query FetchRulesCollection($rulesId: ID!) {
+  actor {
+	entityManagement {
+  	collectionElements(filter: {collectionId: {eq: $rulesId}}) {
+    	items {
+      	... on EntityManagementScorecardRuleEntity {
+        	id
+        	name
+        	nrqlEngine {
+          	accounts
+          	query
+        	}
+      	}
+    	}
+    	nextCursor
+  	}
+	}
+  }
+}
+```
+
+**Fields:**
+
+- `collectionId` is the value from previous response `rules.id`.
+
+2. **Get the scorecard of a rule** retrieve the scorecard associated with a specific rule.
+
+   **GraphQL Query:**
+
+   First, find the collections that contain the rule.
+
+```sql
+  query FindRuleOwnerCollections($ruleId: ID!) {
+  actor {
+	entityManagement {
+  	relationships(filter: {targetId: {eq: $ruleId}, type: {eq: "HAS_MEMBER"}}) {
+    	items {
+      	source {
+        	id
+        	type
+      	}
+      	type
+    	}
+  	}
+	}
+  }
+}
+```
+
+Then, you need to find the parents of the collection.
+
+```sql
+query FetchCollectionParent($collectionId: ID!) {
+  actor {
+	entityManagement {
+  	relationships(
+    	filter: {targetId: {eq: $collectionId}, type: {eq: "HAS_COLLECTION"}}
+  	) {
+    	items {
+      	source {
+        	id
+        	type
+      	}
+      	target {
+        	id
+        	type
+      	}
+    	}
+  	}
+	}
+  }
+}
+```
+
+    **Fields:**
+
+    - `ruleId?`
+         -
+
+    3. **Create a scorecard:** Create a new scorecard.
+
+    **GraphQL Mutation:**
+
+```sql
+  mutation CreateScorecard($name: String!, $desc: String, $accountId: ID!) {
+  entityManagementCreateScorecard(
+    scorecardEntity: {description: $desc, name: $name, scope: {id: $accountId, type: ACCOUNT}}
+  ) {
+    entity {
+      id
+      rules {
+        id
+      }
+    }
+  }
+}
+```
+
+    **Fields:**
+
+      - `name:` The name of the scorecard.
+      - `description:` A brief description of the scorecard.
+      - `accountId:` Account where the entity will be stored.
+
+     **Response:**
+
+     - `rules.id` Contains the id you need to associate rules to a scorecard.
+
+4. **Create a Rule:** Add a new rule to a scorecard.
+
+   **GraphQL Mutation:**
+
+```sql
+mutation CreateRule($name: String!, $description: String, $query: String!, $queryAccounts: [Int!]!, $account: ID!) {
+  entityManagementCreateScorecardRule(
+    scorecardRuleEntity: {
+      name: $name,
+      description: $description
+      enabled: true,
+      nrqlEngine: {
+        accounts: $queryAccounts,
+        query: $query
+      },
+      tags: {
+        key: "demo", values: "true"
+      },
+      scope: {id:$account , type: ACCOUNT}}
+  ) {
+    entity {
+
+      id
+
+    }
+  }
+}
+```
+
+**Fields:**
+
+- `name:` The name of the scorecard.
+- `description:` A brief description of the scorecard.
+- `accountId:` Account where the entity will be stored.
+- `query:` A nrql query to read data.
+  - A `score` is a mandatory selection.
+  - A FACET with at least and entity id (entity.guid, entity.id or entityGuid) is mandatory.
+- `queryAccounts:` A list of accounts where the rule should execute the query.
+
+  Create a scorecard, follow step no: 3 and all rule guid to scorecard collection id.
+
+```sql
+mutation addRuleToCollection($ruleId: ID!, $collectionId: ID!) {
+  entityManagementAddCollectionMembers(
+    collectionId: $collectionId
+    ids: [$ruleId]
+  )
+}
+```
+
+- Collection id is the value from previous response `rules.id` on create scorecard response.
+
+5. **Delete a Scorecard or Rule:** Remove an existing scorecard.
+
+   **GraphQL Mutation:**
+
+```sql
+mutation DeleteEntity ($id: ID!) {
+  entityManagementDelete(
+    id: $id
+  ) {
+    id
+  }
+}
+```
+
+**Fields:**
+
+- `id:` The target scorecard/rule id.
+
+6.  **Modify a Scorecard** Update the details of an existing scorecard.
+
+    **GraphQL Mutation:**
+
+  The update operation is similar to creating one, but the mutation name is different.
+
+```sql
+mutation updateScorecard($id: ID!, $description: String, $name: String!) {
+  entityManagementUpdateScorecard(
+	id: $id
+	scorecardEntity: {description: $description, name: $name}
+  ) {
+	entity {
+  	name
+  	id
+  	rules {
+    	id
+  	}
+	}
+  }
+}
+```
+
+**Fields:**
+
+- `id:` Scorecard entity guid.
+- `description:` Scorecard description.
+- `name:` Scorecard name.
+
+7. **Modify a Rule:** Update the details of an existing rule.
+
+   **GraphQL Mutation:**
+   
+   Fields are the same for update and create, with different name in the mutation and with id of entity.
+
+```sql
+mutation UpdateRule($ruleId: ID!, $name: String!, $description: String, $query: String!, $queryAccounts: [Int!]!, $enabled: Boolean) {
+  entityManagementUpdateScorecardRule(
+	id: $ruleId
+	scorecardRuleEntity: {description: $description, name: $name, enabled: $enabled, nrqlEngine: {accounts: $queryAccounts, query: $query}}
+  ) {
+	entity {
+  	id
+  	name
+	description
+	nrqlEngine {
+		accounts
+		query
+		}
+       }
+  }
+}
+```
+
+**Fields:**
+
+- `ruleId:` The unique identifier of the rule.
+- `name:` Name of the scorecard rule.
+- `description:` Description of the scorecard rule.
+- `query:` NRQL query to read data.
+- `queryAccounts:` List of accounts where the data need to be read.
+- `enabled:` Is rule enabled?
+
+8.  **Modify the Query:** Change the query used by a specific rule.
+
+    **GraphQL Mutation:**
+
+```sql
+mutation UpdateRule($id: ID!, $query: String!, $queryAccounts: [Int!]!, $account: ID!) {
+  entityManagementUpdateScorecardRule(
+	id: $id
+	scorecardRuleEntity: { nrqlEngine: {accounts: $queryAccounts, query: $Query}}
+  ) {
+	entity {
+  	id
+	nrqlEngine {
+		accounts
+		query
+		}
+       }
+  }
+}
+```
+
+**Fields:**
+
+- `id`: Entity Id of the rule.
+- `query`: New query.
+- `Accounts`: Target list of accounts IDs, if empty, the query won’t run in any account.
+
+ 9. **Activate or Deactivate the Rule** Enable or disable a rule within a scorecard.
+
+  **GraphQL Mutation:**
+
+```sql
+mutation UpdateRule($ruleId: ID!,$enabled: boolean) {
+  entityManagementUpdateScorecardRule(
+	id: $ruleId
+	scorecardRuleEntity: {enabled: $enabled}
+  ) {
+	entity {
+  	id
+  	name
+	}
+  }
+}
+```
+
+**Fields:**
+
+    - `ruleId:` The unique identifier of the rule.
+    - `enabled:` Is rule enabled?
+
