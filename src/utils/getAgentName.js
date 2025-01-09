@@ -17,6 +17,7 @@ const AGENTS = {
   'java-release-notes': 'java',
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
+  'prometheus-agent-release-notes': 'prometheus',
   'logs-release-notes': 'logs',
   'fluentbit-release-notes': 'fluentbit',
   'net-maui-release-notes': '.net maui',
