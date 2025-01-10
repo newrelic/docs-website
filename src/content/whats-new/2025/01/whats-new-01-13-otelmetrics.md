@@ -16,3 +16,5 @@ Starting today, we're improving the accuracy of APM golden metrics for services 
 **Next Steps:**
 
 * **Review Instrumentation:** If you're using OpenTelemetry, verify that you are reporting both traces and metrics for your services.
+
+* ![OTelmetrics image](../../../../../static/images/otelmetrics.webp "OTel metrics screenshot")
