@@ -29,4 +29,6 @@ Explore all log partitions with an easy point and click interface that helps you
 ## Integrated with the new querying UI
 Because it's built into the [new query your data](https://docs.newrelic.com/whats-new/2024/02/whats-new-02-21-new-query-experience/) capability, you can access the data explorer from anywhere in the platform, without losing the context of what you are already working on. Plus, you can use up to [100 separate tabs](https://docs.newrelic.com/whats-new/2024/05/whats-new-05-16-query-tabs/) to streamline your data exploration with multiple queries.
 
-Learn more about the data explorer in the [docs](https://docs.newrelic.com/docs/query-your-data/explore-query-data/query-builder/introduction-new-data-explorer/), or [read our tips](https://newrelic.com/blog/how-to-relic/new-query-interface-tips) on how to make the most of the new query your data UI.
+Learn more about the data explorer in the [docs](https://docs.newrelic.com/docs/query-your-data/explore-query-data/query-builder/introduction-new-data-explorer/) and watch the video below, or [read our tips](https://newrelic.com/blog/how-to-relic/new-query-interface-tips) on how to make the most of the new query your data UI.
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/1OL1jmkUcK0?si=PA-6FVnEsuAJpXzk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
