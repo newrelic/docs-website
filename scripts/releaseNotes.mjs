@@ -71,7 +71,8 @@ const INCLUDE_AGENTS = new Set([
   'ruby',
   'sdk',
   'fluentbit',
-  'nrdot'
+  'nrdot',
+  'prometheus'
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {
