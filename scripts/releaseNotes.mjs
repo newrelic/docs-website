@@ -70,7 +70,8 @@ const INCLUDE_AGENTS = new Set([
   'python',
   'ruby',
   'sdk',
-  'fluentbit'
+  'fluentbit',
+  'nrdot'
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {
