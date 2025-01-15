@@ -14,4 +14,4 @@ New Relic now offers comprehensive serverless monitoring for Azure Functions, in
 * **Containerized function support:** Gain deep insights into the behavior of your Azure Functions deployed as containers, even when running within Kubernetes environments.
 * **Comprehensive metrics:** Access a rich set of metrics related to compute, garbage collection, and HTTP status codes, empowering you to proactively identify and address performance issues.
 
-![Azure serverless image](../static/images/azureserverless.webp "Azure serverless")
+![Azure serverless image](../../../../../static/images/azureserverless.webp "Azure serverless")
