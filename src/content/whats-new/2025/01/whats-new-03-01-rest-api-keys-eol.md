@@ -2,15 +2,14 @@
 title: "REST API Keys End-of-life"
 summary: "Retiring the REST API key to improve security and reliability."
 releaseDate: "2025-03-01"
-learnMoreLink: "https://docs.newrelic.com/install/aws-logs/"
-getStartedLink: "https://docs.newrelic.com/docs/logs/get-started/get-started-log-management/"
+learnMoreLink: "https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/"
 ---
 
-New Relic now retiring the REST API key to improve security and reliability. You must update your systems with the new keys to avoid service disruptions.
+New Relic is now retiring the REST API keys to improve security and reliability. You must update your systems with the new User keys to avoid service disruptions.
 
-The current REST API keys used to access REST API v2 **(api.newrelic.com/v2 and api.eu.newrelic.com/v2)** will be retired. This change addresses the limitations of the existing account-level keys and aligns with industry best practices.
+The current REST API keys used to access REST API v2 **(api.newrelic.com/v2 or api.eu.newrelic.com/v2)** will be retired. This change addresses the limitations of the existing account-level keys and aligns with industry best practices.
 
-If your systems or integrations calling these specified API end-points using the REST API keys, you must replace them with new user API keys by **March 1, 2025**, to avoid service disruptions. Failure to update may result in API call failures and errors, also potentially disrupting workflows.
+If your systems or integrations call these specified API end-points using the REST API keys, you must replace them with new User API keys by **March 1, 2025**, to avoid service disruptions. Failure to update may result in API call failures and errors, also potentially disrupting workflows.
 
 You must complete replacement of the REST API keys by March 1, 2025.
 
@@ -22,7 +21,7 @@ You must do the following:
 
 * **Generate new keys:** Use the [New Relic UI](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) or [NerdGraph API.](https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/)
 * **Update systems:** Replace old keys with new User API keys in your systems.
-* **Validate:** ensure all API integrations work with the new keys.
+* **Validate:** Ensure all API integrations work with the new User keys.
 * **Remove old keys:** Delete old keys once validated.
 
 ## Rotate API key
@@ -30,23 +29,19 @@ You must do the following:
 **To rotate API keys in UI:**
 
 1. Go to [New Relic UI](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) and determine which account you need a key for.
-2. Create new user API keys associated to that account.
-3. Update your systems to use the new user API keys.
+2. Create new User API keys associated to that account.
+3. Update your systems to use the new User API keys.
     
     a. Go to [one.newrelic.com/api-keys](http://one.newrelic.com/api-keys) or [one.eu.newrelic.com/api-keys](http://one.eu.newrelic.com/api-keys) for EU data center and refer to the create and update instructions [here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#rotate-user-key).
 
 4. Ensure your API integrations function/work correctly with the new keys. This requires updating any scripts or code that reference the old key to use the new key value. 
-5. Once validated, remove the old REST API keys. 
+5. Once validated, remove the old REST API keys. After the old key is deleted, it cannot be restored.
 
-<Callout variant="tip">
-     Once the old key is deleted, it cannot be restored.
-   </Callout>
-
-You can also manage user keys via our NerdGraph API. For instructions, refer to NerdGraph tutorial [Manage API keys.](https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/)
+You can also manage User keys via our NerdGraph API. For instructions, refer to NerdGraph tutorial [Manage API keys.](https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/)
 
 ## Additional key points
 
-* If you’re using multiple New Relic accounts, each one will have its own REST API key. Each API key is must replaced individually with a user API key which is generated in the corresponding account.
+* If you’re using multiple New Relic accounts, each one will have its own REST API key. Each REST API key must be replaced individually with a User API key which is generated in the corresponding account.
 * If your API key starts with `NRAK`, no update is required.
 
 ## Contact support
