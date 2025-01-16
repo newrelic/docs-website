@@ -1,6 +1,6 @@
 ---
 title: "REST API Keys End-of-life"
-summary: "The replacement of REST API keys in your systems."
+summary: "Retiring the REST API key to improve security and reliability."
 releaseDate: "2025-03-01"
 learnMoreLink: "https://docs.newrelic.com/install/aws-logs/"
 getStartedLink: "https://docs.newrelic.com/docs/logs/get-started/get-started-log-management/"
