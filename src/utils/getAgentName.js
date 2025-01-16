@@ -38,6 +38,7 @@ const AGENTS = {
   'service-levels-release-notes': 'service levels',
   'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
+  'nrdot-release-notes': 'nrdot',
 };
 
 // keeping the naming streamlined and in matching with previous data
