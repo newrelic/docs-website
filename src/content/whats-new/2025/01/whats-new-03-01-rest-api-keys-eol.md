@@ -20,10 +20,10 @@ This change requires you to [rotate your API key](https://docs.newrelic.com/docs
 
 You must do the following:
 
-* Generate new keys: Use the [New Relic UI](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) or [NerdGraph API.](https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/)
-* Update systems: Replace old keys with new User API keys in your systems.
-* Validate: ensure all API integrations work with the new keys.
-* Remove old keys: Delete old keys once validated.
+* **Generate new keys:** Use the [New Relic UI](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) or [NerdGraph API.](https://docs.newrelic.com/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys/)
+* **Update systems:** Replace old keys with new User API keys in your systems.
+* **Validate:** ensure all API integrations work with the new keys.
+* **Remove old keys:** Delete old keys once validated.
 
 ## Rotate API key
 
