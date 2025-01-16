@@ -8,9 +8,9 @@ getStartedLink: "https://docs.newrelic.com/docs/logs/get-started/get-started-log
 
 New Relic now retiring the REST API key to improve security and reliability. You must update your systems with the new keys to avoid service disruptions.
 
-The current REST API keys for accessing REST API v2 **(api.newrelic.com/v2 and api.eu.newrelic.com/v2)** will be retired. This change addresses the limitations of the existing account-level keys and aligns with industry best practices.
+The current REST API keys used to access REST API v2 **(api.newrelic.com/v2 and api.eu.newrelic.com/v2)** will be retired. This change addresses the limitations of the existing account-level keys and aligns with industry best practices.
 
-If your systems or integrations calling the specified API end-points with REST API keys, you must replace them with new user API keys by **March 1, 2025**, to avoid service disruptions. Failure to update may result in API call failures and errors, also potentially disrupting workflows.
+If your systems or integrations calling these specified API end-points using the REST API keys, you must replace them with new user API keys by **March 1, 2025**, to avoid service disruptions. Failure to update may result in API call failures and errors, also potentially disrupting workflows.
 
 You must complete replacement of the REST API keys by March 1, 2025.
 
