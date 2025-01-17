@@ -1,0 +1,303 @@
+---
+title: Integrar el agente de Python en las aplicaciones contenedoras Microsoft Azure y App Service
+metaDescription: How to integrate APM for Python on Microsoft Azure App Services and Container Apps
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Este documento proporciona soluciones para la integración de New Relic en la aplicación Python alojada en Azure sin tener que modificar el código de la aplicación. Hay dos instancias admitidas de esta capacidad:
+
+* [Aplicaciones de Azure Container](https://learn.microsoft.com/en-us/azure/container-apps/overview)
+* [Servicio de aplicaciones Microsoft Azure](https://learn.microsoft.com/en-us/azure/app-service/overview), mediante código
+
+El soporte para la integración de New Relic para App Services mediante imágenes en contenedores no está disponible.
+
+## Compatibilidad y requisitos [#compatibility-requirements]
+
+Antes de comenzar, te recomendamos lo siguiente:
+
+* Comenzando con una App contenedora o App Service que se implementó
+* Instalación de la [CLI de Azure](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-macos) en su entorno si no emplea el Portal de Azure
+
+<Callout variant="tip" title="Información">
+  Tenga en cuenta que el agente de Python no captura telemetría para Azure Functions sin nuestra integración. Recomendamos instalar la [integración de monitoreoAzure Functions ](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/)si desea recopilar datos sobre Azure Functions.
+</Callout>
+
+## Integrar el agente Python en las aplicaciones de contenedor [#integrate-agent-container-app]
+
+En ciertos casos, una aplicación gestionada a través de [Azure Contenedor Apps](https://learn.microsoft.com/en-us/azure/container-apps/overview) ya tiene una imagen que el usuario no puede modificar (o el usuario simplemente puede no querer modificar la aplicación). Esto proporciona una manera de integrar New Relic en el entorno sin tener que realizar ninguna modificación en el código que crea la imagen en contenedor.
+
+Esto se puede hacer a través del Portal de Azure o la CLI de Azure.
+
+<CollapserGroup>
+  <Collapser id="container-app-init-container-portal" title="Integre el agente Python de New Relic en una aplicación de contenedor a través del portal de Azure">
+    <Steps>
+      <Step>
+        ### Agregar [New Relic clave de licencia](docs/apis/intro-apis/new-relic-api-keys/#license-key) [#add-license-key-portal]
+
+        Este paso es opcional pero muy recomendable.
+
+        Si no se creó [Azure Key Vault](https://azure.microsoft.com/en-us/products/key-vault) , siga [esta guía de inicio rápido](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal).
+
+        1. Seleccione <DNT>**Container Apps &gt; (select a Python app) &gt; Settings &gt; Secrets**</DNT>.
+        2. Agrega un secreto. Dale un nombre al secreto, selecciona &quot;Referencia de Key Vault&quot; y agrega tu clave de licencia.
+        3. Guarde sus cambios.
+      </Step>
+
+      <Step>
+        ### Vincular un recurso compartido de archivos de Azure a una aplicación de contenedor [#add-volume-portal]
+
+        Cree un [recurso compartido de archivos de Azure](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) siguiendo [este tutorial de inicio rápido](https://learn.microsoft.com/en-us/azure/storage/files/storage-how-to-use-files-portal?tabs=azure-portal).
+
+        1. Seleccione <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT>.
+        2. Seleccione “Editar y desplegar”
+        3. Vaya a la pestaña &quot;Volúmenes&quot; y haga clic en &quot;(+) Agregar&quot;
+        4. Seleccione &quot;Volumen de archivo de Azure&quot;, complete el nombre del volumen deseado y seleccione el recurso compartido de archivos creado anteriormente.
+        5. Guarde sus cambios.
+      </Step>
+
+      <Step>
+        ### Agregar y configurar el contenedor init [#init-container-setup-portal]
+
+        1. Seleccione <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT>.
+
+        2. En la sección “imagen del contenedor”, haga clic en “Agregar” y seleccione “Iniciar contenedor”
+
+        3. Introduzca lo siguiente:
+
+           * Nombre del contenedor de inicio deseado
+           * Docker Hub u otros registros&quot; para &quot;Fuente de la imagen&quot;
+           * `newrelic/newrelic-python-init` en &amp;quot;Imagen y etiqueta&amp;quot;
+           * `/bin/sh` para &amp;quot;Anular comando&amp;quot;
+           * `-c, cp -r /instrumentation /mnt/` para &amp;quot;Los argumentos prevalecen&amp;quot;
+           * Núcleos de CPU y memoria deseados. Este no debe exceder el del contenedor primario.
+
+        4. Vaya a la pestaña &quot;Montajes de volumen&quot; y seleccione el montaje de volumen creado en los pasos anteriores. La ruta de montaje debe ser `/mnt/instrumentation`.
+
+        5. Guarde sus cambios.
+      </Step>
+
+      <Step>
+        ### Vincular New Relic a la aplicación principal [#link-nr-to-app-portal]
+
+        1. Seleccione <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT>.
+
+        2. En la sección &quot;Imagen del contenedor&quot;, seleccione la aplicación principal y haga clic en &quot;Editar&quot;
+
+        3. Vaya a la pestaña &quot;Variables de entorno&quot; e ingrese lo siguiente:
+
+           * `NEW_RELIC_APP_NAME`: \[nombre de la aplicación deseada]
+           * `PYTHONPATH`: `/mnt/instrumentation`
+           * `NEW_RELIC_AZURE_OPERATOR_ENABLED`: `True`
+           * `NEW_RELIC_LICENSE_KEY` &amp;gt; Hacer referencia a un secreto &amp;gt; seleccione el nombre del secreto del Paso 1 (o ingrese manualmente la clave de licencia)
+
+        4. Vaya a la pestaña &quot;Montajes de volumen&quot; y seleccione el montaje de volumen creado en el Paso 2. La ruta de montaje debe ser `/mnt/instrumentation`.
+
+        5. Guarde sus cambios.
+      </Step>
+
+      Esto debería volver a desplegar la aplicación contenedor. Espere unos minutos hasta que el contenedor de inicio termine de ejecutar.
+    </Steps>
+  </Collapser>
+
+  <Collapser id="container-app-init-container-cli" title="Integrar el agente Python de New Relic en una aplicación de contenedor a través de la CLI de Azure">
+    <Steps>
+      <Step>
+        ### Agregar clave de licencia de New Relic a Azure Key Vault [#add-license-key-cli]
+
+        Este paso es opcional pero muy recomendable.
+
+        Si no se creó [Azure Key Vault](https://azure.microsoft.com/en-us/products/key-vault) , siga [este tutorial de inicio rápido](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-cli).
+
+        `az containerapp secret set --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --secrets license-key=$NEW_RELIC_LICENSE_KEY`
+      </Step>
+
+      <Step>
+        ### Cree un recurso compartido de archivos de Azure y vincúlelo a una aplicación de contenedor [#add-volume-cli]
+
+        1. `az storage account create --resource-group $RESOURCE_GROUP --name $STORAGE_ACCOUNT_NAME --location $LOCATION --kind StorageV2 --sku Standard_LRS --enable-large-file-share`
+        2. `az storage share-rm create --resource-group $RESOURCE_GROUP --storage-account $STORAGE_ACCOUNT_NAME --name $STORAGE_SHARE_NAME --quota 4096 --enabled-protocols SMB`
+        3. `` STORAGE_ACCOUNT_KEY=`az storage account keys list -n $STORAGE_ACCOUNT_NAME --query "[0].value" -o tsv --resource-group $RESOURCE_GROUP` ``
+        4. `az containerapp env storage set --access-mode ReadWrite --azure-file-account-name $STORAGE_ACCOUNT_NAME --azure-file-account-key $STORAGE_ACCOUNT_KEY --azure-file-share-name $STORAGE_SHARE_NAME --storage-name $STORAGE_MOUNT_NAME --name $ENVIRONMENT_NAME --resource-group $RESOURCE_GROUP`
+      </Step>
+
+      <Step>
+        ### Agregar variables de entorno [#add-env-vars-cli]
+
+        `az containerapp update --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --set-env-vars "NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME" "NEW_RELIC_AZURE_OPERATOR_ENABLED=True" "NEW_RELIC_LICENSE_KEY=secretref:license-key" "PYTHONPATH="/mnt/instrumentation`
+      </Step>
+
+      <Step>
+        ### Vincular New Relic a la aplicación principal [#link-nr-to-app-portal]
+
+        #### Exportar la configuración de la aplicación contenedor
+
+        `az containerapp show --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --output yaml > demoapp.yaml`
+
+        Este archivo producirá un archivo de plantilla parcial que contiene información sobre la aplicación contenedor. Será necesario agregar información adicional para vincular New Relic a la aplicación.
+
+        #### Montar volumen en la aplicación contenedor
+
+        En propiedades &gt; plantilla, habrá una sección llamada `volumes`. En este momento, esto dice `volumes: null`. Reemplazaremos esa línea con estas líneas:
+
+        ```bash
+        volumes:
+        - name: $VOLUME_NAME
+            storageName: $STORAGE_MOUNT_NAME
+            storageType: AzureFile
+        ```
+
+        Donde `$STORAGE_MOUNT_NAME` es lo que se empleó en el Paso 2 y `$VOLUME_NAME` es un nombre de su elección
+
+        #### Agregar contenedor de inicialización
+
+        En propiedades &gt; plantilla, habrá una sección llamada `initContainers`. En este momento, esto dice `initContainers: null`. Reemplazaremos esa línea con estas líneas:
+
+        ```bash
+        initContainers:
+        - args:
+            - -c
+            - cp -r /instrumentation /mnt/
+            command:
+            - /bin/sh
+            image: docker.io/newrelic/newrelic-python-init
+            name: nr-init-container
+        ```
+
+        #### Vincular volumen a contenedor
+
+        En propiedades &gt; plantilla, ahora tenemos secciones `containers` y `initContainers` . Dentro de cada una de estas secciones, agregue las siguientes líneas:
+
+        ```bash
+        volumeMounts:
+        - mountPath: /mnt/instrumentation
+            volumeName: $VOLUME_NAME
+        ```
+
+        Donde `$VOLUME_NAME` es el nombre elegido anteriormente
+
+        #### Actualizar la aplicación contenedor con nueva configuración
+
+        `az containerapp update --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --yaml demoapp.yaml`
+
+        Esto debería volver a desplegar la aplicación contenedor. Espere unos minutos hasta que el contenedor de inicio termine de ejecutar.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+## Integrar el agente de Python en Azure App Service [#integrate-agent-app-service]
+
+Actualmente, App Services solo admite sidecars pero no contenedores de inicio. Hasta que ese soporte esté disponible, se puede emplear este script preconstruido. Nota: Esto solo funciona para App Services que usan código y no para imágenes en contenedores.
+
+Esto se puede hacer a través del Portal de Azure o la CLI de Azure:
+
+```bash prebuild.sh
+#!/bin/sh
+# prebuild.sh
+
+# Retrieve files to use in startup script:
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/newrelic_k8s_operator.py > newrelic_k8s_operator.py
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/requirements-vendor.txt > requirements-vendor.txt
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/requirements-builder.txt > requirements-builder.txt
+
+cd /home/
+
+pip install -r requirements-builder.txt
+
+export NEW_RELIC_EXTENSIONS=false
+export WRAPT_DISABLE_EXTENSIONS=true
+
+pip install newrelic --target=./workspace/newrelic
+
+mkdir -p ./workspace/vendor
+pip install --target=./workspace/vendor -r requirements-vendor.txt
+
+cp ./workspace/* /home/
+cp /home/workspace/newrelic/newrelic/bootstrap/sitecustomize.py /home/sitecustomize.py
+
+cd /home/site/wwwroot
+
+# This is the where the application's original startup script goes:
+gunicorn app:app
+```
+
+<CollapserGroup>
+  <Collapser id="app-service-startup-script-portal" title="Integración del agente Python de New Relic en App Services a través del portal de Azure">
+    <Steps>
+      <Step>
+        ### Subir script de inicio
+
+        Vaya a https://\[NOMBRE\_DE\_SU\_SITIO\_WEBSITE\_LINUX\_AZURE].scm.azurewebsites.net/newui/fileManager y cargue el script `prebuild.sh` en el directorio `/home`
+      </Step>
+
+      <Step>
+        ### Agregar las variables de entorno necesarias
+
+        1. Seleccione <DNT>**App Services &gt; (select a Python app) &gt; Settings &gt; Environment variables**</DNT>.
+
+        2. Agregue lo siguiente al <DNT>**App settings**</DNT>:
+
+           * `NEW_RELIC_APP_NAME`:El nombre de su sitio web de Linux Azure
+           * `NEW_RELIC_LICENSE_KEY`: Tu New Relic<InlinePopover type="licenseKey" />
+           * `PYTHONPATH`: `/home:/home/workspace/newrelic`
+           * `NEW_RELIC_AZURE_OPERATOR_ENABLED`: `True`
+
+        3. Guarde su configuración.
+
+        Si se desea una versión específica del agente, agregue la variable de entorno `AGENT_VERSION` con el número de versión, precedido por `v` (por ejemplo, `v10.0.0`).
+      </Step>
+
+      <Step>
+        ### Agregar `prebuild.sh` como configuración de archivo de inicio
+
+        1. Seleccione <DNT>**App Services &gt; (select a Python app) &gt; Settings &gt; Configuration**</DNT>.
+        2. Agrega lo siguiente a <DNT>**Startup Command**</DNT>: `/home/prebuild.sh`
+        3. Almacene su configuración. Esto debería volver a implementar la aplicación.
+
+        Esto tomará unos minutos.
+      </Step>
+    </Steps>
+  </Collapser>
+
+  <Collapser id="app-service-startup-script-cli" title="Integración del agente Python de New Relic en App Services a través de la CLI de Azure">
+    <Steps>
+      <Step>
+        ### Subir script de inicio
+
+        `az webapp deploy --resource-group ${RESOURCE_GROUP} --name ${WEB_APP_NAME} --src-path prebuild.sh --target-path /home/prebuild.sh --type=static`
+      </Step>
+
+      <Step>
+        ### Agregar las variables de entorno necesarias
+
+        `az webapp config appsettings set --name ${WEB_APP_NAME} --resource-group ${RESOURCE_GROUP} --settings NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY NEW_RELIC_AZURE_OPERATOR_ENABLED=true NEW_RELIC_APP_NAME="Azure Service App" PYTHONPATH="/home:/home/workspace/newrelic"`
+
+        Si se desea una versión específica del agente, agregue la variable de entorno `AGENT_VERSION` con el número de versión, precedido por `v` (por ejemplo, `v10.0.0`) como se muestra en el siguiente ejemplo:
+
+        `az webapp config appsettings set --name ${WEB_APP_NAME} --resource-group ${RESOURCE_GROUP} --settings AGENT_VERSION=v10.0.0`
+      </Step>
+
+      <Step>
+        ### Agregar `prebuild.sh` como configuración de archivo de inicio
+
+        `az webapp config set --resource-group ${RESOURCE_GROUP} --name ${WEB_APP_NAME} --startup-file "/home/prebuild.sh"`
+
+        Esto tomará unos minutos.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+### Resolución de problemas [#troubleshooting]
+
+En algunos casos, la telemetría puede no estar disponible, o que el script `prebuild.sh` pueda provocar que la aplicación existente no pueda volver a desplegar. Para solucionar esto, habilite estas variables de entorno:
+
+* `SCM_DO_BUILD_DURING_DEVELOPMENT`: `True`
+* `ENABLE_ORYX_BUILD`: `True`

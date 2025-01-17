@@ -1,0 +1,183 @@
+---
+title: HCP 領事の監視 (StatsD 経由)
+tags:
+  - hcp
+  - hashicorp
+  - consul
+  - terraform
+metaDescription: Monitor your HCP Consul instance by sending metrics to New Relic via Statsd
+freshnessValidatedDate: never
+translationType: machine
+---
+
+HCP (Hashicorp Cloud Platform) Consul は、コントロール プレーンが HashiCorp Cloud Platform によって管理される Consul のバージョンです。HCP Consul は、Hashicorp が提供するサービス メッシュおよびサービス ディスカバリ ソリューションです。これにより、プラットフォーム オペレーターは、完全に管理された、デフォルトで安全なサービス メッシュを迅速に展開できるようになり、開発者は、Kubernetes、Nomad、Amazon ECS など、任意のランタイムで任意のアプリケーションを検出して安全に接続できるようになります。
+
+Consul クラスターを正常に保つことは、SQL クエリ時間の最適化、遅い HTTP 応答時間のトラブルシューティング、および Hashicorp クラスターのダウンタイムに関するリアルタイムのアラートに役立ちます。Hashicorp クラスター メトリックを監視することは、Hashicorp メッシュ サービスをフル キャパシティで運用し続けるために極めて重要です。
+
+<Callout variant="tip">
+  また、HCP 上にない Consul インスタンス用の [HashiCorp Consul 統合も](/docs/infrastructure/host-integrations/host-integrations-list/hashicorp-consul-monitoring-integration) あります。
+</Callout>
+
+### New Relic を使用して HCP Consul メトリクスを監視する [#monitor-metrics]
+
+HCP Consul をインストールする方法と環境は多数あります。以下の例では、Terraform を介してインストールされた HCP のクイック スタートを使用します。
+
+New Relic は、StatsD プラグインの統合を通じて、HCP Consul および Envoy メトリックの監視をサポートします。StatsD プラグインは、HCP Consul によって公開されたすべてのメトリックを集約し、データの視覚化とアラートのためにそれらを New Relic にプッシュします。
+
+### Terraform デプロイ ファイルを生成する [#terraform-file]
+
+HCP ポータル アカウントの<DNT>**Overview**</DNT>ページから Terraform デプロイメント ファイルを生成します。
+
+<img title="consul overview" alt="consul overview" src="/images/infrastructure_screenshot-crop_consul-overview.webp" />
+
+### Consul クラスターをデプロイする [#deploy]
+
+[エンドツーエンドの概要](https://learn.hashicorp.com/tutorials/cloud/consul-end-to-end-overview)にある適切な環境の手順に従って、Consul クラスターをデプロイします。 <DNT>**Important:**</DNT> <DNT>**Deploy**</DNT>ページの下部にある<DNT>**Consul CLI configuration**</DNT>に従ってください。
+
+## [ゴスタット](https://github.com/atlassian/gostatsd) [#statsd-install]
+
+[`deploy-gostatsd.yaml`](https://github.com/newrelic-experimental/hashicorp-quickstart-annex/blob/main/hcp-consul/deploy-gostatsd.yaml)と[`rbac-gostatsd.yaml`](https://github.com/newrelic-experimental/hashicorp-quickstart-annex/blob/main/hcp-consul/rbac-gostatsd.yaml)をローカルの Kubernetes クライアントにコピーします。
+
+### deploy-gstatsd.yaml を編集 [#edit-yaml]
+
+1. `YOUR_NEW_RELIC_ACCOUNT_ID`を New Relic アカウント ID に置き換えます。
+2. `YOUR_NEW_RELIC_LICENSE_KEY`を New Relic <InlinePopover type="licenseKey" />に置き換えます。
+3. 必要に応じて、EU または FedRAMP アカウントの URL を調整します (ファイル内のコメントを参照してください)。
+
+### gostatsd をデプロイする [#deploy-statsd]
+
+ローカル Kubernetes クライアントで次のコマンドを実行します。
+
+```bash
+kubectl apply -f deploy-gostatsd.yaml
+kubectl apply -f rbac-gostatsd.yaml
+```
+
+## メトリックをレポートするように Consul クライアントを構成する [#configure-consul-client]
+
+### consul-client-config マップを編集する
+
+Consul クライアントの ConfigMap を編集して[Consul テレメトリー設定](https://www.consul.io/docs/agent/telemetry)を追加します。
+
+```bash
+kubectl edit cm consul-client-config
+```
+
+`data`の下に以下を追加します:
+
+```yaml
+telemetry-config.json: |-
+  {   
+    "telemetry": {
+      "disable_hostname": false,
+      "disable_compat_1.9": true,
+      "dogstatsd_addr": "gostatsd.default.svc.cluster.local:8125",
+      "dogstatsd_tags": ["consul.source.datacenter:YOUR_CONSUL_DATACENTER_NAME_HERE"]
+    }
+  }
+```
+
+結果は次のようになります。
+
+```yaml
+apiVersion: v1
+data:
+  central-config.json: |-
+    {   
+      "enable_central_service_config": true
+    }   
+  config.json: |-
+    {   
+      "check_update_interval": "0s"
+    }   
+  extra-from-values.json: '{}'
+  telemetry-config.json: |-
+    {   
+      "telemetry": {
+        "disable_hostname": false,
+        "disable_compat_1.9": true,
+        "dogstatsd_addr": "gostatsd.default.svc.cluster.local:8125",
+        "dogstatsd_tags": ["consul.source.datacenter:YOUR_CONSUL_DATACENTER_NAME_HERE"]
+      }   
+    }  
+```
+
+メモ：
+
+1. ここで`dogstatsd_addr`を使用すると、各メトリックに`consul.source.datacenter`タグを追加できます。 これにより、ダッシュボードを Consul データセンター別にフィルタリングできます。
+2. 必ず`YOUR_CONSUL_DATACENTER_NAME_HERE`を Consul データセンター名に置き換えてください。
+3. [Consul テレメトリ構成オプション](https://www.consul.io/docs/agent/config/config-files#telemetry)を参照してください。
+
+### consul-connect-injector デプロイメントの編集 [#edit-consul-connect-injector-deployment]
+
+デプロイメントを編集して、デプロイメント内で Consul メトリックスを有効にします。
+
+```bash
+kubectl edit deploy consul-connect-injector
+```
+
+`default-enable-metrics`を検索し、 `true`に設定します:
+
+```bash
+-default-enable-metrics=true \
+```
+
+<DNT>
+  **Restart Consul client pods**
+</DNT>
+
+Consul クライアントは、構成の変更後に再起動する場合としない場合があります。そうでない場合は、各 Consul クライアント ポッドを再起動します。
+
+```bash
+kubectl delete pod consul-client-<POD_ID> -n <NAMESPACE>
+```
+
+## New Relic で Consul メトリクスを閲覧する [#browse-metrics]
+
+New Relic で HCP Consul データを表示するには、 [クエリ ビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/)に移動します。
+
+<img title="query builder" alt="query builder" src="/images/infrastructure_screenshot-crop_query-builder.webp" />
+
+次に、以下のクエリを使用して、HCP Consul メトリックを表示します。
+
+```sql
+SELECT * FROM Metric WHERE metricName LIKE 'consul.%' SINCE 1 minute ago
+```
+
+<img title="query metrics" alt="query metrics" src="/images/infrastructure_screenshot-full_query-metrics.webp" />
+
+### ダッシュボードをインストールする [#install-dashboard]
+
+クライアント、ネットワーク、ランタイム、serf、および Envoy に関する HCP Consul からの主要なメトリックを表示するために、事前に構築されたダッシュボードを使用して数分で開始します。
+
+Instant の [HCP Consul クイックスタート に移動して、](https://newrelic.com/instant-observability/hcp-consul) New Relic<DNT>**+ Install now**</DNT>をクリックします。
+
+<img title="consul dashboard" alt="consul dashboard" src="/images/infrastructure_screenshot-full_consul-dashboard.webp" />
+
+### トラブルシューティング [#troubleshoot]
+
+初期化時にクラッシュする Pod の場合:
+
+```bash
+kubectl logs PODNAME -c consul-connect-inject-init
+```
+
+実行中のポッドの場合:
+
+```bash
+kubectl logs PODNAME -c DEPLOYMENTNAME
+```
+
+### 便利な kubectl スニペット [#kubectl-snippets]
+
+すべてのポッドを削除します。
+
+```bash
+kubectl get pods | grep PODNAMEPREFIX | cut -f 1 -d ' ' | xargs kubectl delete pods
+```
+
+デプロイとそれが生成するポッドを削除します。
+
+```bash
+kubectl delete deployment DEPLOYMENTNAME -n default
+```

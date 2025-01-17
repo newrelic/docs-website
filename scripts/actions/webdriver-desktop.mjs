@@ -98,7 +98,9 @@ const navTest = async () => {
 };
 
 const searchTest = async () => {
-  const [searchInput] = await waitForXPath('//aside//input');
+  const [searchInput] = await waitForXPath(
+    './/input[@placeholder="Search docs"]'
+  );
   console.log('\nClicking search input');
   await searchInput.click();
   const activeEl = await driver.executeScript('return document.activeElement');

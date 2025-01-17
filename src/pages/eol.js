@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -34,7 +34,6 @@ const SORT_BY_FIELDS = {
 const Eol = ({ data, location }) => {
   const [sortDirection, setSortDirection] = useState(DIRECTION.ASC);
   const [sortField, setSortField] = useState(SORT_BY_FIELDS.PUBLISH_DATE);
-  const now = useMemo(() => new Date(), []);
   const { queryByEOLDate, queryByPublishDate } = data;
 
   const tableHeaders = [
@@ -46,8 +45,6 @@ const Eol = ({ data, location }) => {
   const shapePostData = (posts) =>
     posts.edges.map((post) => {
       const { frontmatter } = post.node;
-      const eolDate = new Date(frontmatter.eolEffectiveDate);
-      const passedEOL = now > eolDate;
 
       return {
         id: post.node.id,
@@ -60,8 +57,8 @@ const Eol = ({ data, location }) => {
               margin-bottom: 2rem;
 
               * {
-                opacity: ${passedEOL ? '75%' : '100%'};
-                font-style: ${passedEOL ? 'italic' : 'normal'};
+                opacity: 100%;
+                font-style: normal;
               }
             `}
           >
