@@ -1,0 +1,35 @@
+---
+title: Browser agent release and support dates
+metaDescription: Policies, start and end dates for support of New Relic browser monitoring agent releases.
+freshnessValidatedDate: never
+---
+
+The following are the specific policies and dates for support of our <InlinePopover type="browser"/> agent. See our documentation about [general EOL policies](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/) for information about New Relic's overall end-of-life policy.
+
+## New Relic browser agent releases and support dates [#browser-eol]
+
+Any versions not listed in the following table are no longer supported. Please [update your browser monitoring agent version](/docs/browser/new-relic-browser/installation/update-browser-agent) to the [latest release](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/).
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        [Browser agent release](https://github.com/newrelic/newrelic-browser-agent/releases)
+      </th>
+
+      <th>
+        Start date
+      </th>
+
+      <th>
+        End date
+      </th>
+    </tr>
+  </thead>
+
+  <EolPage agent="browser"/>
+</table>
+
+## Browser runtimes [#browser-runtimes]
+
+For support of browser runtimes, New Relic follows [general EOL policies](/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/) for major browsers.
