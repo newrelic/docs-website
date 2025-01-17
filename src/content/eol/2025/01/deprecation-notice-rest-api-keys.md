@@ -1,7 +1,7 @@
 ---
 title: 'End of life for REST API Keys'
 summary: "On March 1, 2025, REST API Keys End-of-life."
-publishDate: '2025-01-16'
+publishDate: '2025-01-17'
 eolEffectiveDate: '2025-03-01'
 ---
 
