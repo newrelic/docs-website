@@ -30,10 +30,7 @@ You must do the following:
 
 1. Go to [New Relic UI](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) and determine which account you need a key for.
 2. Create new User API keys associated to that account.
-3. Update your systems to use the new User API keys.
-    
-    a. Go to [one.newrelic.com/api-keys](http://one.newrelic.com/api-keys) or [one.eu.newrelic.com/api-keys](http://one.eu.newrelic.com/api-keys) for EU data center and refer to the create and update instructions [here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#rotate-user-key).
-
+3. Update your systems to use the new User API keys. Go to [one.newrelic.com/api-keys](http://one.newrelic.com/api-keys) or [one.eu.newrelic.com/api-keys](http://one.eu.newrelic.com/api-keys) for EU data center and refer to the create and update instructions [here](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#rotate-user-key).
 4. Ensure your API integrations function/work correctly with the new keys. This requires updating any scripts or code that reference the old key to use the new key value. 
 5. Once validated, remove the old REST API keys. After the old key is deleted, it cannot be restored.
 
