@@ -1,7 +1,7 @@
 ---
 title: "REST API Keys End-of-life"
 summary: "Retiring the REST API key to improve security and reliability."
-releaseDate: "2025-03-01"
+releaseDate: "2025-01-17"
 learnMoreLink: "https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/"
 ---
 
