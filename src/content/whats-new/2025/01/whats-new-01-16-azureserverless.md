@@ -1,7 +1,7 @@
 ---
 title: 'Gain comprehensive visibility into your azure serverless functions'
 summary: 'Troubleshoot faster and optimize resource utilization with deep insights into performance of Azure serverless functions'
-releaseDate: '2024-01-16'
+releaseDate: '2025-01-16'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/new-relic-serverless-monitoring-for-azure-functions'
 getStartedLink: 'https://docs.newrelic.com/docs/serverless-function-monitoring/overview/'
 ---
