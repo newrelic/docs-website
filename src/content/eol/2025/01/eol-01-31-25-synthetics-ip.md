@@ -24,77 +24,6 @@ We’ll be migrating the IP address range for the New Relic service used by synt
 
 Old IP ranges to remove: Please refer to the table below for a complete list of current IP ranges that need to be **removed after March 31, 2025**.
 
-**NOTE:** If you do not allowlist by IP range, no action is required.
-
-## What if no action is taken?
-
-If you do not update your allowlist by the deadline **March 31, 2025**, your synthetic checks may fail to connect to your applications, potentially causing disruptions and alerts.
-
-## Next Steps
-
-**Before March 31, 2025**,  add the new IP ranges to your allow list configuration.
-**After March 31, 2025**, remove the old IP ranges, as they will no longer be used by New Relic and may be reassigned to other instances.
-
-## Additional Support
-
-We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to reach out to our [support team](https://support.newrelic.com/s/).
-
-## Table
-
-<table>
-  <thead>
-    <tr>
-      <th style={{ width: "200px" }}>Region Name</th>
-      <th style={{ width: "200px" }}>Region Location</th>
-      <th style={{ width: "200px" }}>Current CIDR Block Range</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-  </tbody>
-</table>
-
-## Table sample
-
 <table>
   <thead>
     <tr>
@@ -146,3 +75,18 @@ We understand that these changes may require some adjustments to your routine. P
             </tr>
   </tbody>
 </table>
+
+**NOTE:** If you do not allowlist by IP range, no action is required.
+
+## What if no action is taken?
+
+If you do not update your allowlist by the deadline **March 31, 2025**, your synthetic checks may fail to connect to your applications, potentially causing disruptions and alerts.
+
+## Next Steps
+
+**Before March 31, 2025**,  add the new IP ranges to your allow list configuration.
+**After March 31, 2025**, remove the old IP ranges, as they will no longer be used by New Relic and may be reassigned to other instances.
+
+## Additional Support
+
+We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to reach out to our [support team](https://support.newrelic.com/s/).
