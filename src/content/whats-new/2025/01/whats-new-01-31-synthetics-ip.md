@@ -24,6 +24,58 @@ We’ll be migrating the IP address range for the New Relic service used by synt
 
 Old IP ranges to remove: Please refer to the table below for a complete list of current IP ranges that need to be **removed after March 31, 2025**.
 
+<table>
+  <thead>
+    <tr>
+      <th>Region Name</th>
+      <th>Region Location</th>
+      <th>Current CIDR Block Range</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>us-east-1</td>
+      <td>Washington, DC, USA</td>
+      <td>44.202.178.0/24 <br>44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
+    </tr>
+    <tr>
+      <td>us-east-2</td>
+      <td>Columbus, OH, USA</td>
+      <td>3.145.224.0/24 <br> 3.145.225.0/25 <br> 3.145.234.0/24</td>
+    </tr>
+      <tr>
+        <td>us-west-1</td>
+        <td>San Francisco, CA, USA</td>
+        <td>3.101.204.0/23 <br> 3.101.212.0/24 <br> 3.101.209.192/26</td>
+    </tr>
+      <tr>
+        <td>us-west-2</td>
+        <td>Portland, OR, USA</td>
+        <td>35.89.46.0/23 <br> 35.92.27.0/24</td>
+      </tr>
+        <tr>
+          <td>ap-southeast-2</td>
+          <td>Sydney, AU</td>
+          <td>3.26.252.0/24 <br> 3.26.245.128/25 <br> 3.27.51.0/25</td>
+      </tr>
+        <tr>
+          <td>eu-central-1</td>
+          <td>Frankfurt, DE</td>
+          <td>3.71.170.0/24 <br> 3.71.103.96/27 <br> 3.75.4.128/25</td>
+        </tr>
+          <tr>
+            <td>eu-west-1</td>
+            <td>Dublin, IE</td>
+            <td>3.251.231.0/24 <br> 3.251.230.64/26 <br> 3.252.47.0/25</td>
+          </tr>
+            <tr>
+              <td>eu-west-2</td>
+              <td>London, England, UK</td>
+              <td>13.40.201.0/24 <br> 13.40.208.0/25 <br> 13.41.206.128/25 <br> 13.41.206.64/26</td>
+            </tr>
+  </tbody>
+</table>
+
 **NOTE:** If you do not allowlist by IP range, no action is required.
 
 ## What if no action is taken?
