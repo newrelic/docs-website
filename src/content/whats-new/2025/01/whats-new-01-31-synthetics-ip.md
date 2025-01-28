@@ -5,24 +5,24 @@ releaseDate: '2025-01-30'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#synthetics' 
 ---
 
-Effective from **March 31, 2025**, the IP ranges for New Relic Synthetics will be changing as part of our service enhancements. If your systems allowlist Synthetics traffic based on IP ranges, you will need to update your configurations to maintain monitor connectivity.
+Effective **March 31, 2025**, the IP ranges for New Relic Synthetics will change as part of our service enhancements. If your systems allowlist Synthetics traffic based on IP ranges, **you will need to update your configurations** to maintain monitor connectivity. Failure to do so may result in failed connections and trigger alerts.
 
 **Important: If you don't update, connections may fail and trigger alerts.**
 
 ## What’s changing? 
-We’ll be migrating the IP address range for the New Relic service used by synthetics locations to align with our standard IP ranges used across other data ingest. 
+We will be migrating the IP address range for the New Relic service used by Synthetics public locations to align with our standard IP ranges used across other data ingest. 
 
 ## What action is required? 
 
-**If you allowlist Synthetics traffic,** Update your allow lists with the new IP ranges provided below before **March 31, 2025**. Failure to do so may result in failed connections and trigger alerts.
+**If you allowlist Synthetics traffic,** update your allow lists with the new IP ranges provided below before **March 31, 2025**. Failure to do so may result in failed connections and trigger alerts.
 
 **New IP ranges to allowlist:**
 
-`152.38.128.0/19`
+* `152.38.128.0/19`
 
-`212.32.0.0/20`
+* `212.32.0.0/20`
 
-`64.251.192.0/20`
+* `64.251.192.0/20`
 
 Old IP ranges to remove: Please refer to the table below for a complete list of current IP ranges that need to be **removed after March 31, 2025**.
 
@@ -78,27 +78,16 @@ Old IP ranges to remove: Please refer to the table below for a complete list of 
   </tbody>
 </table>
 
-| Region Name    | Region Location        | Current CIDR Block Range                                       |
-|----------------|------------------------|----------------------------------------------------------------|
-| us-east-1      | Washington, DC, USA    | 44.202.178.0/24 <br> 44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25 |
-| us-east-2      | Columbus, OH, USA      | 3.145.224.0/24 <br> 3.145.225.0/25 <br> 3.145.234.0/24                        |
-| us-west-1      | San Francisco, CA, USA | 3.101.204.0/23 <br> 3.101.212.0/24 <br> 3.101.209.192/26                      |
-| us-west-2      | Portland, OR, USA      | 35.89.46.0/23 <br> 35.92.27.0/24                                              |
-| ap-southeast-2 | Sydney, AU           | 3.26.252.0/24 <br> 3.26.245.128/25 <br> 3.27.51.0/25                          |
-| eu-central-1   | Frankfurt, DE      | 3.71.170.0/24 <br> 3.71.103.96/27 <br> 3.75.4.128/25                          |
-| eu-west-1      | Dublin, IE          | 3.251.231.0/24 <br> 3.251.230.64/26 <br>  3.252.47.0/25                       |
-| eu-west-2      | London, England, UK  | 13.40.201.0/24 <br> 13.40.208.0/25 <br> 13.41.206.128/25 <br>  13.41.206.64/26 |
-
 **NOTE:** If you do not allowlist by IP range, no action is required.
 
 ## What if no action is taken?
 
-If you do not update your allowlist by the deadline **March 31, 2025**, your synthetic checks may fail to connect to your applications, potentially causing disruptions and alerts.
+Failure to update your allowlist by **March 31, 2025**, may result in your synthetic checks failing to connect to your applications, potentially causing disruptions and alerts.
 
 ## Next Steps
 
-Before **March 31, 2025**,  add the new IP ranges to your allow list configuration.
-After **March 31, 2025**, remove the old IP ranges, as they will no longer be used by New Relic and may be reassigned to other instances.
+* Before **March 31, 2025**,  add the new IP ranges to your allow list configuration.
+* After **March 31, 2025**, remove the old IP ranges, as they will no longer be used by New Relic and may be reassigned to other instances.
 
 ## Additional Support
 
