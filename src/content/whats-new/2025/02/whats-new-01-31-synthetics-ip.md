@@ -1,5 +1,5 @@
 ---
-title: 'Update to New Relic Synthetics IP CIDR ranges'
+title: 'Update to New Relic Synthetics IP ranges'
 summary: 'Updating Synthetics IP ranges change'
 releaseDate: '2025-02-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#synthetics' 
