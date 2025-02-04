@@ -5,7 +5,9 @@ releaseDate: '2025-02-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#synthetics' 
 ---
 
-Effective **April 9, 2025**, the IP ranges for New Relic Synthetics will change. If Synthetics traffic is part of your allowlist, **you will need to update your configurations** to maintain monitor connectivity. 
+In order to ensure the best service to our customers, New Relic will change the IP ranges for New Relic Synthetics checks **effective April 9, 2025.**
+
+If Synthetics traffic is part of your allowlist, **you will need to update your configurations** to maintain monitor connectivity. 
 
 Failure to update your allowlist by **April 9, 2025**, may result in your synthetic checks failing to connect to your applications, potentially causing disruptions and alerts. 
 
