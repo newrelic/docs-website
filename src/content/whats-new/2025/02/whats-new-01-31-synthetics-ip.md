@@ -5,11 +5,11 @@ releaseDate: '2025-02-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#synthetics' 
 ---
 
-In order to ensure the best service to our customers, New Relic will change the IP ranges for New Relic Synthetics checks **effective April 9, 2025.**
+In order to ensure the best service to our customers, New Relic will change the IP ranges for New Relic Synthetics checks **effective April 10, 2025.**
 
 If Synthetics traffic is part of your allowlist, **you will need to update your configurations** to maintain monitor connectivity. 
 
-Failure to update your allowlist by **April 9, 2025**, may result in your synthetic checks failing to connect to your applications, potentially causing disruptions and alerts. 
+Failure to update your allowlist by **April 10, 2025**, may result in your synthetic checks failing to connect to your applications, potentially causing disruptions and alerts. 
 
 **NOTE:** If you do not allowlist by IP range, no action is required.
 
@@ -18,7 +18,7 @@ We will be migrating the IP address range for the New Relic service used by Synt
 
 ## What action is required?
 
-* Before **April 9, 2025**, update your allow lists with the new IP ranges provided below.
+* Before **April 10, 2025**, update your allow lists with the new IP ranges provided below.
 
   **New IP ranges to allowlist:**
 
@@ -28,9 +28,9 @@ We will be migrating the IP address range for the New Relic service used by Synt
 
   * `64.251.192.0/20`
 
-* After **April 9, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
+* After **April 10, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
 
-**Old IP ranges to remove:** Please refer to the table below for a complete list of current IP ranges **that need to be removed after April 9, 2025**.
+**Old IP ranges to remove:** Please refer to the table below for a complete list of current IP ranges **that need to be removed after April 10, 2025**.
 
 <table>
   <thead>
