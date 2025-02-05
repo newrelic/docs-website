@@ -1,7 +1,7 @@
 ---
 title: 'Update to New Relic Synthetics IP ranges'
 summary: 'Updating Synthetics IP ranges.'
-publishDate: '2025-02-07'
+publishDate: '2025-02-06'
 eolEffectiveDate: '2025-04-10'
 ---
 
