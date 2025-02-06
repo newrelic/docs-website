@@ -101,21 +101,6 @@ module.exports = {
     {
       resolve: 'gatsby-source-filesystem',
       options: {
-        name: 'translated-install-mdx',
-        path: `${__dirname}/src/i18n/install/`,
-        ignore: [`${__dirname}/src/i18n/install/config`],
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'translated-install-config',
-        path: `${__dirname}/src/i18n/install/config`,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
       },

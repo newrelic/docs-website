@@ -377,10 +377,6 @@ export default {
     serialize: (state, node) =>
       serializeComponent(state, node, { textAttributes: ['title'] }),
   },
-  WhatsNextTile: {
-    deserialize: deserializeComponent,
-    serialize: serializeComponent,
-  },
   thead: {
     deserialize: deserializeComponent,
     serialize: (state, node) =>
