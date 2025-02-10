@@ -1,0 +1,6713 @@
+---
+title: 'Infrastructure agent configuration settings '
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Configuration
+translate:
+  - kr
+metaDescription: 'Configuration settings for the New Relic infrastructure agent, including YAML and environment variable names, value, minimum agent version.'
+redirects:
+  - /docs/agent-configuration-settings
+  - /docs/infrastructure/install-configure-infrastructure/configuration/agent-configuration-settings
+  - /docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings
+  - /docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings
+  - /docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings
+freshnessValidatedDate: never
+---
+
+The infrastructure agent has a large set of [configuration settings to fine-tune its behavior](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent). Here we:
+
+* List all the configuration options (in both their YAML and the environment variable names).
+* Explain what the settings do and when to use them.
+* Give the variable type and default value (if any).
+* List the minimum required agent version as applicable.
+
+<Callout variant="important">
+  With secrets management, you can configure the agent on-host integrations with infrastructure to use sensitive data (such as passwords) without having to write them as plain text into the integration's configuration file. For more information, see [Secrets management](/docs/integrations/host-integrations/installation/secrets-management).
+</Callout>
+
+Still without a New Relic account? [Sign up](https://newrelic.com/signup) for free, forever.
+
+## Get started [#requirements]
+
+You'll be able to configure our infrastructure agent to suit your environnment after you [create a New Relic account](https://newrelic.com/signup) (it's free, forever) and [install the infrastructure agent](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/).
+
+The [`license_key`](#license-key) is the only required setting.
+
+For an example of how all these variables can be used, see our [sample configuration template in GitHub](https://github.com/newrelic/infrastructure-agent/blob/master/assets/examples/infrastructure/newrelic-infra-template.yml.example).
+
+## Environment variables
+
+Many of the configuration options listed also admit using environment variables to set values, which take precendence over the YAML configuration. 
+
+<Callout variant="important">
+  Often the infrastructure agent runs as a system service in the host, managed globally (e.g. `systemd` for Linux, Windows Services, `launchd` for macOS, etc). To apply configuration changes with environment variables in this setup,
+  these environment variables need to be set and made visible to the isolated context where the infrastructure agent service is running. The way of doing this is platform-dependent,
+  check the documentation for your platform's service manager to know how to add environment variables to system services.
+</Callout>
+
+## Agent variables [#agent-variables]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="license-key"
+    title={<>license_key (<strong>REQUIRED)</strong></>}
+  >
+    Specifies the <InlinePopover type="licenseKey"/> for your New Relic account. The agent uses this key to associate your server's metrics with your New Relic account. This setting is created as part of the standard installation process.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `license_key`
+          </td>
+
+          <td>
+            `NRIA_LICENSE_KEY`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td/>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```yml
+    license_key: 1234567890abcdefghijklmnopqrstuvwxyz1234
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fedramp"
+    title="FedRAMP"
+  >
+    Specifies whether FedRAMP endpoints should be used.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `fedramp`
+          </td>
+
+          <td>
+            `NRIA_FEDRAMP`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.15.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1150)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="max-procs"
+    title="max_procs"
+  >
+    Specifies the number of logical processors available to the agent. Increasing this value helps to distribute the load between different cores.
+
+    If set to `-1`, the agent will try to read the environment variable `GOMAXPROCS`. If this variable is not set, the default value will be the total number of cores available in the host.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `max_procs`
+          </td>
+
+          <td>
+            `NRIA_MAX_PROCS`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `1`
+          </td>
+
+          <td>
+            [1.0.1002](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-101002)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="payload-compression-level"
+    title="payload_compression_level"
+  >
+    Since version [1.0.804](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10804) or higher, data sent from the agent is compressed by default. To disable payload compression, set `payload_compression_level` to 0.
+
+    <Callout variant="important">
+      Recommendation: Do not change this setting.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `payload_compression_level`
+          </td>
+
+          <td>
+            `NRIA_PAYLOAD_COMPRESSION_LEVEL`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `6`
+          </td>
+
+          <td>
+            [1.0.804](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10804)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="startup-connection-retries"
+    title="startup_connection_retries"
+  >
+    Number of times the agent will retry the request to check New Relic's platform availability at startup before throwing an error.
+
+    If set to a <DNT>**negative value**</DNT>, the agent will keep checking the connection until it succeeds.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `startup_connection_retries`
+          </td>
+
+          <td>
+            `NRIA_STARTUP_CONNECTION_RETRIES`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `6`
+          </td>
+
+          <td>
+            1.0.936
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="startup-connection-retries"
+    title="startup_connection_retry_time"
+  >
+    After a request has timed out, time the agent waits to retry a request to check New Relic's platform availability at startup.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `startup_connection_retry_time`
+          </td>
+
+          <td>
+            `NRIA_STARTUP_CONNECTION_RETRY_TIME`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `5s`
+          </td>
+
+          <td>
+            1.0.936 - 1.2.30
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="startup-connection-timeout"
+    title="startup_connection_timeout"
+  >
+    Time the agent waits until a request to check New Relic's platform availability at startup is considered timed out.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `startup_connection_timeout`
+          </td>
+
+          <td>
+            `NRIA_STARTUP_CONNECTION_TIMEOUT`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `10s`
+          </td>
+
+          <td>
+            1.0.936
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="self-instrumentation"
+    title="self_instrumentation"
+  >
+    Enables [agent's self instrumentation](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/infrastructure-agent-self-instrumentation).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `self_instrumentation`
+          </td>
+
+          <td>
+            `NRIA_SELF_INSTRUMENTATION`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `empty`
+          </td>
+
+          <td>
+            [1.24.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1240)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="logging_retry-limit"
+    title="logging_retry_limit"
+  >
+    Enables [Agent Retry for Log Transmission](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/infrastructure-agent-behavior/#retry) via the embedded fluentbit logging forwarder. Integer values are for the number of intended retries. Other possible values include `False` to set the number of retries to infinite and `no_retries` to turn off the retry functionality entirely.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `logging_retry_limit`
+          </td>
+
+          <td>
+            `NRIA_LOGGING_RETRY_LIMIT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `5`
+          </td>
+
+          <td>
+            [1.29.1](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1291)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Cloud variables
+
+If the agent is running in a cloud instance, the agent will try to detect the cloud type and fetch basic [metadata](/docs/integrations/new-relic-integrations/getting-started/understand-use-data-infrastructure-integrations#overview).
+Metrics can also be enriched with extended cloud metadata (including custom resource tags) when [connecting the cloud provider](/docs/infrastructure/infrastructure-integrations/get-started/introduction-infrastructure-integrations#cloud) account with New Relic.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="cloud-max-retry-count"
+    title="cloud_max_retry_count"
+  >
+    Sets the number of times the agent retries to connect in case that cloud detection fails.
+
+    If cloud detection fails during the initialization of the agent, the agent will retry after waiting for [`CloudRetryBackOffSec` seconds](#cloud-retry-backoff-sec).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cloud_max_retry_count`
+          </td>
+
+          <td>
+            `NRIA_CLOUD_MAX_RETRY_COUNT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `10`
+          </td>
+
+          <td>
+            1.2.6
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="cloud-metadata-expiry-sec"
+    title="cloud_metadata_expiry_sec"
+  >
+    Sets the interval of time the agent will wait until discarding the metadata, in seconds. After this period metadata expires and the agent will fetch it again.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cloud_metadata_expiry_sec`
+          </td>
+
+          <td>
+            `NRIA_CLOUD_METADATA_EXPIRY_SEC`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `300`
+          </td>
+
+          <td>
+            1.2.6
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="cloud-retry-backoff-sec"
+    title="cloud_retry_backoff_sec"
+  >
+    Sets the interval of time the agent waits between cloud detection retries in case that cloud detection failed, in seconds.
+
+    If cloud detection fails during the initialization of the agent, it will retry for [`CloudMaxRetryCount` times](#cloud-max-retry-count).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cloud_retry_backoff_sec`
+          </td>
+
+          <td>
+            `NRIA_CLOUD_RETRY_BACKOFF_SEC`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            1.2.6
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="cloud-provider"
+    title="cloud_provider"
+  >
+    Specifies the cloud provider the agent is running in. When this is set up to a value different from the default, the agent will wait until it successfully acquires metadata (the instance ID) from the cloud provider before submitting any data to the backend.
+
+    With the default behavior, the agent will also try to detect the cloud provider and get the metadata but without blocking the agent.
+
+    Allowed values: `""`, `"aws"`, `"azure"`, `"gcp"`, `"alibaba"`
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cloud_provider`
+          </td>
+
+          <td>
+            `NRIA_CLOUD_PROVIDER`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `""`
+          </td>
+
+          <td>
+            1.40.1
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="disable-cloud-instance-id"
+    title="disable_cloud_instance_id"
+  >
+    Similar to [`DisableCloudMetadata`](#disable-cloud-metadata), but it disables the collection of cloud metadata only for the host alias plugin.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `disable_cloud_instance_id`
+          </td>
+
+          <td>
+            `NRIA_DISABLE_CLOUD_INSTANCE_ID`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            1.0.220
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="disable-cloud-metadata"
+    title="disable_cloud_metadata"
+  >
+    Disables the collection of cloud metadata.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `disable_cloud_metadata`
+          </td>
+
+          <td>
+            `NRIA_DISABLE_CLOUD_METADATA`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.0.690](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10690)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Docker variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="container-cache-metadata-limit"
+    title="container_cache_metadata_limit"
+  >
+    Time, in seconds, before the cached containers metadata expires and the agent needs to fetch them again.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `container_cache_metadata_limit`
+          </td>
+
+          <td>
+            `NRIA_CONTAINER_CACHE_METADATA_LIMIT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            1.0.801
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="docker-api-version"
+    title="docker_api_version"
+  >
+    Specifies the Docker client API version.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `docker_api_version`
+          </td>
+
+          <td>
+            `NRIA_DOCKER_API_VERSION`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `1.24`
+          </td>
+
+          <td>
+            [1.1.4](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-114)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## File system variables [#filesystem-variables]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="custom-supported-file-systems"
+    title="custom_supported_file_systems"
+  >
+    List of the types of file systems that the agent supports. This value needs to be a subset of the default list, and items that are not in the default list will be discarded.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `custom_supported_file_systems`
+          </td>
+
+          <td>
+            `NRIA_CUSTOM_SUPPORTED_FILESYSTEMS`
+          </td>
+
+          <td>
+            \[]string
+          </td>
+
+          <td>
+            Linux: `["xfs", "btrfs", "ext", "ext2", "ext3", "ext4", "hfs", "vxfs", "zfs"]`
+
+            Windows: `["NTFS", "ReFS"]`
+          </td>
+
+          <td>
+            1.0.220
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="file-devices-ignored"
+    title="file_devices_ignored"
+  >
+    List of storage devices to be ignored by the agent when gathering `StorageSample` data.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `file_devices_ignored`
+          </td>
+
+          <td>
+            `NRIA_FILE_DEVICES_IGNORED`
+          </td>
+
+          <td>
+            \[]string
+          </td>
+
+          <td/>
+
+          <td>
+            1.0.220
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example as a YAML attribute:
+
+    ```yml
+    file_devices_ignored:
+      - sda1
+      - sda2
+    ```
+
+    Example as an environment variable:
+
+    ```ini
+    FILE_DEVICES_IGNORED="sda1,sda2"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Hostname variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="display-name"
+    title="display_name"
+  >
+    Overrides the auto-generated hostname for reporting. This is useful when you have multiple hosts with the same name, since our infrastructure monitoring uses the hostname as the unique identifier for each host. Keep in mind this value is also used for the loopback address replacement on entity names.
+
+    For more information, see our documentation on [how entity name resolution works](/docs/integrations/integrations-sdk/file-specifications/integration-executable-file-specifications#h2-loopback-address-replacement-on-entity-names).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `display_name`
+          </td>
+
+          <td>
+            `NRIA_DISPLAY_NAME`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            empty
+          </td>
+
+          <td>
+            1.0.266
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```yml
+    display_name: teslaOne
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="dns_hostname_resolution"
+    title="dns_hostname_resolution"
+  >
+    When `true`, the full hostname is resolved by performing a reverse lookup of the host's address. Otherwise, it will be retrieved with the hostname command on Linux and from the TCP/IP parameters of the registry on Windows.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `dns_hostname_resolution`
+          </td>
+
+          <td>
+            `NRIA_DNS_HOSTNAME_RESOLUTION`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `true`
+          </td>
+
+          <td>
+            [1.2.6](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-125)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="override-hostname"
+    title="override_hostname"
+  >
+    When set, this is the value that will be reported for the full hostname; otherwise, the agent will perform the normal lookup behavior.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `override_hostname`
+          </td>
+
+          <td>
+            `NRIA_OVERRIDE_HOSTNAME`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td>
+            1.0.1015
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```
+    my.custom-hostname.co.org
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="override-hostname-short"
+    title="override_hostname_short"
+  >
+    When set, this is the value that will be reported for the hostname; otherwise, the agent will perform the normal lookup behavior.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `override_hostname_short`
+          </td>
+
+          <td>
+            `NRIA_OVERRIDE_HOSTNAME_SHORT`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td>
+            1.0.1015
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```
+    my.custom-hostname
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Installation variables [#installation-variables]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="agent-dir"
+    title="agent_dir"
+  >
+    Directory where the agent stores files for cache, inventory, integrations, etc.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `agent_dir`
+          </td>
+
+          <td>
+            `NRIA_AGENT_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            Linux: `/var/db/newrelic-infra`
+
+            Windows: `C:\Program Files\NewRelic\newrelic-infra\`
+          </td>
+
+          <td>
+            1.0.2
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="plugin-dir"
+    title="plugin_dir"
+  >
+    Directory containing the configuration files of the integrations.
+
+    Each integration has its own configuration file, named by default `<integration_name>-config.yml`, placed in a predefined location from which the agent loads on initialization.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `plugin_dir`
+          </td>
+
+          <td>
+            `NRIA_PLUGIN_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            Linux: `etc/newrelic-infra/integrations.d/`
+
+            Windows: `\Program Files\NewRelic\newrelic-infra\integrations.d`
+          </td>
+
+          <td>
+            1.0.2
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="custom-plugin-installation-dir"
+    title="custom_plugin_installation_dir"
+  >
+    Specifies a custom path to install integrations, which allows to install them outside the `agent_dir`. It has priority when the agent is looking for installed integrations.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `custom_plugin_installation_dir`
+          </td>
+
+          <td>
+            `NRIA_CUSTOM_PLUGIN_INSTALLATION_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            Empty
+          </td>
+
+          <td>
+            1.0.2
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Integrations variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="passthrough_-environment"
+    title="passthrough_environment"
+  >
+    A list of environment variables that will be passed to all integrations. If an integration already has an existing configuration option with the same name, then the environment variable takes precedence.
+
+    Starting with infrastructure agent 1.24.1 `passthrough_environment` supports regex for variable names.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `passthrough_environment`
+          </td>
+
+          <td>
+            `NRIA_PASSTHROUGH_ENVIRONMENT`
+          </td>
+
+          <td>
+            \[]string
+          </td>
+
+          <td>
+            Empty
+          </td>
+
+          <td>
+            [1.0.719](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10719)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example as a YAML attribute (inside the agent's configuration file, located by default in `/etc/newrelic-infra.yml`):
+
+    ```yml
+    passthrough_environment:
+      - HOST
+      - PORT
+      - NRIA_.*
+    ```
+
+    Example as an environment variable:
+
+    ```ini
+    NRIA_PASSTHROUGH_ENVIRONMENT="HOST,PORT,NRIA_.*"
+    ```
+
+    For Windows hosts:
+    `PATHEXT` is an MS Windows environment variable. The function is to determine which file extensions mark files that are executable from every command line. This will resolve any errors reporting "... is not recognized as the name of a cmdlet, function, script file..." for common Flex integrations:
+
+    ```yml
+    passthrough_environment:
+      - PATHEXT
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="entityname-integrations-v2-update"
+    title="entityname_integrations_v2_update"
+  >
+    The agent enables loopback-address replacement on the entity name (and therefore key) automatically for version 3 of the integration protocol. If you are using version 2 of the protocol and want this behavior, enable the `entityname_integrations_v2_update` option.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `entityname_integrations_v2_update`
+          </td>
+
+          <td>
+            `NRIA_ENTITYNAME_INTEGRATIONS_V2_UPDATE`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            1.2.15
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="http-server-enabled"
+    title="http_server_enabled"
+  >
+    By setting this configuration parameter to `true` the agent will open an HTTP port (by default, `8001`) to receive data from the New Relic StatsD backend.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `http_server_enabled`
+          </td>
+
+          <td>
+            `NRIA_HTTP_SERVER_ENABLED`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.0.818](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10818)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="http-server-host"
+    title="http_server_host"
+  >
+    By setting this value, the agent will start listening on the `HTTPServerPort` to receive data from the New Relic StatsD backend.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `http_server_host`
+          </td>
+
+          <td>
+            `NRIA_HTTP_SERVER_HOST`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `localhost`
+          </td>
+
+          <td>
+            [1.0.818](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10818)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="http-server-port"
+    title="http_server_port"
+  >
+    Sets the port for the http server to receive data from the New Relic StatsD backend.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `http_server_port`
+          </td>
+
+          <td>
+            `NRIA_HTTP_SERVER_PORT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `8001`
+          </td>
+
+          <td>
+            [1.0.818](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10818)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="remove-entities-period"
+    title="remove_entities_period"
+  >
+    Starts the process of deleting entities that haven't reported information during this interval.
+
+    Valid time units: `s` (seconds), `m` (minutes), and `h` (hour).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `remove_entities_period`
+          </td>
+
+          <td>
+            `NRIA_REMOVE_ENTITIES_PERIOD`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `48h`
+          </td>
+
+          <td>
+            [1.0.859](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10859)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```
+    1h
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event_queue_depth"
+    title="event_queue_depth"
+  >
+    If you have a large number of processes on the host, or a large volume of data collected across your integrations, the agent queue can overrun. Increase the queue depth to prevent error messages resulting from full queues.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `event_queue_depth`
+          </td>
+
+          <td>
+            `NRIA_EVENT_QUEUE_DEPTH`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `1000`
+          </td>
+
+          <td>
+            [1.12.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1120/)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="default_integrations_temp_dir"
+    title="default_integrations_temp_dir"
+  >
+    Defines the temp directory used as persisting storage for the integrations SDK synchronization.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `default_integrations_temp_dir`
+          </td>
+
+          <td>
+            `NRIA_DEFAULT_INTEGRATIONS_TEMP_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `/tmp/nr-integrations`
+          </td>
+
+          <td>
+            [1.50.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1500/)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="is_integrations_only"
+    title="is_integrations_only"
+  >
+    Use this setting if you're instrumenting the host from a source other than the infrastructure agent (for example, an OpenTelemetry Collector or Prometheus node exporter) and you want to keep using the infrastructure agent on-host integrations to monitor other infrastructure services.
+    When enabled, the agent reports host inventory and integrations telemetry (event metrics and inventory) decorated with host metadata, but host metrics (CPU, memory, disk, network, processes) are disabled.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `is_integrations_only`
+          </td>
+
+          <td>
+            `NRIA_IS_INTEGRATIONS_ONLY`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.53.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1530/)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Inventory variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="offline-time-to-reset"
+    title="offline_time_to_reset"
+  >
+    If the cached inventory becomes older than this value (for example, because the agent is offline), the agent automatically removes and recreates the delta store.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `offline_time_to_reset`
+          </td>
+
+          <td>
+            `NRIA_OFFLINE_TIME_TO_RESET`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `24h`
+          </td>
+
+          <td>
+            [1.0.888](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10888)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="enable-async-inventory"
+    title="enable_async_inventory"
+  >
+    When set to true, enables the inventory asynchronous processing allowing larger inventory payloads to be processed.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `async_inventory_handler_enabled`
+          </td>
+
+          <td>
+            `NRIA_ASYNC_INVENTORY_HANDLER_ENABLED`
+          </td>
+
+          <td>
+            bool
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.40.1](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1401)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ignored-inventory"
+    title="ignored_inventory"
+  >
+    The list of inventory paths ignored by the agent.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ignored_inventory`
+          </td>
+
+          <td>
+            `NRIA_IGNORED_INVENTORY`
+          </td>
+
+          <td>
+            string\[]
+          </td>
+
+          <td>
+            Empty list
+          </td>
+
+          <td>
+            [1.0.336](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10336)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example as a YAML attribute:
+
+    ```yml
+    ignored_inventory:
+      - files/config/stuff.bar
+      - files/config/stuff.foo
+    ```
+
+    Example as an environment variable:
+
+    ```ini
+    NRIA_IGNORED_INVENTORY="files/config/stuff.bar,files/config/stuff.foo"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Linux variables [#linux-variables]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="pid-file"
+    title="pid_file"
+  >
+    Location on Linux where the `pid` file of the agent process is created. It is used at startup to ensure that no other instances of the agent are running.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `pid_file`
+          </td>
+
+          <td>
+            `NRIA_PID_FILE`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `/var/run/newrelic-infra/newrelic-infra.pid`
+          </td>
+
+          <td>
+            1.0.2
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ignore-reclaimable"
+    title="ignore_reclaimable"
+  >
+    When true, formulation of the host virtual memory considers `SReclaimable` as available memory; otherwise `SReclaimable` will be considered part of the used memory.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ignore_reclaimable`
+          </td>
+
+          <td>
+            `NRIA_IGNORE_RECLAIMABLE`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.2.6](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-125)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Logging variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="log"
+    title="log"
+  >
+    Log is a key-value map used to configure the infrastructure agent logger.
+    Example as a YAML attribute:
+
+    ```yml
+    log:
+      file: '/var/log/newrelic-infra/newrelic-infra.log'
+      level: debug
+      forward: true
+      stdout: false
+    ```
+
+    Example as an environment variable:
+
+    ```ini
+    NRIA_LOG_FILE='/var/log/newrelic-infra/newrelic-infra.log'
+    NRIA_LOG_LEVEL='smart'
+    NRIA_LOG_FORWARD='false'
+    NRIA_LOG_STDOUT='true'
+    ```
+
+    <CollapserGroup>
+      <Collapser
+        className="freq-link"
+        id="file"
+        title="file"
+      >
+        Defines the file path for the logs.
+
+        The default installation creates a log directory and it sets this filepath value in the `file` configuration option for you. This log directory is different for each OS, as shown below.
+
+        Change this configuration option to customize the file path for the logs.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "200px" }}>
+                YML option name
+              </th>
+
+              <th style={{ width: "200px" }}>
+                Environment variable
+              </th>
+
+              <th>
+                Type
+              </th>
+
+              <th>
+                Default
+              </th>
+
+              <th>
+                Version
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `file`
+              </td>
+
+              <td>
+                `NRIA_LOG_FILE`
+              </td>
+
+              <td>
+                string
+              </td>
+
+              <td>
+                See below\*
+              </td>
+
+              <td/>
+            </tr>
+          </tbody>
+        </table>
+
+        Default paths:
+
+        * Linux: If not defined, it logs only in the standard output.
+        * Windows, agent version 1.0.944 or higher:
+
+          ```
+          C:\%ProgramData%\New Relic\newrelic-infra\newrelic-infra.log
+          ```
+
+          If the directory can't be created:
+
+          ```
+          C:\Program Files\New Relic\newrelic-infra\newrelic-infra.log
+          ```
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="level"
+        title="level"
+      >
+        Defines the log level. Available values:
+
+        * `info`: Displays log messages of level error, warn and info.
+        * `smart`: Enables the [smart verbose mode](/docs/infrastructure/infrastructure-troubleshooting/troubleshoot-logs/infrastructure-agent-logging-behavior/#smart-verbose-mode). Smart verbose mode logs the last `smart_level_entry_limit` debug messages when an error is logged.
+        * `debug`: Displays log messages of level error, warn, info and debug.
+        * `trace`: All log messages will be shown.
+
+          <Callout variant="important">
+            Trace level logging can generate a lot of data very quickly. Run the agent in trace mode only for as long as necessary to reproduce your issue, then set `level: info` and [restart your agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status) to disable verbose logging. Alternatively, you can set `level`: `smart`, which will enable smart verbose mode.
+          </Callout>
+
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "200px" }}>
+                  YML option name
+                </th>
+
+                <th style={{ width: "200px" }}>
+                  Environment variable
+                </th>
+
+                <th>
+                  Type
+                </th>
+
+                <th>
+                  Default
+                </th>
+
+                <th>
+                  Version
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `level`
+                </td>
+
+                <td>
+                  `NRIA_LOG_LEVEL`
+                </td>
+
+                <td>
+                  string
+                </td>
+
+                <td>
+                  Not set
+                </td>
+
+                <td/>
+              </tr>
+            </tbody>
+          </table>
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="log-format"
+        title="format"
+      >
+        Defines the log output format. Available values:
+
+        * `text`: Plain text output, one line per log entry.
+        * `json`: JSON-formatted output, one line per log entry.
+
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "200px" }}>
+                  YML option name
+                </th>
+
+                <th style={{ width: "200px" }}>
+                  Environment variable
+                </th>
+
+                <th>
+                  Type
+                </th>
+
+                <th>
+                  Default
+                </th>
+
+                <th>
+                  Version
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr>
+                <td>
+                  `format`
+                </td>
+
+                <td>
+                  `NRIA_LOG_FORMAT`
+                </td>
+
+                <td>
+                  string
+                </td>
+
+                <td>
+                  `text`
+                </td>
+
+                <td>
+                  [1.4.9](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-149)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="forward"
+        title="forward"
+      >
+        Enables forwarding the agent logs to our logs UI. To disable it, set this configuration option to `false`.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "200px" }}>
+                YML option name
+              </th>
+
+              <th style={{ width: "200px" }}>
+                Environment variable
+              </th>
+
+              <th>
+                Type
+              </th>
+
+              <th>
+                Default
+              </th>
+
+              <th>
+                Version
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `forward`
+              </td>
+
+              <td>
+                `NRIA_LOG_FORWARD`
+              </td>
+
+              <td>
+                boolean
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                [1.0.703](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10703)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="stdout"
+        title="stdout"
+      >
+        By default all logs are displayed in both standard output and a log file. To disable logs in the standard output, set this configuration option to `false`.
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "200px" }}>
+                YML option name
+              </th>
+
+              <th style={{ width: "200px" }}>
+                Environment variable
+              </th>
+
+              <th>
+                Type
+              </th>
+
+              <th>
+                Default
+              </th>
+
+              <th>
+                Version
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `stdout`
+              </td>
+
+              <td>
+                `NRIA_LOG_STDOUT`
+              </td>
+
+              <td>
+                boolean
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                [1.0.703](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10703)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="smart_level_entry_limit"
+        title="smart_level_entry_limit"
+      >
+        `smart_level_entry_limit` refers to the number of previous debug messages that will be logged when an error is logged. For example, if the limit is set to `5`, debug logs will be cached in memory until an error is logged, at which point the previous 5 debug messages will also be logged.
+
+        <Callout variant="important">
+          This configuration option is only used when `level` is set to `smart` (Smart Level enabled).
+        </Callout>
+
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: "200px" }}>
+                YML option name
+              </th>
+
+              <th style={{ width: "200px" }}>
+                Environment variable
+              </th>
+
+              <th>
+                Type
+              </th>
+
+              <th>
+                Default
+              </th>
+
+              <th>
+                Version
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `smart_level_entry_limit`
+              </td>
+
+              <td>
+                `NRIA_SMART_LEVEL_ENTRY_LIMIT`
+              </td>
+
+              <td>
+                integer
+              </td>
+
+              <td>
+                `1000`
+              </td>
+
+              <td>
+                [1.9.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-190)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        className="freq-link"
+        id="rotate"
+        title="rotate"
+      >
+        From version [v1.28.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) on, you can use the built-in log rotation feature.
+        By default, log rotation is disabled. To enable it, you have to specify the maximum size of the log file with the `max_size_mb` option.
+        When the infrastructure agent log file reaches that size, the current log file will be rotated into a new file.
+
+        ```yml
+        log:
+          level: info
+          file: /var/log/newrelic-infra/newrelic-infra.log
+          rotate:
+            max_size_mb: 1000                        # Required
+            max_files: 5                             # Optional
+            compression_enabled: true                # Optional
+            file_pattern: YYYY-MM-DD_hh-mm-ss.log    # Optional
+        ```
+
+        <CollapserGroup>
+          <Collapser
+            className="rotate-max_size_mb"
+            id="rotate-max_size_mb"
+            title="max_size_mb"
+          >
+            `max_size_mb` specifies the maximum size in MegaBytes of the infrastructure agent log file. When the file has reached this size, the current logs will be rotated into a new file.
+            When the `max_size_mb` is `0`, built-in log rotation is disabled.
+
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: "200px" }}>
+                    YML option name
+                  </th>
+
+                  <th style={{ width: "200px" }}>
+                    Environment variable
+                  </th>
+
+                  <th>
+                    Type
+                  </th>
+
+                  <th>
+                    Default
+                  </th>
+
+                  <th>
+                    Version
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr>
+                  <td>
+                    `max_size_mb`
+                  </td>
+
+                  <td>
+                    `NRIA_LOG_ROTATE_MAX_SIZE_MB`
+                  </td>
+
+                  <td>
+                    integer
+                  </td>
+
+                  <td>
+                    `0` - Disabled
+                  </td>
+
+                  <td/>
+                </tr>
+              </tbody>
+            </table>
+          </Collapser>
+
+          <Collapser
+            className="rotate-max_files"
+            id="rotate-max_files"
+            title="max_files"
+          >
+            `max_files` defines how many archived log files will be keept. When this value is exceeded, older files will be removed.
+            When the `max_files` is `0` the limit for the number of files is disabled.
+
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: "200px" }}>
+                    YML option name
+                  </th>
+
+                  <th style={{ width: "200px" }}>
+                    Environment variable
+                  </th>
+
+                  <th>
+                    Type
+                  </th>
+
+                  <th>
+                    Default
+                  </th>
+
+                  <th>
+                    Version
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr>
+                  <td>
+                    `max_files`
+                  </td>
+
+                  <td>
+                    `NRIA_LOG_ROTATE_MAX_FILES`
+                  </td>
+
+                  <td>
+                    integer
+                  </td>
+
+                  <td>
+                    `0`
+                  </td>
+
+                  <td/>
+                </tr>
+              </tbody>
+            </table>
+          </Collapser>
+
+          <Collapser
+            className="rotate-compression_enabled"
+            id="rotate-compression_enabled"
+            title="compression_enabled"
+          >
+            You can enable compression for the log files by setting `compression_enabled` to `true`. If compression is activated,
+            rotated files will have a `gzip` format and will use less disk space.
+
+            <Callout variant="important">
+              During the log rotation, if compression is enabled, the agent CPU usage might increase, especially when `max_size_mb` value is greater than `1000`.
+            </Callout>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: "200px" }}>
+                    YML option name
+                  </th>
+
+                  <th style={{ width: "200px" }}>
+                    Environment variable
+                  </th>
+
+                  <th>
+                    Type
+                  </th>
+
+                  <th>
+                    Default
+                  </th>
+
+                  <th>
+                    Version
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr>
+                  <td>
+                    `compression_enabled`
+                  </td>
+
+                  <td>
+                    `NRIA_LOG_ROTATE_COMPRESSION_ENABLED`
+                  </td>
+
+                  <td>
+                    boolean
+                  </td>
+
+                  <td>
+                    `false`
+                  </td>
+
+                  <td/>
+                </tr>
+              </tbody>
+            </table>
+          </Collapser>
+
+          <Collapser
+            className="rotate-file_pattern"
+            id="rotate-file_pattern"
+            title="file_pattern"
+          >
+            `file_pattern` specifies the name format for the archived log files. By default, the new file name will use the following
+            name pattern: `original-file_YYYY-MM-DD_hh-mm-ss.log`.
+
+            You can customize the file name pattern with the following timestamp fields:
+
+            * `YYYY`: Year
+            * `MM`: Month
+            * `DD`: Day
+            * `hh`: Hour
+            * `mm`: Minute
+            * `ss`: Secound
+
+              The agent will automatically replace those timestamp fields with the time of the file rotation. For example:
+
+              ```yml
+              log:
+                level: info
+                file: /var/log/newrelic-infra/newrelic-infra.log
+                rotate:
+                  max_size_mb: 1000
+                  file_pattern: rotated.YYYY-MM-DD_hh-mm-ss.log
+              ```
+
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: "200px" }}>
+                      YML option name
+                    </th>
+
+                    <th style={{ width: "200px" }}>
+                      Environment variable
+                    </th>
+
+                    <th>
+                      Type
+                    </th>
+
+                    <th>
+                      Default
+                    </th>
+
+                    <th>
+                      Version
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      `file_pattern`
+                    </td>
+
+                    <td>
+                      `NRIA_LOG_ROTATE_FILE_PATTERN`
+                    </td>
+
+                    <td>
+                      string
+                    </td>
+
+                    <td>
+                      `file_YYYY-MM-DD_hh-mm-ss.file_extension`
+                    </td>
+
+                    <td/>
+                  </tr>
+                </tbody>
+              </table>
+          </Collapser>
+        </CollapserGroup>
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  Infrastructure agent version 1.28.0 introduced backward-compatible improvements in logging configuration.
+  See our [github documentation](https://github.com/newrelic/infrastructure-agent/blob/master/docs/log_configuration.md) to understand the legacy settings and how to map them to the new structure.
+</Callout>
+
+## Metrics variables [#metrics]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="custom-attributes"
+    title="custom_attributes"
+  >
+    Custom attributes are key-value pairs (similar to tags in other tools) used to annotate the data from the infrastructure agent. You can use this metadata to filter your entities, [group your results](/docs/infrastructure-group-results-specific-attributes), and annotate your data. For example, you might indicate a machine's environment (staging or production), the service a machine hosts (login service, for example), or the team responsible for that machine.
+
+    <Callout variant="tip">
+      The agent collects many details about your environment as part of its [default attributes](/docs/default-infrastructure-events-attributes), including [Amazon Elastic Compute Cloud (Amazon EC2) tags](/docs/default-infrastructure-events-attributes#aws-ec2-attributes).
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "250px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `custom_attributes`
+          </td>
+
+          <td>
+            `NRIA_CUSTOM_ATTRIBUTES`
+          </td>
+
+          <td>
+            map\[string]interface&#x7B;}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Use a list of custom attributes to annotate the data from this agent instance. Separate keys and values with colons `:`, as in `KEY: VALUE`, and separate each key-value pair with a line break. Keys can be any valid YAML except slashes `/`. Values can be any YAML string, including spaces. Starting the key with `label.` will make sure it remains as is, even if that host might run in different cloud environments, where the cloud tags or cloud labels might interact with it in the combined decoration of tags. In contrast, `custom_labels` might be prefixed with `gcp.` or `azure.` when running in those environments and when combining data from the infrastructure agent with cloud monitoring together.
+
+    Example as a YAML attribute:
+
+    ```yml
+    custom_attributes:
+      label.environment: production
+      label.service: login service
+      label.team: alpha-team
+    ```
+
+    Example as an environment variable:
+
+    ```ini
+    NRIA_CUSTOM_ATTRIBUTES='{"label.customAttribute_1":"SOME_ATTRIBUTE","label.customAttribute_2": "SOME_ATTRIBUTE_2"}'
+    ```
+
+    NRQL example filtering by custom attribute:
+
+    ```sql
+    FROM SystemSample SELECT * WHERE label.environment = 'production'
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="enable-process-metrics"
+    title="enable_process_metrics"
+  >
+    <Callout variant="important">
+      Requires infrastructure agent version 1.12.0 or higher.
+      Accounts created before July 20, 2020 and/or infrastructure agents installed using the new guided install have this variable enabled by default.
+    </Callout>
+
+    Enables the sending of [process metrics](/attribute-dictionary/?event=ProcessSample) to New Relic.
+
+    By default, the infrastructure agent doesn't send data about the operating system's processes. The agent still collects such data, unless `metrics_process_sample_rate` is set to `-1`.
+
+    To report metric data about all the operating system's processes, set `enable_process_metrics` to `true`. To disable, set to `false`.
+
+    Sending all process data could increase the volume of data sent to New Relic. To fine-tune which processes you want to monitor, configure [`include_matching_metrics`](#include-matching-metrics) or [`exclude_matching_metrics`](#exclude-matching-metrics).
+
+    By default, processes using low memory are excluded from being sampled. For more information, see [disable-zero-mem-process-filter](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings#disable-zero-mem-process-filter).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "245px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "295px" }}>
+            Environment variable
+          </th>
+
+          <th style={{ width: "78px" }}>
+            Type
+          </th>
+
+          <th style={{ width: "80px" }}>
+            Default
+          </th>
+
+          <th style={{ width: "80px" }}>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `enable_process_metrics`
+          </td>
+
+          <td>
+            `NRIA_ENABLE_PROCESS_METRICS`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td/>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="process-container-decoration"
+    title="process_container_decoration"
+  >
+    When enabled, the agent decorates process samples with container information if the process is executed in a container.
+
+    This information includes the container ID, container name, image ID, image name, and container labels.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "245px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "295px" }}>
+            Environment variable
+          </th>
+
+          <th style={{ width: "78px" }}>
+            Type
+          </th>
+
+          <th style={{ width: "80px" }}>
+            Default
+          </th>
+
+          <th style={{ width: "80px" }}>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `process_container_decoration`
+          </td>
+
+          <td>
+            `NRIA_PROCESS_CONTAINER_DECORATION`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `true`
+          </td>
+
+          <td>
+            1.55.0
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="include-matching-metrics"
+    title="include_matching_metrics"
+  >
+    <Callout variant="important">
+      Currently, this setting only applies to an operating system's processes metrics.
+    </Callout>
+
+    You can control how much data is sent to New Relic by configuring `include_matching_metrics`, which allows you to restrict the transmission of metric data based on the values of metric [attributes](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-infrastructure-dimensional-metrics-nrql#naming-conventions).
+
+    You include metric data by defining literal or partial values for any of the attributes of the metric. For example, you can choose to send the `host.process.cpuPercent` of all processes whose `process.name` match the `^java` [regular expression](https://github.com/google/re2/wiki/Syntax).
+
+    In this example, we include process metrics using executable files and names:
+
+    ```yml
+    include_matching_metrics:          # You can combine attributes from different metrics
+      process.name:
+        - regex "^java"                # Include all processes starting with "java"
+      process.executable:
+        - "/usr/bin/python2"           # Include the Python 2.x executable
+        - regex "\\System32\\svchost"  # Include all svchost executables
+    ```
+
+    If you need to include command line arguments in any of the values, set [`strip_command_line`](#strip-command-line) to false (the infrastructure agents removes CLI arguments by default to prevent secrets from leaking).
+
+    If both `include_matching_metrics` and `exclude_matching_metrics` are present for the same item, the inclusion takes precedence.
+
+    To configure `include_matching_metrics` as an environment variable for the [Kubernetes integration](/docs/integrations/kubernetes-integration), add it in the manifest inside the `env:` object:
+
+    ```yml
+    env:
+      - name: NRIA_INCLUDE_MATCHING_METRICS
+        value: |
+          process.name:
+            - regex "^java"
+          process.executable:
+            - "/usr/bin/python2"
+            - regex "\\System32\\svchost"
+    ```
+
+    Default
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `include_matching_metrics`
+          </td>
+
+          <td>
+            `NRIA_INCLUDE_MATCHING_METRICS`
+          </td>
+
+          <td>
+            metric.attribute:
+
+            \- regex "pattern"
+
+            \- "string"
+
+            \- "string-with-wildcard\*"
+          </td>
+
+          <td/>
+
+          <td/>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="exclude-matching-metrics"
+    title="exclude_matching_metrics"
+  >
+    <Callout variant="important">
+      Currently, this setting only applies to an operating system's processes metrics.
+    </Callout>
+
+    You can control how much data is sent to New Relic by configuring `exclude_matching_metrics`, which allows you to restrict the transmission of metric data based on the values of metric [attributes](/docs/nrql/using-nrql/query-infrastructure-dimensional-metrics-nrql/#naming-conventions).
+
+    You exclude metric data by defining literal or partial values for any of the attributes of the metric. For example, you can choose not to send the `host.process.cpuPercent` of all processes whose `process.name` match the `^java` [regular expression](https://github.com/google/re2/wiki/Syntax).
+
+    In this example, we exclude process metrics using executable files and names:
+
+    ```yml
+    exclude_matching_metrics:          # You can combine attributes from different metrics
+      process.name:
+        - regex "^java"                # Exclude all processes starting with "java"
+      process.executable:
+        - "/usr/bin/python2"           # Exclude the Python 2.x executable
+        - regex "\\System32\\svchost"  # Exclude all svchost executables
+    ```
+
+    To configure `exclude_matching_metrics` as an environment variable for the [Kubernetes integration](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/), add it in the manifest inside the `env:` object:
+
+    ```yml
+    env:
+      - name: NRIA_EXCLUDE_MATCHING_METRICS
+        value: |
+          process.name:
+            - regex "^java"
+          process.executable:
+            - "/usr/bin/python2"
+            - regex "\\System32\\svchost"
+    ```
+
+    Default
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `exclude_matching_metrics`
+          </td>
+
+          <td>
+            `NRIA_EXCLUDE_MATCHING_METRICS`
+          </td>
+
+          <td>
+            metric.attribute:
+
+            \- regex "pattern"
+
+            \- "string"
+
+            \- "string-with-wildcard\*"
+          </td>
+
+          <td/>
+            1.57.0
+          <td/>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="network-interface-filters"
+    title="network_interface_filters"
+  >
+    You can use the network interface filters configuration to hide unused or uninteresting network interfaces from the infrastructure agent. This helps reduce resource usage, work, and noise in your data.
+
+    <Callout variant="important">
+      Environment variables are not supported for this configuration setting.
+    </Callout>
+
+    The configuration uses a simple pattern-matching mechanism that can look for interfaces that start with a specific sequence of letters or numbers following either pattern:
+
+    * `{name}[other characters]`, where you specify the name using the `prefix` option
+    * `[number]{name}[other characters]`, where you specify the name using the `index-1` option
+
+      New Relic infrastructure implements a curated default list of filters, available for both [Linux](#filters-linux) and [Windows](#filters-windows), that you can modify.
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              YML option name
+            </th>
+
+            <th style={{ width: "200px" }}>
+              Environment variable
+            </th>
+
+            <th>
+              Type
+            </th>
+
+            <th>
+              Default
+            </th>
+
+            <th>
+              Version
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `network_interface_filters`
+            </td>
+
+            <td>
+              not supported
+            </td>
+
+            <td>
+              map\[string]\[]string
+            </td>
+
+            <td/>
+
+            <td>
+              1.0.220
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <CollapserGroup>
+        <Collapser
+          className="freq-link"
+          id="filters-linux"
+          title="Linux"
+        >
+          Default network interface filters for Linux:
+
+          * Network interfaces that start with `dummy`, `lo`, `vmnet`, `sit`, `tun`, `tap`, or `veth`
+          * Network interfaces that contain `tun` or `tap`
+
+            The following example (added to your configuration file) overrides the default filters. This will ignore network interfaces that start with `dummy` or `lo` , or contain `tun` preceded by a sequence of numbers, and followed by other characters:
+
+            ```yml
+            network_interface_filters:
+              prefix:
+                - dummy
+                - lo
+              index-1:
+                - tun
+            ```
+        </Collapser>
+
+        <Collapser
+          className="freq-link"
+          id="filters-windows"
+          title="Windows"
+        >
+          Default network interface filters for Windows:
+
+          * Network interfaces that start with `Loop`, `isatap`, or `Local`
+
+            The following example (added to your configuration file) overrides the default filters. This will ignore network interfaces that start with `Loop`:
+
+            ```yml
+            network_interface_filters:
+              prefix:
+                - Loop
+            ```
+        </Collapser>
+      </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="disable-zero-mem-process-filter"
+    title="disable_zero_mem_process_filter"
+  >
+    The `ZeroRSSFilter` excludes processes that are not using memory from being sampled. Disable the filter so that the agent includes these processes in the `ProcessSample`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `disable_zero_mem_process_filter`
+          </td>
+
+          <td>
+            `NRIA_DISABLE_ZERO_MEM_PROCESS_FILTER`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            1.0.832
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Plugins variables
+
+<Callout variant="tip">
+  You can quickly disable all the variables by setting [`DisableAllPlugins`](#disable-all-plugins) to `true`, and turn on only those options you need.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="disable-all-plugins"
+    title="disable_all_plugins"
+  >
+    To disable all the plugins, set this option to `true`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `disable_all_plugins`
+          </td>
+
+          <td>
+            `NRIA_DISABLE_ALL_PLUGINS`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.2.1](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-121)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="cloud-security-group-refresh-sec"
+    title="cloud_security_group_refresh_sec"
+  >
+    Sampling period for the `CloudSecurityGroups` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`.
+
+    <Callout variant="important">
+      This plugin is activated only if the agent is running in an AWS instance.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cloud_security_group_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_CLOUD_SECURITY_GROUP_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            [1.0.692](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10703)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="daemontools-interval-sec"
+    title="daemontools_interval_sec"
+  >
+    Sampling period for the `Daemontools`plugin, in seconds. The minimum value is a `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `daemontools_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_DAEMONTOOLS_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `15`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="dpkg-interval-sec"
+    title="dpkg_interval_sec"
+  >
+    Sampling period for the `Dpkg` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`. If the parameter is not explicitly set in the config file, it can be disabled by setting [`DisableAllPlugins`](#disable-all-plugins) to `true`.
+
+    <Callout variant="important">
+      This is only activated in [`root` or `privileged` running modes](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes) and on [Debian-based distributions](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux#debian-based-root).
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `dpkg_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_DPKG_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="facter-interval-sec"
+    title="facter_interval_sec"
+  >
+    Sampling period for the `Facter` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `facter_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_FACTER_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="kernel-modules-refresh-sec"
+    title="kernel_modules_refresh_sec"
+  >
+    Sampling period for the `KernelModules` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <Callout variant="important">
+      `kernel_modules_refresh_sec` is only activated in [`root` or `privileged` running modes](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes).
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `kernel_modules_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_KERNEL_MODULES_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `10`
+          </td>
+
+          <td>
+            1.0.755
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="network-interface-interval-sec"
+    title="network_interface_interval_sec"
+  >
+    Sampling period for the `NetworkInterface` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `network_interface_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_NETWORK_INTERFACE_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            1.0.329
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="rpm-interval-sec"
+    title="rpm_interval_sec"
+  >
+    Sampling period for the `Rpm` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`.
+
+    <Callout variant="important">
+      `rpm_interval_sec` is only activated when the agent runs in [root or privileged modes](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes) for RedHat, RedHat AWS, or SUSE distributions.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `rpm_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_RPM_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="selinux-interval-sec"
+    title="selinux_interval_sec"
+  >
+    Sampling period for the `SELinux` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`. This option is ignored if `SelinuxEnableSemodule` is set to false. For more information, see our troubleshooting doc on [disabling the `SELinux` module](/docs/infrastructure/new-relic-infrastructure/troubleshooting/reduce-infrastructure-agents-cpu-footprint).
+
+    <Callout variant="important">
+      `SELinux` is only activated when the agent runs in [root mode](/docs/infrastructure/install-configure-infrastructure/linux-installation/linux-agent-running-modes).
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `selinux_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_SELINUX_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="sshd-config-refresh-sec"
+    title="sshd_config_refresh_sec"
+  >
+    Sampling period for the `Sshd` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `sshd_config_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_SSHD_CONFIG_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `15`
+          </td>
+
+          <td>
+            1.0.755
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="supervisor-interval-sec"
+    title="supervisor_interval_sec"
+  >
+    Sampling period for the `Supervisor` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `supervisor_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_SUPERVISOR_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `15`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="sysctl-interval-sec"
+    title="sysctl_interval_sec"
+  >
+    Sampling period for the `Sysctl` plugin, in seconds. The minimum value is `30`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `sysctl_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_SYSCTL_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="systemd-interval-sec"
+    title="systemd_interval_sec"
+  >
+    Sampling period for the `Systemd` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `systemd_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_SYSTEMD_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="sysvinit-interval-sec"
+    title="sysvinit_interval_sec"
+  >
+    Sampling period for the `sysv` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `sysvinit_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_SYSVINIT_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="upstart-interval-sec"
+    title="upstart_interval_sec"
+  >
+    Sampling period for the `Upstart` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `upstart_interval_sec`
+          </td>
+
+          <td>
+            `NRIA_UPSTART_INTERVAL_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.316](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10316)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="users-refresh-sec"
+    title="users_refresh_sec"
+  >
+    Sampling period for the `Users` plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `users_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_USERS_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            1.0.755
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="supervisor-rpc-sock"
+    title="supervisor_rpc_sock"
+  >
+    Location of the [supervisor](http://www.supervisord.org/) socket.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `supervisor_rpc_sock`
+          </td>
+
+          <td>
+            `NRIA_SUPERVISOR_RPC_SOCK`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            `/var/run/supervisor.sock`
+          </td>
+
+          <td>
+            1.0.2
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="facter-home-dir"
+    title="facter_home_dir"
+  >
+    Sets the `HOME` environment variable for [Puppet's Facter](https://puppet.com/docs/puppet/latest/puppet_index.html). If not defined, it defaults to the current user's home directory.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `facter_home_dir`
+          </td>
+
+          <td>
+            `NRIA_FACTER_HOME_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td>
+            [1.1.7](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-117)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Proxy variables
+
+For infrastructure agent version 1.3.1 or higher, the precedence of the proxy configuration settings is:
+
+* `NRIA_PROXY`
+* `proxy`
+* `HTTP_PROXY`
+* `HTTPS_PROXY`
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="proxy"
+    title="proxy"
+  >
+    Your system may have firewall rules that require the agent to use a proxy to communicate with New Relic. If so, set the proxy URL in the form https&#x3A;//user:password@hostname:port. It can be HTTP or HTTPS.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `proxy`
+          </td>
+
+          <td>
+            `NRIA_PROXY`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td>
+            Empty
+          </td>
+
+          <td>
+            [1.0.308](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10308)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Example:
+
+    ```
+    https://proxy_user:access_10@proxy_01:1080
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ignore-system-proxy"
+    title="ignore_system_proxy"
+  >
+    When set to `true`, the `HTTPS_PROXY` and `HTTP_PROXY` environment variables are ignored. This is useful when the agent needs to connect directly to the metrics collector and skip the existing system proxy.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ignore_system_proxy`
+          </td>
+
+          <td>
+            `NRIA_IGNORE_SYSTEM_PROXY`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.0.1002](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-101002)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ca-bundle-dir"
+    title="ca_bundle_dir"
+  >
+    If the `HTTPS_PROXY` option references to a proxy with self-signed certificates, this option specifies the path to the the directory where the proxy certificate is available. The certificates in the directory must end with the `.pem` extension.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ca_bundle_dir`
+          </td>
+
+          <td>
+            `NRIA_CA_BUNDLE_DIR`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td>
+            [1.0.296](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10296)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ca-bundle-file"
+    title="ca_bundle_file"
+  >
+    If the `HTTPS_PROXY` option references to a proxy with self-signed certificates, this option specifies the path to the certificate file.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ca_bundle_file`
+          </td>
+
+          <td>
+            `NRIA_CA_BUNDLE_FILE`
+          </td>
+
+          <td>
+            string
+          </td>
+
+          <td/>
+
+          <td>
+            [1.0.296](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10296)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="proxy-validate-certificates"
+    title="proxy_validate_certificates"
+  >
+    If set to `true`, when the proxy is configured to use an HTTPS connection, it will only work:
+
+    * If the HTTPS proxy has certificates from a valid Certificate Authority.
+    * If the `ca_bundle_file` or `ca_bundle_dir` configuration properties contain the HTTPS proxy certificates.
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              YML option name
+            </th>
+
+            <th style={{ width: "200px" }}>
+              Environment variable
+            </th>
+
+            <th>
+              Type
+            </th>
+
+            <th>
+              Default
+            </th>
+
+            <th>
+              Version
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `proxy_validate_certificates`
+            </td>
+
+            <td>
+              `NRIA_PROXY_VALIDATE_CERTIFICATES`
+            </td>
+
+            <td>
+              boolean
+            </td>
+
+            <td>
+              `false`
+            </td>
+
+            <td>
+              1.3.0
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="proxy-config-plugin"
+    title="proxy_config_plugin"
+  >
+    Sends the following proxy configuration information as inventory:
+
+    * `HTTPS_PROXY`
+    * `HTTP_PROXY`
+    * `proxy ca_bundle_dir`
+    * `ca_bundle_file`
+    * `ignore_system_proxy`
+    * `proxy_validate_certificates`
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              YML option name
+            </th>
+
+            <th style={{ width: "200px" }}>
+              Environment variable
+            </th>
+
+            <th>
+              Type
+            </th>
+
+            <th>
+              Default
+            </th>
+
+            <th>
+              Version
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `proxy_config_plugin`
+            </td>
+
+            <td>
+              `NRIA_PROXY_CONFIG_PLUGIN`
+            </td>
+
+            <td>
+              boolean
+            </td>
+
+            <td>
+              `true`
+            </td>
+
+            <td>
+              1.3.0
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+</CollapserGroup>
+
+If you are having problems with proxy configuration, see [Proxy troubleshooting](/docs/infrastructure/new-relic-infrastructure/troubleshooting/https-proxy-configuration-missing).
+
+## Samples variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="metrics-network-sample-rate"
+    title="metrics_network_sample_rate"
+  >
+    Sample rate of network samples, in seconds. Minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `metrics_network_sample_rate`
+          </td>
+
+          <td>
+            `NRIA_METRICS_NETWORK_SAMPLE_RATE`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `10`
+          </td>
+
+          <td>
+            [1.0.308](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10308)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="metrics-process-sample-rate"
+    title="metrics_process_sample_rate"
+  >
+    Sample rate of process samples, in seconds. Minimum value is `20`. To disable process samples entirely, set `metrics_process_sample_rate` to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `metrics_process_sample_rate`
+          </td>
+
+          <td>
+            `NRIA_METRICS_PROCESS_SAMPLE_RATE`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `20`
+          </td>
+
+          <td>
+            [1.0.308](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10308)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="metrics-storage-sample-rate"
+    title="metrics_storage_sample_rate"
+  >
+    Sample rate of storage samples, in seconds. Minimum value is `5`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `metrics_storage_sample_rate`
+          </td>
+
+          <td>
+            `NRIA_METRICS_STORAGE_SAMPLE_RATE`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `20`
+          </td>
+
+          <td>
+            [1.0.308](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10308)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="metrics-system-sample-rate"
+    title="metrics_system_sample_rate"
+  >
+    Sample rate of system samples, in seconds. Minimum value is `5`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `metrics_system_sample_rate`
+          </td>
+
+          <td>
+            `NRIA_METRICS_SYSTEM_SAMPLE_RATE`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `5`
+          </td>
+
+          <td>
+            [1.0.308](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10308)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="metrics-nfs-sample-rate"
+    title="metrics_nfs_sample_rate"
+  >
+    Sample rate of NFS storage samples, in seconds. Minimum value is `5`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `metrics_nfs_sample_rate`
+          </td>
+
+          <td>
+            `NRIA_METRICS_NFS_SAMPLE_RATE`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `20`
+          </td>
+
+          <td>
+            [1.5.40](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1540)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="detailed-nfs"
+    title="detailed_nfs"
+  >
+    Detailed NFS metrics. When enabled, the agent will provide a complete list of NFS metrics.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `detailed_nfs`
+          </td>
+
+          <td>
+            `NRIA_DETAILED_NFS`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.5.40](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1540)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  ## NTP Offset variables
+
+  `ntp_metrics` is a key-value map used to configure the time offset metric. When enabled and an NTP Hosts list is provided,
+  the agent will provide the host's `ntp offset` metric (in seconds). This value is checked against the provided NTP
+  hosts pool every `interval` minutes (the default and the minumum value is 15 minutes). Between intervals, the last known offset is reported.
+  If the reported offset is greater than few seconds it can cause issues with alert conditions, NRQL queries and data gaps in dashboards.
+
+  Example as a YAML attribute:
+
+  ```yml
+  ntp_metrics:
+    enabled: true
+    pool:
+      - time.cloudflare.com
+      - time.google.com
+    interval: 15
+    timeout: 10
+  ```
+
+  Example as an environment variable:
+
+  ```ini
+  NRIA_NTP_METRICS_POOL='time.cloudflare.com,time.google.com'
+  NRIA_NTP_METRICS_ENABLED='true'
+  NRIA_NTP_METRICS_INTERVAL='15'
+  NRIA_NTP_METRICS_TIMEOUT='10'
+  ```
+
+  <Collapser
+    className="freq-link"
+    id="ntp-enabled"
+    title="ntp_metrics.enabled"
+  >
+    Flag to enable/disable the NTP Offset metric.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `enabled`
+          </td>
+
+          <td>
+            `NRIA_NTP_METRICS_ENABLED`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.33.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1330)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ntp-pool"
+    title="ntp_metrics.pool"
+  >
+    Defines list of NTP Hosts to query. When multiple hosts are defined, all of them will be queried and the reported
+    metrics will be the average value between them.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `pool`
+          </td>
+
+          <td>
+            `NRIA_NTP_METRICS_POOL`
+          </td>
+
+          <td>
+            \[]string
+          </td>
+
+          <td>
+            Empty. Check out the [public NTP servers](https://timetoolsltd.com/information/public-ntp-server/).
+          </td>
+
+          <td>
+            [1.33.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1330)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ntp-interval"
+    title="ntp_metrics.interval"
+  >
+    Defines the interval in minutes to request NTP Offset from the provided pool.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `interval`
+          </td>
+
+          <td>
+            `NRIA_NTP_METRICS_INTERVAL`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `15`
+          </td>
+
+          <td>
+            [1.33.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1330)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ntp-timeout"
+    title="ntp_metrics.timeout"
+  >
+    Defines the timeout in seconds for the requests made to the NTP hosts.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `timeout`
+          </td>
+
+          <td>
+            `NRIA_NTP_METRICS_TIMEOUT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `10`
+          </td>
+
+          <td>
+            [1.33.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1330)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Security variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="selinux-enable-semodule"
+    title="selinux_enable_semodule"
+  >
+    Get versions of policy modules installed using SEModule. If disabled, the SELinux plugin will only retrieve the status using SEStatus.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `selinux_enable_semodule`
+          </td>
+
+          <td>
+            `NRIA_SELINUX_ENABLE_SEMODULE`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `true`
+          </td>
+
+          <td>
+            1.0.864
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="strip-command-line"
+    title="strip_command_line"
+  >
+    When `true`, the agent removes the command arguments from the `commandLine` attribute of the `ProcessSample`.
+
+    <Callout variant="tip">
+      This is a security measure to prevent leaking sensitive information.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `strip_command_line`
+          </td>
+
+          <td>
+            `NRIA_STRIP_COMMAND_LINE`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `true`
+          </td>
+
+          <td>
+            1.0.149
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Status endpoint variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="status-server-enabled"
+    title="status_server_enabled"
+  >
+    Enables the status server on the agent providing local health information.
+    The available endpoints are:
+
+    Main status endpoint example (with no errors):
+
+    ```bash
+    curl http://localhost:8003/v1/status
+    [output] {
+    [output]   "checks": {
+    [output]     "endpoints": [
+    [output]       {
+    [output]         "url": "https://infrastructure-command-api.newrelic.com/agent_commands/v1/commands",
+    [output]         "reachable": true
+    [output]       },
+    [output]       {
+    [output]         "url": "https://infra-api.newrelic.com/infra/v2/metrics",
+    [output]         "reachable": true
+    [output]       },
+    [output]       {
+    [output]         "url": "https://identity-api.newrelic.com/identity/v1",
+    [output]         "reachable": true
+    [output]       },
+    [output]       {
+    [output]         "url": "https://infra-api.newrelic.com/inventory",
+    [output]         "reachable": true
+    [output]       }
+    [output]     ]
+    [output]   },
+    [output]   "config": {
+    [output]     "reachability_timeout": "10s"
+    [output]   }
+    [output] }
+    ```
+
+    Main status endpoint (with errors):
+
+    ```bash
+    curl http://localhost:8003/v1/status
+    [output] {
+    [output]   "checks": {
+    [output]     "endpoints": [
+    [output]       {
+    [output]         "url": "https://staging-infra-api.newrelic.com/infra/v2/metrics",
+    [output]         "reachable": false,
+    [output]         "error": "endpoint check timeout exceeded"
+    [output]       },
+    [output]       {
+    [output]         "url": "https://infra-api.newrelic.com/infra/v2/metrics",
+    [output]         "reachable": true
+    [output]       },
+    [output]       {
+    [output]         "url": "https://identity-api.newrelic.com/identity/v1",
+    [output]         "reachable": true
+    [output]       },
+    [output]       {
+    [output]         "url": "https://infra-api.newrelic.com/inventory",
+    [output]         "reachable": true
+    [output]       }
+    [output]     ]
+    [output]   },
+    [output]   "config": {
+    [output]     "reachability_timeout": "10s"
+    [output]   }
+    [output] }
+    ```
+
+    Errors endpoint example:
+
+    ```bash
+    curl http://localhost:18003/v1/status/errors
+    [output] {
+    [output]   "checks": {
+    [output]     "endpoints": [
+    [output]       {
+    [output]         "url": "https://staging-infra-api.newrelic.com/infra/v2/metrics",
+    [output]         "reachable": false,
+    [output]         "error": "endpoint check timeout exceeded"
+    [output]       }
+    [output]     ]
+    [output]   },
+    [output]   "config": {
+    [output]     "reachability_timeout": "10s"
+    [output]   }
+    [output] }
+    ```
+
+    This is similar to the main status endpoint but filtering those with errors only.
+
+    Entity endpoint example:
+
+    ```bash
+    curl http://localhost:8003/v1/status/entity
+    [output] {
+    [output]   "guid":"MMMMNjI0NjR8SU5GUkF8TkF8ODIwMDg3MDc0ODE0MTUwNTMy",
+    [output]   "key":"your-host-name"
+    [output] }
+    ```
+
+    Returns information about the agent/host entity. A response status code _204_ ("No Content") will be returned when the agent still has no information
+    about the agent/host entity. Therefore, it may take several requests to until the agent provides entity data.
+
+    <Callout variant="important">
+      This setting is enabled by default when you use the guided install. It helps confirm that the agent installation was successful.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `status_server_enabled`
+          </td>
+
+          <td>
+            `NRIA_STATUS_SERVER_ENABLED`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            1.19.0
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="status-server-port"
+    title="status_server_port"
+  >
+    Defines the port for the status server endpoint.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `status_server_port`
+          </td>
+
+          <td>
+            `NRIA_STATUS_SERVER_PORT`
+          </td>
+
+          <td>
+            integer
+          </td>
+
+          <td>
+            `8003`
+          </td>
+
+          <td>
+            1.19.0
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Windows variables
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="windows-services-refresh-sec"
+    title="windows_services_refresh_sec"
+  >
+    Sampling period for the Windows services plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `windows_services_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_WINDOWS_SERVICES_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `30`
+          </td>
+
+          <td>
+            [1.0.755](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10775)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="windows-updates-refresh-sec"
+    title="windows_updates_refresh_sec"
+  >
+    Sampling period for the Windows updates plugin, in seconds. The minimum value is `10`. To disable it, set it to `-1`.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `windows_updates_refresh_sec`
+          </td>
+
+          <td>
+            `NRIA_WINDOWS_UPDATES_REFRESH_SEC`
+          </td>
+
+          <td>
+            int64
+          </td>
+
+          <td>
+            `60`
+          </td>
+
+          <td>
+            [1.0.755](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10775)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="app-data-dir"
+    title="app_data_dir"
+  >
+    Defines the path to store data in a different path than the program files directory:
+
+    * `%AppDir%/data`: Used for storing the delta data
+    * `%AppDir%/user_data`: External directory for user-generated JSON files
+    * `%AppDir%/newrelic-infra.log`: If log file config option is not defined, then we use this directory path as default.
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              YML option name
+            </th>
+
+            <th style={{ width: "200px" }}>
+              Environment variable
+            </th>
+
+            <th>
+              Type
+            </th>
+
+            <th>
+              Default
+            </th>
+
+            <th>
+              Version
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `app_data_dir`
+            </td>
+
+            <td>
+              `NRIA_APP_DATA_DIR`
+            </td>
+
+            <td>
+              string
+            </td>
+
+            <td>
+              Windows: `env(ProgramData)\New Relic\newrelic-infra`
+
+              Linux: Not applicable
+            </td>
+
+            <td>
+              [1.0.755](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-10775)
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="enable-win-update-plugin"
+    title="enable_win_update_plugin"
+  >
+    Enables the Windows updates plugin, which retrieves the lists of hotfixes that are installed on the host.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `enable_win_update_plugin`
+          </td>
+
+          <td>
+            `NRIA_ENABLE_WIN_UPDATE_PLUGIN`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            1.0.274
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="legacy-storage-sampler"
+    title="legacy_storage_sampler"
+  >
+    If `true`, the agent will be forced to use Windows WMI (the agent's legacy method to grab metrics for Windows; for example, `StorageSampler`) and will disable the new method (which uses the PDH library).
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `legacy_storage_sampler`
+          </td>
+
+          <td>
+            `NRIA_LEGACY_STORAGE_SAMPLER`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td/>
+
+          <td>
+            [1.0.1051](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-101051)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="win-process-priority-class"
+    title="win_process_priority_class"
+  >
+    This configuration option allows to increase the `newrelic-infra.exe` process priority to any of the following values:
+
+    * `Normal`
+    * `Idle`
+    * `High`
+    * `RealTime`
+    * `BelowNormal`
+    * `AboveNormal`
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              YML option name
+            </th>
+
+            <th style={{ width: "200px" }}>
+              Environment variable
+            </th>
+
+            <th>
+              Type
+            </th>
+
+            <th>
+              Default
+            </th>
+
+            <th>
+              Version
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `win_process_priority_class`
+            </td>
+
+            <td>
+              `NRIA_WIN_PROCESS_PRIORITY_CLASS`
+            </td>
+
+            <td>
+              string
+            </td>
+
+            <td/>
+
+            <td>
+              1.0.989
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      Example:
+
+      ```
+      Normal
+      ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="win-removable-drives"
+    title="win_removable_drives"
+  >
+    Enables the Windows agent to report drives `A:` and `B:` when they are mapped as removable drives.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `win_removable_drives`
+          </td>
+
+          <td>
+            `NRIA_WIN_REMOVABLE_DRIVES`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `true`
+          </td>
+
+          <td>
+            [1.3.1](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-131)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="wmi_proc_data"
+    title="wmi_proc_data"
+  >
+    If you set it to true, you'll get process information from WMI and you'll skip the query access check on a restricted environment.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Default
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `enable_wmi_proc_data`
+          </td>
+
+          <td>
+            `NRIA_ENABLE_WMI_PROC_DATA`
+          </td>
+
+          <td>
+            boolean
+          </td>
+
+          <td>
+            `false`
+          </td>
+
+          <td>
+            [1.3.1](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1420)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## HTTP Client
+
+Configure the HTTP client used for backend communication.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="http-headers"
+    title="http_headers"
+  >
+    Custom HTTP headers to include in all requests to the New Relic backend.
+
+    ```yml
+    http:
+      headers:
+        "Proxy-Authorization": "myToken"
+    ```
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            YML option name
+          </th>
+
+          <th style={{ width: "200px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Type
+          </th>
+
+          <th>
+            Version
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `headers`
+          </td>
+
+          <td>
+            `NRIA_HTTP_HEADERS`
+          </td>
+
+          <td>
+            key-value map
+          </td>
+
+          <td>
+            [1.41.0](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## What's next?
+
+You can also:
+
+* Further understand [the configuration of the agent](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent).
+* Create a [configuration file using our template](https://github.com/newrelic/infrastructure-agent/blob/master/assets/examples/infrastructure/newrelic-infra-template.yml.example).
+* See how you can [manage the agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status).
