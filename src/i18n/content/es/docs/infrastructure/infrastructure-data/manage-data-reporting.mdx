@@ -1,0 +1,24 @@
+---
+title: Gestionar informes de datos de infraestructura
+tags:
+  - Infrastructure
+  - Manage your data
+  - Data and instrumentation
+metaDescription: How to manage data ingest and reporting of the New Relic infrastructure agent and our infrastructure integrations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si utiliza el agente de infraestructura o [integración en el host](/docs/integrations/host-integrations/get-started/introduction-host-integrations) que reporta datos a través del agente de infraestructura, existen varias formas de configurar informes de datos. Aquí hay dos opciones comunes para administrar los informes de datos:
+
+* [Activar/desactivar proceso métrica](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings#enable-process-metrics)
+* [Seleccione atributo específico para reportar](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings#include-matching-metrics)
+
+Para otras opciones de configuración del agente, consulte [configuración](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings).
+
+Para nuestra infraestructura integración, también puedes cambiar la frecuencia de los informes de datos:
+
+* Para [integración en el host](/docs/infrastructure/host-integrations/host-integrations-list): use la [configuración](/docs/integrations/integrations-sdk/file-specifications/host-integration-configuration-overview) `interval` de una integración específica.
+* Para integración en la nube (AWS, Azure, Google Cloud): edite la [frecuencia de sondeo](/docs/integrations/new-relic-integrations/cloud-integrations/configure-polling-frequency-data-collection-cloud-integrations).
+
+Para obtener más información sobre la gestión de datos de New Relic en general, consulte [Administrar datos](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-your-data).
