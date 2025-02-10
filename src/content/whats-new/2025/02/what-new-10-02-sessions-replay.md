@@ -19,4 +19,4 @@ With this update, users can now:
 - **Precision Control:** Users with the **Modify** role can access **Session Replay** settings directly within the **Application Settings** page. They can fine-tune the sampling rates, mask sensitive text, and block site content, optimizing performance and protecting sensitive data.
 - **Seamless Experience for Everyone:** Existing **Session Replay View/Read** users will continue to enjoy an uninterrupted experience viewing session listings. The settings will be hidden from them, ensuring a clean, focused workflow. If a Read user was previously responsible for updating settings, they will need to contact an admin to be moved into the **Session Replay Modify** role.
 
-This update empowers teams to manage **Session Replay** settings with greater precision and security, aligning with their operational and compliance needs. By providing these enhancements, we aim to improve your workflow efficiency.
+This update empower teams to manage **Session Replay** settings with greater precision and security, aligning with their operational and compliance needs. By providing these enhancements, we aim to improve your workflow efficiency.
