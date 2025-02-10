@@ -1,0 +1,139 @@
+---
+title: AWS Logs in Context
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Configure logs in context
+metaDescription: New Relic logs in context displays your logs in assorted New Relic experiences, helping you more easily correlate and troubleshoot issues.
+redirects:
+freshnessValidatedDate: never
+---
+
+<Callout variant="caution">
+  TODO: Replace images below with an entity with appropriate naming, and with unfolded menus.
+</Callout>
+
+The AWS Logs in Context feature allows you to correlate logs to the AWS resource that emitted them,  represented as an [entity](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) in New Relic. AWS logs get automatically enriched with attributes that allow you to navigate from each individual log in the Logs UI to the corresponding entity that emitted them, and vice versa. Moreover, if the entity associated with a given log doesn't exist yet, it gets automatically created even if you are not collecting metrics for that entity.
+
+To better understand how AWS Logs in Context works, let's imagine we want to troubleshoot a MySQL instance deployed in RDS. The first thing we'd do is to search for that entity through the Entity Explorer:
+
+**IMAGE FROM ENTITY EXPLORER WITH RDS INSTANCE**
+
+In the summary page of the RDS instance, we select the time range we want to investigate. Let's image we observe a latency peak:
+
+**IMAGE FROM SUMMARY PAGE OF RDS INSTANCE WITH LATENCY PEAK**
+
+One possible action to take is to observe the [database slow query logs](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.MySQL.LogFileSize.html#USER_LogAccess.MySQL.Generallog) emitted by the DB for that same period.
+
+Without AWS Logs in Context, we would need to navigate out of the entity view and into the Logs UI, select the time window again and manually search for the logs emitted by that RDS instance by querying the `logGroup`/`logStream` columns. This is a disruptive experience.
+
+With AWS Logs in Context, though, we can simply click on the "View logs" button in the left sidebar to observe the logs emitted by that RDS instance for the same time window, without leaving the entity view.
+
+**IMAGE FROM ENTITY VIEW WITH "VIEW LOGS" BUTTON**
+
+AWS Logs in Context also allows you to follow the opposite path. Imagine you are in the Logs UI and you observe an unusual error log. If you click on the log, the log detailed view shows you the entity that emitted that log and provides you a link to quickly navigate to that entity view.
+
+**IMAGE FROM LOG FROM RDS INSTANCE, including link to the entity**
+
+
+# Pre-requisites
+- Deploy our [AWS log forwarding integration](https://docs.newrelic.com/install/aws-logs/?service=aws_services) to the AWS region where your AWS resources are located. You need this [newer integration](https://docs.newrelic.com/install/aws-logs/?service=aws_services) ([release notes](https://docs.newrelic.com/docs/release-notes/logs-release-notes/logs-24-12-18/)) for AWS Logs in Context to work, since it includes some contextual meta-attributes in the logs they ship that allow our backend to properly correlate it with the emitting AWS resource.
+- Please note that you **need to deploy the integration to each AWS region where you have resources emitting logs**.
+- Depending on the log shipping mechanism supported by each AWS resource (CloudWatch or S3), you'll need to create a subscription filter in CloudWatch or a bucket event notification in S3 (or simply "triggers") to forward the logs to New Relic. The onboarding wizard described [here](https://docs.newrelic.com/install/aws-logs/?service=aws_services) allows you to create such triggers when installing the integration. If you want to add new ones after installing it, please refer to the following AWS documentation:
+  - [Configuring CloudWatch log group-level subscription filters](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/SubscriptionFilters.html) details how to create it using the AWS CLI, although you can easily create them using the AWS Console by navigating to `CloudWatch > Logs > Log groups > Your log group > Create`.
+  - [Configuring S3 event notifications](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-event-notifications.html#enable-event-notifications-sns-sqs-lam)
+
+# Configuring Logs in Context for supported AWS services
+
+The AWS Logs in Context feature works out-of-the-box for most AWS services. However, for some services, you will need to do some adaptations to your AWS resource configuration. The following table summarizes whether any configuration customization is required for each supported AWS resource type:
+
+<Callout variant="caution">
+  The AWS Logs in Context feature will **only** work when using the default CloudWatch log group name or S3 object keys set up by each AWS service. Despite some services allow customizing these values (for example, [Lambda](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-advanced.html#:~:text=To%20configure%20your%20function%20to%20send%20logs%20to%20an%20existing%20log%20group%2C%20or%20to%20create%20a%20new%20log%20group%20for%20your%20function%2C%20you%20can%20use%20the%20Lambda%20console%20or%20the%20AWS%20CLI.%20You%20can%20also%20configure%20custom%20log%20groups), doing so will result in logs not correctly being attached to an entity, and potentially incorrect entities being created. Unless indicated by the "Customization required" column below, we strongly recommend using the default configuration values.
+</Callout>
+
+| AWS Resource                          | Log type                            | Log shipping mechanism     | How to configure                                                                                                                                                                                                | Customization required                       |
+|---------------------------------------|-------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
+| Application Load Balancer (ALB)       | Access logs                         | S3                         | Follow this [AWS documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-access-logging.html)                                                                                 | -                                            |
+| Application Load Balancer (ALB)       | Connection logs                     | S3                         | Follow this [AWS documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/enable-connection-logging.html)                                                                             | -                                            |
+| Classic Load Balancer (ELB)           | Access logs                         | S3                         | Follow this [AWS documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/enable-access-logs.html)                                                                                        | -                                            |
+| CloudFront Distribution               | Access logs                         | S3 (legacy)                | [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logging-legacy-s3.html)                                                                                         | [YES](#cloudfront-access-logs-customization) |
+| CloudFront Distribution               | Web Application Firewall (WAF) Logs | CloudWatch                 |                                                                                                                                                                                                                 | [YES](#cloudfront-waf-logs-customization)    |
+| EC2 Instance (from Elastic Beanstalk) | Streamed logs                       | CloudWatch                 | Enable "Log streaming" during ElasticBeanstalk environment creation. Related [AWS documentation](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/using-features.logging.html#health-logs-cloudwatchlogs) | -                                            |
+| EC2 Instance (from Elastic Beanstalk) | Rotated logs                        | S3                         | Enable "Rotate logs" during ElasticBeanstalk environment creation. Related [AWS documentation](https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/using-features.logging.html#health-logs-s3location)       | -                                            |
+| Lambda Function                       | Function logs                       | CloudWatch                 | Enabled by default. Related [AWS documentation](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs.html)                                                                                    | -                                            |
+| Lambda Function                       | Function logs                       | newrelic-lambda-extension  | **NEED A LINK FOR THIS**                                                                                                                                                                                        | -                                            |
+| Network Load Balancer (NLB)           | Access logs                         | S3                         | Follow this [AWS documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/enable-access-logs.html)                                                                                        | -                                            |
+| RDS Database Instance                 | Instance logs                       | CloudWatch                 | Enabled by default. Related [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html)                                                                                     | -                                            |
+| S3 Bucket                             | Server Access logs                  | S3                         | Follow this [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html)                                                                                                          | [YES](#s3-server-access-logs-customization)  |
+| SQS Queue                             | Management and Data events          | CloudTrail + CloudWatch/S3 | Follow this [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/logging-using-cloudtrail.html)                                                                       | -                                            |
+
+## Required configuration customizations
+
+<CollapserGroup>
+  <Collapser
+    id="cloudfront-access-logs-customization"
+    title="CloudFront Distribution Access Logs"
+  >
+    When you configure your CloudFront standard logging destination, you must select the type "Amazon S3 (Legacy)" in the "Deliver to" option and set the log prefix option to `CLOUDFRONT_LOGS`:
+
+    <img
+      title="CloudFront standard logging configuration using S3 (Legacy)"
+      alt="Screenshot of the CloudFront logging configuration, which highlights the 'Deliver to' option set to 'Amazon S3 (Legacy)' and the 'Log prefix' option set to 'CLOUDFRONT_LOGS'"
+      src="/images/logs_screenshot-aws_lic_cloudfront_s3_legacy_config.webp"
+    />
+    <figcaption>
+      With our automatic APM logs in context, you can drill down into your logs, traces, and errors, all from the APM <DNT>**Summary**</DNT> page.
+    </figcaption>
+  </Collapser>
+  <Collapser
+    id="cloudfront-waf-logs-customization"
+    title="CloudFront WAF Logs"
+  >
+    CloudFront allows the collection of Web Application Firewall (WAF) logs via CloudWatch. However, no matter what AWS region your CloudFront Distribution is deployed into, its WAF logs can only be collected in the `us-east-1` (N. Virginia) region in a CloudWatch log group named `aws-waf-logs-CloudFrontDistribution-YOUR_DISTRIBUTION_NAME`. In order to ship these logs you will need to also deploy our [AWS log forwarding integration](https://docs.newrelic.com/install/aws-logs/?service=aws_services) in that region and create a corresponding subscription filter from that log group.
+  </Collapser>
+  <Collapser
+    id="s3-server-access-logs-customization"
+    title="S3 Server Access Logs"
+  >
+    When you configure your S3 Server Access logging configuration, you must set the "Destination" field so that the "Destination prefix" field becomes `S3_ACCESS_LOGS/` (with final forward slash), and select the [date-based partitioned log object key format](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html#server-log-keyname-format), as in the following screenshot:
+
+    <img
+      title="S3 server access logging configuration"
+      alt="Screenshot of the S3 server access logging configuration, which highlights the 'Destination' field set to 'S3_ACCESS_LOGS/' and the 'Log object key format' set to 'Date-based partitioned log object key format'"
+      src="/images/logs_screenshot-aws_lic_s3_access_logging_config.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+# Extra attributes added by the AWS Logs in Context feature
+
+The AWS Logs in Context feature automatically adds some attributes to your logs that are required to correlate your logs with the entities created in New Relic. These attributes vary depending on the AWS service that generated the logs. The following table summarizes the attributes that are added to the logs for each supported AWS service:
+
+| Attribute name                  | AWS resource type                     | Description                                                                                                                                                                                                                                             |
+|---------------------------------|---------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `aws.Arn`                       | **All**                               | The Amazon Resource Name (ARN) of the AWS resource.                                                                                                                                                                                                     |
+| `entity.guid`                   | **All**                               | The unique identifier of the emitting entity.                                                                                                                                                                                                           |
+| `entity.name`                   | **All**                               | The name of the emitting entity, as displayed in the Entity Explorer or Catalog views.                                                                                                                                                                  |
+| `entity.type`                   | **All**                               | The entity type, as described in our [entity definitions](https://github.com/newrelic/entity-definitions), such as `AWSALB`, `AWSS3BUCKET`, etc.                                                                                                        |
+| `entityId`                      | **All (optional)**                    | Only added if you collect logs together with metrics using the [AWS API Polling integration](/docs/infrastructure/amazon-integrations/connect/set-up-aws-api-polling/). It allows us to correlate your log with the entity created by this integration. |
+| `aws.alb.loadBalancer`          | Application Load Balancer (ALB)       | The name of the Application Load Balancer.                                                                                                                                                                                                              |
+| `aws.cloudfront.DistributionId` | Cloudfront Distribution               | The identifier of the Cloudfront distribution.                                                                                                                                                                                                          |
+| `aws.ec2.InstanceId`            | EC2 Instance (from Elastic Beanstalk) | The identifier of the EC2 instance.                                                                                                                                                                                                                     |
+| `aws.elb.loadBalancer`          | Classic Load Balancer (ELB)           | The name of the Classic Load Balancer.                                                                                                                                                                                                                  |
+| `aws.lambda.FunctionName`       | Lambda Function                       | The name of the Lambda function.                                                                                                                                                                                                                        |
+| `aws.nlb.loadBalancer`          | Network Load Balancer (NLB)           | The name of the Network Load Balancer.                                                                                                                                                                                                                  |
+| `aws.rds.DBInstanceIdentifier`  | RDS Database Instance                 | The identifier (name) of the RDS database instance.                                                                                                                                                                                                     |
+| `aws.s3.BucketName`             | S3 Bucket                             | The name of the S3 bucket.                                                                                                                                                                                                                              |
+| `aws.sqs.QueueName`             | SQS Queue                             | The name of the SQS queue.                                                                                                                                                                                                                              |
+| `aws.sqs.queueUrl`              | SQS Queue                             | The URL of the SQS queue.                                                                                                                                                                                                                               |
+
+<InstallFeedback/>
+
+## What's next? [#what-next]
+
+After you set up AWS Logs in Context for your AWS resources, make the most of your logging data in the New Relic UI:
+
+* Explore the logging data across your platform with our [Logs UI](/docs/logs/log-management/ui-data/use-logs-ui).
+* Search the entity associated with your AWS resource through the [entity explorer](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/#find) and quickly navigate to its logs by selecting its "Logs" tab.
+* Set up [alerts](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+* [Query your data](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) and [create dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).
