@@ -2,7 +2,7 @@
 title: 'Update to New Relic Synthetics IP ranges'
 summary: 'Updating Synthetics IP ranges.'
 publishDate: '2025-02-11'
-eolEffectiveDate: '2025-04-10'
+eolEffectiveDate: '2025-04-14'
 ---
 
 In order to ensure the best service to our customers, New Relic will change the IP ranges for New Relic Synthetics checks **effective April 14, 2025.**
