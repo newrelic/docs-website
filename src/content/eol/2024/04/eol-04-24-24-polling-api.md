@@ -2,10 +2,10 @@
 title: "End of life for Azure SQL database integration polling API"
 summary: "Azure is deprecating the SDK the polling API uses and will no longer be providing critical updates to this API, creating security concerns moving forward."
 publishDate: '2024-04-22'
-eolEffectiveDate: '2024-12-01'
+eolEffectiveDate: '2025-07-31'
 ---
 
-On December 1, 2024, New Relic will end support for the Azure SQL database integration polling API, because Azure is deprecating the SDK that the polling API uses. You don't need to take action unless you capture data with the polling API and you're using the Azure SQL Database integration.  
+On July 31, 2025, New Relic will end support for the Azure SQL database integration polling API, because Azure is deprecating the SDK that the polling API uses. You don't need to take action unless you capture data with the polling API and you're using the Azure SQL Database integration.  
 
 ## What you need to do
 
