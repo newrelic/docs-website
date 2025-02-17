@@ -1,0 +1,616 @@
+---
+title: "NerdGraph tutorial: View and manage Scorecards"
+tags:
+  - Scorecards
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: How to use New Relic NerdGraph API to create and update Scorecards and rules.
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+    We're still working on this feature, but we'd love for you to try it out!
+
+    This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+New Relic lets you to use NerdGraph [Scorecards](/docs/service-architecture-intelligence/scorecards/getting-started) GraphQL mutations to manage Scorecards and rules. These mutations let you create, update, delete, and retrieve Scorecards and their associated rules in your existing workflows and integrations.
+
+This tutorial provides examples of how to use NerdGraph to manage Scorecards and rules. You can use these examples to automate Scorecard management tasks, such as creating Scorecards, adding rules, and updating Scorecard details.
+
+## Mutations [#mutations]
+
+New Relic provides various NerdGraph mutations to create and manage Scorecards and related rules.
+
+<CollapserGroup>
+  <Collapser 
+    id="create-scorecard"
+    title="Create a Scorecard">
+    
+    You can create your own Scorecard using the `entityManagementCreateScorecard` mutation.
+
+    #### Input parameters
+
+    <table>
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Data Type</th>
+          <th>Is it Required?</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>`name`</td>
+          <td>String</td>
+          <td>Yes</td>
+          <td>The name of the Scorecard.</td>
+        </tr>
+        <tr>
+          <td>`description`</td>
+          <td>String</td>
+          <td>No</td>
+          <td>A brief description of the Scorecard.</td>
+        </tr>
+        <tr>
+          <td>`accountId`</td>
+          <td>String</td>
+          <td>Yes</td>
+          <td>The account where the entity will be stored.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Sample request
+
+```graphql
+  mutation CreateScorecard($description: String, $name: String!, $id: ID!) {
+    entityManagementCreateScorecard(
+      scorecardEntity: {description: $description, name: $name, scope: {id: $id, type: ACCOUNT}}
+    ) {
+      entity {
+        description
+        id
+        rules {
+          id // COLLECTION ID
+        }
+        name
+      }
+    }
+  }
+  // PARAMETERS
+  {
+    "description": "Test test Best Practices",
+    "name": "Test Engineering Best Practices",
+    "id": 1
+  }
+```
+  </Collapser>
+
+  <Collapser 
+    id="create-rule"
+    title="Create a rule">
+
+You can create a new rule for a Scorecard using the `entityManagementCreateScorecardRule` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`name`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The name of the rule.</td>
+    </tr>
+    <tr>
+      <td>`description`</td>
+      <td>String</td>
+      <td>No</td>
+      <td>A brief description of the rule.</td>
+    </tr>
+    <tr>
+      <td>`query`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>A NRQL query to evaluate compliance.</td>
+    </tr>
+    <tr>
+      <td>`accounts`</td>
+      <td>Int</td>
+      <td>Yes</td>
+      <td>List of account IDs where the rule should execute the query.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  mutation CreateRule($name: String!, $description: String, $query: String!, $accounts: [Int!]!) {
+    entityManagementCreateScorecardRule(
+      scorecardRuleEntity: {
+        name: $name,
+        description: $description
+        enabled: true,
+        nrqlEngine: {
+          accounts: $accounts,
+          query: $query
+        },
+        scope: {id: 1, type: ACCOUNT}}
+    ) {
+      entity {
+        id // RULE Id
+      }
+    }
+  }
+  ```
+  </Collapser>
+  <Collapser 
+    id="add-rule"
+    title="Create a rule">
+
+You can create a new rule for a Scorecard using the `entityManagementCreateScorecardRule` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`name`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The name of the rule.</td>
+    </tr>
+    <tr>
+      <td>`description`</td>
+      <td>String</td>
+      <td>No</td>
+      <td>A brief description of the rule.</td>
+    </tr>
+    <tr>
+      <td>`query`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>A NRQL query to evaluate compliance.</td>
+    </tr>
+    <tr>
+      <td>`accounts`</td>
+      <td>Int</td>
+      <td>Yes</td>
+      <td>List of account IDs where the rule should execute the query.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  mutation CreateRule($name: String!, $description: String, $query: String!, $accounts: [Int!]!) {
+    entityManagementCreateScorecardRule(
+      scorecardRuleEntity: {
+        name: $name,
+        description: $description
+        enabled: true,
+        nrqlEngine: {
+          accounts: $accounts,
+          query: $query
+        },
+        scope: {id: 1, type: ACCOUNT}}
+    ) {
+      entity {
+        id // RULE Id
+      }
+    }
+  }
+
+  // PARAMETERS
+  {
+    "name": "APM Services Have Alerts Defined",
+    "description": "Check that APM services have alerts associated with them",
+    "query": "SELECT if(latest(alertSeverity) != 'NOT_CONFIGURED', 1, 0) as 'score' FROM Entity WHERE type = 'APM-APPLICATION' AND tags.nr.team IS NOT NULL AND tags.environment IS NOT NULL FACET id as 'entityGuid', tags.nr.team as 'team', tags.environment as 'environment' LIMIT MAX SINCE 1 day ago",
+    "accounts": [1]
+  }
+```
+
+  </Collapser>
+  <Collapser 
+    id="add-rule"
+    title="Add a rule to a Scorecard">
+
+You can associate a rule with a Scorecard using the `entityManagementAddCollectionMembers` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`collectionId`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The Scorecard's ID to add the rules.</td>
+    </tr>
+    <tr>
+      <td>`rules`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>List of rule IDs to be added to the Scorecard.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  mutation AddRuleToCollection($collectionId: ID!, $rules: [ID!]!) {
+    entityManagementAddCollectionMembers(
+      collectionId: $collectionId
+      ids: $rules
+    )
+  }
+  // PARAMETERS
+  {
+    "collectionId": "", // Collection ID is from the rule.id from scorecard entity
+    "rules": [] // Provide list of all rule ids which are generated during rule creation.
+  }
+```
+  
+  </Collapser>
+
+  <Collapser 
+    id="update-scorecard"
+    title="Update a Scorecard">
+
+You can update the details of an existing Scorecard using the `entityManagementUpdateScorecard` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`id`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The unique identifier of the Scorecard.</td>
+    </tr>
+    <tr>
+      <td>`description`</td>
+      <td>String</td>
+      <td>No</td>
+      <td>Updated description of the Scorecard.</td>
+    </tr>
+    <tr>
+      <td>`name`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>Updated name of the Scorecard.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+mutation UpdateScorecard($id: ID!, $description: String, $name: String!) {
+  entityManagementUpdateScorecard(
+    id: $id
+    scorecardEntity: {description: $description, name: $name}
+  ) {
+    entity {
+      name
+      id
+      rules {
+        id
+      }
+    }
+  }
+}
+```
+  </Collapser>
+  
+  <Collapser 
+    id="update-rule"
+    title="Update a rule">
+
+You can update a rule for the Scorecard using the `entityManagementUpdateScorecardRule` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`ruleId`</td>
+      <td>ID</td>
+      <td>Yes</td>
+      <td>The unique identifier of the rule.</td>
+    </tr>
+    <tr>
+      <td>`name`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The name of the rule.</td>
+    </tr>
+    <tr>
+      <td>`description`</td>
+      <td>String</td>
+      <td>No</td>
+      <td>A brief description of the rule.</td>
+    </tr>
+    <tr>
+      <td>`query`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>A NRQL query to evaluate compliance.</td>
+    </tr>
+    <tr>
+      <td>`queryAccounts`</td>
+      <td>Int</td>
+      <td>Yes</td>
+      <td>List of account IDs where the rule should execute the query.</td>
+    </tr>
+    <tr>
+      <td>`enabled`</td>
+      <td>Boolean</td>
+      <td>No</td>
+      <td>Enable or disable the rule.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  mutation UpdateRule($ruleId: ID!, $name: String!, $description: String, $query: String!, $queryAccounts: [Int!]!, $enabled: Boolean) {
+    entityManagementUpdateScorecardRule(
+      id: $ruleId
+      scorecardRuleEntity: {description: $description, name: $name, enabled: $enabled, nrqlEngine: {accounts: $queryAccounts, query: $query}}
+    ) {
+      entity {
+        id
+        name
+        description
+        nrqlEngine {
+          accounts
+          query
+        }
+      }
+    }
+  }
+```
+  </Collapser>
+  <Collapser 
+    id="delete-scorecard"
+    title="Delete a Scorecard or Rule">
+
+You can delete an existing Scorecard or rule using the `entityManagementDelete` mutation.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`id`</td>
+      <td>ID</td>
+      <td>Yes</td>
+      <td>The target Scorecard or rule ID to be deleted.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+mutation DeleteEntity($id: ID!) {
+  entityManagementDelete(
+    id: $id
+  ) {
+    id
+  }
+}
+```
+  </Collapser>
+</CollapserGroup>
+
+
+### NerdGraph queries for Scorecards
+
+<CollapserGroup>
+
+  <Collapser 
+    id="fetch-scorecards"
+    title="Get rules in a Scorecard">
+
+You can retrieve all rules associated with a specific Scorecard using the `FetchScorecardDetails` query.
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`scorecardId`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The Scorecard's ID to fetch the rules.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  query FetchScorecardDetails($scorecardId: ID!) {
+    actor {
+      entityManagement {
+        entity(id: $scorecardId) {
+          ... on EntityManagementScorecardEntity {
+            name
+            description
+            rules {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+```
+  </Collapser>
+  
+  <Collapser 
+    id="fetch-rule"
+    title="Retrieve Scorecard Details Associated with a Rule">
+
+You can retrieve the Scorecard details associated with a specific rule by first retrieving the collection ID that contains the rule using the `FindRuleOwnerCollections` query, and then retrieving the details of collection parents using the `FetchCollectionParent` query.
+
+### `FindRuleOwnerCollections` query
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`ruleId`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The unique identifier of the rule.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  query FindRuleOwnerCollections($ruleId: ID!) {
+    actor {
+      entityManagement {
+        relationships(filter: {targetId: {eq: $ruleId}, type: {eq: "HAS_MEMBER"}}) {
+          items {
+            source {
+              id
+              type
+            }
+            type
+          }
+        }
+      }
+    }
+  }
+```
+
+### `FetchCollectionParent` query
+
+You can retrieve the details of collection parents using the `FetchCollectionParent` query, which requires the collection ID obtained from the `FindRuleOwnerCollections` response.
+
+
+#### Input parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Data Type</th>
+      <th>Is it Required?</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`collectionId`</td>
+      <td>String</td>
+      <td>Yes</td>
+      <td>The ID obtained from the `FindRuleOwnerCollections` response.</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Sample request
+
+```graphql
+  query FetchRulesCollection($rulesId: ID!) {
+    actor {
+      entityManagement {
+        collectionElements(filter: {collectionId: {eq: $rulesId}}) {
+          items {
+            ... on EntityManagementScorecardRuleEntity {
+              id
+              name
+              nrqlEngine {
+                accounts
+                query
+              }
+            }
+          }
+          nextCursor
+        }
+      }
+    }
+  }
+```
+  </Collapser>
+</CollapserGroup>
