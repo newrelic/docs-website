@@ -1,0 +1,434 @@
+---
+title: Ads Overview
+metaDescription: 'The features associated with the New Relic Streaming Video & Ads, All Entity'
+redirects:
+freshnessValidatedDate: never
+---
+
+The **Single platforms > Ads Overview** page provides a broad view of ads performance of a specific application. This offers a comprehensive overview of ads performance metrics for a specific monitored applications. The ads overview page includes the following information:
+
+## View the Ad Overview page [#view-the-ad-overview-page]
+
+To view the ad overview page of the video agent of a specific application:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Streaming Video & Ads > Streaming Entities**</DNT>
+2. Select the application.
+3. Click <DNT>**Ads Overview**</DNT>.
+
+    <img
+      title="Streamng video & ads Ads Overview"
+      alt="A screenshot about using streaming video & ads"
+      src="/images/ads-overview.webp"
+    />
+
+## Using the filter functionality [#using-the-filter-functionality]
+
+By default, the **Ads Overview** page displays ad playback performance data across a specific entity applications on which the video agent has been instrumented. Using the filter bar, you may search for any attribute or value for example, you may filter the data by **Content Title, Device Id, User Id, Platform**, etc.
+
+    <img
+      title="Streaming video & ads Ads Overview"
+      alt="A screenshot about using streaming video & ads"
+      src="/images/additional-filter.webp"
+    />
+
+## View the golden metrics [#view-of-the-golden-metrics]
+
+Displays the ad playback metrics across a specific monitored streaming applications. These metrics can help you better assess the performance of ads across a specific applications and see how your ad performs according to **Ad Quality** and **Ad Engagement**. These include:
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Golden metrics
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Ad Rebuffering Ratio
+      </td>
+
+      <td>
+        Percentage of buffering / total play time
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Avg. Ad bitrate
+      </td>
+
+      <td>
+        Quality by bits played
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Avg. Ad start time
+      </td>
+
+      <td>
+        Indicates the time before the first frame is displayed to the user.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ad Start Failures
+      </td>
+
+      <td>
+        Count of ad play attempts that failed to start (excluding user-initiated terminations).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ad playback failures
+      </td>
+
+      <td>
+        Count of ad plays with errors during playback.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+    <img
+      title="Streamng video & ads"
+      alt="A screenshot about using streaming video & ads"
+      src="/images/ad-overview-golden-metrics.webp"
+    />
+
+## View the Ad quality metrics
+
+Use the **Ad quality** metrics to understand how your ad performs across the application. These include:
+
+<table>
+  <thead>
+    <tr>
+      <th width="50%">
+        Ad quality metrics
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Ad Attempts
+      </td>
+
+      <td>
+        Total number of Ad play attempts (triggered by user action or auto-play)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ad Completed
+      </td>
+
+      <td>
+        Number of successful play attempts where at least one frame was viewed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        First quartile
+      </td>
+
+      <td>
+        Users watching one fourth of the Ad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Second quartile
+      </td>
+
+      <td>
+        Users watching half of the Ad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Third quartile
+      </td>
+
+      <td>
+        Users watching three fourth of the Ad. This is also considered as the completion ad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Concurrent Views
+      </td>
+
+      <td>
+        Peak number of active ad sessions within the selected time interval.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Total ad plays
+      </td>
+
+      <td>
+        Total number of ad plays.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ads completed
+      </td>
+
+      <td>
+        The ad was watched till the end.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incomplete ad plays
+      </td>
+
+      <td>
+        The ad was not completed, reason could be that the ad was skipped or the user exited the application.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ads rebuffered during play
+      </td>
+
+      <td>
+        Ad stops to buffer more frames before continuing. It is also referred as rebuffering or buffer underrun.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Exit before ad start
+      </td>
+
+      <td>
+        Customer exits before the ad starts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ads with high start time
+      </td>
+
+      <td>
+        Delay in the ad start time.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ad start failures
+      </td>
+
+      <td>
+        Ad unable to start.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ad playback failures
+      </td>
+
+      <td>
+        Issue with the ad playback.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+    <img
+      title="Streamng video & ads"
+      alt="A screenshot about using streaming video & ads"
+      src="/images/ad-quality-metrics.webp"
+    />
+
+## Additional features
+
+Get an in-dept insight of the ads quality metrics by clicking the ellipsis icon on the right side of the metrics. Let us consider an example, as a user, you would like to view details related to ad attempts.
+
+    1. On the **Ad attempts** graph under the **Ad quality metrics**, click the ellipsis icon.
+    2. You may perform the following actions:
+
+      <table>
+        <thead>
+          <tr>
+            <th width="25%">
+              Action
+            </th>
+
+            <th>
+              Description
+            </th>
+
+            <th>
+              Image
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              Expand
+            </td>
+
+            <td>
+              Expand the data to view in-depth details.
+            </td>
+
+            <td>
+              <img
+                title="Expand the data"
+                alt="An expanded image of the data"
+                src="/images/expand.webp"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Add to dashboard
+            </td>
+
+            <td>
+              Add widget to an existing or [create a new dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards). 
+            </td>
+
+            <td>
+              <img
+                title="Add to dashboard"
+                alt="An image about adding to the dashboard"
+                src="/images/dashboard-media.webp"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Create an alert condition
+            </td>
+
+            <td>
+              [Create an alert condition](/docs/tutorial-create-alerts/create-an-alert) to measure the set of event against a defined threshold and open an incident when the threshold is met for a specified window of time.
+            </td>
+
+            <td>
+              <img
+                title="Create an alert condition"
+                alt="An image about creating an alert condition"
+                src="/images/media-alert-condition.webp"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Predict trend
+            </td>
+
+            <td>
+              Generate a prediction of the graph using NRQL query. For example, generate a time series of event from 1 day and compare it with 1 week ago.
+            </td>
+
+            <td>
+              <img
+                title="Predict alerts"
+                alt="An image about predict alerts"
+                src="/images/predict-alert.webp"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Get as image
+            </td>
+
+            <td>
+              Download the graph as an image and share the link with your team.
+            </td>
+
+            <td>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              View query
+            </td>
+
+            <td>
+              Generate the NRQL query for the graph.
+            </td>
+
+            <td>
+              <img
+                title="Generate the NRQL query"
+                alt="An image about generating the NRQL query"
+                src="/images/generate-query.webp"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+        
+## Dimensions KPIs
+
+Explore and analyze traffic in depth by utilizing multiple parameters, including platform and video player name. Gain insights into customer viewing habits, such as the percentage of customers watching specific content, the resolution at which videos are being viewed, and detailed information about the device's operating system version.
+
+* **Platform**: The device type for example, Roku, Browser, Android, or iOS device.
+
+* **OS Version**: The operating system version for the device. If you are using an Android or iOS device, the version of the operating system will be displayed.
+
+* **Video player name**: The name of the video player used to play the video.
+
+* **ISP**: The Internet Service Provider (ISP) used by the viewer.
+
+* **Region**: The geographical location of the viewer.
+
+* **Ad Resolution**: The resolution of the Ad being played at the viewer's device.
+
+## Add Streaming Entity
+
+By default, the **Ads Overview** page displays all the entity associated to the account. However, if you wish to create a new streaming entity:
+
+1. Click **+ Add streaming entity**, top right corner of the page.
+2. Select the type of app you want to monitor. See [Install the media agent](/docs/streaming-video-&-ads/installation/install-the-streaming-video-&-ads-agent/#installation)
+
+## What's next?
+
+* View [Summay](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-single-application-view/media-summary-page) for a specific applications/platforms.
+* View [User Sessions](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-single-application-view/user-sessions/overview) for a specific applications/platforms.
+* View [Alert Conditions](/docs/tutorial-create-alerts/create-an-alert) for a specific application/platform.
