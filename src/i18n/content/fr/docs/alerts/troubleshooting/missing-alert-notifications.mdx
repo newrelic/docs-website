@@ -1,0 +1,82 @@
+---
+title: Notification d'alerte manquante
+type: troubleshooting
+tags:
+  - Alerts
+  - Troubleshooting
+metaDescription: Read about what to do if you're missing alerts notifications.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+Vous avez mis en place des politiques et des conditions qui génèrent des incidents, mais vous ne recevez pas de notification à leur sujet.
+
+## Solution
+
+1. Vérifiez vos [règles de mise en sourdine](/docs/alerts/new-relic-alerts/managing-notification-channels/muting-rules-suppress-notifications). Les règles que vous définissez peuvent désactiver un incident spécifique ou désactiver complètement une notification. Si vous désactivez vos règles de mise en sourdine et que vous recommencez à recevoir des notifications, vous souhaiterez peut-être réécrire vos règles.
+2. Vérifiez votre [préférence de création de problème](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents#preference-options). Par défaut, un seul enregistrement de problème est créé par politique. Cette option vous envoie le moins de notifications. Si vous souhaitez davantage de notifications pour chaque condition ou incident dans une politique, modifiez vos préférences.
+3. Si vous rencontrez toujours des problèmes de notification manquante, votre e-mail peut figurer sur notre liste de suppression. Cela nous empêche d&apos;envoyer des e-mails à votre adresse e-mail. Pour faire supprimer votre e-mail de la liste ou pour résoudre tout autre problème de notification, contactez notre équipe d&apos;assistance à l&apos;[adresse support.newrelic.com](https://support.newrelic.com).
+
+Voici quelques conseils pour éviter d’être placé sur notre liste de suppression :
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Champ
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Confirmer les vrais comptes de messagerie pour les nouveaux utilisateurs
+      </td>
+
+      <td>
+        De nombreux retours d&apos;e-mails se produisent lorsqu&apos;un utilisateur est ajouté, mais avant que son e-mail ne soit confirmé. Cela entraîne l&apos;ajout de l&apos;e-mail à notre liste de suppression avant que l&apos;utilisateur puisse recevoir l&apos;e-mail de confirmation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Vérifiez vos listes de distribution
+      </td>
+
+      <td>
+        Lorsqu&apos;une adresse e-mail d&apos;une liste de distribution échoue, la liste de distribution entière est ajoutée à notre liste de suppression. Pour éviter cela, assurez-vous que les adresses e-mail non valides ou obsolètes sont supprimées de vos listes de distribution.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ajoutez votre email à notre liste de domaines autorisés
+      </td>
+
+      <td>
+        De nombreux messages peuvent atterrir dans votre filtre anti-spam ou dans celui de votre entreprise. Pour vous assurer que votre système reconnaît les e-mails que nous vous envoyons, ajoutez [noreply@newrelic.com](mailto:noreply@newrelic.com) et \*@mailer-d.newrelic.com à votre liste de domaines autorisés ou liste « Expéditeurs sûrs » comme source de courrier électronique fiable.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Envisagez d’autres options de livraison
+      </td>
+
+      <td>
+        En général, le courrier électronique n’est pas le moyen le plus fiable de recevoir des notifications. Pour vos alertes les plus importantes, configurez [des moyens de communication alternatifs](/docs/apis/nerdgraph/examples/nerdgraph-api-notifications-channels/) en guise de secours.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Cause
+
+Nous utilisons un service de messagerie qui gère tous les e-mails de notification d&apos;alertes. Lorsque notre prestataire de services reçoit une erreur après l&apos;envoi d&apos;un e-mail, l&apos;adresse est ajoutée à notre liste de suppression. Ceci est fait pour rester en phase avec les bonnes pratiques de livraison de courrier électronique, ce qui maintient le domaine newrelic.com hors des listes de refus de courrier électronique.
