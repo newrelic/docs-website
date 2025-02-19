@@ -1,0 +1,26 @@
+---
+title: Fournir des instructions runbook pour l'activité d'alerte
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: Read about how to add a runbook URL to your alerts policy condtion.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[Les conditions](/docs/alerts/new-relic-alerts-beta/configuring-alert-policies/define-alert-conditions) d’alerte incluent l’option permettant d’identifier l’URL des instructions de votre [livre d’exécution](/docs/using-new-relic/welcome-new-relic/get-started/glossary#alert-runbook) . Cela vous permet de créer un lien vers des informations ou des procédures standards de gestion d&amp;apos;un incident ouvertes lorsqu&amp;apos;une situation dépasse le [seuil critique](/docs/alerts/new-relic-alerts-beta/configuring-alert-policies/define-thresholds-trigger-alert) de la condition.
+
+<img title="040815alerts-runbook-url.png" alt="040815alerts-runbook-url.png" src="/images/accounts_screenshot-full_alerts-runbook.webp" />
+
+<figcaption>
+  <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert conditions (policies) &amp;gt; (select a policy) &amp;gt; (select a condition) &amp;gt; (edit the condition) &amp;gt; Add details &amp;gt; (scroll down to Runbook URL)**</DNT>:Vous pouvez ajouter une URL runbook afin que le personnel gérant l&amp;apos;incident qui a déclenché l&amp;apos;alerte sache quoi faire.
+</figcaption>
+
+Pour modifier l’URL runbook associée à une condition :
+
+1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert conditions (policies) &amp;gt; (select a policy) &amp;gt; (select a condition)**</DNT>.
+2. Sur la page <DNT>**Edit conditions**</DNT> , cliquez sur <DNT>**Add details**</DNT>, puis faites défiler jusqu&amp;apos;à <DNT>**Runbook URL**</DNT>. Fournissez le chemin complet de l&amp;apos;URL de votre runbook (URL runbook , URL vers la page wiki interne, etc.).
+3. Basculez <DNT>**Enable on save**</DNT> et cliquez sur <DNT>**Save**</DNT>.
+4. Facultatif : pour modifier ou supprimer une URL de runbook existante à partir de la condition d’alerte, cliquez sur <DNT>**Remove**</DNT>.
+
+Nous inclurons l&apos;URL de votre runbook dans les détails de <DNT>**Incident**</DNT> et dans la notification par e-mail afin que le personnel sache exactement quoi faire.
