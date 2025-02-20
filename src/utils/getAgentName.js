@@ -17,7 +17,9 @@ const AGENTS = {
   'java-release-notes': 'java',
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
+  'prometheus-agent-release-notes': 'prometheus',
   'logs-release-notes': 'logs',
+  'fluentbit-release-notes': 'fluentbit',
   'net-maui-release-notes': '.net maui',
   'net-release-notes': '.net',
   'new-relic-android-release-notes': 'newrelic for android',
@@ -36,6 +38,7 @@ const AGENTS = {
   'service-levels-release-notes': 'service levels',
   'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
+  'nrdot-release-notes': 'nrdot',
 };
 
 // keeping the naming streamlined and in matching with previous data

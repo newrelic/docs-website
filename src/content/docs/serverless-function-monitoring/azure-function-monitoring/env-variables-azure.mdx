@@ -1,0 +1,75 @@
+---
+title: Environment variables for Azure function monitoring
+metaDescription: "Configure environment variables to monitor your Azure functions with New Relic"
+freshnessValidatedDate: never
+tags:
+  - Azure Functions
+  - Environment Variables
+  - Configuration
+  - Secrets Management
+---
+Environment variables are a way to store configuration and secrets outside of your code. The following tables display the mandatory variables and runtime specific variables that you can set to monitor your Azure functions with New Relic.
+
+<table>
+    <thead>
+        <tr>
+            <th>Environment variable</th>
+            <th>Default value</th>
+            <th>Options</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>`CORECLR_ENABLE_PROFILING`</td>
+            <td>`0`</td>
+            <td>`0`, `1`</td>
+            <td>**Required**. Enable profiling by setting this to `1`.</td>
+        </tr>
+        <tr>
+            <td>`CORECLR_PROFILER`</td>
+            <td></td>
+            <td></td>
+            <td>**Required**. Set this to enable the .NET agent.</td>
+        </tr>
+        <tr>
+            <td>`CORECLR_NEW_RELIC_HOME`</td>
+            <td></td>
+            <td></td>
+            <td>**Required**. Set this to enable the .NET agent.</td>
+        </tr>
+        <tr>
+            <td>`CORECLR_PROFILER_PATH`</td>
+            <td></td>
+            <td></td>
+            <td>**Required**. Set this to enable the .NET agent.</td>
+        </tr>
+
+        <tr>
+            <td>`NEW_RELIC_AZURE_FUNCTION_MODE_ENABLED`</td>
+            <td>`0`</td>
+            <td>`1`, `0`</td>
+            <td>Enable Azure Functions mode by setting the value to `1`.</td>
+        </tr>
+        <tr>
+            <td>`NEW_RELIC_LOG_DIRECTORY`</td>
+            <td></td>
+            <td></td>
+            <td>Modify the location where you want to stroe the agent and profiler logs. </td>
+        </tr>
+        <tr>
+            <td>`NEW_RELIC_LOG_LEVEL`</td>
+            <td>`info`</td>
+            <td>`info`, `debug`, `finest`</td>
+            <td>Set the agent log level.</td>
+        </tr>
+    </tbody>
+</table>
+
+
+## What's next
+
+<DocTiles>
+  <DocTile title="Install and configure Azure Functions monitoring" path="/docs/serverless-function-monitoring/azure-function-monitoring/install-serverless-azure-monitoring" >Get started with instrumentation and configuration for your Azure Functions</DocTile>
+  
+</DocTiles>
