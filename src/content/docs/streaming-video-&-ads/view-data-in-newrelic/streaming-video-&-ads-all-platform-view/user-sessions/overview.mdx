@@ -1,0 +1,132 @@
+---
+title: User Sessions
+metaDescription: 'The features associated with the New Relic Streaming video & ads.'
+redirects:
+freshnessValidatedDate: never
+---
+
+The **All Platforms > User Sessions** for Streaming Video & Ads lists all the sessions across all the applications.
+
+## View the User Sessions page UI
+
+The **User Session page** table has multiple columns to display various information for each session. The following table provides the information about each column available in the Session page UI:
+
+<Callout variant="important">
+  The sessions table shows all User Sessions that started within the time filter selected above the table.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th width="50%">
+        UI
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **View ID**
+      </td>
+
+      <td>
+        A unique id generated every time any app starts. For more information see [View ID](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-all-platform-view/user-sessions/session-id)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        **Session ID**
+      </td>
+
+      <td>
+        A unique id generated every time any session starts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **User ID**
+      </td>
+
+      <td>
+        The custom user identifier value to associate user sessions with video and ad playback events and attributes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Application Name**
+      </td>
+
+      <td>
+        The name of the application that was entered at the time of installation. Click the application name to view the detailed information. See [Summary](/docs/streaming-video-&-ads/view-data-in-newrelic/streaming-video-&-ads-single-application-view/media-summary-page) for more information.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Content Title**
+      </td>
+
+      <td>
+        The title of the content that was viewed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Session Start**
+      </td>
+
+      <td>
+        The time at which the session started.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Session End**
+      </td>
+
+      <td>
+        The time at which the session ended.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Platform**
+      </td>
+
+      <td>
+        The type of device used by the user.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Error Details**
+      </td>
+
+      <td>
+        The errors that occurred during the session all applications/platforms.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Content Details**
+      </td>
+
+      <td>
+        The details of the content that was viewed all applications/platforms 
+      </td>
+    </tr>
+
+  </tbody>
+</table>
