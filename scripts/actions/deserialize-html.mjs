@@ -14,7 +14,6 @@ import { encode as htmlEncode } from 'html-entities';
 
 import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
-import remarkGfm from 'remark-gfm';
 
 /**
  * Deserialize a node from the HTML AST into a node for the MDX AST.
@@ -143,7 +142,6 @@ const processor = unified()
   // remark-mdx must come before remark-stringify, because it adds handlers
   // for MDX nodes like `mdxJsxTextElement` and otherwise, remark-stringfy
   // won't know how to stringify those nodes.
-  .use(remarkGfm)
   .use(remarkMdx)
   .use(stringify, {
     bullet: '*',

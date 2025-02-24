@@ -1,6 +1,6 @@
 import React from 'react';
 import { format, isAfter, isSameDay, parseISO } from 'date-fns';
-import { ja, ko, es, ptBR, fr } from 'date-fns/locale';
+import { ja, ko, es, ptBR } from 'date-fns/locale';
 import { useStaticQuery, graphql } from 'gatsby';
 import { compareVersions } from 'compare-versions';
 import getAgentName from '../utils/getAgentName.js';
@@ -64,9 +64,6 @@ const EolPage = ({ agent, locale = 'en' }) => {
     }
     if (locale === 'pt') {
       return format(date, 'PPP', { locale: ptBR });
-    }
-    if (locale === 'fr') {
-      return format(date, 'PPP', { locale: fr });
     }
     return format(date, 'PP');
   };
