@@ -39,3 +39,5 @@ No action is required if default access is acceptable for your organization.
 
 
 Users that are in the default User and Admin groups will be able to gain access to the new Advanced Compute features after completing the onboarding steps for the new capabilities.
+
+Note that products in public preview will not generate additional CCU costs
