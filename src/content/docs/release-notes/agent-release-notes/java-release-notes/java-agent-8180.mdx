@@ -1,0 +1,85 @@
+---
+subject:  Java agent
+releaseDate:  '2025-01-30'
+version:  8.18.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.18.0/'
+features: [“Added scala3 source detection “, “Vertx: decreased the amount of tokens created”, “kafka-clients-metrics: Refactor node topic metrics”, “New instrumentation module for Struts2 v6.7.0”, “New instrumentation module for Kafka 3.9”, “All AWS instrumentation modules: do not hide http request”, “Added support for distributed tracing in AWS SQS”, “Added relationship metric support for Kafka clients node metrics”]
+bugs: [“Fix edge case in JsonTemplateLayout with certain escaped sequences”, “Correct Apdex on transaction event if an error is present”, “Don't add null port to hostname attribute on JFR events”, “Fix memory issue with httpclient-5.0 instrumentation”]
+security: []
+---
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.18.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+- [2172](https://github.com/newrelic/newrelic-java-agent/pull/2172) Add scala3 source detection by @kanderson250
+- [2185](https://github.com/newrelic/newrelic-java-agent/pull/2185) Vertx: decrease amount of tokens created by @meiao
+- [2199](https://github.com/newrelic/newrelic-java-agent/pull/2199) Instrumentation module for Struts2 v6.7.0 by @jtduffy
+- [2203](https://github.com/newrelic/newrelic-java-agent/pull/2203) Kafka 3.9 support by @meiao
+- [2204](https://github.com/newrelic/newrelic-java-agent/pull/2204) Sqs distributed trace by @obenkenobi
+- [2202](https://github.com/newrelic/newrelic-java-agent/pull/2202) Kafka clients node metrics by @meiao
+
+## Fixes
+
+- [2187](https://github.com/newrelic/newrelic-java-agent/pull/2187) Fix edge case in JsonTemplateLayout with certain escaped sequences by @jtduffy
+- [2191](https://github.com/newrelic/newrelic-java-agent/pull/2191) Correct Apdex on transaction event if an error is present by @jtduffy
+- [2192](https://github.com/newrelic/newrelic-java-agent/pull/2192) Don't add null port to hostname attribute on JFR events by @jasonjkeller
+- [2197](https://github.com/newrelic/newrelic-java-agent/pull/2197) Fix memory issue with httpclient-5.0 instrumentation by @jasonjkeller
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you're moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).
