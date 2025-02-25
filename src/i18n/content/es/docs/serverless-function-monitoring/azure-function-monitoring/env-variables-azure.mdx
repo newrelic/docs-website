@@ -1,0 +1,185 @@
+---
+title: Variables de entorno para la monitorización Azure Functions
+metaDescription: Configure environment variables to monitor your Azure functions with New Relic
+freshnessValidatedDate: never
+tags:
+  - Azure Functions
+  - Environment Variables
+  - Configuration
+  - Secrets Management
+translationType: machine
+---
+
+Las variables de entorno son una forma de almacenar configuraciones y secretos fuera de su código. Las siguientes tablas muestran las variables obligatorias y las variables específicas del tiempo de ejecución que puede configurar para monitorear sus Azure Functions con New Relic.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Variable ambiental
+      </th>
+
+      <th>
+        Valor por defecto
+      </th>
+
+      <th>
+        Opciones
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `CORECLR_ENABLE_PROFILING`
+      </td>
+
+      <td>
+        `0`
+      </td>
+
+      <td>
+        `0`
+
+        , 
+
+        `1`
+      </td>
+
+      <td>
+        **Requerido**
+
+        . Habilite la creación de perfiles estableciendo esto en 
+
+        `1`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CORECLR_PROFILER`
+      </td>
+
+      <td />
+
+      <td />
+
+      <td>
+        **Requerido**
+
+        . Configure esto para habilitar el agente .NET.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CORECLR_NEW_RELIC_HOME`
+      </td>
+
+      <td />
+
+      <td />
+
+      <td>
+        **Requerido**
+
+        . Configure esto para habilitar el agente .NET.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `CORECLR_PROFILER_PATH`
+      </td>
+
+      <td />
+
+      <td />
+
+      <td>
+        **Requerido**
+
+        . Configure esto para habilitar el agente .NET.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_AZURE_FUNCTION_MODE_ENABLED`
+      </td>
+
+      <td>
+        `0`
+      </td>
+
+      <td>
+        `1`
+
+        , 
+
+        `0`
+      </td>
+
+      <td>
+        Habilite el modo Azure Functions estableciendo el valor en 
+
+        `1`
+
+        .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LOG_DIRECTORY`
+      </td>
+
+      <td />
+
+      <td />
+
+      <td>
+        Modifique la ubicación donde desea almacenar los logs del agente y del generador de perfiles.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `NEW_RELIC_LOG_LEVEL`
+      </td>
+
+      <td>
+        `info`
+      </td>
+
+      <td>
+        `info`
+
+        , 
+
+        `debug`
+
+        , 
+
+        `finest`
+      </td>
+
+      <td>
+        Establecer el nivel de agente de logs.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Que sigue
+
+<DocTiles>
+  <DocTile title="Install and configure Azure Functions monitoring" path="/docs/serverless-function-monitoring/azure-function-monitoring/install-serverless-azure-monitoring">Comience a emplear la instrumentación y configuración de Azure Functions</DocTile>
+</DocTiles>
