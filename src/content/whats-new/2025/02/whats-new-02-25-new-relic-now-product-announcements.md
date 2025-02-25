@@ -5,6 +5,7 @@ releaseDate: '2025-02-25'
 learnMoreLink: 'http://newrelic.com/blog/nerdlog/new-relic-now-2025-innovation-roundup'
 getStartedLink: 'https://one.newrelic.com/admin-portal/promotion-management/home'
 ---
+
 We're unveiling the power of AI and Intelligent Observability with 15 new innovations--designed to help you solve your biggest needs--business uptime, engineering excellence, and digital experiences. 
 
 ## **Business Uptime**
