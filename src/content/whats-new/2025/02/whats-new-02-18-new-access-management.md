@@ -14,8 +14,9 @@ New Relic is introducing enhanced user access controls to support upcoming capab
 1. **New Organization Product admin role:** We are adding a new [standard role](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#standard-roles) to your New Relic organization. This new role, called **Organization Product Admin**, will contain capabilities that allow users to configure features that are scoped to your organization. This role lives under the [administrative settings](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings) section when creating and editing a group. 
 2. **New standard access grant:** We are creating a new standard access grant that will assign the Organization Product Admin role to the [default User and Admin groups](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#default-groups). 
 **Note: This will allow all users in these groups to access and manage these new features.**
-3. **New permissions:** We are adding new permissions to the existing **Organization Manager** role. These permissions are ones we deem extra sensitive, like the ability to delete new types of entities.
-4.  **Custom role management:** We have already released API endpoints to create and manage org-scoped custom roles, or what we call [administration settings](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings) today.
+
+4. **New permissions:** We are adding new permissions to the existing **Organization Manager** role. These permissions are ones we deem extra sensitive, like the ability to delete new types of entities.
+5.  **Custom role management:** We have already released API endpoints to create and manage org-scoped custom roles, or what we call [administration settings](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings) today.
 
 
 These changes will take effect on **Feb 19, 2025**, before we announce and release the new features to which the new permissions pertain.
@@ -38,3 +39,5 @@ No action is required if default access is acceptable for your organization.
 
 
 Users that are in the default User and Admin groups will be able to gain access to the new Advanced Compute features after completing the onboarding steps for the new capabilities.
+
+Note that products in public preview will not generate additional CCU costs
