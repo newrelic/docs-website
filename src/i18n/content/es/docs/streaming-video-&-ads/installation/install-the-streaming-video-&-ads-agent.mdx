@@ -1,0 +1,34 @@
+---
+title: Instalar el agente de Streaming de video y anuncios
+metaDescription: Use the New Relic Streaming Video & Ads solution to gain deep visibility and actionable insights into real user experiences.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para instalar el agente de video, le recomendamos seguir nuestra instalación guiada.
+
+## Requisitos previos [#requirements]
+
+Antes de instalar el agente de video, cerciorar de tener una [ID de cuenta de](/docs/accounts/accounts-billing/account-setup/account-id) New Relic.
+
+## Instalar el agente de video [#installation]
+
+Para comenzar con la transmisión de video y anuncios, instale nuestro agente de video en sus activos de medios de transmisión.
+
+<Steps>
+  <Step>
+    Vaya a <DNT>**[one.newrelic.com](https://one.newrelic.com) &amp;gt; Integrations &amp;amp; Agents &amp;gt; Streaming Video &amp;amp; Ads**</DNT>.
+  </Step>
+
+  <Step>
+    Seleccione la cuenta con la que desea trabajar en el menú desplegable y haga clic en **Continue**.
+  </Step>
+
+  <Step>
+    ## Seleccionar el tipo de aplicación de streaming [#select-streaming-app-type]
+
+    * [Browser](/install/browser-media): monitoree los reproductores de video en la aplicación de su browser.
+    * [Celular](/docs/streaming-video-&-ads/installation/mobile/get-started/): monitorear los reproductores de video en su aplicación móvil.
+    * [Roku](/docs/streaming-video-&-ads/installation/roku/get-started-with-roku): monitorea reproductores de video en tu aplicación Roku.
+  </Step>
+</Steps>
