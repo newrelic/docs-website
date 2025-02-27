@@ -1,0 +1,104 @@
+---
+title: Capacidad predictiva
+tags:
+  - Alerts
+  - Alert conditions
+  - Predictive alerts
+  - Predictive threshold
+metaDescription: Set predictive threshold on your chart.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+<DNT>**Predictive Alerts**</DNT> New Relic emplea datos históricos para construir modelos que predicen cuándo se superará un umbral estático. Puede especificar hasta qué punto en el futuro desea predecir, lo que proporciona flexibilidad en su estrategia de alerta. Cuando se predice que un valor alcanzará el umbral estático dentro de la ventana futura que estableció, se activa un evento de alerta predictiva con el prefijo de título de evento <DNT>**Prediction:**</DNT>, lo que le permite tomar medidas correctivas antes de que ocurran posibles interrupciones.
+
+<Callout variant="tip">
+  Actualmente, New Relic emplea el [modelo Holt-Winters](https://en.wikipedia.org/wiki/Exponential_smoothing#Triple_exponential_smoothing_\(Holt_Winters\)) para realizar predicciones, que admite patrones y tendencias estacionales por hora, día y semana en sus datos.
+</Callout>
+
+Para habilitar <DNT>**Predictive Alerts**</DNT>, habilite <DNT>**[NRQL Predictions](/docs/query-your-data/explore-query-data/use-charts/nrql-predictions)**</DNT> (ahora en vista previa pública), que proporciona la funcionalidad de consulta necesaria para la evaluación del umbral predictivo. Las funciones <DNT>**NRQL Predictions**</DNT> y <DNT>**Predictive Alerts**</DNT> solo están disponibles para clientes de **[Advanced Compute](https://newrelic.com/pricing/compute#pricing_plan-compute)** . Para inscribir, navegue a <DNT>**[one.newrelic.com &gt; Administration](https://one.newrelic.com//admin-portal) &amp;gt; Preview &amp;amp; Trials**</DNT> y habilite las características <DNT>**NRQL Predictions**</DNT> y <DNT>**Predictive Alerts**</DNT> .
+
+## Establecer un umbral predictivo para una condición de alerta [#set-predictive-threshold]
+
+Para establecer o actualizar una condición de alerta con la capacidad predictiva, siga estos pasos:
+
+<Steps>
+  <Step>
+    ### Editar o configurar una nueva condición de alerta [#create-alert-condition]
+
+    #### Para editar una condición de alerta existente:
+
+    1. Seleccione una condición de alerta de <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert Conditions**</DNT> y edite <DNT>**Signal behavior**</DNT>.
+
+    2. Desde la sección <DNT>**Signal behavior**</DNT> , haga clic en <DNT>**Edit**</DNT>. Se abre la página <DNT>**Set thresholds**</DNT> .
+
+    #### Para configurar una nueva condición de alerta:
+
+    1. Vaya a <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert Conditions**</DNT>.
+    2. Haga clic en <DNT>**+ New alert condition &gt; Use guided mode**</DNT>. También puede escribir una consulta NRQL para crear una condición de alerta.
+    3. Si está empleando el modo guiado, siga las instrucciones en pantalla hasta llegar a la sección <DNT>**Set thresholds**</DNT> . Si está escribiendo una consulta NRQL, ejecute la consulta para obtener los datos en el gráfico y haga clic en <DNT>**Next**</DNT> para llegar a la sección <DNT>**Set thresholds**</DNT> .
+  </Step>
+
+  <Step>
+    ### Establecer umbral estático [#set-static-thresholds]
+
+    En la sección <DNT>**Set condition thresholds**</DNT> de la página <DNT>**Set thresholds**</DNT> , establezca un umbral estático de la siguiente manera:
+
+    1. Seleccione <DNT>**Static**</DNT>.
+    2. Seleccione el nivel de gravedad para la condición de alerta.
+    3. Establezca el valor umbral.
+  </Step>
+
+  <Step>
+    ### Establecer umbral predictivo [#set-predictive-threshold]
+
+    1. En la sección <DNT>**Set condition thresholds**</DNT> , habilite el interruptor <DNT>**Predict future behavior**</DNT> .
+
+    2. Establezca un tiempo de anticipación para el umbral predictivo. Esto es hasta dónde se debe mirar en el futuro para predecir la ruptura del umbral.
+
+       * **Tiempo mínimo de anticipación**: dos veces la [duración de la ventana](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#window-duration).
+       * **Tiempo máximo de anticipación**: 360 veces la [duración de la ventana](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#window-duration).
+
+       <Callout variant="tip">
+         Para mirar más allá en el futuro, puedes aumentar la [duración de la ventana](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#window-duration).
+       </Callout>
+
+       <Callout variant="tip">
+         Cuando la duración de la ventana se establece en 1 minuto, el modelo emplea datos históricos de los últimos 2,5 días para generar predicciones. Para aumentar la duración de los datos históricos para el procesamiento del modelo, puede aumentar la [duración de la ventana](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#window-duration).
+       </Callout>
+
+    3. Establezca el comportamiento previsto del evento de alerta, cuando la señal real cruza el umbral.
+
+       * Cerrar el evento de alerta previsto y abrir un evento de alerta real (recomendado).
+       * Continúe manteniendo abierto el evento de alerta previsto.
+
+    <img title="predictive-alerts" alt="predictive-alerts" src="/images/predictive-alerts.webp" />
+
+    <figcaption>
+      <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert Conditions**</DNT>:Predecir el comportamiento futuro.
+    </figcaption>
+
+    <Callout variant="tip">
+      Al seleccionar la opción <DNT>**Close predicted alert event and open one for the occurring event.**</DNT> , puede distinguir entre eventos de alerta previstos y reales.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Condiciones de almacenado [#save-conditions]
+
+    Consulta [Agregar detalles de la condición de alerta](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#add-details) para completar la configuración de la condición de alerta y luego almacénala.
+  </Step>
+</Steps>
+
+## Comportamiento posterior a la promoción [#post-promotion-behavior]
+
+Como la función de capacidad predictiva está en vista previa pública, está disponible por un periodo de promoción limitado. Una vez finalizado este periodo, se producen los siguientes cambios en las alertas:
+
+* Los eventos de alerta predictivos ya no están disponibles en la UI.
+* Las condiciones de alerta se vuelven a registrar solo con la parte estática del umbral. Este nuevo registro restablece la ventana de agregación, lo que potencialmente retrasa la detección de alertas si se viola el umbral de una condición durante el proceso.
