@@ -1,6 +1,6 @@
 ---
 title: 'New Product Announcements at New Relic Now+'
-summary: 'Get started with 15+ new innovations to drive business uptime, engineering excellence, and digital experiences.'
+summary: 'Get started with 20+ new innovations to drive business uptime, engineering excellence, and digital experiences.'
 releaseDate: '2025-02-25'
 learnMoreLink: 'http://newrelic.com/blog/nerdlog/new-relic-now-2025-innovation-roundup'
 getStartedLink: 'https://one.newrelic.com/admin-portal/promotion-management/home'

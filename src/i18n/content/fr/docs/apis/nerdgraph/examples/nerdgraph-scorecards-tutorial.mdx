@@ -1,0 +1,1014 @@
+---
+title: "Tutoriel NerdGraph\_: afficher et gérer les dashboards"
+tags:
+  - Scorecards
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: How to use New Relic NerdGraph API to create and update Scorecards and rules.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+New Relic vous permet d&apos;utiliser les mutations GraphQL [des cartes de score](/docs/service-architecture-intelligence/scorecards/getting-started) NerdGraph pour gérer les cartes de score et les règles. Ces mutations vous permettent de créer, mettre à jour, supprimer et récupérer des dashboards et leurs règles associées dans votre workflow et votre intégration existants.
+
+Ce didacticiel fournit des exemples d&apos;utilisation de NerdGraph pour gérer les dashboards et les règles. Vous pouvez utiliser ces exemples pour automatiser les tâches de gestion des cartes de score, telles que la création de cartes de score, l&apos;ajout de règles et la mise à jour des détails des cartes de score.
+
+## Mutations [#mutations]
+
+New Relic fournit diverses mutations NerdGraph pour créer et gérer des dashboards et des règles associées.
+
+<CollapserGroup>
+  <Collapser id="create-scorecard" title="Créer une fiche d'évaluation">
+    Vous pouvez créer votre propre Scorecard en utilisant la mutation `entityManagementCreateScorecard` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `name`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Le nom du dashboard.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Une brève description du dashboard.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `accountId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Le compte où l&apos;entité sera stockée.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      mutation CreateScorecard($description: String, $name: String!, $id: ID!) {
+        entityManagementCreateScorecard(
+          scorecardEntity: {description: $description, name: $name, scope: {id: $id, type: ACCOUNT}}
+        ) {
+          entity {
+            description
+            id
+            rules {
+              id // COLLECTION ID
+            }
+            name
+          }
+        }
+      }
+      // PARAMETERS
+      {
+        "description": "Test test Best Practices",
+        "name": "Test Engineering Best Practices",
+        "id": 1
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="create-rule" title="Créer une règle">
+    Vous pouvez créer une nouvelle règle pour une carte de score en utilisant la mutation `entityManagementCreateScorecardRule` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `name`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Le nom de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Une brève description de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Une requête NRQL pour évaluer la conformité.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `accounts`
+          </td>
+
+          <td>
+            Int
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Liste des ID de compte où la règle doit exécuter la requête.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      mutation CreateRule($name: String!, $description: String, $query: String!, $accounts: [Int!]!) {
+        entityManagementCreateScorecardRule(
+          scorecardRuleEntity: {
+            name: $name,
+            description: $description
+            enabled: true,
+            nrqlEngine: {
+              accounts: $accounts,
+              query: $query
+            },
+            scope: {id: 1, type: ACCOUNT}}
+        ) {
+          entity {
+            id // RULE Id
+          }
+        }
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="add-rule" title="Créer une règle">
+    Vous pouvez créer une nouvelle règle pour une carte de score en utilisant la mutation `entityManagementCreateScorecardRule` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `name`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Le nom de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Une brève description de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Une requête NRQL pour évaluer la conformité.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `accounts`
+          </td>
+
+          <td>
+            Int
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Liste des ID de compte où la règle doit exécuter la requête.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      mutation CreateRule($name: String!, $description: String, $query: String!, $accounts: [Int!]!) {
+        entityManagementCreateScorecardRule(
+          scorecardRuleEntity: {
+            name: $name,
+            description: $description
+            enabled: true,
+            nrqlEngine: {
+              accounts: $accounts,
+              query: $query
+            },
+            scope: {id: 1, type: ACCOUNT}}
+        ) {
+          entity {
+            id // RULE Id
+          }
+        }
+      }
+
+      // PARAMETERS
+      {
+        "name": "APM Services Have Alerts Defined",
+        "description": "Check that APM services have alerts associated with them",
+        "query": "SELECT if(latest(alertSeverity) != 'NOT_CONFIGURED', 1, 0) as 'score' FROM Entity WHERE type = 'APM-APPLICATION' AND tags.nr.team IS NOT NULL AND tags.environment IS NOT NULL FACET id as 'entityGuid', tags.nr.team as 'team', tags.environment as 'environment' LIMIT MAX SINCE 1 day ago",
+        "accounts": [1]
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="add-rule" title="Ajouter une règle à une fiche d'évaluation">
+    Vous pouvez associer une règle à une Scorecard à l&apos;aide de la mutation `entityManagementAddCollectionMembers` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `collectionId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;ID de la carte de score pour ajouter les règles.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rules`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Liste des identifiants de règles à ajouter à la fiche d’évaluation.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      mutation AddRuleToCollection($collectionId: ID!, $rules: [ID!]!) {
+        entityManagementAddCollectionMembers(
+          collectionId: $collectionId
+          ids: $rules
+        )
+      }
+      // PARAMETERS
+      {
+        "collectionId": "", // Collection ID is from the rule.id from scorecard entity
+        "rules": [] // Provide list of all rule ids which are generated during rule creation.
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="update-scorecard" title="Mettre à jour une fiche d'évaluation">
+    Vous pouvez mettre à jour les détails d&apos;une carte de score existante à l&apos;aide de la mutation `entityManagementUpdateScorecard` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `id`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;identifiant unique de la Scorecard.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Description mise à jour du dashboard.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `name`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Nom mis à jour du dashboard.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+    mutation UpdateScorecard($id: ID!, $description: String, $name: String!) {
+      entityManagementUpdateScorecard(
+        id: $id
+        scorecardEntity: {description: $description, name: $name}
+      ) {
+        entity {
+          name
+          id
+          rules {
+            id
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="update-rule" title="Mettre à jour une règle">
+    Vous pouvez mettre à jour une règle pour la carte de score à l&apos;aide de la mutation `entityManagementUpdateScorecardRule` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ruleId`
+          </td>
+
+          <td>
+            IDENTIFIANT
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;identifiant unique de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `name`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Le nom de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `description`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Une brève description de la règle.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Une requête NRQL pour évaluer la conformité.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `queryAccounts`
+          </td>
+
+          <td>
+            Int
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            Liste des ID de compte où la règle doit exécuter la requête.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `enabled`
+          </td>
+
+          <td>
+            Booléen
+          </td>
+
+          <td>
+            Non
+          </td>
+
+          <td>
+            Activer ou désactiver la règle.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      mutation UpdateRule($ruleId: ID!, $name: String!, $description: String, $query: String!, $queryAccounts: [Int!]!, $enabled: Boolean) {
+        entityManagementUpdateScorecardRule(
+          id: $ruleId
+          scorecardRuleEntity: {description: $description, name: $name, enabled: $enabled, nrqlEngine: {accounts: $queryAccounts, query: $query}}
+        ) {
+          entity {
+            id
+            name
+            description
+            nrqlEngine {
+              accounts
+              query
+            }
+          }
+        }
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="delete-scorecard" title="Supprimer une fiche de score ou une règle">
+    Vous pouvez supprimer une carte de score ou une règle existante à l&apos;aide de la mutation `entityManagementDelete` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `id`
+          </td>
+
+          <td>
+            IDENTIFIANT
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;ID de la carte de score ou de la règle cible à supprimer.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+    mutation DeleteEntity($id: ID!) {
+      entityManagementDelete(
+        id: $id
+      ) {
+        id
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Requête NerdGraph pour les cartes de pointage
+
+<CollapserGroup>
+  <Collapser id="fetch-scorecards" title="Obtenir des règles dans une fiche d'évaluation">
+    Vous pouvez récupérer toutes les règles associées à une fiche d&apos;évaluation spécifique à l&apos;aide de la requête `FetchScorecardDetails` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `scorecardId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;ID du Scorecard pour récupérer les règles.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      query FetchScorecardDetails($scorecardId: ID!) {
+        actor {
+          entityManagement {
+            entity(id: $scorecardId) {
+              ... on EntityManagementScorecardEntity {
+                name
+                description
+                rules {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    ```
+  </Collapser>
+
+  <Collapser id="fetch-rule" title="Récupérer les détails de la fiche d'évaluation associés à une règle">
+    Vous pouvez récupérer les détails de la carte de score associée à une règle spécifique en récupérant d&apos;abord l&apos;ID de collection qui contient la règle à l&apos;aide de la requête `FindRuleOwnerCollections`, puis en récupérant les détails des parents de collection à l&amp;apos;aide de la requête `FetchCollectionParent` .
+
+    ### `FindRuleOwnerCollections` requête
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ruleId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;identifiant unique de la règle.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      query FindRuleOwnerCollections($ruleId: ID!) {
+        actor {
+          entityManagement {
+            relationships(filter: {targetId: {eq: $ruleId}, type: {eq: "HAS_MEMBER"}}) {
+              items {
+                source {
+                  id
+                  type
+                }
+                type
+              }
+            }
+          }
+        }
+      }
+    ```
+
+    ### `FetchCollectionParent` requête
+
+    Vous pouvez récupérer les détails des parents de la collection à l&apos;aide de la requête `FetchCollectionParent`, qui nécessite l&amp;apos;ID de collection obtenu à partir de la réponse `FindRuleOwnerCollections` .
+
+    #### Paramètres d&apos;entrée
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            paramètres
+          </th>
+
+          <th>
+            Type de données
+          </th>
+
+          <th>
+            Est-ce obligatoire ?
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `collectionId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Oui
+          </td>
+
+          <td>
+            L&apos;ID obtenu à partir de la réponse 
+
+            `FindRuleOwnerCollections`
+
+             .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### Demande d&apos;échantillon
+
+    ```graphql
+      query FetchRulesCollection($rulesId: ID!) {
+        actor {
+          entityManagement {
+            collectionElements(filter: {collectionId: {eq: $rulesId}}) {
+              items {
+                ... on EntityManagementScorecardRuleEntity {
+                  id
+                  name
+                  nrqlEngine {
+                    accounts
+                    query
+                  }
+                }
+              }
+              nextCursor
+            }
+          }
+        }
+      }
+    ```
+  </Collapser>
+</CollapserGroup>
