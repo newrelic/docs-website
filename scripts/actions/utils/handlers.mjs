@@ -133,6 +133,10 @@ export default {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DeveloperIcons: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   DocTile: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
