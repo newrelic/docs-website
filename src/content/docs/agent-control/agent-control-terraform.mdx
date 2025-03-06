@@ -1,0 +1,183 @@
+---
+title: "Agent Control Setup with Terraform"
+metaDescription: "Agent Control is an agent supervisor that can be used to deploy, update, and manage New Relic agents."
+freshnessValidatedDate: never
+---
+New Relic Agent Control with Terraform makes the large-scale monitoring with New Relic even easier, especially when dealing with multiple Kubernetes clusters. With Terraform and Helm, you can set-up New Relic Agent Control in a specified, repeatable, and scalable way across your entire Kubernetes Infrastructure. 
+
+## Requirements[#requirements]
+Before using this integration in Terraform, ensure you have the following:
+
+- **Helm 3:** Helm version 3 must be installed on your machine. For installation instructions, see [Installing Helm.](https://helm.sh/docs/intro/install)
+- **New Relic license key:** You'll need a New Relic license key to report telemetry to your New Relic account.
+- **New Relic user key:** You'll need your [New Relic user](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/) key if you haven't already pulled your clientID key and secret.
+- **User permissions:** Your New Relic user has the auth domain manager and org product admin roles.
+- **New Relic OrgID:** The New Relic OrgID will identify which organization you are getting your ClientID key and secret from.
+- **Kubernetes cluster name:** Have the name of your Kubernetes cluster ready, as it will be referenced during the installation process.
+<Callout variant="tip">
+  If creating a new cluster with Terraform, ensure you use the same name in the installation of agent-control
+</Callout>
+- **Helm provider for Terraform:** We'll show below how to include the [helm provider](https://registry.terraform.io/providers/hashicorp/helm/latest/docs) in your Terraform script, but you will need to have it included in Terraform for the install to work.
+- **[Terraform:](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)** Make sure you have Terraform installed on your machine.
+
+## Compatibility[#compatibility]
+
+[Compatibility for Agent Control available in that documentation](https://docs-preview.newrelic.com/docs/new-relic-agent-control-kubernetes#compatibility)
+
+## Install[#installation]
+
+### Prerequisites
+If you don't have your clientId key and secret, you can fetch them from [NerdGraph](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/). You'll need to use your OrgID and User Key, replacing the sample text in the following curl command:
+
+```sh
+  curl -X POST \
+      https://api.newrelic.com/graphql \
+      -H 'Content-Type: application/json' \
+      -H 'x-api-key: [INSERT_USER_API_KEY]' \
+      --data-raw '{"query": "mutation SICreate { systemIdentityCreate(name: \"User Key for Agent Control\" organizationId: \"[INSERT_YOUR_ORG_ID]\") { clientId clientSecret } }"}' \
+      --compressed
+```
+
+### Step 1
+
+Create a directory for your project and your main.tf file. Make sure you have added the [helm provider](https://registry.terraform.io/providers/hashicorp/helm/latest/docs) to your Terraform file.
+
+### Step 2
+
+Configure your Terraform script with a helm release that uses New Relic's charts for Agent Control. See the example Terraform script below:
+
+```hcl
+provider "helm" {
+ kubernetes {
+   config_paths = [
+       "~/.kube/config"
+   ]
+ }
+}
+
+
+resource "helm_release" "newrelic" {
+   name = "agent-control"
+   repository = "https://newrelic.github.io/helm-charts/"
+   chart = "agent-control"
+   namespace = "newrelic"
+   create_namespace = "true"
+
+
+   values = [
+       file("./values-newrelic.yaml")
+   ]
+}
+```
+### Step 3
+
+Include a values file for the New Relic agent control configuration in the same directory, or update the Terraform line to point to the values file where the New Relic configuration file is being stored.
+
+Below is an example of a bare bones NewRelic.yaml file, without any additional configuration added:
+
+```yaml
+global:
+ cluster: [YOUR_CLUSTER_NAME]
+ licenseKey: [YOUR_INGEST_LICENSE_KEY]
+
+
+agent-control-deployment:
+ identityClientId: [YOUR_IDENTITY_CLIENT_ID]
+ identityClientSecret: [YOUR_IDENTITY_CLIENT_SECRET]
+ config:
+   fleet_control:
+   # optional
+     fleet_id: [YOUR_FLEET_ENTITY_GUID]
+     auth:
+       organizationId: [ORG_ID]
+   agentControl:
+     content:
+       log:
+         level: trace
+```
+
+### Step 4
+
+Initialize and review the Terraform script by using the following commands:
+
+`terraform init`
+
+`terraform plan`
+
+### Step 5
+
+If you are good with the changes, apply them with the following command:
+
+`terraform apply`
+
+### Step 6
+
+Check to make sure the agent pods get built out correctly using Kube Control:
+
+`kubectl get pods -n newrelic`
+
+## Configuration
+
+Within the New Relic agent control configuration you can configure the installation of multiple monitoring agents. This example shows the options available, including New Relic's Infrastructure agent, FluentBit logs agent, OpenTelemetry collector agent, and New Relic's gateway agent:
+
+```yaml
+agent-control-deployment:
+  identityClientId: [YOUR_IDENTITY_CLIENT_ID]
+  identityClientSecret: [YOUR_IDENTITY_CLIENT_SECRET]
+  config:
+    subAgents:
+      infrastructure:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "*"  
+          chart_values:
+            newrelic-infrastructure:
+              enableProcessMetrics: true
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging`
+          # Recommended: check and define an explicit chart version (latest stable)
+          chart_version: "*"
+            chart_values:
+              newrelic-logging:
+                sendMetrics: true
+      agent-operator:
+        type: com.newrelic.k8s_agent_operator:0.1.0
+        content:
+          chart_version: "*"
+      open-telemetry:
+        type: newrelic/io.opentelemetry.collector:0.1.0
+        content:
+            # Ref: `https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/values.yaml`
+            # Recommended: check and define an explicit chart version (latest stable)
+            chart_version: "*"
+              chart_values:
+                nr-k8s-otel-collector:
+                  receivers.filelog.enabled: false
+      gateway:
+        type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+        content:
+          chart_version: "*"
+          chart_values:
+            gateway:
+              autoscaling:
+                minReplicas: 2
+                maxReplicas: 10
+                targetCPUUtilizationPercentage: 70
+```
+
+## Uninstall
+
+<Callout variant="important">
+  The removal of a helm_release resource from your Terraform configuration is a destructive operation. Once you execute terraform apply after making this change, Terraform will proceed to uninstall / destroy the associated resources within your kubernetes cluster. This action can lead to the loss of data and configurations associated with the resources managed by that Helm release. Before you proceed, ensure you fully understand the impact this will have on your environment:
+
+  * Review all dependencies and services that might be affected.
+  * Consider backing up any persistent data or configurations associated with the release.
+  * Verify that the removal of this release is necessary and aligns with your infrastructure management strategy.
+
+  Always proceed with caution when making invasive changes to your infrastructure, and ensure you have appropriate roll-back procedures in place should anything go awry.
+</Callout>
+
+* Run `terraform plan`: After removing the helm_release resource block from your configuration, execute the `terraform plan` command. This command enables you to review the changes Terraform intends to make to your infrastructure. Carefully check the plan output to ensure that only the intended resources are marked for deletion. This step is crucial for verifying that no unintended deletions or changes occur.
+* Execute `terraform apply`: If the results of the `terraform plan` match your expectations, proceed by running the `terraform apply` command. This will apply the planned changes, effectively removing the specified Helm release from your environment. Confirm the execution when prompted to finalize the uninstallation process.
