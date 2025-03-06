@@ -1,0 +1,316 @@
+---
+title: ID de session en cours
+type: apiDoc
+shortDescription: Renvoie l'ID de la session en cours.
+tags:
+  - Mobile monitoring
+  - Mobile SDK API
+  - Custom instrumentation
+metaDescription: Mobile app monitoring API used to return the ID for current session.
+freshnessValidatedDate: '2023-07-20T00:00:00.000Z'
+translationType: machine
+---
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="android">
+      Android
+    </TabsBarItem>
+
+    <TabsBarItem id="ios">
+      iOS
+    </TabsBarItem>
+
+    <TabsBarItem id="capacitor">
+      Capacitor
+    </TabsBarItem>
+
+    <TabsBarItem id="cordova">
+      Cordova
+    </TabsBarItem>
+
+    <TabsBarItem id="flutter">
+      Flutter
+    </TabsBarItem>
+
+    <TabsBarItem id="maui">
+      .NET MAUI
+    </TabsBarItem>
+
+    <TabsBarItem id="react">
+      React Native
+    </TabsBarItem>
+
+    <TabsBarItem id="unity">
+      Unité
+    </TabsBarItem>
+
+    <TabsBarItem id="unreal">
+      Moteur Unreal
+    </TabsBarItem>
+
+    <TabsBarItem id="xamarin">
+      Xamarin
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="android">
+      ## Syntaxe [#syntax]
+
+      ### Java [#java]
+
+      ```java
+      NewRelic.currentSessionId()
+      ```
+
+      ### Kotlin [#kotlin]
+
+      ```kotlin
+      NewRelic.currentSessionId()
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de la session en cours.
+
+      Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques. Par exemple, vous souhaiterez peut-être utiliser le même identifiant pour les analyses marketing ou les analyses utilisateur.
+
+      Compatible avec toutes les versions d&apos;agent.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ### Java [#java]
+
+      ```java
+      String sessionId = NewRelic.currentSessionId();
+      ```
+
+      ### Kotlin [#kotlin]
+
+      ```kotlin
+      val sessionId = NewRelic.currentSessionId()
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="ios">
+      ## Syntaxe [#syntax]
+
+      ### Objectif-C [#objc]
+
+      ```objectivec
+      + (NSString* _Null_unspecified) currentSessionId;
+      ```
+
+      ### Swift [#swift]
+
+      ```swift
+      NewRelic.currentSessionId()
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques. Par exemple, vous souhaiterez peut-être utiliser le même identifiant pour les analyses marketing ou les analyses utilisateur. Cet identifiant de session changera à chaque fois que l&apos;application passera au premier plan.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemples [#examples]
+
+      ### Objective-C [#obj-c]
+
+      ```objectivec
+      NSString* sessionId = [NewRelic currentSessionId()];
+      ```
+
+      ### Swift [#swift]
+
+      ```swift
+      let sessionId = NewRelic.currentSessionId()
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="capacitor">
+      ## Syntaxe [#syntax]
+
+      ```typescript
+      currentSessionId(options?: {} | undefined) => Promise<{ sessionId: string; }>
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```typescript
+      let { sessionId } = await NewRelicCapacitorPlugin.currentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="cordova">
+      ## Syntaxe [#syntax]
+
+      ```typescript
+      currentSessionId(): Promise<sessionId>;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```js
+      let sessionId = await NewRelic.currentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="maui">
+      ## Syntaxe [#syntax]
+
+      ```csharp
+      CurrentSessionId() : string;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```csharp
+      string sessionId = CrossNewRelic.Current.CurrentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="flutter">
+      ## Syntaxe [#syntax]
+
+      ```dart
+      currentSessionId(): Promise;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```dart
+      var sessionId = await NewrelicMobile.instance.currentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="react">
+      ## Syntaxe [#syntax]
+
+      ```js
+      currentSessionId(): Promise;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```js
+      let sessionId = await NewRelic.currentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="unity">
+      ## Syntaxe [#syntax]
+
+      ```csharp
+      currentSessionId() : string;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```csharp
+      string sessionId =  NewRelicAgent.CurrentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="unreal">
+      ## Syntaxe [#syntax]
+
+      ```cpp
+      currentSessionId() : FString;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```cpp
+      #include "NewRelicBPLibrary.h"
+
+      FString id =  UNewRelicBPLibrary::currentSessionId();
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="xamarin">
+      ## Syntaxe [#syntax]
+
+      ```csharp
+      CurrentSessionId() : string;
+      ```
+
+      ## Description [#description]
+
+      Renvoie l&apos;ID de session en cours. Cette méthode est utile pour consolider monitoring des données d&apos;application (pas seulement des données New Relic) en fonction d&apos;une définition de session et d&apos;un identifiant uniques.
+
+      ## Valeurs de retour [#return-values]
+
+      Renvoie la chaîne d&apos;ID pour la session en cours.
+
+      ## Exemple [#example]
+
+      ```csharp
+      string sessionId = CrossNewRelic.Current.CurrentSessionId();
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
