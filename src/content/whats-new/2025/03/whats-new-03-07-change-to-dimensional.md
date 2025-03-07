@@ -1,6 +1,6 @@
 ---
-title: 'Upcoming change to count(*) in Dimensional Metrics Queries'
-summary: 'Upcoming Change to count(*) in Dimensional Metrics Queries'
+title: 'Change to count(*) in Dimensional Metrics Queries'
+summary: 'Upcoming change to count(*) in Dimensional Metrics Queries'
 releaseDate: '2025-03-07'
 ---
 
