@@ -1,0 +1,30 @@
+---
+title: Ajouter un TLS mutuel au point de terminaison Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: 'To include an additional level of security, add mutual TLS to your Docker or Kubernetes config file for the Prometheus OpenMetrics integration with New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Vous pouvez configurer l&apos;authentification TLS mutuelle si nécessaire pour le point de terminaison dans votre intégration Prometheus OpenMetrics avec New Relic. Ajoutez `tls_config` à votre fichier de configuration pour Docker, comme expliqué dans cet exemple.
+
+## Ajouter un secret au fichier de configuration [#mutual-tls-authentication]
+
+Recommandation : placez les fichiers de bundle, de clé et de certificat de l&apos;autorité de certification dans un secret et incluez-les dans le conteneur de l&apos;intégration Prometheus OpenMetrics.
+
+L&apos;authentification TLS mutuelle est limitée à une liste statique d&apos;URL. Pour configurer des points de terminaison nécessitant une authentification MTLS, suivez cet exemple :
+
+```
+targets:
+- description: "Secure etcd example"
+  urls: ["https://123.456.7.1:2379", "https://123.456.7.2:2379"]
+  tls_config:
+    ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+    cert_file_path: "/etc/etcd/etcd-client.crt"
+    key_file_path: "/etc/etcd/etcd-client.key"
+transformations:
+  ...
+```

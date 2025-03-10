@@ -1,6 +1,6 @@
 ---
 title: 'New Product Announcements at New Relic Now+'
-summary: 'Get started with 15+ new innovations to drive business uptime, engineering excellence, and digital experiences.'
+summary: 'Get started with 20+ new innovations to drive business uptime, engineering excellence, and digital experiences.'
 releaseDate: '2025-02-25'
 learnMoreLink: 'http://newrelic.com/blog/nerdlog/new-relic-now-2025-innovation-roundup'
 getStartedLink: 'https://one.newrelic.com/admin-portal/promotion-management/home'
@@ -63,7 +63,7 @@ Automatically link frontend signals to backend performance with intelligence--fo
     *   To learn more, visit the [product webpage](http://newrelic.com/platform/streaming-video-intelligence) or read the product [documentation](https://docs.newrelic.com/docs/streaming-video-&-ads/get-started-with-streaming-video-&-ads/).
     *   Available now in the platform.
 *   **Engagement Intelligence**: Improve user experiences with automated user behavior analysis so you can fix issues faster.
-    *   To learn more, visit the [product webpage](https://newrelic.com/solutions/digital-experience-monitoring) or read the product [documentation](https://docs.newrelic.com/docs/browser/browser-monitoring/browser-pro-features/user-actions/#:~:text=User actions in browser monitoring,friction and increases user frustration).
+    *   To learn more, visit the [product webpage](https://newrelic.com/solutions/digital-experience-monitoring) or read the product [documentation](https://docs.newrelic.com/docs/browser/browser-monitoring/browser-pro-features/user-actions/#:~:text=User).
     *   Available now in the platform.
 *   **Public Dashboards**: Extend intelligent insights to all teams and even external users with dashboards accessible outside of the New Relic platform.
     *   To learn more visit the [product webpage](https://newrelic.com/platform/dashboards) or read the [product documentation](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/). 
