@@ -1,0 +1,22 @@
+---
+title: How can I use WSL and CodeStream?
+metaDescription: "You can run CodeStream in Windows using WSL"
+freshnessValidatedDate: never
+---
+
+To use CodeStream and WSL (Windows Subsystem for Linux), follow these steps:
+
+1. Make sure Git is installed on the Windows machine, as well as in your WSL distro. While the versions installed between the two could differ, its best to ensure the Windows version matches whatever is installed in your WSL distro.
+2. Clone your git repo into your WSL distro (for example, `~/code/YOUR_PROJECT_FOLDER`).
+3. On Windows, allow git to communicate over this UNC path by marking the directory as `safe`. Do this in your Windows terminal with this command, replacing `YOUR_DISTRO`, `YOUR_USERNAME`, and `YOUR_PROJECT_FOLDER` to match your configuration:
+    ```shell
+    git config --global --add safe.directory '//wsl.localhost/YOUR_DISTRO/home/YOUR_USERNAME/code/YOUR_PROJECT_FOLDER' 
+    ```
+    
+4. In your IDE, open the project using the WSL UNC path. For example, if you had Ubuntu, your username was `codestream`, and  project folder was `Amazing_App`, your UNC path would be `//wsl.localhost/Ubuntu/home/codestream/code/Amazing_App`.
+
+<Callout variant="tip">
+  Git on Windows is only used to make requests to your locally cloned repo in WSL and doesn't need to communicate with the remote (for example, GitHub, GitLab, etc.). 
+</Callout> 
+
+If you have issues after you complete these steps, please [collect your log files](/docs/codestream/troubleshooting/client-logs) and contact New Relic customer support for further investigation.

@@ -1,0 +1,201 @@
+---
+title: Instalar y configurar la supervisión Azure Functions en New Relic
+metaDescription: Configure your Azure Functions with New Relic
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Antes de que empieces [#begin]
+
+Cerciorar de que sus Azure Functions cumplan con nuestros [requisitos y compatibilidad](/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring).
+
+<Steps>
+  <Step>
+    ## Vincula tu cuenta de Azure a New Relic
+
+    Puede vincular su cuenta Azure a New Relic configurando el sondeo de monitoreo métrico de Azure . Esto le permite ver la métrica en la UI de New Relic. Para obtener más información, consulte [IntegraciónAzure ](https://docs.newrelic.com/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/#polling).
+  </Step>
+
+  <Step>
+    ## Instrumente sus Azure Functions con el agente New Relic .NET
+
+    Según sus necesidades, seleccione una de las siguientes opciones para instrumentar sus Azure Functions con el agente New Relic .NET.
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="linux-instrumentation">Linux</TabsBarItem> <TabsBarItem id="windows-instrumentation">y Windows</TabsBarItem><TabsBarItem id="containerized-instrumentation">Funciones en contenedores de</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="linux-instrumentation">
+          1. Agregue el paquete NuGet `NewRelic.Agent` a su proyecto de aplicación.
+
+             * En el editor de código de Visual Studio, use el administrador de paquetes de NuGet para buscar y agregar la última versión de `NewRelic.Agent` a su aplicación.
+             * Si está empleando otros entornos de desarrollo, puede agregar el paquete con `dotnet add package NewRelic.Agent`.
+
+          2. Emplee su mecanismo de publicación preferido para implementar su aplicación actualizada en Azure. Esto incluye el agente New Relic, que está instalado en la carpeta `/home/site/www/newrelic` .
+        </TabsPageItem>
+
+        <TabsPageItem id="windows-instrumentation">
+          La New Relic Azure extensión de sitios web (v1.6.0 y posteriores) configura automáticamente la instrumentación para sus Windows Azure funciones .
+
+          Para instalar la extensión de sitios web de Azure de New Relic, siga estos pasos:
+
+          1. En el portal de Azure, navegue hasta su aplicación de función.
+          2. Haga clic en la sección <DNT>**Development tools**</DNT> y seleccione <DNT>**Extensions**</DNT>.
+          3. Haga clic en <DNT>**+ Add**</DNT>.
+          4. Seleccione <DNT>**Search for an extension to install**</DNT> e ingrese `New Relic .NET Agent` en el cuadro <DNT>**Filter items**</DNT> .
+          5. Seleccione la extensión <DNT>**New Relic .NET Agent(vx.x.x) - New Relic**</DNT> y haga clic en <DNT>**Add**</DNT>.
+          6. Cuando se complete la instalación, la extensión aparecerá en la lista de extensiones instaladas. Para verificar la instalación correcta, haga clic en el enlace debajo de la columna &quot;Explorar&quot; para ver el log de instalación.
+        </TabsPageItem>
+
+        <TabsPageItem id="containerized-instrumentation">
+          Para instalar el agente New Relic .NET, en la etapa final de su Dockerfile, agregue las siguientes líneas:
+
+          ```dockerfile
+          # Install the latest New Relic .NET agent using the apt-get package manager
+          RUN apt-get update && apt-get install -y wget ca-certificates gnupg \
+              && echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+              && wget https://download.newrelic.com/548C16BF.gpg \
+              && apt-key add 548C16BF.gpg \
+              && apt-get update \
+              && apt-get install -y newrelic-dotnet-agent \
+              && rm -rf /var/lib/apt/lists/*
+          ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Configurar las variables de entorno
+
+    Luego de instrumentar sus Azure Functions con el agente New Relic .NET, haga lo siguiente para configurar las [variables de entorno](/docs/serverless-function-monitoring/azure-function-monitoring/env-variables-azure) para enviar los datos a New Relic.
+
+    1. Vaya a sus Azure Functions en el portal Azure , en **Settings**, haga clic en **Environment variables** y luego en **Advanced edit**.
+
+    2. Según los requisitos de su aplicación, pegue los siguientes valores.
+
+    <Callout variant="important">
+      Cerciorar de agregar una coma al final de la última línea existente y actualice su clave de licencia y el nombre de la aplicación en la siguiente configuración.
+    </Callout>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="containerized-configuration">Funciones en contenedores de</TabsBarItem> <TabsBarItem id="linux-configuration">Linux</TabsBarItem> <TabsBarItem id="windows-configuration">y Windows</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="linux-configuration">
+          ```json
+          {
+            "name": "CORECLR_ENABLE_PROFILING",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_NEW_RELIC_HOME",
+            "value": "/home/site/wwwroot/newrelic",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_PROFILER",
+            "value": "{36032161-FFC0-4B61-B559-F6C5D41BAE5A}",
+            "slotSetting": false
+          }, 
+          {
+            "name": "CORECLR_PROFILER_PATH",
+            "value": "/home/site/wwwroot/newrelic/libNewRelicProfiler.so",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_AZURE_FUNCTION_MODE_ENABLED",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LOG_DIRECTORY",
+            "value": "/home/LogFiles/NewRelic",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "<your newrelic license key here>",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id="windows-configuration">
+          ```json
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+
+          Opcionalmente, puede especificar la versión del agente .NET que desea instalar agregando la siguiente variable de entorno:
+
+          ```json
+          {
+            "name": "NEW_RELIC_AGENT_VERSION_OVERRIDE",
+            "value": "10.35.0",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id="containerized-configuration">
+          ```json
+          {
+            "name": "CORECLR_ENABLE_PROFILING",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_NEW_RELIC_HOME",
+            "value": "/usr/local/newrelic-dotnet-agent",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_PROFILER",
+            "value": "{36032161-FFC0-4B61-B559-F6C5D41BAE5A}",
+            "slotSetting": false
+          }, 
+          {
+            "name": "CORECLR_PROFILER_PATH",
+            "value": "/usr/local/newrelic-dotnet-agent/libNewRelicProfiler.so",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_AZURE_FUNCTION_MODE_ENABLED",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LOG_DIRECTORY",
+            "value": "/home/LogFiles/NewRelic",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "<your newrelic license key here>",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Resetear tus Azure Functions
+
+    Luego de agregar las variables de entorno, resetear Azure Functions para aplicar los cambios.
+  </Step>
+</Steps>
+
+## Que sigue
+
+Luego de completar los pasos de instalación y configuración, envíe tráfico a sus Azure Functions para ver la métrica en el de New Relic.UI dashboard

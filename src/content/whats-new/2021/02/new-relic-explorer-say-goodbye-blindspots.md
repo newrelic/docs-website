@@ -12,13 +12,13 @@ New Relic Explorer includes several new approaches to visualizing, exploring, an
 
 **New Relic Lookout** provides a real-time view across all your accounts, highlighting changes in all your telemetry, regardless of instrumentation source—even third-party and open source data—in an easy-to-understand, accessible user experience that requires no configuration. An intuitive circle visualization, with color indicating severity of recent changes and size conveying the scale, draws your attention where it’s needed most.
 
-![An animation of the Lookout overview and detail pane.](./images/animated-lookout-example.gif "The Lookout overview and detail pane.")
+![An animation of the Lookout overview and detail pane.](/images/animated-lookout-example.gif 'The Lookout overview and detail pane.')
 
 Beyond showing key metrics of throughput, response time, and errors, you can view changes in any signal in your telemetry data that you find important, across all your accounts. You can analyze changes with performance, abnormal history, correlations, traces, and [error profiles](/docs/apm/apm-ui-pages/error-analytics/apm-error-profiles-troubleshoot-trends) to quickly uncover blind spots and unknown relationships so you understand what’s changed and why. That way, you can resolve issues before they impact your customers. [Get started with Lookout](https://one.newrelic.com/launcher/lookout.launcher) and [learn more about Lookout.](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-lookout-monitor-your-estate-glance)
 
 **New Relic Navigator** also offers an estate-wide view of your system. It filters the view by entities rather than changes, and it displays the health of your estate in a highly dense honeycomb view with traffic-light colors based on alerts so you can quickly explore your entire environment, understand health status, and resolve issues quickly.
 
-![An animation of the Navigator switching between different entities.](./images/animated-navigator-overview.gif "The Navigator switching between different entities.")
+![An animation of the Navigator switching between different entities.](/images/animated-navigator-overview.gif 'The Navigator switching between different entities.')
 
 New Relic Navigator lets you explore all your entities belonging to all your accounts, focusing on specific entity types or specific groups of entities organized by tags to quickly zero in on issues. When you have thousands, or tens of thousands of hosts, containers, and services, this capability makes it easy for you to explore everything in one place.
 

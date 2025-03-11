@@ -1,0 +1,457 @@
+---
+title: 'Tarball manual install of the infrastructure agent for Linux '
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Linux installation
+metaDescription: Instructions for how to install New Relic infrastructure monitoring for Linux systems using the tarball manual process.
+redirects:
+  - /docs/manual-install-infrastructure-linux
+  - /docs/infrastructure/new-relic-infrastructure/installation/manual-install-infrastructure-linux
+  - /docs/infrastructure/install-configure-infrastructure/linux-installation/manual-install-infrastructure-linux
+  - /docs/infrastructure/install-configure-manage-infrastructure/linux-installation/tarball-manual-install-infrastructure-linux
+freshnessValidatedDate: never
+---
+
+Our custom Linux installation process for infrastructure monitoring allows you to tailor all aspects of the installation process, and to place files and folders on your filesystem. You have full control of the installation.
+
+<Callout variant="caution">
+  The manual install process is not supervised. If you opt for manual install, you are responsible for placing the different files in the correct folders, providing the correct parameterized configuration values, and ensuring the agent has all the permissions to execute.
+</Callout>
+
+## Install the agent [#linux-manual-install]
+
+Before installation, check the [compatibility and requirements](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent/).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Additional agent package options
+      </th>
+
+      <th>
+        Comments
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Troubleshooting
+      </td>
+
+      <td>
+        The infrastructure agent package includes the additional `newrelic-infra-ctl` binary, which is used to help [troubleshoot a running agent](/docs/infrastructure/install-configure-manage-infrastructure/manage-your-agent/troubleshoot-running-agent). Although this binary is not required to execute the agent, we recommend that you add it in your path.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Daemon process
+      </td>
+
+      <td>
+        As of [version 1.5.59](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1559), the infrastructure agent package includes the additional `newrelic-infra-service` binary, which is used to safely manage usual agent daemon process `newrelic-infra`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+To install the agent:
+
+1. Download the [packaged agent file](https://download.newrelic.com/infrastructure_agent/binaries/linux/) or use the following command that automatically fetches a specific version of the agent, its checksum and verifies it after download. Replace `ARCH=amd64` with desired architecture (amd64, 386, arm64, arm) and `V=1.27.4` with [latest or specific version](https://github.com/newrelic/infrastructure-agent/releases/latest).
+
+   ```shell
+   V=1.27.4 ARCH=amd64; echo "https://download.newrelic.com/infrastructure_agent/binaries/linux/${ARCH}/newrelic-infra_linux_${V}_${ARCH}.tar.gz" | { read    url; wget "${url}"{,.sum}; shasum -a 256 --check ${url##*/}.sum; }
+   ```
+
+   From version `1.27.4` on, we provide the `tar.gz` package GPG signature. You can check the signature procedure and instructions for
+   verification in the [infra-agent repository on GitHub](https://github.com/newrelic/infrastructure-agent/blob/master/docs/pgp-signed-release.md).
+2. Unpack the file.
+3. Make sure the file unpacks with the following structure:
+
+   ```
+   newrelic-infra
+   |-- config_defaults.sh
+   |-- etc
+   |   |-- init_scripts
+   |   |   |-- systemd
+   |   |   |   `-- newrelic-infra.service
+   |   |   |-- sysv
+   |   |   |   `-- newrelic-infra
+   |   |   `-- upstart
+   |   |       `-- newrelic-infra
+   |   `-- newrelic-infra
+   |       `-- integrations.d
+   |-- installer.sh
+   |-- usr
+   |   `-- bin
+   |       |-- newrelic-infra
+   |       |-- newrelic-infra-ctl
+   |       `-- newrelic-infra-service
+   `-- var
+       |-- db
+       |   `-- newrelic-infra
+       |       |-- custom-integrations
+       |       |-- integrations.d
+       |       |-- LICENSE.txt
+       |       `-- newrelic-integrations
+       |-- log
+       |   `-- newrelic-infra
+       `-- run
+           `-- newrelic-infra
+   ```
+4. [Install the service script](#install-service-script).
+5. Optional: [Additional install steps](#install-options).
+
+## Install: Optional steps [#install-options]
+
+You can also carry out these additional steps:
+
+* [Change the location of the configuration file](#change-config-file).
+* [Change the location of the PID file](#change-pid).
+* [Change the user and runtime mode](#agent-running-mode).
+* [Configure the plugin directory](#configure-plugin).
+* [Configure the agent directory](#agent-directory).
+* [Configure the log file](#log-file).
+* [Change the location of the agent binary](#agent-binary).
+
+<InstallFeedback/>
+
+## Install the service script [#install-service-script]
+
+Before you proceed to install the service script, you need to determine which service manager your system is using:
+
+* If you use one of the supported service managers (SystemD, SysV, and Upstart), use the service script provided in the tarball.
+* If you use a service manager we do not support, you must write your own service script.
+
+<Callout variant="important">
+  In case of doubt, check your Linux distribution's official documentation.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="guess-service-manager"
+    title="Determine your service manager"
+  >
+    There's no good way you can programmatically know which service manager is being used in your host, but we can give you some heuristics.
+
+    To determine the service manager, use the following commands:
+
+    * `command -v systemctl` (used in Systemd)
+    * `command -v update-rc.d` (used in SysV)
+    * `command -v initctl` (used in Upstart)
+
+      The first command that returns an output indicates which service manager your system uses.
+
+      <Callout variant="tip">
+        For example, run the following sequence:
+
+        ```sh
+        command -v systemctl
+        command -v initctl
+        [output] /sbin/initctl
+        ```
+
+        Based on this output, Upstart is the service manager, since it's the command that obtained a return.
+      </Callout>
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  Before copying the service manager script, check if you need to change the user, the path of the agent’s binary, or the pid file location. All these changes need to be reflected in the service script.
+</Callout>
+
+If you use one of the supported service managers, install the service script for your host:
+
+<CollapserGroup>
+  <Collapser
+    id="install-systemd"
+    title="Systemd"
+  >
+    1. Copy the service file `./newrelic-infra/etc/init_scripts/systemd/newrelic-infra.service` to `/etc/systemd/system/newrelic-infra.service`
+    2. Enable the service script:
+
+       ```bash
+       systemctl enable newrelic-infra.service
+       ```
+  </Collapser>
+
+  <Collapser
+    id="install-sysv"
+    title="SysV"
+  >
+    1. Copy the service file `./newrelic-infra/etc/init_scripts/sysv/newrelic-infra` to `/etc/init.d/system/newrelic-infra`
+    2. Run the following commands:
+
+       ```bash
+       update-rc.d newrelic-infra defaults
+       update-rc.d newrelic-infra enable
+       ```
+  </Collapser>
+
+  <Collapser
+    id="install-upstart"
+    title="Upstart"
+  >
+    1. Copy the service file `./newrelic-infra/etc/init_scripts/upstart/newrelic-infra` to `/etc/init/newrelic-infra.conf`
+    2. Run the following command:
+
+       ```bash
+       initctl reload-configuration
+       ```
+  </Collapser>
+</CollapserGroup>
+
+Your service script is configured. Configure the rest of the options and start the service manually.
+
+## Change config file's location [#change-config-file]
+
+The infrastructure agent includes a configuration file, usually named `newrelic-infra.yml`, to fine-tune the agent's behavior. For more information, see a [config file template](https://github.com/newrelic/infrastructure-agent/blob/master/assets/examples/infrastructure/newrelic-infra-template.yml.example) and how to [configure the agent](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent).
+
+By default, the agent searches for the configuration file in one of these locations:
+
+* `newrelic-infra.yml` (working directory root folder)
+* `/etc/newrelic-infra.yml`
+* `/etc/newrelic-infra/newrelic-infra.yml`
+
+To specify a different location, use the `-config` flag command-line. For example:
+
+```bash
+usr/bin/newrelic-infra -config /whatever/path/custom_config_name.yml
+```
+
+To make this change permanent, edit the service script:
+
+<CollapserGroup>
+  <Collapser
+    id="config-location-systemd"
+    title="Systemd"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/systemd/newrelic-infra.service`.
+    2. Search for the line `ExecStart=/usr/bin/newrelic-infra`.
+    3. Add the config flag and the config file path. In this example the config file is located in the `/opt` directory `ExecStart=/usr/bin/newrelic-infra -config /opt/config.yaml`.
+    4. Save the file.
+  </Collapser>
+
+  <Collapser
+    id="config-location-sysv"
+    title="SysV"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/sysv/newrelic-infra`.
+    2. Search for the line `DAEMON=/usr/bin/$NAME”`.
+    3. Below the DAEMON variable, add this new line:
+
+       `EXTRA_OPTS="-config config_file"` (with the quotation marks).
+    4. Replace `config_file` with the path to the config file you want to use.
+    5. Save the file.
+  </Collapser>
+
+  <Collapser
+    id="config-location-upstart"
+    title="Upstart"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/upstart/newrelic-infra`.
+    2. Search for the line `exec /usr/bin/newrelic-infra`.
+    3. Add the `config flag` and the `config file path`. Here the `config file` is located in the `/opt` directory `exec /usr/bin/newrelic-infra -config /opt/config.yaml`.
+    4. Save the file.
+  </Collapser>
+</CollapserGroup>
+
+## Change the pid-file location [#change-pid]
+
+The infrastructure agent uses a `pid-file` to keep the process identification number (pid), which is used to identify a running instance of the agent. How to change the location of the `pid-file` depends on [how the agent is configured](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent#precedence).
+
+<Callout variant="important">
+  By default, we recommend that the agent creates the `pid-file`. You can edit the location if necessary.
+</Callout>
+
+To change the location of the `pid-file`:
+
+<CollapserGroup>
+  <Collapser
+    id="pidfile-agent"
+    title="If the agent creates the pid-file"
+  >
+    On startup, the agent writes its process `pid` into the `pid-file`. If the file doesn’t exist it will create it.
+
+    By default, the agent creates the `pid-file` using the path `/var/run/newrelic-infra/newrelic-infra.pid`. To modify it, use one of these options:
+
+    * Add the `pid_file` configuration option in the [configuration file `newrelic-infra.yml`](/docs/infrastructure/new-relic-infrastructure/configuration/infrastructure-config-file-template-newrelic-infrayml).
+    * Provide the `pid_file` using the command line when running the `newrelic-infra` binary.
+    * Set the `NRIA_PID_FILE` environment variable.
+
+      <Callout variant="important">
+        Since the agent creates or updates the `pid-file` every time it’s initialized, the user who runs the agent must have read/write permissions over the `pid-file` location.
+      </Callout>
+
+      Use the `chown` command to give owner rights to a user. For example, if the user `nri-agent` is running the agent and the `pid-file` location is set to`/var/run/newrelic-infra-custom/nr.pid`, then you can give the user rights with:
+
+      ```bash
+      chown nri-agent:nri-agent /var/run/newrelic-infra-custom/
+      ```
+  </Collapser>
+
+  <Collapser
+    id="pidfile-env-var"
+    title="If the agent uses the PIDFILE environment variable"
+  >
+    <Callout variant="caution">
+      We do not recommend using the `PIDFILE` environment variable to manage the `pid-file`.
+    </Callout>
+
+    If the environment variable `PIDFILE` is set, the agent will not try to create the `pid-file`. Create the `pid-file` in a location of your choice.
+
+    <Callout variant="tip">
+      Use this approach if someone else takes care of the `pid-file` lifecycle. For example, our `init` script sets the `PIDFILE` variable for some service managers, such as SysV, because they handle the creation and content of the `pid-file`.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Change the user and runtime mode [#agent-running-mode]
+
+The Linux agent runs as `root` by default, but it also supports running with users with less privileges: `PRIVILEGED` and `UNPRIVILEGED`. For more information, see our [documentation on agent running modes](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux#agent-mode-intro).
+
+<Callout variant="important">
+  To execute the agent as a non-root user (`PRIVILEGED` or `UNPRIVILEGED`), make sure to grant read/write access to the folders and files provided in the tarball.
+</Callout>
+
+To change the running mode:
+
+1. Edit the service script:
+
+   <CollapserGroup>
+     <Collapser
+       id="mode-systemd"
+       title="Systemd"
+     >
+       1. Open the service script `./newrelic-infra/etc/init_scripts/systemd/newrelic-infra.service`.
+       2. Search for the line `[Service]`.
+       3. Add the line `User=user_name`, and replace `user_name` with the user that you want to execute the agent (`PRIVILEGED` or `UNPRIVILEGED`).
+       4. Save the file.
+     </Collapser>
+
+     <Collapser
+       id="mode-sysv"
+       title="SysV"
+     >
+       1. Open the service script `./newrelic-infra/etc/init_scripts/sysv/newrelic-infra`.
+       2. Search for the line `USER=root`.
+       3. Replace `root` with the user that you want to execute the agent (`PRIVILEGED` or `UNPRIVILEGED`).
+       4. Save the file.
+     </Collapser>
+
+     <Collapser
+       id="mode-upstart"
+       title="Upstart"
+     >
+       1. Open the service script `./newrelic-infra/etc/init_scripts/upstart/newrelic-infra`.
+       2. Search for the line `exec /usr/bin/newrelic-infra`.
+       3. Replace it with `exec su -s /bin/sh -c ‘exec “$0” “$@“’ user_name-- /usr/bin/newrelic-infra`.
+       4. Replace `user_name` with the user that you want to execute the agent (`PRIVILEGED` or `UNPRIVILEGED`).
+       5. Save the file.
+     </Collapser>
+   </CollapserGroup>
+2. If you're running the agent as `PRIVILEGED`, you must give it [two additional Linux capabilities](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux):
+
+   1. Make sure the `libcap` library is installed in your host. (You need the `setcap` and `getcap` commands that come with it.)
+   2. Extract the contents of the tarball and execute the following command with root permission:
+
+      ```bash
+      setcap CAP_SYS_PTRACE,CAP_DAC_READ_SEARCH=+ep ./newrelic-infra/usr/bin/newrelic-infra
+      ```
+   3. The run mode will be selected based on the current user and the Kernel Capabilities assigned to it.
+
+## Configure the plugin directory [#configure-plugin]
+
+The infrastructure agent allows you to install [integrations](/docs/infrastructure/host-integrations/get-started/introduction-host-integrations) that monitor and report data from popular services such as Kubernetes, AWS, MySQL, Redis, Kafka, etc. Each integration has its own configuration file, named by default `integration-name-config.yml`, placed in the predefined location `/etc/newrelic-infra/integrations.d/`. On initialization, the agent loads the config file.
+
+To overwrite the predefined location of the integration configuration file, use one of the following methods:
+
+* Set the location in the `NRIA_PLUGIN_DIR` environment variable.
+* Set the custom path in the `newrelic-infra.yml` configuration file using the `plugin_dir` field.
+* Pass it as a command line argument using `-plugin_dir` when you run the `newrelic-infra` binary.
+
+## Configure the agent directory [#agent-directory]
+
+The agent requires its own defined directory to run the installed [integrations](/docs/infrastructure/host-integrations/get-started/introduction-host-integrations), caching data (inventory), etc. The default location is `/var/db/newrelic-infra/`.
+
+The agent directory has the following structure and content:
+
+* `LICENSE`: Text file containing the New Relic infrastructure agent license.
+* `custom-integrations`: Directory that stores the installed the [custom integrations](/docs/integrations/integrations-sdk/getting-started/introduction-infrastructure-integrations-sdk).
+* `newrelic-integrations`: Directory that stores the [New Relic official integrations](/docs/infrastructure/integrations/types-integrations).
+* `data`: Directory where the agent stores cache data (inventory).
+
+<Callout variant="important">
+  The user [running the agent](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux#agent-mode-intro) must have read/write permissions to the agent directory.
+</Callout>
+
+To overwrite the predefined location of the agent directory, use one of the following methods:
+
+* Set the location in the `NRIA_AGENT_DIR` environment variable.
+* Set the custom path in the `newrelic-infra.yml` configuration file using the `agent_dir` field.
+* Pass it as a command line argument using `-agent_dir` when you run the `newrelic-infra` binary.
+
+## Configure the log file [#log-file]
+
+By default the agent stores the log files in `/var/db/newrelic-infra/newrelic-infra.log`.
+
+<Callout variant="important">
+  The user [running the agent](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux#agent-mode-intro) must have write permissions on the log file.
+</Callout>
+
+To overwrite the predefined location of the log file, use one of the following methods:
+
+* Set the location in the `NRIA_LOG_FILE` environment variable.
+* Set the custom path in the `newrelic-infra.yml` configuration file using the `log_file` field.
+* Pass it as a command line argument using `-log_file` when you run the `newrelic-infra` binary.
+
+## Change the location of the agent binary [#agent-binary]
+
+To change the location of the executable, edit the service script:
+
+<CollapserGroup>
+  <Collapser
+    id="binary-location-systemd"
+    title="Systemd"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/systemd/newrelic-infra.service`.
+    2. Search for the line `[ExecStart=/usr/bin/newrelic-infra]`.
+    3. Replace the path.
+    4. Save the file.
+  </Collapser>
+
+  <Collapser
+    id="binary-location-sysv"
+    title="SysV"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/sysv/newrelic-infra`.
+    2. Search for the line `DAEMON=/usr/bin/$NAME`.
+    3. Replace the path.
+    4. Save the file.
+  </Collapser>
+
+  <Collapser
+    id="binary-location-upstart"
+    title="Upstart"
+  >
+    1. Open the service script `./newrelic-infra/etc/init_scripts/upstart/newrelic-infra`.
+    2. Search for the line `exec /usr/bin/newrelic-infra`.
+    3. Replace the path.
+    4. Save the file.
+  </Collapser>
+</CollapserGroup>
+
+## What's next? [#what-next]
+
+You may also want to:
+
+* [Add custom attributes](/docs/Infrastructure-configure-your-agent#conf-custom_attributes) to annotate your infrastructure data.
+* [Connect your AWS account](/docs/infrastructure-amazon-aws-ec2-integration#connect) if your servers are hosted on Amazon EC2.
+* Enable [log forwarding](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#tarball-install).
+* Enable our Flex integration by [manually adding the Flex executable](https://github.com/newrelic/nri-flex/releases).
+* Add other [infrastructure integrations](/docs/infrastructure/introduction-infra-monitoring) to collect data from external services.
+* Manually [start, stop, restart, or check the agent status](/docs/infrastructure-start-stop-restart-check-agent-status#linux).

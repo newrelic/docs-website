@@ -1,0 +1,58 @@
+---
+title: Introducción al explorador de datos
+tags:
+  - Query your data
+  - Explore and query data
+  - Data explorer
+metaDescription: The New Relic data explorer lets you run queries of your data without using NRQL-format queries
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Ahora puedes explorar todos tus datos visualmente usando <DNT>**query experience data explorer**</DNT> sin necesidad de saber cómo escribir [consulta en formatoNRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language).
+
+¿Necesita realizar una búsqueda más detallada? Lea cómo [consultar sus datos](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/). Si aún no lo hiciste, crea tu cuenta gratis New Relic para comenzar a monitorear tus datos hoy mismo.
+
+## Importancia del explorador de datos [#importance-of-data-explorer]
+
+¿Investiga usted el estado de sus sistemas? ¿Necesita planear recursos, identificar y responder a incidentes o solucionar problemas de comportamiento? El explorador de datos facilita la identificación, obtención y visualización de los datos que está buscando a través de menús visuales, sin necesidad de emplear NRQL ni crear consultas.
+
+Con <DNT>**data explorer**</DNT>, puedes acceder a todos los datos almacenados en la base de datos de New Relic (NRDB) de una manera rápida e intuitiva. Luego, puede seleccionar la faceta de su consulta usando atributo y filtrar hasta obtener el valor necesario.
+
+Otras cosas que la vista del explorador de datos lo ayuda a hacer:
+
+* Vea los datos desde diferentes perspectivas: desde datos brutos hasta diversas visualizaciones que brindan información valiosa sobre la evolución, distribución y más.
+* Profundice en los datos mediante filtros.
+* Vea una predicción basada en la tendencia de sus datos (disponible con la vista previa pública de [Predicciones NRQL](/docs/query-your-data/explore-query-data/use-charts/nrql-predictions)).
+* Agrega tus búsquedas a un dashboard.
+* Comprenda cómo funciona NRQL : el Explorador de datos genera automáticamente la consulta NRQL en función de sus selecciones.
+
+### Tipos de datos que puedes explorar [#types-of-data]
+
+A continuación se muestran los tipos de datos que puede explorar empleando la vista <DNT>**Data Explorer**</DNT> :
+
+* [Dimensional métrica](/docs/data-apis/understand-data/new-relic-data-types/#dimensional-metrics) (el tipo de datos métrica).
+* [Eventos](/docs/data-apis/understand-data/new-relic-data-types/#events-new-relic) (el tipo de datos del evento).
+* [Logs](/docs/logs/ui-data/use-logs-ui) (el tipo de datos de log).
+
+## Explora tus datos [#explore-your-data]
+
+Para acceder al Explorador de datos, navegue hasta la barra inferior <DNT>**Query your data**</DNT> y haga clic en el ícono <DNT>**Data Explorer**</DNT> .
+
+### Emplee el explorador de datos [#use-data-explorer]
+
+* **Definir el alcance**: seleccione el tipo de datos (métrica, evento o log), la cuenta y la entidad.
+* **Seleccionar el rango de tiempo**: emplee el selector de tiempo para definir el rango de tiempo para su consulta.
+* **Construye tu búsqueda**: emplea los bloques de la izquierda para explorar los datos disponibles y construir tu búsqueda. Los bloques se pueden buscar y puedes usar las acciones en el menú de acciones para crear y actualizar tu consulta.
+* **Refina tu consulta**: modifica tu consulta agregando filtros, facetas y agregaciones.
+* **Personalice la visualización del gráfico**: mejore la visualización del gráfico desde las opciones de personalización disponibles.
+* **Agregar predicción a un gráfico de líneas o áreas (disponible con la vista previa pública de [NRQL Predictions](/docs/query-your-data/explore-query-data/use-charts/nrql-predictions))**: use <DNT>**Predict trend**</DNT> en el menú **Options** para obtener una tendencia prevista.
+* **Agregar al dashboard**: agregue su gráfico a un dashboard para referencia futura.
+
+<img title="Data explorer view" alt="Data explorer view" src="/images/data-explorer.gif" />
+
+### Componentes del explorador de datos [#data-explorer-components]
+
+* **Seleccione su tipo de datos**: elija entre métrica, evento, registro y cuentas. Si selecciona métrica, puede filtrar por entidad.
+* **Área de navegación de datos**: Situada a la izquierda, esta área permite navegar por los datos haciendo clic en los diferentes valores que se muestran en pantalla o ver las posibles acciones haciendo clic en el menú de acciones de 3 puntos.
+* **Espacio de trabajo**: esta área muestra los resultados de sus selecciones.

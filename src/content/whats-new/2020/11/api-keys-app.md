@@ -9,6 +9,6 @@ With the new API keys app you can create, view, and manage your user keys, inges
 
 The new API keys page also has links to the Insights keys page and the old version of the API keys page, so you can still view and manage account-wide REST API and Admin API keys.
 
-![An animated image showing where to find the new API Keys app.](./images/api-keys-app.gif "How to find the new API Keys app")
+![An animated image showing where to find the new API Keys app.](/images/api-keys-app.gif 'How to find the new API Keys app')
 
 For more about how to find the UI and more about API keys, see [API keys](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#find).

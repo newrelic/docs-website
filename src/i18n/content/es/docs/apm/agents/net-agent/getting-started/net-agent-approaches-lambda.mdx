@@ -1,0 +1,388 @@
+---
+title: Enfoques para el monitoreo de rendimiento .NET AWS Lambda Serverless
+tags:
+  - Agents
+  - NET agent
+  - Getting started
+metaDescription: This guide helps users decide which approach to take for .NET serverless AWS Lambda performance monitoring.
+freshnessValidatedDate: '2024-07-25T00:00:00.000Z'
+translationType: machine
+---
+
+La visibilidad unificada de los comportamientos más detallados de su función Lambda .NET es esencial para que pueda comprender lo que sucede en su aplicación sin servidor. Esta información le permite solucionar problemas y optimizar sus funciones para que puedan funcionar más rápido y ofrecer resultados consistentes.
+
+Puede elegir entre dos enfoques de instrumentación para obtener visibilidad de su función Lambda .NET:
+
+* [Agente .NET New Relic](/docs/apm/agents/net-agent/getting-started/introduction-new-relic-net/)
+* [Distribución AWS para OpenTelemetry](https://aws-otel.github.io/docs/getting-started/lambda/lambda-dotnet).
+
+Emplee los siguientes consejos para ayudarlo a decidir qué enfoque es mejor para usted.
+
+## Comparación de características [#feature-comparison]
+
+La siguiente tabla describe los diferentes requisitos y capacidades de cada enfoque:
+
+<table>
+  <thead>
+    <tr>
+      <th />
+
+      <th>
+        Agente .NET New Relic
+      </th>
+
+      <th>
+        Distribución AWS para OpenTelemetry
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Requiere cambios de código
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Necesita herramienta para enviar datos.
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        No
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        New Relic experiencia UI
+      </td>
+
+      <td>
+        [Sin servidor](/docs/serverless-function-monitoring/aws-lambda-monitoring/ui-data/understand-lambda-monitoring-ui/)
+      </td>
+
+      <td>
+        [OpenTelemetry](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui/)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        rastreo distribuido
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        [Parcial](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet/#distributed-tracing)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Métrica
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Traza de la transaccion
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento de transacción
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        [Parcial](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui/#transactions-page)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento de error/intervalos
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Span evento o spans
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SQL trazas
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Perfilado de hilos
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Gestión de vulnerabilidades
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        llamadas externas
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        [Parcial](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui/#externals-page)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Instrumentación personalizada mediante XML
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        No
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Instrumentación personalizada mediante API
+      </td>
+
+      <td>
+        Sí (agente)
+      </td>
+
+      <td>
+        Sí (OpenTelemetry)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Métrica personalizada
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento personalizado
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tramos personalizados
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Errores personalizados
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        No
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Atributo personalizado
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Logs
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rastreo multiaplicación heredado
+      </td>
+
+      <td>
+        No
+      </td>
+
+      <td>
+        No
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip" title="Información">
+  Logs-in-context será capturado por la extensión Lambda o CloudWatch, no por el agente de reenvío de log .
+</Callout>
+
+## Agente .NET New Relic [#dot-net-agent]
+
+A partir de la versión 10.26.0 del agente, el agente .NET New Relic admite la función Lambda instrumentada AWS. En la mayoría de los casos, el agente .NET instrumentará automáticamente su función Lambda AWS. El beneficio de emplear el agente es que, en la mayoría de los casos, no se requieren cambios de código para monitor su función Lambda.
+
+En una función Lambda, el agente cambiará a un &quot;modo sin servidor&quot; que deshabilitará el envío de datos directamente a New Relic, así como también deshabilitará alguna otra característica. Para enviar datos a New Relic, debe emplear la extensión New Relic Lambda (incluida en nuestra capa de agente .NET) o CloudWatch.
+
+Dado que el agente instrumentó automáticamente la mayoría de las funciones Lambda, puede emplear el [paquete agente NuGet](https://www.nuget.org/packages/NewRelic.Agent#readme-body-tab) para monitor su función Lambda. Debe configurar manualmente las variables de entorno para el método de implementación elegido (consulte nuestra [guía de instalación](/install/dotnet/?deployment=nuget#nuget-linux)). Esto aún requiere que configure la [extensión Lambda de New Relic o la integración de CloudWatch](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/introduction-lambda/#how) para enviar sus datos a New Relic.
+
+La instrumentación automática está disponible para los siguientes tipos de funciones Lambda AWS (a partir de la versión del agente 10.29.0):
+
+* Amazon.Lambda.AspNetCoreServer.APIGatewayProxyFunction
+* Amazon.Lambda.AspNetCoreServer.APIGatewayHttpApiV2ProxyFunction
+* Amazon.Lambda.AspNetCoreServer.ApplicationLoadBalancerFunction
+
+Limitaciones:
+
+* Los métodos lambda genéricos no se instrumentan automáticamente. Si su método lambda es un método genérico, como `Task<TResponse> MyMethod<TRequest, TResponse>(TRequest, ILambdaContext)`, el agente .NET actualmente no puede implementar ese método.
+* Actualmente [, Lambda Annotations Framework](https://aws.amazon.com/blogs/developer/net-lambda-annotations-framework/) no es compatible.
+* Al evento [ApiGatewayV2](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html#http-api-develop-integrations-lambda.proxy-format) le falta algún contexto requerido para el rastreo distribuido.
+* No se admite el rastreo saliente distribuido para diferentes llamadas del SDK AWS (como SQS).
+* Si su controlador de función Lambda no incluye un parámetro [`ILambdaContext`](https://docs.aws.amazon.com/lambda/latest/dg/csharp-context.html) , el agente .NET no podrá recopilar toda la información esperada sobre su función Lambda.
+* La función .NET Lambda creada con el [método de implementación Native AOT](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/?tabs=net7%2Cwindows) no es compatible.
+
+<Callout variant="important">
+  **Complemento de marco sin servidor** La compatibilidad con la función Lambda de .NET comienza en la versión 5.3.0 del complemento sin servidor. Si está ejecutando una versión del complemento sin servidor anterior a la v5.3.0, La actualización a v5.3.0 o posterior implementará automáticamente su función Lambda de .NET. Puede [emplear la declaración de exclusión](https://github.com/newrelic/serverless-newrelic-lambda-layers?tab=readme-ov-file#exclude-optional) en su serverless.yml para excluir funciones de la instrumentación automática.
+</Callout>
+
+## Distribución AWS para OpenTelemetry (ADOT) Soporte Lambda para .NET
+
+La instrumentación OpenTelemetry Lambda para .NET proporciona extensión y API de seguimiento que puede emplear para instrumentar su función Lambda. ADOT está disponible como capa para facilitar su instalación. La capa ADOT Lambda proporciona una versión reducida del recolector AWS Distro for OpenTelemetry , que puede exportar datos OpenTelemetry a New Relic. En lugar de la UI experiencia de sin servidor, este enfoque empleará la OpenTelemetry UI.
+
+Este método requiere alguna configuración manual inicial dependiendo de su método de implementación.
+
+Para detalles de instalación, consulte [trazar su función Lambda .NET con New Relic y OpenTelemetry](/docs/serverless-function-monitoring/aws-lambda-monitoring/opentelemetry/lambda-opentelemetry-dotnet/).

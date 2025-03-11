@@ -1,0 +1,106 @@
+---
+title: Create "host not reporting" NRQL alert conditions
+metaDescription: Create guided mode NRQL conditions for "host not reporting" infrastructure errors.
+freshnessValidatedDate: 2024-08-01
+---
+
+NRQL condition guided mode simplifies the creation of "host not reporting" (HNR) alerts. Instead of manually constructing an NRQL query, this guided approach helps you quickly define conditions for detecting when infrastructure agents stop sending data. This method offers greater flexibility for targeting specific host groups, customizing alert thresholds, and refining incident criteria compared to traditional HNR alerts.
+
+## Features [#features]
+
+An HNR event is generated when the infrastructure agent fails to transmit data to our collector within a specified timeframe.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Host not reporting condition**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Features**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        What to monitor
+      </td>
+
+      <td>
+        You can use the [entity filter bar](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities) to select which hosts you want to the NRQL alert condition to monitor. Based on your selections, the NRQL query will be automatically built for you. The condition will also automatically apply to any hosts you add in the future that match your condition's filters.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        How to notify
+      </td>
+
+      <td>
+        NRQL conditions are contained in [policies](/docs/using-new-relic/welcome-new-relic/get-started/glossary#alert-policy). Policies use [workflows and destinations](/docs/alerts/get-notified/intro-notifications/) to determine how to notify you when an incident is created.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        When to open an incident
+      </td>
+
+      <td>
+        HNR guided mode leads you through creating a loss of signal NRQL condition. This means you have full access to all of the [loss of signal threshold settings](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/#signal-loss) including configuring the time window that triggers an HNR event and selecting from options: <DNT>**Close all current open incidents**</DNT>,  <DNT>**Open new "lost signal" incident**</DNT>, and <DNT>**Do not open "lost signal" incident on expected termination**</DNT>. These settings, in combination with the policy's [incident preferences](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents), determine when an incident will open.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Create a NRQL HNR alert condition [#create-nrql-hnr-alert-condition]
+
+1. Navigation to an alert policy page.
+2. Click **New alert condition**.
+3. Select **Use guided mode**.
+4. Select **Hosts** under the **Tell us where to look** category. (Note: If you don't see the "hosts" option, you may need to follow [instructions to instrument your infrastructure](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview/).)
+
+   <img
+     title="creating a condition step 2"
+     alt="screenshot of alert condition step 2"
+     src="/images/alerts_screenshot-crop_tell-us-where-to-look.webp"
+   />
+5. If **Hosts** isn't automatically selected for you under **Select an entity type**, choose **Hosts** again.
+6. Click **Next**.
+7. Under **Select signal catgory**, select **Host**.
+8. Under **Select a metric to monitor**, select **Host not reporting**.
+
+   <img
+     title="host not reporting selection"
+     alt="screenshot of selecting host not reporting option"
+     src="/images/alerts_screenshot-crop_host-not-reporting-selection.webp"
+   />
+9. Now, you can use the entity filter to narrow the scope of the host(s) you want to monitor.
+10. Click **Next**.
+    <img title="set condition thresholds" alt="screenshot of setting remaining thresholds" src="/images/alerts_screenshot-crop_set-condition-thresholds.webp"/>
+11. Under **Consider the signal lost after**, you have the option to adjust the time window from 30 seconds to 48 hours. You also have the option to adjust your [loss of signal settings](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/#signal-loss) including selecting the option to skip opening an incident when the signal is expected to terminate (for example, if your host is expected to shut down).
+12. Follow the remaining steps to finish configuring and save your alert condition.
+
+## Option: Do not open "lost signal" incident on expected termination [#do-not-open-lost-signal]
+
+When you check the option **Do not open "lost signal" incident on expected termination**, you're telling New Relic to skip opening an incident when the signal is expected to terminate. This is useful when you know a host is going to shut down.
+
+In order to enable this option, you must also have **Open new "lost signal" incident** checked. This way, New Relic knows to open a new incident when the signal is lost, but not when the signal is expected to be lost.
+
+<img
+  title="signal loss options"
+  alt="screenshot of signal loss options"
+  src="/images/alerts_screenshot-crop_signals-lost-options.webp"
+  width="50%"
+/>
+
+<Callout variant="important">
+  In order to prevent a loss of signal incident from opening when "Do not open "lost signal" incident on expected termination", the tag `termination: expected` must be added to the host entity. This tag tells us the signal was expected to terminate. See how to add the tag [directly to the host entity](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags).
+</Callout>

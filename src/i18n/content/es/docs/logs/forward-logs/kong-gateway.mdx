@@ -1,0 +1,82 @@
+---
+title: Reenvío de log de Kong Gateway
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+metaDescription: 'How to forward your logs to New Relic using our kong Gateway file log plugin, so you can use enhanced log management capabilities.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El reenvío del log de Kong Gateway a New Relic proporciona información valiosa sobre el rendimiento, el estado, la seguridad y el uso de API Gateway. Este documento describe cómo dirigir el complemento de File Log de Kong Gateway para reenviar el log de Kong Gateway a New Relic.
+
+## Compatibilidad y requisitos [#compatibility-requirements]
+
+Para emplear este complemento de reenvío de log , necesitará lo siguiente:
+
+* [ComplementoKubernetes ](/docs/logs/forward-logs/kubernetes-plugin-log-forwarding)instalado
+* Kong Gateway instalado con [definiciones de recursos personalizadas (CRD)](https://docs.konghq.com/kubernetes-ingress-controller/latest/plugins/rate-limiting/#install-the-gateway-apis)
+
+## Instalar el complemento Kong Gateway [#install-overview]
+
+Para recibir el log de Kong Gateway, debe conectar el complemento de File Log de Kong Gateway a la New Relic Kubernetes integración . Esta configuración dirige el log a través de una salida estándar (`/dev/stdout`), que establece una conexión entre la integración New Relic Kubernetes y Kong Gateway.
+
+<Steps>
+  <Step>
+    ## Instale la integración de log New Relic Kubernetes [#install-k8s-logs]
+
+    Si aún no lo hizo, [instale el complemento New Relic Kubernetes para el reenvío de log](/docs/logs/forward-logs/kubernetes-plugin-log-forwarding) y luego regrese a este documento. El complemento emplea una imagen de Docker independiente que recopila y reenvía logs desde su entorno Kubernetes .
+  </Step>
+
+  <Step>
+    ## Configurar el complemento de File Log [#install-config-filelog]
+
+    Una vez que haya [instalado el complemento de Kong Gateway File Log](https://docs.konghq.com/hub/kong-inc/file-log/), debe indicarle al complemento que envíe el registro a `/dev/stdout`. A continuación se muestra un ejemplo de manifiesto para esta configuración:
+
+    ```yaml
+    # file-log-plugin.yaml
+    apiVersion: configuration.konghq.com/v1
+    kind: KongClusterPlugin
+      metadata:
+        name: global-file-log
+        annotations:
+            kubernetes.io/ingress.class: kong
+        labels:
+            global: "true"
+      config:
+        path: "/dev/stdout" # Directs logs through a standard output so New Relic can receive Kong Gateway logs
+    plugin: file-log
+    ```
+  </Step>
+
+  <Step>
+    ## desplegar la configuración a tu clúster de Kubernetes [#deploy-config]
+
+    Implemente la configuración del complemento File Log en su clúster de Kubernetes, pero cerciorar de actualizar `file-log-plugin.yaml` con el nombre de archivo real de su manifiesto:
+
+    ```bash
+    kubectl apply -f file-log-plugin.yaml -n kong
+    ```
+  </Step>
+
+  <Step>
+    ## Confirma que tus logs están en la plataforma New Relic [#confirm-logs-platform]
+
+    Una vez que implementó la configuración, vaya a **[one.newrelic.com &gt; All Capabilities &gt; Logs](https://one.newrelic.com/launcher/logger.log-launcher)**. Confirme que los registros de Kong Gateway estén apareciendo en la plataforma activando algunos datos y luego ejecutando una consulta que filtre esos datos.
+
+    Puedes comenzar a construir esa consulta con este ejemplo:
+
+    ```sql
+    SELECT * FROM Log
+    ```
+  </Step>
+</Steps>
+
+## ¿Que sigue? [#whats-next]
+
+Ahora que estás reenviando tu log de Kong Gateway a New Relic, te recomendamos que consultes algunos de nuestros otros documentos y tutoriales:
+
+* Siga nuestro tutorial para aprender a [gestionar un gran volumen de log](/docs/tutorial-manage-large-log-volume/get-started-managing-large-logs).
+* Conozca [nuestra sintaxis de consulta de log](/docs/logs/ui-data/query-syntax-logs).
+* Explore nuestros documentos sobre la UI de logs, comenzando con nuestro [documento de descripción general UI de logs](/docs/logs/ui-data/use-logs-ui)

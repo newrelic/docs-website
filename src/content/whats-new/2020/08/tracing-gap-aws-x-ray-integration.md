@@ -16,6 +16,6 @@ Now, you can ingest AWS X-Ray distributed tracing data into New Relic to easily 
 
 If you’re an existing New Relic user and you’ve already [connected your AWS account](https://docs.newrelic.com/docs/integrations/amazon-integrations/get-started/connect-aws-infrastructure), go to your [New Relic Infrastructure AWS settings](https://infrastructure.newrelic.com) and activate X-Ray (see below).
 
-![Infrastructure_integrations_AWS_x-ray.png](./images/Infrastructure_integrations_AWS_x-ray.webp "Infrastructure_integrations_AWS_x-ray.webp")
+![Infrastructure_integrations_AWS_x-ray.png](/images/Infrastructure_integrations_AWS_x-ray.webp 'Infrastructure_integrations_AWS_x-ray.webp')
 
 After you enable the X-Ray integration, AWS X-Ray trace data will automatically display in any distributed tracing view throughout the New Relic platform.

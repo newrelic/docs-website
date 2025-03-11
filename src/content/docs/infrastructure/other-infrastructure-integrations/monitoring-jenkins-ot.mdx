@@ -1,0 +1,152 @@
+---
+title: Monitor Jenkins with OpenTelemetry and New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Jenkins
+  - Quickstart
+metaDescription: Here is a simple example to setup the Jenkins OpenTelemetry plugin to send data to New Relic.
+redirects:
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/jenkins/monitoring-jenkins-ot
+  - /docs/more-integrations/open-source-telemetry-integrations/jenkins/monitoring-jenkins-ot
+  - /docs/infrastructure/host-integrations/host-integrations-list/monitoring-jenkins-ot
+freshnessValidatedDate: never
+---
+
+Monitor Jenkins with the [OpenTelemetry plugin](https://plugins.jenkins.io/opentelemetry) by visualizing jobs and pipeline executions as [distributed traces](/docs/distributed-tracing/concepts/introduction-distributed-tracing). You can also install the [quickstart](https://newrelic.com/instant-observability/jenkins) to get a pre-built dashboard to monitor your Jenkins pipeline.
+
+<img
+  title="Screenshot showing sample Jenkins dashboard in New Relic"
+  alt="Screenshot showing sample Jenkins dashboard in New Relic"
+  src="/images/opentelemetry_screenshot-full_jenkins-05.webp"
+/>
+
+## Prerequisites [#prerequisites]
+
+You need to first install the OpenTelemetry plugin from Jenkins:
+
+1. Log into Jenkins.
+2. From the Dashboard, click on <DNT>**Manage Jenkins**</DNT>.
+3. Under System Configuration, click <DNT>**Plugins**</DNT>.
+4. Click the <DNT>**Available plugins**</DNT> tab, then search for <DNT>**OpenTelemetry**</DNT>.
+5. Select the <DNT>**OpenTelemetry**</DNT> checkbox, and <DNT>**Install without restart**</DNT>.
+6. Once the installation is complete, click <DNT>**Manage Jenkins**</DNT>.
+7. Under <DNT>**System Configuration**</DNT>, click <DNT>**System**</DNT>.
+8. Scroll down and check for a section called <DNT>**OpenTelemetry**</DNT>. If you can't see it, restart Jenkins.
+
+<img
+  title="Screenshot showing Jenkins OpenTelemetry plugin"
+  alt="Screenshot showing Jenkins OpenTelemetry plugin"
+  src="/images/opentelemetry_screenshot-full_jenkins-01.webp"
+/>
+
+## Configuration [#configuration]
+
+You need a New Relic [OTLP endpoint](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/#note-endpoints) and an <InlinePopover type="licenseKey"/> to configure the Jenkins OpenTelemetry plugin to send data to New Relic.
+
+<img
+  title="Screenshot showing Jenkins OpenTelemetry configuration"
+  alt="Screenshot showing Jenkins OpenTelemetry configuration"
+  src="/images/opentelemetry_screenshot-full_integrations-jenkins-02.webp"
+/>
+
+1. Enter an OTLP endpoint. For example, `https://otlp.nr-data.net:4317`.
+2. For authentication, select <DNT>**Header Authentication**</DNT>:
+   a. In the <DNT>**Header Name**</DNT> field, enter <DNT>**api-key**</DNT>.
+   b. In the <DNT>**Header Value**</DNT> field, enter a secret text containing your New Relic ingest license key.
+3. Save the changes.
+
+If you don't have a secret text created with your New Relic license key, click the <DNT>**+ Add**</DNT> button and select <DNT>**Jenkins Credentials Provider**</DNT>, to create one. You can keep the default values except for <DNT>**kind**</DNT> and <DNT>**secret**</DNT> and the <DNT>**description**</DNT> is optional.
+
+<img
+  title="Screenshot showing Jenkins Credential Provider"
+  alt="Screenshot showing Jenkins Credential Provider"
+  src="/images/opentelemetry_screenshot-full_integrations-jenkins-03.webp"
+/>
+
+1. From the <DNT>**Kind**</DNT> dropdown, select <DNT>**Secret text**</DNT>.
+2. In the <DNT>**secret**</DNT> field, enter your New Relic ingest license key.
+3. Optionally, add a description to note what the secret text is for.
+
+## Validation [#validation]
+
+Run a job or create a new pipeline to see Jenkins data in New Relic. Here's how to build a pipeline:
+
+1. Log into Jenkins and click <DNT>**New Item**</DNT>.
+2. Enter an item name, click <DNT>**Pipeline**</DNT>, and then <DNT>**OK**</DNT>.
+3. Scroll down to the very bottom to the <DNT>**Pipeline**</DNT> section.
+4. Use the Pipeline script, and select an option from the <DNT>**try sample Pipeline...**</DNT> dropdown.
+5. Click Save.
+6. In the newly created pipeline, click <DNT>**Build Now**</DNT>.
+7. Got to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > Services - OpenTelemetry > jenkins**</DNT>.
+8. Click <DNT>**Distributed tracing**</DNT> to visualize jobs and pipeline executions.
+9. Click <DNT>**Logs**</DNT> to see your Jenkins console logs. If there are no logs, check to make sure the environment variable `OTEL_LOGS_EXPORTER="otlp"` is set.
+
+<img
+  title="Screenshot showing Jenkins OpenTelemetry plugin"
+  alt="Screenshot showing Jenkins OpenTelemetry plugin"
+  src="/images/opentelemetry_screenshot-full_opentelemetry-jenkins-04.webp"
+/>
+
+## Install the Jenkins quickstart dashboard [#quickstart]
+
+After you've sent your Jenkins pipeline data to New Relic, you can also easily monitor your jobs and pipeline executions with the prebuilt dashboard from [New Relic Instant Observability](http://newrelic.com/instant-observability). Get started in minutes with a pre-built dashboard to see key metrics in a consolidated view:
+
+1. Go to the Jenkins quickstart in [New Relic Instant Observability](https://newrelic.com/instant-observability/jenkins), and click <DNT>**+ Install now**</DNT>.
+2. Select an account and click <DNT>**Begin installation**</DNT>.
+3. If you've already completed the [validation](#validation), select <DNT>**done**</DNT> to move onto the next step.
+4. The quickstart deploys the resources to your account. Click <DNT>**see your data**</DNT> to get to the dashboard.
+<Callout variant="important">
+  If your service name (`OTEL_SERVICE_NAME`) is configured as something other than `jenkins`, update the `WHERE` conditions of `entity.name` on the prebuilt dashboard to use the configured service name.
+</Callout>
+
+<img
+  title="Jenkins quickstart dashboard in New Relic"
+  alt="Jenkins quickstart dashboard in New Relic"
+  src="/images/opentelemetry_screenshot-full_jenkins-05.webp"
+/>
+
+<Callout variant="important">
+  The Jenkins OpenTelemetry plugin is not maintained by New Relic, so if you have any issues with the instrumentation, [create a new issue in the plugin's GitHub repo](https://github.com/jenkinsci/opentelemetry-plugin/issues).
+</Callout>
+
+## Resource attributes and tags [#attributes]
+
+You can add resource attributes to the Jenkins plugin configuration. This allows you to include attributes for all the plugin generated log, metric, and trace data. Resource attributes that have names starting with `tags.` will also add entity [tags to your Jenkins entity](/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#tags).
+
+You can define attributes in two ways:
+
+<CollapserGroup>
+  <Collapser
+    id="attributes-config"
+    title="Define attributes in the Jenkins plugin configuration"
+  >
+    You can add the resource attributes to the `configurationProperties` element in the `io.jenkins.plugins.opentelemetry.JenkinsOpenTelemetryPluginConfiguration.xml` file. 
+
+    Example: 
+
+    ```xml
+      <configurationProperties>
+        otel.resource.attributes=attribute1=value1,attribute2=value2,tags.tag1=tagValue1
+      </configurationProperties>
+    ```
+  </Collapser>
+
+  <Collapser
+    id="attributes-env"
+    title="Define attributes in the environment variables"
+  >
+    You can define the resource attributes using the `OTEL_RESOURCE_ATTRIBUTES` environment variable. 
+
+    This could be done on an Ubuntu system via editing the systemctl configuration for jenkins using `systemctl edit jenkins` and adding to the override.conf portion of the configuration:
+
+    ```yml
+      [Service]
+      # Set OTel Environment Options
+      Environment="OTEL_RESOURCE_ATTRIBUTES=attribute1=value1,attribute2=value2,tags.tag1=tagValue1"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>

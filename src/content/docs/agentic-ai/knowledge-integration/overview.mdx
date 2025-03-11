@@ -1,0 +1,34 @@
+---
+title: "New Relic AI Knowledge connector"
+metaDescription: "Knowledge connector is the process of integrating data from various sources to create a unified view of information. This unified view can be used to improve decision-making, automate processes, and enhance customer experiences."
+tags:
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+
+The Knowledge Connector feature by New Relic AI is designed to enhance your observability experience by seamlessly integrating external knowledge sources directly into New Relic AI. This guide will walk you through the basics of the Knowledge Connector.
+
+## Prerequisites
+
+- Ensure that you have enabled New Relic AI.
+- **Data Synchronization**: To start pushing your knowledge articles to NRAI, use the 1-click Knowledge connectors or the [Knowledge connector API](/docs/apis/nerdgraph/examples/nerdgraph-rag).
+- **Querying New Relic AI**: NRAI has a Knowledge Connector Tool that helps provide contextual responses to your issue-specific queries.
+
+## Features of knowledge connector confluence integration
+
+Equipped with additional context specific to your business, New Relic AI can help you with:
+
+* **Automatic ingestion and indexing**: The Knowledge Connector confluence feature automatically ingests and indexes your confluence content.
+* **Contextual retrieval of knowledge**: Access a vast array of documents, runbooks, and historical incident data.
+* **Issue resolution suggestions**: Check what was done to resolve similar issues in the past.
+* **Enhanced collaboration across teams**: Make shared insights and data from the knowledge base available to all stakeholders, reducing information silos.
+
+## Sign up for New Relic AI knowledge connector
+
+To get started with the Knowledge Connector, enroll in the [New Relic AI Knowledge Connector](https://docs.google.com/forms/d/e/1FAIpQLScLXUDRmg9_T0XlJy0ddiXog6J3SRI_kJY6G3LlvTdAyjyc9Q/viewform?usp=sharing) program to start using the feature.

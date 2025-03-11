@@ -15,6 +15,7 @@ When you’re troubleshooting your Kubernetes applications, you need to understa
 Under the hood, we use [Pixie and eBPF](https://docs.px.dev/about-pixie/pixie-ebpf) to automatically collect fine-grained telemetry data, including service-level metrics, unsampled requests, and more. With one install command, you get deeper insight into your Kubernetes clusters and workloads. No language agents required!
 
 # We support the following protocols:
+
 - HTTP
 - gRPC
 - MySQL
@@ -27,15 +28,17 @@ Under the hood, we use [Pixie and eBPF](https://docs.px.dev/about-pixie/pixie-eb
 - NATS
 
 For tracing messages over TLS/SSL, we support the following libraries:
+
 - OpenSSL 1.1.0 or 1.1.1 (includes Node.js, which uses OpenSSL differently than other applications).
 - Golang TLS (crypto/tls).
 
 # How to get started
+
 1. Install [Pixie](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie)
 2. Open the [**Live debugging with Pixie**](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/live-debugging-with-pixie) tab to explore your telemetry data.
 
 Watch this [**overview video**](https://www.youtube.com/watch?v=YKwjXLNXdt4) to learn more.
 
-![A screenshot showing AMQP messages.](./images/AMQP.webp "A screenshot showing AMQP messages.")
+![A screenshot showing AMQP messages.](/images/AMQP.webp 'A screenshot showing AMQP messages.')
 
 <figcaption>A screenshot showing AMQP messages.</figcaption>

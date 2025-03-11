@@ -79,13 +79,9 @@ module.exports = {
         background_color: '#663399',
         theme_color: '#663399',
         display: 'minimal-ui',
-        icon: 'src/images/favicon.png', // This path is relative to the root of the site.
+        icon: 'static/images/favicon.png', // This path is relative to the root of the site.
       },
     },
-    // this (optional) plugin enables Progressive Web App + Offline functionality
-    // To learn more, visit: https://gatsby.dev/offline
-    // `gatsby-plugin-offline`,
-    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -135,7 +131,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -325,19 +321,9 @@ module.exports = {
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-
+    'gatsby-plugin-eol-rss',
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    {
-      resolve: 'gatsby-plugin-gatsby-cloud',
-      options: {
-        allPageHeaders: [
-          'Referrer-Policy: no-referrer-when-downgrade',
-          'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'Cache-Control: no-cache',
-        ],
-      },
-    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
@@ -385,7 +371,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: LOCALES,
+          additionalLocales: ['jp', 'kr', 'pt', 'es'],
         },
         prism: {
           languages: [
@@ -466,12 +452,13 @@ module.exports = {
                 enabled: true,
                 block_selector: '',
                 mask_text_selector: '*',
-                sampling_rate: 5.0,
+                sampling_rate: 50.0,
                 error_sampling_rate: 100.0,
                 mask_all_inputs: true,
                 collect_fonts: true,
                 inline_images: false,
                 inline_stylesheet: true,
+                fix_stylesheets:true,
                 mask_input_options: {},
               },
               distributed_tracing: { enabled: true },
