@@ -371,7 +371,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: LOCALES,
+          additionalLocales: ['jp', 'kr', 'pt', 'es'],
         },
         prism: {
           languages: [
@@ -452,12 +452,13 @@ module.exports = {
                 enabled: true,
                 block_selector: '',
                 mask_text_selector: '*',
-                sampling_rate: 5.0,
+                sampling_rate: 50.0,
                 error_sampling_rate: 100.0,
                 mask_all_inputs: true,
                 collect_fonts: true,
                 inline_images: false,
                 inline_stylesheet: true,
+                fix_stylesheets:true,
                 mask_input_options: {},
               },
               distributed_tracing: { enabled: true },
