@@ -813,23 +813,79 @@ Conforme observado em nosso [documento básico de sintaxe NRQL](/docs/query-your
     ...
     ```
 
-    Com a cláusula `PREDICT` , você pode incorporar previsões sobre tendências de dados futuras em gráficos de linhas com base em dados históricos. Esta cláusula:
+    Com a cláusula `PREDICT` , você pode adicionar previsões de tendências de dados futuras em gráficos de linhas com base em dados históricos. Considere os seguintes pontos ao usar esta cláusula:
 
     * Aplica-se somente a consultas com cláusula `TIMESERIES` .
     * Usa `TIMESERIES <time period>` como intervalo para pontos de dados previstos.
-    * Define o intervalo de previsão para 20% da janela de consulta por padrão.
-    * Processa dados históricos da janela de consulta atual e das duas anteriores para gerar previsões por padrão.
     * Não oferece suporte [a dados de métrica de fração de tempo](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data) durante a Visualização Pública.
 
     <Callout variant="important">
-      A cláusula `PREDICT` não é suportada quando usada com a cláusula [`COMPARE WITH`](/docs/nrql/nrql-syntax-clauses-functions/#sel-compare) ou [agregações aninhadas](/docs/nrql/using-nrql/nested-aggregation-make-ordered-computations-single-query) dentro [de subconsultas](/docs/nrql/using-nrql/subqueries-in-nrql/).
+      The `PREDICT` clause cannot be used with the [`COMPARE WITH`](/docs/nrql/nrql-syntax-clauses-functions/#sel-compare) clause or [nested aggregations](/docs/nrql/using-nrql/nested-aggregation-make-ordered-computations-single-query) inside [subqueries](/docs/nrql/using-nrql/subqueries-in-nrql/).
     </Callout>
 
-    Você também pode acrescentar `PREDICT <model>`, `BY <time range>` e `USING <time range>` para refinar a tendência de previsão de acordo com suas necessidades específicas. Para indicar o intervalo de tempo e o período de dados históricos, use `integer units`.
+    ### Costumização
+
+    To learn about the default behaviour of the `PREDICT` clause, refer to [NRQL Predictions](/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/#defaults). You can customize the predictions by manually setting the training model&amp;apos;s hyperparameters and adding the `USING` and `BY` keywords. To learn more about NRQL and its syntax, refer to [NRQL documentation](/docs/nrql/get-started/introduction-nrql-new-relics-query-language).
+
+    <CollapserGroup>
+      <Collapser id="hyperparameters" title="Set seasonality and Holt-Winters model hyperparameters.">
+        Currently, <DNT>**NRQL predictions**</DNT> only supports the <DNT>**[Holt-Winters](https://en.wikipedia.org/wiki/Exponential_smoothing#Triple_exponential_smoothing_\(Holt_Winters\))**</DNT> algorithm, also known as exponential smoothing, for both seasonal and non-seasonal time series. This is a commonly used and standard algorithm for forecasting and prediction tasks. We support hourly, daily, and weekly seasonal lengths for the Holt-Winters model. The other hyperparameters for the Holt-Winters algorithm are accessible and changeable, but default values are determined based on the historical data for your metric. The hyperparameters can be modified by adding `holtwinters(<hyperparameter>: <value>)` after the `PREDICT` clause in your query. Any combination of the following parameters can be added to modify the result of the predictions:
+
+        * `seasonality` Specifies whether you want to use a known season length, automatic seasonality detection, or no seasonality (`<season length>`, `AUTO`, `NONE`).
+          * `<season length>` must be an `integer unit` of time (i.e., `1 day` or `3 hours`)
+        * `alpha` The level smoothing factor (`[0, 1.0]`) where a larger value gives more weight to recent values
+        * `beta` The trend smoothing factor (`[0, 1.0]`) where a larger value gives more weight to recent values
+        * `gamma` The season smoothing factor (`[0, 1.0]`) where a larger value gives more weight to recent values
+          * Not compatible with the `seasonality: NONE` option because a non-seasonal model does not use the `gamma` hyperparameter. The query will return an error if you try to specify `holtwinters(seasonality: NONE, gamma: <value>)`
+        * `phi` The trend damping parameter (`[0.98, 1.0]`) where a smaller values indicates more damping of the trend and a prediction that will flatten out
+
+        Example query with hyperparameter modifications:
+
+        ```sql
+        FROM Transaction SELECT count(*) WHERE error IS TRUE TIMESERIES PREDICT holtwinters(seasonality: 1 hour, alpha: 0.2, beta: 0.5, gamma: 1.5, phi: 0.99)
+        ```
+      </Collapser>
+
+      <Collapser
+        id="by"
+        title={<>Adicione a palavra-chave <InlineCode>
+          BY
+        </InlineCode> .</>
+        }
+      >
+        Use the `BY` keyword to set how far ahead in time you want the model to predict. For example, `PREDICT BY 3 hours` generates a prediction of three hours into the future from the latest point in the time series. Make sure the time span is an `integer unit` of time. The maximum amount you can predict is 360 time windows (i.e., your time series window size times 360).
+
+        Example query with `BY` keyword that will generate predictions for the next 30 minutes:
+
+        ```sql
+        FROM Transaction SELECT count(*) WHERE error IS TRUE TIMESERIES PREDICT BY 30 minutes
+        ```
+      </Collapser>
+
+      <Collapser
+        id="using"
+        title={<>Adicione a palavra-chave <InlineCode>
+          USING
+        </InlineCode> .</>
+        }
+      >
+        Use the `USING` keyword to specify the amount of historical data you want to use to train the model. For example, `PREDICT USING 1 day` uses the query window along with the data from the preceding day to train the model. Make sure the time span is an `integer unit` of time. There is a limit to how much data can be used to train a model and if you specify an amount that exceeds the limit, you will receive an error message. This limit is 3,660 data points and you can figure out how much time that is by using the time series window. So for example, if you are querying a time series with a 1 minute time window, you will only be able to specify an amount of training data of up to 3,660 minutes, which is 61 hours or approximately 2.5 days.
+
+        Example query with the `USING` keyword that will use 2 days of historical data:
+
+        ```sql
+        FROM Transaction SELECT count(*) WHERE error IS TRUE TIMESERIES PREDICT USING 2 days
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    Example query with the `PREDICT` clause specifying custom hyperparameters, and adding the `BY` and `USING` keywords:
 
     ```sql
-    FROM Transaction SELECT count(*) WHERE error IS TRUE TIMESERIES PREDICT holtwinters(beta: 0.5) BY 3 hours USING 1 day
+    FROM Transaction SELECT count(*) WHERE error IS TRUE TIMESERIES PREDICT holtwinters(seasonality: AUTO, alpha: 0.2) BY 1 hour USING 2 hours
     ```
+
+    This query sets the seasonality to automatic detection and emphasizes historical data by adjusting the level smoothing factor. It predicts one hour into the future and trains the model using the query window length along with the previous two hours of historical data.
 
     Para saber mais sobre como e quando você pode usar `PREDICT`, consulte [Previsões NRQL](/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/).
   </Collapser>
