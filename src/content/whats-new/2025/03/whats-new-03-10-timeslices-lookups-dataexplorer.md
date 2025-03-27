@@ -9,7 +9,7 @@ The [data explorer](https://docs.newrelic.com/docs/query-your-data/explore-query
 Now, we've added Timeslice Metrics and Lookup Tables to the data explorer so you can easily explore an even broader range of data in one place!
 
 ## Timeslice Metrics
-Metric timeslice data is a lightweight data type reported by our APM, browser, and mobile agents. Now, you can easily explore timeslide metrics in the data explorer by selecting "Timeslices" in the data type dropdown menu.
+Metric timeslice data is a lightweight data type reported by our APM, browser, and mobile agents. Now, you can easily explore timeslice metrics in the data explorer by selecting "Timeslices" in the data type dropdown menu.
 
 <iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/4z9chi0x4c" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
