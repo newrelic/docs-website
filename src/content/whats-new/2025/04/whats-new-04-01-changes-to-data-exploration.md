@@ -3,7 +3,7 @@ title: 'Changes to data exploration products'
 summary: 'PromQL queries can now be translated to NRQL directly in the new query builder.'
 releaseDate: '2025-04-01'
 learnMoreLink: ''
-getStartedLink: 'one.newrelic.com/promql-translator'
+getStartedLink: 'one.newrelic.com/promql-translator](https://one.newrelic.com/data-exploration'
 ---
 
 As part of our continued efforts to streamline the interactions with Data Exploration and Query Builder products across the platform, we are removing the Query Your Data capability from the menu as the access point for Query Builder and Data Explorer. 
