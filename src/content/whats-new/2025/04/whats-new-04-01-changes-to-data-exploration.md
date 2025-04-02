@@ -6,10 +6,9 @@ learnMoreLink: ''
 getStartedLink: 'https://one.newrelic.com/data-exploration'
 ---
 
-As part of our continued efforts to streamline the interactions with Data Exploration and Query Builder products across the platform, we are removing the Query Your Data capability from the menu as the access point for Query Builder and Data Explorer. 
+As part of our ongoing efforts to streamline interactions with the Data Exploration and Query Builder products across the platform, we are removing the 'Query Your Data' capability from the menu as an access point for Query Builder and Data Explorer.
 
-Starting April 30, 2025 the Query Builder and Data Explorer will only be available by clicking on it on the console on the bottom of the platform. 
-
+Starting April 30, 2025, Query Builder and Data Explorer will only be accessible via the console at the bottom of the platform.
 
 ![Open the new query console at the bottom of the New Relic UI ](/images/new-query-console.webp 'Open the new query console at the bottom of the New Relic UI')
 
