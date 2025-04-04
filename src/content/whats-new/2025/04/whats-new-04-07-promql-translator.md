@@ -2,7 +2,7 @@
 title: 'PromQL translator now in the query console'
 summary: 'PromQL queries can now be translated to NRQL directly in the new query builder.'
 releaseDate: '2025-04-07'
-getStartedLink: 'one.newrelic.com/promql-translator'
+getStartedLink: 'https://one.newrelic.com/data-exploration'
 ---
 
 New Relic allows you to store and analyze all telemetry data, whether they come from New Relic Agents or third-party sources, such as Prometheus. Previously, you had to use the old Query Your Data capability to translate PromQL queries, rather than the [new unified query console](https://docs.newrelic.com/whats-new/2024/02/whats-new-02-21-new-query-experience/) that allows data exploration in context throughout the platform.
