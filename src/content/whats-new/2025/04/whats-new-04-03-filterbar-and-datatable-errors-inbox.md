@@ -15,7 +15,9 @@ Our completely redesigned filter bar brings a cleaner interface and enhanced fil
 - **Simplified Logic:** All filters now use AND logic for more precise results 
 - **Backward Compatibility:** All your existing permalinks with previous filter settings will continue to work seamlessly
 
-![new filterbar](/static/images/errors-inbox_grouptab_filterbar.webp "new filterbar")
+![group filterbar](/static/images/errors-inbox_grouptab_filterbar.webp "group filterbar")
+
+![triage filterbar](/static/images/errors-inbox-triage-filterbar.webp "triage filterbar")
 
 ## Enhanced Data Display
 
