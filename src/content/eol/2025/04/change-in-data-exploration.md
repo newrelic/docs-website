@@ -1,6 +1,6 @@
 ---
 title: 'Change to data exploration'
-subject: Change Data exploration query 
+subject: Change data exploration query 
 publishDate: '2025-04-01'
 eolEffectiveDate: '2025-04-30'
 ---
