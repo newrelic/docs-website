@@ -1,0 +1,137 @@
+---
+title: 일반적인 문제 해결
+metaDescription: Learn how to diagnose and resolve common problems with Agent Control.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [출시 전 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) 에 따라 미리보기 프로그램의 일부로 제공됩니다.
+</Callout>
+
+이 문서에서는 Agent Control을 설치하거나 운영할 때 발생하는 일반적인 문제를 해결하는 단계를 다룹니다.
+
+## 디버그 로깅 활성화
+
+설치 프로세스 중에 오류를 진단하려면 `values-newrelic.yaml` 파일에 다음 설정을 추가하여 에이전트 제어에 대한 로그 수준을 높일 수 있습니다.
+
+```yaml
+agent-control-deployment:
+  config:
+    agentControl:
+      content:  
+        log:
+          level: trace
+```
+
+* **기본 로그 수준:** `info`.
+* **기타 지원되는 로그 레벨:** `debug` 및 `trace`.
+* **OTel 수집기 로그:** OpenTelemetry 수집기에서 디버그 로그를 활성화하려면 `verboseLog: true` 추가합니다.
+
+에이전트 제어 로그를 검사하려면 다음 명령을 실행하고 `agent-control-***` 에이전트 제어 파드의 이름으로 바꾸세요.
+
+```shell
+kubectl logs agent-control-*** -n agent-control
+```
+
+## 상태 엔드포인트
+
+Agent Control은 Agent Control 및 관리되는 에이전트의 상태를 확인하는 데 사용할 수 있는 로컬 상태 엔드포인트를 노출합니다. 이 엔드포인트는 기본적으로 포트 `52100` 에서 활성화됩니다. 클러스터 상태를 쿼리하려면 다음 단계를 따르세요.
+
+로컬 포트를 주 에이전트 제어 패드로 전달:
+
+```shell
+kubectl port-forward <pod-name> 51200:51200
+```
+
+에이전트 상태 요청:
+
+```shell
+curl localhost:51200/status
+```
+
+## Helm 릴리스 실패
+
+Agent Control이 플릿위험에 안전하게 연결하려면 유효한 인증 자격 증명이 필요합니다. 처음에는 이 자격 증명이 에이전트 Control 설치 UI 통해 자동으로 생성되고 값 파일의 `identityClientId` 및 `identityClientSecret` 필드로 표시됩니다.
+
+보안상의 이유로, 에이전트 Control을 설치하는 데 필요한 자격 증명은 12시간 후에 만료됩니다. 설치가 실패하고 아래의 오류 메시지가 나타나면 다음 문제 해결 단계를 따르십시오.
+
+```shell
+Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+```
+
+에이전트 제어 시스템 ID를 설정하는 Kubernetes 작업의 서버를 확인하세요.
+
+먼저, 해당 직무의 파드를 확인하세요.
+
+```shell
+kubectl describe job agent-control-system-identity -n <your-namespace>
+```
+
+이벤트 섹션에서 다음과 같이 특정 파드에 대한 항목을 찾으세요.
+
+```shell
+Events:
+      Type     Reason                Age   From            Message
+      ----     ------                ----  ----            -------
+      Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-system-identity-installer-jr6cg
+      Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-system-identity-installer-wnx2v
+      Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-system-identity-installer-8zsqd
+      Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-system-identity-installer-btqh7
+      Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+```
+
+실패한 패드의 로그 보기:
+
+```shell
+kubectl logs <pod-name> -n <your-namespace>
+```
+
+예시:
+
+```shell
+kubectl logs agent-control-system-identity-installer-btqh7 -n newrelic
+```
+
+로그를 검토한 후 Helm을 사용하여 설치를 다시 시도하고 특정 오류 메시지가 있는지 살피고 로그를 확인하여 잠재적인 문제를 파악합니다. 알려진 문제와 이를 해석하는 방법은 다음과 같습니다.
+
+* **잘못된 identityClientId:** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
+* **잘못된 identityClientSecret:** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
+* **신원 만료됨:** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
+* **필수 권한이 없습니다:** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+
+## 유효하지 않은 New Relic 라이센스
+
+OpenTelemetry 수집기 구현, 배포 파드의 로그에 아래와 같은 오류 메시지가 표시되면 잘못된 뉴렐릭 볼륨 키를 나타낼 수 있습니다. 이로 인해 수집기가 텔레메트리 데이터를 뉴렐릭으로 내보낼 수 없게 됩니다.
+
+```shell
+2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+```
+
+### 해결책
+
+설정에서 유효한 뉴렐릭 클러스터 키를 사용하고 있는지 확인하세요.
+
+## OTel 수집기 패드가 생성되지 않았습니다.
+
+OTel 수집기 파드가 생성되지 않는 경우 HelmRelease 사용자 지정 리소스 정의(CRD)에 문제가 있을 수 있습니다.
+
+Helm 릴리스 상태를 확인하세요.
+
+```shell
+kubectl get helmrelease open-telemetry -n agent-control
+```
+
+성공적이고 건강한 릴리스에는 `READY: True` 및 `STATUS: InstallSucceeded` 표시되어야 합니다.
+
+릴리스가 실패하면 `STATUS` 및 `READY` 필드에 문제가 표시됩니다. 오류 유형에 따라서는 근본적인 문제가 상태 필드에 완전히 반영되지 않을 수도 있습니다. 더 자세한 내용을 보려면 `kubectl` 사용하여 HelmRelease 리소스를 설명하세요.
+
+```shell
+kubectl describe helmrelease open-telemetry -n agent-control
+```
+
+## 추가 지원
+
+이 섹션에서 다루지 않은 문제가 발생하면 추가 지원을 위해 [뉴렐릭 지원팀](https://support.newrelic.com) 에 문의하세요.
