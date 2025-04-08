@@ -1,0 +1,137 @@
+---
+title: Solucionar problemas comunes
+metaDescription: Learn how to diagnose and resolve common problems with Agent Control.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Este documento cubre los pasos para solucionar problemas comunes al instalar u operar Agent Control.
+
+## Habilitar el log de depuración
+
+Para diagnosticar errores durante el proceso de instalación, puede aumentar el nivel de logs del Agent Control agregando la siguiente configuración en su archivo `values-newrelic.yaml` :
+
+```yaml
+agent-control-deployment:
+  config:
+    agentControl:
+      content:  
+        log:
+          level: trace
+```
+
+* **Nivel de logs predeterminado:** `info`.
+* **Otros niveles de log admitidos:** `debug` y `trace`.
+* **logs del recolector de OTel:** para habilitar los logs de depuración en el recolector OpenTelemetry , agregue `verboseLog: true`.
+
+Para inspeccionar los logs de Agent Control, ejecute el siguiente comando, reemplazando `agent-control-***` con el nombre de su pod de Agent Control:
+
+```shell
+kubectl logs agent-control-*** -n agent-control
+```
+
+## Estado extremo
+
+Agent Control expone un extremo de estado local que puede emplear para verificar el estado del Agent Control y su agente gestionado. Este extremo está habilitado de forma predeterminada en el puerto `52100`. Siga estos pasos para consultar el estado del clúster:
+
+Reenviar un puerto local al pod de control del agente principal:
+
+```shell
+kubectl port-forward <pod-name> 51200:51200
+```
+
+Aplicar el estado del agente:
+
+```shell
+curl localhost:51200/status
+```
+
+## Fallo de liberación Helm
+
+Agent Control requiere una credencial de autenticación válida para conectarse de forma segura a control de flota. Inicialmente, esta credencial se genera automáticamente a través de la UI del Agent Control de instalación y está representada por los campos `identityClientId` y `identityClientSecret` en el archivo de valores.
+
+Por razones de seguridad, la credencial necesaria para instalar Agent Control caduca luego de 12 horas. Si la instalación falla con el siguiente mensaje de error, siga estos pasos de resolución de problemas:
+
+```shell
+Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+```
+
+Verifique los logs del trabajo de Kubernetes responsable de configurar la identidad del sistema de Agent Control.
+
+Primero, identifica el pod del trabajo:
+
+```shell
+kubectl describe job agent-control-system-identity -n <your-namespace>
+```
+
+En la sección de eventos, busque entradas para el pod específico, de la siguiente manera:
+
+```shell
+Events:
+      Type     Reason                Age   From            Message
+      ----     ------                ----  ----            -------
+      Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-system-identity-installer-jr6cg
+      Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-system-identity-installer-wnx2v
+      Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-system-identity-installer-8zsqd
+      Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-system-identity-installer-btqh7
+      Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+```
+
+Ver los logs del pod fallido:
+
+```shell
+kubectl logs <pod-name> -n <your-namespace>
+```
+
+Ejemplo:
+
+```shell
+kubectl logs agent-control-system-identity-installer-btqh7 -n newrelic
+```
+
+Luego de revisar los logs, vuelva a intentar la instalación usando Helm mientras observa si hay mensajes de error específicos y verifica los logs para detectar posibles problemas. A continuación se presentan algunos problemas conocidos y cómo interpretarlos:
+
+* **Identidad de cliente no válida:** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
+* **Identidad no válidaClientSecret:** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
+* **Identidad expirada:** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
+* **Faltan las licencias requeridas:** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+
+## Licencia New Relic no válida
+
+Si ve un mensaje de error como el que se muestra a continuación en los logs del del OpenTelemetry recopilador de pod, es posible que indique una New Relic clave de licencia de no válida. Esto impide que el recolector pueda exportar telemetry data a New Relic:
+
+```shell
+2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+```
+
+### Solución
+
+Confirme que está empleando una clave de licencia de New Relic válida en su configuración.
+
+## Cápsula recolectora de OTel no creada
+
+Si no se crea ningún módulo recolector de OTel, puede haber un problema con la definición de recurso personalizado (CRD) de HelmRelease.
+
+Compruebe el estado de la versión de Helm:
+
+```shell
+kubectl get helmrelease open-telemetry -n agent-control
+```
+
+Un lanzamiento exitoso y saludable debe mostrar `READY: True` y `STATUS: InstallSucceeded`.
+
+Si la liberación falló, los campos `STATUS` y `READY` indicarán el problema. Dependiendo del tipo de error, es posible que el problema raíz no se refleje completamente en el campo de estado. Para obtener más detalles, emplee `kubectl` para describir el recurso HelmRelease:
+
+```shell
+kubectl describe helmrelease open-telemetry -n agent-control
+```
+
+## Soporte adicional
+
+Si encuentra problemas no cubiertos en esta sección, comunicar con [el soporte de New Relic](https://support.newrelic.com) para obtener más ayuda.
