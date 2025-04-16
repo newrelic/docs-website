@@ -1,0 +1,142 @@
+---
+title: Utiliser des recherches pour interroger les données de la table
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'In New Relic, how to query data added via CSV lookup tables.'
+freshnessValidatedDate: '2024-03-19T00:00:00.000Z'
+translationType: machine
+---
+
+Lorsque vous [téléchargez une table de recherche au format CSV](/docs/logs/ui-data/lookup-tables-ui), vous pouvez utiliser la fonction `lookup()` pour accéder à ces données dans votre requête NRQL . Vous pouvez utiliser la table de recherche pour vous aider à analyser les données télémétriques et personnaliser vos regroupements de données.
+
+## Syntaxe de requête de base [#basic-syntax]
+
+La requête de recherche suivante montre la syntaxe de base de cette fonction en utilisant une table nommée `storeNames` et en sélectionnant toutes les données de cette table :
+
+```sql
+FROM lookup(storeNames)
+SELECT *
+```
+
+Cette requête sélectionne un attribut spécifique de cette même table :
+
+```sql
+FROM lookup(storeNames)
+SELECT store_ID, store_name, description
+```
+
+## Limites de requête [#query-limits]
+
+Les tables de recherche prennent en charge un [`LIMIT`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-limit) plus élevé lors de l&apos;interrogation que les autres types de données NRQL . Vous pouvez définir un `LIMIT` allant jusqu&apos;à 20 000 lorsque vous utilisez une table de recherche dans une requête, [une sous-requête](/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql/) et [une agrégation imbriquée](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/nested-aggregation-make-ordered-computations-single-query/).
+
+<Callout variant="tip">
+  Lorsque vous utilisez une table de recherche dans une sous-requête, la requête externe `LIMIT` est liée à la valeur maximale standard, sauf si elle utilise également une table de recherche.
+</Callout>
+
+## Limitations techniques [#limitations]
+
+* Vous ne pouvez pas utiliser de données de recherche avec la condition d&apos;alerte NRQL .
+
+* Vous ne pouvez interroger une table de recherche qu&apos;à partir du [compte](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure/#organization-accounts) dans lequel vous avez téléchargé la table de recherche.
+
+* Les clauses NRQL suivantes ne sont pas prises en charge avec la requête de recherche :
+
+  * `TIMESERIES`
+  * `COMPARE WITH`
+  * `EXTRAPOLATE`
+  * <DNT>**Note:**</DNT> Vous pouvez utiliser ces clauses si vous incluez la requête de recherche dans une requête interne. Voir [cette requête](#item-ids) pour un exemple.
+
+## Exemples de recherche [#query-with-data]
+
+table de recherche vous permet d&apos;utiliser des requêtes qui combinent des données avec vos données télémétriques stockées dans New Relic.
+
+Voici quelques exemples de requêtes :
+
+<CollapserGroup>
+  <Collapser id="avoid-hardcording" title="Évitez de coder en dur une longue liste d’hôtes">
+    Cette requête évite de coder en dur une longue liste d&apos;hôtes en interrogeant les noms d&apos;hôtes contenus dans une table de recherche :
+
+    ```sql
+    FROM Log
+    SELECT count(*)
+    WHERE hostname IN (FROM lookup(myHosts) SELECT uniques(myHost))
+    ```
+  </Collapser>
+
+  <Collapser id="using-join" title="requête utilisant JOIN">
+    L&apos;utilisation de la requête `JOIN` peut rendre vos données plus faciles à comprendre. Par exemple, cette requête pour un type d&apos;événement personnalisé utilise la table `storeNames` pour afficher les noms des magasins ainsi que les ventes totales.
+
+    ```sql
+    FROM StoreEvent
+    JOIN (FROM lookup(storeNames) SELECT store_ID as storeId, storeName AS name LIMIT 10000) ON shopId = storeId
+    SELECT shopId, storeName, totalSales
+    ```
+
+    Cela autorise une limite de 10 000 car la table de recherche prend en charge une limite plus élevée que les autres types de données NRQL , comme mentionné dans la section [limites de requête](#query-limits) .
+  </Collapser>
+
+  <Collapser id="map-values" title="Mapper les valeurs vers des catégories plus larges">
+    Cette requête mappe les valeurs `shopId` à une valeur `storeCategory` plus large en utilisant une clause `JOIN` sur les données de la table de recherche. Cela vous permet d&apos;effectuer des agrégations sur `StoreEvent` enregistrements en fonction de ces catégories plus larges et d&apos;extraire de nouvelles informations détaillées de vos données.
+
+    ```sql
+    FROM StoreEvent
+    JOIN (FROM lookup(storeCategories) SELECT store_ID as storeId, storeCategory) ON shopId = storeId
+    SELECT sum(totalSales) FACET storeCategory
+    ```
+  </Collapser>
+
+  <Collapser id="status-codes" title="Traduire les codes d'état">
+    Voici une requête qui traduit les codes d’état en résumés lisibles de l’état :
+
+    ```sql
+    FROM Transaction
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON http.statusCode=status_code
+    SELECT count(*) FACET status_summary
+    ```
+
+    Voici quelques exemples de résultats :
+
+    <img title="Screenshot of query for lookups translating status codes" alt="Screenshot of query for lookups translating status codes" src="/images/nrql_screenshot-crop_example-status-codes.webp" />
+  </Collapser>
+
+  <Collapser id="item-ids" title="Traduire les identifiants d'éléments">
+    Cette requête montre comment plusieurs fonctionnalités NRQL peuvent fonctionner ensemble pour obtenir des informations commerciales à partir d&apos;une requête de données log . La requête ci-dessous :
+
+    1. Extrait des informations sur les éléments du log des messages à l&apos;aide de [`aparse()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-aparse)
+    2. Utilise `JOIN` sur les données de la table de recherche pour obtenir des noms d&apos;éléments conviviaux
+    3. Génère un tableau de noms d&apos;éléments et le nombre d&apos;éléments stockés
+
+    ```sql
+    WITH aparse(message, 'POST to carts: * body: {"itemId":"*","unitPrice":*}%') AS (URL, ItemID, Price)
+    FROM Log
+      JOIN (FROM lookup(itemNames) SELECT ItemID, itemName) ON ItemID
+    SELECT count(*) FACET itemName
+    WHERE message LIKE 'POST to carts%'
+    SINCE 30 days ago
+    ```
+
+    Voici quelques exemples de résultats :
+
+    <img title="Screenshot of query for lookups translating item IDs" alt="Screenshot of query for lookups translating item IDs" src="/images/nrql_screenshot-crop_lookup-query-translate-item-ids.webp" />
+  </Collapser>
+
+  <Collapser id="geoip" title="Utilisez les informations géographiques pour analyser les emplacements">
+    Cette requête combine des recherches et [GeoIP](/docs/logs/ui-data/parsing#geo) pour trouver les emplacements qui présentent le plus de statuts infructueux :
+
+    ```sql
+    FROM Log
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON CacheResponseStatus=status_code
+    SELECT count(*) WHERE ClientIP.countryName IS NOT NULL AND status_summary != 'Success'
+    FACET ClientIP.countryName, status_summary, CacheResponseStatus
+    SINCE 1 day ago LIMIT MAX
+    ```
+
+    Voici quelques exemples de résultats :
+
+    <img title="Screenshot of query for GeoIP info" alt="Screenshot of query for GeoIP info" src="/images/nrql_screenshot-crop_lookup-query-geoip.webp" />
+  </Collapser>
+</CollapserGroup>

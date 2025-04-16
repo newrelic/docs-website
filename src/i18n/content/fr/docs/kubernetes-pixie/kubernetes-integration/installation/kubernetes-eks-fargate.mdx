@@ -1,0 +1,502 @@
+---
+title: Installation sur AWS EKS Fargate
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+  - EKS Fargate
+metaDescription: 'New Relic''s Kubernetes integration: The installation of Kubernetes on AWS EKS Fargate'
+freshnessValidatedDate: '2024-04-29T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+New Relic prend en charge monitoring de la charge de travail Kubernetes sur EKS Fargate en injectant automatiquement un side-car contenant l&apos;agent infrastructure et l&apos;intégration `nri-kubernetes` dans chaque pod devant être monitoré.
+
+Si le même cluster Kubernetes contient également des nœuds EC2, notre solution sera également affichée comme un `DaemonSet` dans chacun d&apos;eux. Aucun side-car ne sera injecté dans le pod planifié dans les nœuds EC2, et aucun `DaemonSet` ne sera déployé sur les nœuds Fargate. Voici un exemple d&apos;instance hybride avec des nœuds Fargate et EC2 :
+
+<img title="Diagram showing an EKS cluster with Fargat and EC2 nodes" alt="Diagram showing an EKS cluster with Fargat and EC2 nodes" src="/images/kubernetes_diagram_fargate-overview.svg" />
+
+<figcaption>
+  Dans un environnement mixte, l&apos;intégration utilise uniquement un side-car pour les nœuds Fargate.
+</figcaption>
+
+New Relic collecte toutes les métriques prises en charge pour tous les objets Kubernetes, quel que soit l&apos;endroit où ils sont planifiés, qu&apos;il s&apos;agisse de nœuds Fargate ou EC2. Veuillez noter qu&apos;en raison des limitations imposées par Fargate, l&apos;intégration de New Relic est limitée à l&apos;exécution en mode [non privilégié](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure/#unprivileged) sur les nœuds Fargate. Cela signifie que les métriques qui sont généralement extraites directement de l&apos;hôte, comme les processus en cours d&apos;exécution, ne seront pas disponibles pour les nœuds Fargate.
+
+Dans les deux scénarios, l&apos;agent extraira les données de Kube State Métriques (KSM), Kubelet et cAdvisor et enverra les données dans le même format.
+
+<Callout variant="important">
+  Tout comme pour tout autre cluster Kubernetes, notre solution nécessite toujours de déployer et de monitorer une instance Kube State Métriques (KSM). Notre Helm Chart et/ou notre programme d&apos;installation le feront automatiquement par défaut, bien que ce comportement puisse être désactivé si votre cluster dispose déjà d&apos;une instance fonctionnelle de KSM. Cette instance KSM sera monitorée comme n&apos;importe quelle autre workload: en injectant un sidecar si elle est planifiée dans un nœud Fargate ou avec l&apos; instance locale du `DaemonSet` si elle est planifiée sur un nœud EC2.
+</Callout>
+
+Les autres composants de la solution New Relic pour Kubernetes, tels que `nri-prometheus`, `nri-metadata-injection` et `nri-kube-events`, n&apos;ont aucune particularité et seront déployés par notre Helm Chart normalement comme ils le feraient dans des environnements non Fargate.
+
+Vous pouvez choisir entre deux alternatives pour installer l&apos;observabilité complète de New Relic dans votre cluster EKS Fargate :
+
+* [injection automatique (recommandée)](#fargate-automatic)
+* [injectionmanuelle](#fargate-manual)
+
+Quelle que soit l’approche choisie, l’expérience est exactement la même après son installation. La seule différence réside dans la manière dont le conteneur est injecté. Nous vous recommandons de configurer automatique injection avec l&apos;opérateur monitoring d&apos; de New Relicinfrastructure car cela éliminera le besoin de modifier manuellement chaque déploiement que vous souhaitez monitorer.
+
+## injection automatique (recommandée) [#fargate-automatic]
+
+Par défaut, lorsque la prise en charge de Fargate est activée, New Relic déploiera un opérateur sur le cluster (`newrelic-infra-operator`). Une fois déployé, cet opérateur injectera automatiquement le sidecar monitoring dans les pods programmés dans les nœuds Fargate, tout en gérant également la création et la mise à jour de `Secrets`, `ClusterRoleBindings` et de toute autre ressource associée.
+
+Cet opérateur accepte une variété d&apos;options configuration avancées qui peuvent être utilisées pour restreindre ou élargir la portée de l&apos; injection, grâce à l&apos;utilisation de sélecteurs d&apos;étiquettes pour le pod et l&apos;espace de nommage.
+
+**Ce que fait l&apos;opérateur**
+
+Dans les coulisses, l&apos;opérateur met en place un `MutatingWebhookConfiguration`, qui lui permet de modifier les objets pod qui sont sur le point d&apos;être créés dans le cluster. Lors de cet événement, et lorsque le pod en cours de création correspond à la configuration de l&apos;utilisateur, l&apos;opérateur va :
+
+1. Ajoutez un conteneur sidecar au pod contenant l’intégration New Relic Kubernetes.
+2. Si un secret n&apos;existe pas, créez-en un dans le même espace de nommage que le pod contenant New Relic <InlinePopover type="licenseKey" />, qui est nécessaire pour que le side-car puisse signaler des données.
+3. Ajoutez le compte de service du pod à un `ClusterRoleBinding` précédemment créé par le graphique de l&apos;opérateur, ce qui accordera à ce side-car les autorisations requises pour atteindre le point de terminaison des métriques Kubernetes .
+
+Le `ClusterRoleBinding` accorde les autorisations suivantes au pod en cours d&apos;injection :
+
+```yml
+- apiGroups: [""]
+  resources:
+    - "nodes"
+    - "nodes/metrics"
+    - "nodes/stats"
+    - "nodes/proxy"
+    - "pods"
+    - "services"
+    - "namespaces"
+  verbs: ["get", "list"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+```
+
+<Callout variant="tip">
+  Pour que le sidecar soit injecté, et donc pour obtenir les métriques du pod déployé avant que l&apos;opérateur ne soit installé, il faut effectuer manuellement un rollout (redémarrage) du déploiement concerné. De cette façon, lorsque les pods seront créés, l&apos;opérateur pourra injecter le sidecar monitoring . New Relic a choisi de ne pas le faire automatiquement afin d&apos;éviter des interruptions de service inattendues et des pics d&apos;utilisation des ressources.
+</Callout>
+
+<Callout variant="important">
+  N&apos;oubliez pas de créer un profil Fargate avec un sélecteur qui déclare l&apos;espace de nommage `newrelic` (ou l&apos;espace de nommage que vous choisissez pour l&apos;installation).
+</Callout>
+
+Voici le injection workflow:
+
+<img title="Diagram showing the workflow of sidecar injection" alt="Diagram showing the workflow of sidecar injection" src="/images/kubernetes_diagram_fargate-workflow.svg" />
+
+<Callout variant="tip">
+  Les étapes suivantes concernent une configuration par défaut. Avant de compléter ces étapes, nous vous suggérons de jeter un œil à la section [de configuration](#config-auto) ci-dessous pour voir si vous souhaitez modifier certains aspects de l&apos; injection automatique.
+</Callout>
+
+<Steps>
+  <Step>
+    ### Ajoutez le référentiel New Relic Helm
+
+    Si vous ne l&apos;avez pas encore fait, exécutez cette commande pour ajouter le référentiel New Relic Helm :
+
+    ```shell
+    helm repo add newrelic https://helm-charts.newrelic.com
+    ```
+  </Step>
+
+  <Step>
+    ### Créer un fichier nommé `values.yaml`
+
+    Pour installer l&apos;opérateur en charge d&apos;injecter le sidecar d&apos;infrastructure, créez un fichier nommé `values.yaml`. Ce fichier définira votre configuration :
+
+    ```yaml
+    ## Global values
+
+    global:
+    # -- The cluster name for the Kubernetes cluster.
+    cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+    # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+    licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+    # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+    # @default -- false
+    privileged: true
+
+    # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+    # @default -- false
+    fargate: true
+
+    ## Enable nri-bundle sub-charts
+
+    newrelic-infra-operator:
+    # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
+    enabled: true
+    tolerations: 
+        - key: "eks.amazonaws.com/compute-type"
+        operator: "Equal"
+        value: "fargate"
+        effect: "NoSchedule"
+    config:
+        ignoreMutationErrors: true
+        infraAgentInjection:
+        # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+        policies:
+        - namespaceName: namespace-a
+        - namespaceName: namespace-b
+
+    newrelic-infrastructure:
+    # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+    enabled: true
+
+    nri-metadata-injection:
+    # Deploy our mutating admission webhook to link APM and Kubernetes entities
+    enabled: true
+
+    kube-state-metrics:
+    # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+    enabled: true
+
+    nri-kube-events:
+    # Deploy the Kubernetes events integration.
+    enabled: true
+
+    newrelic-logging:
+    # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+    enabled: true
+
+    newrelic-prometheus-agent:
+    # Deploys the Prometheus agent for scraping Prometheus endpoints.
+    enabled: true
+    config:
+        kubernetes:
+        integrations_filter:
+            enabled: true
+            source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+            app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
+    ```
+  </Step>
+
+  <Step>
+    ### hargneux
+
+    Après avoir créé et peaufiné le fichier, vous pouvez déployer la solution à l’aide de cette commande Helm :
+
+    ```shell
+    helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
+    ```
+
+    <Callout variant="important">
+      Lorsque vous déployez la solution sur un cluster hybride (avec des nœuds EC2 et Fargate), assurez-vous que la solution n&apos;est sélectionnée par aucun profil Fargate ; sinon, l&apos;instance `DaemonSet` sera bloquée dans un état en attente. Pour les environnements Fargate uniquement, cela ne pose pas de problème car aucune instance `DaemonSet` n&apos;est créée.
+    </Callout>
+  </Step>
+</Steps>
+
+### injection automatique : les limites connues [#known-limitations]
+
+Voici quelques points à prendre en compte lors de l’utilisation de l’injection automatique :
+
+1. Actuellement, il n&apos;existe aucun contrôleur qui monitore l&apos;ensemble du cluster pour s&apos;assurer que les secrets qui ne sont plus nécessaires sont collectés. Cependant, tous les objets partagent la même étiquette que vous pouvez utiliser pour supprimer toutes les ressources, si nécessaire. Nous injectons l’étiquette `newrelic/infra-operator-created: true`, que vous pouvez utiliser pour supprimer des ressources avec une seule commande.
+
+2. Pour le moment, il n&apos;est pas possible d&apos;utiliser le sidecar injecté pour monitorer les services exécutés dans le pod. Le side-car monitorera uniquement Kubernetes lui-même. Cependant, un utilisateur avancé pourrait vouloir exclure ces pods de injection automatique et injecter manuellement une version personnalisée du side-car avec l&apos;intégration sur hôte activée en les configurant et en montant leur configuration au bon endroit. Pour obtenir de l&apos;aide, consultez ce [tutoriel](/docs/integrations/kubernetes-integration/link-apps-services/tutorial-monitor-redis-running-kubernetes/).
+
+### injection automatique : configuration [#automatic-configuration]
+
+Vous pouvez configurer différents aspects de l&apos;injection automatique. Par défaut, l&apos;opérateur injectera le sidecar monitoring dans tous les pods déployés dans les nœuds Fargate qui ne font pas partie d&apos;un `Job` ou d&apos;un `BatchJob`.
+
+Ce comportement peut être modifié via les options de configuration. Par exemple, vous pouvez définir des sélecteurs pour affiner ou élargir la sélection des pods injectés, affecter des ressources à l&apos;opérateur et régler le side-car. Vous pouvez également ajouter d’autres attributs, étiquettes et variables d’environnement. Veuillez vous référer aux tableaux [`README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infra-operator/README.md) et [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infra-operator/values.yaml).
+
+<Callout variant="important">
+  La spécification de vos propres règles injection personnalisées supprimera l&apos;ensemble de règles par défaut qui empêche injection side-car sur les pods qui ne sont pas planifiés dans Fargate. Veuillez vous assurer que vos règles personnalisées ont le même effet ; sinon, sur un cluster hybride qui a également le `DaemonSet` déployé, le pod planifié dans EC2 sera monitoré deux fois, ce qui entraînera des données incorrectes ou dupliquées.
+</Callout>
+
+### Mettre à jour vers la dernière version ou vers une nouvelle configuration [#automatic-update]
+
+Pour mettre à jour vers la dernière version de l&apos;intégration EKS Fargate, mettez à niveau le référentiel Helm à l&apos;aide de `helm repo update newrelic` et réinstallez le bundle en exécutant simplement à nouveau la commande ci-dessus.
+
+Pour mettre à jour la configuration de l&apos;agent infrastructure injecté ou de l&apos;opérateur lui-même, modifiez le `values-newrelic.yaml` et mettez à niveau la sortie Helm avec la nouvelle configuration. L&apos;opérateur est mis à jour immédiatement, et votre charge de travail sera instrumentée avec la nouvelle version lors de son prochain redémarrage. Si vous souhaitez les mettre à niveau immédiatement, vous pouvez forcer un redémarrage de votre charge de travail en exécutant :
+
+```shell
+kubectl rollout restart deployment YOUR_APP
+```
+
+### injection automatique : Désinstaller [#automatic-uninstall]
+
+Afin de désinstaller le sidecar effectuant l&apos;injection automatique mais de conserver le reste de la solution New Relic, à l&apos;aide de Helm, désactivez l&apos;opérateur infra en définissant `infra-operator.enabled` sur `false`, soit dans le fichier `values.yaml` soit dans la ligne de commande (`--set`), et réexécutez la commande d&apos;installation ci-dessus.
+
+Nous vous recommandons fortement de conserver l&apos;indicateur `--set global.fargate=true` , car il n&apos;active pas l&apos;injection automatique mais rend les autres composants de l&apos;installation sensibles à Fargate, empêchant ainsi tout comportement indésirable.
+
+Pour désinstaller toute la solution :
+
+1. Désinstallez complètement la sortie Helm .
+
+2. Déroulez le pod afin de retirer le side-car :
+
+   ```shell
+   kubectl rollout restart deployment YOUR_APP
+   ```
+
+3. Ramassez les secrets :
+
+   ```shell
+   kubectl delete secrets -n YOUR_NAMESPACE -l newrelic/infra-operator-created=true
+   ```
+
+## injectionmanuelle [#fargate-manual]
+
+Si vous avez des inquiétudes concernant l&apos; injection automatique, vous pouvez injecter le side-car manuellement directement en modifiant les manifestes de la charge de travail planifiée qui va être planifiée sur les nœuds Fargate. Veuillez noter que l&apos;ajout du sidecar dans le déploiement planifié dans les nœuds EC2 peut entraîner des données incorrectes ou dupliquées, en particulier si ces nœuds sont déjà monitorés avec le `DaemonSet`.
+
+Ces objets sont requis pour que le side-car puisse signaler correctement les données :
+
+* Le `ClusterRole` fournissant l&apos;autorisation nécessaire à l&apos;intégration `nri-kubernetes` .
+* Un `ClusterRoleBinding` reliant le `ClusterRole` et le compte de service du pod.
+* Le secret stockant New Relic `licenseKey` dans chaque espace de nommage Fargate.
+* Le conteneur sidecar dans le modèle spécifique de la workload du moniteur.
+
+<Callout variant="tip">
+  Ces étapes de configuration manuelle concernent une installation générique. Avant de terminer ces étapes, consultez la section [Configuration](#manual-configuration) ci-dessous pour voir si vous souhaitez modifier des aspects de l&apos;injection automatique.
+</Callout>
+
+Suivez ces étapes pour l&apos;injection manuelle :
+
+<Steps>
+  <Step>
+    ### `ClusterRole` [#manual-clusterrole]
+
+    Si le `ClusterRole` n&apos;existe pas, créez-le et accordez les autorisations requises pour atteindre le point de terminaison métrique. Vous n&apos;avez besoin de le faire qu&apos;une seule fois, même pour monitoring plusieurs applications dans le même cluster. Vous pouvez utiliser ce snippet tel qu&apos;il apparaît ci-dessous, sans aucune modification :
+
+    ```yml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+        labels:
+        app: newrelic-infrastructure
+        name: newrelic-newrelic-infrastructure-infra-agent
+    rules:
+        - apiGroups:
+            - ""
+        resources:
+            - nodes
+            - nodes/metrics
+            - nodes/stats
+            - nodes/proxy
+            - pods
+            - services
+        verbs:
+            - get
+            - list
+        - nonResourceURLs:
+            - /metrics
+        verbs:
+            - get
+    ```
+  </Step>
+
+  <Step>
+    ### Side-car injecté [#manual-injected-sidecar]
+
+    Pour chaque workload que vous souhaitez monitorer, ajoutez un conteneur sidecar supplémentaire pour l&apos;image `newrelic/infrastructure-k8s`. Prenez le conteneur de le snippet suivant et injectez-le dans la workload que vous souhaitez monitorer, en spécifiant le nom de votre `FargateProfile` dans la variable `customAttributes`. Notez que les volumes peuvent être définis comme `emptyDir: {}`.
+
+    <Callout variant="tip">
+      Dans le cas particulier d&apos;un déploiement KSM, il faut également supprimer la variable d&apos;environnement `DISABLE_KUBE_STATE_METRICS` et augmenter les requests et limites de ressources.
+    </Callout>
+
+    ```yml
+    apiVersion: apps/v1
+    kind: Deployment
+    spec:
+        template:
+        spec:
+            containers:
+            - name: newrelic-infrastructure
+            env:
+            - name: NRIA_LICENSE_KEY
+                valueFrom:
+                secretKeyRef:
+                    key: license
+                    name: newrelic-newrelic-infrastructure-config
+            - name: NRIA_VERBOSE
+                value: "1"
+            - name: DISABLE_KUBE_STATE_METRICS
+                value: "true"
+            - name: CLUSTER_NAME
+                value: testing-injection
+            - name: COMPUTE_TYPE
+                value: serverless
+            - name: NRK8S_NODE_NAME
+                valueFrom:
+                fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName
+            - name: NRIA_DISPLAY_NAME
+                valueFrom:
+                fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName
+            - name: NRIA_CUSTOM_ATTRIBUTES
+                value: '{"clusterName":"$(CLUSTER_NAME)", "computeType":"$(COMPUTE_TYPE)", "fargateProfile":"[YOUR FARGATE PROFILE]"}'
+            - name: NRIA_PASSTHROUGH_ENVIRONMENT
+                value: KUBERNETES_SERVICE_HOST,KUBERNETES_SERVICE_PORT,CLUSTER_NAME,CADVISOR_PORT,NRK8S_NODE_NAME,KUBE_STATE_METRICS_URL,KUBE_STATE_METRICS_POD_LABEL,TIMEOUT,ETCD_TLS_SECRET_NAME,ETCD_TLS_SECRET_NAMESPACE,API_SERVER_SECURE_PORT,KUBE_STATE_METRICS_SCHEME,KUBE_STATE_METRICS_PORT,SCHEDULER_ENDPOINT_URL,ETCD_ENDPOINT_URL,CONTROLLER_MANAGER_ENDPOINT_URL,API_SERVER_ENDPOINT_URL,DISABLE_KUBE_STATE_METRICS,DISCOVERY_CACHE_TTL
+            image: newrelic/infrastructure-k8s:2.4.0-unprivileged
+            imagePullPolicy: IfNotPresent
+            resources:
+                limits:
+                memory: 100M
+                cpu: 200m
+                requests:
+                cpu: 100m
+                memory: 50M
+            securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsUser: 1000
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+            - mountPath: /var/db/newrelic-infra/data
+                name: tmpfs-data
+            - mountPath: /var/db/newrelic-infra/user_data
+                name: tmpfs-user-data
+            - mountPath: /tmp
+                name: tmpfs-tmp
+            - mountPath: /var/cache/nr-kubernetes
+                name: tmpfs-cache
+    [...]
+    ```
+
+    Lorsque vous ajoutez manuellement le manifeste de l&apos;agent sidecar, vous pouvez utiliser n&apos;importe quelle option de configuration de l&apos;agent pour configurer le comportement de l&apos;agent. Pour obtenir de l’aide, consultez [Paramètres de configuration de l’agent d’infrastructure](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/).
+  </Step>
+
+  <Step>
+    ### `ClusterRoleBinding` [#manual-cluster-role-binding]
+
+    Créez un `ClusterRoleBinding`, ou ajoutez à un précédemment créé le `ServiceAccount` de l&apos;application qui va être monitorée. Toutes les charges de travail peuvent partager le même `ClusterRoleBinding`, mais le `ServiceAccount` de chacune doit y être ajouté.
+
+    Créez le `ClusterRoleBinding` suivant qui a comme sujets le compte de service du pod que vous souhaitez monitorer.
+
+    <Callout variant="tip">
+      Vous n’avez pas besoin de répéter deux fois le même compte de service. Chaque fois que vous souhaitez monitorer un pod avec un compte de service qui n&apos;est pas encore inclus, ajoutez-le simplement à la liste.
+    </Callout>
+
+    ```yml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+        name: newrelic-newrelic-infrastructure-infra-agent
+    roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: newrelic-newrelic-infrastructure-infra-agent
+    subjects:
+        - kind: ServiceAccount
+        name: [INSERT_SERVICE_ACCOUNT_NAME_OF_WORKLOAD]
+        namespace: [INSERT_SERVICE_ACCOUNT_NAMESPACE_OF_WORKLOAD]
+    ```
+  </Step>
+
+  <Step>
+    ### Secret contenant [#secret-containing]
+
+    Créez un secret contenant New Relic <InlinePopover type="licenseKey" />. Chaque espace de nommage a besoin de son propre secret.
+
+    Créez le `Secret` suivant qui possède une licence avec la valeur codée en Base64 de votre <InlinePopover type="licenseKey" />. Un secret est nécessaire dans chaque espace de nommage où tourne un pod que vous souhaitez monitorer.
+
+    ```yml
+    apiVersion: v1
+    data:
+        license: INSERT_YOUR_NEW_RELIC_LICENSE_ENCODED_IN_BASE64
+    kind: Secret
+    metadata:
+        name: newrelic-newrelic-infrastructure-config
+        namespace: [INSERT_NAMESPACE_OF_WORKLOAD]
+    type: Opaque
+    ```
+  </Step>
+</Steps>
+
+### injection manuelle : Mise à jour vers la dernière version [#manual-update-version]
+
+Pour mettre à jour l&apos;un des composants, il vous suffit de modifier le yaml déployé. La mise à jour de l’un des champs du conteneur injecté entraînera la recréation du pod.
+
+<Callout variant="important">
+  L&apos;agent ne peut pas charger à chaud New Relic <InlinePopover type="licenseKey" />. Après avoir mis à jour le secret, vous devez relancer le déploiement.
+</Callout>
+
+### injection manuelle : Désinstaller l&apos;intégration Fargate [#manual-uninstall]
+
+Pour supprimer le conteneur injecté et les ressources associées, il suffit de supprimer les éléments suivants :
+
+* Le side-car de la charge de travail qui ne devrait plus être monitoré.
+* Tous les secrets contenant la licence newrelic.
+* `ClusterRole` et `ClusterRoleBinding` objets.
+
+Notez que la suppression du conteneur sidecar entraînera la recréation du pod.
+
+## Enregistrement [#fargate-logging]
+
+Le logging New Relic n&apos;est pas disponible sur les nœuds Fargate en raison de contraintes de sécurité imposées par AWS, mais voici quelques options de logging :
+
+* Si vous utilisez Fluentbit pour le logging, consultez [le plugin Kubernetes pour le transfert de log](/docs/logs/forward-logs/kubernetes-plugin-log-forwarding/).
+* Si vos données log sont déjà monitorées par AWS FireLens, consultez [le plugin AWS FireLens pour le transfert de log](/docs/logs/forward-logs/aws-firelens-plugin-log-forwarding/).
+* Si vos données log sont déjà monitorées par le log Amazon CloudWatch , consultez [Log de flux à l&apos;aide de Kinesis Data Firehose](/docs/logs/forward-logs/stream-logs-using-kinesis-data-firehose/).
+* Consultez [AWS Lambda pour l’envoi du log CloudWatch ](/docs/logs/forward-logs/aws-lambda-sending-cloudwatch-logs/).
+* Voir [Trois façons de transférer le log d&apos;Amazon ECS vers New Relic](https://newrelic.com/blog/how-to-relic/forward-logs-from-amazon-ecs-to-new-relic).
+
+## Dépannage [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="daemonset" title="Les répliques DaemonSet sont déployées dans les nœuds Fargate">
+    Si vous remarquez que des répliques Infra `DaemonSet` sont planifiées sur des nœuds Fargate, cela peut être dû au fait que les règles `nodeAffinity` ne sont pas configurées correctement.
+
+    Vérifiez que la solution a été installée avec l&apos;option `global.fargate` à `true`, soit via la ligne de commande (`--set global.fargate=true`), soit dans le fichier `values.yaml` . Si la méthode d&apos;installation n&apos;était pas Helm, vous devrez ajouter manuellement `nodeAffinity` règles pour exclure les nœuds Fargate.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event-untolerated"
+    title={<>événement <InlineCode>
+      FailedScheduling
+    </InlineCode> dû à une contamination non tolérée</>
+    }
+  >
+    N&apos;oubliez pas d&apos;ajouter dans le fichier `values.yaml` le `tolerations` décrit dans [Installation par injection automatique](#auto-injection-install) si vous obtenez l&apos;événement suivant en essayant de créer un pod :
+
+    ```yaml
+    LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+    :--|:--|:--|:--|:--
+    3m9s (x2 over 8m10s) | Warning | FailedScheduling | Pod/no-fargate-deploy-cbddd6ccf-8f9x4 | 0/2 nodes are available: 2 node(s) had untolerated taint {eks.amazonaws.com/compute-type: fargate}. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling..
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event-many-pods"
+    title={<>événement <InlineCode>
+      FailedScheduling
+    </InlineCode> dû à trop de pods</>
+    }
+  >
+    Vérifiez s&apos;il existe un profil Fargate avec un sélecteur qui nomme l&apos;espace de nommage où l&apos;installation se produit si vous obtenez l&apos;événement suivant en essayant de créer un pod:
+
+    ```yaml
+    LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+    :--|:--|:--|:--|:--
+    61s | Warning | FailedScheduling | Pod/newrelic-bundle-newrelic-infra-operator-admission-create-d8ggt | 0/2 nodes are available: 2 Too many pods. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod..
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Consultez vos données EKS [#view-data]
+
+Voici un exemple de ce à quoi ressemble un nœud Fargate dans l&apos;interface utilisateur de New Relic :
+
+<img title="Screenshot showing the Kubernetes explorer with a Fargate node" alt="Screenshot showing the Kubernetes explorer with a Fargate node" src="/images/kubernetes_screenshot-crop_fargate-ui.webp" />
+
+Pour afficher vos données AWS :
+
+1. Accédez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Infrastructure &gt; Kubernetes**</DNT> et effectuez l’une des opérations suivantes :
+
+   * Sélectionnez un nom d’intégration pour afficher les données.
+   * Sélectionnez l’icône Explorer les données pour afficher les données AWS.
+
+2. Filtrez vos données à l&apos;aide de deux balises Fargate :
+
+   * `computeType=serverless`
+   * `fargateProfile=[name of the Fargate profile to which the workload belongs]`

@@ -1,0 +1,128 @@
+---
+title: Aucune donnée n'apparaît après la désactivation de TLS 1.0
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: 'Troubleshooting for New Relic .NET APM agent: How to configure your TLS protocol preferences for your .NET application and environment.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+Aucune donnée n&apos;apparaît dans New Relic après la désactivation de TLS 1.0. Vous avez vérifié si TLS 1.0 est désactivé en inspectant la clé de registre suivante :
+
+```
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Client
+```
+
+TLS 1.0 est désactivé si `"Enabled"` est défini sur `0` et `"DisabledByDefault"` est défini sur `1`.
+
+De plus, vous avez peut-être également remarqué un message d&apos;erreur dans les journaux de l&apos;agent New Relic en raison de ce problème ; par exemple :
+
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The request was aborted: Could not create SSL/TLS secure channel.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a send. ---> System.IO.IOException: 
+  Received an unexpected EOF or 0 bytes from the transport stream.
+  ```
+* ```
+  NewRelic ERROR: Unable to connect to the New Relic service at collector.newrelic.com:443 : System.Net.WebException: 
+  The underlying connection was closed: An unexpected error occurred on a receive. ---> System.ComponentModel.Win32Exception: 
+  The client and server cannot communicate, because they do not possess a common algorithm.
+  ```
+
+## Solution
+
+L&apos;agent .NET de New Relic nécessite une version minimale de TLS 1.2 ou supérieure. Pour TLS 1.2, il faut également que .NET soit configuré pour l&apos;utiliser.
+
+À partir de la version 10.6.0 agent .NET, au démarrage, l&apos;agent enregistre la version TLS configurée au niveau INFO.
+
+<Callout variant="important">
+  Si vous définissez une version TLS par défaut, elle sera utilisée à la fois par l&apos;application et par l&apos;agent New Relic. Vous ne pouvez pas utiliser une version TLS différente pour chacun.
+</Callout>
+
+Pour activer une version spécifique du protocole TLS :
+
+<CollapserGroup>
+  <Collapser id="windows-registry" title="Étape 1. Activez les protocoles TLS dans le registre Windows.">
+    Les anciennes versions de Windows Server (2008/2012) peuvent ne pas disposer de TLS 1.1/1.2 support activé par défaut.
+
+    <Callout variant="caution">
+      Suivez attentivement ces étapes. De graves problèmes peuvent survenir si vous modifiez le registre de manière incorrecte. Recommandation : avant de modifier le registre, effectuez une sauvegarde.
+    </Callout>
+
+    Voici un exemple de mise à jour du registre Windows vers TLS 1.2. Cela nécessite que TLS soit activé pour le rôle <DNT>**Client**</DNT> , car votre serveur se connecte en tant que client à New Relic.
+
+    1. Copiez et collez ce qui suit dans un fichier :
+
+       ```ini
+       Windows Registry Editor Version 5.00
+
+       [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2]
+
+       [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client]
+       "DisabledByDefault"=dword:00000000
+       "Enabled"=dword:00000001
+       ```
+
+    2. Enregistrez le fichier avec une extension `.reg` .
+
+    3. Exécutez le script.
+  </Collapser>
+
+  <Collapser id="windows-registry" title="Étape 2. Activer les protocoles par défaut .NET">
+    .NET Framework 4.5 ou inférieur utilise les protocoles SSL v3 et TLS 1.0 par défaut.
+
+    Après avoir activé TLS 1.1 ou 1.2 via le registre, vous devez toujours modifier les protocoles par défaut utilisés par .NET.
+
+    Choisissez l&apos;une des options suivantes :
+
+    <CollapserGroup>
+      <Collapser id="strongcrypto" title="Activer la propriété cryptographique forte dans le registre Windows">
+        <Callout variant="caution">
+          Suivez attentivement ces étapes. De graves problèmes peuvent survenir si vous modifiez le registre de manière incorrecte. Recommandation : avant de modifier le registre, effectuez une sauvegarde.
+        </Callout>
+
+        L&apos;ajout de la valeur `SchUseStrongCrypto` aux clés de registre .NET Framework permettra à toutes les applications .NET d&apos;utiliser TLS 1.1 ou 1.2. Les deux clés de registre devront être modifiées pour garantir que les applications .NET 32 bits et 64 bits peuvent utiliser TLS 1.1/1.2.
+
+        1. Copiez et collez ce qui suit dans un fichier :
+
+           ```ini
+           Windows Registry Editor Version 5.00
+
+           [HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319] 
+           "SchUseStrongCrypto"=dword:00000001
+
+           [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319]
+           "SchUseStrongCrypto"=dword:00000001
+           ```
+
+        2. Enregistrez le fichier avec une extension `.reg` .
+
+        3. Exécutez le script.
+      </Collapser>
+
+      <Collapser id="app-code" title="Inclure le protocole dans le code de votre application">
+        Vous pouvez modifier les protocoles de sécurité par défaut de .NET en modifiant le code source de votre application. La commande suivante active TLS 1.2, 1.1 et 1.0 comme protocoles par défaut pour votre application. Il s&apos;agit d&apos;un paramètre global qui doit être défini au début du démarrage de votre application. Vous pouvez le modifier pour activer les protocoles spécifiques que vous souhaitez.
+
+        ```cs
+        System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+</CollapserGroup>
+
+## Cause
+
+Si vous avez besoin d&apos;une version spécifique de TLS pour requests HTTP externes, vous devez vous assurer que votre application et votre serveur sont correctement configurés. L&apos;absence de configuration appropriée peut empêcher l&apos;agent .NET de New Relic de se connecter à New Relic.
+
+L&apos;agent .NET de New Relic communique avec New Relic les serveurs à l&apos;aide de classes standard disponibles avec .NET pour effectuer HTTP requests externes. Étant donné que le code de l&apos;agent .NET s&apos;exécute parallèlement au code de votre application, les protocoles de sécurité utilisés pour communiquer avec les serveurs New Relic dépendent de l&apos;environnement et de la configuration de votre application.
+
+Pour plus d&apos;informations sur la configuration correcte des paramètres TLS de votre système ou de votre application en fonction de votre version du framework .NET, consultez [la documentation de Microsoft sur les bonnes pratiques (TLS)](https://docs.microsoft.com/en-us/dotnet/framework/network-programming/tls).

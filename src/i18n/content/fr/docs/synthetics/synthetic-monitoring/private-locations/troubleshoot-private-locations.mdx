@@ -1,0 +1,146 @@
+---
+title: Dépannage site privé
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Troubleshooting tips if you encounter problems with private locations or private minions or job managers with synthetic monitoring in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si vous rencontrez des problèmes lors de la configuration [du site privé](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) pour monitoring synthétique de New Relic, essayez ces conseils de dépannage pour identifier les problèmes courants de minion ou de gestionnaire de tâches.
+
+## Demande d&apos;emploi et consommation [#job-demand]
+
+Identifiez votre débit actuel et évaluez si votre gestionnaire du CPM ou de travaux est capable de suivre la charge de travail.
+
+* Les tâches nécessitent un débit par minute :
+
+  ```sql
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest 
+  WHERE type != 'SIMPLE' FACET location SINCE 2 days ago
+  ```
+
+* Emplois par minute au fil du temps :
+
+  ```sql
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest 
+  WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* Identifier la croissance de la file d’attente :
+
+  ```sql
+  SELECT derivative(checksPending, 1 minute) AS 'queue growth rate (per minute)' 
+  FROM SyntheticsPrivateLocationStatus WHERE name = 'YOUR_PRIVATE_LOCATION' SINCE 2 days ago TIMESERIES
+  ```
+
+* Taux de consommation :
+
+  ```sql
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest 
+  WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* Nettoyer les moniteurs défaillants qui consomment des ressources :
+
+  ```sql
+  SELECT 100*latest(minionJobsFailed)/latest(minionJobsReceived) AS 'job failure rate (%)' 
+  FROM SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## dépannage utilisation mémoire [#memory]
+
+Allocation de mémoire recommandée par CPM :
+
+* Docker: 2,5 Gio par cœur de processeur pour le CPM Docker
+
+* CPM Kubernetes  :
+
+  * 3 Gio par CPM pour les gros travailleurs
+  * 3 Gio par pod de contrôle de santé
+  * 1,6 Gio pour pod minion
+
+* cible 60% d&apos;utilisation maximale de la mémoire
+
+Allocation de mémoire recommandée par gestionnaire de tâches Synthetics :
+
+* Docker: 3,256 Gio par cœur de processeur pour le gestionnaire de tâches Docker Synthetics
+
+* Gestionnaire de tâches Kubernetes Synthetics (les valeurs sont configurables) :
+
+  * 1,6 Gio pour le pod du gestionnaire de tâches
+  * 1,0 Gio pour le pod d&apos;exécution ping
+  * 2 Gio par pod d&apos;exécution d&apos;API Node.js
+  * 3 Gio par pod d&apos;exécution de navigateur Node.js
+
+* cible 60% d&apos;utilisation maximale de la mémoire
+
+Requête utile pour identifier l&apos;utilisation actuelle :
+
+* Utilisation de la mémoire par emplacement :
+
+  ```sql
+  SELECT latest(minionPhysicalMemoryUsedPercentage) FROM SyntheticsPrivateMinion
+  FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+* Utilisation de la mémoire par nom d&apos;hôte :
+
+  ```sql
+  SELECT latest(minionPhysicalMemoryUsedPercentage) FROM SyntheticsPrivateMinion 
+  WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## Dépannage d&apos;utilisation du processeur [#cpu-usage]
+
+Identifier les périodes potentielles de forte demande de CPU :
+
+* Utilisation globale du processeur :
+
+  ```sql
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion 
+  FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+* Utilisation du processeur pour un emplacement spécifié :
+
+  ```sql
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion 
+  WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## Dépannage réseau [#network]
+
+<DNT>
+  **Network access is red:**
+</DNT>
+
+Le minion privé effectue un contrôle auprès de New Relic pour vérifier l&apos;accès au réseau public. Si l&apos;accès au réseau public n&apos;est pas disponible, l&apos;icône <DNT>**Network Access**</DNT> sur la [page <DNT>**Overview**</DNT> du minion privé](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) deviendra rouge, mais le minion privé sera par ailleurs pleinement fonctionnel. Si c&apos;est le comportement attendu, vous pouvez ignorer cette erreur en toute sécurité.
+
+Vous pouvez également voir des entrées log comme celles-ci :
+
+```log
+2016-01-21 21:47:09,401 [dw-22 - GET /private-location/status] c.n.s.m.util.PrivateMinionUtils WARN Unable to detect Public Network Access trying to fetch https://newrelic.com/synthetics: java.net.ConnectException: Connection refused
+```
+
+<DNT>
+  **New Relic access is red:**
+</DNT>
+
+Le minion privé doit avoir accès à `https://synthetics-horde.nr-data.net` afin de récupérer la liste des jobs à exécuter et de publier les résultats que vous pouvez visualiser dans votre utilisateur d&apos;interface New Relic. Si vos règles de pare-feu n&apos;autorisent pas l&apos;accès direct, vous devez [configurer l&apos;accès proxy](/docs/synthetics/new-relic-synthetics/private-locations/install-configure-private-minions). Si nécessaire, ajoutez le point de terminaison DNS à votre liste de domaines autorisés.
+
+<DNT>
+  **Network IOPS:**
+</DNT>
+
+Les IOPS réseau peuvent également être un bon point de dépannage si vous utilisez un fournisseur cloud pour votre CPM. Les CPM Docker et Kubernetes nécessitent tous deux une quantité décente de débit d&apos;écriture. Analysez vos IOPS moyennes et déterminez la taille de volume appropriée nécessaire à vos opérations de disque par seconde.
+
+## Conflits de ports exécutant le conteneur Docker sur l&apos;hôte [#port-conflicts-docker]
+
+Si vous exécutez plusieurs conteneurs privés de sites Docker sur le même hôte, vous aurez des conflits de ports. Pour éviter ce conflit de port, assurez-vous de procéder comme suit lorsque vous commencez à configurer des gestionnaires de tâches :
+
+* Exécutez des gestionnaires de tâches et des CPM sur différents hôtes.
+* Exécutez chaque gestionnaire de tâches sur un hôte distinct.
+* Exécutez chaque CPM sur un hôte différent.

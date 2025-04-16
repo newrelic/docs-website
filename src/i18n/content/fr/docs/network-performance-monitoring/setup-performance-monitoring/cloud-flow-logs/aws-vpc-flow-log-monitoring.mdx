@@ -1,0 +1,230 @@
+---
+title: Configurer monitoring du log de flux Amazon VPC
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+  - AWS
+metaDescription: Set up Amazon VPC Flow Logs monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Video type="youtube" id="ao_8izubBFw" />
+
+Le log Amazon Virtual Private Cloud Flow (VPC) via Amazon Kinesis Data Firehose vous aide à réduire les frictions liées à l&apos;envoi du log à New Relic. Avec le log de flux VPC de l&apos;ensemble de vos domaines AWS, vous pouvez rapidement comprendre les informations clés détaillées pour l&apos;analyse des performances et le dépannage de la connectivité réseau.
+
+<img title="Amazon VPC Flow Logs overview" alt="Amazon VPC Flow Logs overview" src="/images/network_screenshot-crop_cloud-flow-logs-overview.webp" />
+
+<figcaption>
+  <DNT>**Add [Amazon VPC Flow Logs to your New Relic account](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9)**</DNT>.
+</figcaption>
+
+Amazon Virtual Private Cloud (VPC) vous permet de lancer des ressources AWS dans un réseau virtuel isolé et sécurisé avec les avantages de l&apos;utilisation infrastructure AWS évolutive.
+
+<ButtonGroup>
+  <ButtonLink role="button" to="https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9" variant="primary">
+    Ajouter un log de flux Amazon VPC
+  </ButtonLink>
+
+  <ButtonLink role="button" to="https://one.eu.nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9" variant="primary">
+    installation guidée, région UE
+  </ButtonLink>
+</ButtonGroup>
+
+## Prérequis [#prerequisites]
+
+### Prérequis pour New Relic [#prerequisites-NR]
+
+* Un compte New Relic. Vous n&apos;en avez pas ? [Inscrivez-vous gratuitement !](https://newrelic.com/signup) Aucune carte de crédit requise.
+
+### Prérequis AWS [#prerequisites-aws]
+
+<Callout variant="important">
+  Le log de flux Amazon VPC via Kinesis Data Firehose n&apos;est pas encore pris en charge pour les clients FedRAMP. En attendant, vous pouvez utiliser [nos API d&apos;ingestion FedRAMP](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints#data-ingest-apis).
+</Callout>
+
+* Environnement:
+
+  * [AWS CLI (v 1.9.15+) installé](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+  * Une liste des régions AWS dans lesquelles vous collectez le log Amazon VPC Flow.
+  * [ID VPC](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/ec2/describe-vpcs.html) qui seront configurés pour expédier le log de flux VPC. Si vous souhaitez un contrôle plus précis, spécifiez les [ID de sous-réseau](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/ec2/describe-subnets.html) au lieu des ID de VPC.
+
+* Autorisations :
+
+  * Un utilisateur AWS avec [des autorisations pour créer un log de flux VPC](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-s3-iam).
+  * Autorisations de lecture et d&apos;écriture du fichier de log Amazon S3 [pour le propriétaire de la livraison log ](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-file-permissions).
+  * Autoriser [Kinesis Data Firehose à assumer un rôle IAM](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#firehose-assume-role).
+
+* [Noms de ressources Amazon (ARN)](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-arn-format.html):
+
+  * ARN d&apos;un bucket S3 avec autorisations pour [stocker les messages de flux non livrés de log](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-s3-permissions).
+  * Si vous souhaitez activer l&apos;échantillonnage, vous aurez besoin de l&apos;ARN du rôle IAM de Lambda.
+  * ARN pour [Kinesis Data Firehose avec accès au bucket S3](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-s3). <Callout variant="tip">Nous vous recommandons de créer un nouveau Firehose de données avec notre guide d&apos;installation la première fois que vous configurez le log de flux VPC pour une région spécifique. Pour les VPC et sous-réseaux suivants dans la même région, vous pouvez réutiliser le Firehose de données existant.</Callout>
+
+### Rôles IAM [#iam-roles]
+
+Si vous configurez l&apos;intégration du log de flux à l&apos;aide de l&apos;AWS CLI, vous devez fournir un ou deux rôles IAM pour différents composants infrastructure . Si vous utilisez CloudFormation, vous pouvez soit fournir vos propres rôles, soit laisser le modèle définir de nouveaux rôles.
+
+Les rôles nécessaires doivent avoir au moins les autorisations suivantes :
+
+<CollapserGroup>
+  <Collapser id="kinesis-firehose" title="Lance à incendie Kinesis">
+    Cette autorisation est requise.
+
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:AbortMultipartUpload",
+                    "s3:GetBucketLocation",
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:PutObject"
+                ],
+                "Resource": [
+                    "arn:aws:s3:::<FIREHOSE_ERRORS_BUCKET>",
+                    "arn:aws:s3:::<FIREHOSE_ERRORS_BUCKET>/*"
+                ]
+            },
+            {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:InvokeFunction",
+                    "lambda:GetFunctionConfiguration"
+                ],
+                "Resource": [
+                    "arn:aws:lambda:us-west-2:<YOUR_ACCOUNT>:function:NewRelic-Flow-Sampling-Lambda",
+                    "arn:aws:lambda:us-west-2:<YOUR_ACCOUNT>:function:NewRelic-Flow-Sampling-Lambda:*"
+                ]
+            }
+        ]
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="aws-sampling-lambda" title="Échantillonnage AWS Lambda">
+    Vous n&apos;avez besoin de cette autorisation que si vous utilisez l&apos;échantillonnage.
+
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": "logs:CreateLogGroup",
+                "Resource": "arn:aws:logs:us-west-2:<YOUR_ACCOUNT>:*",
+                "Effect": "Allow"
+            },
+            {
+                "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                ],
+                "Resource": [
+                    "arn:aws:logs:us-west-2:<YOUR_ACCOUNT>:log-group:/aws/lambda/NewRelic-Flow-Sampling-Lambda:*"
+                ],
+                "Effect": "Allow"
+            }
+        ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Formater votre log dans New Relic [#NR-logs-format]
+
+Pour utiliser l&apos;exploration log de flux organisé et la liaison d&apos;entité, vous devez suivre ce format pour le log de flux VPC :
+
+```shell
+${version} ${account-id} ${region} ${az-id} ${sublocation-type} ${vpc-id} ${subnet-id} ${instance-id} ${interface-id} ${srcaddr} ${pkt-srcaddr} ${pkt-src-aws-service} ${dstaddr} ${pkt-dstaddr} ${pkt-dst-aws-service} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${flow-direction} ${traffic-path} ${start} ${end} ${action} ${log-status}
+```
+
+<Callout variant="tip">
+  Si vous souhaitez en savoir plus sur les champs log , consultez les champs disponibles dans la [documentation VPC Amazon](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html#flow-logs-fields).
+</Callout>
+
+Vous devez utiliser une [partitionlog ](/docs/logs/ui-data/data-partitions)pour le log de flux VPC nommée `Log_VPC_Flows_AWS`. Si vous utilisez l&apos;[installation guidée](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9), celle-ci est gérée automatiquement.
+
+## Configurer monitoring des logs de flux Amazon VPC dans New Relic [#setup-aws-vpc-flow-logs]
+
+Suivez l’assistant guidé pour installer le log Amazon VPC Flow :
+
+1. Démarrez le <DNT>**[guided install process](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9)**</DNT>.
+2. Dans la liste déroulante <DNT>**Select an account**</DNT> , choisissez le compte New Relic vers lequel vous souhaitez envoyer le log Amazon VPC Flow, puis cliquez sur <DNT>**Continue**</DNT>.
+3. Dans la section <DNT>**Select your data**</DNT> , choisissez <DNT>**Amazon VPC Flow Logs**</DNT> et cliquez sur <DNT>**Continue**</DNT>.
+4. Dans la section <DNT>**Select your install method**</DNT> , continuez avec <DNT>**CLI**</DNT> et cliquez sur <DNT>**Continue**</DNT>.
+
+Après ces étapes, un nouvel assistant apparaît pour vous aider à configurer l’envoi du log Amazon VPC Flow à New Relic via le service AWS Kinesis Firehose .
+
+1. Dans la section <DNT>**Choose Setup Options**</DNT> :
+
+   * Vérifiez que votre méthode de configuration est correcte.
+   * Sélectionnez la région AWS qui enverra le log de flux VPC à New Relic.
+   * Si vous réutilisez un Kinesis Data Firehose, cochez la case <DNT>**I already have a Kinesis Firehose to New Relic**</DNT> et passez à la section <DNT>**Define flow logs**</DNT> .
+   * Cliquez sur <DNT>**Continue**</DNT>.
+
+2. Dans la section <DNT>**Define Kinesis Firehose**</DNT> :
+
+   * Dans le champ <DNT>**Kinesis Firehose Name**</DNT> , assurez-vous que le nom généré est correct.
+   * Dans le champ <DNT>**Firehose Backup Bucket**</DNT> , saisissez l’ [ARN du bucket S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-arn-format.html) à utiliser pour stocker les messages dont la livraison échoue. L&apos;ARN doit suivre ce format : `arn:my_string`.
+   * Dans le champ <DNT>**Firehose IAM Role**</DNT> , saisissez l’ [ARN du rôle IAM](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#firehose-assume-role) à utiliser par Kinesis Data Firehose. L&apos;ARN doit suivre ce format : `arn:my_string`.
+   * Cliquez sur <DNT>**Continue**</DNT>.
+   * En option, si vous souhaitez échantillonner le log de flux VPC, cochez la case <DNT>**Use Sampling**</DNT> et :
+
+   <CollapserGroup>
+     <Collapser id="sampling-lambda" title="Utiliser l'échantillonnage Lambda">
+       * Tout d’abord, dans la section <DNT>**Define Sampling Lambda**</DNT> , procédez comme suit :
+
+         * Dans le champ <DNT>**Lambda Name**</DNT> , assurez-vous que le nom généré pour la fonction Lambda est correct. Si vous avez des normes de dénomination Lambda spécifiques, modifiez le nom.
+         * Dans le champ <DNT>**Sample Rate**</DNT> , spécifiez la fréquence d’échantillonnage à appliquer. Par défaut, il est défini sur `1:10`.
+
+       * Ensuite, dans la section <DNT>**Create Sampling Lambda**</DNT> , cliquez sur <DNT>**Generate CLI Command**</DNT> et :
+
+         * Copiez le contenu du bloc de code pour <DNT>**Create your sampling Lambda**</DNT> et exécutez-le dans l&apos;AWS CLI.
+         * Pour vérifier si votre Lambda est créé, exécutez la commande de la deuxième étape dans l&apos;AWS CLI.
+         * Copiez l&apos;ARN renvoyé pour la fonction Lambda et collez-le dans le champ <DNT>**Sampling Lambda ARN**</DNT> au format `arn:my_string`. Cliquez ensuite sur <DNT>**Continue**</DNT>.
+
+         <Callout variant="tip">
+           L&apos;échantillonnage est une fonction de comptage simple, mais elle réduira le volume du log de flux expédié à New Relic. Les données échantillonnées à l&apos;aide de cette fonction Lambda peuvent manquer une conversation spécifique dans New Relic. Faites attention aux légendes indiquant les données échantillonnées dans l&apos;interface utilisateur du réseau monitoring de New Relic.
+         </Callout>
+     </Collapser>
+   </CollapserGroup>
+
+3. Dans la section <DNT>**Generate Kinesis Firehose**</DNT> , cliquez sur <DNT>**Generate CLI Command**</DNT> et :
+
+   <Callout variant="tip">
+     Nous générons automatiquement un nouveau <InlinePopover type="licenseKey" />à utiliser pour cette ingestion de données. Pour régénérer une clé, cliquez sur <DNT>**Generate and use a new key**</DNT>.
+
+     Si vous souhaitez réutiliser une clé existante, mettez à jour la valeur `AccessKey` à la première étape.
+   </Callout>
+
+   * Copiez le contenu du bloc de code pour <DNT>**Create your Kinesis Data Firehose**</DNT> et collez-le et exécutez-le dans l&apos;AWS CLI.
+   * Pour vérifier si votre Kinesis Firehose est créé, exécutez la commande de la deuxième étape dans l&apos;AWS CLI. Si aucun ARN n&apos;est renvoyé, attendez 30 secondes et réessayez.
+   * Copiez l&apos;ARN renvoyé pour Kinesis Firehose et collez-le dans le champ <DNT>**Kinesis Data Firehose ARN**</DNT> au format `arn:my_string`. Cliquez ensuite sur <DNT>**Continue**</DNT>.
+
+   <img title="Generate Kinesis Firehose" alt="Generate Kinesis Firehose" src="/images/network_screenshot-crop_kinesis-forehose-aws-vpc-flow-logs.webp" />
+
+   <figcaption>
+     Générez l’étape Kinesis Firehose dans l’installation guidée.
+   </figcaption>
+
+4. Dans la section <DNT>**Define Flow Logs**</DNT> , procédez comme suit :
+
+   * Dans la liste déroulante <DNT>**Traffic Type**</DNT>, sélectionnez si vous souhaitez envoyer uniquement les entrées acceptées, uniquement celles rejetées ou toutes les entrées log de flux.
+   * Dans le champ <DNT>**Flow Source ID**</DNT> , saisissez l&apos;ID VPC (`vpc-MY_STRING`) ou l&apos;ID de sous-réseau (`subnet-MY_STRING`) pour lequel le log Amazon VPC Flow doit être créé.
+   * Le champ <DNT>**Flow Source Type**</DNT> sera automatiquement renseigné, cliquez donc sur <DNT>**Continue**</DNT>.
+
+5. Dans la section <DNT>**Create Flow Logs**</DNT> , cliquez sur <DNT>**Generate CLI Command**</DNT> et copiez le contenu du bloc de syntaxe. Ensuite, exécutez-le dans l’AWS CLI pour commencer à générer un log de flux pour les ressources spécifiées.
+
+6. Cliquez sur <DNT>**Continue**</DNT> pour commencer à explorer le log Amazon VPC Flow dans la section réseau monitoring de New Relic.
+
+7. [Visualisez vos données de performances réseau dans New Relic](/docs/network-performance-monitoring/monitoring-network-data/visualize-network-data).
+
+<InstallFeedback />

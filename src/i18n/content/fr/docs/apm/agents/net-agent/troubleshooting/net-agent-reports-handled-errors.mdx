@@ -1,0 +1,127 @@
+---
+title: L'agent .NET signale les erreurs traitées
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: How to prevent New Relic's .NET agent from reporting handled errors as though they are standard errors.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+L&apos;agent .NET de New Relic signale les erreurs traitées comme s&apos;il s&apos;agissait d&apos;erreurs standard. Cela est particulièrement courant avec les rôles de travail Azure, les applications de console, le travail asynchrone et les opérations similaires.
+
+## Solution
+
+Pour éviter les faux rapports d’erreur, instrumentez une méthode qui contient directement ou indirectement le gestionnaire d’exceptions. Instrumenter la méthode cible en définissant un fichier [instrumentation personnalisée](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation) , ou en enveloppant la méthode dans une [transaction personnalisée](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net), comme illustré dans cet exemple :
+
+<CollapserGroup>
+  <Collapser id="get-response-block" title="GetResponse() génère une erreur">
+    Dans cet exemple, New Relic signale une erreur de `GetResponse()` <DNT>**unless**</DNT> la méthode `Foo()` est instrumentée. Tant que `Foo` est instrumenté, New Relic commence une transaction lorsque `Foo` est appelé et termine la transaction lorsque `Foo` se termine.
+
+    Étant donné que l’erreur est traitée avant la fin de `Foo` , New Relic ne signalera pas d’erreur. Notez également que `GetResponse()` devient un segment de la transaction `Foo` .
+
+    ```cs
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using System.Net;
+    using System.IO;
+
+    namespace ErrorTester
+    {
+        class Program
+        {
+            static void Main(string[] args)
+            {
+                var i = 0;
+                while (true)
+                {
+                    Foo(++i);
+                }
+            }
+
+            static void Foo(int i)
+            {
+                try
+                {
+                    GetNotFound();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Got it " + i + "!");
+                    Thread.Sleep(1000);
+                }
+            }
+
+            static string GetNotFound()
+            {
+                string uri = "https://localhost/Test/this/is/not/a/real/page";
+                var request = (HttpWebRequest)WebRequest.Create(uri);
+                var response = request.GetResponse();
+                var data = new StreamReader(response.GetResponseStream()).ReadToEnd();
+                response.Close();
+                return data;
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="custom-instrumentation" title="Définir un fichier instrumentation personnalisé">
+    Pour instrumenter `Foo`:
+
+    1. Définir un [fichierinstrumentation personnalisé](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation); par exemple, `CustomInstrumentation.xml`:
+
+       ```xml
+       <?xml version="1.0" encoding="utf-8"?>
+       <!-- © 2008-2014 New Relic, Inc. All rights reserved. -->
+       <!--
+           When you edit this file, please use an XML aware editor (such as Visual Studio),
+           and pair with the companion file extension.xsd to minimize the
+           chance of introducing typos that may confuse the agent when it is run.
+       -->
+       <extension xmlns="urn:newrelic-extension">
+         <instrumentation>
+           <tracerFactory >
+             <match assemblyName="ErrorTester" className="ErrorTester.Program">
+               <exactMethodMatcher methodName="Foo" /> 
+             </match>
+           </tracerFactory>
+         </instrumentation>
+       </extension>
+       ```
+
+    2. Placez `CustomInstrumenation.xml` dans le dossier des extensions New Relic, à côté de `CoreInstrumentation.xml`, et redémarrez votre application.
+  </Collapser>
+
+  <Collapser id="custom-transaction" title="Envelopper la méthode dans une transaction personnalisée">
+    Pour instrumenter `Foo`, encapsulez-le dans une [transaction personnalisée](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net):
+
+    ```xml
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+         <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="Background/Task">
+           <match assemblyName="ErrorTester" className="ErrorTester.Program">
+             <exactMethodMatcher methodName="Foo" />
+           </match>
+        </tracerFactory>
+      </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cause
+
+Les seules erreurs signalées par l&apos;agent .NET de New Relic sont des erreurs non gérées qui mettent fin à une transaction. Si votre application appelle un gestionnaire d’exceptions avant la fin de la transaction, New Relic ne signalera pas d’erreur.
+
+Cependant, New Relic ne détecte pas toujours les gestionnaires d’exceptions lorsque l’erreur se produit en dehors d’une transaction Web, d’une transaction WCF ou d’une transaction personnalisée. Cela est dû au fait que l&apos;agent crée des « mini-transactions » pour les méthodes instrumentées qui ne sont pas associées à une transaction.
+
+Lorsque la méthode instrumentée se termine, la mini-transaction se termine. Si la mini-transaction génère une erreur et que la méthode instrumentée ne la gère pas, New Relic signalera une erreur.
+
+Vous pouvez le voir dans une application console qui appelle `GetResponse()`, comme indiqué dans l&apos;[exemple](#get-response-block). Si `GetResponse` génère une erreur, New Relic la signalera, même si `GetResponse()` est appelé dans un bloc try/catch. L&apos;agent signale une erreur car la « mini-transaction » `GetResponse()` s&apos;est terminée et l&apos;erreur n&apos;était toujours pas gérée à la sortie de la transaction.

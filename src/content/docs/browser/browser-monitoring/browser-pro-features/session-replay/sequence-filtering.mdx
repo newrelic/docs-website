@@ -1,0 +1,106 @@
+---
+title: "Sequence filtering"
+metaDescription: "Play back user interactions to debug faster and improve page performance."
+freshnessValidatedDate: '2025-02-25'
+---
+
+The **Sequence Filtering** feature helps you to filter session replays based on a specific sequence of events recorded during user interactions. This functionality is designed to help you to efficiently navigate through numerous session recordings on the **Session Listing** page, making the search for relevant replays seamless.
+
+## Key Features
+
+* **Event sequence filtering**: You can filter replays by specifying a sequence of events in a particular order, such as a user performing a search followed by adding an item to their cart.
+* **Customizable filters**: You can select attributes, operators, and values to define their sequence filters.
+* **Support for multiple actions**: You can specify up to five actions in a sequence.
+* **Flexible filtering**: Filters can be applied in any order, allowing you to combine sequence filters with other filter types such as duration.
+
+## Personalize the view
+
+By default, the **Sequence** is set to **All**. You can personalize the view by selecting the **Sequence = All** filter and clicking on the **Set up a filtering sequence** dialog to define their sequence filters.
+
+<Steps>
+
+<Step>
+  Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Session replay**</DNT>.
+</Step>
+
+<Step>
+  Select the **Sequence = All** filter, the **Set up a filtering sequence** option appears.
+</Step>
+
+<Step>
+
+  The **Set up a filtering sequence** option allows you to create a sequence filter by specifying up to 5 actions in a particular order. You can define the sequence by selecting the following attributes:
+
+  <Callout variant="important">
+  You must add at least two steps to the filter form.
+  </Callout>
+
+<table>
+      <thead>
+        <tr>
+          <th style={{ width: "135px" }}>
+            Action
+          </th>
+
+          <th style={{ width: "150px" }}>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Attribute
+          </td>
+
+          <td>
+            Select an attribute:
+
+              * **URL viewed**: Filter the data depending on the URL of the page viewed by the user.
+              * **Page action**: Filter the data based on the user's interaction with the page.
+              * **Keyboard input**: Filter the data based on the user's keyboard input. You can further widen the search by selecting the below options:
+                * **Target**: Select the target element where the keyboard input was made.
+                * **Target ID**: Select the target ID where the keyboard input was made.
+                * **Target Class**: Select the target class where the keyboard input was made.
+              * **User clicks**: Filter the data based on the user's clicks.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Operator
+          </td>
+
+          <td>
+            Select an operator from the below options:
+
+              * **=** : Where the supplied value equals the incident attribute value.
+              * **Like** : Where the supplied value is similar to the incident attribute value.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Value
+          </td>
+
+          <td>
+            Search or enter a value.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+</Step>
+
+<Step>
+  Click **Apply**.
+</Step>
+
+</Steps>
+
+<img
+  title="Session replay details"
+  alt="Screenshot of session replay details"
+  src="/images/edit-sequence-filter.webp"
+/>

@@ -1,0 +1,346 @@
+---
+title: "Tutoriel NerdGraph\_: créer et gérer un flux de travail d'alerte"
+tags:
+  - Workflows
+  - Nerdgraph
+metaDescription: 'For New Relic''s alerts: how to use our NerdGraph API to create and manage workflows.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Pour les alertes New Relic , vous pouvez créer et gérer [un flux de travail](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows) à l&apos;aide de notre API NerdGraph.
+
+## Flux de travail de liste et de filtrage [#filtering]
+
+La requête `workflows` vous permet de parcourir l&apos;ensemble de votre flux de travail par compte. Il permet également certaines fonctionnalités de filtrage sur le flux de travail du compte. Voici quelques exemples de cas d’utilisation :
+
+<CollapserGroup>
+  <Collapser id="account" title="Liste de tous les flux de travail pour un compte">
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiWorkflows {
+            workflows(filters: {}) {
+              entities {
+                id
+                name
+                workflowEnabled
+                destinationConfigurations {
+                  channelId
+                  name
+                  type
+                  notificationTriggers
+                }
+                enrichments {
+                  configurations {
+                    ... on AiWorkflowsNrqlConfiguration {
+                      query
+                    }
+                  }
+                  id
+                  name
+                }
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="pagination" title="Pagination des politiques avec pagination du curseur :">
+    Afin de paginer votre flux de travail, vous devez demander le champ `nextCursor` lors de votre requête initiale.
+
+    Avec la pagination du curseur, vous continuez à effectuer une requête via l&apos;ensemble de résultats jusqu&apos;à ce que le `nextCursor` renvoyé par la réponse revienne vide. Cela indique que vous avez atteint la fin de vos résultats.
+
+    Premier appel :
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiWorkflows {
+            workflows(filters: {}) {
+              entities {
+                id
+                name
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Réponse:
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "aiWorkflows": {
+              "workflows": {
+                "entities": [
+                  {
+                    "id": <WORKFLOW ID>, 
+                    "name": <WORKFLOW NAME>
+                  },
+                  {
+                    "id": <WORKFLOW ID>, 
+                    "name": <WORKFLOW NAME>
+                  },
+                  // ... more workflows would be here 
+                ]
+              }
+              "nextCursor": "/8o0y2qiR54m6thkdgHgwg==:jZTXDFKbTkhKwvMx+CtsPVM="
+              "totalCount": 157
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="by-id" title="Rechercher workflow par ID">
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiWorkflows {
+            workflows(filters: {id: WORKFLOW_ID}) {
+              entities {
+                id
+                name
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="by-name" title="Rechercher workflow par nom">
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiWorkflows {
+            workflows(filters: {name: WORKFLOW_NAME}) {
+              entities {
+                id
+                name
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="destination-type" title="Rechercher un flux de travail par type de destination">
+    Recherche tous les flux de travail qui ont au moins une seule configuration de destination d&apos;un certain type.
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiWorkflows {
+            workflows(filters: {destinationType: DESTINATION_TYPE}) {
+              entities {
+                id
+                name
+                destinationConfigurations {
+                  type
+                }
+              }
+              nextCursor
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Créer un workflow [#create-workflow]
+
+Afin de créer un workflow vous devez d&apos;abord [créer des destinations et des canaux](/docs/apis/nerdgraph/examples/nerdgraph-api-notifications-channels).
+
+<Callout variant="important">
+  Un ID de canal est unique et ne peut donc pas être utilisé dans plusieurs flux de travail ni utilisé plusieurs fois dans le même workflow.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="issues" title="Créer un workflow pour détecter tous les problèmes">
+    L&apos;attribut `issuesFilter` détermine quel événement de problème sera détecté par le workflow.
+
+    En conservant la valeur de l&apos;attribut `predicates` sous forme de liste vide, le workflow détectera tous les événements de problème possibles. Lorsque vous sélectionnez une valeur d&apos;attribut, vous pouvez ensuite filtrer l&apos;événement du problème.
+
+    Par exemple, nous pouvons choisir un attribut qui filtre uniquement les problèmes pertinents pour une équipe spécifique :
+
+    ```graphql
+    mutation {
+      aiWorkflowsCreateWorkflow(
+        accountId: YOUR_ACCOUNT_ID
+        createWorkflowData: {
+          destinationsEnabled: true
+          workflowEnabled: true
+          name: "API Demo Workflow"
+          issuesFilter: {
+            name: "team specific issues"
+            predicates: [
+              {
+                attribute: "accumulations.tag.team"
+                operator: EXACTLY_MATCHES
+                values: ["security"]
+              }
+            ]
+            type: FILTER
+          }
+          destinationConfigurations: {
+            channelId: "CHANNEL_ID"
+            notificationTriggers: [ACTIVATED, ACKNOWLEDGED, CLOSED]
+          }
+          enrichmentsEnabled: true
+          enrichments: { nrql: [] }
+          mutingRulesHandling: DONT_NOTIFY_FULLY_MUTED_ISSUES
+        }
+      ) {
+        workflow {
+          id
+          name
+          destinationConfigurations {
+            channelId
+            name
+            type
+            notificationTriggers
+          }
+          enrichmentsEnabled
+          destinationsEnabled
+          issuesFilter {
+            accountId
+            id
+            name
+            predicates {
+              attribute
+              operator
+              values
+            }
+            type
+          }
+          lastRun
+          workflowEnabled
+          mutingRulesHandling
+        }
+        errors {
+          description
+          type
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Mettre à jour un workflow [#update-workflow]
+
+Lorsque vous mettez à jour un workflow, notez que le seul attribut obligatoire que vous devez fournir est le `accountId` sous `aiWorkflowsUpdateWorkflow` et le `id` du workflow sous `updateWorkflowData`. Le reste est facultatif. Par exemple, vous n&apos;avez besoin de fournir le nom que si vous souhaitez uniquement le mettre à jour.
+
+Pour obtenir l’ID du workflow, accédez au tableau du workflow et cliquez sur l’icône <DNT>**<Icon name="fe-more-horizontal" />**</DNT> à la fin de la ligne. Ensuite, choisissez <DNT>**Copy workflow id to clipboard**</DNT>.
+
+Voici un exemple de mise à jour du nom d&apos;un workflow et de deux canaux :
+
+```graphql
+mutation {
+  aiWorkflowsUpdateWorkflow(
+    accountId: YOUR_ACCOUNT_ID
+    updateWorkflowData: { name: "UPDATED_WORKFLOW_NAME", id: WORKFLOW_ID, destinationConfigurations:[{channelId: "12345abc-6de7-8f90-g123-4h56i78j9klm", notificationTriggers: [ACTIVATED]}, {channelId: "zy0987xw-v65u-432t-10s9-r876qpo543n2", notificationTriggers: [ACTIVATED]}]}
+  ) {
+    workflow {
+      id
+      name
+      destinationConfigurations {
+        channelId
+        name
+        type
+        notificationTriggers
+      }
+      enrichmentsEnabled
+      destinationsEnabled
+      issuesFilter {
+        accountId
+        id
+        name
+        predicates {
+          attribute
+          operator
+          values
+        }
+        type
+      }
+      lastRun
+      workflowEnabled
+      mutingRulesHandling
+    }
+    errors {
+      description
+      type
+    }
+  }
+}
+```
+
+## Supprimer un workflow [#delete-workflow]
+
+Voici un exemple de suppression d’un workflow :
+
+```graphql
+mutation {
+  aiWorkflowsDeleteWorkflow(id: WORKFLOW_ID, accountId: YOUR_ACCOUNT_ID) {
+    id
+    errors {
+      description
+      type
+    }
+  }
+}
+```
+
+## Tester un workflow [#test-workflow]
+
+Le test recherche les problèmes précédents qui correspondent à vos entrées et crée une fausse notification sur cette base. Si aucun problème précédent correspondant à vos entrées n&apos;a été trouvé, une erreur sera renvoyée.
+
+Par exemple:
+
+```graphql
+mutation {
+  aiWorkflowsTestWorkflow(accountId: YOUR_ACCOUNT_ID, testWorkflowData: {destinationConfigurations: {channelId: YOUR_CHANNEL_ID, type: SLACK}, issuesFilter: {predicates: [], type: YOUR_FILTER}}) {
+    status
+    notificationResponses {
+      status
+      evidence
+      channelId
+    }
+    errors {
+      description
+      type
+    }
+  }
+}
+```
