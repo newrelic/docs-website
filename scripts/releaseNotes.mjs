@@ -97,6 +97,7 @@ const generateReleaseNoteObject = async (filePath) => {
     features: attributes.features ?? null,
     bugs: attributes.bugs ?? null,
     security: attributes.security ?? null,
+    supportedOperatingSystems: attributes.supportedOperatingSystems ?? null,
     description: (await excerptify(body)) ?? null,
     slug,
   };
@@ -202,4 +203,8 @@ if (uploadToS3) {
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
+
+import fs from 'fs';
+fs.writeFileSync('releaseNotes.json', JSON.stringify(releaseNotes, null, 2)); // can add to end of file
+
  
