@@ -15,7 +15,7 @@ Starting June 2, 2025, New Relic will introduce a more lenient validation logic 
 It’s important to note that this new approach will store records previously dropped due to invalid attributes. While this contributes to your account’s data usage under New Relic’s pricing model, the benefits of improved data retention and reliability far outweigh the trade-off.
 
 
-For more information on how you can prepare for this change, read this doc
+For more information on how you can prepare for this change, read this [doc](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp-attributes-processing-update/).
 
 
 
