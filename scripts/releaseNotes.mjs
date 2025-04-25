@@ -204,7 +204,4 @@ if (uploadToS3) {
   console.log(JSON.stringify(releaseNotes));
 }
 
-import fs from 'fs';
-fs.writeFileSync('releaseNotes.json', JSON.stringify(releaseNotes, null, 2)); // can add to end of file
-
  
