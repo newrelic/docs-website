@@ -166,12 +166,13 @@ const processor = unified()
         // via the `unsafe` option, but not replacing the existing rules.
         // so we have to hack it out with a saw.
 
-        // we are decoding the vfile here because in the processor pipeline,
-        // we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
-        // in that processor, we are using `htmlEncode` to encode the text nodes.
+
+        
+        // as we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
+        // in this processor, we are using `htmlEncode` to encode the text nodes.
         // however, we have found some nodes which are already encoded int rehype2remark
         // (like `&gt`), and they are getting double encoded
-        // so decoding the vfile undos the double encoding.
+        // so decoding here undos the double encoding.
         node.value = htmlDecode(node.value);
         const index = state.unsafe.findIndex((rule) => rule.character === '&');
         if (index !== -1) {
@@ -188,6 +189,7 @@ const processor = unified()
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
+  
   return vfile.toString().trim();
 };
 
