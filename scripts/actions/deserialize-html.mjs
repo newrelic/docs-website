@@ -11,7 +11,7 @@ import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { visit } from 'unist-util-visit4';
 import { encode as htmlEncode } from 'html-entities';
-
+import { decode as htmlDecode } from 'html-entities';
 import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
 import remarkGfm from 'remark-gfm';
@@ -180,8 +180,13 @@ const processor = unified()
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-
-  return vfile.toString().trim();
+  // we are decoding the vfile here because in the processor pipeline,
+  // we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
+  // in that processor, we are using `htmlEncode` to encode the text nodes.
+  // however, we have found some nodes which are already encoded int rehype2remark
+  // (like `&gt`), and they are getting double encoded
+  // so decoding the vfile undos the double encoding.
+  return htmlDecode(vfile.toString().trim());
 };
 
 export default deserializeHTML;
