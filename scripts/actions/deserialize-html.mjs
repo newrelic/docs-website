@@ -11,7 +11,7 @@ import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { visit } from 'unist-util-visit4';
 import { encode as htmlEncode } from 'html-entities';
-
+import { decode as htmlDecode } from 'html-entities';
 import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
 import remarkGfm from 'remark-gfm';
@@ -165,6 +165,15 @@ const processor = unified()
         // `mdast-util-to-markdown` supports adding new rules in the config
         // via the `unsafe` option, but not replacing the existing rules.
         // so we have to hack it out with a saw.
+
+
+        
+        // as we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
+        // in this processor, we are using `htmlEncode` to encode the text nodes.
+        // however, we have found some nodes which are already encoded int rehype2remark
+        // (like `&gt`), and they are getting double encoded
+        // so decoding here undos the double encoding.
+        node.value = htmlDecode(node.value);
         const index = state.unsafe.findIndex((rule) => rule.character === '&');
         if (index !== -1) {
           state.unsafe.splice(index, 1);
@@ -180,7 +189,7 @@ const processor = unified()
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-
+  
   return vfile.toString().trim();
 };
 
