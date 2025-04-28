@@ -165,6 +165,14 @@ const processor = unified()
         // `mdast-util-to-markdown` supports adding new rules in the config
         // via the `unsafe` option, but not replacing the existing rules.
         // so we have to hack it out with a saw.
+
+        // we are decoding the vfile here because in the processor pipeline,
+        // we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
+        // in that processor, we are using `htmlEncode` to encode the text nodes.
+        // however, we have found some nodes which are already encoded int rehype2remark
+        // (like `&gt`), and they are getting double encoded
+        // so decoding the vfile undos the double encoding.
+        node.value = htmlDecode(node.value);
         const index = state.unsafe.findIndex((rule) => rule.character === '&');
         if (index !== -1) {
           state.unsafe.splice(index, 1);
@@ -180,13 +188,7 @@ const processor = unified()
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
-  // we are decoding the vfile here because in the processor pipeline,
-  // we have encoded the text nodes in the stringify as the workaround to handle unsafe characters.
-  // in that processor, we are using `htmlEncode` to encode the text nodes.
-  // however, we have found some nodes which are already encoded int rehype2remark
-  // (like `&gt`), and they are getting double encoded
-  // so decoding the vfile undos the double encoding.
-  return htmlDecode(vfile.toString().trim());
+  return vfile.toString().trim();
 };
 
 export default deserializeHTML;
