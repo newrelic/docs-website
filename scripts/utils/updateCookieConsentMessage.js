@@ -12,8 +12,8 @@ const updateCookieConsentMessage = () => {
         }
         const privacyLinkHTML = privacyLinkElement.outerHTML;
         const replacements = {
-          'Privacy Notice': '<a href="https://newrelic.com/termsandconditions/privacy" target="_blank">Privacy Notice</a>',
-          'Website Terms of Use': '<a href="https://newrelic.com/termsandconditions/website-terms" target="_blank">Website Terms of Use</a>',
+          'Privacy Notice': '<a href="https://newrelic.com/termsandconditions/privacy" target="_blank" style="color: white;">Privacy Notice</a>',
+          'Website Terms of Use': '<a href="https://newrelic.com/termsandconditions/website-terms" target="_blank" style="color: white;">Website Terms of Use</a>',
         };
         Object.entries(replacements).forEach(([text, replacementHTML]) => {
           osanoMessage.innerHTML = osanoMessage.innerHTML.replace(text, replacementHTML);
