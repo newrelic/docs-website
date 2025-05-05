@@ -18,7 +18,12 @@ const updateCookieConsentMessage = () => {
         Object.entries(replacements).forEach(([text, replacementHTML]) => {
           osanoMessage.innerHTML = osanoMessage.innerHTML.replace(text, replacementHTML);
         });
-        if (osanoMessage.innerHTML.includes(privacyLinkHTML)) {
+        const consentDialogBox = document.querySelector('.osano-cm-dialog__content.osano-cm-content')
+        if (!consentDialogBox) {
+          return;
+        }
+        const consentDialogBoxHTML = consentDialogBox.outerHTML;
+        if(consentDialogBoxHTML.includes(privacyLinkElement)) {
           privacyLinkElement.style.display = 'none';
         }
       });
