@@ -25,7 +25,6 @@ import esJson from '../i18n/translations/es/translation.json';
 import ptJson from '../i18n/translations/pt/translation.json';
 import frJson from '../i18n/translations/fr/translation.json';
 
-
 const HomePage = ({ data }) => {
   const {
     site: { layout },
