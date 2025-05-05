@@ -23,6 +23,7 @@ import krJson from '../i18n/translations/kr/translation.json';
 import jpJson from '../i18n/translations/jp/translation.json';
 import esJson from '../i18n/translations/es/translation.json';
 import ptJson from '../i18n/translations/pt/translation.json';
+import frJson from '../i18n/translations/fr/translation.json';
 
 const HomePage = ({ data }) => {
   const {
@@ -46,6 +47,8 @@ const HomePage = ({ data }) => {
       return esJson.strings.home.productTiles;
     if (locale === 'pt' && 'productTiles' in ptJson.strings.home)
       return ptJson.strings.home.productTiles;
+    if (locale === 'fr' && 'productTiles' in frJson.strings.home)
+      return frJson.strings.home.productTiles;
     return enJson.strings.home.productTiles;
   })();
 
