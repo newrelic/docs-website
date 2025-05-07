@@ -1,0 +1,168 @@
+---
+title: Gerencie a instrumentação existente com o Agent Control
+metaDescription: You can reinstall your current instrumentation to manage it through Agent Control
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="visualização">
+  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
+
+  Atualmente, esse recurso é fornecido como parte de um programa de visualização de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Se você quiser testar o Agent Control em um cluster que já está instrumentado com New Relic, será necessário remover o agente New Relic existente e gerenciá-lo por meio do Agent Control. Todos os recursos e todas as configurações expostas pelo gráfico Helm de cada agente ainda podem ser aplicados de forma unificada através do Agent Control.
+
+### Combine a instrumentação existente com o novo agente gerenciado pelo Agent Control
+
+Primeiramente, combine sua instrumentação existente com a do agente suportado.
+
+Você pode implantar e gerenciar através do Agent Control:
+
+* Os seguintes gráficos Helm incluídos no gráfico `nri-bundle` :
+
+  * `newrelic-infrastructure`, `nri-kube-events`, `kube-state-metrics` e `nri-kube-events` (agora gerenciados pelo tipo de agente da New Relic Infrastructure)
+  * `newrelic-prometheus-configurator` (agora gerenciado pelo tipo de agente New Relic Prometheus)
+  * `newrelic-logging` (agora gerenciado pelo tipo de agente Fluent Bit)
+
+* O gráfico `nr-k8s-otel-collector` (agora gerenciado pelo tipo de agente New Relic OpenTelemetry Collector)
+
+Se você instalou o agente usando Helm, recupere sua configuração de instalação do cluster executando o seguinte comando:
+
+```sh
+$ helm get values <release-name> --namespace <namespace-name>
+```
+
+Se você tiver o arquivo salvo da instalação, não precisará fazer nada.
+
+Por outro lado, se você tiver instrumentado o cluster via manifesto, encontre as opções correspondentes em cada gráfico de agente.
+
+<Callout variant="tip" title="DICA">
+  Você pode continuar a manter qualquer agente ou componente dentro do cluster, especialmente aqueles que ainda não são suportados pelo Agent Control. Para garantir a melhor experiência, certifique-se de manter o mesmo nome de cluster e apontar para a mesma conta.
+</Callout>
+
+### Crie a configuração `values.yaml` para instalar o Agent Control
+
+Inicie a [instalação do Agent Control](/docs/new-relic-control/agent-control/setup/) via instalação guiada e selecione todos os agentes de seu interesse. Copie o arquivo `values.yaml` para sua máquina local. Antes de aplicá-lo, atualize cada configuração do agente para corresponder à configuração dos agentes que já estão em execução no cluster.
+
+### Desinstale o agente que você deseja controlar
+
+Desinstale o agente e os componentes que você deseja gerenciar via Agent Control. Consulte a documentação do agente existente para obter instruções sobre como desinstalá-lo.
+
+### Instalação Helm
+
+Depois de modificar seu arquivo `values.yaml` , continue com as etapas de instalação incluídas na instalação guiada.
+
+### Exemplo
+
+Tínhamos um cluster já instrumentado por meio de cartas Helm. Recuperamos o seguinte `values.yaml` de uma versão de `nri-bunle`:
+
+```yaml
+global:
+  cluster: test-migration
+  licenseKey: ***
+kube-state-metrics:
+  enabled: false
+newrelic-prometheus-agent:
+  enabled: true
+newrelic-infrastructure:
+  enabled: true
+  kubelet:
+    tolerations:
+      - operator: "Exists"
+        effect: "NoSchedule"
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        key: "MyToleration"
+  ksm:
+    enabled: false
+  common:
+    config:
+      interval: 29s
+newrelic-logging:
+  enabled: true
+  image:
+    tag: "latest"
+  resources:
+    limits:
+      cpu: 200m
+    requests:
+      cpu: 200m
+nri-kube-events:
+  enabled: true
+  customAttributes: 
+    test_tag_label: test_tag_value
+```
+
+Observe que `nri-kube-events`, `newrelic-logging` e `newrelic-infrastructure` têm uma configuração que precisa ser reutilizada para configuração com o Agent Control. Por outro lado, `newrelic-prometheus-agent` foi instalado como parte de `nri-bundle` e não tinha configuração adicional. Além disso, definimos o componente KSM como `false`.
+
+Em seguida, recuperamos a configuração criada por meio da instalação guiada e modificamos o arquivo `values.yaml` para que o agente que você planeja gerenciar seja habilitado, mantendo as mesmas configurações do agente desinstalado.
+
+```yaml
+global:
+  cluster: "test-migration"
+  licenseKey: "****"
+agent-control-deployment:
+  identityClientId: "****"
+  identityClientSecret: "****"
+  config:
+    fleet_control:
+      fleet_id: "****"
+      auth:
+        organizationId: "****"
+    subAgents:
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          chart_version: "1.25.1"
+          chart_values:
+            newrelic-logging:
+                image:
+                  tag: "latest"
+                resources:
+                  limits:
+                    cpu: 200m
+                  requests:
+                    cpu: 200m
+      infrastructure:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "5.0.109"
+          chart_values:
+            newrelic-infrastructure:
+              kubelet:
+                tolerations:
+                  - operator: "Exists"
+                    effect: "NoSchedule"
+                  - operator: "Exists"
+                    effect: "NoExecute"
+                  - operator: "Exists"
+                    key: "MyToleration"
+              ksm:
+                enabled: false
+              common:
+                config:
+                  interval: 29s
+            nri-kube-events:
+              customAttributes: 
+                test_tag_label: test_tag_value
+            kube-state-metrics:
+              enabled: false
+      prometheus:
+        type: newrelic/com.newrelic.prometheus:0.1.0
+        content:
+          chart_version: "1.15.4"
+```
+
+Em seguida, excluímos a instrumentação antiga:
+
+```sh
+helm delete my-installation -n newrelic
+```
+
+Por fim, criamos o novo via Agent Control:
+
+```sh
+helm upgrade --install agent-control -n newrelic newrelic/agent-control --create-namespace --values my_migrated_values.yaml
+```

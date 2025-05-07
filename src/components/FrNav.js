@@ -15,17 +15,17 @@ const frQuery = graphql`
       url
       filterable
       pages {
-        ...MainLayout_navPagesfr
+        ...MainLayout_navPagesFr
         pages {
-          ...MainLayout_navPagesfr
+          ...MainLayout_navPagesFr
           pages {
-            ...MainLayout_navPagesfr
+            ...MainLayout_navPagesFr
             pages {
-              ...MainLayout_navPagesfr
+              ...MainLayout_navPagesFr
               pages {
-                ...MainLayout_navPagesfr
+                ...MainLayout_navPagesFr
                 pages {
-                  ...MainLayout_navPagesfr
+                  ...MainLayout_navPagesFr
                 }
               }
             }
@@ -35,7 +35,7 @@ const frQuery = graphql`
     }
   }
 
-  fragment MainLayout_navPagesfr on NavItem {
+  fragment MainLayout_navPagesFr on NavItem {
     title(locale: "fr")
     url
     icon
