@@ -1,0 +1,168 @@
+---
+title: Connecter le référentiel aux services
+metaDescription: Connect your repository to a service to see observability.
+freshnessValidatedDate: '2024-12-11T00:00:00.000Z'
+translationType: machine
+---
+
+Les données télémétriques disponibles dans CodeStream sont contextuelles, ce qui signifie qu&apos;elles sont toutes liées au code que vous avez ouvert dans votre IDE. Pour ce faire, CodeStream a besoin de savoir quels services dans New Relic sont construits à partir du référentiel que vous avez ouvert dans votre IDE. CodeStream vous prompt de sélectionner un service à associer au référentiel que vous avez actuellement ouvert dans votre IDE.
+
+<img title="Associate a repository in your IDE with a service." alt="A screenshot of associating a repository in your IDE with a service." src="/images/codestream_screenshot-crop_associate-repos-button.webp" />
+
+Dans certains cas, votre référentiel peut devoir être associé à plusieurs services. Par exemple, vous pouvez avoir différents services qui représentent différents environnements (comme la production ou la simulation) et ils peuvent tous être associés au même référentiel. Pour associer le référentiel actuel à un service supplémentaire, cliquez sur <DNT>**Add another service**</DNT>.
+
+<img title="Associate an additional service with your repository." alt="A screenshot of associating an additional service with your repository." src="/images/codestream_screenshot-crop_associate-other-services.webp" />
+
+Effectuer ces associations à la volée lorsque vous y êtes invité est un excellent moyen de commencer, mais nous recommandons l&apos;une des méthodes suivantes, car elles nécessitent moins d&apos;efforts manuels continus et éliminent la possibilité d&apos;erreurs finales de l&apos;utilisateur, telles que des URL distantes mal configurées.
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="env-var" title="Utiliser une variable d'environnement avec APM (recommandé)">
+    Définissez la variable d’environnement `NEW_RELIC_METADATA_REPOSITORY_URL`. Les agents New Relic <InlinePopover type="apm" />créent l’entité de référentiel et l’associent automatiquement à votre entité d’application.
+
+    Cela nécessite le format d&apos;URL distante SSH ou HTTPS. Nous vous recommandons de définir cela dans le cadre de votre pipeline de build.
+  </Collapser>
+
+  <Collapser className="freq-link" id="repo-ui" title="Utiliser l'UI Web de New Relic">
+    Accédez à la page de résumé de l&apos;APM via <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; APM &amp; Services &gt; (select an app)**</DNT>, puis cliquez sur le menu à ellipses à droite du nom du service. Cliquez sur l&apos;onglet <DNT>**Repositories**</DNT> pour connecter un référentiel.
+
+    <img title="The Repositories section of the service summary page" alt="A screenshot of the Repositories section of the service summary page." src="/images/codestream_screenshot-crop_connect-repositories.webp" />
+
+    Cliquez sur <DNT>**Connect repository**</DNT> pour rechercher un référentiel existant ou en ajouter un nouveau.
+  </Collapser>
+
+  <Collapser className="freq-link" id="nerdgraph" title="Utiliser l'API NerdGraph">
+    Utilisez [les API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) de New Relic pour créer un référentiel et l&apos;associer à l&apos;entité de votre application.
+
+    <DNT>
+      **Step 1: Create a repository entity**
+    </DNT>
+
+    Pour créer une entité de référentiel, utilisez l&apos;API `referenceEntityCreateOrUpdateRepository` et assurez-vous d&apos;enregistrer le GUID produit. L&apos;API prend les paramètres suivants :
+
+    * `accountId` - l&apos;ID de compte entier pour le compte auquel vous souhaitez ajouter le référentiel
+
+    * `url` - exemple `https://github.com/newrelic/beta-docs-site.git`
+
+    * `name` - exemple: `newrelic/beta-docs-site`
+
+      ```graphql
+      mutation {
+        referenceEntityCreateOrUpdateRepository(repositories: [{accountId: [YOUR_ACCOUNT_ID], name: "[REPO_NAME]", url: "[REPO_URL]"}]) {
+          created
+          failures {
+            guid
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      Pour trouver l’entité que vous créez, vous pouvez utiliser une requête comme celle-ci. Notez que l&apos;URL que vous avez fournie à `referenceEntityCreateOrUpdateRepository` est enregistrée en tant tag d&apos;entité.
+
+      ```graphql
+      {
+        actor {
+          entitySearch(query: "name = 'a name' OR tags.url = 'a url'") {
+            count
+            query
+            results {
+              entities {
+                guid
+                name
+                tags {
+                  key
+                  values
+                }
+              }
+            }
+          }
+        }
+      }
+
+      ```
+
+      <DNT>
+        **Step 2: Associate the repository entity to your application entity**
+      </DNT>
+
+      Tout d’abord, recherchez le GUID de l’application à laquelle vous souhaitez associer votre référentiel.
+
+      Paramètres:
+
+    * `sourceEntityGuid` - l&apos;entité GUID de l&apos;application
+
+    * `targetEntityGuid` - l&apos;entité GUID de votre référentiel
+
+    * `type` - toujours `BUILT_FROM`
+
+      ```graphql
+      mutation {
+        entityRelationshipUserDefinedCreateOrReplace(sourceEntityGuid: "", targetEntityGuid: "", type: BUILT_FROM) {
+          errors {
+            message
+            type
+          }
+        }
+      }
+      ```
+
+      Pour voir toutes les entités liées à votre référentiel vous pouvez faire une requête comme celle-ci :
+
+      ```graphql
+      {
+        actor {
+          entity(guid: "[YOUR_REPOSITORY_GUID]]") {
+            relatedEntities(filter: {direction: BOTH, relationshipTypes: {include: BUILT_FROM}}) {
+              results {
+                target {
+                  entity {
+                    name
+                    guid
+                    type
+                  }
+                }
+                type
+              }
+            }
+            name
+            type
+            tags {
+              values
+              key
+            }
+          }
+        }
+      }
+      ```
+
+      <DNT>
+        **Step 3: Cleanup (if needed)**
+      </DNT>
+
+      Supprimer un référentiel avec la requête suivante :
+
+      ```graphql
+      mutation DeleteRepository {
+        entityDelete(guids: "[ENTITY_GUID_HERE]]") {
+          deletedEntities
+          failures {
+            message
+            guid
+          }
+        }
+      }
+      ```
+  </Collapser>
+</CollapserGroup>
+
+Avec l’une de ces méthodes, vous pouvez spécifier l’URL distante au format SSH ou HTTPS :
+
+* `git@github.com:newrelic/beta-docs-site.git`
+* `https://github.com/newrelic/beta-docs-site.git`
+
+<Callout variant="caution">
+  Il est possible d&apos;ajouter le même référentiel plusieurs fois, si vous utilisez des protocoles différents pour le faire. L&apos;UI vous avertit de cela, mais ne vous empêche pas de le faire.
+
+  Par exemple, `https://github.com/tuna/repo` et `git@github.com:tuna/repo` sont le même référentiel, avec des protocoles différents.
+</Callout>

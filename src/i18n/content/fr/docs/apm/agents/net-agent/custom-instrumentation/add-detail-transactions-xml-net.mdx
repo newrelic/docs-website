@@ -1,0 +1,395 @@
+---
+title: Ajoutez des détails aux transactions via XML (.NET)
+tags:
+  - Agents
+  - NET agent
+  - Custom instrumentation
+metaDescription: 'New Relic .NET agent: Use an XML file to collect data from un-instrumented methods and to block instrumentation of methods you do not want instrumented.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic collecte et rapporte des informations sur les transactions du navigateur Web et les transactions non Web (tâches d&apos;arrière-plan). Normalement, l&apos;agent .NET produit automatiquement des informations complètes, sans que vous ayez besoin de modifier le code de votre application. Cependant, si New Relic ne prend pas en charge votre [framework](/docs/agents/net-agent/getting-started/compatibility-requirements-net-agent#architecture), vous devrez peut-être ajouter [une instrumentation personnalisée](/docs/agents/net-agent/instrumentation/net-custom-instrumentation).
+
+New Relic utilise la méthode traceur pour mettre en œuvre instrumentation personnalisée. Un traceur de méthode est une sonde logicielle que vous pouvez placer sur une méthode de n&apos;importe quelle classe. L&apos;agent .NET charge les directives instrumentation qui définissent les méthodes à suivre à partir de tous les fichiers XML du répertoire des extensions.
+
+Ce document décrit le travail instrumenté lorsque l&apos;agent collecte déjà des transactions, mais que vous souhaitez ajouter plus de détails à ces transactions. Pour instrumenter le travail lorsque l&apos;agent ne crée pas de transactions automatiquement, voir [Créer des transactions via XML](/docs/agents/net-agent/instrumentation/net-custom-transactions). Vous pouvez également ajouter des détails et créer des transactions en [décorant votre code avec l&apos;attribut](/docs/agents/net-agent/api-guides/net-agent-api-instrument-using-attributes).
+
+## Ajoutez des détails avec une instrumentation personnalisée [#procedures]
+
+Les fichiers d&apos;extension définissent un certain nombre d&apos;usines de traceurs dans un élément instrumentation . Chaque fabrique de traceurs contient des éléments de correspondance qui définissent l&apos;assembly, le nom de classe entièrement qualifié et le nom de méthode à faire correspondre. Pour définir un nouveau fichier XML instrumentation personnalisée :
+
+1. Créez un nouveau fichier `.xml` dans le répertoire d’extensions utilisé par l’agent .NET pour lire chaque fichier XML et définir son ensemble d’instrumentation. Pour l&apos;agent.NET Framework, utilisez l&apos;emplacement suivant :
+
+   ```
+   C:\ProgramData\New Relic\.NET Agent\Extensions
+   ```
+
+   <Callout variant="important">
+     Ne mettez **pas** le .xml fichier dans le répertoire `C:\Program Files\New Relic\.NET agent\Extensions` . Le fichier doit se trouver à l&apos;emplacement de fichier `ProgramData` pour que l&apos;instrumentation personnalisée fonctionne.
+
+     Ne modifiez pas les fichiers XML distribués. Ces fichiers sont écrasés chaque fois que l&apos;agent est mis à niveau.
+   </Callout>
+
+2. Copiez ce modèle dans le fichier que vous avez créé et utilisez [l&apos;échantillon](#sample) comme exemple. Cet instrument comporte deux méthodes, mais vous pouvez ajouter des méthodes à votre fichier d&apos;instrumentation.
+
+   <Callout variant="tip">
+     Les valeurs `AssemblyName`, `NameSpace.ClassName` et `MethodName` sont sensibles à la casse.
+   </Callout>
+
+   ```xml
+   <?xml version="1.0" encoding="utf-8"?>
+   <extension xmlns="urn:newrelic-extension">
+     <instrumentation>
+       <!-- These methods appear in the transactions breakdown table and in transaction traces -->
+       <tracerFactory metricName="Category/Name">
+         <match assemblyName="AssemblyName" className="NameSpace.ClassName">
+           <exactMethodMatcher methodName="MethodName" />
+         </match>
+       </tracerFactory>
+       <tracerFactory metricName="Category/Name2"> 
+          <match assemblyName="AssemblyName" className="NameSpace.ClassName2"> 
+           <exactMethodMatcher methodName="MethodName2" /> 
+          </match>
+       </tracerFactory>
+     </instrumentation>
+   </extension>
+   ```
+
+3. [Valider le fichier d’instrumentation `.xml` ](#xsd-validate)par rapport à `extension.xsd`.
+
+4. Applications non IIS (telles qu&apos;une application de console ou un processus d&apos;arrière-plan) : vous devez également [créer des transactions via XML](/docs/agents/net-agent/instrumentation/net-custom-transactions) pour contenir les méthodes que vous instrument. Les méthodes personnalisées instrumentées en dehors d&apos;une transaction ne seront pas signalées à New Relic.
+
+5. <Callout variant="important">
+     Si votre version d’agent .NET est 7.0 ou supérieure, c’est la fin de la procédure.
+
+     Si la version de votre agent .NET est inférieure à 7.0, passez aux étapes suivantes.
+   </Callout>
+
+6. Si votre application est hébergée par IIS, redémarrez IIS.
+
+7. Pour les applications non IIS, redémarrez le processus hôte de votre application ou l&apos;application elle-même.
+
+<Callout variant="important">
+  Si certaines de vos méthodes n&apos;apparaissent toujours pas dans la trace après l&apos;ajout instrumentation XML personnalisée, désactivez l&apos;intégration de méthode pour ces méthodes avec `[MethodImpl(MethodImplOptions.NoInlining)]`.
+</Callout>
+
+## Ignorer une transaction [#blocking-instrumentation]
+
+Vous pouvez empêcher qu&apos;une transaction soit signalée en utilisant un fichier instrumentation personnalisée. Chaque fois qu’une méthode ignorée est appelée, l’agent .NET ignore l’intégralité de la transaction parent. C&apos;est la même chose que d&apos;appeler `IgnoreTransaction()`.
+
+Pour ignorer une transaction :
+
+1. [Ajouter une instrumentation personnalisée](#procedures).
+
+2. Ajoutez un `tracerFactory` dont le nom est `NewRelic.Agent.Core.Tracer.Factories.IgnoreTransactionTracerFactory`:
+
+   ```xml
+   <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.IgnoreTransactionTracerFactory">
+     <match assemblyName="System.Web.Extensions" className="System.Web.Handlers.ScriptResourceHandler">
+       <exactMethodMatcher methodName="Throw404" />
+     </match>
+   </tracerFactory>
+   ```
+
+## Suivre le travail asynchrone dans une transaction distincte [#track-async]
+
+Dans certains cas, le travail asynchrone peut être suivi comme une transaction distincte en appliquant l&apos;instrumentation `AsyncForceNewTransactionWrapper` :
+
+```xml
+<tracerFactory name="AsyncForceNewTransactionWrapper">
+  <match assemblyName="AssemblyName" className="Namespace.ClassName">
+    <exactMethodMatcher methodName="MethodName" />
+  </match>
+</tracerFactory>
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Considérations sur l&apos;utilisation asynchrone
+      </th>
+
+      <th>
+        Commentaires
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        méthode instrumentée
+      </td>
+
+      <td>
+        La méthode instrumentée doit être invoquée en utilisant `Task.Run`, `Task.Factory.StartNew` ou `new Thread()`. Il ne peut pas être invoqué à l&apos;aide du mot-clé `await` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Type de retour
+      </td>
+
+      <td>
+        Il n’est pas nécessaire que la méthode instrumentée soit `async`. Cependant, s&apos;il s&apos;agit de `async`, il doit avoir un type de retour de `Task` ou `Task<T>`. Il ne peut pas avoir un type de retour `void` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        instrumentationd&apos;attribut
+      </td>
+
+      <td>
+        La méthode instrumentée ne peut pas avoir instrumentation d’attribut qui lui est appliquée. Il ne peut pas être décoré avec l&apos;attribut `[Transaction]` ou `[Trace]` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser id="async-method-definitions" title="Exemples de définitions de méthodes">
+    Les méthodes suivantes peuvent être instrumentées à l&apos;aide de l&apos;instrumentation personnalisée `AsyncForceNewTransactionWrapper` :
+
+    ```cs
+    private void SyncMethod()
+    {
+    }
+
+    private async Task AsyncMethod_Task()
+    {
+    }
+
+    private async Task<string> AsyncMethod_TypedTask()
+    {
+        return "ok";
+    }
+    ```
+
+    Les méthodes suivantes <DNT>**cannot**</DNT> peuvent être instrumentées à l&apos;aide de l&apos;instrumentation personnalisée `AsyncForceNewTransactionWrapper` :
+
+    ```cs
+    private async void AsyncMethod_Void()
+    {
+    }
+
+    [Transaction]
+    private void TransactionAttributedMethod()
+    {
+    }
+
+    [Trace]
+    private void TracedAttributedMethod()
+    {
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="async-method-invocations" title="Exemples d'invocations de méthodes">
+    Les appels de méthode suivants peuvent être utilisés avec l&apos;instrumentation `AsyncForceNewTransactionWrapper` :
+
+    ```cs
+    Task.Run(SyncMethod);
+
+    Task.Factory.StartNew(AsyncMethod_Task);
+
+    var newThread = new Thread(new ThreadStart(SyncMethod));
+    newThread.Start();
+    ```
+
+    La méthode suivante appelle <DNT>**cannot**</DNT> à utiliser avec l&apos;instrumentation `AsyncForceNewTransactionWrapper` :
+
+    ```cs
+    SyncMethod();              // This is not an asynchronous call
+
+    await AsyncMethod_Task();  // Not started with Task.Run, Task.Factor.StartNew, or new Thread()
+
+    AsyncMethod_Void();        // Async Void is not supported
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Exemple MyInstrumentation.xml [#sample]
+
+Cet exemple utilise deux méthodes et ignore une autre méthode :
+
+* <DNT>**Instrument**</DNT>: `CustomInstrumentDemo.Controllers.FirstController.FirstExample()`
+* <DNT>**Instrument**</DNT>: `CustomInstrumentDemo.Controllers.SecondController.SecondExample()`
+* <DNT>**Ignore**</DNT>: `CustomInstrumentDemo.Controllers.SecondController.ThirdExample()`
+* <DNT>**Instrument**</DNT>: `CustomInstrumentDemo.Controllers.SecondController.FourthExample(int id, string name)`
+
+Pour implémenter ce schéma instrumentation personnalisé, utilisez le fichier d&apos;exemple suivant et les méthodes instrumentées :
+
+<CollapserGroup>
+  <Collapser id="example-file" title="Exemple de fichier d'instrumentation personnalisée">
+    Voici un exemple de fichier instrumentation personnalisée nommé `MyInstrumentation.xml`:
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+        <!-- instrument CustomInstrumentDemo.Controllers.FirstController.FirstExample and creates metric named Custom/Foo1 -->
+        <tracerFactory metricName="Custom/Foo1">
+          <match assemblyName="CustomInstrumentDemo" className="CustomInstrumentDemo.Controllers.FirstController">
+            <exactMethodMatcher methodName="FirstExample" />
+          </match>
+        </tracerFactory>
+
+        <!-- instrument CustomInstrumentDemo.Controllers.SecondController.SecondExample -->
+        <tracerFactory>
+          <match assemblyName="CustomInstrumentDemo" className="CustomInstrumentDemo.Controllers.SecondController">
+            <exactMethodMatcher methodName="SecondExample" />
+          </match>
+        </tracerFactory>
+
+        <!-- ignore CustomInstrumentDemo.Controllers.SecondController.ThirdExample -->
+        <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.IgnoreTransactionTracerFactory">
+          <match assemblyName="CustomInstrumentDemo" className="CustomInstrumentDemo.Controllers.SecondController">
+            <exactMethodMatcher methodName="ThirdExample" />
+          </match>
+        </tracerFactory>
+
+        <!-- instrument CustomInstrumentDemo.Controllers.SecondController.FourthExample and creates metric named Custom/{value},
+             where {value} is the value of the first string parameter of the instrumented method
+             (in this case, the first string parameter is "name"). -->
+        <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.CustomSegmentTracerFactory">
+          <match assemblyName="CustomInstrumentDemo" className="CustomInstrumentDemo.Controllers.SecondController">
+            <exactMethodMatcher methodName="FourthExample" />
+          </match>
+        </tracerFactory>
+      </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+
+  <Collapser id="example-methods" title="Exemples de méthodes à instrumenter">
+    Ce code contient les trois méthodes spécifiées par le [fichier d&apos;exemple instrumentation personnalisée](#example-file):
+
+    ```cs
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Web;
+    using System.Web.Mvc;
+    using System.Threading;
+
+    namespace CustomInstrumentDemo.Controllers
+    {
+        public class FirstController : Controller
+        {
+            public ActionResult Foo1()
+            {
+                ViewBag.Message = "Your Sample Page";
+                FirstExample();
+                return View();
+            }
+
+            public void FirstExample()
+            {
+                int firstVar = 1;
+                for (int i = 0; i <= 500; i++)
+                {
+                    firstVar *= 5;
+                    Thread.Sleep(50);
+                } 
+            }
+        }
+
+        public class SecondController : Controller
+        {
+            public ActionResult Foo2()
+            {
+                ViewBag.Message = "This view will include detailed information on the SecondExample method";
+                SecondExample();
+                return view;
+            }
+
+            public ActionResult Foo3()
+            {
+                ViewBag.Message = "This view will be ignored because of the inclusion of the ThirdExample method";
+                ThirdExample();
+            }
+
+            public void SecondExample()
+            {
+                int secondVar = 2;
+
+                using (var connection = new SqlConnection(ConnectionStrings["MsSqlConnection"].ConnectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand("SELECT * FROM table", connection))
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                    }
+                }
+            }
+
+            public void ThirdExample()
+            {
+                try
+                {
+                    var ImNotABool = "43";
+                    bool.Parse(ImNotABool);
+                }
+                catch (Exception ex)
+                {
+                    NewRelic.Api.Agent.NewRelic.NoticeError(ex);
+                }
+            }
+
+            public void FourthExample(int id, string name)
+            {
+                Console.WriteLine("The ID passed in was " + id + " and the name passed in was " + name);
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Nom métriques
+
+Les métriques créées à partir de traceur seront nommées en utilisant le nom de la classe et le nom de la méthode correspondante. Vous pouvez remplacer ce nom avec l&apos;attribut `metricName` . Commencez `metricName` par `Custom/` (par exemple, `metricName="Custom/OrderSubmissions"`).
+
+```xml
+<!-- instruments MyCompany.Order.Submit() and creates a metric named Custom/OrderSubmissions -->
+<tracerFactory metricName="Custom/OrderSubmissions">
+  <match assemblyName="MyCompany" className="MyCompany.Order">
+    <exactMethodMatcher methodName="Submit" />
+  </match>
+</tracerFactory>
+```
+
+## Transactions de nom
+
+L&apos;agent nomme les transactions à l&apos;aide du traceur dans la transaction avec la priorité de dénomination la plus élevée.
+
+* La transaction Web peut être nommée à l&apos;aide du gestionnaire HTTP, du nom ASP, du nom du contrôleur MVC ou du nom du service Web, en fonction du traceur invoqué dans l&apos;exécution de la transaction.
+* Les transactions en arrière-plan sans traceur qui nomme explicitement la transaction sont regroupées dans un seul nom de transaction.
+
+Utilisez l’attribut `transactionNamingPriority` pour indiquer à l’agent d’attribuer une priorité de dénomination de transaction de traceur. Les valeurs valides sont `1` à `7`, où `7` a priorité sur `1` à `6`. De plus, l&apos;attribut `metricName` doit commencer par `Custom/` (par exemple, `metricName="Custom/instance"`).
+
+```xml
+<!-- instructs the agent to create a metric for MyControllerBase.Execute and to name the transaction using this tracer's metric name -->
+<tracerFactory metricName="Custom/instance" transactionNamingPriority="7">
+  <match assemblyName="MyCompany" className="MyCompany.MyControllerBase">
+    <exactMethodMatcher methodName="Execute" />
+  </match>
+</tracerFactory>
+```
+
+## Validation XSD [#xsd-validate]
+
+Le fichier d&apos;instrumentation XML peut être vérifié par rapport au fichier XSD (situé à `C:\ProgramData\New Relic\.NET Agent\Extensions\extension.xsd`) avec n&apos;importe quel validateur XSD.
+
+## Dépannage
+
+L&apos;agent .NET écrira un message de log dans `NewRelic.Profiler.####.log` (où `####` est le PID du processus instrumenté) au fur et à mesure qu&apos;il réécrit les méthodes. Cela permet de vérifier que instrumentation personnalisée est lue et que les méthodes appropriées sont instrumentées.
+
+<Callout variant="tip">
+  Évitez d’utiliser l’attribut `name` de l’élément `tracerFactory` dans l’instrumentation personnalisée. Pour plus d’informations, consultez le fichier de schéma `extension.xsd` dans le répertoire de l’agent.
+</Callout>

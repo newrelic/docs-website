@@ -1,0 +1,141 @@
+---
+title: Transférer les données du micromètre vers New Relic avec OpenTelemetry
+metaDescription: New Relic offers an integration that sends your Micrometer telemetry data to your New Relic account.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic prend en charge [les données Micrometer](https://micrometer.io/) afin que vous puissiez visualiser toutes vos métriques d&apos;observabilité sur une seule plateforme. Vous configurerez le [pont OpenTelemetry Micrometer](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/micrometer/micrometer-1.5/library) avec le SDK OpenTelemetry, puis utiliserez le protocole OpenTelemetry (OTLP) pour transmettre vos données Micrometer à New Relic.
+
+<img title="Micrometer bridged with OpenTelemetry in New Relic" alt="A screenshot of the Micrometer summary page when instrumented with OpenTelemetry" src="/images/opentelemetry_screenshot-full_micrometer-with-otel.webp" />
+
+<figcaption>
+  Accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; APM &amp; Services**, puis recherchez la section **Services - OpenTelemetry** : Affichez vos données Micrometer dans New Relic lorsqu&apos;elles sont reliées via OpenTelemetry
+</figcaption>
+
+## Compatibilité et exigences [#requirements]
+
+Avant de suivre ces procédures, vous devez :
+
+* Configurer le SDK OpenTelemetry Métriques pour [exporter des données vers New Relic via OTLP](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/#how-it-works)
+* Installer le pont micrométrique OpenTelemetry
+
+## Transférer les données du micromètre vers New Relic [#forward-data-OpenTelemetry]
+
+Voici les étapes généralisées pour configurer le transfert des métriques Micrometer. Vous souhaiterez peut-être mettre à jour l&apos;extrait de code si nécessaire pour l&apos;adapter à votre environnement spécifique.
+
+<Steps>
+  <Step>
+    ### Ajouter l&apos;instrumentation OpenTelemetry Micrometer
+
+    Ajoutez l&apos;instrumentation OpenTelemetry Micrometer à la section des modules alpha de votre fichier `build.gradle` :
+
+    ```groovy
+    //Alpha modules
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-micrometer-1.5'
+    ```
+  </Step>
+
+  <Step>
+    ### Ajouter la dépendance OpenTelemetry
+
+    Dans la section `dependencies` , ajoutez le SDK OpenTelemetry et l&apos;exportateur OTLP :
+
+    ```groovy
+    dependencies {
+      implementation 'io.opentelemetry:opentelemetry-sdk'
+      implementation 'io.opentelemetry:opentelemetry-exporters-otlp'
+    }
+    ```
+
+    Un exemple de fichier avec des modules alpha et des dépendances ajoutés pourrait ressembler à ceci :
+
+    ```groovy
+    plugins {
+      id 'java-library'
+      id 'org.springframework.boot'
+    }
+
+    bootRun {
+      mainClass.set 'io.opentelemetry.example.micrometer.Application'
+    }
+
+    dependencies {
+      implementation platform("io.opentelemetry:opentelemetry-bom-alpha:JAVA_OTEL_VERSION")
+      implementation 'io.opentelemetry:opentelemetry-sdk'
+      implementation 'io.opentelemetry:opentelemetry-exporters-otlp'
+
+      implementation platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha:OTEL_JAVA_INSTRUMENTATION_VERSION")
+      implementation 'io.opentelemetry.instrumentation:opentelemetry-micrometer-1.5'
+    }
+    ```
+
+    Gardez à l’esprit que vous devrez mettre à jour le snippet avec le versionnement correct.
+  </Step>
+
+  <Step>
+    ### Configurer Micrometer pour transférer des données vers New Relic
+
+    Vous trouverez ci-dessous un exemple de snippet de code qui indique à Micrometer d&apos;utiliser le pont OpenTelemetry Micrometer.
+
+    Cet snippet met à jour votre code afin OpenTelemetry puisse détecter les données Micrometer, puis transmettre ces données à New Relic:
+
+    ```java
+    public OpenTelemetry openTelemetry() {
+      return OpenTelemetrySdk.builder()
+        .setMeterProvider(
+          SdkMeterProvider.builder()
+            .setResource(
+              Resource.getDefault()
+                .toBuilder()
+                .put("service.name", "micrometer-shim")
+                // Include instrumentation.provider=micrometer to enable
+                // micrometer metrics experience in New Relic
+                .put("instrumentation.provider", "micrometer")
+                .build())
+            .registerMetricReader(
+              PeriodicMetricReader.builder(
+                OtlpHttpMetricExporter.builder()
+                  .setEndpoint("https://otlp.nr-data.net/v1/metrics")
+                  .addHeader("api-key",
+                    Optional
+                      .ofNullable(System.getenv("NEW_RELIC_LICENSE_KEY"))
+                      .filter(str -> !str.isEmpty() && !str.isBlank())
+                      .orElseThrow())
+                  // IMPORTANT: New Relic exports data using delta
+                  // temporality rather than cumulative temporality
+                  .setAggregationTemporalitySelector(
+                    AggregationTemporalitySelector
+                      .deltaPreferred())
+                  // Use exponential histogram aggregation for
+                  // histogram instruments to produce better data
+                  // and compression
+                  .setDefaultAggregationSelector(
+                    DefaultAggregationSelector.getDefault().with(
+                      InstrumentType.HISTOGRAM,
+                      Aggregation.base2ExponentialBucketHistogram()))
+                  .build())
+              // Match default micrometer collection interval of 60
+              // seconds
+              .setInterval(Duration.ofSeconds(60))
+              .build())
+            .build())
+        .build();
+    }
+    ```
+  </Step>
+
+  <Step>
+    ### Retrouvez vos données dans New Relic
+
+    Attendez quelques minutes, déclenchez des données de test, puis accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; APM &amp; Services**, puis recherchez **Services - OpenTelemetry** pour choisir le service instrumenté avec Micrometer.
+  </Step>
+</Steps>
+
+## Quelle est la prochaine étape ? [#whats-next]
+
+Pour en savoir plus sur l&apos;utilisation de New Relic avec les données Micrometer, nous vous recommandons ces documents :
+
+* Apprenez à créer [des visualisations personnalisées avec un dashboard](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Configurer des alertes](/docs/tutorial-create-alerts/create-an-alert) pour suivre les performances du système
+* [Interrogez vos données avec NRQL](/docs/nrql/get-started/introduction-nrql-how-nrql-works)

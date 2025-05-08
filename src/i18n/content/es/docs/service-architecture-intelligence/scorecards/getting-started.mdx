@@ -1,0 +1,78 @@
+---
+title: Introducción a los cuadros de mando
+description: Aprenda a crear y gestionar cuadros de mando en New Relic One.
+tags:
+  - Scorecards
+  - New Relic One
+  - service catalog
+  - service architecture intelligence
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Scorecards es una función diseñada para ayudar a las organizaciones a adherir a una estrategia de ingeniería bien definida al proporcionar un enfoque estandarizado y estructurado para el desarrollo de software. Puede emplear la capacidad de Cuadros de Mando en New Relic para evaluar el rendimiento del equipo o grupo según reglas predefinidas y métricas personalizadas. Los cuadros de mando ayudan a las organizaciones a adherir a una estrategia de ingeniería bien definida al proporcionar un enfoque estandarizado y estructurado para el desarrollo de software. Al transformar los objetivos estratégicos en resultados mensurables, los cuadros de mando facilitan la mejora continua y la toma de decisiones informada.
+
+## Característica clave [#key-features]
+
+Al emplear Scorecards, usted puede:
+
+* Realice un seguimiento y mejore el rendimiento en diversas áreas.
+* Automatice el seguimiento del cumplimiento métrico, reduciendo el esfuerzo manual requerido para mantener los estándares.
+* Emplee información impulsada por datos valiosos para identificar áreas de mejora y tomar decisiones informadas sobre la asignación de recursos y la optimización de procesos.
+* Asignar la propiedad de las tareas de cumplimiento a equipos o individuos específicos, promoviendo la responsabilidad y la transparencia.
+
+## Acceda a los cuadros de mando [#access-scorecards]
+
+Para acceder a los cuadros de mando:
+
+1. Log sesión en su cuenta New Relic .
+2. Vaya a **All Capabilities &gt; Scorecards**.
+
+## Uso de los cuadros de mando [#using-scorecards]
+
+Los cuadros de mando ofrecen distintas vistas para satisfacer sus necesidades:
+
+* Todas las tarjetas de puntaje
+* Cuadro de mando único
+* Vista de reglas
+* Vista de equipo
+
+### Página de todas las tarjetas de puntaje [#all-scorecards]
+
+La página de Cuadros de Mando proporciona una vista de alto nivel de todos los Cuadros de Mando para ofrecer información valiosa sobre el cumplimiento de los estándares de ingeniería y el rendimiento general. Puede monitorear el rendimiento métrico en varios cuadros de mando e identificar áreas que necesitan una acción inmediata. Puede emplear varios filtros y agrupar por opciones para refinar su búsqueda.
+
+<img title="Scorecards view" alt="Scorecards view" src="/images/new-relic-all-scorecards.webp" />
+
+### Vista de cuadro de mando único [#single-scorecard]
+
+Esta página proporciona información detallada y valiosa sobre métricas y reglas específicas, incluidos datos históricos de rendimiento. Puede emplear esta página para:
+
+* Analice las tendencias de datos históricos a lo largo del tiempo para realizar un seguimiento de las mejoras o disminuciones en el rendimiento.
+* Vea el puntaje actual que es el promedio de todos los puntajes de las reglas y que representa el cumplimiento de los estándares de ingeniería.
+* Vea el puntaje de cada regla con su condición, alcance y estado de evaluación. Explore en profundidad para ver verificaciones específicas y estados de aprobación/desaprobación.
+
+<img title="Single Scorecards view" alt="Single Scorecards view" src="/images/new-relic-scorecards-details.webp" />
+
+### Vista de reglas [#rule-view]
+
+Las reglas son los elementos básicos de los cuadros de mando y contienen condiciones de rendimiento específicas. La vista de reglas permite al usuario evaluar y gestionar reglas individuales. En esta vista puede ver una lista de todas las reglas y sus detalles, incluida una descripción, una declaración NRQL y el alcance. Evaluar la entidad frente a estas reglas para determinar su cumplimiento.
+
+Para más información:
+
+* Para crear reglas, consulte [Crear reglas del cuadro de mando](/docs/service-architecture-intelligence/scorecards/managing-scorecards/#create-scorecard-rules).
+* Para gestionar reglas, consulte [Gestionar reglas](/docs/service-architecture-intelligence/scorecards/managing-scorecards/#update-rule).
+
+### Vista de equipos [#teams-view]
+
+La vista de Equipos agrega datos de Scorecards a nivel de equipo, lo que proporciona una perspectiva centrada en el equipo sobre el cumplimiento y el rendimiento. En la vista de Equipos:
+
+* El puntaje de cada equipo se calcula como el promedio de las tarjetas de puntaje asociadas, lo que ofrece una vista rápida del cumplimiento de los estándares.
+* El estado de rendimiento se clasifica por color o etiqueta, como Bueno, Por debajo del objetivo y Necesita atención, para señalar las áreas que requieren atención.
+
+<img title="Scorecards teams view" alt="Scorecards teams view" src="/images/new-relic-scorecard-teams.webp" />
