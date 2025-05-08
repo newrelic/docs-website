@@ -140,7 +140,7 @@ export default {
   DocTile: {
     deserialize: deserializeComponent,
     serialize: (state, node) =>
-      serializeComponent(state, node, { textAttributes: ['title'] }),
+      serializeComponent(state, node, { tagName: 'div', textAttributes: ['title'] }),
   },
   DocTiles: {
     deserialize: deserializeComponent,
