@@ -16,6 +16,9 @@ const assetPrefix = () => {
   if (process.env.BUILD_LANG === 'pt') {
     return 'https://docs-website-pt.netlify.app';
   }
+  if (process.env.BUILD_LANG === 'fr') {
+    return 'https://docs-website-fr.netlify.app';
+  }
   return '';
 };
 
