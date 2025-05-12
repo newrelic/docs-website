@@ -8,7 +8,8 @@ learnMoreLink: 'https://docs-preview.newrelic.com/docs/change-tracking-events/'
 Deployments aren’t the only type of change impacting your system. Now change tracking allows you to capture every system change with ease and view all of your change events in a single pane of glass alongside timeseries data. Identifying correlations to see how changes impact your system has never been easier. [Sign up for the change tracking public preview](https://one.newrelic.com/launcher/promotion-flow.launcher?pane=eyJvZmZlclR5cGVJZCI6ImYwNTQwYTU4LWY0YTAtNGIxOS1hMjNlLTlmZjQ0ZTNhZGJmNCJ9) to try it now.  
 [EU Public Preview Sign Up](https://one.eu.newrelic.com/launcher/promotion-flow.launcher?pane=eyJvZmZlclR5cGVJZCI6ImYwNTQwYTU4LWY0YTAtNGIxOS1hMjNlLTlmZjQ0ZTNhZGJmNCJ9)
 
-![Change Tracking Events Plus Timeseries Data](/images/ct_1.png "Change Tracking Events Plus Timeseries Data")
+![Change Tracking Events Plus Timeseries Data](/images/CT_1.png "Change Tracking Events Plus Timeseries Data")
+<figcaption>Change Tracking Events Plus Timerseries Data</figcaption>
 
 ## Key benefits
 
