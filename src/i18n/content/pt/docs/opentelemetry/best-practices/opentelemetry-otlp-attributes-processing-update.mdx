@@ -1,34 +1,45 @@
 ---
-title: Atualizar o tratamento do atributo longo New Relic OTLP
+title: Atualizar processamento de atributo OTLP New Relic
 freshnessValidatedDate: never
 translationType: machine
 ---
 
-Estamos ajustando nossa lógica de validação de ingestão OTLP para ser menos rigorosa ao encontrar valores de atributos longos.
+Estamos ajustando nossa lógica de validação de ingestão OTLP para ter um processamento de atributos mais flexível.
 
-New Relic O OTLP endpoint tem uma variedade de [limites de](/docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) atributos . Atualmente, se você enviar New Relic um intervalo OTLP, métrica ou trace com um atributo de string que exceda o limite de 4.095 caracteres, um [NrIntegrationError](https://docs.newrelic.com/docs/data-apis/manage-data/nrintegrationerror/) será gerado e o registro inteiro será descartado.
+New Relic O OTLP endpoint executa uma variedade de validações no atributo. Há [limites de atributos](/docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) que restringem coisas como o comprimento de chaves e valores, bem como restrições adicionais em tipos de valor para casos extremos que são possíveis de expressar por meio das definições de mensagem protobuf, mas que normalmente não são encontrados na prática, incluindo matrizes heterogêneas (ou seja, uma matriz com uma mistura de tipos de valor como strings e inteiros), matrizes aninhadas (ou seja, uma matriz de matrizes) e muito mais.
 
-Esta é a causa mais comum de dados ausentes. Felizmente, há uma solução fácil:
+Atualmente, o endpoint OTLP do New Relic é rigoroso com validação. Em alguns casos, removemos o atributo problemático silenciosamente, mas, na maioria dos problemas de validação, **descartamos o registro inteiro quando um único atributo é inválido.**
 
-**Em vez de descartar registros que violam esse limite, vamos simplesmente truncar o atributo longo para 4.095 caracteres.**
+Essa validação rigorosa é um dos problemas mais comuns que os clientes encontram ao enviar dados OTLP para a New Relic. Felizmente, há uma solução fácil:
+
+**Estamos adotando uma postura leniente de processamento de atributos.** Quando um atributo for inválido, nós o removeremos ou modificaremos e manteremos o registro. Em casos graves, ainda podemos descartar registros quando não há uma maneira intuitiva de mantê-los. Sempre que podamos ou modificamos um atributo, ou removemos um registro, criaremos um [NrIntegrationError](https://docs.newrelic.com/docs/data-apis/manage-data/nrintegrationerror/) para ajudar a rastrear e corrigir o problema na origem.
 
 Implementaremos essa mudança em **2 de junho de 2025**.
 
 ## Como isso vai me afetar [#how-will-this-affect-me]
 
-Acreditamos que isso será um alívio bem-vindo em quase todos os casos. Dados ausentes podem ser difíceis de rastrear e diagnosticar, especialmente em ambientes com um grande número de implantações gerenciadas por muitas equipes individuais. Com essa mudança, o endpoint OTLP do New Relic incorporará melhor nossa filosofia de &quot;armazenar o que você envia&quot; e terá uma armadilha comum a menos.
+Acreditamos que isso será um alívio bem-vindo em quase todos os casos. Nossa validação rigorosa atual frequentemente produz dados ausentes, o que pode ser difícil de rastrear e diagnosticar, especialmente em ambientes com um grande número de implantações gerenciadas por muitas equipes individuais. Com essa mudança, o endpoint OTLP do New Relic incorporará melhor nossa filosofia de “armazenar o que você envia”.
 
-No entanto, dado [o modelo de preços baseado no uso](https://newrelic.com/pricing) do New Relic, essa mudança significa que os registros que foram descartados anteriormente por exceder os limites agora serão armazenados e contribuirão para o uso de dados da sua conta.
+No entanto, dado [o modelo de preços baseado no uso](https://newrelic.com/pricing) do New Relic, essa mudança significa que os registros que foram descartados anteriormente agora serão armazenados e contribuirão para o uso de dados da sua conta.
 
-Se você estiver seguindo nossa documentação endpoint OTLP sobre [limites de atributos](/docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits), **não há nada a fazer**. A conformidade com os limites de atributos significa que nenhum dado está sendo descartado no momento e, portanto, nenhum dado adicional será armazenado.
+Se você estiver seguindo nossa documentação endpoint OTLP sobre [limites de atributos](/docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) e os atributos dos seus dados estiverem em conformidade com a definição de atributos padrão OpenTelemetry , **não há nada a fazer**. A conformidade com essas restrições significa que nenhum dado está sendo descartado no momento e, portanto, nenhum dado adicional será armazenado.
 
-Para verificar se algum dado em sua conta está sendo descartado devido a exceder o limite de comprimento do atributo, execute a seguinte consulta NRQL:
+Para verificar se algum dado em sua conta está sendo descartado devido à validação de atributo, execute a seguinte consulta NRQL:
 
 ```
-FROM NrIntegrationError SELECT * WHERE message like 'One or more OTLP data point(s) was dropped because the length of an attribute value was over the limit.
+FROM NrIntegrationError SELECT * WHERE message like 'One or more OTLP data point(s) was dropped%'
 ```
 
-Se esta consulta retornar resultados, você poderá ver uma alteração no uso e, portanto, no faturamento após essa alteração. O valor exato depende da frequência com que os registros violam os limites. Veja [a mitigação](#mitigation) para obter conselhos sobre como compensar qualquer uso adicional de dados que você possa incorrer.
+Se esta consulta retornar resultados, você poderá ver uma alteração no uso e, portanto, no faturamento após essa alteração. O valor exato depende da frequência com que os registros violam os limites. Especificamente, os seguintes casos atualmente resultam em registros descartados e serão ajustados conforme descrito abaixo:
+
+* O nome do atributo excede o limite de 255 caracteres. O nome do atributo será truncado e mantido.
+* O valor da string do atributo excede o limite de 4.095 caracteres. O valor do atributo será truncado e mantido.
+* atributo byte matriz excede o limite de 128k na matriz de bytes. O atributo será removido e o registro será mantido.
+* O comprimento da matriz excede o limite de 64 entradas. O atributo será removido e o registro será mantido.
+
+**OBSERVAÇÃO:** O problema de validação mais comum que vemos são valores de string de atributo que excedem o limite de 4.095 caracteres. Alterar a validação de descartar registros com valores de atributos longos para truncar atributos longos e manter o registro pode causar um aumento notável no uso de dados.
+
+Veja [a mitigação](#mitigation) para obter conselhos sobre como compensar qualquer uso adicional de dados que você possa incorrer.
 
 ## Mitigação [#mitigation]
 
@@ -69,7 +80,7 @@ transform:
     - delete_key(datapoint.attributes, "attribute.key.to.drop")
 ```
 
-Você pode optar por remover chaves de atributos que são particularmente longas e, portanto, contribuem muito para o uso, ou atributos que são curtos, mas geralmente não são úteis. Para referência, a lista a seguir resume os 10 atributos mais comuns que violam o limite de comprimento:
+Você pode optar por remover chaves de atributos que são particularmente longas e, portanto, contribuem muito para o uso, ou atributos que são curtos, mas geralmente não são úteis. Para referência, a lista a seguir resume os 10 atributos mais comuns que violam o limite de comprimento do valor do atributo:
 
 * `exception.stactrace`
 * `other` - um resumo para atributo personalizado não definido nas convenções semânticas OpenTelemetry
