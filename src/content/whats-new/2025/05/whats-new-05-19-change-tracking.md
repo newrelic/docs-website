@@ -23,4 +23,4 @@ Deployments aren’t the only type of change impacting your system. Now change t
 
 ## Learn More
 
-[Learn how to get started in the docs](https://docs-preview.newrelic.com/docs/change-tracking-events/)
+[Learn how to get started in the docs](https://docs.newrelic.com/docs/change-tracking/change-tracking-events)
