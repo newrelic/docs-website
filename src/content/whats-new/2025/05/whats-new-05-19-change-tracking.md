@@ -2,7 +2,7 @@
 title: 'Capture and analyze all changes impacting your system'
 summary: 'View and analyze any change and view all change events across all of your entities and accounts through a single pane of glass'
 releaseDate: '2025-05-19'
-learnMoreLink: 'https://docs-preview.newrelic.com/docs/change-tracking-events/'
+learnMoreLink: 'https://docs.newrelic.com/docs/change-tracking/change-tracking-events'
 ---
 
 Deployments aren’t the only type of change impacting your system. Now change tracking allows you to capture every system change with ease and view all of your change events in a single pane of glass alongside timeseries data. Identifying correlations to see how changes impact your system has never been easier. [Sign up for the change tracking public preview](https://one.newrelic.com/launcher/promotion-flow.launcher?pane=eyJvZmZlclR5cGVJZCI6ImYwNTQwYTU4LWY0YTAtNGIxOS1hMjNlLTlmZjQ0ZTNhZGJmNCJ9) to try it now.  
