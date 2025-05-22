@@ -1,0 +1,158 @@
+---
+title: Use Amazon SQS for message queues
+tags:
+  - Agents
+  - Java agent
+  - Instrumentation
+metaDescription: "How to improve instrumentation of the Amazon SQS SDK for Java applications using New Relic's APM"
+redirects:
+  - /docs/agents/java-agent/instrumentation//instrument-aws-sqs-message-queues
+freshnessValidatedDate: never
+---
+
+The Java Agent supports instrumentation for AWS SQS message queues. While our SQS instrumentation generates message broker traces, you may want additional information about the usage of the SQS SDK.
+
+To see all supported SQS libraries, refer to [Java compatibility and requirements page](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent). 
+
+<Callout variant="important">
+  Users of Java Agent 8.18.0 need to manually enable SQS instrumentation. You can enable this instrumentation in your `newrelic.yml` file:
+
+```yml
+class_transformer:
+  aws-java-sdk-sqs:
+    enabled: true
+```
+
+Alternatively, you can set the system property `-Dnewrelic.config.class_transformer.aws-java-sdk-sqs.enabled=true` or the environment variable `NEW_RELIC_CLASS_TRANSFORMER_AWS_JAVA_SDK_SQS_ENABLED=true`. 
+
+The instrumentation is enabled by default for other versions of the Java Agent. 
+
+</Callout>
+
+## View SQS Distributed Tracing
+
+The AWS SQS SDK instrumentation automatically includes distributed trace headers as message attributes for SQS messages. This functionality is available starting from version 2.1.0. However, for message receiver operations, there isn't a built-in method to process these headers. We suggest that you implement custom instrumentation to read the distributed trace headers.
+
+Here is an example of how to read the distributed trace headers from an SQS message using the V2 SDK:
+
+
+```java
+	// This method will call the SDK to receive messages and then process them
+    public void readMessages(SqsClient sqsClient, String queueUrl) {
+        List<Message> msgs = receiveMessages(queueUrl);
+        for (Message msg : msgs) {
+            handleMessage(msg);
+        }
+    }
+
+    // Since calling the SDK to recieve messages is a batch call, it is not recommended to accept distributed trace headers
+    // in the same transaction as the SDK call. Distributed traces can only have one parent span.
+    @Trace(dispatcher = true, metricName = "v2/receiveMessages")
+    public List<Message> receiveMessages(SqsClient sqsClient, String queueUrl) {
+        ReceiveMessageRequest request = ReceiveMessageRequest.builder()
+                .queueUrl(queueUrl)
+                .maxNumberOfMessages(10)
+                .build();
+
+        List<Message> messages = sqsClient.receiveMessage(request).messages();
+        if (messages.isEmpty()) {
+            logger.info("[v2 API] No messages received");
+        }
+        return messages;
+    }
+
+    // Here we accept distributed trace headers in a seperate transaction from the SDK call.
+    @Trace(dispatcher = true, metricName = "v2/handleMessage")
+    public void handleMessage(Message msg, SqsClient sqsClient, String queueUrl) {
+        // We use a wrapper class that helps extract the distributed trace headers
+        SQSReceivedMessageHeaders headers = new SQSReceivedMessageHeaders(msg);
+        // Here we accept the distributed trace headers
+        NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Other, headers);
+        
+
+        // Process your message here
+
+        DeleteMessageRequest deleteMessageRequest = DeleteMessageRequest.builder()
+                .queueUrl(queueUrl)
+                .receiptHandle(msg.receiptHandle())
+                .build();
+        sqsClient.deleteMessage(deleteMessageRequest);
+    }
+```
+
+Here is the wrapper class `SQSReceivedMessageHeaders` that extracts the distributed trace headers from the SQS message:
+
+```java
+import com.newrelic.api.agent.HeaderType;
+import com.newrelic.api.agent.Headers;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class SQSReceivedMessageHeaders implements Headers {
+
+	private Message message = null;
+
+	public SQSReceivedMessageHeaders(Message msg) {
+		message = msg;
+	}
+
+	@Override
+	public HeaderType getHeaderType() {
+		return HeaderType.MESSAGE;
+	}
+
+	@Override
+	public String getHeader(String name) {
+		String value = null;
+		Map<String, MessageAttributeValue> msgAttributes = message.messageAttributes();
+		MessageAttributeValue msgAttributeValue = msgAttributes.get(name);
+		if(msgAttributeValue != null) {
+			if(msgAttributeValue.dataType().equalsIgnoreCase("string")) {
+				value = msgAttributeValue.stringValue();
+			}
+		}
+		return value;
+	}
+
+	@Override
+	public Collection<String> getHeaders(String name) {
+		List<String> list = new ArrayList<String>();
+		String value = getHeader(name);
+		if(value != null && !value.isEmpty()) {
+			list.add(value);
+		}
+		return list;
+	}
+
+	@Override
+	public void setHeader(String name, String value) {
+		// Not supported
+	}
+
+	@Override
+	public void addHeader(String name, String value) {
+		// Not supported
+	}
+
+	@Override
+	public Collection<String> getHeaderNames() {
+		if(message != null) {
+			Map<String, MessageAttributeValue> attributes = message.messageAttributes();
+			if(attributes != null) return attributes.keySet();
+		}
+		return Collections.emptyList();
+	}
+
+	@Override
+	public boolean containsHeader(String name) {
+		return getHeaderNames().contains(name);
+	}
+
+}
+```

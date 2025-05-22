@@ -1,7 +1,6 @@
 import {
   ExternalLink,
   Link,
-  Lightbox,
   MDXLink,
   MDX,
   MarkdownContainer,
@@ -53,30 +52,43 @@ const defaultComponents = {
         }
       />
     ) : (
-      <Lightbox>
-        <img
-          width={props.width ? props.width : 'auto'}
-          src={props.src}
-          // this prevents images from stretching if the width is set to a percent value
-          className={cx(props.className, props.width && 'unbound')}
-          alt={props.alt ? props.alt : 'Docs site'}
-          title={props.title}
-          style={
-            props.style
-              ? {
-                  ...props.style,
-                  borderRadius: '0.25rem',
-                  maxWidth: '100%',
-                  margin: '0 0.25rem',
-                }
-              : {
-                  borderRadius: '0.25rem',
-                  maxWidth: '100%',
-                  margin: '0 0.25rem',
-                }
-          }
-        />
-      </Lightbox>
+      <span
+        style={{
+          position: 'relative',
+          display: 'block',
+          textAlign: 'center',
+          margin: '1em 0',
+        }}
+      >
+        <a
+          href={props.src}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'inline-block' }}
+        >
+          <img
+            width={props.width ? props.width : 'auto'}
+            src={props.src}
+            alt={props.alt ? props.alt : 'Docs site'}
+            title={props.title}
+            style={
+              props.style
+                ? {
+                    ...props.style,
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
+                : {
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
+            }
+            loading="lazy"
+          />
+        </a>
+      </span>
     ),
   DocTile: (props) => (
     <DocTile

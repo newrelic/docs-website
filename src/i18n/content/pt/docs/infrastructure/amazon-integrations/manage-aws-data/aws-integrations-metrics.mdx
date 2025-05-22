@@ -8,4573 +8,4718 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-Recomendamos usar a [integração AWS CloudWatch Metric Streams](/docs/integrations/amazon-integrations/aws-integrations-list/aws-metric-stream/) para ingerir métricas de serviços AWS. Para obter uma lista completa de métricas disponíveis, verifique a documentação de listagem de métricas do CloudWatch para cada serviço da AWS.
+Você pode configurar a chave de alerta ou consultar seus dados na plataforma New Relic quando estiver integrado com AWS. Este documento descreve como armazenamos métricas dimensionais AWS para que você possa criar alertas e consultar seus dados.
 
-## Convenção de nomenclatura métrica dimensional [#metric-naming-convention]
+Caso ainda não o tenha feito, recomendamos instalar ou migrar para a [integração doAWS CloudWatch Metric Streams ](/docs/integrations/amazon-integrations/aws-integrations-list/aws-metric-stream/)para ingerir serviços da AWS &apos; métrica. Se estiver usando a sondagem API para coletar seus dados AWS , você pode revisar as métricas que coletamos para cada integração em nossa seção [Métricas de sondagemAPI ](#aws-metrics-table).
 
-As métricas recebidas do AWS CloudWatch são armazenadas no New Relic como [métricas dimensionais](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types/#dimensional-metrics) seguindo esta convenção:
+## Consulta, armazenamento métrico e mapeamento [#query-experience]
 
-* métrica são prefixados pelo namespace AWS, todos em letras minúsculas, onde `/` é substituído por `.`:
+Mapeamos métricas da integração individual na nuvem para o novo mapeamento do AWS CloudWatch Metric Streams. Você pode usar qualquer uma das convenções de nomenclatura métricas e seus alertas, painéis e consultas continuarão funcionando. Tenha em mente que:
 
-  * `AWS/EC2 -> aws.ec2`
-  * `AWS/ApplicationELB -> aws.applicationelb`
+* Todas as métricas provenientes do fluxo métrica possuem atributo `aws.MetricStreamArn` e `collector.name = 'cloudwatch-metric-streams'` .
+* métricas provenientes do AWS CloudWatch são armazenadas como métricas dimensionais do tipo `summary`.
 
-* O nome da métrica original da AWS com seu caso original:
+Você pode revisar mais sobre como New Relic armazena AWS métrica como métrica dimensional abaixo:
 
-  * `aws.ec2.CPUUtilization`
-  * `aws.s3.5xxErrors`
-  * `aws.sns.NumberOfMessagesPublished`
+* A convenção de nomenclatura métrica dimensional explica como New Relic atualiza o AWS namespace em nosso backend.
+* métrica com combinações de múltiplas dimensões descreve como usar agregações de consulta para analisar métrica com múltiplas dimensões
+* métrica com o by `+ dimension` inclui uma tabela de todas as métricas que são sufixadas com `.by + dimensionName`.
 
-* Se o recurso ao qual a métrica pertence tiver um prefixo de namespace específico, ele será usado. Se o recurso ao qual a métrica pertence não tiver um prefixo de namespace específico, as métricas usarão o prefixo `aws.` .
+<CollapserGroup>
+  <Collapser id="dimensional-convention" title="Convenção de nomenclatura métrica dimensional">
+    Armazenamos AWS métrica no New Relic como [dimensional métrica](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types/#dimensional-metrics). O New Relic mantém a caixa original da métrica original da AWS, mas adiciona o prefixo `aws` em letras minúsculas para designar o namespace da AWS. Por exemplo:
 
-  * `aws.Region`
-  * `aws.s3.BucketName`
+    * `aws.ec2.CPUUtilization`
+    * `aws.s3.5xxErrors`
+    * `aws.sns.NumberOfMessagesPublished`
 
-Para obter mais informações sobre o namespace compatível com AWS, consulte o [site de documentação do CloudWatch](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/aws-services-cloudwatch-metrics.html).
+    Também substituímos todas as instâncias de `/` por `.` no prefixo:
 
-### Métrica com múltiplas combinações de dimensões
+    * `AWS/EC2` aparece como `aws.ec2`
+    * `AWS/ApplicationELB` aparece como `aws.applicationelb`
 
-Uma métrica é definida pelo seu nome e pelas suas diferentes dimensões.
+    Se o recurso ao qual a métrica pertence tiver um prefixo de namespace específico, manteremos esse prefixo de namespace, mas ainda adicionaremos o prefixo `aws` :
 
-Às vezes, o mesmo nome de métrica aparece em múltiplas métricas com diferentes combinações de dimensões, por exemplo:
+    * `aws.Region`
+    * `aws.s3.BucketName`
 
-* `aws.apigateway.4XXError` com dimensões `aws.apigateway.ApiName` e `aws.apigateway.Stage`.
-* `aws.apigateway.4XXError` com dimensões `aws.apigateway.ApiName`.
+    Para obter mais informações sobre o namespace compatível com AWS, consulte o [site de documentação do CloudWatch](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/aws-services-cloudwatch-metrics.html).
+  </Collapser>
 
-Cada uma dessas métricas é ingerida como uma série temporal individual.
+  <Collapser id="multiple-dimensions" title="Métrica com múltiplas combinações de dimensões">
+    Uma métrica é definida pelo seu nome e suas diferentes dimensões. Quando uma métrica específica tem várias dimensões diferentes, elas serão ingeridas como uma série temporal individual. Essa tendência pode fazer com que o mesmo nome de métrica apareça como múltiplas métricas com diferentes combinações de dimensões. Por exemplo:
+
+    * `aws.apigateway.4XXError` com dimensões `aws.apigateway.ApiName` e `aws.apigateway.Stage`.
+    * `aws.apigateway.4XXError` com dimensões `aws.apigateway.ApiName`.
+
+    Algumas agregações como `sum()` ou `count()` retornarão resultados duplicados se a combinação de dimensões correta não for especificada. Para evitar que algumas agregações como `sum()` ou `count()` correspondam a ambas as métricas ao mesmo tempo, filtre as dimensões com `IS NULL` ou `IS NOT NULL`.
+
+    Por exemplo, esta consulta retornará resultados duplicados para ambas as métricas ao mesmo tempo:
+
+    ```sql
+        SELECT sum(aws.apigateway.4XXError) FROM METRIC
+    ```
+
+    Para corresponder apenas à métrica com a dimensão `ApiName` , adicione `IS NULL`:
+
+    ```sql
+        SELECT sum(aws.apigateway.4XXError) FROM METRIC WHERE aws.apigateway.Stage IS NULL
+    ```
+
+    Para corresponder apenas à métrica com 2 dimensões, adicione `IS NOT NULL`:
+
+    ```sql
+        SELECT sum(aws.apigateway.4XXError) FROM METRIC WHERE aws.apigateway.ApiName IS NOT NULL and aws.apigateway.Stage IS NOT NULL
+    ```
+  </Collapser>
+
+  <Collapser id="aws-suffix-historical" title="métrica com o sufixo by + dimension">
+    Por razões históricas, sufixamos algumas métricas que aparecem em pares. Por exemplo, se uma métrica tem uma dimensão, mas a outra não, usamos o sufixo `by + dimension` na métrica com a dimensão. Por exemplo:
+
+    * `aws.lambda.Duration` com dimensões `aws.lambda.FunctionName` é mapeado para `aws.lambda.Duration.byFunction`
+    * `aws.lambda.Duration` não tem dimensões, então permanece o mesmo
+
+    Não adicionamos mais esses mapeamentos, mas estamos comprometidos em preservar todas as novas métricas com seus nomes originais AWS , conforme definido pela regra geral acima. A seguir está uma lista completa de todas as métricas que são sufixadas com `.by + dimensionName`:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Nome da métrica original
+          </th>
+
+          <th>
+            Nome da dimensão original
+          </th>
+
+          <th>
+            Nome da métrica com sufixo
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `aws.apigateway.4XXError`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.4XXError.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.4XXError`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.4XXError.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.4XXError`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.4XXError.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.5XXError`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.5XXError.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.5XXError`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.5XXError.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.5XXError`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.5XXError.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheHitCount`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheHitCount.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheHitCount`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheHitCount.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheHitCount`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheHitCount.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheMissCount`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheMissCount.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheMissCount`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheMissCount.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.CacheMissCount`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.CacheMissCount.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Count`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.Count.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Count`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.Count.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Count`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.Count.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.IntegrationLatency`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.IntegrationLatency.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.IntegrationLatency`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.IntegrationLatency.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.IntegrationLatency`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.IntegrationLatency.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Latency`
+          </td>
+
+          <td>
+            `Api`
+          </td>
+
+          <td>
+            `aws.apigateway.Latency.byApi`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Latency`
+          </td>
+
+          <td>
+            `ResourceWithMetrics`
+          </td>
+
+          <td>
+            `aws.apigateway.Latency.byResourceWithMetrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.apigateway.Latency`
+          </td>
+
+          <td>
+            `Stage`
+          </td>
+
+          <td>
+            `aws.apigateway.Latency.byStage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.applicationelb.RequestCount`
+          </td>
+
+          <td>
+            `Alb`
+          </td>
+
+          <td>
+            `aws.applicationelb.RequestCount.byAlb`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.applicationelb.RequestCount`
+          </td>
+
+          <td>
+            `TargetGroup`
+          </td>
+
+          <td>
+            `aws.applicationelb.RequestCount.byTargetGroup`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.BackupRetentionPeriodStorageUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BufferCacheHitRatio`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.BufferCacheHitRatio.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BufferCacheHitRatio`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.BufferCacheHitRatio.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.BufferCacheHitRatio`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.BufferCacheHitRatio.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.CPUUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.CPUUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.CPUUtilization`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.CPUUtilization.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.CPUUtilization`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.CPUUtilization.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DatabaseConnections`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.DatabaseConnections.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DatabaseConnections`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.DatabaseConnections.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DatabaseConnections`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.DatabaseConnections.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMaximum.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.DBClusterReplicaLagMinimum.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBInstanceReplicaLag`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.DBInstanceReplicaLag.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBInstanceReplicaLag`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.DBInstanceReplicaLag.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DBInstanceReplicaLag`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.DBInstanceReplicaLag.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DiskQueueDepth`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.DiskQueueDepth.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DiskQueueDepth`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.DiskQueueDepth.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.DiskQueueDepth`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.DiskQueueDepth.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.EngineUptime`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.EngineUptime.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.EngineUptime`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.EngineUptime.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.EngineUptime`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.EngineUptime.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeableMemory`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.FreeableMemory.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeableMemory`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.FreeableMemory.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeableMemory`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.FreeableMemory.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeLocalStorage`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.FreeLocalStorage.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeLocalStorage`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.FreeLocalStorage.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.FreeLocalStorage`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.FreeLocalStorage.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkReceiveThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkReceiveThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkReceiveThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkTransmitThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkTransmitThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.NetworkTransmitThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadIOPS`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.ReadIOPS.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadIOPS`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.ReadIOPS.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadIOPS`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.ReadIOPS.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.ReadLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadLatency`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.ReadLatency.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadLatency`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.ReadLatency.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.ReadThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.ReadThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.ReadThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.ReadThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.SnapshotStorageUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.SnapshotStorageUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.SnapshotStorageUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SwapUsage`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.SwapUsage.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SwapUsage`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.SwapUsage.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.SwapUsage`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.SwapUsage.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.TotalBackupStorageBilled.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.TotalBackupStorageBilled.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.TotalBackupStorageBilled.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeBytesUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeBytesUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeBytesUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeReadIOPs.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeReadIOPs.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeReadIOPs.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeWriteIOPs.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeWriteIOPs.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.VolumeWriteIOPs.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteIOPS`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.WriteIOPS.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteIOPS`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.WriteIOPS.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteIOPS`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.WriteIOPS.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.WriteLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteLatency`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.WriteLatency.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteLatency`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.WriteLatency.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.docdb.WriteThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.docdb.WriteThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.docdb.WriteThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.docdb.WriteThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.ConsumedReadCapacityUnits`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.ConsumedReadCapacityUnits.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.ConsumedWriteCapacityUnits`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.ConsumedWriteCapacityUnits.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.ProvisionedReadCapacityUnits`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.ProvisionedReadCapacityUnits.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.ProvisionedWriteCapacityUnits`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.ProvisionedWriteCapacityUnits.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.ReadThrottleEvents`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.ReadThrottleEvents.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.dynamodb.WriteThrottleEvents`
+          </td>
+
+          <td>
+            `GlobalSecondaryIndex`
+          </td>
+
+          <td>
+            `aws.dynamodb.WriteThrottleEvents.byGlobalSecondaryIndex`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.activeServicesCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.activeServicesCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.CPUUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.CPUUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.CPUUtilization`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.ecs.CPUUtilization.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.desiredCount`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.ecs.desiredCount.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.MemoryUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.MemoryUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.MemoryUtilization`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.ecs.MemoryUtilization.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.pendingCount`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.ecs.pendingCount.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.pendingTasksCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.pendingTasksCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.registeredContainerInstancesCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.registeredContainerInstancesCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.runningCount`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.ecs.runningCount.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.ecs.runningTasksCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.ecs.runningTasksCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.CPUUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.CPUUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.CPUUtilization`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.CPUUtilization.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.FreeStorageSpace`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.FreeStorageSpace.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.FreeStorageSpace`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.FreeStorageSpace.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.IndexingLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.IndexingLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.IndexingLatency`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.IndexingLatency.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.IndexingRate`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.IndexingRate.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.IndexingRate`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.IndexingRate.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCOldCollectionCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.JVMGCOldCollectionCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCOldCollectionCount`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.JVMGCOldCollectionCount.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCOldCollectionTime`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.JVMGCOldCollectionTime.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCOldCollectionTime`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.JVMGCOldCollectionTime.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCYoungCollectionCount`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.JVMGCYoungCollectionCount.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCYoungCollectionCount`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.JVMGCYoungCollectionCount.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCYoungCollectionTime`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.JVMGCYoungCollectionTime.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMGCYoungCollectionTime`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.JVMGCYoungCollectionTime.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMMemoryPressure`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.JVMMemoryPressure.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.JVMMemoryPressure`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.JVMMemoryPressure.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SearchLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.SearchLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SearchLatency`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.SearchLatency.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SearchRate`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.SearchRate.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SearchRate`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.SearchRate.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SysMemoryUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.SysMemoryUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.SysMemoryUtilization`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.SysMemoryUtilization.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkQueue`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkQueue.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkQueue`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkQueue.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkRejected`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkRejected.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkRejected`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkRejected.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkThreads`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkThreads.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolBulkThreads`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolBulkThreads.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeQueue`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeQueue.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeQueue`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeQueue.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeRejected`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeRejected.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeRejected`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeRejected.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeThreads`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeThreads.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolForce_mergeThreads`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolForce_mergeThreads.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexQueue`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexQueue.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexQueue`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexQueue.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexRejected`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexRejected.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexRejected`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexRejected.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexThreads`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexThreads.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolIndexThreads`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolIndexThreads.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchQueue`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchQueue.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchQueue`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchQueue.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchRejected`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchRejected.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchRejected`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchRejected.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchThreads`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchThreads.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.es.ThreadpoolSearchThreads`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.es.ThreadpoolSearchThreads.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.BytesInPerSec`
+          </td>
+
+          <td>
+            `Broker`
+          </td>
+
+          <td>
+            `aws.kafka.BytesInPerSec.byBroker`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.BytesInPerSec`
+          </td>
+
+          <td>
+            `Topic`
+          </td>
+
+          <td>
+            `aws.kafka.BytesInPerSec.byTopic`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.BytesOutPerSec`
+          </td>
+
+          <td>
+            `Broker`
+          </td>
+
+          <td>
+            `aws.kafka.BytesOutPerSec.byBroker`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.BytesOutPerSec`
+          </td>
+
+          <td>
+            `Topic`
+          </td>
+
+          <td>
+            `aws.kafka.BytesOutPerSec.byTopic`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.FetchMessageConversionsPerSec`
+          </td>
+
+          <td>
+            `Broker`
+          </td>
+
+          <td>
+            `aws.kafka.FetchMessageConversionsPerSec.byBroker`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.FetchMessageConversionsPerSec`
+          </td>
+
+          <td>
+            `Topic`
+          </td>
+
+          <td>
+            `aws.kafka.FetchMessageConversionsPerSec.byTopic`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.MessagesInPerSec`
+          </td>
+
+          <td>
+            `Broker`
+          </td>
+
+          <td>
+            `aws.kafka.MessagesInPerSec.byBroker`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.MessagesInPerSec`
+          </td>
+
+          <td>
+            `Topic`
+          </td>
+
+          <td>
+            `aws.kafka.MessagesInPerSec.byTopic`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.ProduceMessageConversionsPerSec`
+          </td>
+
+          <td>
+            `Broker`
+          </td>
+
+          <td>
+            `aws.kafka.ProduceMessageConversionsPerSec.byBroker`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kafka.ProduceMessageConversionsPerSec`
+          </td>
+
+          <td>
+            `Topic`
+          </td>
+
+          <td>
+            `aws.kafka.ProduceMessageConversionsPerSec.byTopic`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.IncomingBytes`
+          </td>
+
+          <td>
+            `Stream`
+          </td>
+
+          <td>
+            `aws.kinesis.IncomingBytes.byStream`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.IncomingBytes`
+          </td>
+
+          <td>
+            `StreamShard`
+          </td>
+
+          <td>
+            `aws.kinesis.IncomingBytes.byStreamShard`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.IncomingRecords`
+          </td>
+
+          <td>
+            `Stream`
+          </td>
+
+          <td>
+            `aws.kinesis.IncomingRecords.byStream`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.IncomingRecords`
+          </td>
+
+          <td>
+            `StreamShard`
+          </td>
+
+          <td>
+            `aws.kinesis.IncomingRecords.byStreamShard`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.ReadProvisionedThroughputExceeded`
+          </td>
+
+          <td>
+            `Stream`
+          </td>
+
+          <td>
+            `aws.kinesis.ReadProvisionedThroughputExceeded.byStream`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.ReadProvisionedThroughputExceeded`
+          </td>
+
+          <td>
+            `StreamShard`
+          </td>
+
+          <td>
+            `aws.kinesis.ReadProvisionedThroughputExceeded.byStreamShard`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.WriteProvisionedThroughputExceeded`
+          </td>
+
+          <td>
+            `Stream`
+          </td>
+
+          <td>
+            `aws.kinesis.WriteProvisionedThroughputExceeded.byStream`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.kinesis.WriteProvisionedThroughputExceeded`
+          </td>
+
+          <td>
+            `StreamShard`
+          </td>
+
+          <td>
+            `aws.kinesis.WriteProvisionedThroughputExceeded.byStreamShard`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ConcurrentExecutions`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.ConcurrentExecutions.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ConcurrentExecutions`
+          </td>
+
+          <td>
+            `Region`
+          </td>
+
+          <td>
+            `aws.lambda.ConcurrentExecutions.byRegion`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.DeadLetterErrors`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.DeadLetterErrors.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.DeadLetterErrors`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.DeadLetterErrors.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Duration`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.Duration.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Duration`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.Duration.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Errors`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.Errors.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Errors`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.Errors.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Invocations`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.Invocations.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Invocations`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.Invocations.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.IteratorAge`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.IteratorAge.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.IteratorAge`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.IteratorAge.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrencyInvocations`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrencyInvocations.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrencyInvocations`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrencyInvocations.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrencySpilloverInvocations`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrencySpilloverInvocations.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrencySpilloverInvocations`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrencySpilloverInvocations.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrencyUtilization`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrencyUtilization.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrentExecutions`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrentExecutions.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.ProvisionedConcurrentExecutions`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.ProvisionedConcurrentExecutions.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Throttles`
+          </td>
+
+          <td>
+            `Function`
+          </td>
+
+          <td>
+            `aws.lambda.Throttles.byFunction`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.lambda.Throttles`
+          </td>
+
+          <td>
+            `FunctionAlias`
+          </td>
+
+          <td>
+            `aws.lambda.Throttles.byFunctionAlias`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.BackupRetentionPeriodStorageUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLag`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLag.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLag`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLag.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLag`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLag.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMaximum.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.ClusterReplicaLagMinimum.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.CPUUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.CPUUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.CPUUtilization`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.CPUUtilization.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.CPUUtilization`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.CPUUtilization.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.EngineUptime`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.EngineUptime.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.EngineUptime`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.EngineUptime.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.EngineUptime`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.EngineUptime.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.FreeableMemory`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.FreeableMemory.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.FreeableMemory`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.FreeableMemory.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.FreeableMemory`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.FreeableMemory.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinRequestsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinRequestsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinRequestsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinRequestsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinRequestsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinRequestsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.GremlinWebSocketOpenConnections.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.LoaderRequestsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.LoaderRequestsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.LoaderRequestsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.LoaderRequestsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.LoaderRequestsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.LoaderRequestsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.MainRequestQueuePendingRequests.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkReceiveThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkReceiveThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkReceiveThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkTransmitThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkTransmitThroughput.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NetworkTransmitThroughput.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxCommitted`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxCommitted.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxCommitted`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxCommitted.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxCommitted`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxCommitted.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxOpened`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxOpened.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxOpened`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxOpened.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxOpened`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxOpened.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxRolledBack`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxRolledBack.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxRolledBack`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxRolledBack.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.NumTxRolledBack`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.NumTxRolledBack.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.SnapshotStorageUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.SnapshotStorageUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SnapshotStorageUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.SnapshotStorageUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SparqlRequestsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.SparqlRequestsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SparqlRequestsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.SparqlRequestsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.SparqlRequestsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.SparqlRequestsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.TotalBackupStorageBilled.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.TotalBackupStorageBilled.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalBackupStorageBilled`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.TotalBackupStorageBilled.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.TotalClientErrorsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalRequestsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.TotalRequestsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalRequestsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.TotalRequestsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalRequestsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.TotalRequestsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.TotalServerErrorsPerSec.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeBytesUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeBytesUsed.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeBytesUsed.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeReadIOPs.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeReadIOPs.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeReadIOPs.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeWriteIOPs.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `ClusterByRole`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeWriteIOPs.byClusterByRole`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.neptune.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `Instance`
+          </td>
+
+          <td>
+            `aws.neptune.VolumeWriteIOPs.byInstance`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.rds.VolumeBytesUsed`
+          </td>
+
+          <td>
+            `DbCluster`
+          </td>
+
+          <td>
+            `aws.rds.VolumeBytesUsed.byDbCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.rds.VolumeReadIOPs`
+          </td>
+
+          <td>
+            `DbCluster`
+          </td>
+
+          <td>
+            `aws.rds.VolumeReadIOPs.byDbCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.rds.VolumeWriteIOPs`
+          </td>
+
+          <td>
+            `DbCluster`
+          </td>
+
+          <td>
+            `aws.rds.VolumeWriteIOPs.byDbCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.CPUUtilization`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.CPUUtilization.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.CPUUtilization`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.CPUUtilization.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.DatabaseConnections`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.DatabaseConnections.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.DatabaseConnections`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.DatabaseConnections.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.HealthStatus`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.HealthStatus.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.HealthStatus`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.HealthStatus.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.MaintenanceMode`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.MaintenanceMode.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.MaintenanceMode`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.MaintenanceMode.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.NetworkReceiveThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.NetworkReceiveThroughput`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.NetworkReceiveThroughput.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.NetworkTransmitThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.NetworkTransmitThroughput`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.NetworkTransmitThroughput.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.PercentageDiskSpaceUsed`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.PercentageDiskSpaceUsed.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.PercentageDiskSpaceUsed`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.PercentageDiskSpaceUsed.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadIOPS`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.ReadIOPS.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadIOPS`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.ReadIOPS.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.ReadLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadLatency`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.ReadLatency.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.ReadThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.ReadThroughput`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.ReadThroughput.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteIOPS`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.WriteIOPS.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteIOPS`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.WriteIOPS.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteLatency`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.WriteLatency.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteLatency`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.WriteLatency.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteThroughput`
+          </td>
+
+          <td>
+            `Cluster`
+          </td>
+
+          <td>
+            `aws.redshift.WriteThroughput.byCluster`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.redshift.WriteThroughput`
+          </td>
+
+          <td>
+            `Node`
+          </td>
+
+          <td>
+            `aws.redshift.WriteThroughput.byNode`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ConsumedCapacity`
+          </td>
+
+          <td>
+            `ApiUsage`
+          </td>
+
+          <td>
+            `aws.states.ConsumedCapacity.byApiUsage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ConsumedCapacity`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.states.ConsumedCapacity.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ProvisionedBucketSize`
+          </td>
+
+          <td>
+            `ApiUsage`
+          </td>
+
+          <td>
+            `aws.states.ProvisionedBucketSize.byApiUsage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ProvisionedBucketSize`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.states.ProvisionedBucketSize.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ProvisionedRefillRate`
+          </td>
+
+          <td>
+            `ApiUsage`
+          </td>
+
+          <td>
+            `aws.states.ProvisionedRefillRate.byApiUsage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ProvisionedRefillRate`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.states.ProvisionedRefillRate.byService`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ThrottledEvents`
+          </td>
+
+          <td>
+            `ApiUsage`
+          </td>
+
+          <td>
+            `aws.states.ThrottledEvents.byApiUsage`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.states.ThrottledEvents`
+          </td>
+
+          <td>
+            `Service`
+          </td>
+
+          <td>
+            `aws.states.ThrottledEvents.byService`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="namespace-entities" title="Namespace AWS como entidade New Relic">
+    New Relic [Geramos a entidade](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) para muitos AWS namespaces :
+
+    * Navegue por essas entidades em nosso [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer).
+    * Aceda a um dashboard de entidades criado automaticamente para essas entidades.
+    * Obtenha métrica e entidade desse namespace decorado com tag AWS . A coleta da tag AWS requer que você tenha concedido à New Relic a permissão `tag:GetResources`, que faz parte do processo de configuração na interface. AWS Tag mostrada em métrica como `tag.AWSTagName`; por exemplo, se você definiu uma `Team` AWS tag no recurso, ela será exibida como `tag.Team`.
+    * Aproveite todos os recursos incluídos no explorador de entidades.
+
+    <Callout variant="important">
+      [O New Relic Lookout](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-lookout-monitor-your-estate-glance) é incompatível com a integração do AWS Metric Streams.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Criar condição de alerta [#set-alerts]
+
+Você pode [criar NRQL condição do alerta](/docs/alerts/create-alert/create-alert-condition/alert-conditions) on métrica a partir de um fluxo métrico. Certifique-se de que seu filtro limite os dados ao Métrica somente do CloudWatch Metric Streams. Para fazer isso, construa sua consulta assim:
+
+```sql
+SELECT sum(aws.s3.5xxErrors) FROM Metric WHERE collector.name = 'cloudwatch-metric-streams' FACET aws.accountId, aws.s3.BucketName
+```
+
+Para garantir que seus alertas processem os dados corretamente, configure as configurações avançadas de sinal. As configurações de sinal avançadas abordam como AWS CloudWatch recebe métricas de serviços com um certo atraso. Por exemplo, a Amazon garante que 90% das métricas do EC2 estão disponíveis no CloudWatch em até 7 minutos após serem geradas. No entanto, quando você adiciona o streaming métrico da AWS ao New Relic, isso pode adicionar até 1 minuto de atraso adicional, pois os dados precisam ser armazenados em buffer no Amazon Firehose.
+
+Para configurar as configurações do sinal, vá para <DNT>**Condition Settings**</DNT> e clique em <DNT>**Advanced Signal Settings**</DNT>. Insira os seguintes valores:
+
+1. <DNT>**Aggregation window**</DNT>: Recomendamos definir para 1 minuto. Se você estiver tendo problemas com alertas de oscilação ou alertas que não disparam, considere aumentar para 2 minutos.
+2. <DNT>**Offset evaluation by**</DNT>: Dependendo do serviço, o CloudWatch pode enviar o métrica com um certo atraso. O valor é definido no Windows. Com uma janela de agregação de 1 minuto, definir o deslocamento como 8 garante que a maioria das métricas seja avaliada corretamente. Você pode usar um deslocamento menor se o atraso introduzido pela AWS e pelo Firehose for menor.
+3. <DNT>**Fill data gaps with**</DNT>: Deixe este campo vazio ou use Último valor conhecido se lacunas nos dados provenientes da AWS levarem a falsos positivos ou negativos.
+
+## Coleção de tags [#tags-collection]
+
+New Relic fornece dimensões aprimoradas de métricas provenientes do AWS CloudWatch Metric Streams. O recurso e a tag personalizada são extraídos automaticamente da maioria dos serviços e usados para decorar métricas com dimensões adicionais. Use [métrica e evento](/docs/query-your-data/explore-query-data/explore-data/introduction-data-explorer/) para ver quais tags estão disponíveis em cada métrica AWS .
+
+A consulta a seguir mostra um exemplo de tag sendo coletada e consulta como dimensões em métrica:
+
+```
+SELECT average(`aws.rds.CPUUtilization`) FROM Metric FACET `tags.mycustomtag` SINCE 30 MINUTES AGO TIMESERIES
+```
+
+Nem todas as métricas têm sua tag personalizada como dimensões. Somente métricas vinculadas a entidades listadas no [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer) têm sua tag personalizada associada. A integração AWS CloudWatch Metric Streams não inclui a tag como parte da mensagem de fluxo; portanto, processamento adicional é necessário no lado New Relic .
+
+## Coleta de metadados [#metadata-collection]
+
+Assim como acontece com a tag personalizada, New Relic também extrai informações de metadados de serviços relevantes da AWS para decorar as detalhes AWS do CloudWatch com metadados enriquecidos coletados de serviços da API da AWS. Esses metadados estão acessíveis no New Relic como dimensões adicionais na métrica fornecida pelo AWS CloudWatch.
 
 <Callout variant="important">
-  Algumas agregações como `sum()` ou `count()` retornarão resultados duplicados se a combinação correta de dimensões não for especificada.
+  Esse recurso opcional é complementar à integração do CloudWatch Metric Streams. A descoberta e o monitoramento do serviço ficarão incompletos se você não habilitar esse recurso opcional.
 </Callout>
 
-Para evitar que algumas agregações como `sum()` ou `count()` correspondam às duas métricas ao mesmo tempo, use `IS NULL` ou `IS NOT NULL` para filtrar as dimensões. Por exemplo:
+A solução depende do [AWS Config](https://docs.aws.amazon.com/config/index.html), o que pode gerar custos adicionais na sua conta AWS. O AWS Config fornece [controles granulares](https://docs.aws.amazon.com/config/latest/developerguide/select-resources.html) para determinar quais serviços e recursos são registrados. A New Relic ingerirá apenas metadados dos recursos disponíveis em sua conta AWS.
 
-Corresponde às duas métricas ao mesmo tempo:
+Os seguintes serviços e namespace são suportados:
 
-```sql
-  SELECT sum(aws.apigateway.4XXError) FROM METRIC
-```
+* ALB/NLB
+* Gateway de API (excluindo API v1)
+* DynamoDB
+* EBS
+* EC2
+* SEC
+* ELB
+* Lambda
+* RDS
+* S3
 
-Corresponde apenas à métrica com a dimensão ApiName:
+### Agente de infraestrutura métrica e decoração de metadados EC2 [#infra-data-decoration]
 
-```sql
-  SELECT sum(aws.apigateway.4XXError) FROM METRIC WHERE aws.apigateway.Stage IS NULL
-```
+Assim como acontece com a integração de polling API do EC2, quando o agente de infraestrutura está instalado em um host e o namespace EC2 está ativo por meio da integração AWS CloudWatch Metric Streams , todos os agentes de infraestrutura de evento e métrica são decorados com metadados adicionais.
 
-Corresponde apenas à métrica com duas dimensões:
+O atributo a seguir irá decorar amostras de infraestrutura. Alguns deles podem não ser aplicáveis em todos os ambientes: `awsAvailabilityZone`, `ec2InstanceId`, `ec2PublicDnsName`, `ec2State`, `ec2EbsOptimized`, `ec2PublicIpAddress`, `ec2PrivateIpAddress`, `ec2VpcId`, `ec2AmiId`, `ec2PrivateDnsName`, `ec2KeyName`, `ec2SubnetId`, `ec2InstanceType`, `ec2Hypervisor`, `ec2Architecture`, `ec2RootDeviceType`, `ec2RootDeviceName`, `ec2VirtualizationType`, `ec2PlacementGroupName`, `ec2PlacementGroupTenancy`.
 
-```sql
-  SELECT sum(aws.apigateway.4XXError) FROM METRIC WHERE aws.apigateway.ApiName IS NOT NULL and aws.apigateway.Stage IS NOT NULL
-```
+## Métrica personalizada e percentil [#custom-metrics-percentiles]
 
-### Métrica com o sufixo `by + dimension`
+A integração CloudWatch Metric Streams ingere automaticamente novas métricas configuradas no stream, incluindo métrica personalizada e percentil.
 
-Por razões históricas, sufixamos algumas métricas que fazem parte de pares onde uma das métricas tem uma dimensão e a outra não. Nestes casos usamos o sufixo `by + dimension` na métrica que possui a dimensão. Por exemplo:
+### Métrica personalizada [#custom-metrics]
 
-* `aws.lambda.Duration` com dimensões `aws.lambda.FunctionName` é mapeado para `aws.lambda.Duration.byFunction`
-* `aws.lambda.Duration` sem dimensões permanece o mesmo.
+Para ingerir o CloudWatch Metric personalizado, seu namespace personalizado precisa estar visível na configuração do CloudWatch Metric Streams . Certifique-se de que ele não esteja sendo filtrado por regras de inclusão ou exclusão.
 
-Não adicionamos mais esses mapeamentos e nos comprometemos a preservar todas as novas métricas com seu nome AWS original, conforme definido pela regra geral acima. A seguir está uma lista completa de todas as métricas que têm o sufixo `.by + dimensionName`:
+### Percentil [#percentiles]
 
-<table>
-  <thead>
-    <tr>
-      <th>
-        Nome da métrica original
-      </th>
+AWS CloudWatch permite [definir estatísticas adicionais](https://aws.amazon.com/about-aws/whats-new/2022/04/amazon-cloudwatch-metric-streams-additional-statistics/), incluindo percentil.
 
-      <th>
-        Nome da dimensão original
-      </th>
+Siga estas etapas para adicionar percentil a qualquer métrica disponível no stream do CloudWatch:
 
-      <th>
-        Nome da métrica com sufixo
-      </th>
-    </tr>
-  </thead>
+1. Na AWS, atualize a configuração do stream do CloudWatch (via API, CLI ou Console AWS ) com o percentil necessário na configuração `StatisticConfiguration`. Por exemplo, você pode adicionar os percentis p90, p95 e p99 ao `ELB latency metric (aws.elb.Latency)`.
 
-  <tbody>
-    <tr>
-      <td>
-        `aws.apigateway.4XXError`
-      </td>
+2. Após alguns minutos, a nova estatística deverá ser disponibilizada no stream e ingerida pela New Relic. percentil pode ser consultado usando esta convenção de nomenclatura:
 
-      <td>
-        `Api`
-      </td>
+   ```sql
+     From Metric select max(aws.elb.Latency.p99) where collector.name = 'cloudwatch-metric-streams' timeseries
+   ```
 
-      <td>
-        `aws.apigateway.4XXError.byApi`
-      </td>
-    </tr>
+Embora AWS ofereça suporte a outras estatísticas no fluxo além do percentual, elas não são disponibilizadas no formato de exportação de telemetria Open (somente JSON) e atualmente não são suportadas pela New Relic.
 
-    <tr>
-      <td>
-        `aws.apigateway.4XXError`
-      </td>
+Saiba mais sobre preços, limitações e configuração avançada na [documentação AWS ](https://aws.amazon.com/about-aws/whats-new/2022/04/amazon-cloudwatch-metric-streams-additional-statistics/).
 
-      <td>
-        `ResourceWithMetrics`
-      </td>
+## Gerencie seus dados [#manage-data]
 
-      <td>
-        `aws.apigateway.4XXError.byResourceWithMetrics`
-      </td>
-    </tr>
+A interface New Relic fornece um [conjunto de ferramentas](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-your-data/) para monitorar os dados que estão sendo ingeridos em sua conta. Vá para <DNT>**Manage your data**</DNT> no menu de configurações para ver todos os detalhes. As métricas ingeridas do AWS Metric Streams integração são consideradas no bucket <DNT>**Metric**</DNT>.
 
-    <tr>
-      <td>
-        `aws.apigateway.4XXError`
-      </td>
+<Callout variant="important">
+  As métricas enviadas por meio AWS Metric Streams são contabilizadas nos limites API métrica para a conta New Relic onde os dados serão ingeridos.
+</Callout>
 
-      <td>
-        `Stage`
-      </td>
+Se precisar de uma visão mais granular dos dados, use a [função`bytecountestimate()` ](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts/#byte-count-estimate)em `Metric` para estimar os dados que estão sendo ingeridos. Estas consultas de exemplo podem ajudar você a entender sua ingestão AWS :
 
-      <td>
-        `aws.apigateway.4XXError.byStage`
-      </td>
-    </tr>
+<CollapserGroup>
+  <Collapser id="30-days" title="Ver ingestão dos últimos 30 dias">
+    A consulta a seguir representa os dados ingeridos de todas as métricas processadas via integração AWS Metric Streams nos últimos 30 dias (em bytes):
 
-    <tr>
-      <td>
-        `aws.apigateway.5XXError`
-      </td>
+    ```sql
+    FROM Metric SELECT bytecountestimate()/10e8 as 'GB Estimate' WHERE collector.name='cloudwatch-metric-streams' SINCE 30 day ago
+    ```
+  </Collapser>
 
-      <td>
-        `Api`
-      </td>
+  <Collapser id="service-ingest" title="Exibir ingestão por serviço e namespace">
+    Para ver os dados ingeridos pelos serviços da AWS/namespace:
 
-      <td>
-        `aws.apigateway.5XXError.byApi`
-      </td>
-    </tr>
+    ```sql
+    FROM Metric SELECT bytecountestimate()/10e8 as 'GB Estimate' WHERE collector.name='cloudwatch-metric-streams' FACET aws.Namespace
+    ```
+  </Collapser>
 
-    <tr>
-      <td>
-        `aws.apigateway.5XXError`
-      </td>
+  <Collapser id="raw-metrics-updates" title="Exibir atualizações métricas brutas por serviço e namespace">
+    Para ver o número de atualizações métricas brutas processadas pelos serviços da AWS/namespace:
 
-      <td>
-        `ResourceWithMetrics`
-      </td>
+    ```sql
+    FROM Metric SELECT dataPointCount() WHERE collector.name='cloudwatch-metric-streams' FACET aws.Namespace
+    ```
+  </Collapser>
+</CollapserGroup>
 
-      <td>
-        `aws.apigateway.5XXError.byResourceWithMetrics`
-      </td>
-    </tr>
+Recomendamos as seguintes ações para controlar os dados que estão sendo ingeridos:
 
-    <tr>
-      <td>
-        `aws.apigateway.5XXError`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.5XXError.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheHitCount`
-      </td>
-
-      <td>
-        `Api`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheHitCount.byApi`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheHitCount`
-      </td>
-
-      <td>
-        `ResourceWithMetrics`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheHitCount.byResourceWithMetrics`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheHitCount`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheHitCount.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheMissCount`
-      </td>
-
-      <td>
-        `Api`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheMissCount.byApi`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheMissCount`
-      </td>
-
-      <td>
-        `ResourceWithMetrics`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheMissCount.byResourceWithMetrics`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.CacheMissCount`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.CacheMissCount.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Count`
-      </td>
-
-      <td>
-        `Api`
-      </td>
-
-      <td>
-        `aws.apigateway.Count.byApi`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Count`
-      </td>
-
-      <td>
-        `ResourceWithMetrics`
-      </td>
-
-      <td>
-        `aws.apigateway.Count.byResourceWithMetrics`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Count`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.Count.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.IntegrationLatency`
-      </td>
-
-      <td>
-        `Api`
-      </td>
-
-      <td>
-        `aws.apigateway.IntegrationLatency.byApi`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.IntegrationLatency`
-      </td>
-
-      <td>
-        `ResourceWithMetrics`
-      </td>
-
-      <td>
-        `aws.apigateway.IntegrationLatency.byResourceWithMetrics`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.IntegrationLatency`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.IntegrationLatency.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Latency`
-      </td>
-
-      <td>
-        `Api`
-      </td>
-
-      <td>
-        `aws.apigateway.Latency.byApi`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Latency`
-      </td>
-
-      <td>
-        `ResourceWithMetrics`
-      </td>
-
-      <td>
-        `aws.apigateway.Latency.byResourceWithMetrics`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.apigateway.Latency`
-      </td>
-
-      <td>
-        `Stage`
-      </td>
-
-      <td>
-        `aws.apigateway.Latency.byStage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.applicationelb.RequestCount`
-      </td>
-
-      <td>
-        `Alb`
-      </td>
-
-      <td>
-        `aws.applicationelb.RequestCount.byAlb`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.applicationelb.RequestCount`
-      </td>
-
-      <td>
-        `TargetGroup`
-      </td>
-
-      <td>
-        `aws.applicationelb.RequestCount.byTargetGroup`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.BackupRetentionPeriodStorageUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BufferCacheHitRatio`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.BufferCacheHitRatio.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BufferCacheHitRatio`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.BufferCacheHitRatio.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.BufferCacheHitRatio`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.BufferCacheHitRatio.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.CPUUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.CPUUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.CPUUtilization`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.CPUUtilization.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.CPUUtilization`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.CPUUtilization.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DatabaseConnections`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.DatabaseConnections.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DatabaseConnections`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.DatabaseConnections.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DatabaseConnections`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.DatabaseConnections.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMaximum.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.DBClusterReplicaLagMinimum.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBInstanceReplicaLag`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.DBInstanceReplicaLag.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBInstanceReplicaLag`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.DBInstanceReplicaLag.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DBInstanceReplicaLag`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.DBInstanceReplicaLag.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DiskQueueDepth`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.DiskQueueDepth.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DiskQueueDepth`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.DiskQueueDepth.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.DiskQueueDepth`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.DiskQueueDepth.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.EngineUptime`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.EngineUptime.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.EngineUptime`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.EngineUptime.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.EngineUptime`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.EngineUptime.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeableMemory`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.FreeableMemory.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeableMemory`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.FreeableMemory.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeableMemory`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.FreeableMemory.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeLocalStorage`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.FreeLocalStorage.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeLocalStorage`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.FreeLocalStorage.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.FreeLocalStorage`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.FreeLocalStorage.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkReceiveThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkReceiveThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkReceiveThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkTransmitThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkTransmitThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.NetworkTransmitThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadIOPS`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.ReadIOPS.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadIOPS`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.ReadIOPS.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadIOPS`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.ReadIOPS.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.ReadLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadLatency`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.ReadLatency.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadLatency`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.ReadLatency.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.ReadThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.ReadThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.ReadThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.ReadThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.SnapshotStorageUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.SnapshotStorageUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.SnapshotStorageUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SwapUsage`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.SwapUsage.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SwapUsage`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.SwapUsage.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.SwapUsage`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.SwapUsage.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.TotalBackupStorageBilled.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.TotalBackupStorageBilled.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.TotalBackupStorageBilled.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeBytesUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeBytesUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeBytesUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeReadIOPs.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeReadIOPs.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeReadIOPs.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeWriteIOPs.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeWriteIOPs.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.VolumeWriteIOPs.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteIOPS`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.WriteIOPS.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteIOPS`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.WriteIOPS.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteIOPS`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.WriteIOPS.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.WriteLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteLatency`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.WriteLatency.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteLatency`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.WriteLatency.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.docdb.WriteThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.docdb.WriteThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.docdb.WriteThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.docdb.WriteThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.ConsumedReadCapacityUnits`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.ConsumedReadCapacityUnits.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.ConsumedWriteCapacityUnits`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.ConsumedWriteCapacityUnits.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.ProvisionedReadCapacityUnits`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.ProvisionedReadCapacityUnits.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.ProvisionedWriteCapacityUnits`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.ProvisionedWriteCapacityUnits.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.ReadThrottleEvents`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.ReadThrottleEvents.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.dynamodb.WriteThrottleEvents`
-      </td>
-
-      <td>
-        `GlobalSecondaryIndex`
-      </td>
-
-      <td>
-        `aws.dynamodb.WriteThrottleEvents.byGlobalSecondaryIndex`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.activeServicesCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.activeServicesCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.CPUUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.CPUUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.CPUUtilization`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.ecs.CPUUtilization.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.desiredCount`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.ecs.desiredCount.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.MemoryUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.MemoryUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.MemoryUtilization`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.ecs.MemoryUtilization.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.pendingCount`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.ecs.pendingCount.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.pendingTasksCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.pendingTasksCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.registeredContainerInstancesCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.registeredContainerInstancesCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.runningCount`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.ecs.runningCount.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.ecs.runningTasksCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.ecs.runningTasksCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.CPUUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.CPUUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.CPUUtilization`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.CPUUtilization.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.FreeStorageSpace`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.FreeStorageSpace.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.FreeStorageSpace`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.FreeStorageSpace.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.IndexingLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.IndexingLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.IndexingLatency`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.IndexingLatency.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.IndexingRate`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.IndexingRate.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.IndexingRate`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.IndexingRate.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCOldCollectionCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.JVMGCOldCollectionCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCOldCollectionCount`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.JVMGCOldCollectionCount.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCOldCollectionTime`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.JVMGCOldCollectionTime.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCOldCollectionTime`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.JVMGCOldCollectionTime.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCYoungCollectionCount`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.JVMGCYoungCollectionCount.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCYoungCollectionCount`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.JVMGCYoungCollectionCount.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCYoungCollectionTime`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.JVMGCYoungCollectionTime.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMGCYoungCollectionTime`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.JVMGCYoungCollectionTime.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMMemoryPressure`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.JVMMemoryPressure.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.JVMMemoryPressure`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.JVMMemoryPressure.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SearchLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.SearchLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SearchLatency`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.SearchLatency.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SearchRate`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.SearchRate.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SearchRate`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.SearchRate.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SysMemoryUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.SysMemoryUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.SysMemoryUtilization`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.SysMemoryUtilization.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkQueue`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkQueue.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkQueue`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkQueue.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkRejected`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkRejected.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkRejected`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkRejected.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkThreads`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkThreads.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolBulkThreads`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolBulkThreads.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeQueue`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeQueue.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeQueue`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeQueue.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeRejected`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeRejected.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeRejected`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeRejected.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeThreads`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeThreads.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolForce_mergeThreads`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolForce_mergeThreads.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexQueue`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexQueue.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexQueue`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexQueue.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexRejected`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexRejected.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexRejected`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexRejected.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexThreads`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexThreads.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolIndexThreads`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolIndexThreads.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchQueue`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchQueue.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchQueue`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchQueue.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchRejected`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchRejected.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchRejected`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchRejected.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchThreads`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchThreads.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.es.ThreadpoolSearchThreads`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.es.ThreadpoolSearchThreads.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.BytesInPerSec`
-      </td>
-
-      <td>
-        `Broker`
-      </td>
-
-      <td>
-        `aws.kafka.BytesInPerSec.byBroker`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.BytesInPerSec`
-      </td>
-
-      <td>
-        `Topic`
-      </td>
-
-      <td>
-        `aws.kafka.BytesInPerSec.byTopic`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.BytesOutPerSec`
-      </td>
-
-      <td>
-        `Broker`
-      </td>
-
-      <td>
-        `aws.kafka.BytesOutPerSec.byBroker`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.BytesOutPerSec`
-      </td>
-
-      <td>
-        `Topic`
-      </td>
-
-      <td>
-        `aws.kafka.BytesOutPerSec.byTopic`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.FetchMessageConversionsPerSec`
-      </td>
-
-      <td>
-        `Broker`
-      </td>
-
-      <td>
-        `aws.kafka.FetchMessageConversionsPerSec.byBroker`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.FetchMessageConversionsPerSec`
-      </td>
-
-      <td>
-        `Topic`
-      </td>
-
-      <td>
-        `aws.kafka.FetchMessageConversionsPerSec.byTopic`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.MessagesInPerSec`
-      </td>
-
-      <td>
-        `Broker`
-      </td>
-
-      <td>
-        `aws.kafka.MessagesInPerSec.byBroker`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.MessagesInPerSec`
-      </td>
-
-      <td>
-        `Topic`
-      </td>
-
-      <td>
-        `aws.kafka.MessagesInPerSec.byTopic`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.ProduceMessageConversionsPerSec`
-      </td>
-
-      <td>
-        `Broker`
-      </td>
-
-      <td>
-        `aws.kafka.ProduceMessageConversionsPerSec.byBroker`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kafka.ProduceMessageConversionsPerSec`
-      </td>
-
-      <td>
-        `Topic`
-      </td>
-
-      <td>
-        `aws.kafka.ProduceMessageConversionsPerSec.byTopic`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.IncomingBytes`
-      </td>
-
-      <td>
-        `Stream`
-      </td>
-
-      <td>
-        `aws.kinesis.IncomingBytes.byStream`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.IncomingBytes`
-      </td>
-
-      <td>
-        `StreamShard`
-      </td>
-
-      <td>
-        `aws.kinesis.IncomingBytes.byStreamShard`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.IncomingRecords`
-      </td>
-
-      <td>
-        `Stream`
-      </td>
-
-      <td>
-        `aws.kinesis.IncomingRecords.byStream`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.IncomingRecords`
-      </td>
-
-      <td>
-        `StreamShard`
-      </td>
-
-      <td>
-        `aws.kinesis.IncomingRecords.byStreamShard`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.ReadProvisionedThroughputExceeded`
-      </td>
-
-      <td>
-        `Stream`
-      </td>
-
-      <td>
-        `aws.kinesis.ReadProvisionedThroughputExceeded.byStream`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.ReadProvisionedThroughputExceeded`
-      </td>
-
-      <td>
-        `StreamShard`
-      </td>
-
-      <td>
-        `aws.kinesis.ReadProvisionedThroughputExceeded.byStreamShard`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.WriteProvisionedThroughputExceeded`
-      </td>
-
-      <td>
-        `Stream`
-      </td>
-
-      <td>
-        `aws.kinesis.WriteProvisionedThroughputExceeded.byStream`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.kinesis.WriteProvisionedThroughputExceeded`
-      </td>
-
-      <td>
-        `StreamShard`
-      </td>
-
-      <td>
-        `aws.kinesis.WriteProvisionedThroughputExceeded.byStreamShard`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ConcurrentExecutions`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.ConcurrentExecutions.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ConcurrentExecutions`
-      </td>
-
-      <td>
-        `Region`
-      </td>
-
-      <td>
-        `aws.lambda.ConcurrentExecutions.byRegion`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.DeadLetterErrors`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.DeadLetterErrors.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.DeadLetterErrors`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.DeadLetterErrors.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Duration`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.Duration.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Duration`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.Duration.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Errors`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.Errors.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Errors`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.Errors.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Invocations`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.Invocations.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Invocations`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.Invocations.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.IteratorAge`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.IteratorAge.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.IteratorAge`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.IteratorAge.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrencyInvocations`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrencyInvocations.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrencyInvocations`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrencyInvocations.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrencySpilloverInvocations`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrencySpilloverInvocations.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrencySpilloverInvocations`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrencySpilloverInvocations.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrencyUtilization`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrencyUtilization.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrentExecutions`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrentExecutions.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.ProvisionedConcurrentExecutions`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.ProvisionedConcurrentExecutions.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Throttles`
-      </td>
-
-      <td>
-        `Function`
-      </td>
-
-      <td>
-        `aws.lambda.Throttles.byFunction`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.lambda.Throttles`
-      </td>
-
-      <td>
-        `FunctionAlias`
-      </td>
-
-      <td>
-        `aws.lambda.Throttles.byFunctionAlias`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.BackupRetentionPeriodStorageUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLag`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLag.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLag`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLag.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLag`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLag.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMaximum.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.ClusterReplicaLagMinimum.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.CPUUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.CPUUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.CPUUtilization`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.CPUUtilization.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.CPUUtilization`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.CPUUtilization.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.EngineUptime`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.EngineUptime.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.EngineUptime`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.EngineUptime.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.EngineUptime`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.EngineUptime.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.FreeableMemory`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.FreeableMemory.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.FreeableMemory`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.FreeableMemory.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.FreeableMemory`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.FreeableMemory.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinRequestsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinRequestsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinRequestsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinRequestsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinRequestsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinRequestsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.GremlinWebSocketOpenConnections.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.LoaderRequestsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.LoaderRequestsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.LoaderRequestsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.LoaderRequestsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.LoaderRequestsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.LoaderRequestsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.MainRequestQueuePendingRequests.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkReceiveThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkReceiveThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkReceiveThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkTransmitThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkTransmitThroughput.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NetworkTransmitThroughput.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxCommitted`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxCommitted.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxCommitted`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxCommitted.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxCommitted`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxCommitted.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxOpened`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxOpened.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxOpened`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxOpened.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxOpened`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxOpened.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxRolledBack`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxRolledBack.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxRolledBack`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxRolledBack.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.NumTxRolledBack`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.NumTxRolledBack.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.SnapshotStorageUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.SnapshotStorageUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SnapshotStorageUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.SnapshotStorageUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SparqlRequestsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.SparqlRequestsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SparqlRequestsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.SparqlRequestsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.SparqlRequestsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.SparqlRequestsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.TotalBackupStorageBilled.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.TotalBackupStorageBilled.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalBackupStorageBilled`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.TotalBackupStorageBilled.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.TotalClientErrorsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalRequestsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.TotalRequestsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalRequestsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.TotalRequestsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalRequestsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.TotalRequestsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.TotalServerErrorsPerSec.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeBytesUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeBytesUsed.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeBytesUsed.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeReadIOPs.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeReadIOPs.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeReadIOPs.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeWriteIOPs.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `ClusterByRole`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeWriteIOPs.byClusterByRole`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.neptune.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `Instance`
-      </td>
-
-      <td>
-        `aws.neptune.VolumeWriteIOPs.byInstance`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.rds.VolumeBytesUsed`
-      </td>
-
-      <td>
-        `DbCluster`
-      </td>
-
-      <td>
-        `aws.rds.VolumeBytesUsed.byDbCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.rds.VolumeReadIOPs`
-      </td>
-
-      <td>
-        `DbCluster`
-      </td>
-
-      <td>
-        `aws.rds.VolumeReadIOPs.byDbCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.rds.VolumeWriteIOPs`
-      </td>
-
-      <td>
-        `DbCluster`
-      </td>
-
-      <td>
-        `aws.rds.VolumeWriteIOPs.byDbCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.CPUUtilization`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.CPUUtilization.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.CPUUtilization`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.CPUUtilization.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.DatabaseConnections`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.DatabaseConnections.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.DatabaseConnections`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.DatabaseConnections.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.HealthStatus`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.HealthStatus.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.HealthStatus`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.HealthStatus.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.MaintenanceMode`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.MaintenanceMode.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.MaintenanceMode`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.MaintenanceMode.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.NetworkReceiveThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.NetworkReceiveThroughput`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.NetworkReceiveThroughput.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.NetworkTransmitThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.NetworkTransmitThroughput`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.NetworkTransmitThroughput.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.PercentageDiskSpaceUsed`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.PercentageDiskSpaceUsed.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.PercentageDiskSpaceUsed`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.PercentageDiskSpaceUsed.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadIOPS`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.ReadIOPS.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadIOPS`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.ReadIOPS.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.ReadLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadLatency`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.ReadLatency.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.ReadThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.ReadThroughput`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.ReadThroughput.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteIOPS`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.WriteIOPS.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteIOPS`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.WriteIOPS.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteLatency`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.WriteLatency.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteLatency`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.WriteLatency.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteThroughput`
-      </td>
-
-      <td>
-        `Cluster`
-      </td>
-
-      <td>
-        `aws.redshift.WriteThroughput.byCluster`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.redshift.WriteThroughput`
-      </td>
-
-      <td>
-        `Node`
-      </td>
-
-      <td>
-        `aws.redshift.WriteThroughput.byNode`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ConsumedCapacity`
-      </td>
-
-      <td>
-        `ApiUsage`
-      </td>
-
-      <td>
-        `aws.states.ConsumedCapacity.byApiUsage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ConsumedCapacity`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.states.ConsumedCapacity.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ProvisionedBucketSize`
-      </td>
-
-      <td>
-        `ApiUsage`
-      </td>
-
-      <td>
-        `aws.states.ProvisionedBucketSize.byApiUsage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ProvisionedBucketSize`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.states.ProvisionedBucketSize.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ProvisionedRefillRate`
-      </td>
-
-      <td>
-        `ApiUsage`
-      </td>
-
-      <td>
-        `aws.states.ProvisionedRefillRate.byApiUsage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ProvisionedRefillRate`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.states.ProvisionedRefillRate.byService`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ThrottledEvents`
-      </td>
-
-      <td>
-        `ApiUsage`
-      </td>
-
-      <td>
-        `aws.states.ThrottledEvents.byApiUsage`
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `aws.states.ThrottledEvents`
-      </td>
-
-      <td>
-        `Service`
-      </td>
-
-      <td>
-        `aws.states.ThrottledEvents.byService`
-      </td>
-    </tr>
-  </tbody>
-</table>
+* Certifique-se de que os fluxos métricos estejam habilitados apenas nas contas e regiões AWS que você deseja monitor com New Relic.
+* <DNT>**Use the inclusion and exclusion filters**</DNT> no CloudWatch Metric Streams para selecionar quais serviços ou namespaces estão sendo monitorados pelo New Relic.
+* Considere usar [regras de eliminação de dados](/docs/telemetry-data-platform/manage-data/drop-data-using-nerdgraph/) para descartar métricas com base em filtros personalizados. (Por exemplo, elimine a métrica por namespace e tag, valor tag ou qualquer outro critério NRQL válido.)
 
 ## Métrica de pesquisa de API [#aws-metrics-table]
 

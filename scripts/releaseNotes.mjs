@@ -63,12 +63,17 @@ const INCLUDE_AGENTS = new Set([
   'infrastructure',
   'ios',
   'java',
+  'kubernetes',
+  'pipeline_control_gateway', 
   'node',
   'nodejs',
   'php',
   'python',
   'ruby',
   'sdk',
+  'fluentbit',
+  'nrdot',
+  'prometheus'
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {
@@ -92,6 +97,7 @@ const generateReleaseNoteObject = async (filePath) => {
     features: attributes.features ?? null,
     bugs: attributes.bugs ?? null,
     security: attributes.security ?? null,
+    supportedOperatingSystems: attributes.supportedOperatingSystems ?? null,
     description: (await excerptify(body)) ?? null,
     slug,
   };
@@ -137,9 +143,8 @@ const validateReleaseNotesAgents = (releaseNotes) => {
   const errors = [];
 
   JSON_AGENTS.forEach((agent) => {
-    const agentsCount = releaseNotes.filter(
-      (note) => note.agent === agent
-    ).length;
+    const agentsCount = releaseNotes.filter((note) => note.agent === agent)
+      .length;
     if (agentsCount < 1) {
       const message = `\n😵 No release notes found for ${agent}`;
       errors.push(message);
@@ -198,3 +203,5 @@ if (uploadToS3) {
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
+
+ 

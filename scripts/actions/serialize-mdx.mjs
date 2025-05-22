@@ -5,6 +5,7 @@ import toMDAST from 'remark-parse10';
 import frontmatter from 'remark-frontmatter5';
 import remarkMdx from 'remark-mdx2.3';
 import remark2rehype from 'remark-rehype10';
+import remarkGfm from 'remark-gfm';
 import addClasses from 'rehype-add-classes';
 import rehypeStringify from 'rehype-stringify10';
 import format from 'rehype-format';
@@ -42,6 +43,7 @@ const mdxSpanExpression = (h, node) => {
 const processor = unified()
   .use(toMDAST)
   .use(remarkMdx)
+  .use(remarkGfm)
   .use(frontmatter, ['yaml'])
   .use(fencedCodeBlock)
   .use(customHeadingIds)

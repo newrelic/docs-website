@@ -1,0 +1,168 @@
+---
+title: Catálogos
+tag:
+  - Service Architecture Intelligence
+  - Catalogs
+  - Software Catalog
+metaDescription: 'Catalogs offer a single pane view to enhance the observability and management of software systems in your organization. The unified view of system entities facilitates well-informed decision-making, streamlined operations, and improved collaboration across teams.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta función se proporciona actualmente como parte de una vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+New Relic Catalogs proporciona una vista de panel único que mejora la observabilidad y la gestión de los sistemas en toda su organización. Al ofrecer una perspectiva unificada sobre la entidad, permite a los equipos tomar decisiones bien informadas, agilizar las operaciones y colaborar de forma más eficaz.
+
+Con Catálogos, usted puede identificar y centrar rápidamente en la información más relevante, garantizando un acceso fácil a lo que más importa. Sirve como la única fuente confiable, que permite al usuario descubrir, gestionar y optimizar sus sistemas con confianza.
+
+Mediante la consolidación de datos de múltiples fuentes, incluidos <DNT>[Teams](/docs/service-architecture-intelligence/teams/teams)</DNT>, <DNT>[Scorecards](/docs/service-architecture-intelligence/scorecards/getting-started)</DNT>, <DNT>[Maps](/docs/service-architecture-intelligence/maps/advanced-maps/)</DNT> y <DNT>[repository](/docs/codestream/observability/repo-association/)</DNT> en una única interfaz. Los catálogos reemplazan la vista <DNT>All Entities</DNT> y ofrecen una experiencia más estructurada y detallada. Proporciona una descripción general completa de entidades de alto valor, enriquecida con metadatos detallados e información valiosa y procesable, lo que ayuda a los equipos a mantener alineados y eficientes.
+
+## Característica clave [#features]
+
+* **Vista unificada**: los catálogos están integrados con varias fuentes como <DNT>[Teams](/docs/service-architecture-intelligence/teams/teams)</DNT>, <DNT>[Scorecards](/docs/service-architecture-intelligence/scorecards/getting-started)</DNT>, <DNT>[Maps](/docs/service-architecture-intelligence/maps/advanced-maps/)</DNT> y <DNT>[repository](/docs/codestream/observability/repo-association/)</DNT> en una única interfaz cohesiva. Esto muestra tipos de entidades de alto valor con metadatos detallados que incluyen métricas doradas e información valiosa para proporcionar una comprensión más profunda del estado del sistema.
+
+* **Experiencia personalizada**: <DNT>Software Catalogs</DNT> permite al usuario personalizar su vista para centrar en el contenido más relevante. Esto ayuda al usuario a optimizar el flujo de trabajo y mejorar la productividad.
+
+* **Integración perfecta**: <DNT>Software Catalogs</DNT> conecta al usuario con otras capacidades New Relic para permitirle explorar datos en profundidad y obtener una comprensión completa de la entidad.
+
+* **Propiedad**: <DNT>Catalogs</DNT> muestra la información de propiedad de la entidad en la columna <DNT>Teams</DNT> . Pase el cursor sobre el enlace <DNT>Teams</DNT> para obtener más información. Haga clic en el enlace <DNT>Teams</DNT> para visitar la página <DNT>Teams Hub</DNT> . Para obtener más información, consulte <DNT>[Teams](/docs/service-architecture-intelligence/teams/teams)</DNT>.
+
+* **<DNT>Score</DNT>**: <DNT>Software Catalogs</DNT> está integrado con Scorecards para mostrar cómo se está desempeñando su entidad en relación con las mejores prácticas definidas por la compañía. Para obtener más información, consulte <DNT>[Scorecards.](/docs/service-architecture-intelligence/scorecards/getting-started)</DNT>
+
+## Empezando [#getting-started]
+
+### Habilitar los catálogos [#enable-catalogs]
+
+**Para integrar el inventario de catálogos:**
+
+1. Inicie sesión en su plataforma New Relic.
+
+2. Vaya al **panel de navegación izquierdo &gt; All Entities**.
+
+3. Haga clic en el botón **Try It Now** .
+
+4. Siga las instrucciones en pantalla y acepte los términos y condiciones para completar la incorporación. Luego de completar el embarque, se mostrará la página Catálogos, reemplazando la página <DNT>All Entities</DNT> .
+
+   /\* &lt;img title=&quot;Catálogo&quot; alt=&quot;Catálogo&quot; src=\{CatalogHome} /&gt; \*/
+
+   <Callout variant="tip" title="Consejo">
+     Para volver a la página <DNT>All Entities</DNT> , consulte [Volver a todas las entidades](#back-entities).
+   </Callout>
+
+### Personalizar la vista [#personalized-view]
+
+Puede personalizar la vista <DNT>Catalogs</DNT> para agregar o eliminar filtros y columnas según sus preferencias. Esto le permite centrar en el contenido más relevante y agilizar su flujo de trabajo.
+
+/\* &lt;img title=&quot;Filtros en el catálogo&quot; alt=&quot;Filtros en el catálogo&quot; src=\{CatalogFilters} /&gt; \*/
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Acción
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Para agregar filtros
+      </td>
+
+      <td>
+        Haga clic en el ícono más 
+
+        <DNT>(+)</DNT>
+
+         en el panel superior y seleccione el filtro requerido de la lista. Puede agregar varios filtros para refinar su búsqueda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Para mostrar u ocultar columnas
+      </td>
+
+      <td>
+        Haga clic en el ícono de engranaje en el panel derecho y seleccione o deseleccione las columnas que desee mostrar u ocultar.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### Almacenar y acceder a la vista personalizada
+
+Puede almacenar su vista personalizada para acceder rápidamente.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Acción
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Para almacenar una vista
+      </td>
+
+      <td>
+        En la parte superior izquierda, haga clic en 
+
+        <DNT>Save view</DNT>
+
+         junto al título de la capacidad Catálogos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Para acceder a una vista almacenada
+      </td>
+
+      <td>
+        Haga clic en el título de la capacidad Catálogos para mostrar una lista de 
+
+        <DNT>Save view</DNT>
+
+         disponibles.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Volver a toda la entidad [#back-entities]
+
+La nueva vista Catálogos reemplaza la capacidad <DNT>All Entities</DNT> de la navegación. Si necesita encontrar tipos de entidades distintos a las admitidas en <DNT>Catalogs</DNT>, emplee la búsqueda global <DNT>Quick Find `(cmd + K or ctrl+K)`</DNT> o búsquelos en sus capacidades correspondientes, como infraestructura, sintéticos, carga de trabajo, nivel de servicio y más.
+
+<Callout variant="tip" title="Consejo">
+  Cualquier enlace, vínculo permanente o vista almacenada que haga referencia a <DNT>All Entities</DNT> seguirá funcionando como se espera, independientemente de si estás en la nueva experiencia <DNT>Catalogs</DNT> o si decides volver a <DNT>All Entities</DNT>.
+</Callout>
+
+Para volver a la página <DNT>All Entities</DNT> :
+
+1. Inicie sesión en su plataforma New Relic.
+2. Vaya al **panel de navegación izquierdo &gt; Catalogs**.
+3. Haga clic en el botón <DNT>**Switch back to all entities**</DNT> . Esto habilita la experiencia New Relic <DNT>All Entities</DNT> .
+
+<Callout variant="tip" title="Consejo">
+  Para volver a la vista <DNT>Catalogs</DNT> , haga clic en el botón <DNT>**Try it out**</DNT> en el banner, debajo de la barra de filtro de entidad.
+</Callout>
+
+/\* &lt;img title=&quot;Catálogo&quot; alt=&quot;Catálogo&quot; src=\{CatalogHome} /&gt; \*/
