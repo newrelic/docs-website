@@ -1,0 +1,11 @@
+---
+title: Agente multimedia para Android
+tags: null
+metaDescription: Release notes for Android
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Nuevo
+
+* La versión del rastreador Android New Relic es 3.0.0

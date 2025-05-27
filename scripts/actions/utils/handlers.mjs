@@ -133,9 +133,14 @@ export default {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  DocTile: {
+  DeveloperIcons: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  DocTile: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, { tagName: 'div', textAttributes: ['title'] }),
   },
   DocTiles: {
     deserialize: deserializeComponent,

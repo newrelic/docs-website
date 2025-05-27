@@ -1,0 +1,317 @@
+---
+title: Lier les applications instrumentées APM à Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: Connect New Relic's Kubernetes monitoring with New Relic's APM monitoring of applications.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Vous pouvez faire apparaître les métadonnées Kubernetes et les lier à vos [agents APM](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#agent-compatibility) sous forme [de traces distribuées](/docs/understand-dependencies/distributed-tracing/get-started/introduction-distributed-tracing) pour explorer les problèmes de performances et résoudre les erreurs de transaction. Pour plus d&apos;informations, consultez [cet article de blog sur le monitoring des performances des applications via Kubernetes](https://blog.newrelic.com/engineering/monitoring-application-performance-in-kubernetes/).
+
+Le produit injection métadonnée utilise un `MutatingAdmissionWebhook` pour ajouter les variables d&apos;environnement suivantes au pod :
+
+```yaml
+NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME
+NEW_RELIC_METADATA_KUBERNETES_NODE_NAME
+NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME
+NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME
+NEW_RELIC_METADATA_KUBERNETES_POD_NAME
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME
+```
+
+<Callout variant="tip">
+  Notre projet d&apos;injection de métadonnées Kubernetes est open source. Voici le [code pour lier les données APM et d&apos;infrastructure](https://github.com/newrelic/k8s-metadata-injection).
+</Callout>
+
+## Compatibilité et exigences [#compatibility]
+
+Pour connecter vos applications à Kubernetes, vous devez pouvoir déployer « MutatingWebhookConfiguration » sur votre cluster Kubernetes.
+
+Pour vérifier que vous disposez des autorisations requises, exécutez cette commande :
+
+```shell
+kubectl auth can-i create mutatingwebhookconfigurations.admissionregistration.k8s.io -A
+```
+
+Le résultat de la commande ci-dessus devrait ressembler à :
+
+```shell
+yes
+```
+
+Si vous voyez un résultat différent, suivez la documentation Kubernetes pour [activer le contrôle d&apos;admission dans votre cluster](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-controller).
+
+### Exigences réseau [#network-req]
+
+Pour que Kubernetes puisse communiquer avec notre `MutatingAdmissionWebhook`, le nœud control plane (ou le conteneur du serveur API, selon la configuration du cluster ) doit autoriser la sortie du trafic HTTPS sur le port 443 vers le pod de tous les autres nœuds du cluster.
+
+Cela peut nécessiter une configuration spécifique en fonction de la configuration de votre infrastructure (sur site, AWS, Google Cloud, etc.).
+
+### Compatibilité de l&apos;agent APM [#agent-compatibility]
+
+Les agents New Relic suivants collectent les métadonnées Kubernetes :
+
+* [Version Go 2.3.0 ou supérieure](/docs/agents/go-agent/installation/install-new-relic-go#get-new-relic)
+* [Java 4.10.0 ou supérieur](/docs/agents/java-agent/installation/upgrade-java-agent)
+* [Node.js 5.3.0 ou supérieur](/docs/agents/nodejs-agent/installation-configuration/upgrade-nodejs-agent)
+* [Python 4.14.0 ou supérieur](/docs/agents/python-agent/installation-configuration/upgrade-python-agent)
+* [Ruby 6.1.0 ou supérieur](/docs/agents/ruby-agent/installation/upgrade-ruby-agent-versions)
+* [.NET 8.17.438 ou supérieur](/docs/agents/net-agent/installation/update-net-agent)
+
+## Configurer l&apos;injection de métadonnées [#configure-injection]
+
+Lorsque vous [installez notre intégration à l’aide de Helm](/install/kubernetes/?dropdown1=helm), elle inclut l’injection de métadonnées. Lors de la configuration du graphique [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) , assurez-vous d&apos;activer le webhook d&apos;injection de métadonnées comme suit.
+
+```yaml
+nri-metadata-injection:
+    enabled: true
+```
+
+**Important :** votre pod d&apos;application devra être redémarré après le déploiement de nri-metadata-injection, afin qu&apos;il puisse récupérer les variables d&apos;environnement nécessaires.
+
+Par défaut, tous les pods que vous créez qui incluent des agents APM ont les variables d&apos;environnement correctes définies et l&apos; injection de métadonnées s&apos;applique à l&apos;ensemble cluster. Pour vérifier que les variables d&apos;environnement ont été définies, tout conteneur en cours d&apos;exécution doit être arrêté et une nouvelle instance démarrée. Voir [Valider l&apos;injection de métadonnées](/docs/integrations/kubernetes-integration/link-your-applications/link-your-applications-kubernetes/#validate-injection) pour plus d&apos;informations.
+
+Cette configuration par défaut utilise également l&apos; [API des certificats Kubernetes](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/) pour gérer automatiquement les certificats requis pour l&apos;injection. Si besoin, vous pouvez limiter l&apos; injection de métadonnées à un espace de nommage spécifique de votre cluster ou autogérer vos certificats.
+
+## Configuration personnalisée [#custom-configuration]
+
+### Limiter l&apos;espace de nommage soumis à injection [#limit-namespaces]
+
+Vous pouvez limiter l&apos; injection de métadonnées uniquement à un espace de nommage spécifique en utilisant des étiquettes.
+
+Pour activer cette fonctionnalité, ajoutez ce qui suit au fichier `values-newrelic.yaml` :
+
+```yaml
+nri-metadata-injection:
+    injectOnlyLabeledNamespaces: true
+```
+
+Avec cette option, injection est uniquement appliquée aux espaces de nommage dont l&apos;étiquette `newrelic-metadata-injection` est définie sur `enabled`:
+
+```shell
+kubectl label namespace YOUR_NAMESPACE newrelic-metadata-injection=enabled
+```
+
+### Utilisez cert-manager pour générer des certificats [#cert-manager]
+
+Par défaut, notre graphique utilise [`kube-webhook-certgen`](https://github.com/kubernetes/ingress-nginx/tree/main/images/kube-webhook-certgen) pour générer automatiquement les certificats requis pour l&apos;exécution du webhook.
+
+Cependant, si vous avez installé [cert-manager](https://cert-manager.io/) , vous pouvez configurer notre graphique pour l&apos;utiliser à la place, ce qui peut rendre le déploiement beaucoup plus facile :
+
+```yaml
+nri-metadata-injection:
+  certManager:
+    enabled: true
+```
+
+### Gérer les certificats personnalisés [#option-activation]
+
+<Callout variant="tip">
+  La gestion manuelle des certificats webhook est recommandée uniquement aux utilisateurs avancés. L&apos;équipe d&apos;assistance de New Relic ne pourra peut-être pas vous aider à résoudre ce configuration.
+</Callout>
+
+Pour utiliser des certificats personnalisés, vous devez désactiver l&apos;installation automatique des certificats lorsque vous effectuez l&apos;installation à l&apos;aide de Helm.
+
+Pour désactiver l&apos;installation des certificats, modifiez simplement nri-bundle Helm `values.yaml` comme ceci :
+
+```yaml
+nri-metadata-injection:
+  customTLSCertificate: true
+```
+
+Vous pouvez maintenant procéder à l’option de gestion des certificats personnalisés. Vous avez besoin de votre certificat, de votre clé de serveur et de votre ensemble d&apos;autorité de certification (CA) codés au format PEM.
+
+* Si vous les avez au format de certificat standard (X.509), installez `openssl` et exécutez ce qui suit :
+
+  ```shell
+  openssl x509 -in YOUR_CERTIFICATE_FILENAME -outform PEM -out YOUR_CERTIFICATE_FILENAME.pem
+  openssl x509 -in YOUR_SERVER_KEY_FILENAME -outform PEM -out YOUR_SERVER_KEY_FILENAME.pem
+  openssl x509 -in YOUR_CA_BUNDLE_FILENAME -outform PEM -out YOUR_BUNDLE_FILENAME.pem
+  ```
+
+* Si votre certificat et votre paire de clés sont dans un autre format, consultez la [base de connaissances Digicert](https://knowledge.digicert.com/solution/SO26449.html) pour obtenir de l&apos;aide.
+
+Créez le secret TLS avec la paire certificat/clé signée et corrigez la configuration du webhook en mutation avec l&apos;autorité de certification à l&apos;aide des commandes suivantes :
+
+```shell
+kubectl create secret tls YOUR_NEWRELIC_METADATA_INJECTION_ADMISSION \
+  --key=YOUR_PEM_ENCODED_SERVER_KEY \
+  --cert=YOUR_PEM_ENCODED_CERTIFICATE \
+  --dry-run -o yaml |
+kubectl -n newrelic apply -f -
+
+caBundle=$(cat YOUR_PEM_ENCODED_CA_BUNDLE | base64 | td -d $'\n')
+kubectl patch mutatingwebhookconfiguration newrelic-metadata-injection-cfg --type='json' -p "[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"
+```
+
+<Callout variant="important">
+  Les certificats signés par Kubernetes ont une durée d&apos;expiration d&apos;un an. Pour plus d&apos;informations, consultez le [code source de Kubernetes sur GitHub](https://github.com/kubernetes/kubernetes/blob/1b28775db1290a772967d192a19a8ec447053cd5/pkg/controller/apis/config/v1alpha1/defaults.go#L118).
+</Callout>
+
+## Valider l&apos;injection de métadonnées [#validate-injection]
+
+lancer un nouveau pod et vérifier les variables d&apos;environnement New Relic pour vérifier la bonne installation du webhook responsable de l&apos;injection du fichier méta.
+
+1. Créez un pod nginx factice en exécutant :
+
+   ```shell
+   kubectl run test-nginx --image nginx -n newrelic
+   ```
+
+2. Vérifiez si les variables d’environnement New Relic ont été injectées :
+
+   ```shell
+   kubectl exec -n newrelic test-nginx -- env | grep NEW_RELIC_METADATA_KUBERNETES
+   ```
+
+Le résultat attendu serait quelque chose comme ce qui suit :
+
+```ini
+NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME=THE_CLUSTER_NAME
+NEW_RELIC_METADATA_KUBERNETES_NODE_NAME=nodea
+NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME=newrelic
+NEW_RELIC_METADATA_KUBERNETES_POD_NAME=test-nginx
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME=nginx
+```
+
+## Désactiver l&apos;injection de métadonnées [#uninstall]
+
+Pour désinstaller l&apos;injection de métadonnées, modifiez votre fichier `values-newrelic.yaml` comme suit :
+
+```yaml
+webhook:
+    enabled: false
+```
+
+Après cela, exécutez à nouveau la [commande d’installation](/install/kubernetes/?dropdown1=helm).
+
+## Dépannage [#metadata-troubleshooting]
+
+Suivez ces conseils de dépannage si nécessaire.
+
+<CollapserGroup>
+  <Collapser id="no-metadata-in-apm" title="Pas de métadonnées Kubernetes dans APM ni de tracing des transactions distribuées">
+    ### Problème
+
+    La création du secret par la tâche `k8s-webhook-cert-manager` échouait en raison de la version `kubectl` utilisée par l&apos;image lors de l&apos;exécution dans Kubernetes version 1.19.x, La nouvelle version [1.3.2](https://github.com/newrelic/k8s-webhook-cert-manager/releases/tag/v1.3.2) corrige ce problème, il suffit donc de réexécuter le travail en utilisant une version de mise à jour de l&apos;image pour résoudre le problème.
+
+    ### Solution
+
+    1. Mettez à jour l&apos;image `k8s-webhook-cert-manager` vers une version &gt;= [1.3.2](https://github.com/newrelic/k8s-webhook-cert-manager/releases/tag/v1.3.2) et réexécutez le travail.
+    2. Vérifiez que le secret a été créé correctement et que le pod `k8s-metadata-injection` démarre.
+    3. Notez que la nouvelle version du manifeste et du [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) sont déjà mises à jour avec la version correcte de l&apos;image.
+  </Collapser>
+
+  <Collapser id="no-metadata-in-transactions-attributes" title="Aucune métadonnées Kubernetes dans l'attribut transaction">
+    ### Problème
+
+    Aucune métadonnées Kubernetes n&apos;est incluse dans l&apos;attribut de transaction de votre agent APM ou dans le tracing distribué.
+
+    ### Solution
+
+    1. Vérifiez que les variables d&apos;environnement injectées sont correctement définies en suivant les instructions décrites dans la section [Valider l&apos;injection des métadonnées](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#validate-injection) .
+
+    2. S&apos;ils n&apos;existent pas, récupérez le nom du pod d&apos;injection de métadonnées en exécutant :
+
+       ```shell
+       kubectl get pods | grep newrelic-metadata-injection-deployment
+       kubectl logs -f pod/my-pod
+       ```
+
+    3. Dans un autre terminal, créez un nouveau pod et inspectez le log du déploiement de l&apos; injection de métadonnées pour détecter les erreurs. Voir la section [Valider l’injection de métadonnées](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#validate-injection) pour créer un nouveau pod. Pour chaque pod créé, il devrait y avoir un ensemble de 4 nouvelles entrées dans le log, telles que :
+
+       ```json
+       {"level":"info","ts":"2020-04-09T12:55:32.107Z","caller":"server/main.go:139","msg":"POST https://newrelic-metadata-injection-svc.default.svc:443/mutate?timeout=30s HTTP/2.0\" from 10.11.49.2:32836"}
+       {"level":"info","ts":"2020-04-09T12:55:32.110Z","caller":"server/webhook.go:168","msg":"received admission review","kind":"/v1, Kind=Pod","namespace":"default","name":"","pod":"busybox1","UID":"6577519b-7a61-11ea-965e-0e46d1c9335c","operation":"CREATE","userinfo":{"username":"admin","uid":"admin","groups":["system:masters","system:authenticated"]}}
+       {"level":"info","ts":"2020-04-09T12:55:32.111Z","caller":"server/webhook.go:182","msg":"admission response created","response":"[{\"op\":\"add\",\"path\":\"/spec/containers/0/env\",\"value\":[{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME\",\"value\":\"adn_kops\"}]},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_NODE_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"spec.nodeName\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME\",\"value\":\"busybox\"}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME\",\"value\":\"busybox\"}}]"}
+       {"level":"info","ts":"2020-04-09T12:55:32.111Z","caller":"server/webhook.go:257","msg":"writing response"}
+       ```
+
+       S&apos;il n&apos;y a pas de nouvelles entrées dans le log, cela signifie que le serveur API ne peut pas communiquer avec le service webhook, cela peut être dû à des règles réseau ou à des groupes de sécurité rejetant la communication.
+
+    4. Pour vérifier si le serveur API ne parvient pas à communiquer avec le webhook, vous devez inspecter le log du serveur API pour rechercher des erreurs telles que :
+
+       ```shell
+       failed calling webhook "metadata-injection.newrelic.com": THE_ERROR_REASON
+       ```
+
+    Pour obtenir le log du serveur API :
+
+    1. Démarrez un proxy vers le serveur API Kubernetes en exécutant cette commande dans une fenêtre de terminal et maintenez-le en cours d&apos;exécution.
+
+       ```shell
+       kubectl proxy --port=8001
+       ```
+
+    2. Créez un nouveau pod dans votre cluster, cela obligera le serveur API à essayer de communiquer avec le webhook. Cette commande créera une busybox.
+
+       ```shell
+       kubectl create -f https://git.io/vPieo
+       ```
+
+    3. Récupérer le log du serveur API.
+
+       ```shell
+       curl localhost:8001/logs/kube-apiserver.log > apiserver.log
+       ```
+
+    4. Supprimez le conteneur busybox.
+
+       ```shell
+       kubectl delete -f https://git.io/vPieo
+       ```
+
+    5. Inspectez le log pour détecter les erreurs.
+
+       ```shell
+       grep -E 'failed calling webhook' apiserver.log
+       ```
+
+       <Callout variant="tip">
+         L’une des [exigences pour l’ injectionde métadonnées](#network-req) est que le serveur API doit être autorisé à sortir vers le pod exécuté sur le cluster. Si vous rencontrez des erreurs concernant les délais de connexion ou les connexions ayant échoué, assurez-vous de vérifier les groupes de sécurité et les règles de pare-feu du cluster.
+       </Callout>
+
+    6. S&apos;il n&apos;y a aucune entrée log dans le log du serveur API ou dans la métadonnées de déploiement injection , cela signifie que le webhook n&apos;a pas été enregistré correctement.
+
+    7. Assurez-vous que la tâche de configuration de l&apos;injection de métadonnées s&apos;est exécutée avec succès en inspectant la sortie de cette commande :
+
+       ```shell
+       kubectl get job newrelic-metadata-setup
+       ```
+
+    8. Si la tâche n&apos;est pas terminée, examinez le log de la tâche d&apos;installation :
+
+       ```shell
+       kubectl logs job/newrelic-metadata-setup
+       ```
+
+    9. Assurez-vous que le `CertificateSigningRequest` est approuvé et émis en exécutant cette commande :
+
+       ```shell
+       kubectl get csr newrelic-metadata-injection-svc.default
+       ```
+
+    10. Assurez-vous que le secret TLS est présent en exécutant cette commande :
+
+        ```shell
+        kubectl get secret newrelic-metadata-injection-secret
+        ```
+
+    11. Assurez-vous que le bundle CA est présent dans la configuration du webhook en mutation :
+
+        ```shell
+        kubectl get mutatingwebhookconfiguration newrelic-metadata-injection-cfg -o json
+        ```
+
+    12. Assurez-vous que le `TargetPort` de la ressource <DNT>**Service**</DNT> correspond au <DNT>**Port**</DNT> du conteneur <DNT>**Deployment**</DNT>:
+
+        ```shell
+        kubectl describe service/newrelic-metadata-injection-svc
+        kubectl describe deployment/newrelic-metadata-injection-deployment
+        ```
+  </Collapser>
+</CollapserGroup>

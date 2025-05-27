@@ -1,0 +1,217 @@
+---
+title: 'ECS intégration dépannage : Aucune donnée n''apparaît'
+type: troubleshooting
+tags:
+  - Integrations
+  - Elastic Container Service integration
+  - Troubleshooting
+metaDescription: Troubleshooting tips for when New Relic's on-host Amazon ECS integration is not reporting data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+Vous avez installé notre [intégration ECS sur hôte](/docs/introduction-amazon-ecs-integration) et attendu quelques minutes, mais votre cluster n&apos;apparaît pas dans la [liste des entités](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find).
+
+<Callout variant="important">
+  Nous avons deux intégrations ECS : une [intégration basée sur le cloud](/docs/integrations/amazon-integrations/aws-integrations-list/aws-ecsecr-monitoring-integration) et une intégration sur hôte. Ce document concerne l&apos;intégration sur hôte.
+</Callout>
+
+## Solution
+
+Si vous avez déjà installé l&apos;agent infrastructure ou une intégration infrastructure sur hôte, vos données devraient apparaître dans [l&apos;UI](/docs/ecs-integration-understand-use-data) en quelques minutes.
+
+Si vous n’avez effectué aucune de ces opérations avant d’installer l’intégration ECS sur l’hôte, il faudra peut-être des dizaines de minutes pour que les données apparaissent dans l’ UI. Dans ce cas, nous vous recommandons d&apos;attendre jusqu&apos;à une heure avant d&apos;effectuer les étapes de dépannage suivantes ou de contacter le support.
+
+Il existe plusieurs options pour le dépannage aucune donnée n&apos;apparaissant :
+
+* [Dépannage via l&apos;outil awscli](#awscli) (recommandé lors de la discussion avec le support technique de New Relic)
+* [Dépannage via l&apos;UI](#ui)
+
+Pour plus d&apos;informations sur les tâches arrêtées, voir [Raisons des tâches arrêtées](#stopped-tasks).
+
+### Dépannage via awscli [#awscli]
+
+Lorsque vous interagissez avec le support New Relic, utilisez cette méthode et envoyez les fichiers générés avec votre demande d&apos;assistance :
+
+1. Récupérer les informations relatives au service `newrelic-infra` ou au service Fargate qui contient une tâche avec un sidecar `newrelic-infra` :
+
+   ```sh
+   aws ecs describe-services --cluster YOUR_CLUSTER_NAME --service newrelic-infra > newrelic-infra-service.json
+   ```
+
+   ```sh
+   aws ecs describe-services --cluster YOUR_CLUSTER_NAME --service YOUR_FARGATE_SERVICE_WITH_NEW_RELIC_SIDECAR > newrelic-infra-sidecar-service.json
+   ```
+
+2. L&apos;attribut `failures` détaille toutes les erreurs des services.
+
+3. Sous `services` se trouve l&apos;attribut `status` . Il indique `ACTIVE` si le service ne présente aucun problème.
+
+4. Le `desiredCount` doit correspondre au `runningCount`. Il s’agit du nombre de tâches traitées par le service. Étant donné que nous utilisons le type de service daemon, il doit y avoir une tâche par instance de conteneur dans votre cluster. L&apos;attribut `pendingCount` doit être nul, car toutes les tâches doivent être en cours d&apos;exécution.
+
+5. Inspectez l’attribut `events` de `services` pour vérifier les problèmes de planification ou de démarrage des tâches. Par exemple : si le service ne parvient pas à démarrer les tâches avec succès, il affichera un message du type :
+
+   ```json
+   {
+     "id": "5295a13c-34e6-41e1-96dd-8364c42cc7a9",
+     "createdAt": "2020-04-06T15:28:18.298000+02:00",
+     "message": "(service newrelic-ifnra) is unable to consistently start tasks successfully. For more information, see the Troubleshooting section of the Amazon ECS Developer Guide."
+   }
+   ```
+
+6. Dans la même section, vous pouvez également voir quelles tâches ont été démarrées par le service à partir de l&apos;événement :
+
+   ```json
+   {
+     "id": "1c0a6ce2-de2e-49b2-b0ac-6458a804d0f0",
+     "createdAt": "2020-04-06T15:27:49.614000+02:00",
+     "message": "(service fargate-fail) has started 1 tasks: (task YOUR_TASK_ID)."
+   }
+   ```
+
+7. Récupérez les informations liées à la tâche avec cette commande :
+
+   ```sh
+   aws ecs describe-tasks --tasks YOUR_TASK_ID --cluster YOUR_CLUSTER_NAME > newrelic-infra-task.json
+   ```
+
+8. Les `desiredStatus` et `lastStatus` doivent être `RUNNING`. Si la tâche n&apos;a pas pu démarrer normalement, elle aura un statut `STOPPED` .
+
+9. Inspectez les `stopCode` et `stoppedReason`. Un exemple de raison : une tâche qui n&apos;a pas pu être démarrée parce que le rôle d&apos;exécution de tâche ne dispose pas des autorisations appropriées pour télécharger le secret contenant la clé de licence aurait la sortie suivante :
+
+   ```json
+   "stopCode": "TaskFailedToStart",
+   "stoppedAt": "2020-04-06T15:28:54.725000+02:00",
+   "stoppedReason": "Fetching secret data from AWS Secrets Manager in region YOUR_AWS_REGION: secret arn:aws:secretsmanager:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:secret:NewRelicLicenseKeySecret-Dh2dLkgV8VyJ-80RAHS-fail: AccessDeniedException: User: arn:aws:sts::YOUR_AWS_ACCOUNT:assumed-role/NewRelicECSIntegration-Ne-NewRelicECSTaskExecution-1C0ODHVT4HDNT/8637b461f0f94d649e9247e2f14c3803 is not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:secret:NewRelicLicenseKeySecret-Dh2dLkgV8VyJ-80RAHS-fail-DmLHfs status code: 400, request id: 9cf1881e-14d7-4257-b4a8-be9b56e09e3c",
+   "stoppingAt": "2020-04-06T15:28:10.953000+02:00",
+   ```
+
+10. Si la tâche est en cours d&apos;exécution mais que vous ne voyez toujours pas de données, générez [un log détaillé](/docs/infrastructure/infrastructure-troubleshooting/troubleshoot-logs/infrastructure-agent-logging-behavior) et examinez-le pour détecter les erreurs.
+
+Pour plus de détails sur les raisons des tâches arrêtées, voir [Tâches arrêtées](#stopped-tasks).
+
+### Dépannage dans l&apos;UI [#ui]
+
+Pour utiliser l&apos;UI pour résoudre les problèmes :
+
+1. Connectez-vous à votre AWS Console et accédez à la section Service du conteneur EC2.
+2. Cliquez sur le cluster où vous avez installé l’intégration New Relic ECS.
+3. Dans l’onglet <DNT>**Services**</DNT> , utilisez le filtre pour rechercher le service d’intégration. Si vous avez utilisé le script d&apos;installation automatique, le nom du service sera `newrelic-infra`. Si vous utilisez Fargate, ce sera le nom de votre service de monitoring. Une fois trouvé, cliquez sur le nom.
+4. La page de service affiche le <DNT>**Status**</DNT> du service. Il indique `ACTIVE` si le service ne présente aucun problème.
+5. Sur la même page, le nombre <DNT>**Desired**</DNT> doit correspondre au nombre <DNT>**Running**</DNT> . Il s’agit du nombre de tâches traitées par le service. Étant donné que nous utilisons le type de service daemon, il doit y avoir une tâche par instance de conteneur dans votre cluster. Le nombre en attente doit être nul, car toutes les tâches doivent être en cours d&apos;exécution.
+6. Inspectez l’onglet <DNT>**Events**</DNT> pour vérifier les problèmes de planification ou de démarrage des tâches.
+7. Dans l&apos;onglet <DNT>**Tasks**</DNT> de votre service, vous pouvez inspecter les tâches en cours d&apos;exécution et les tâches arrêtées en cliquant sur le sélecteur <DNT>**Task status**</DNT> . les conteneurs qui n&apos;ont pas pu démarrer sont affichés lorsque vous sélectionnez le statut <DNT>**Stopped**</DNT> .
+8. Cliquez sur une tâche pour accéder à la page des détails de la tâche. Sous <DNT>**Stopped reason**</DNT>, un message expliquant pourquoi la tâche a été arrêtée s&apos;affiche.
+9. Si la tâche est en cours d&apos;exécution mais que vous ne voyez toujours pas de données, générez [un log détaillé](/docs/infrastructure/infrastructure-troubleshooting/troubleshoot-logs/infrastructure-agent-logging-behavior) et examinez-le pour détecter les erreurs.
+
+Pour plus de détails sur les raisons des tâches arrêtées, voir [Tâches arrêtées](#stopped-tasks).
+
+### Raisons des tâches arrêtées [#stopped-tasks]
+
+Dans la [documentation de dépannage d&apos;AWS ECS,](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/troubleshooting.html) vous trouverez des informations sur les causes courantes d&apos;erreurs liées à l&apos;exécution de tâches et de services. Voir ci-dessous pour plus de détails sur certaines raisons pour lesquelles les tâches sont arrêtées.
+
+<DNT>
+  **Task stopped with reason:**
+</DNT>
+
+```
+Fetching secret data from AWS Secrets Manager 
+  in region YOUR_AWS_REGION: 
+  secret arn:aws:secretsmanager:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:secret:YOUR_SECRET_NAME: 
+  AccessDeniedException: User: arn:aws:sts::YOUR_AWS_ACCOUNT:assumed-role/YOUR_ROLE_NAME 
+  is not authorized to perform: secretsmanager:GetSecretValue 
+  on resource: arn:aws:secretsmanager:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:secret:YOUR_SECRET_NAME 
+  status code: 400, request id: 9cf1881e-14d7-4257-b4a8-be9b56e09e3c"
+```
+
+Cela signifie que le rôle IAM spécifié à l&apos;aide de `executionRoleArn` dans la définition de tâche n&apos;a pas accès au secret utilisé pour `NRIA_LICENSE_KEY`. Le rôle d’exécution doit avoir une politique associée qui lui accorde l’accès à la lecture du secret.
+
+1. Obtenez le rôle d&apos;exécution de votre tâche :
+
+   ```sh
+   aws ecs describe-task-definition --task-definition newrelic-infra --output text --query taskDefinition.executionRoleArn
+   ```
+
+   Vous pouvez remplacer le `--task-definition newrelic-infra` par le nom de votre tâche fargate qui inclut le conteneur sidecar.
+
+   ```sh
+   aws ecs describe-task-definition --task-definition YOUR_FARGATE_TASK_NAME --output text --query taskDefinition.executionRoleArn
+   ```
+
+2. Énumérez les politiques attachées au rôle :
+
+   ```sh
+   aws iam list-attached-role-policies --role-name YOUR_EXECUTION_ROLE_NAME
+   ```
+
+   Cela devrait renvoyer 3 politiques `AmazonECSTaskExecutionRolePolicy`, `AmazonEC2ContainerServiceforEC2Role` et une troisième qui devrait accorder un accès en lecture à <InlinePopover type="licenseKey" />. Dans l&apos;exemple suivant, la politique est nommée `NewRelicLicenseKeySecretReadAccess`.
+
+   ```json
+   {
+     "AttachedPolicies": [
+       {
+         "PolicyName": "AmazonECSTaskExecutionRolePolicy",
+         "PolicyArn": "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+       },
+       {
+         "PolicyName": "AmazonEC2ContainerServiceforEC2Role",
+         "PolicyArn": "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+       },
+       {
+         "PolicyName": "YOUR_POLICY_NAME",
+         "PolicyArn": "arn:aws:iam::YOUR_AWS_ACCOUNT:policy/YOUR_POLICY_NAME"
+       }
+     ]
+   }
+   ```
+
+3. Récupérer la version de la politique par défaut :
+
+   ```sh
+   aws iam get-policy-version --policy-arn arn:aws:iam::YOUR_AWS_ACCOUNT:policy/YOUR_POLICY_NAME --version-id $(aws iam get-policy --policy-arn arn:aws:iam::YOUR_AWS_ACCOUNT:policy/YOUR_POLICY_NAME --output text --query Policy.DefaultVersionId)
+   ```
+
+   Cela récupère les autorisations de politique. Il devrait y avoir une entrée pour l&apos;action`secretsmanager:GetSecretValue` si vous avez utilisé AWS Secrets Manager pour stocker votre <InlinePopover type="licenseKey" />, ou une entrée pour `ssm:GetParameters`si vous avez utilisé AWS système Manager Parameter Store :
+
+   <CollapserGroup>
+     <Collapser id="aws-secrets-manager" title="Gestionnaire de secrets AWS">
+       ```json
+       {
+         "PolicyVersion": {
+           "Document": {
+             "Version": "2012-10-17",
+             "Statement": [
+               {
+                 "Action": "secretsmanager:GetSecretValue",
+                 "Resource": "arn:aws:secretsmanager:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:secret:YOUR_SECRET_NAME",
+                 "Effect": "Allow"
+               }
+             ]
+           },
+           "VersionId": "v1",
+           "IsDefaultVersion": true,
+           "CreateDate": "2020-03-31T13:47:07+00:00"
+         }
+       }
+       ```
+     </Collapser>
+
+     <Collapser id="aws-systems-manager-parameter-store" title="Magasin de paramètres du gestionnaire du système AWS">
+       ```json
+       {
+         "Version": "2012-10-17",
+         "Statement": [
+           {
+             "Action": "ssm:GetParameters",
+             "Resource": [
+               "arn:aws:ssm:YOUR_AWS_REGION:YOUR_AWS_ACCOUNT:parameter/YOUR_SECRET_NAME"
+             ],
+             "Effect": "Allow"
+           }
+         ]
+       }
+       ```
+     </Collapser>
+   </CollapserGroup>

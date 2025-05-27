@@ -1,0 +1,640 @@
+---
+title: Créer et modifier des SLI et des SLO
+tags:
+  - Service Level Management
+  - SLI/SLO
+metaDescription: 'With New Relic, you can create and consume SLI/SLOs.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Vous pouvez créer des SLI et des SLO manuellement via l&apos;[interface utilisateur de New Relic](https://one.newrelic.com). Alternativement, vous pouvez automatiser le processus avec notre [API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-slm/) et la [ressource de niveau de service Terraform](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/service_level).
+
+## Exigences et limites [#requirements]
+
+Pour créer et gérer un niveau de service, les éléments suivants sont nécessaires :
+
+* Vous devez être un [utilisateur de la plateforme complète](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type).
+* Vous devez avoir la [capacité de modifier et de supprimer des événement-to-métriques](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#insights).
+
+Si vous obtenez les erreurs suivantes, vérifiez vos autorisations utilisateur :
+
+* L&apos;interface utilisateur a désactivé l&apos;option permettant d&apos;enregistrer un SLI/SLO.
+* L&apos;API renvoie le message d&apos;erreur « Impossible d&apos;interroger le champ `\"eventExportRegisterRule\"` sur le type `\"RootMutationType\".”`.
+
+Pour les organisations New Relic qui possèdent [plusieurs comptes](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure): le niveau de service ne peut être associé qu&apos;à un seul compte. Si vous essayez de créer un niveau de service pour une workload avec une entité sur plusieurs comptes, vous souhaiterez peut-être restructurer la charge de travail afin que toutes les entités associées se trouvent dans le même compte. Vous pouvez créer un maximum de 500 SLI sur un compte.
+
+New Relic ingère des données de différentes manières et provenant de sources très différentes. Chacun a sa propre saveur individuelle, créant de nombreuses possibilités sur la façon dont les données sont consommées. Il existe certains scénarios dans lesquels il est impossible de configurer le niveau de service en raison des caractéristiques des données :
+
+* <DNT>**Subqueries**</DNT>Les sous-requêtes ne sont pas prises en charge.
+* <DNT>**Addition of sum functions**</DNT>Bien qu&apos;il soit possible d&apos;utiliser `SELECT sum(attributeA)` ou `SELECT sum(attributeA + attributeB)`, l&apos;expression `SELECT sum(attributeA) + sum(attributeB)` n&apos;est pas prise en charge.
+
+## Concepts clés pour la création de SLI et de SLO [#key-concepts]
+
+Gardez ces concepts à l’esprit lors de la définition des SLI et des SLO.
+
+### Définissez vos expériences utilisateur clés [#define-user-exp]
+
+Commencez par réfléchir aux expériences utilisateur clés de plus haut niveau que possède votre équipe, puis concentrez-vous sur les expériences utilisateur clés sous-jacentes jusqu&apos;à ce qu&apos;une plus grande granularité n&apos;apporte pas de valeur. Lorsque vous choisissez les SL avec lesquels commencer, nous vous recommandons d&apos;utiliser une approche descendante, c&apos;est-à-dire de commencer par les moins granulaires et de créer des plus granulaires uniquement si nécessaire.
+
+Tout d’abord, identifiez une « limite du système ». Il s&apos;agit d&apos;une partie de votre système que votre utilisateur perçoit comme une « boîte noire » de fonctionnalités. Quelques exemples :
+
+* Dans le cas d’une API, il peut s’agir simplement d’un service.
+* Pour un pipeline de données, il peut s’agir d’une chaîne de services nécessaires au traitement des données de bout en bout.
+
+Une fois que vous avez établi ces niveaux de service de haut niveau, vous constaterez peut-être que tous les points de terminaison de votre service ne se comportent pas de la même manière et vous souhaiterez peut-être les diviser davantage. Par exemple:
+
+* Les transactions de connexion peuvent nécessiter un SLO plus élevé en matière d&apos;erreurs que les transactions de navigation
+* La durée de certaines opérations est beaucoup plus longue que celle des autres
+
+Par exemple, à un niveau élevé, une expérience utilisateur clé chez New Relic pourrait être : *un client nous envoie des données télémétriques et ces données sont ensuite disponibles pour être interrogées dans l&apos;API ou l&apos;interface utilisateur de notre produit.*
+
+Pour cette expérience utilisateur, nous pourrions créer un SLO comme :
+
+| période               | cible | catégorie | indicateur                                                                                       |
+| --------------------- | ----- | --------- | ------------------------------------------------------------------------------------------------ |
+| les 28 derniers jours | 99,9% | latence   | les données ingérées par un utilisateur sont disponibles pour Requête en moins d&apos;une minute |
+
+Notez que ces types d’expériences utilisateur impliquent généralement plusieurs services et sont répartis sur plusieurs équipes et organisations.
+
+En augmentant la granularité des expériences utilisateur sous-jacentes, une autre expérience utilisateur clé chez New Relic pourrait être : *un client peut utiliser un dashboard personnalisé pour visualiser ses données télémétriques.*
+
+Ce SLO pourrait ressembler à :
+
+| période               | cible | catégorie     | indicateur                                                                           |
+| --------------------- | ----- | ------------- | ------------------------------------------------------------------------------------ |
+| les 28 derniers jours | 99,9% | disponibilité | l&apos;utilisateur interagit avec succès avec l&apos;interface utilisateur dashboard |
+
+À titre d’exemple d’une utilisation trop poussée de la granularité, l’ajout d’un widget de graphique dans un dashboard est également une expérience utilisateur. Cependant, la création d&apos;un SLO spécifique pour cette action n&apos;apporte pas de valeur supplémentaire par rapport au SLO précédent concernant l&apos;interaction réussie de l&apos;utilisateur avec l&apos;interface utilisateur dashboard .
+
+En résumé, utilisez une approche descendante et commencez par le niveau de service le moins granulaire. Créez un niveau de service plus granulaire uniquement si nécessaire.
+
+### L&apos;entité liée [#sli-entity]
+
+Dans l&apos;écosystème New Relic, chaque niveau de service est lié à une autre [entité](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/), qui est n&apos;importe quel élément de votre stack qui nous rapporte des données ou qui génère des données auxquelles nous avons accès. L&apos;entité à laquelle un niveau de service est lié détermine où s&apos;affichent les résultats SLI/SLO.
+
+Vous pouvez définir des SLI sur n&apos;importe quel événement NRDB ou métrique dimensionnelle signalé à New Relic. La plupart des événements personnalisés ne sont pas liés à une seule entité New Relic, mais fournissent des informations détaillées sur l&apos;expérience utilisateur et commerciale de niveau supérieur. Dans ce cas, vous pouvez toujours relier le SLI à une entité spécifique ou à une workload.
+
+Gardez à l’esprit que la requête SLI devra être dans le cadre du même compte dans lequel réside l’entité associée.
+
+### Requête SLI [#sli-queries]
+
+Les SLI sont définis comme le pourcentage de bonnes réponses sur le nombre total de requests valides. Le plus souvent, vous configurerez vos SLI en définissant les éléments valides et bons :
+
+* Un <DNT>**valid request**</DNT> correspond à toute demande que vous souhaitez considérer comme significative pour vos SLI (par exemple, toutes les transactions liées à un point de terminaison qui n&apos;ont pas été initiées par un contrôle de santé).
+* Un <DNT>**good response**</DNT> est toute réponse que vous considérez comme fournissant un bon résultat pour l&apos;utilisateur final ou le service client (par exemple, le service a répondu en moins de 2 secondes, offrant une bonne expérience de navigation pour l&apos;utilisateur final).
+
+Alternativement, vous pouvez définir ce que vous considérez comme étant les mauvaises réponses à la place :
+
+* Un <DNT>**bad response**</DNT> est toute réponse que vous considérez comme fournissant une sortie incorrecte (par exemple, le service a répondu avec une erreur de serveur, provoquant l&apos;échec du flux du client). New Relic calculera automatiquement le nombre de bonnes réponses comme étant `valid - bad`.
+
+Les SLO basés sur les demandes sont basés sur un SLI défini comme le rapport entre le nombre de bonnes requests et le nombre total de requests. Un SLO basé sur les demandes est atteint lorsque ce ratio atteint ou dépasse la cible pour la période de conformité.
+
+## SLIs suggérés [#suggested-sli]
+
+Dans cette section, vous trouverez certains SLI généralement utilisés pour mesurer les performances des services et des applications de navigateur.
+
+### SLI pour les services APM et les clés instrumentées de transaction avec l&apos;agent New Relic [#sli-apm]
+
+Sur la base de l&apos;événement `Transaction` , ces SLI sont les plus courants pour les services pilotés par requête :
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="service-availability" title="Succès du service">
+    Le succès du service est le rapport entre le nombre de réponses réussies et le nombre total de requests. Il s&apos;agit en fait d&apos;un taux d&apos;erreur, mais vous pouvez le filtrer, par exemple en supprimant erreurattendue.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM Transaction
+    WHERE entityGuid = 'ENTITY_GUID'
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+
+    <DNT>
+      **Bad events fields**
+    </DNT>
+
+    ```sql
+    FROM TransactionError
+    WHERE entityGuid = 'ENTITY_GUID' AND error.expected != true
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+  </Collapser>
+
+  <Collapser className="freq-link" id="service-latency" title="Latence du service">
+    Un SLI de latence mesure la proportion de requests valides qui ont été traitées plus rapidement que le seuil établi comme une bonne expérience.
+
+    Afin de déterminer ce seuil de durée, vérifiez les performances du service au cours des dernières semaines et utilisez ce résultat comme base de référence réaliste et réalisable. Ensuite, vous pouvez itérer sur le seuil SLI et l’aligner sur une performance plus ambitieuse.
+
+    Pour sélectionner une valeur appropriée pour la condition de durée, une pratique courante consiste à sélectionner la durée du 95e percentile des réponses pour les 7 ou 15 derniers jours. Trouvez ce seuil de durée à l&apos;aide du [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/), et utilisez-le pour déterminer ce que vous considérez comme un bon événement pour votre SLI:
+
+    ```sql
+    SELECT percentile(duration, 95) FROM Transaction 
+    WHERE entityGuid = 'ENTITY_GUID' SINCE 7 days ago LIMIT MAX
+    ```
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM Transaction
+    WHERE entityGuid = 'ENTITY_GUID' AND transactionType = 'Web'
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM Transaction
+    WHERE entityGuid = 'ENTITY_GUID' AND transactionType = 'Web' AND duration < DURATION
+    ```
+
+    * Où `ENTITY_GUID` est le GUID du service.
+    * Où `DURATION` est le temps de réponse qui, selon vous, offre une bonne expérience à votre service client ou à votre utilisateur final, en secondes.
+  </Collapser>
+</CollapserGroup>
+
+### SLI pour les services APM et les transactions clé instrumentées avec OpenTelemetry [#sli-otel]
+
+Sur la base des étendues OpenTelemetry, ces SLI sont les plus courants pour les services pilotés par requête :
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="otel-availability" title="Succès du service">
+    Le succès du service est le rapport entre le nombre de réponses réussies et le nombre total de requests. Il s&apos;agit en fait d&apos;un taux d&apos;erreur, mais vous pouvez le filtrer, par exemple en supprimant erreurattendue.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM Span
+    WHERE entity.guid = 'ENTITY_GUID' AND (span.kind IN ('server', 'consumer') 
+    OR kind IN ('server', 'consumer'))
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+
+    <DNT>
+      **Bad events fields**
+    </DNT>
+
+    ```sql
+    FROM Span
+    WHERE entity.guid = 'ENTITY_GUID' AND (span.kind IN ('server', 'consumer') 
+    OR kind IN ('server', 'consumer')) AND otel.status_code = 'ERROR'
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+  </Collapser>
+
+  <Collapser className="freq-link" id="otel-latency" title="Latence du service">
+    Un SLI de latence mesure la proportion de requests valides qui ont été traitées plus rapidement que le seuil établi comme une bonne expérience.
+
+    Afin de déterminer ce seuil de durée, vérifiez les performances du service au cours des dernières semaines et utilisez ce résultat comme base de référence réaliste et réalisable. Ensuite, vous pouvez itérer sur le seuil SLI et l’aligner sur une performance plus ambitieuse.
+
+    Pour sélectionner une valeur appropriée pour la condition de durée, une pratique courante consiste à sélectionner la durée du 95e percentile des réponses pour les 7 ou 15 derniers jours. Trouvez ce seuil de durée à l&apos;aide du [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/), et utilisez-le pour déterminer ce que vous considérez comme un bon événement pour votre SLI:
+
+    ```sql
+    SELECT percentile(duration.ms, 95) FROM Span 
+    WHERE entityGuid = 'ENTITY_GUID' AND (span.kind IN ('server', 'consumer') 
+    OR kind IN ('server', 'consumer')) SINCE 7 days ago LIMIT MAX
+    ```
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM Span
+    WHERE entity.guid = 'ENTITY_GUID' AND (span.kind IN ('server', 'consumer') 
+    OR kind IN ('server', 'consumer'))
+    ```
+
+    Où `ENTITY_GUID` est le GUID du service.
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM Span
+    WHERE entity.guid = 'ENTITY_GUID' AND (span.kind IN ('server', 'consumer') 
+    OR kind IN ('server', 'consumer')) AND duration.ms < DURATION
+    ```
+
+    * Où `ENTITY_GUID` est le GUID du service.
+    * Où `DURATION` est le temps de réponse qui, selon vous, offre une bonne expérience à votre service client ou à votre utilisateur final, en secondes.
+  </Collapser>
+</CollapserGroup>
+
+### SLI pour les services APM utilisant des données d&apos;intervalle de temps métrique [#sli-timeslices]
+
+Les métriques APM sont rapportées sous forme de [données d&apos;intervalle de temps](https://docs.newrelic.com/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data). Vous pouvez également exploiter les données d&apos;intervalle de temps pour vos SLI.
+
+Remarque : cette fonctionnalité est encore en version bêta.
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="timeslice-availability" title="Succès du service">
+    Le succès du service est le rapport entre le nombre de réponses réussies et le nombre total de requests. Il s’agit en fait d’un taux d’erreur.
+
+    <DNT>
+      **Valid data**
+    </DNT>
+
+    ```sql
+    FROM Metric
+    SELECT sum(getField(apm.service.transaction.duration, count))
+    WHERE appName = 'APP_NAME'
+    ```
+
+    Où `APP_NAME` est le nom de l&apos;application APM.
+
+    <DNT>
+      **Bad events fields**
+    </DNT>
+
+    ```sql
+    FROM Metric
+    SELECT sum(getField(apm.service.error.count, count))
+    WHERE appName = 'APP_NAME' AND getField(`apm.service.error.count`, count) > 0
+    ```
+
+    Où `APP_NAME` est le nom de l&apos;application APM.
+  </Collapser>
+
+  <Collapser className="freq-link" id="timeslice-availability-custom-metric" title="Succès du service - Utilisation d'un nom de métriques personnalisées">
+    Imaginez qu&apos;un bon événement soit rapporté par des métriques personnalisées. Le nombre d&apos;événements valides pourrait être le même.
+
+    <DNT>
+      **Valid data**
+    </DNT>
+
+    ```sql
+    FROM Metric
+    SELECT sum(getField(apm.service.transaction.duration, count))
+    WHERE appName = 'APP_NAME'
+    ```
+
+    Où `APP_NAME` est le nom de l&apos;application APM.
+
+    Et maintenant, nous utilisons les métriques personnalisées pour découvrir le bon événement.
+
+    <DNT>
+      **Good data**
+    </DNT>
+
+    ```sql
+    FROM Metric
+    SELECT sum(getField(newrelic.timeslice.value, count))
+    WHERE appName = 'APP_NAME' AND metricTimesliceName = 'Custom/CrossClusterQuery/DataAvailability/status/success'
+    ```
+
+    Où `APP_NAME` est le nom de l&apos;application APM.
+  </Collapser>
+</CollapserGroup>
+
+### SLI pour les applications de navigateur [#sli-browser]
+
+Les SLI suivants sont basés sur du Web de Browser Core Web Vitals Google.
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="browser-availability" title="Succès de l'application Browser">
+    Il s&apos;agit de la proportion de pages vues qui sont diffusées sans erreurs.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM PageView
+    WHERE entityGuid = 'ENTITY_GUID'
+    ```
+
+    Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    <DNT>
+      **Bad events fields**
+    </DNT>
+
+    ```sql
+    FROM JavaScriptError
+    WHERE entityGuid = 'ENTITY_GUID' AND firstErrorInSession IS true
+    ```
+
+    Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+  </Collapser>
+
+  <Collapser className="freq-link" id="browser-contentful-paint" title="Application Browser avec la plus grande palette de contenu">
+    Il s&apos;agit de la proportion de pages vues valides où le plus grand élément de contenu visible dans la fenêtre d&apos;affichage a été rendu plus rapidement que le seuil considéré comme correspondant à une bonne expérience.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND largestContentfulPaint IS NOT NULL
+    ```
+
+    Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND largestContentfulPaint < 'LARGEST_CONTENTFUL_PAINT'
+    ```
+
+    * Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    * Où `LARGEST_CONTENTFUL_PAINT` est la durée (en millisecondes) nécessaire pour rendre visible dans la fenêtre d&apos;affichage l&apos;élément de contenu le plus volumineux qui, selon vous, offre une bonne expérience à votre utilisateur final. Une norme fréquente est de 4000 ms.
+
+      Pour déterminer un nombre réaliste à utiliser pour `LARGEST_CONTENTFUL_PAINT` dans votre environnement, une pratique courante consiste à sélectionner la durée du 95e percentile des réponses pour les 7 ou 15 derniers jours. Trouvez-le en utilisant le générateur de requêtes :
+
+      ```sql
+      SELECT percentile(largestContentfulPaint, 95) FROM PageViewTiming 
+      WHERE entityGuid = 'ENTITY_GUID' SINCE 7 days ago LIMIT MAX
+      ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="browser-first-delay" title="Browser de l'application interaction avec la prochaine peinture (INP)">
+    Il s&apos;agit de la proportion de pages vues où le temps entre la première interaction d&apos;un utilisateur avec la page et le moment où le navigateur répond à cette interaction est inférieur à un certain seuil.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND interactionToNextPaint IS NOT NULL
+    ```
+
+    Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND interactionToNextPaint < INTERACTION_TO_NEXT_PAINT
+    ```
+
+    * Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    * Où `INTERACTION_TO_NEXT_PAINT` est le délai (en millisecondes) dans lequel le navigateur doit répondre pour offrir une bonne expérience à votre utilisateur final. Une norme fréquente est de 300 ms.
+
+      Pour déterminer un nombre réaliste à utiliser pour `INTERACTION_TO_NEXT_PAINT` dans votre environnement, une pratique courante consiste à sélectionner la durée du 95e percentile des réponses pour les 7 ou 15 derniers jours. Trouvez-le en utilisant le générateur de requêtes :
+
+      ```sql
+      SELECT percentile(interactionToNextPaint, 95) FROM PageViewTiming 
+      WHERE entityGuid = 'ENTITY_GUID' SINCE 7 days ago LIMIT MAX FACET deviceType
+      ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="browser-cumulative-shift" title="Décalage cumulatif de la disposition de l'application Browser">
+    Il s&apos;agit de la proportion de pages vues avec un bon décalage de mise en page cumulé (CLS). Le CLS est décrit comme la somme totale de tous les scores de décalage de mise en page individuels pour chaque décalage de mise en page inattendu qui se produit pendant toute la durée de vie de la page. Un changement de disposition se produit chaque fois qu&apos;un élément visible change de position d&apos;une image rendue à la suivante.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND cumulativeLayoutShift IS NOT NULL
+    ```
+
+    Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    Si vous souhaitez créer des SLI distincts pour suivre séparément les CLS sur les ordinateurs de bureau et les appareils mobiles, ajoutez l&apos;une de ces clauses à la fin du champ :
+
+    * `AND deviceType = 'Mobile'`
+    * `AND deviceType = 'Desktop'`
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM PageViewTiming
+    WHERE entityGuid = 'ENTITY_GUID' AND cumulativeLayoutShift < CUMULATIVE_LAYOUT_SHIFT
+    ```
+
+    * Où `ENTITY_GUID` est le GUID de l&apos;application du navigateur.
+
+    * Où `CUMULATIVE_LAYOUT_SHIFT` est une valeur prédéfinie. Pour offrir une bonne expérience utilisateur, votre site doit s&apos;efforcer d&apos;avoir un score CLS de 0,1 ou moins. Un score CLS de 0,25 ou plus est considéré comme une mauvaise expérience utilisateur.
+
+      Si vous avez décidé de créer des SLI distincts pour suivre les CLS sur les ordinateurs de bureau et les appareils mobiles séparément lorsque vous avez défini la requête d&apos;événement valide, ajoutez cette clause à la fin du champ :
+
+      * `AND deviceType = 'Mobile'`
+      * `AND deviceType = 'Desktop'`
+
+      Pour déterminer un nombre réaliste à sélectionner pour `CUMULATIVE_LAYOUT_SHIFT` dans votre environnement, une pratique courante consiste à sélectionner le 75e percentile des chargements de pages au cours des 7 ou 15 derniers jours, segmentés sur les appareils mobiles et de bureau. Trouvez-le en utilisant le générateur de requêtes :
+
+      ```sql
+      SELECT percentile(cumulativeLayoutShift, 95) FROM PageViewTiming 
+      WHERE entityGuid = 'ENTITY_GUID' SINCE 7 days ago LIMIT MAX FACET deviceType
+      ```
+  </Collapser>
+</CollapserGroup>
+
+### SLI pour les contrôles synthétiques [#sli-synthetic]
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="synthetic-success" title="Succès">
+    Le succès est le rapport entre le nombre de contrôles synthétiques réussis et le nombre total de contrôles.
+
+    <DNT>
+      **Valid events fields**
+    </DNT>
+
+    ```sql
+    FROM SyntheticCheck
+    WHERE entity.guid = 'ENTITY_GUID'
+    ```
+
+    Où `ENTITY_GUID` est le GUID du contrôle Synthétique.
+
+    <DNT>
+      **Good events fields**
+    </DNT>
+
+    ```sql
+    FROM SyntheticCheck
+    WHERE entity.guid = 'ENTITY_GUID' AND result='SUCCESS' 
+    ```
+
+    Où `ENTITY_GUID` est le GUID du contrôle Synthétique.
+  </Collapser>
+</CollapserGroup>
+
+## Créer et modifier un niveau de service [#create-edit]
+
+Vous pouvez créer des SLI et des SLO à partir de plusieurs emplacements [dans notre interface utilisateur](https://one.newrelic.com):
+
+* Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Service levels**</DNT>. Vous pouvez associer le SLI à n’importe quelle entité de vos comptes, y compris la charge de travail.
+* Depuis la page <DNT>**Service levels**</DNT> de n&apos;importe quel <InlinePopover type="apm" />service, clé de transaction, application Browser ou moniteur Synthétique. Le SLI sera associé à cette entité spécifique. Si vous utilisez ce point de départ, New Relic créera automatiquement le SLI le plus courant pour ce type d&apos;entité, en fonction des dernières données disponibles.
+* Depuis l’onglet <DNT>**Service levels**</DNT> de n’importe quelle workload. Vous pouvez associer le SLI à n’importe quelle entité de la workload, ou à l’ensemble workload.
+
+Les données n&apos;apparaissent pas immédiatement après la création d&apos;un SLI. Prévoyez quelques minutes de retard avant de voir les premiers résultats d’obtention du SLI. Les données ont une conservation de 13 mois par défaut.
+
+N&apos;oubliez pas que le niveau de service ne peut être associé qu&apos;à un seul compte. Pour plus de détails à ce sujet, consultez [les exigences](#requirements).
+
+Pour créer un niveau de service, suivez ces étapes :
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="select-sli-source" title="Sélectionnez la source de données SLI">
+    Afin de définir votre nouveau SLI, choisissez l&apos;une de ces trois options :
+
+    * <DNT>**Entity data**</DNT>:Basez le SLI sur des données standards provenant de nos agents ou de votre propre événement personnalisé. C&apos;est l&apos;option la plus courante. Si tel est votre choix, sélectionnez l’entité (par exemple, le service APM) que vous souhaitez utiliser.
+    * <DNT>**Custom data**</DNT>:Vous pouvez également baser le SLI sur votre événement NRDB personnalisé ou sur des métriques dimensionnelles. Utilisez cette option lorsque vous ne pouvez pas relier les données de niveau de service à une entité spécifique ou lorsque vous souhaitez relier le niveau de service directement à une workload.
+    * <DNT>**Metric data**</DNT>:Basé sur les données provenant de Prometheus, OTel ou vos propres métriques dimensionnelles personnalisées.
+  </Collapser>
+
+  <Collapser className="freq-link" id="configure-queries" title="Configurer la requête">
+    Dans cette étape, vous allez configurer la requête SLI qui détermine quel événement est valide, bon ou mauvais.
+
+    Si vous associez le SLI à un service APM ou à une application de navigateur, New Relic suggérera un SLI typique et leur requête. Nous utiliserons les données les plus récentes comme base de référence pour vos objectifs de niveau de service, et vous pourrez modifier le SLI et le SLO par la suite.
+
+    <img title="Suggested service levels" alt="Suggested service levels" src="/images/slm_screenshot-crop_add-service-level-example.webp" />
+
+    Si vous utilisez un type d&apos;entité différent, si vous souhaitez interroger des métriques dimensionnelles ou si vous souhaitez personnaliser les valeurs de base de référence fournies par New Relic, vous pouvez personnaliser le SLI selon vos besoins. Par instance, vous pouvez utiliser la clause `WHERE` pour filtrer les contrôles de santé. Vous pouvez également utiliser des types d&apos;événements différents sur chaque requête ; dans ce cas, assurez-vous que chaque événement valide correspond uniquement à un ou plusieurs événements sur la bonne ou la mauvaise requête.
+
+    <img title="Custom service level" alt="Custom service level" src="/images/slm_screenshot-crop_edit-service-level-example.webp" />
+
+    Le compte à partir duquel les données sont collectées correspond au compte de l’entité à laquelle le SLI fait référence. Veuillez consulter la section ci-dessus pour savoir ce qui se passe dans chaque champ.
+
+    Sur la droite, vous verrez la requête finale, et en bas, vous aurez un aperçu du nombre d&apos;événements valides et bons/mauvais au cours des derniers jours.
+
+    Voici un exemple de taux de réussite basé sur un pourcentage pour une métrique dimensionnelle, convertissons-le en événement valide/bon pour SLI:
+
+    ```sql
+    FROM Metric
+    SELECT percentage(sum(scrooge_do_expire_count), 
+      WHERE status = 'success') AS 'Success Rate'
+    WHERE env = 'production' 
+    AND status != 'attempt'
+    ```
+
+    Pour une requête valide, nous copierions simplement la clause extérieure `WHERE` :
+
+    ```sql
+    FROM Metric
+    SELECT sum(scrooge_do_expire_count)
+    WHERE env = 'production'
+    AND status != 'attempt'
+    ```
+
+    Alors que le bon événement serait la clause extérieure `WHERE` et la clause `WHERE` de la fonction de pourcentage :
+
+    ```sql
+    FROM Metric
+    SELECT sum(scrooge_do_expire_count)
+    WHERE env = 'production'
+    AND status != 'attempt'
+    AND status = 'success'
+    ```
+
+    Les quatre fonctions d’agrégation que nous prenons actuellement en charge sont `count()`, `sum()`, `getField()` et `getCdfCount()`. `Count` et `sum` sont disponibles pour tous les types d&apos;événements, tandis que `getField` et `getCdfCount` ne sont disponibles que lors de la sélection à partir de <DNT>**Metric**</DNT>.
+
+    Utilisez la fonction `count()` avec les données d&apos;événement pour compter le nombre d&apos;événements valides/bons/mauvais.
+
+    La fonction `sum()` est utile si vous avez des compteurs pré-agrégés dans des données d&apos;événement ou des métriques dimensionnelles. Il nécessite un paramètre : l&apos;attribut à utiliser dans la somme.
+
+    Utilisez les fonctions `getField()` et `getCdfCount()` pour voir à quelle fréquence un attribut métrique de distribution est en dessous ou à un seuil. Les deux fonctions nécessitent un attribut et getCdfCount() nécessite également un seuil pour mesurer la valeur.
+
+    Exemple utilisant `count()`:
+
+    ```sql
+    FROM JavaScriptError
+    SELECT count(*)
+    WHERE entityGuid = 'ENTITY_GUID' AND firstErrorInSession IS true
+    ```
+
+    Exemple utilisant `sum()`:
+
+    ```sql
+    FROM ServerlessSample
+    SELECT sum(provider.errors.Sum)
+    WHERE awsAccountId = 'XXX' AND provider LIKE 'LambdaFunction%'
+    ```
+
+    Exemple utilisant `getField()` combiné avec `getCdfCount()`:
+
+    ```sql
+    FROM Metric
+    SELECT getField(`newrelic.goldenmetrics.synth.monitor.medianDurationS`, count) AS 'Valid'
+
+    FROM Metric
+    SELECT getCdfCount(`newrelic.goldenmetrics.synth.monitor.medianDurationS`, 0.5) AS 'Good'
+    ```
+
+    Vous pouvez également utiliser des caractères génériques dans votre requête SLI , voici un exemple :
+
+    ```sql
+    FROM ApiGatewaySample
+    SELECT sum(provider.cache%Count.Sum)
+    WHERE awsAccountId = 'XXX'
+    ```
+
+    <img title="wilcards" alt="wildcards" src="/images/slm-wildcard.webp" />
+
+    <Callout variant="tip">
+      Lors de la rédaction de votre requête SLI , vous pouvez ajouter [des commentaires](https://docs.newrelic.com/docs/nrql/nrql-syntax-clauses-functions/#comments) pour aider les membres de votre équipe à mieux comprendre la requête.
+    </Callout>
+  </Collapser>
+
+  <Collapser className="freq-link" id="set-slo" title="Définir la fenêtre temporelle et la cible SLO">
+    Dans cette étape, vous obtiendrez un aperçu de la valeur SLI et vous ajouterez un SLO pour ce SLI : sélectionnez simplement la durée de la fenêtre temporelle et le pourcentage cible. Le graphique de droite vous aidera à anticiper si l&apos;objectif que vous vous fixez est réalisable ou s&apos;il est souvent manqué.
+
+    Les SLO à fenêtre temporelle mobile sont pris en charge. Avec une fenêtre temporelle glissante, la conformité SLO prend en compte les N derniers jours. Chaque minute, les données les plus anciennes disparaissent du calcul actuel et de nouvelles données les remplacent.
+  </Collapser>
+
+  <Collapser className="freq-link" id="define-sli" title="Nommez et tag votre SLI">
+    Sélectionnez un nom court pour votre SLI qui vous aide à reconnaître ce qu&apos;il mesure.
+
+    Nous vous recommandons d&apos;ajouter une balise à votre SLI, afin de pouvoir l&apos;utiliser ultérieurement pour rechercher, filtrer et regrouper des SLI sur l&apos;interface utilisateur.
+
+    Vous pouvez définir n&apos;importe quelle tag significative pour votre organisation. Une liste déroulante vous proposera des clés tag utiles telles que les suivantes :
+
+    * `owner`:L&apos;équipe ou l&apos;unité commerciale qui possède ce niveau de service et qui réagira lorsque l&apos;objectif SLO n&apos;est pas atteint.
+
+    * `category`:Un mot clé qui décrit ce que le SLI mesure, tel que `latency`. Si vous suivez le flux de niveau de service suggéré, New Relic remplira cette tag pour vous et vous pourrez la modifier ultérieurement.
+
+    * `environment`:L&apos;environnement que le niveau de service mesure et qui a du sens pour votre cas d&apos;utilisation.
+
+    * `maturity`:Utile pour communiquer à vos parties prenantes la stabilité du SLO. Nous vous recommandons d&apos;utiliser des valeurs tag telles que `test`, `commitment` ou `aspirational`.
+
+    * `user_journey` et `application`: ces types de balises vous aident à regrouper les SLI qui s&apos;appliquent à la même expérience utilisateur, qu&apos;il s&apos;agisse d&apos;un parcours utilisateur complet ou simplement d&apos;une application spécifique.
+
+      De plus, la liste déroulante affiche également la balise d&apos;entité associée, ce qui vous permet de les ajouter rapidement au SLI .
+
+      <img title="Service level tags" alt="Service level tags" src="/images/slm_screenshot-crop_tag-examples.webp" />
+
+      Pour terminer, vous pouvez éventuellement ajouter une description pour ce niveau de service.
+  </Collapser>
+</CollapserGroup>
+
+### Modifier les SLI [#edit-sli]
+
+Une fois que vous avez créé un SLI, vous pouvez le modifier via la page de liste des niveaux de service, en cliquant sur le menu <DNT>**...**</DNT> puis sur `Edit`, comme indiqué ici :
+
+<img title="Edit SLIs" alt="Edit SLIs" src="/images/slm_screenshot-crop_edit-menu-option.webp" />
+
+ou vous pouvez faire la même chose via la page récapitulative, en cliquant sur `Edit`:
+
+<img title="Edit SLIs summary page" alt="Edit SLIs summary page" src="/images/slm_screenshot-crop_summary-edit-button.webp" />
+
+## Optimisez votre SLM [#optimize]
+
+Pour plus d&apos;informations sur la façon d&apos;optimiser votre implémentation SLM, consultez notre [guide SLM sur la maturité de l&apos;observabilité](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide).

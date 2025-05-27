@@ -1,0 +1,118 @@
+---
+title: Dépannage de l'instrumentation asynchrone Java
+tags:
+  - Agents
+  - Java agent
+  - Async instrumentation
+metaDescription: 'Log your Java async work, and troubleshoot common issues with Java async instrumentation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si vous rencontrez [agent Java API des problèmes lors de l&apos;utilisation de l&apos;pour les jetons et segments asynchrones](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications), utilisez ces techniques pour vous aider à trouver des réponses et à résoudre les problèmes.
+
+## Vérifiez votre instrumentation [#verify-instrumentation]
+
+L&apos;API dispose d&apos;un certain nombre de mécanismes de sécurité intégrés pour éviter les problèmes causés par une utilisation incorrecte de l&apos;API, mais vous pouvez utiliser ces techniques pour vérifier que l&apos;instrumentation de votre application est correcte :
+
+* Après avoir instrumenté votre code, vérifiez que le log indique qu&apos;un nombre égal de jetons ont été créés et expirés. Pour plus d&apos;informations sur le message de log à rechercher, voir [Utiliser le log pour résoudre les problèmes](#log-async).
+* Vérifiez les statistiques de collecte des déchets sous [la page<DNT>**JVMs**</DNT> ](/docs/agents/java-agent/features/jvm-metrics-page)d&apos;APM pour déterminer si vos modifications ont ou non considérablement modifié les modèles de collecte des déchets.
+* Vérifiez si des segments ou des jetons expirent en examinant votre [trace de transaction](/docs/apm/transactions/transaction-traces/introduction-transaction-traces) pour un attribut `timed_out` . Si tel est le cas, vous pouvez modifier la limite avec [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) et [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout).
+
+## Utiliser le log pour résoudre les problèmes [#log-async]
+
+Pour personnaliser le logging de votre agent Java, voir [Génération du](/docs/agents/java-agent/troubleshooting/generating-logs-troubleshooting-java) log . Ensuite, vous pouvez examiner votre log pour rechercher ces messages courants :
+
+* Pour afficher le jeton créé, consultez le log à `FINEST` pour :
+
+  ```
+  Transaction com.newrelic.agent.Transaction@5a7cc8e: created active token com.newrelic.agent.TokenImpl@7db8d0e8
+  ```
+
+* Pour afficher les jetons expirés et l&apos;heure à laquelle ils ont expiré, consultez le log à `FINEST` pour :
+
+  ```
+  Transaction com.newrelic.agent.Transaction@5a7cc8e: expired token com.newrelic.agent.TokenImpl@7db8d0e8
+  ```
+
+* Pour afficher les segments créés, consultez le log à `FINEST` pour :
+
+  ```
+  Transaction com.newrelic.agent.Transaction@486b7f04: startSegment(): com.newrelic.agent.Segment@2b7fdad3 created and started with tracer com.newrelic.agent.tracers.OtherRootTracer@4df4a953
+  ```
+
+* Pour afficher les segments terminés et l’heure à laquelle ils se sont terminés, consultez le log à `FINEST` pour :
+
+  ```
+  com.newrelic.agent.Transaction@486b7f04--finish segment(): com.newrelic.agent.Segment@2b7fdad3 async finish with tracer com.newrelic.agent.tracers.OtherRootTracer@4df4a953
+  ```
+
+## Problème : les délais de transaction sont trop longs [#problem-long-txns]
+
+Assurez-vous d&apos;expirer le jeton et de terminer ou d&apos;ignorer les segments ; sinon, les transactions peuvent prendre plus de temps à être signalées à New Relic. L&apos;agent Java dispose d&apos;un mécanisme de timeout pour les jetons et les segments qui ne se terminent pas correctement. Pour plus d&apos;informations, voir [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) et [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout).
+
+## Problème : Aucune trace des données de transaction [#problem-no-traces]
+
+Inspectez la trace de la transaction pour vous assurer que le travail asynchrone attendu est signalé. Si vous ne voyez aucune trace de transaction, assurez-vous que la durée de votre transaction dépasse le seuil de trace de transaction défini dans [`transaction_threshold`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#tt-transaction_threshold).
+
+## Problème : trop peu d&apos;appels asynchrones [#problem-too-few-calls]
+
+Si trop peu d’appels sont signalés :
+
+<CollapserGroup>
+  <Collapser id="ensure-appropriate-link" title="Assurez-vous que chaque activité que vous monitorez est correctement liée">
+    Dans l&apos;exemple défectueux ci-dessous, un flux parallèle est utilisé, ce qui signifie que le travail effectué à l&apos;intérieur du lambda dans l&apos;appel à `map()` peut être planifié sur un thread différent de celui qui gère la demande. Sans [créer un jeton](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications#tokens) pour lier tout ce travail ensemble, vous ne verrez aucun des travaux planifiés sur un thread différent à l&apos;intérieur de votre transaction.
+
+    ```java
+    @RequestMapping("parallel_stream_bad")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamBad(@RequestParam("ids") List<long> ids) {
+        List<item> results = ids
+                .parallelStream()
+                .map(i -> requestItem(i))
+                .filter(item -> item != null)
+                .collect(Collectors.toList());
+        return formattedResponse("parallel_stream_bad", results);  
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="check-annotations" title="Vérifiez si vous manquez des annotations requises">
+    L&apos;exemple ci-dessous ne signalera qu&apos;un sous-ensemble des appels à `requestItem()` car il est impossible de placer `@Trace(async = true)` autour des blocs de travail anonymes à l&apos;intérieur de l&apos;appel à `map()`. Au lieu de cela, vous devez passer le jeton dans `requestItem()` et le lier, puis ajouter `@Trace(async=true)` autour de lui. Ou utilisez une fonction d&apos;assistance comme `requestItemAsync()` pour faire cela sans modifier vos méthodes existantes.
+
+    ```java
+    @RequestMapping("parallel_stream_bad2")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamBad2(@RequestParam("ids") List<long> ids) {
+        final Token token = NewRelic.getAgent().getTransaction().getToken();
+        List<item> results = ids
+                .parallelStream()
+                .map(id -> {
+                    token.link();
+                    return requestItem(id);
+                })
+                .filter(item -> item != null)
+                .collect(Collectors.toList());
+        return formattedResponse("parallel_stream_bad2", results);
+    }
+    ```
+
+    Comparez ceci à l’exemple correct ci-dessous, dans lequel l’expression lambda est encapsulée par la classe wrapper `InstrumentedCallable`. Cette classe accepte un jeton et un lambda, puis encapsule le travail asynchrone dans `@Trace(async = true)` et utilise un jeton pour lier le travail au thread de demande.
+
+    ```java
+    @RequestMapping("parallel_stream_wrap")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamWrap(@RequestParam("ids") List<long> ids) {
+        final Token token = NewRelic.getAgent().getTransaction().getToken();
+        List<item> results = ids
+                .parallelStream()
+                .map(id -> InstrumentedCallable.instrumentCallable(token, () -> requestItem(id)))
+                .map(c -> c.call())
+                .filter(item -> item != null)
+                .collect(Collectors.toList());
+        token.expire();
+        return formattedResponse("parallel_stream_wrap", results);
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

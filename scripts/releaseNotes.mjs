@@ -64,6 +64,7 @@ const INCLUDE_AGENTS = new Set([
   'ios',
   'java',
   'kubernetes',
+  'pipeline_control_gateway', 
   'node',
   'nodejs',
   'php',
@@ -96,6 +97,7 @@ const generateReleaseNoteObject = async (filePath) => {
     features: attributes.features ?? null,
     bugs: attributes.bugs ?? null,
     security: attributes.security ?? null,
+    supportedOperatingSystems: attributes.supportedOperatingSystems ?? null,
     description: (await excerptify(body)) ?? null,
     slug,
   };
@@ -201,3 +203,5 @@ if (uploadToS3) {
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
+
+ 

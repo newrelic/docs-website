@@ -1,0 +1,11 @@
+---
+title: Media agent for Browser
+tags:
+metaDescription: Release notes for Browser
+redirects:
+freshnessValidatedDate: never
+---
+
+## New
+
+* The new relic Browser tracker version is 3.0.0
