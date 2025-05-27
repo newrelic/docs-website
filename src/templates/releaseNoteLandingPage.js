@@ -10,19 +10,19 @@ import { TYPES } from '../utils/constants';
 import MDXContainer from '../components/MDXContainer';
 import { getTitle } from '../utils/releaseNotes';
 
-const sortByVersion = (
-  { frontmatter: { version: versionA } },
-  { frontmatter: { version: versionB } }
-) => {
-  if (!versionA || !versionB) {
-    return 0;
-  }
+// const sortByVersion = (
+//   { frontmatter: { version: versionA } },
+//   { frontmatter: { version: versionB } }
+// ) => {
+//   if (!versionA || !versionB) {
+//     return 0;
+//   }
 
-  return (
-    parseInt(versionB.replace(/\D/g, ''), 10) -
-    parseInt(versionA.replace(/\D/g, ''), 10)
-  );
-};
+//   return (
+//     parseInt(versionB.replace(/\D/g, ''), 10) -
+//     parseInt(versionA.replace(/\D/g, ''), 10)
+//   );
+// };
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug, disableSwiftype, currentPage } = pageContext;
@@ -47,8 +47,10 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   //     .entries()
   // );
   const sortedPosts = posts.slice().sort((a, b) => {
-  // Sort by releaseDate descending
-  return new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate);
+    // Sort by releaseDate descending
+    return (
+      new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate)
+    );
   });
 
   const title = `${subject} release notes`;
@@ -117,7 +119,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
         `}
       >
         <Timeline>
-          {sortedPosts.map((post, idx ) => {
+          {sortedPosts.map((post, idx) => {
             const isLast = idx === sortedPosts.length - 1;
             const { releaseDate } = post.frontmatter;
             const [monthOnly, year] = releaseDate.split(', ');
@@ -126,34 +128,34 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
             return (
               <Timeline.Item label={label} key={post.fields.slug}>
-                    <div
-                      key={post.version}
-                      css={css`
-                        margin-bottom: 2rem;
+                <div
+                  key={post.version}
+                  css={css`
+                    margin-bottom: 2rem;
 
-                        &:last-child {
-                          margin-bottom: ${isLast ? 0 : '4rem'};
-                        }
-                      `}
-                    >
-                      <Link
-                        to={post.fields.slug}
-                        css={css`
-                          display: inline-block;
-                          font-size: 1.25rem;
-                          margin-bottom: 0.5rem;
-                        `}
-                      >
-                        {getTitle(post.frontmatter)}
-                      </Link>
-                      <p
-                        css={css`
-                          margin-bottom: 0;
-                        `}
-                      >
-                        <MDXContainer body={post.body} />
-                      </p>
-                    </div>
+                    &:last-child {
+                      margin-bottom: ${isLast ? 0 : '4rem'};
+                    }
+                  `}
+                >
+                  <Link
+                    to={post.fields.slug}
+                    css={css`
+                      display: inline-block;
+                      font-size: 1.25rem;
+                      margin-bottom: 0.5rem;
+                    `}
+                  >
+                    {getTitle(post.frontmatter)}
+                  </Link>
+                  <p
+                    css={css`
+                      margin-bottom: 0;
+                    `}
+                  >
+                    <MDXContainer body={post.body} />
+                  </p>
+                </div>
               </Timeline.Item>
             );
           })}
