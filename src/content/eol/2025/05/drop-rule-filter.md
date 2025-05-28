@@ -20,14 +20,14 @@ This update is part of our ongoing work to improve our platform and streamline o
 
 * Maintain your data drop needs by:
     - Updating your integrations and references to the new [Pipeline Cloud Rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by January 7, 2026.
-    - Use Pipeline Control gateway to drop data before it leaves your environment, with the added benefits of no egress costs for data dropped and upcoming enhancements including Dynamic DT Sampling and routing.
+    - Using Pipeline Control gateway to drop data before it leaves your environment, with the added benefits of no egress costs for data dropped and upcoming enhancements including Dynamic DT Sampling and routing.
 * Do not migrate your drop rules. New Relic will handle the move from the old NRQL Drop Filter Rules API to the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/).
 * Access a unified rules list in June 2025 for migration assistance and visibility across both APIs.
 * Add Advanced Compute by January 7, 2026 (if you are on [Pay As You Go](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#pay-as-you-go)) to maintain uninterrupted use of drop rules.
 * Upgrade to a paid plan (if you are on the free tier) to continue using drop rules after the effective date.
 
 ## If no action is taken [#no-action]
-* After January 7th, 2026, calls to NRQL Ddrop Filter Rrules API will fail. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by then. 
+* After January 7th, 2026, calls to NRQL Drop Filter Rrules API will fail. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by then. 
 * If you are on [Pay As You Go](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#pay-as-you-go) or free tier, drop rules will be disabled if your account is not on Advanced Compute at the next renewal after January 7th, 2026.
 * If you have a commitment contract, work with your account team to add Advanced Compute before your next renewal to ensure continuous rule processing and authoring. Otherwise, rule creation will be disabled, and existing rules will be turned off at your renewal.
 
