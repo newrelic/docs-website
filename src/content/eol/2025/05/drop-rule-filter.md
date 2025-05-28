@@ -5,7 +5,7 @@ publishDate: '2025-05-21'
 eolEffectiveDate: '2026-01-07'
 ---
 
-Effective January 7, 2026, the NRQL Drop Filter Rules API will be discontinued and fully replaced by the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/). Your existing NRQL drop filter rules will be automatically migrated. However, you'll need to take action to ensure a smooth transition to the new cloud rules API.
+Effective January 7, 2026 16:00 UTC, the NRQL Drop Filter Rules API will be discontinued and fully replaced by the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/). Your existing NRQL drop filter rules will be automatically migrated. However, you'll need to take action to ensure a smooth transition to the new cloud rules API.
 
 ## Background [#bg]
 
@@ -18,7 +18,9 @@ This update is part of our ongoing work to improve our platform and streamline o
 
 ## What do you need to do [#what-to-do]
 
-* Update your integrations and references to the new Pipeline Cloud Rules API by January 7, 2026.
+* Maintain your data drop needs by:
+    - Updating your integrations and references to the new [Pipeline Cloud Rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by January 7, 2026.
+    - Use Pipeline Control gateway to drop data before it leaves your environment, with the added benefits of no egress costs for data dropped and upcoming enhancements including Dynamic DT Sampling and routing.
 * Do not migrate your drop rules. New Relic will handle the move from the old NRQL Drop Filter Rules API to the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/).
 * Access a unified rules list in June 2025 for migration assistance and visibility across both APIs.
 * Add Advanced Compute by January 7, 2026 (if you are on [Pay As You Go](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#pay-as-you-go)) to maintain uninterrupted use of drop rules.
@@ -30,10 +32,10 @@ This update is part of our ongoing work to improve our platform and streamline o
 * If you have a commitment contract, work with your account team to add Advanced Compute before your next renewal to ensure continuous rule processing and authoring. Otherwise, rule creation will be disabled, and existing rules will be turned off at your renewal.
 
 ## Next steps
-* Review your current use of NRQL Drop Filter Rules API.
-* Begin planning your migration to the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/).
-* Watch for communications regarding the unified rules list and migration tools, coming June 2025.
-* Contact your New Relic representative or support for assistance with migration or to discuss your options.
+1. Review your current use of NRQL Drop Filter Rules API.
+2. Begin planning your migration to the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/).
+3. Watch for communications regarding the unified rules list and migration tools, coming June 2025.
+4. Contact your New Relic representative or support for assistance with migration or to discuss your options.
 
 We understand that changes to capabilities can be disruptive, and we are committed to supporting you through this transition. Our goal is to provide ample time and resources to ensure a smooth migration with minimal impact to your workflows.
 
