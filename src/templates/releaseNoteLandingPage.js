@@ -26,13 +26,19 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
     const { slug: postSlug } = post.fields;
 
     // Check if the postSlug starts with any of the defined locale prefixes
-    const isTranslated = LOCALES.some(locale => postSlug.startsWith(`/${locale}/`));
+    const isTranslated = LOCALES.some((locale) =>
+      postSlug.startsWith(`/${locale}/`)
+    );
 
     if (isTranslated) {
       acc.push(post);
     } else {
       // This is an English post. Check if a translated version exists.
-      const hasTranslation = posts.some(otherPost =>  otherPost !== post && getTitle(otherPost.frontmatter)=== getTitle(post.frontmatter));
+      const hasTranslation = posts.some(
+        (otherPost) =>
+          otherPost !== post &&
+          getTitle(otherPost.frontmatter) === getTitle(post.frontmatter)
+      );
       if (!hasTranslation) {
         acc.push(post);
       }
