@@ -10,7 +10,6 @@ import { TYPES } from '../utils/constants';
 import MDXContainer from '../components/MDXContainer';
 import { getTitle } from '../utils/releaseNotes';
 
-
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug, disableSwiftype, currentPage } = pageContext;
   const {
@@ -21,7 +20,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   } = data;
 
   const now = useMemo(() => new Date(), []);
-  
+
   const sortedPosts = posts.slice().sort((a, b) => {
     // Sort by releaseDate descending
     return (
