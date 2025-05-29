@@ -10,20 +10,6 @@ import { TYPES } from '../utils/constants';
 import MDXContainer from '../components/MDXContainer';
 import { getTitle } from '../utils/releaseNotes';
 
-const sortByVersion = (
-  { frontmatter: { version: versionA } },
-  { frontmatter: { version: versionB } }
-) => {
-  if (!versionA || !versionB) {
-    return 0;
-  }
-
-  return (
-    parseInt(versionB.replace(/\D/g, ''), 10) -
-    parseInt(versionA.replace(/\D/g, ''), 10)
-  );
-};
-
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug, disableSwiftype, currentPage } = pageContext;
   const {
@@ -34,18 +20,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   } = data;
 
   const now = useMemo(() => new Date(), []);
-  const postsByDate = Array.from(
-    posts
-      .reduce((map, post) => {
-        const { releaseDate } = post.frontmatter;
-        const [monthOnly, year] = releaseDate.split(', ');
-        const key =
-          year === now.getFullYear().toString() ? monthOnly : releaseDate;
 
-        return map.set(key, [...(map.get(key) || []), post]);
-      }, new Map())
-      .entries()
-  );
+  const sortedPosts = posts.slice().sort((a, b) => {
+    // Sort by releaseDate descending
+    return (
+      new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate)
+    );
+  });
 
   const title = `${subject} release notes`;
 
@@ -113,43 +94,43 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
         `}
       >
         <Timeline>
-          {postsByDate.map(([date, posts], idx) => {
-            const isLast = idx === postsByDate.length - 1;
+          {sortedPosts.map((post, idx) => {
+            const isLast = idx === sortedPosts.length - 1;
+            const { releaseDate } = post.frontmatter;
+            const [monthOnly, year] = releaseDate.split(', ');
+            const currentYear = now.getFullYear().toString();
+            const label = year === currentYear ? monthOnly : releaseDate;
 
             return (
-              <Timeline.Item label={date} key={date}>
-                {posts.sort(sortByVersion).map((post) => {
-                  return (
-                    <div
-                      key={post.version}
-                      css={css`
-                        margin-bottom: 2rem;
+              <Timeline.Item label={label} key={post.fields.slug}>
+                <div
+                  key={post.version}
+                  css={css`
+                    margin-bottom: 2rem;
 
-                        &:last-child {
-                          margin-bottom: ${isLast ? 0 : '4rem'};
-                        }
-                      `}
-                    >
-                      <Link
-                        to={post.fields.slug}
-                        css={css`
-                          display: inline-block;
-                          font-size: 1.25rem;
-                          margin-bottom: 0.5rem;
-                        `}
-                      >
-                        {getTitle(post.frontmatter)}
-                      </Link>
-                      <p
-                        css={css`
-                          margin-bottom: 0;
-                        `}
-                      >
-                        <MDXContainer body={post.body} />
-                      </p>
-                    </div>
-                  );
-                })}
+                    &:last-child {
+                      margin-bottom: ${isLast ? 0 : '4rem'};
+                    }
+                  `}
+                >
+                  <Link
+                    to={post.fields.slug}
+                    css={css`
+                      display: inline-block;
+                      font-size: 1.25rem;
+                      margin-bottom: 0.5rem;
+                    `}
+                  >
+                    {getTitle(post.frontmatter)}
+                  </Link>
+                  <p
+                    css={css`
+                      margin-bottom: 0;
+                    `}
+                  >
+                    <MDXContainer body={post.body} />
+                  </p>
+                </div>
               </Timeline.Item>
             );
           })}
