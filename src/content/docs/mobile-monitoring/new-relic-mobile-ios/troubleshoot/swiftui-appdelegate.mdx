@@ -1,0 +1,48 @@
+---
+title: Adding an AppDelegate to your SwiftUI app
+tags:
+  - Mobile monitoring
+  - New Relic Mobile iOS
+  - Installation
+  - SwiftUI
+metaDescription: How to prperly setup your SwiftUI app with the New Relic agent.
+freshnessValidatedDate: never
+---
+
+SwiftUI projects do not generate with an AppDelegate file, which is a necessary component to install and configure New Relic functionality with iOS/tvOS applications. To add an AppDelegate to your SwiftUI App, follow the steps detailed here. Before adding the AppDelegate, follow the [outlined procedure](/docs/mobile-monitoring/new-relic-mobile-ios/installation/spm-installation) to correctly install the New Relic agent.
+
+1. Add a new file to your project named `AppDelegate`
+
+2. Then in that file add a class named `AppDelegate` that inherits from `NSObject` and conforms to the `UIApplicationDelegate` protocol.
+
+3. In the `AppDelegate` class you created, add the `application:didFinishLaunchingWithOptions` function.
+
+4. As close to the start of `application:didFinishLaunchingWithOptions` as possible add `NewRelic.start(withApplicationToken: "APP_TOKEN")` replacing `APP_TOKEN` with your [application token](/docs/mobile-apps/viewing-your-application-token).
+
+   <Callout variant="important">
+     To ensure proper instrumentation, you must call the agent on the first line of `didFinishLaunchingWithOptions()`, and run the agent on the main thread. Starting the call later, on a background thread, or asynchronously can cause unexpected or unstable behavior.
+   </Callout>
+
+   ```swift
+   import UIKit
+   import NewRelic
+
+   class AppDelegate: NSObject, UIApplicationDelegate {
+       func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+           NewRelic.start(withApplicationToken: "APP_TOKEN")
+           return true
+       }
+   }
+   ```
+
+5. In the main app structure object add the following line: `@UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate`.
+
+   ```swift
+   @main
+   struct SwiftUI_ExampleApp: App {
+       @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+   ```
+
+That is all you need to do to add an `AppDelegate.swift` file to your SwiftUI application and start the New Relic iOS agent in the recommended way.
+
+<InstallFeedback/>

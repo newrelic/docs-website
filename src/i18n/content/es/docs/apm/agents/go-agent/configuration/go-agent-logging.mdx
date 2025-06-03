@@ -1,0 +1,39 @@
+---
+title: Registro del agente Go
+tags:
+  - Agents
+  - Go agent
+  - Configuration
+metaDescription: You can set up several logging levels for your New Relic Go agent; this is useful for troubleshooting your New Relic Golang integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[New Relic para el registro de Go](/docs/agents/go-agent/get-started/new-relic-go) utiliza el [paquete de registro de Go](https://golang.org/pkg/log/) estándar y un paquete New Relic `Logger` . El registro es útil para [la resolución de problemas](/docs/agents/go-agent/troubleshooting/no-data-appears-go) de integración de New Relic; por ejemplo, con problemas [de instalación](/docs/agents/go-agent/get-started/install-new-relic-go) o [configuración](/docs/agents/go-agent/instrumentation/go-agent-configuration) .
+
+## Escribir archivo de registro [#write-logfiles]
+
+Para utilizar los métodos del agente Go para escribir archivos de registro y auditoría, consulte [log.go en el repositorio de GitHub del agente](https://github.com/newrelic/go-agent/blob/20541a9393ae651949eb75b82666d4a7c2a10dec/v3/newrelic/log.go).
+
+## Ejemplo de integración de Logrus [#logrus]
+
+New Relic ofrece una [integración para el sistema de registro Logrus](https://github.com/newrelic/go-agent/blob/master/_integrations/nrlogrus/nrlogrus.go). A continuación se muestra un ejemplo del uso de la integración de New Relic Logrus en una aplicación:
+
+1. Importe tanto `github.com/sirupsen/logrus` como `github.com/newrelic/go-agent/v3/integrations/nrlogrus`.
+
+2. Establezca el nivel de registros y asigne la salida del logger a Logrus. Por ejemplo:
+
+   ```go
+   app, err := newrelic.NewApplication(
+       newrelic.ConfigAppName("Your Application Name"),
+       newrelic.ConfigLicense("YOUR_NEW_RELIC_LICENSE_KEY"),
+       func(config *newrelic.Config) {
+           logrus.SetLevel(logrus.DebugLevel)
+           config.Logger = nrlogrus.StandardLogger()
+       },
+   )
+   ```
+
+## Ver el registro de sus datos de infraestructura y APM [#logs-context]
+
+También puede reunir los datos de su registro y de la aplicación para que la resolución de problemas sea más fácil y rápida. Con [el contexto de inicio de sesión](/docs/logs/logs-context/configure-logs-context-go/), puede ver el mensaje de registro relacionado con sus errores y la traza directamente en UI de su aplicación. También puede ver el inicio de sesión en el contexto de [los datos de su infraestructura](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/), como el clúster de Kubernetes. No es necesario cambiar a otra página de UI.

@@ -1,9 +1,7 @@
-import React, { memo, useMemo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
 import {
-  ContributingGuidelines,
   Layout,
   Link,
   Tag,
@@ -11,18 +9,20 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
-  SimpleFeedback,
+  ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import { TYPES } from '../utils/constants';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-const AttributeDictionary = ({ data, pageContext, location }) => {
-  const { allDataDictionaryEvent } = data;
+import events from '../data/attribute-dictionary.json';
 
+const AttributeDictionary = ({ location }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
@@ -35,32 +35,30 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     );
   }
 
-  const events = useMemo(
-    () => allDataDictionaryEvent.edges.map((edge) => edge.node),
-    [allDataDictionaryEvent]
-  );
-
   useEffect(() => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
+      const dataSource = queryParams.get('dataSource');
       filteredEvents = filteredEvents.filter((event) =>
-        event.dataSources.includes(queryParams.get('dataSource'))
+        event.dataSources
+          .map((ds) => ds.name)
+          .some((name) => name.includes(dataSource))
       );
     }
 
     if (queryParams.has('event')) {
+      const eventQuery = queryParams.get('event');
       filteredEvents = filteredEvents.filter(
-        (event) => event.name === queryParams.get('event')
+        (event) => event.name === eventQuery
       );
     }
 
     if (queryParams.has('attributeSearch')) {
+      const attributeSearch = queryParams.get('attributeSearch').toLowerCase();
       filteredEvents = filteredEvents.filter((event) =>
-        event.childrenDataDictionaryAttribute.some(({ name }) =>
-          name
-            .toLowerCase()
-            .includes(queryParams.get('attributeSearch').toLowerCase())
+        event.attributes.some(({ name }) =>
+          name.toLowerCase().includes(attributeSearch)
         )
       );
     }
@@ -68,12 +66,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     setFilteredEvents(filteredEvents.map((event) => event.name));
     setSearchedAttribute(queryParams.get('attributeSearch'));
     setFilteredAttribute(queryParams.get('attribute'));
-  }, [queryParams, events]);
+  }, [queryParams]);
 
   const { t } = useTranslation();
 
   return (
-    <>
+    <ErrorBoundary eventName="attributeDictionary">
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}
@@ -86,7 +84,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             'page-title page-title'
             'page-description page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
           @media (max-width: 1240px) {
             grid-template-areas:
@@ -98,7 +96,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
           }
         `}
       >
-        <PageTitle>{t('dataDictionary.title')}</PageTitle>
+        <PageTitle>{t('strings.dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
@@ -111,12 +109,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               margin-bottom: 1rem;
             `}
           >
-            <p>{t('dataDictionary.intro')}</p>
-            <p>{t('dataDictionary.introNot.0')}</p>
+            <p>{t('strings.dataDictionary.intro')}</p>
+            <p>{t('strings.dataDictionary.introNot.0')}</p>
             <ul>
-              <li>{t('dataDictionary.introNot.1')}</li>
-              <li>{t('dataDictionary.introNot.2')}</li>
-              <li>{t('dataDictionary.introNot.3')}</li>
+              <li>{t('strings.dataDictionary.introNot.1')}</li>
+              <li>{t('strings.dataDictionary.introNot.2')}</li>
+              <li>{t('strings.dataDictionary.introNot.3')}</li>
             </ul>
           </div>
 
@@ -149,21 +147,15 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
-          <SimpleFeedback title="Attribute dictionary" />
-          <ContributingGuidelines
-            fileRelativePath={pageContext.fileRelativePath}
-            issueLabels={['feedback', 'feedback-issue']}
-          />
           <DataDictionaryFilter events={events} location={location} />
+          <ComplexFeedback pageTitle="Attribute dictionary" />
         </Layout.PageTools>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
 AttributeDictionary.propTypes = {
-  data: PropTypes.object.isRequired,
-  pageContext: PropTypes.object.isRequired,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,
   }).isRequired,
@@ -171,21 +163,30 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
+const sortAttributes = (a, b) => {
+  const nameA = a.name.toUpperCase();
+  const nameB = b.name.toUpperCase();
+  if (nameA < nameB) return -1;
+  if (nameA > nameB) return 1;
+  return 0;
+};
+
 const EventDefinition = memo(
   ({ location, event, searchedAttribute, filteredAttribute }) => {
     let filteredAttributes = [];
 
     if (searchedAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
-        ({ name }) =>
+      filteredAttributes = event.attributes
+        .filter(({ name }) =>
           name.toLowerCase().includes(searchedAttribute.toLowerCase())
-      );
+        )
+        .sort(sortAttributes);
     } else if (filteredAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
-        ({ name }) => name === filteredAttribute
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) => name === filteredAttribute)
+        .sort(sortAttributes);
     } else {
-      filteredAttributes = event.childrenDataDictionaryAttribute;
+      filteredAttributes = event.attributes.sort(sortAttributes);
     }
 
     return (
@@ -212,7 +213,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
@@ -221,20 +222,13 @@ const EventDefinition = memo(
               position: relative;
             `}
           >
+            {event.name}
             <Link
               to={`${location.pathname}?event=${event.name}`}
-              className="anchor before"
+              className="anchor after"
             >
               <Icon name="fe-link-2" focusable={false} size="1rem" />
             </Link>
-            <code
-              css={css`
-                background: none !important;
-                padding: 0 !important;
-              `}
-            >
-              {event.name}
-            </code>
           </div>
         </h2>
         <div
@@ -255,17 +249,17 @@ const EventDefinition = memo(
             {event.dataSources.map((dataSource) => (
               <Tag
                 as={Link}
-                to={`${location.pathname}?dataSource=${dataSource}`}
-                key={dataSource}
+                to={`${location.pathname}?dataSource=${dataSource.name}`}
+                key={dataSource.name}
               >
-                {dataSource}
+                {dataSource.name}
               </Tag>
             ))}
           </TagList>
         </div>
         <div
           data-swiftype-index="false"
-          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+          dangerouslySetInnerHTML={{ __html: event.definition }}
         />
         <Table data-swiftype-index="false">
           <thead>
@@ -291,8 +285,8 @@ const EventDefinition = memo(
                 <tr key={`${event.name}-${attribute.name}`}>
                   <td
                     css={css`
-                      width: 40%;
-                      word-break: break-all;
+                      width: 25%;
+                      word-break: break-word;
                     `}
                   >
                     <Link
@@ -328,7 +322,7 @@ const EventDefinition = memo(
                         `}
                       />
                     </Link>
-                    {attribute.units && (
+                    {attribute.units?.label && (
                       <div
                         css={css`
                           font-size: 0.75rem;
@@ -338,7 +332,7 @@ const EventDefinition = memo(
                           }
                         `}
                       >
-                        {attribute.units}
+                        {attribute.units?.label}
                       </div>
                     )}
                   </td>
@@ -350,7 +344,7 @@ const EventDefinition = memo(
                       }
                     `}
                     dangerouslySetInnerHTML={{
-                      __html: attribute.definition.html,
+                      __html: attribute.definition,
                     }}
                   />
                   <td
@@ -367,9 +361,9 @@ const EventDefinition = memo(
                       `}
                     >
                       {attribute.events.map((event) => (
-                        <li key={`${attribute.name}-${event.name}`}>
-                          <Link to={`${location.pathname}?event=${event.name}`}>
-                            {event.name}
+                        <li key={`${attribute.name}-${event}`}>
+                          <Link to={`${location.pathname}?event=${event}`}>
+                            {event}
                           </Link>
                         </li>
                       ))}
@@ -393,34 +387,5 @@ EventDefinition.propTypes = {
     pathname: PropTypes.string.isRequired,
   }).isRequired,
 };
-
-export const pageQuery = graphql`
-  query($slug: String!, $locale: String!) {
-    allDataDictionaryEvent(sort: { fields: [name] }) {
-      edges {
-        node {
-          name
-          dataSources
-          definition {
-            html
-          }
-          childrenDataDictionaryAttribute {
-            name
-            units
-            definition {
-              html
-            }
-            events {
-              name
-            }
-          }
-          ...DataDictionaryFilter_events
-        }
-      }
-    }
-
-    ...MainLayout_query
-  }
-`;
 
 export default AttributeDictionary;

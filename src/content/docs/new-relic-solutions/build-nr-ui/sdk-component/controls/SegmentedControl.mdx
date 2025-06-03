@@ -1,0 +1,280 @@
+---
+title: 'SegmentedControl'
+metaDescription: 'Learn how to work the SegmentedControl component'
+freshnessValidatedDate: 2024-06-03
+---
+
+A component which displays a set of buttons, only one of which can be active at a time. Can be used in 'controlled mode' (by setting the `value` prop) or uncontrolled.
+
+### Usage
+
+```js
+import { SegmentedControl } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<SegmentedControl onChange={(evt, value) => console.log(evt, value)}>
+  <SegmentedControlItem value="one" label="One" />
+  <SegmentedControlItem value="two" label="Two" />
+  <SegmentedControlItem disabled value="three" label="Three" />
+  <SegmentedControlItem value="four" label="Four" />
+</SegmentedControl>
+```
+
+#### With some hints
+
+```js
+<SegmentedControl onChange={(evt, value) => console.log(evt, value)}>
+  <SegmentedControlItem value="one" label="One" />
+  <SegmentedControlItem value="two" label="Two" />
+  <SegmentedControlItem
+    hint="The third item"
+    disabled
+    value="three"
+    label="Three"
+  />
+  <SegmentedControlItem hint="The fourth item" value="four" label="Four" />
+</SegmentedControl>
+```
+
+#### Controlled
+
+```js
+class TestComponent extends React.Component {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      value: 'one',
+    };
+  }
+
+
+  render() {
+    return (
+      <SegmentedControl
+        value={this.state.value}
+        onChange={(evt, value) => this.setState({ value })}
+      >
+        <SegmentedControlItem value="one" label="One" />
+        <SegmentedControlItem value="two" label="Two" />
+        <SegmentedControlItem disabled value="three" label="Three" />
+        <SegmentedControlItem value="four" label="Four" />
+      </SegmentedControl>
+    );
+  }
+}
+```
+
+#### With icons
+
+```js
+class TestComponent extends React.Component {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      value: 'one',
+    };
+  }
+
+
+  render() {
+    return (
+      <SegmentedControl
+        value={this.state.value}
+        onChange={(evt, value) => this.setState({ value })}
+      >
+        <SegmentedControlItem
+          label="One"
+          value="one"
+          iconType={
+            SegmentedControlItem.ICON_TYPE.HARDWARE_AND_SOFTWARE__SOFTWARE__CODE
+          }
+        />
+        <SegmentedControlItem
+          label="Two"
+          value="two"
+          iconType={
+            SegmentedControlItem.ICON_TYPE.INTERFACE__OPERATIONS__FILTER
+          }
+        />
+        <SegmentedControlItem
+          label="Three"
+          value="three"
+          iconType={SegmentedControlItem.ICON_TYPE.INTERFACE__SIGN__NUMBER}
+        />
+      </SegmentedControl>
+    );
+  }
+}
+```
+
+#### Icons only with some hints
+
+```js
+class TestComponent extends React.Component {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      value: 'one',
+    };
+  }
+
+
+  render() {
+    return (
+      <SegmentedControl
+        type={SegmentedControl.TYPE.ICONS_ONLY}
+        value={this.state.value}
+        onChange={(evt, value) => this.setState({ value })}
+      >
+        <SegmentedControlItem
+          label="One"
+          value="one"
+          iconType={
+            SegmentedControlItem.ICON_TYPE.HARDWARE_AND_SOFTWARE__SOFTWARE__CODE
+          }
+        />
+        <SegmentedControlItem
+          label="Two"
+          value="two"
+          iconType={
+            SegmentedControlItem.ICON_TYPE.INTERFACE__OPERATIONS__FILTER
+          }
+          hint="The second item."
+        />
+        <SegmentedControlItem
+          label="Three"
+          value="three"
+          iconType={SegmentedControlItem.ICON_TYPE.INTERFACE__SIGN__NUMBER}
+          hint="The third item."
+        />
+      </SegmentedControl>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a descriptive label for this control, e.g. "Theme selector".
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        An array of maximum 5 `<SegmentedControlItem />`s describing the clickable segments in the control. Elements can either have just a `label`, or a `label` and an `icon`, but must be uniform across the children. All elements can have an optional `disabled` prop to disable that button.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Called whenever a `<SegmentedControlItem />` is clicked, with that element's `value` prop. Will also fire if the element currently selected is clicked again. You can use this callback to update the `value` prop if you want to control its state.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":""},{"name":"value","type":"any","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          SegmentedControl.SPACING_TYPE.EXTRA_LARGE,
+          SegmentedControl.SPACING_TYPE.LARGE,
+          SegmentedControl.SPACING_TYPE.MEDIUM,
+          SegmentedControl.SPACING_TYPE.NONE,
+          SegmentedControl.SPACING_TYPE.OMIT,
+          SegmentedControl.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Set this to `SegmentedControl.TYPE.ICONS_ONLY` to only show icons.Will be ignored if icons are not found in the children.
+
+        <OptionReference>
+          SegmentedControl.TYPE.ICONS_ONLY,
+          SegmentedControl.TYPE.NORMAL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>any</h5>
+      </td>
+
+      <td>
+        Set the currently-selected option in the control by updating this prop.
+      </td>
+    </tr>
+  </tbody>
+</table>

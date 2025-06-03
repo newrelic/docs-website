@@ -1,0 +1,434 @@
+---
+title: Alerta mejores practicas
+tags:
+  - New Relic solutions
+  - Best practices guides
+  - Alerts
+metaDescription: 'Best practices for deciding what to alert on, when to trigger notifications, and who receives them.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con alerta, puedes empezar a detectar problemas antes de que se vuelvan críticos. Usando NRQL, nuestro lenguaje de consulta New Relic, puede [crear y personalizar su condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition/) que se centre en lo que más le preocupa. Utilice <InlinePopover type="alerts"/>para recibir actualizaciones sobre comportamientos inusuales en sus datos, enviar notificaciones a las personas que necesitan verlas y tomar decisiones efectivas sabiendo la causa raíz de su problema.
+
+Mejore su cobertura de alerta utilizando nuestras recomendaciones sobre cómo utilizar mejor la respuesta de alerta, el mantenimiento, la calidad y la configuración avanzada. Consulte nuestra guía [de gestión de calidad de alertas](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) para saber cómo medir y mejorar la calidad de sus alertas.
+
+Puede seguir estas acciones recomendadas para mejorar y aprovechar al máximo su configuración de alerta.
+
+<Callout variant="tip">
+  ¿Ya creaste tu primera alerta? De lo contrario, consulte nuestra [serie de tutoriales](/docs/tutorial-create-alerts/create-new-relic-alerts/) para conocer todos los pasos que necesita para comenzar.
+</Callout>
+
+## Mejorar la respuesta de alerta [#alert-response]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Qué tengo que hacer
+      </th>
+
+      <th>
+        Beneficio
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Tener un nombre explicativo para la alerta.
+      </td>
+
+      <td>
+        La descripción y la etiqueta deben darte una alerta autodescriptiva para saber qué servicio está mal, qué entorno está involucrado, qué equipo es el propietario y si está impactando al usuario final. Le ayuda a responder más rápido y decidir qué hacer.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Añade etiqueta a tu condición de alerta
+      </td>
+
+      <td>
+        Sus problemas e incidentes tienen estas etiquetas en sus metadatos. Úselos para crear filtros flexibles en el flujo de trabajo o agréguelos a la carga útil de su notificación.
+
+        Los problemas tienen 3 fuentes de etiqueta:
+
+        * La [etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-via-ui-api) definida en la condición de alerta.
+        * Los valores actuales de la [cláusula`facet/where` ](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#syntax)de la condición de alerta.
+        * La etiqueta de la entidad infractora si los resultados de la alerta tienen como ámbito una entidad única. Si el incidente no tiene como ámbito la entidad, no se traerá la etiqueta de entidad.
+
+          Estos eventos se almacenan en NRDB. No se preocupe por el consumo de tablas nr\* porque no se cuentan como ingesta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Categorizar la condición de alerta
+      </td>
+
+      <td>
+        En toda su organización, defina categorías de alerta, expectativas para manejar su notificación y un destino único. Por ejemplo, ser proactivo con Slack para notificar antes de que ocurra el incidente; reactivo a PagerDuty para detectar y notificar un incidente en curso; o informativo para Jira.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Definir el método de comunicación y escalamiento.
+      </td>
+
+      <td>
+        Decidir el medio de [notificación](/docs/alerts-applied-intelligence/notifications/notification-integrations/). Algunos métodos de notificación son: [correo electrónico](/docs/alerts-applied-intelligence/notifications/notification-integrations/#email), [Slack](/docs/alerts-applied-intelligence/notifications/notification-integrations/#slack), [PagerDuty](/docs/alerts-applied-intelligence/notifications/notification-integrations/#pagerduty) o [Jira](/docs/alerts-applied-intelligence/notifications/notification-integrations/#jira).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Añade un equipo responsable
+      </td>
+
+      <td>
+        Este equipo es el encargado de gestionar la primera notificación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregue una [URL de runbook](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/provide-runbook-instructions-alert-activity/) a cada condición de alerta
+      </td>
+
+      <td>
+        El runbook debe describir los pasos de remediación a seguir y a quién involucrar o escalar.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Usar [enriquecimientos](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/#enrichments)
+      </td>
+
+      <td>
+        Priorice y clasifique su notificación de alerta más rápido proporcionando métricas adicionales específicas para el problema.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Mejorar alerta de mantenimiento [#alert-maintenance]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Qué tengo que hacer
+      </th>
+
+      <th>
+        Beneficio
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Organiza tus [pólizas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy/)
+      </td>
+
+      <td>
+        Recomendamos crear una política para cada destino o audiencia por separado que necesite recibir una notificación. Considere agrupar por entidad, servicio o tecnología para que coincida con el enfoque de sus respectivos equipos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregue un equipo propietario a cada condición de alerta
+      </td>
+
+      <td>
+        El equipo propietario garantiza que la alerta sigue siendo relevante. Aprueban cualquier cambio en la condición.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Programe una revisión periódica de condición de alerta
+      </td>
+
+      <td>
+        Utilice la [página de resumen de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/) para consultar el incidente creado y decidir la acción a realizar. Te recomendamos etiquetar la condición con la fecha de la última revisión, lo que te permitirá identificar alertas obsoletas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Automatiza la creación de alertas usando [Terraform](https://newrelic.com/blog/how-to-relic/observability-as-code-new-relic-terraform-provider)
+      </td>
+
+      <td>
+        Evitarás cambios no documentados y una trazabilidad clara.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Mejorar la calidad de las alertas [#alert-quality]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Qué tengo que hacer
+      </th>
+
+      <th>
+        Beneficios
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Tener SLI y SLO en un [informe](/docs/service-level-management/consume-slm/)
+      </td>
+
+      <td>
+        Las infracciones [de SLI y SLO](/docs/service-level-management/intro-slm/#what-sli-slo) no siempre son incidentes y no requieren una alerta a menos que haya documentado los pasos para evitarlas. SLI/SLO <InlinePopover type="dashboards"/>puede resaltar el área en la que el equipo debe centrarse para realizar mejoras en lugar de responder a un evento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Silenciar alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications/) durante el mantenimiento
+      </td>
+
+      <td>
+        Suprimirá las notificaciones ruidosas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tener un enfoque sistémico al definir alerta para un servicio
+      </td>
+
+      <td>
+        Le ayuda a asegurarse de cubrir toda su stack de manera consistente. Puedes organizar tu alerta por tecnología, equipos involucrados, etc.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Revisar [las decisiones sugeridas](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#suggested-decisions)
+      </td>
+
+      <td>
+        Todos los días analizamos sus datos de alerta y proporcionamos decisiones sugeridas, así como comentarios sobre las decisiones existentes. Esto mejorará la reducción de ruido.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Identificar y sintonizar oscilaciones alerta
+      </td>
+
+      <td>
+        Estas alertas indican una configuración de condición de alerta deficiente que genera ruido. Es posible que aún indiquen un problema de larga data en su sistema, pero esto no es un incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Aumente el umbral o la duración de la ventana y utilice la agregación de ventanas deslizantes
+      </td>
+
+      <td>
+        Tenga en cuenta que la resolución automática antes de que su equipo pueda tomar alguna medida puede saturar su bandeja de entrada y generar ruido. Utilice un [panel](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/) si desea ver picos de corta duración y suavizar los picos temporales.
+
+        Comprenderá el impacto que esto tendrá en [el cierre de su incidente](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/how-alert-condition-incidents-are-closed/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Usar [decisiones](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/)
+      </td>
+
+      <td>
+        Aproveche su etiqueta personalizada y metadatos en las decisiones.
+
+        Los incidentes relacionados se correlacionarán en un [tema](/docs/alerts-applied-intelligence/overview/#concepts-terms) único y completo.
+
+        Mantenga habilitadas las [decisiones predeterminadas](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/#global-decisions) cuando comience. En un par de semanas, podrá evaluar la eficacia de estas decisiones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Si utiliza [decisiones](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/), aumente el período de gracia de notificación
+      </td>
+
+      <td>
+        Obtendrá más incidentes relacionados con sus problemas. Obtendrá un contexto más rico y útil desde la primera notificación. Cuanto más largo sea el período de gracia, más tardía será la notificación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Revisar periódicamente el [feed de problemas](/docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/anomaly-detection-applied-intelligence/#issue-feed)
+      </td>
+
+      <td>
+        Desplácese por la columna <DNT>**Notified**</DNT> para asegurarse de que todos los problemas se dirijan a al menos un destino. Si no es necesario enrutar, considere eliminar la condición, ya que puede ser ruido.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Condición de creación de alerta y configuración avanzada [#alert-condition-creation]
+
+Si eres nuevo en alerta o quieres sugerencias que optimicen tu cobertura de alerta, presta atención a estas recomendaciones:
+
+* [Recibe alertas recomendadas por tecnología](https://newrelic.com/instant-observability)
+* [Deje que New Relic encuentre sus brechas de cobertura](https://one.newrelic.com/nrai/detection-gaps/home)
+* [Obtener recomendaciones de condición](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/condition-recommendations/)
+
+### Entender la señal [#understand-signal]
+
+Cada condición de alerta genera una señal o múltiples señales si la condición contiene una cláusula facetaria. Cada valor de faceta posible creará una señal distinta.
+
+Puedes consultar todas las señales en [`NrAiSignal`](/attribute-dictionary/?event=NrAiSignal). Esto le permite obtener detalles sobre el valor observado, cuántos puntos de datos se consideraron y, en el caso de condiciones de anomalía, el valor esperado y la desviación estándar. También brinda información sobre el delta de tiempo entre la hora de New Relic y la hora de sus datos sin procesar (si sus datos son una marca de tiempo), lo que puede ayudarlo a encontrar la configuración de demora más precisa al crear sus condiciones.
+
+### Mantener la salud de la entidad [#maintaining-entity-health]
+
+Usamos señales para inferir la salud y la cobertura de alerta de una entidad. Si los resultados de una condición de alerta contienen datos de una sola entidad, New Relic los vinculará al estado de esa entidad y estos eventos se mostrarán en contexto en la UI de New Relic.
+
+Se recomienda, para la mayoría de las condiciones, mantener la existencia de una señal. Ninguna señal puede provocar que New Relic muestre un estado de salud gris (desconocido) para algunas entidades, además de agregar estas entidades a la lista de entidades no cubiertas.
+
+Si la cláusula `where` de tu condición excluye todos los datos, no quedarán datos. Esta es una [pérdida de señal](https://forum.newrelic.com/s/hubtopic/aAX8W0000008bEyWAI/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal) para New Relic y la condición de alerta NO PUEDE evaluarse según NINGÚN umbral. Significa que el resultado de la consulta NRQL no tiene datos, pero no significa que New Relic no esté recibiendo datos. Si desea recibir una notificación, debe agregar un umbral de pérdida de señal.
+
+Utilice los filtros más genéricos en su sección `where` y los más específicos en su sección `select` . Utilice la función de filtro para medir con precisión lo que le interesa. Por ejemplo:
+
+```sql
+Select filter(count(*), where ErrorCode=123) from Transaction where AppName='Application1' and Environment='Production'
+```
+
+### Retraso de alerta o duración del temporizador [#alert-delay]
+
+Intente ajustar el [retraso/tiempo](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#delay-timer) con el comportamiento de sus datos. Una demora breve puede desencadenar una alerta falsa debido a datos incompletos y una demora grande puede aumentar el tiempo para recibir notificaciones. New Relic no sabe cuántos datos esperar ni qué tan tarde podrían llegar a un extremo de New Relic. Dependiendo del transportista log y de la configuración, los datos log se pueden agrupar y experimentar retrasos significativos para logs de volúmenes bajos.
+
+### Establece tu umbral de condición [#condition-thresholds]
+
+Establezca niveles [de umbral](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition/) significativos para optimizar la alerta para su negocio. Aquí hay algunas pautas sugeridas:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Acción
+      </th>
+
+      <th>
+        Recomendaciones
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Establecer niveles de umbral
+      </td>
+
+      <td>
+        Evite establecer un umbral demasiado bajo. Por ejemplo, si establece un umbral de condición de CPU del 75% durante 5 minutos en sus servidores de producción y rutinariamente supera ese nivel, esto aumentará la probabilidad de alertas no procesables o falso positivo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Experimentando con la configuración
+      </td>
+
+      <td>
+        No necesita editar archivos ni resetear el software, así que sentir libre de realizar cambios rápidos en sus niveles de umbral y ajustarlos según sea necesario.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ajustar la configuración
+      </td>
+
+      <td>
+        Ajuste sus condiciones con el tiempo.
+
+        * Ajusta tu umbral siempre que uses New Relic para mantener el ritmo de tu rendimiento mejorado.
+        * Si está implementando algo que sabe que afectará negativamente su desempeño durante un período de tiempo, afloje su umbral para permitirlo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Desactivar configuración
+      </td>
+
+      <td>
+        Puede <DNT>**disable any condition**</DNT> en una política, si es necesario. Esto es útil, por ejemplo, si deseas seguir usando otras condiciones en la póliza mientras experimentas con otras métricas o umbrales.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+El [indicador de estado de salud](/docs/new-relic-solutions/get-started/glossary/#health-status) codificado por colores en la UI de New Relic cambia a medida que el umbral de alerta aumenta o vuelve a la normalidad. Esto le permite monitor una situación a través de la interfaz de usuario antes de alcanzar un umbral crítico, sin necesidad de recibir una notificación específica al respecto. Hay dos umbrales de incidente: crítico (rojo) y advertencia (amarillo). Defina estos umbrales con diferentes criterios, teniendo en cuenta las sugerencias anteriores.
+
+### Asegúrese de que se ejecuten sus trabajos por lotes diarios [#batch-jobs]
+
+Puede configurar una condición de alerta para recibir una notificación si sus trabajos por lotes no se ejecutan.
+
+Suponiendo que está enviando un evento a New Relic como parte de su trabajo por lotes, puede configurar una condición de alerta para que le notifique si sus trabajos por lotes no se ejecutan.
+
+1. Configure una consulta de recuento simple sobre el evento.
+
+```sql
+SELECT count(*) FROM MyBatchEvent
+```
+
+2. Configure Pérdida de señal para abrir un nuevo incidente después de 24 horas y 30 minutos. Puede ajustar esto, pero es una buena idea permitir un trabajo por lotes de ejecución tardía.
+3. Asegúrese de utilizar el método de agregación de transmisión [de evento Timer](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/choose-your-aggregation-method/#event-timer-detail) . Como solo obtendrás 1 punto de datos cada 24 horas, puedes configurar el temporizador en su configuración más baja, 5 segundos.
+
+## Utilice valores no nulos cuando no haya señal
+
+De forma predeterminada, los espacios en las señales de datos se rellenan con valores nulos. En los casos en los que necesite poder crear condiciones basadas en esas lagunas de datos, puede llenar las lagunas con un valor personalizado o el último valor conocido. Puede configurar esta configuración por condición en la UI o [configurar valores de llenado de espacios a través de NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-api-loss-signal-gap-filling/#loss-of-signal).
+
+<Callout variant="important">
+  Configurar el llenado de espacios no evita que se active la "pérdida de señal".
+</Callout>
+
+## Defina sus preferencias de creación de problemas [#issue-creation]
+
+Decida cuándo recibirá la notificación de problemas para poder responder a los problemas cuando ocurran.
+
+Si es nuevo en Alerta, obtenga más información sobre las [opciones de preferencias de problemas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/).
+
+La configuración de preferencia de emisión predeterminada combina todas las condiciones dentro de una política en una sola emisión. Cambie su configuración de preferencia de problemas predeterminada para aumentar o disminuir la cantidad de problemas y notificaciones de problemas que recibe.
+
+Cada equipo dentro de su organización puede tener diferentes necesidades. Haga a su equipo 2 preguntas importantes al decidir sus preferencias de temas:
+
+* ¿Queremos que nos avisen cada vez que algo salga mal?
+* ¿Queremos agrupar todas las notificaciones similares y recibir una notificación una vez?
+
+Cuando una póliza y sus condiciones tienen un alcance más amplio, como gestionar el rendimiento de varias entidades, aumenta el número de emisiones que recibe. Es posible que necesite más notificaciones porque dos problemas no necesariamente pueden estar relacionados entre sí.
+
+Cuando una política y sus condiciones tienen un alcance enfocado, como administrar el rendimiento de una entidad, opte por la preferencia de emisión predeterminada. Necesita menos notificaciones cuando dos problemas están relacionados entre sí o cuando el equipo ya ha sido notificado y está solucionando un problema existente.
+
+## ¿Que sigue?
+
+Para obtener más información sobre el uso de alerta:
+
+* Obtenga más información sobre [los conceptos y términos de alertas](/docs/alerts-applied-intelligence/overview/#concepts-terms).
+* Obtenga más información sobre la [API](/docs/alerts/rest-api-alerts/new-relic-alerts-rest-api/rest-api-calls-new-relic-alerts).
+* Lea los detalles técnicos sobre [los límites y reglas mínimos y máximos](/docs/alerts/new-relic-alerts/getting-started/minimum-maximum-values).
+* Lea más sobre [cuándo es posible que desee utilizar configuraciones de pérdida de señal y llenado de espacios](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401).

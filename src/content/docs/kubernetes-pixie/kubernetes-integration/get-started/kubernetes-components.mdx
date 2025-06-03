@@ -1,0 +1,248 @@
+---
+title: Kubernetes integration components
+tags:
+    - Integrations
+    - Kubernetes integration
+    - Kubernetes components
+metaDescription: "Learn what components are deployed after installing the Kubernetes integration."
+freshnessValidatedDate: never
+---
+
+The New Relic Kubernetes integration gives you full observability into the health and performance of your cluster, whether you're running Kubernetes on-premises or in the cloud. It gives you visibility into Kubernetes namespaces, deployments, replicasets, nodes, pods, and containers.
+
+The [`newrelic-infrastructure` chart](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure) is the main component of the integration. Learn about its architecture [here](#architecture).
+
+The [`nri-bundle` chart](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) groups together individual charts for the integration, including `newrelic-infrastructure`, which allows you to easily install and upgrade the integration using only one chart. Learn about the default and optional components you can install with this chart [here](#components).
+
+## Architecture [#architecture]
+
+There are 3 components in the `newrelic-infrastructure` chart: `nrk8s-ksm`, `nrk8s-kubelet`, and `nrk8s-controlplane`. The first is a deployment and the next two are DaemonSets.
+
+Each of the components has 2 containers:
+
+1. A container for the integration, responsible for collecting metrics.
+2. A container with the New Relic infrastructure agent, which is used to send the metrics to New Relic.
+
+### Kube-state-metrics component [#nrk8s-ksm]
+
+We build our cluster state metrics on top of the OSS project[`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics), which is housed under the Kubernetes organization itself.
+
+A specific deployment `nrk8s-ksm` takes care of finding KSM and scraping it. With this pod being long-lived and single, it can safely use an endpoints informer to locate the IP of the KSM pod and scrape it. The informer automatically caches the list of informers in the cluster locally and watches for new ones, avoiding storming the API Server with requests to figure out where the pod was located.
+
+Customers should enable any target metrics to be monitored on KSM if those metrics are not enabled by default. For example, KSM v2+ disables labels and annotations metrics by default. Customers can enable the target labels and annotations metrics to be monitored by using the `metric-labels-allowlist` or `metric-annotations-allowlist` options described [here](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/developer/cli-arguments.md) in your Kubernetes clusters.
+
+See [Bring your own KSM](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/README.md#bring-your-own-ksm) for more information about KSM supported versions.
+
+<Callout variant="important">
+  Use `customAttributes` to add an attribute to samples related to entities that are not strictly tied to a particular node: `K8sNamespaceSample`, `K8sDeploymentSample`, `K8sReplicasetSample`, `K8sDaemonsetSample`, `K8sStatefulsetSample`, `K8sServiceSample`, and `K8sHpaSample`.
+</Callout>
+
+### Kubelet component [#nrk8s-kubelet]
+
+The Kubelet is the “Kubernetes agent”, a service that runs on every Kubernetes node and is responsible for creating the containers as instructed by the control plane. Since it's the Kubelet who partners closely with the Container Runtime, it's the main source of infrastructure metrics for our integration, such as use of CPU, memory, disk, network, etc. Although not thoroughly documented, the Kubelet API is the de-facto source for most Kubernetes metrics.
+
+Scraping the Kubelet is typically a low-resource operation. Given this, and our intent to minimize internode traffic whenever possible, `nrk8s-kubelet` is run as a DaemonSet where each instance gathers metric from the Kubelet running in the same node as it is.
+
+`nrk8s-kubelet` connects to the Kubelet using the Node IP. If this process fails, `nrk8s-kubelet` will fall back to reach the node through the API Server proxy. This fallback mechanism helps you with very large clusters, as proxying many kubelets might increase the load in the API server. You can check if the API Server is being used as a proxy by looking for a message like this in the logs:
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### Control plane component [#nrk8s-controlplane]
+
+As major Kubernetes distributions, we deploy `nrk8s-controlplane` as a DaemonSet with `hostNetwork: true`. The configuration is structured to support autodiscover and static endpoints. To be compatible with a wide range of distributions out of the box, we provide a wide range of known defaults as configuration entries. Doing this in the configuration instead of the code allows you to tweak autodiscovery to your needs.
+
+There is the possibility of having multiple endpoints per selector and adding a probe mechanism which automatically detects the correct one. This allows you to try different configurations such as ports or protocols by using the same selector.
+
+Scraping configuration for the etcd CP component looks like the following where the same structure and features applies for all components:
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+If `staticEndpoint` is set, the component tries to scrape it. If it can't hit the endpoint, the integration fails so there're no silent errors when manual endpoints are configured.
+
+If `staticEndpoint` is not set, the component will iterate over the autodiscover entries looking for the first pod that matches the `selector` in the specified `namespace`, and optionally is running in the same node of the DaemonSet (if `matchNode` is set to `true`). After a pod is discovered, the component probes, issuing an http `HEAD` request, the listed endpoints in order and scrapes the first successful probed one using the authorization type selected.
+
+While above we show a config excerpt for the `etcd` component, the scraping logic is the same for other components.
+
+For more detailed instructions on how to configure control plane monitoring, please check the [control plane monitoring](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) page.
+
+### Helm Charts [#helm-charts]
+
+Helm is the primary means we offer to deploy our solution into your clusters. The Helm chart manages one deployment and two DaemonSets where each has slightly different configurations. This gives you more flexibility to adapt the solution to your needs, without the need to apply manual patches on top of the chart, and the generated manifests.
+
+Some of the new features that our new Helm chart exposes are these:
+
+* Full control of the `securityContext` for all pods
+* Full control of pod `labels` and `annotations` for all pods
+* Ability to add extra environment variables, `volumes`, and `volumeMounts`
+* Full control on the integration configuration, including which endpoints are reached, autodiscovery behavior, and scraping intervals
+* Better alignment with Helm idioms and standards
+
+You can see the full details of all the switches you can toggle in the [`README.md` chart](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md).
+
+## Components [#components]
+
+When you install the Kubernetes integration using `nri-bundle`, these 2 components are installed by default:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Component
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [newrelic-infrastructure](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)
+      </td>
+
+      <td>
+        Sends metrics about nodes, cluster objects (for example, deployments, pods), and the control plane to New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-metadata-injection](https://github.com/newrelic/k8s-metadata-injection/tree/main/charts/nri-metadata-injection)
+      </td>
+
+      <td>
+        Enriches New Relic-instrumented applications (APM) with Kubernetes information.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+These are optional components you can either install using `nri-bundle` or separately:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Component
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [kube-state-metrics](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics)
+      </td>
+
+      <td>
+        Required for newrelic-infrastructure to gather cluster-level metrics.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-kube-events](https://github.com/newrelic/nri-kube-events/tree/main/charts/nri-kube-events)
+      </td>
+
+      <td>
+        Reports Kubernetes events to New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-infra-operator](https://github.com/newrelic/newrelic-infra-operator/tree/main/charts/newrelic-infra-operator)
+      </td>
+
+      <td>
+        (Beta) Used with Fargate or serverless environments to inject newrelic-infrastructure as a sidecar instead of the usual DaemonSet.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-k8s-metrics-adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter/tree/main/charts/newrelic-k8s-metrics-adapter)
+      </td>
+
+      <td>
+        (Beta) Provides a source of data for Horizontal Pod Autoscalers (HPA) based on a NRQL query from New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-logging](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging)
+      </td>
+
+      <td>
+        Sends logs for Kubernetes components and workloads running on the cluster to New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-prometheus](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
+      </td>
+
+      <td>
+        Sends metrics from applications exposing Prometheus metrics to New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-prometheus-configurator](https://github.com/newrelic/newrelic-prometheus-configurator/tree/master/charts/newrelic-prometheus-agent)
+      </td>
+
+      <td>
+        Configures instances of Prometheus in Agent mode to send metrics to the New Relic Prometheus endpoint.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-pixie](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-pixie)
+      </td>
+
+      <td>
+        Connects to the Pixie API and enables the New Relic plugin in Pixie. The plugin allows you to export data from Pixie to New Relic for long-term data retention.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Pixie](https://docs.pixielabs.ai/installing-pixie/install-schemes/helm/#3.-deploy)
+      </td>
+
+      <td>
+        An open source observability tool for Kubernetes applications that uses eBPF to automatically capture telemetry data without the need for manual instrumentation.
+      </td>
+    </tr>
+  </tbody>
+</table>

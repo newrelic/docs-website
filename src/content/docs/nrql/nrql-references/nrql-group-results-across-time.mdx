@@ -1,0 +1,322 @@
+---
+title: 'NRQL: Facet results by time'
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'New Relic NRQL: use the FACET clause to return results segmented by time buckets.'
+redirects:
+  - /docs/insights/new-relic-insights/features/cohort-analysis
+  - /docs/insights/new-relic-insights/features/cohort-analysis-grouping-results-across-time
+  - /docs/insights/using-insights-ui/advanced-ui-tasks/cohort-analysis-facet-group-results-across-time
+  - /docs/insights/using-insights-ui/filter-segment/cohort-analysis-facet-group-results-across-time
+  - /docs/insights/using-insights-ui/time-settings/cohort-analysis-facet-group-results-across-time
+  - /docs/insights/nrql-new-relic-query-language/nrql-query-examples/cohort-analysis-facet-group-results-across-time
+  - /docs/insights/nrql-new-relic-query-language/nrql-query-examples/group-results-across-time
+  - /docs/query-data/nrql-new-relic-query-language/nrql-query-examples/group-results-across-time
+  - /docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/nrql-group-results-across-time
+freshnessValidatedDate: never
+---
+
+With [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql), you can create queries that group results across time. For example, you can group results together based on timestamps by separating them into buckets that cover a specified range of dates and times.
+
+When using the time functions from the table below in NRQL queries, the results return in UTC. To adjust the results to your time zone, include the [`WITH TIMEZONE` clause](/docs/insights/nrql-new-relic-query-language/nrql-resources/nrql-syntax-components-functions#sel-timezone) in your query.
+
+For the functions that have an optional `format` parameter, the accepted values are `string` and `numeric`. The default format value will be a `string` if omitted.
+
+<table>
+  <thead>
+    <tr>
+      <th width={210}>
+        <DNT>
+          **Time-based function**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **String format**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Numeric format**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td nowrap>
+        `yearOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the year of a timestamp.
+      </td>
+
+      <td nowrap>
+        `2023`
+      </td>
+
+      <td nowrap>
+        `2023`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `quarterOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the quarter of the year. The returned value includes both the quarter and the year when formatted as a string.
+      </td>
+
+      <td nowrap>
+        `Q1 2014`
+      </td>
+
+      <td nowrap>
+        `1`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `monthOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the month and year of the timestamp when formatted as a string, or the numeric month when formatted as a number.
+      </td>
+
+      <td nowrap>
+        `July 2014`
+      </td>
+
+      <td nowrap>
+        `7`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `weekOf(attr)`
+      </td>
+
+      <td>
+        Returns the week the timestamp occurred by naming the month and day of that week's Monday.
+      </td>
+
+      <td nowrap>
+        `Week of January 15`
+      </td>
+
+      <td nowrap>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `weekdayOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the day of the week of the timestamp. The returned value loops back at the end of the week, allowing you to look at trends by weekday over time.
+      </td>
+
+      <td nowrap>
+        `Sunday`
+      </td>
+
+      <td nowrap>
+        `0`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `dateOf(attr)`
+      </td>
+
+      <td>
+        Returns the date of the timestamp. The returned value includes month, day and year.
+      </td>
+
+      <td nowrap>
+        `July 15, 2014`
+      </td>
+
+      <td nowrap>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `dayOfMonthOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the numeric date within a single month of the timestamp, a value from 1 to 31. The returned value does not include the month.
+      </td>
+
+      <td nowrap>
+        `23`
+      </td>
+
+      <td nowrap>
+        `23`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `daysInMonthOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the number of days in the month of the timestamp.
+      </td>
+
+      <td nowrap>
+        `30`
+      </td>
+
+      <td nowrap>
+        `30`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `hourOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the hour of the timestamp.
+
+        The returned value does not include a prepended 0 for hours between 1am and 9am. This differs from functions and clauses such as `SINCE`, which accept these hours with a 0 at the start.
+      </td>
+
+      <td nowrap>
+        `6:00`, `12:00`, `18:00`
+      </td>
+
+      <td nowrap>
+        `6`, `12`, `18`
+      </td>
+    </tr>
+
+    <tr>
+      <td nowrap>
+        `minuteOf(attr [, format])`
+      </td>
+
+      <td>
+        Returns the minute of the timestamp.
+
+        The returned value does not include a prepended 0 for minutes between 1 and 9. This differs from functions and clauses such as `SINCE`, which accept these minutes with a 0 at the start.
+      </td>
+
+      <td nowrap>
+        `0`, `6`, `48`
+      </td>
+
+      <td nowrap>
+        `0`, `6`, `48`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Facet your NRQL query time range [#cohorts]
+
+<Callout variant="tip">
+  In these examples, we use a custom timestamp attribute submitted with PageView events called `createdAt`. To facet by the time of PageView event ingestion, you could use the `timestamp` attribute instead.
+</Callout>
+
+To create your NRQL query, use a [`FACET` clause](/docs/insights/nrql-new-relic-query-language/nrql-resources/nrql-syntax-components-functions#sel-facett) with a bucket function that works with a timestamp attribute. Run a standard `FACET` query, but instead of faceting by an attribute, facet by time. For example:
+
+```sql
+SELECT count(*) FROM K8sDaemonsetSample FACET monthOf(createdAt)
+```
+
+<img
+  title="NRQL facet by time"
+  alt="A screenshot displaying a NRQL query faceted by time"
+  src="/images/queries_screenshot-crop_facet-by-time-query.webp"
+/>
+
+To perform multiple functions within the same query, use NRQL's multi-facet capability:
+
+```sql
+SELECT count(*) FROM K8sDaemonsetSample FACET dateOf(createdAt), monthOf(createdAt)
+```
+
+<img
+  title="NRQL facet by time with two functions"
+  alt="NRQL facet by time with two functions"
+  src="/images/queries_screenshot-crop_facet-by-time-two-functions.webp"
+/>
+
+Many time-based functions accept an optional second argument of either `string` (the default) or `numeric`, which controls the format of the result value.
+
+```sql
+SELECT count(*) FROM K8sDaemonsetSample FACET monthOf(createdAt, numeric)
+```
+
+## Facet examples [#facet-examples]
+
+<CollapserGroup>
+  <Collapser
+    id="facet-time-example"
+    title="Group results by month"
+  >
+    To group all results based on the month, use the `monthOf` function. In this example, the NRQL query includes a function (`count(*)`), a data type, a time frame (`SINCE 1 day ago`), and a time facet (`monthOf(createdAt)`).
+
+    ```sql
+    SELECT count(*) FROM K8sDaemonsetSample SINCE 1 day ago FACET monthOf(createdAt)
+    ```
+
+    Running the query returns a table of results by month.
+  </Collapser>
+
+  <Collapser
+    id="facet-other-examples"
+    title="Other grouping examples with FACET clause"
+  >
+    You can run NRQL queries to group your data in other ways, not just time. For additional examples, see the [NRQL `FACET` documentation](/docs/insights/nrql-new-relic-query-language/nrql-resources/nrql-syntax-components-functions#sel-facet).
+  </Collapser>
+
+  <Collapser
+    id="timeseries-chart-examples"
+    title="Example of creating a chart by specifying TIMESERIES"
+  >
+    You need to be aware of `UNTIL` you add the `TIMESERIES` function and use the time function in a time series chart.
+
+    The default value of `UNTIL` is `NOW`, so if you do not specify anything, the values of the time functions may be separated or combined.
+
+    By specifying `UNTIL today`, you can create a chart that ends at 12:00 AM on the same day.
+
+    ```sql
+    SELECT count(*) FROM PageView TIMESERIES 1 day WITH TIMEZONE 'Europe/London' SINCE 4 week ago UNTIL today
+    ```
+
+    If you want to visualize data from `last month` instead of the past four weeks, you can use `SINCE last month UNTIL this month`.
+
+    ```sql
+    SELECT count(*) FROM PageView TIMESERIES 1 day  WITH TIMEZONE 'Europe/London' SINCE last month UNTIL this month
+    ```
+  </Collapser>
+</CollapserGroup>

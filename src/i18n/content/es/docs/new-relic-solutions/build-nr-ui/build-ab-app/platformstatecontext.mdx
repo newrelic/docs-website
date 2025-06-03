@@ -1,0 +1,259 @@
+---
+title: Agrega PlatformStateContext a tu Nerdlet
+metaDescription: Add PlatformStateContext to your Nerdlet
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Obtener datos de un servicio de terceros, antes de comenzar esta.
+</Callout>
+
+En este curso, creará una aplicación New Relic. Esta aplicación muestra telemetry data de un servicio de demostración que ejecuta una Prueba A/B para que pueda revelar esos datos en gráficos, como un dashboard. Sin embargo, su aplicación New Relic es diferente a un dashboard porque hace más que mostrar datos de New Relic. Extrae datos externos, proporciona componentes y funcionalidades UI e incluso tiene sus propios pequeños almacenes de datos. El propósito de esta aplicación New Relic es presentar el contexto para que pueda comprender mejor los resultados de la Prueba A/B y cómo esos resultados se relacionan con sus objetivos comerciales.
+
+Hasta ahora, creó todos sus gráficos, los organizó para mejorar su usabilidad, les proporcionó datos reales y más. Hay algunas mejoras finales que puede realizar empleando los componentes API de la plataforma. En esta lección, aprenderá a emplear valores en el estado de la plataforma New Relic.
+
+<Steps>
+  <Step>
+    Cambie al directorio _add-plataforma-state-context/ab-test_ del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-platform-state-context/ab-test
+    ```
+
+    Este directorio contiene el código que esperamos que tenga su aplicación en este punto del curso. Al navegar al directorio correcto al comienzo de cada lección, deja atrás su código personalizado, proteger así de llevar código incorrecto de una lección a la siguiente.
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet/newsletter-signups.js`, agregue un `PlatformStateContext.Consumer` al método `render()` de su componente `NewsletterSignups` :
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class NewsletterSignups extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Newsletter subscriptions per version
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query="SELECT count(*) FROM subscription FACET page_version SINCE 30 MINUTES AGO TIMESERIES"
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Cerciorar de reemplazar `<YOUR NEW RELIC ACCOUNT ID>` con su [ID de cuenta](/docs/accounts/accounts-billing/account-setup/account-id) real de New Relic.
+    </Callout>
+
+    Observe que `NrqlQuery` usa una constante llamada `ACCOUNT_ID`. En lugar de codificar un identificador de cuenta en su Nerdlet, puede usar `accountIds` desde el estado de la URL de la plataforma.
+  </Step>
+
+  <Step>
+    `PlatformStateContext.Consumer` proporciona acceso al estado de la URL de la plataforma. Este contexto contiene un valor importante que usará en su aplicación, llamado `timeRange`.
+
+    Tenga en cuenta que su `NrqlQuery` emplea una cláusula `SINCE` que identifica el periodo histórico del que su consulta debe obtener datos. En este momento, esa cláusula `SINCE` está configurada en `30 MINUTES AGO`. Con `timeRange`, puedes usar el selector de tiempo de la plataforma para hacer que este periodo sea ajustable.
+  </Step>
+
+  <Step>
+    Emplee el `timeRange` del estado de la plataforma:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class NewsletterSignups extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Newsletter subscriptions per version
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query="SELECT count(*) FROM subscription FACET page_version TIMESERIES"
+                                timeRange={platformState.timeRange}
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Cerciorar de reemplazar `<YOUR NEW RELIC ACCOUNT ID>` con su [ID de cuenta](/docs/accounts/accounts-billing/account-setup/account-id) real de New Relic.
+    </Callout>
+
+    Ahora, `NewsletterSignups` emplea `platformState.timeRange` en lugar de una cláusula `SINCE` codificada.
+
+    Si bien los `NrqlQuery` componentes aceptan un accesorio `timeRange` conveniente, no todos los componentes lo hacen. Aún puedes usar `timeRange` en otros contextos accediendo `duration`, `begin_time` o `end_time`:
+
+    ```jsx
+    <PlatformStateContext.Consumer>
+        {
+            (platformState) => { console.log(platformState.timeRange.duration); }
+        }
+    </PlatformStateContext.Consumer>
+    ```
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-platform-state-context/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic. También permite que su aplicación realice solicitudes de Nerdgraph en nombre de su cuenta.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    [Vea su aplicación](https://one.newrelic.com?nerdpacks=local).
+
+    Su `NrqlQuery` ahora usa el `timeRange` del estado de la plataforma, pero su gráfico probablemente aún muestre los últimos 30 minutos. ¿Por qué? ¿De dónde viene el `timeRange` en estado de plataforma?
+
+    El selector de tiempo se encuentra en el lado derecho de la barra de navegación de su aplicación.
+
+    Cambie este valor y vea la actualización de su gráfico.
+
+    <Callout variant="tip">
+      Si algo no funciona, emplee las herramientas de depuración de su browser para intentar identificar el problema.
+
+      **Cerciorar:**
+
+      * Copié el código correctamente de la lección.
+      * Generó un nuevo UUID
+      * Reemplazó todas las instancias de `<YOUR NEW RELIC ACCOUNT ID>` en su proyecto con su New Relic [ID de cuenta real](/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+  </Step>
+
+  <Step>
+    Actualización `VersionPageViews`:
+
+    ```js
+    import React from 'react';
+    import {
+        HeadingText,
+        LineChart,
+        NrqlQuery,
+        PlatformStateContext,
+    } from 'nr1';
+
+    const ACCOUNT_ID = 1234567  // <YOUR NEW RELIC ACCOUNT ID>
+
+    export default class VersionPageViews extends React.Component {
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Version {this.props.version.toUpperCase()} - Page views
+                </HeadingText>
+                <PlatformStateContext.Consumer>
+                    {
+                        (platformState) => {
+                            return <NrqlQuery
+                                accountIds={[ACCOUNT_ID]}
+                                query={`SELECT count(*) FROM pageView WHERE page_version = '${this.props.version}' TIMESERIES`}
+                                timeRange={platformState.timeRange}
+                                pollInterval={60000}
+                            >
+                                {
+                                    ({ data }) => {
+                                        return <LineChart data={data} fullWidth />;
+                                    }
+                                }
+                            </NrqlQuery>
+                        }
+                    }
+                </PlatformStateContext.Consumer>
+            </div>
+        }
+    }
+    ```
+
+    <Callout variant="important">
+      Cerciorar de reemplazar `<YOUR NEW RELIC ACCOUNT ID>` con su [ID de cuenta](/docs/accounts/accounts-billing/account-setup/account-id) real de New Relic.
+    </Callout>
+
+    De todos los gráficos en su aplicación New Relic, estos tres gráficos son los que deben actualizar con el selector de tiempo. Los demás, **Total subscriptions per version**, **Total cancellations per version**, **Version A - Page views vs. subscriptions**, **Version B - Page views vs. subscriptions**, muestran valores totales a lo largo del tiempo. Por lo tanto, tiene sentido codificar sus cláusulas `SINCE` en `7 DAYS AGO` , ya que este es un periodo de tiempo razonable para los propósitos de este curso.
+  </Step>
+
+  <Step>
+    Mientras sigues sirviendo tu Nerdpack localmente, mira tu aplicación NR1 para ver tus gráficos actualizar con el rango de tiempo que elijas.
+
+    <Callout variant="tip">
+      Si algo no funciona, emplee las herramientas de depuración de su browser para intentar identificar el problema.
+
+      **Cerciorar:**
+
+      * Copié el código correctamente de la lección.
+      * Generó un nuevo UUID
+      * Reemplazó todas las instancias de `<YOUR NEW RELIC ACCOUNT ID>` en su proyecto con su New Relic [ID de cuenta real](/docs/accounts/accounts-billing/account-setup/account-id)
+    </Callout>
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+Ahora que basa su consulta en el estado de la plataforma, algunos de sus gráficos son dinámicos en sus rangos de tiempo. Esta es una gran mejora porque le permite ajustar sus gráficos para mostrar datos de cualquier momento particular, lo cual es útil para vincular los datos con los resultados comerciales.
+
+Los componentes API de la plataforma también ofrecen mucha más funcionalidad, incluida la capacidad de llevar al usuario a otro lugar en New Relic. Aprenderá cómo hacer esto en la siguiente lección.
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: agregue navegación a su nerdlet.
+</Callout>

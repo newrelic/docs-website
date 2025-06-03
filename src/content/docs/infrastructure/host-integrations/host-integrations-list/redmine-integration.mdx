@@ -1,0 +1,62 @@
+---
+title: Redmine integration
+tags:
+   - Redmine  integration
+   - New Relic integrations
+metaDescription: Install our Redmine  dashboards and see your Redmine  data in New Relic.
+freshnessValidatedDate: never
+---
+
+With our Redmine dashboard, you can easily track your web transaction rate, application error rate, and databases. Built with our Ruby agent, the Redmine quickstart gives you a set of default <InlinePopover type="dashboards"/> that let you view your most critical data all in one place.
+
+<img
+  src="/images/infrastructure_screenshot-crop_redmine-io-dash.webp"
+  title="Redmine dashboard"
+  alt="Redmine dashboard"
+/>
+
+<figcaption>
+  After setting up the integration with New Relic, see your data in dashboards like these, right out of the box.
+</figcaption>
+
+## Integrate Redmine with the the Ruby agent [#ruby]
+
+Our Ruby agent collects and ingests data so you can track your Redmine performance in New Relic. You can install the Ruby agent using our [launcher](https://one.newrelic.com/marketplace?account=1&state=eb17d004-3569-306a-d693-9506d3d0cf4e), or by following [manual installation](/docs/apm/agents/ruby-agent/installation/install-new-relic-ruby-agent) with our docs.
+
+Once installed, confirm that New Relic is ingesting your Redmine data by going to <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capaibilities)**</DNT>, then clicking <DNT>**Metrics & events**</DNT>. Run the following NRQL query to confirm that New Relic is receiving Redmine data:
+
+```sql
+SELECT apm.service.transaction.duration FROM Metric
+```
+
+## Install the infrastructure agent [#infrastructure]
+
+While our Redmine integration isn't built with our infrastructure agent, we recommend installing it if you want performance data about your hosts. You can install the infrastructure agent in two different ways:
+
+* Our [guided install](https://one.newrelic.com/nr1-core?state=4f81feab-35f7-e97e-9903-52510f8542bd) is a CLI tool that inspects your system and installs the infrastructure agent alongside the application monitoring agent that best works for your system. To learn more about how our guided install works, check out our [Guided install overview](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview).
+
+* If you’d rather install our infrastructure agent manually, you can follow a tutorial for manual installation for [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/), or [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/).
+
+## See Redmine metrics in a dashboard [#dash]
+
+Our default dashboard transform that raw data into charts and graphs, which provide a bird’s eye view of your system’s health. To install our default dashboards, go to our [Redmine instant observability page](https://newrelic.com/instant-observability/redmine).
+
+## Create queries for customized dashboards [#custom]
+
+Certain performance metrics aren't available out of the box with our pre-built dashboards. While optional, we recommend additional instrumentation so you can track Redmine metrics such as manageable, unmanageable, and overdue issues. To start tracking, install the [Monitoring & Controlling](https://www.redmine.org/plugins/monitoring-controlling) plugin for your Redmine application.
+
+1. Go to your `redmine-monitoring-controlling` folder and open the file named `home_monitoring_controlling_project_controller.rb`. This is found in your plugins directory.
+2. Insert this snippet at the bottom of the file: `::NewRelic::Agent.record_metric(‘Custom/managementIssues’,@managementissues.count)`
+3. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, then click <DNT>**Metrics & events**</DNT>. Run the following query to confirm that New Relic is reporting custom metrics:
+
+   ```sql
+   SELECT MAX(newrelic.timeslice.value) AS Manageable Issues FROM Metric WHERE metricTimesliceName like '%Custom/managementissues%'
+   ```
+
+## What's next?
+
+To learn more about building NRQL queries and generating dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to create basic and advanced queries.
+* [Introduction to dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to customize your dashboard and carry out different actions.
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) to adjust your dashboards display mode, or to add more content to your dashboard.

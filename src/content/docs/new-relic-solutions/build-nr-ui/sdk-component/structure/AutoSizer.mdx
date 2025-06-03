@@ -1,0 +1,111 @@
+---
+title: 'AutoSizer'
+metaDescription: 'Learn how to work the AutoSizer component'
+freshnessValidatedDate: 2024-06-03
+---
+
+The `<AutoSizer>` component provides functionality to react to changes in size in the element in which they are contained, by measuring it. When the `width` or the `height` of that outer element changes, the children are rerendered and will receive the new the measurements as an object.
+
+### Usage
+
+```js
+import { AutoSizer } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+function render() {
+  const style = {
+    backgroundColor: '#d8211a1a',
+    border: 'dashed 1px #d8211a4d',
+  };
+
+
+  return (
+    <AutoSizer>
+      {({ width, height }) => (
+        <div style={{ ...style, height, width }}>
+          width: {width}, height: {height}
+        </div>
+      )}
+    </AutoSizer>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5><h5>function</h5>
+      </td>
+
+      <td>
+        Children function that will be called every time the parent resizes. It is called with an object containing `width` and `height` keys, and must return the React element to be rendered.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Classname for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onResize` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback invoked when the container resizes.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"args","type":"OnResizeArguments","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          AutoSizer.SPACING_TYPE.EXTRA_LARGE,
+          AutoSizer.SPACING_TYPE.LARGE,
+          AutoSizer.SPACING_TYPE.MEDIUM,
+          AutoSizer.SPACING_TYPE.NONE,
+          AutoSizer.SPACING_TYPE.OMIT,
+          AutoSizer.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"OnResizeArguments","properties":[{"description":"Height of the container","name":"height","type":"number"},{"description":"Width of the container","name":"width","type":"number"}]}}/>

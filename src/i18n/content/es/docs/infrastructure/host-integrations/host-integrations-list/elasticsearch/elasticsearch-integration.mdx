@@ -1,0 +1,2942 @@
+---
+title: Integración de monitoreo de Elasticsearch
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: 'New Relic''s Elasticsearch integration: what data it reports and how to configure it.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra integración Elasticsearch recopila y envía inventario y métricas de su clúster [Elasticsearch](https://www.elastic.co/) a nuestra plataforma, donde podrá ver el estado de su entorno Elasticsearch. Recopilamos métricas a nivel de clúster, nodo e índice para que pueda encontrar más fácilmente el origen de cualquier problema.
+
+Para instalar la integración de monitoreo de Elasticsearch, siga los siguientes pasos:
+
+1. [Instalar y activar la integración](#install).
+2. [Configurar la integración](#config).
+3. [Buscar y utilizar datos](#find-and-use).
+4. Opcionalmente, consulte [los ajustes de configuración de Elasticsearch](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-config).
+
+## Compatibilidad y requisitos [#req]
+
+### Versiones de Elasticsearch [#elasticsearch-versions]
+
+Nuestra integración es compatible con Elasticsearch 7.x a 8.X.
+
+### Sistema operativo soportado [#supported-os]
+
+* Windows
+
+  <img
+    style={{ width: '32px', height: '32px'}}
+    class="inline"
+    title="Windows"
+    alt="Windows"
+    src="/images/os_icon_windows.webp"
+  />
+
+* linux
+
+  <img
+    style={{ width: '32px', height: '32px'}}
+    class="inline"
+    title="Linux"
+    alt="Linux"
+    src="/images/os_icon_linux.webp"
+  />
+
+Para obtener una lista completa de versiones específicas de Windows y Linux, consulte la tabla de [sistemas operativos compatibles](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent/#operating-systems).
+
+### Requisito del sistema [#system-reqs]
+
+* Una cuenta New Relic . ¿No tienes uno? [¡Registrate gratis!](https://newrelic.com/signup) No se requiere tarjeta de crédito.
+
+* Si Elasticsearch no se ejecuta en Kubernetes o Amazon ECS, [instale el agente de infraestructura](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic) en un host que ejecute Elasticsearch. De lo contrario:
+
+  * Si está funcionando
+
+    <img
+      style={{ width: '32px', height: '32px'}}
+      class="inline"
+      title="Kubernetes"
+      alt="Kubernetes"
+      src="/images/os_icon_k8.webp"
+    >
+      Kubernetes, consulte [estos requisitos](/docs/monitor-service-running-kubernetes#requirements).
+    </img>
+
+  * Si está funcionando
+
+    <img
+      style={{ width: '32px', height: '32px'}}
+      class="inline"
+      title="ECS"
+      alt="ECS"
+      src="/images/os_icon_ecs.webp"
+    >
+      Amazon ECS, consulte [estos requisitos](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs).
+    </img>
+
+## Instalar y activar la integración. [#install]
+
+Para instalar la integración de Elasticsearch, siga las instrucciones para su entorno:
+
+### Instalación de linux [#linux]
+
+1. Siga las instrucciones para [instalar una integración](/docs/install-integrations-package) y reemplace la variable `INTEGRATION_FILE_NAME` con `nri-elasticsearch`.
+
+2. Cambie el directorio a la carpeta de configuración de integración ejecutando:
+
+   ```shell
+   cd /etc/newrelic-infra/integrations.d
+   ```
+
+3. Copie el archivo de configuración de muestra ejecutando:
+
+   ```shell
+   sudo cp elasticsearch-config.yml.sample elasticsearch-config.yml
+   ```
+
+4. Edite el archivo de configuración `elasticsearch-config.yml` con su editor favorito. Consulte algunos [ejemplos de archivos de configuración](#examples).
+
+5. Para habilitar el análisis de errores de Elasticsearch automático y el reenvío, copie (o cambie el nombre) el archivo `elasticsearch-log.yml.example` a `elasticsearch-log.yml`. No es necesario reiniciar el agente.
+
+<DNT>
+  **Example**
+</DNT>
+
+```shell
+sudo cp /etc/newrelic-infra/logging.d/elasticsearch-log.yml.example /etc/newrelic-infra/logging.d/elasticsearch-log.yml
+```
+
+### Otros ambientes [#other-env]
+
+<CollapserGroup>
+  <Collapser
+    id="windows-install"
+    title={<><img src="/images/os_icon_windows.webp" title="Windows installation" alt="Windows installation" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>instalación de Windows</img></>}
+  >
+    1. Descargue la imagen del instalador `nri-elasticsearch` .MSI desde:
+
+       [https://download.newrelic.com/infrastructure_agent/windows/integrations/nri-elasticsearch/nri-elasticsearch-amd64.msi](https://download.newrelic.com/infrastructure_agent/windows/integrations/nri-elasticsearch/nri-elasticsearch-amd64.msi)
+
+    2. Para instalar desde el símbolo del sistema de Windows, ejecute:
+
+       ```
+       msiexec.exe /qn /i PATH\TO\nri-elasticsearch-amd64.msi
+       ```
+
+    3. En el directorio de integración, `C:\Program Files\New Relic\newrelic-infra\integrations.d\`, cree una copia del archivo de configuración de muestra ejecutando:
+
+       ```
+       cp elasticsearch-config.yml.sample elasticsearch-config.yml
+       ```
+
+    4. Edite el archivo `elasticsearch-config.yml`como se describe en [los archivos de muestra elasticsearch-config.yml](#examples).
+  </Collapser>
+
+  <Collapser
+    id="ecs-install"
+    title={<><img src="/images/os_icon_ecs.webp" title="Amazon ECS installation" alt="Amazon ECS installation" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>' ' Instalación de Amazon ECS</img></>}
+  >
+    Consulte [Servicio de monitorización ejecutándose en ECS](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs).
+  </Collapser>
+
+  <Collapser
+    id="k8s-install"
+    title={<><img src="/images/os_icon_k8.webp" title="Kubernetes installation" alt="Kubernetes installation" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}>Kubernetes Instalación</img></>}
+  >
+    Consulte [Supervisar el servicio que se ejecuta en Kubernetes](/docs/monitor-service-running-kubernetes).
+  </Collapser>
+</CollapserGroup>
+
+Notas adicionales:
+
+* <DNT>
+    **Advanced:**
+  </DNT>
+
+  integración también están disponibles en [formato tarball](/docs/integrations/host-integrations/installation/install-host-integrations-built-new-relic#tarball) para permitir la instalación fuera de un administrador de paquetes.
+
+* <DNT>
+    **On-host integrations do not automatically update.**
+  </DNT>
+
+  Para obtener mejores resultados, [actualice periódicamente el paquete de integración](/docs/integrations/host-integrations/installation/update-infrastructure-host-integration-package) y [el agente de infraestructura](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+<InstallFeedback/>
+
+## Configurar la integración [#config]
+
+Hay varias formas de configurar la integración, dependiendo de cómo se instaló:
+
+* Si se habilita a través de
+
+  <img
+    style={{ width: '32px', height: '32px'}}
+    class="inline"
+    title="Kubernetes"
+    alt="Kubernetes"
+    src="/images/os_icon_k8.webp"
+  >
+    Kubernetes, consulte [Supervisar los servicios que se ejecutan en Kubernetes](/docs/monitor-service-running-kubernetes).
+  </img>
+
+* Si se habilita a través de
+
+  <img
+    style={{ width: '32px', height: '32px'}}
+    class="inline"
+    title="ECS"
+    alt="ECS"
+    src="/images/os_icon_ecs.webp"
+  >
+    Amazon ECS, consulte [Monitorear servicios que se ejecutan en ECS](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs).
+  </img>
+
+* Si está instalado en el host, edite la configuración en el archivo de configuración YAML de la integración, `elasticsearch-config.yml`. La configuración de formato YAML de una integración es donde puede colocar las credenciales de inicio de sesión requeridas y configurar cómo se recopilan los datos. Las opciones que cambie dependen de su configuración y preferencia. El archivo de configuración tiene configuraciones comunes aplicables a todas las integraciones, como `interval`, `timeout`, `inventory_source`. Para leer todo sobre estas configuraciones comunes, consulte nuestro documento [de formato de configuración](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-newer-configuration-format/#configuration-basics) .
+
+<Callout variant="important">
+  Si todavía utiliza nuestros archivos de configuración o definición legacy, verifique el [formato de configuración estándar](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/).
+</Callout>
+
+## Archivos de muestra elasticsearch-config.yml [#examples]
+
+<CollapserGroup>
+  <Collapser
+    id="basic-config"
+    title="Configuración básica"
+  >
+    Esta es la configuración básica utilizada para recopilar métricas e inventario de su localhost:
+
+    ```yaml
+    integrations:
+      - name: nri-elasticsearch
+        env:
+          HOSTNAME: localhost
+          PORT: 9200
+          USERNAME: elasticsearch_user
+          PASSWORD: elasticsearch_password
+          CONFIG_PATH: /etc/elasticsearch/elasticsearch.yml
+        interval: 15s
+        labels:
+          environment: production
+        inventory_source: config/elasticsearch
+    ```
+  </Collapser>
+
+  <Collapser
+    id="basic-intervals"
+    title="Configuración básica con diferentes métricas e intervalos de inventario."
+  >
+    Esta configuración recolecta métrica cada 15 segundos e inventario cada 60 segundos:
+
+    ```yaml
+    integrations:
+      - name: nri-elasticsearch
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 9200
+          USERNAME: elasticsearch_user
+          PASSWORD: elasticsearch_password
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-elasticsearch
+        env:
+          INVENTORY: true
+          HOSTNAME: localhost
+          PORT: 9200
+          USERNAME: elasticsearch_user
+          PASSWORD: elasticsearch_password
+          CONFIG_PATH: /etc/elasticsearch/elasticsearch.yml
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/elasticsearch
+    ```
+  </Collapser>
+
+  <Collapser
+    id="envvar-replacement"
+    title="Reemplazo de variables de entorno"
+  >
+    En esta configuración estamos usando la variable de entorno `ELASTIC_HOST` para completar la configuración del nombre de host de la integración:
+
+    ```yaml
+    integrations:
+      - name: nri-elasticsearch
+        env:
+          METRICS: "true"
+          HOSTNAME: {{ELASTIC_HOST}}
+          PORT: 9200
+          USERNAME: elasticsearch_user
+          PASSWORD: elasticsearch_password
+        interval: 15s
+        labels:
+          env: production
+          role: load_balancer
+    ```
+  </Collapser>
+
+  <Collapser
+    id="multi-instance"
+    title="Monitoreo de clusters"
+  >
+    La integración es capaz de recoger todas las métricas del clúster simplemente conectándose a uno de los nodos, usando una configuración básica mostrada antes de que se pueda raspar todo el clúster métrico.
+
+    Otra forma de configurar la integración es configurar el scrape de todas las instancias pero activando el parámetro `MASTER_ONLY` que hace que la integración solo recopile métrica si la instancia scrapeada es maestra. Esto permite compartir la misma configuración para todos los nodos y evitar la duplicación de datos.  
+        Así es como debería verse el archivo de configuración de cada uno de los nodos:
+
+    ```yaml
+    integrations:
+      - name: nri-elasticsearch
+        env:
+          HOSTNAME: localhost
+          PORT: 9200
+          USERNAME: elasticsearch_user
+          PASSWORD: elasticsearch_password
+          MASTER_ONLY: "true"
+          CONFIG_PATH: /etc/elasticsearch/elasticsearch.yml
+        interval: 15s
+        labels:
+          environment: production
+        inventory_source: config/elasticsearch
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Opciones de configuración para la integración. [#config-options]
+
+Para obtener más información sobre cómo encontrar y utilizar sus datos, consulte [los ajustes de configuración de Elasticsearch](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-config).
+
+## Buscar y utilizar datos [#find-and-use]
+
+Los datos de este servicio se informan a un [dashboard de integración](/docs/integrations/new-relic-integrations/getting-started/infrastructure-integration-dashboards-charts).
+
+Los datos de Elasticsearch se adjuntan a los siguientes [tipos de eventos](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic):
+
+* [`ElasticsearchClusterSample`](#cluster-metrics)
+* [`ElasticsearchNodeSample`](#node-metrics)
+* [`ElasticsearchCommonSample`](#common-metrics)
+* [`ElasticsearchIndexSample`](#index-metrics)
+
+Puede [consultar estos datos](/docs/using-new-relic/data/understand-data/query-new-relic-data) para fines de resolución de problemas o para crear gráficos y paneles personalizados.
+
+Para obtener más información sobre cómo encontrar y utilizar sus datos, consulte cómo [entender los datos de integración](/docs/infrastructure/integrations/find-use-infrastructure-integration-data).
+
+## Métrica recogida por la integración [#metrics]
+
+La integración Elasticsearch recoge la siguiente métrica. Cada nombre de métrica tiene como prefijo un indicador de categoría y un punto, como `cluster.` o `shards.`.
+
+<CollapserGroup>
+  <Collapser
+    id="cluster-metrics"
+    title="Evento ElasticsearchClusterSample"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `cluster.dataNodes`
+          </td>
+
+          <td>
+            El número de nodos de datos en el clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cluster.nodes`
+          </td>
+
+          <td>
+            El número de nodos en el clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cluster.status`
+          </td>
+
+          <td>
+            Estado del clúster de Elasticsearch: `red`, `yellow` o `green`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shards.active`
+          </td>
+
+          <td>
+            La cantidad de fragmentos activos en el clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shards.initializing`
+          </td>
+
+          <td>
+            La cantidad de fragmentos que se están inicializando actualmente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shards.primaryActive`
+          </td>
+
+          <td>
+            La cantidad de fragmentos primarios activos en el clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shards.relocating`
+          </td>
+
+          <td>
+            La cantidad de fragmentos que se reubican de un nodo a otro.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `shards.unassigned`
+          </td>
+
+          <td>
+            El número de fragmentos que no están asignados a un nodo.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="node-metrics"
+    title="Evento ElasticsearchNodeSample"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `activeSearches`
+          </td>
+
+          <td>
+            El número de búsquedas activas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `activeSearchesInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.estimatedSizeFieldDataCircuitBreakerInBytes`
+          </td>
+
+          <td>
+            El tamaño estimado del interruptor de datos de campo, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.estimatedSizeParentCircuitBreakerInBytes`
+          </td>
+
+          <td>
+            El tamaño estimado del interruptor principal, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.estimatedSizeRequestCircuitBreakerInBytes`
+          </td>
+
+          <td>
+            El tamaño estimado del interruptor de solicitud, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.fieldDataCircuitBreakerTripped`
+          </td>
+
+          <td>
+            El número de veces que se ha disparado el interruptor de datos de campo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.parentCircuitBreakerTripped`
+          </td>
+
+          <td>
+            El número de veces que se ha disparado el interruptor principal.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `breakers.requestCircuitBreakerTripped`
+          </td>
+
+          <td>
+            El número de veces que se ha disparado el interruptor de solicitud.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cache.cacheSizeIDInBytes`
+          </td>
+
+          <td>
+            El tamaño de la caché de identificación, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `flush.indexFlushDisk`
+          </td>
+
+          <td>
+            El número de descargas de índice al disco desde el inicio.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `flush.timeFlushIndexDiskInSeconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a vaciar el índice en el disco.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.bytesAvailableJVMInBytes`
+          </td>
+
+          <td>
+            Bytes disponibles para esta máquina virtual Java en este almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.bytesReadsInBytes`
+          </td>
+
+          <td>
+            El total de bytes leídos del almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.bytesUserIoOperationsInBytes`
+          </td>
+
+          <td>
+            El total de bytes utilizados para todas las operaciones de I/O en el almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.iOOperations`
+          </td>
+
+          <td>
+            El total de operaciones de I/O en el almacén de archivos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.reads`
+          </td>
+
+          <td>
+            El número total de lecturas del almacén de archivos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.totalSizeInBytes`
+          </td>
+
+          <td>
+            El tamaño total del almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.unallocatedBytesInBytes`
+          </td>
+
+          <td>
+            El número total de bytes no asignados en el almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.writes`
+          </td>
+
+          <td>
+            El número total de escrituras en el almacén de archivos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fs.writesInBytes`
+          </td>
+
+          <td>
+            El total de bytes escritos en el almacén de archivos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.currentRequestsRunning`
+          </td>
+
+          <td>
+            El número de solicitud GET actualmente en ejecución.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.requestsDocumentExists`
+          </td>
+
+          <td>
+            El número de solicitud GET donde existía el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.requestsDocumentExistsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la solicitud GET donde existía el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.requestsDocumentMissing`
+          </td>
+
+          <td>
+            El número de solicitud GET donde faltaba el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.requestsDocumentMissingInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo empleado en la solicitud GET donde faltaba el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.timeGetRequestsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la solicitud GET.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `get.totalGetRequests`
+          </td>
+
+          <td>
+            El número de solicitud GET.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `http.currentOpenConnections`
+          </td>
+
+          <td>
+            El número de conexiones HTTP abiertas actualmente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `http.openedConnections`
+          </td>
+
+          <td>
+            El número de conexiones HTTP abiertas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.docsCurrentlyDeleted`
+          </td>
+
+          <td>
+            El número de documentos que se eliminan actualmente de un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.documentsCurrentlyIndexing`
+          </td>
+
+          <td>
+            El número de documentos que actualmente se indexan en un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.documentsIndexed`
+          </td>
+
+          <td>
+            El número de documentos indexados en un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.timeDeletingDocumentsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a eliminar documentos de un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.timeIndexingDocumentsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a indexar documentos en un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indexing.totalDocumentsDeleted`
+          </td>
+
+          <td>
+            El número de documentos eliminados de un índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.indexingOperationsFailed`
+          </td>
+
+          <td>
+            El número de operaciones de indexación fallidas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.indexingWaitedThrottlingInMilliseconds`
+          </td>
+
+          <td>
+            La indexación de tiempo esperó debido a la limitación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.memoryQueryCacheInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por la caché de consulta, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.numberIndices`
+          </td>
+
+          <td>
+            La cantidad de documentos en todos los fragmentos principales asignados al nodo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.queryCacheEvictions`
+          </td>
+
+          <td>
+            El número de desalojos de consulta caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.queryCacheHits`
+          </td>
+
+          <td>
+            El número de consulta acierto de caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.queryCacheMisses`
+          </td>
+
+          <td>
+            Falta el número de consultas en caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.recoveryOngoingShardSource`
+          </td>
+
+          <td>
+            El número de recuperaciones en curso para las que un fragmento sirve como fuente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.recoveryOngoingShardTarget`
+          </td>
+
+          <td>
+            El número de recuperaciones en curso para las que un fragmento sirve como objetivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.recoveryWaitedThrottlingInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo total de recuperación esperado debido a la limitación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.requestCacheEvictions`
+          </td>
+
+          <td>
+            El número de desalojos de caché de solicitudes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.requestCacheHits`
+          </td>
+
+          <td>
+            El número de solicitud acierto de caché.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.requestCacheMemoryInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por la caché de solicitudes, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.requestCacheMisses`
+          </td>
+
+          <td>
+            El número de errores en la caché de solicitudes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsIndexShard`
+          </td>
+
+          <td>
+            El número de segmentos en un fragmento de índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMaxMemoryIndexWriterInBytes`
+          </td>
+
+          <td>
+            La memoria máxima utilizada por el escritor del índice, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedDocValuesInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por los valores del documento, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedFixedBitSetInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por el conjunto de bits fijos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedIndexSegmentsInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por los segmentos de índice, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedIndexWriterInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por el escritor del índice, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedNormsInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por norma, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedSegmentVersionMapInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por el mapa de versión del segmento, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedStoredFieldsInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por los campos almacenados, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedTermsInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por términos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.segmentsMemoryUsedTermVectorsInBytes`
+          </td>
+
+          <td>
+            La memoria utilizada por los vectores de términos, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.translogOperations`
+          </td>
+
+          <td>
+            El número de operaciones en el log de transacciones.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `indices.translogOperationsInBytes`
+          </td>
+
+          <td>
+            El tamaño del log de transacciones, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.collections`
+          </td>
+
+          <td>
+            El número de recolecciones de basura ejecutadas por la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.collectionsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la recolección de basura en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.concurrentMarkSweep`
+          </td>
+
+          <td>
+            El número de GC de marcado y barrido simultáneos en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.concurrentMarkSweepInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a GC de marcado y barrido simultáneos en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.majorCollectionsOldGenerationObjects`
+          </td>
+
+          <td>
+            La cantidad de GC principales en la JVM que recopilan objetos de antigua generación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.majorCollectionsOldGenerationObjectsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a los principales GC de la JVM que recopilan objetos de antigua generación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.minorCollectionsYoungGenerationObjects`
+          </td>
+
+          <td>
+            La cantidad de GC menores en la JVM que recopila objetos de generación joven.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.minorCollectionsYoungGenerationObjectsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a GC menores en la JVM que recopila objetos de generación joven.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.parallelNewCollections`
+          </td>
+
+          <td>
+            El número de nuevos GC paralelos en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.gc.parallelNewCollectionsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a nuevos GC paralelos en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.heapCommittedInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria que se garantiza que estará disponible para el montón de JVM, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.heapMaxInBytes`
+          </td>
+
+          <td>
+            La cantidad máxima de memoria que puede utilizar el montón de JVM, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.heapUsed`
+          </td>
+
+          <td>
+            El porcentaje de memoria utilizada actualmente por el montón de JVM como un valor entre `0` y `1`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.heapUsedInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria utilizada actualmente por el montón de JVM, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.maxOldGenerationHeapInBytes`
+          </td>
+
+          <td>
+            La cantidad máxima de memoria que puede utilizar el montón de generación anterior, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.maxSurvivorSpaceInBytes`
+          </td>
+
+          <td>
+            La cantidad máxima de memoria que puede utilizar el espacio superviviente, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.maxYoungGenerationHeapInBytes`
+          </td>
+
+          <td>
+            La cantidad máxima de memoria que puede utilizar el montón de la generación joven, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.nonHeapCommittedInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria que se garantiza que estará disponible para JVM sin almacenamiento dinámico, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.nonHeapUsedInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria utilizada actualmente por la JVM que no es del montón, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.usedOldGenerationHeapInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria utilizada actualmente por el montón de generación anterior, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.usedSurvivorSpaceInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria utilizada actualmente por el espacio superviviente, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.mem.usedYoungGenerationHeapInBytes`
+          </td>
+
+          <td>
+            La cantidad de memoria utilizada actualmente por el montón de la generación joven, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.ThreadsActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `jvm.ThreadsPeak`
+          </td>
+
+          <td>
+            El número máximo de subprocesos utilizados por la JVM.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.currentActive`
+          </td>
+
+          <td>
+            El número de fusiones de segmentos actualmente activos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.docsSegmentsMerging`
+          </td>
+
+          <td>
+            El número de documentos de los segmentos que se están fusionando actualmente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.docsSegmentMerges`
+          </td>
+
+          <td>
+            El número de documentos en todos los segmentos combinados.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.mergedSegmentsInBytes`
+          </td>
+
+          <td>
+            El tamaño de todos los segmentos fusionados, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.segmentMerges`
+          </td>
+
+          <td>
+            El número de segmentos se fusiona.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.sizeSegmentsMergingInBytes`
+          </td>
+
+          <td>
+            El tamaño de los segmentos que se están fusionando actualmente, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `merges.totalSegmentMergingInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la fusión de segmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `openFD`
+          </td>
+
+          <td>
+            El número de descriptores de archivos abiertos asociados con el proceso actual, o`-1` si no es compatible.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `queriesTotal`
+          </td>
+
+          <td>
+            El número de consulta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `refresh.total`
+          </td>
+
+          <td>
+            El número de actualizaciones del índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `refresh.totalInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a las actualizaciones del índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `searchFetchCurrentlyRunning`
+          </td>
+
+          <td>
+            El número de recuperaciones de búsqueda que se están ejecutando actualmente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `searchFetches`
+          </td>
+
+          <td>
+            El número de recuperaciones de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sizeStoreInBytes`
+          </td>
+
+          <td>
+            El tamaño del almacén, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.bulk.Queue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo masivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.bulkActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo masivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.bulkRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo masivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.bulkThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo masivo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStartedQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo iniciado de recuperación de fragmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStartedRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo iniciado de recuperación de fragmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStartedThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo iniciado de recuperación del fragmento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStoreActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de almacenamiento de fragmentos de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStoreQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de almacenamiento de fragmentos de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStoreRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de almacenamiento de fragmentos de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.fetchShardStoreThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de almacenamiento de fragmentos de recuperación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.flushActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en la cola de vaciado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.flushQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de vaciado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.flushRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de descarga.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.flushThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de descarga.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.forceMergeActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos para operaciones de fusión forzada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.forceMergeQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola para operaciones de fusión forzada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.forceMergeRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados para operaciones de fusión forzada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.forceMergeThreads`
+          </td>
+
+          <td>
+            El número de subprocesos para operaciones de fusión forzada.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.genericActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo genérico.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.genericQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo genérico.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.genericRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo genérico.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.genericThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo genérico.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.getActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de obtención.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.getQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de obtención.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.getRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de obtención.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.getThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de obtención.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.listenerActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de oyentes.<br/>(Obsoleto en Elasticsearch 8)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.listenerQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de escuchas.<br/>(Obsoleto en Elasticsearch 8)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.listenerRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de oyentes.<br/>(Obsoleto en Elasticsearch 8)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.listenerThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de oyentes.<br/>(Obsoleto en Elasticsearch 8)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.managementActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de administración.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.managementQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de administración.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.managementRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de administración.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.managementThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de administración.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.mergeActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de combinación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.mergeQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de combinación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.mergeRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de combinación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.mergeThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de combinación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.percolateActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de filtrado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.percolateQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de filtrado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.percolateRejected`
+          </td>
+
+          <td>
+            El número de hilos rechazados en el grupo de filtrado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.percolateThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de filtrado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.refreshActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de actualización.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.refreshQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de actualización.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.refreshRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de actualización.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.refreshThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de actualización.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.searchActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.searchQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.searchRejected`
+          </td>
+
+          <td>
+            El número de subprocesos rechazados en el grupo de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.searchThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.snapshotActive`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo de instantáneas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.snapshotQueue`
+          </td>
+
+          <td>
+            El número de subprocesos en cola en el grupo de instantáneas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.snapshotRejected`
+          </td>
+
+          <td>
+            La cantidad de subprocesos rechazados en el grupo de instantáneas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.snapshotThreads`
+          </td>
+
+          <td>
+            El número de subprocesos en el grupo de instantáneas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `threadpool.activeFetchShardStarted`
+          </td>
+
+          <td>
+            El número de subprocesos activos en el grupo iniciado de recuperación de fragmentos.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transport.connectionsOpened`
+          </td>
+
+          <td>
+            El número de conexiones abiertas para la comunicación del clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transport.packetsReceived`
+          </td>
+
+          <td>
+            El número de paquetes recibidos en la comunicación del clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transport.packetsReceivedInBytes`
+          </td>
+
+          <td>
+            El tamaño de los datos recibidos en la comunicación del clúster, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transport.packetsSent`
+          </td>
+
+          <td>
+            La cantidad de paquetes enviados en la comunicación del clúster.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `transport.packetsSentInBytes`
+          </td>
+
+          <td>
+            El tamaño de los datos enviados en la comunicación del clúster, en bytes.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="common-metrics"
+    title="Evento ElasticsearchCommonSample"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `primaries.docsDeleted`
+          </td>
+
+          <td>
+            La cantidad de documentos eliminados de los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.docsnumber`
+          </td>
+
+          <td>
+            El número de documentos en los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.flushesTotal`
+          </td>
+
+          <td>
+            El número de descargas de índice al disco desde los fragmentos primarios desde el inicio.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.flushTotalTimeInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a vaciar el índice al disco desde los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.documentsExist`
+          </td>
+
+          <td>
+            El número de solicitud GET en los fragmentos primarios donde existía el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.documentsExistInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a solicitar OBTENER de los fragmentos primarios donde existía el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.documentsMissing`
+          </td>
+
+          <td>
+            El número de solicitud GET de los fragmentos principales donde faltaba el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.documentsMissingInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a solicitar GET de los fragmentos primarios donde faltaba el documento.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.requests`
+          </td>
+
+          <td>
+            El número de solicitud OBTENER de los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.requestsCurrent`
+          </td>
+
+          <td>
+            El número de solicitudes GET que se ejecutan actualmente en los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.get.requestsInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la solicitud OBTENER de los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsCurrentlyDeleted`
+          </td>
+
+          <td>
+            La cantidad de documentos que se eliminan actualmente de un índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsCurrentlyDeletedInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a eliminar documentos de un índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsCurrentlyIndexing`
+          </td>
+
+          <td>
+            La cantidad de documentos que actualmente se indexan en un índice de los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsCurrentlyIndexingInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a indexar documentos en un índice de los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsDeleted`
+          </td>
+
+          <td>
+            La cantidad de documentos eliminados de un índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.index.docsTotal`
+          </td>
+
+          <td>
+            La cantidad de documentos indexados a un índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.indexRefreshesTotal`
+          </td>
+
+          <td>
+            La cantidad de actualizaciones de índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.indexRefreshesTotalInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a las actualizaciones del índice en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.current`
+          </td>
+
+          <td>
+            El número de segmentos actualmente activos se fusiona en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.docsSegmentsCurrentlyMerged`
+          </td>
+
+          <td>
+            La cantidad de documentos de los segmentos que se están fusionando actualmente en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.docsTotal`
+          </td>
+
+          <td>
+            La cantidad de documentos en todos los segmentos combinados en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.SegmentsCurrentlyMergedInBytes`
+          </td>
+
+          <td>
+            El tamaño de los segmentos que se están fusionando actualmente en los fragmentos principales, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.SegmentsTotal`
+          </td>
+
+          <td>
+            El número de segmentos que se fusionan en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.segmentsTotalInBytes`
+          </td>
+
+          <td>
+            El tamaño de todos los segmentos fusionados en los fragmentos principales, en bytes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.merges.segmentsTotalInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la fusión del segmento en los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queriesInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a consultar los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queriesTotal`
+          </td>
+
+          <td>
+            El número de consultas a los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queryActive`
+          </td>
+
+          <td>
+            El número de consultas actualmente activas sobre los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queryFetches`
+          </td>
+
+          <td>
+            El número de recuperaciones de consulta que se ejecutan actualmente en los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queryFetchesInMilliseconds`
+          </td>
+
+          <td>
+            El tiempo dedicado a la consulta se recupera en los fragmentos principales.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.queryFetchesTotal`
+          </td>
+
+          <td>
+            El número de consultas se recupera en los fragmentos primarios.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `primaries.sizeInBytes`
+          </td>
+
+          <td>
+            El tamaño de todos los fragmentos primarios, en bytes.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="index-metrics"
+    title="Evento ElasticsearchIndexSample"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Métrica
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `index.docs`
+          </td>
+
+          <td>
+            El número de documentos en el índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.docsDeleted`
+          </td>
+
+          <td>
+            El número de documentos eliminados en el índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.health`
+          </td>
+
+          <td>
+            El estado del índice: `red`, `yellow` o `green`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.primaryShards`
+          </td>
+
+          <td>
+            El número de fragmentos primarios en el índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.primaryStoreSizeInBytes`
+          </td>
+
+          <td>
+            El tamaño del almacén de fragmentos primarios en el índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.replicaShards`
+          </td>
+
+          <td>
+            El número de fragmentos de réplica en el índice.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `index.storeSizeInBytes`
+          </td>
+
+          <td>
+            El tamaño del almacén de fragmentos primarios y de réplica en el índice, en bytes.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+La integración de Elasticsearch es un software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/nri-elasticsearch) y enviar mejoras, o crear tu propia bifurcación y compilarla.
+
+### Configuración de la instancia de Elasticsearch [#instance-settings]
+
+Puede utilizar la sección `env` del archivo `elasticsearch-config.yml` para definir configuraciones específicas relacionadas con Elasticsearch. Estas configuraciones controlan la conexión a su instancia de Elasticsearch, así como otras configuraciones y características de seguridad.
+
+La integración Elasticsearch recopila información tanto métrica como de inventario. En la tabla, utilice la columna <DNT>**Applies to**</DNT> para las configuraciones disponibles para cada colección:
+
+' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' '
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '150px' }}>
+        Configuración
+      </th>
+
+      <th>
+        Descripción
+      </th>
+
+      <th>
+        Por defecto
+      </th>
+
+      <th>
+        Se aplica a
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **HOSTNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de host o IP donde se ejecuta Elasticsearch.
+      </td>
+
+      <td>
+        host local
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **LOCAL_HOSTNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de host o IP del nodo Elasticsearch del cual recopilar datos de inventario. Solo debe configurarse si no desea recopilar datos de inventario en localhost.
+      </td>
+
+      <td>
+        host local
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **PORT**
+        </DNT>
+      </td>
+
+      <td>
+        Puerto en el que escucha Elasticsearch.
+      </td>
+
+      <td>
+        9200
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **USERNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de usuario para acceder al nodo Elasticsearch.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **PASSWORD**
+        </DNT>
+      </td>
+
+      <td>
+        Contraseña para el usuario dado.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CLUSTER_ENVIRONMENT**
+        </DNT>
+      </td>
+
+      <td>
+        Una forma de especificar más para qué clúster estamos recopilando datos, por ejemplo: 'de prueba'.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **USE_SSL**
+        </DNT>
+      </td>
+
+      <td>
+        Utilice SSL cuando se comunique con el nodo Elasticsearch.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CA_BUNDLE_FILE**
+        </DNT>
+      </td>
+
+      <td>
+        Ubicación del certificado SSL en el host. Solo es necesario si `USE_SSL` es verdadero.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CA_BUNDLE_DIR**
+        </DNT>
+      </td>
+
+      <td>
+        Directorio de paquete de autoridad de certificación alternativa.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **SSL_ALTERNATIVE_HOSTNAME**
+        </DNT>
+      </td>
+
+      <td>
+        Nombre de servidor alternativo que la integración aceptará como válido para fines de negociación SSL.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **TLS_INSECURE_SKIP_VERIFY**
+        </DNT>
+      </td>
+
+      <td>
+        Omita la verificación de la cadena de certificados y el nombre de host del servidor.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **CONFIG_PATH**
+        </DNT>
+      </td>
+
+      <td>
+        Ruta al archivo de configuración de Elasticsearch.
+      </td>
+
+      <td>
+        /etc/elasticsearch/ <br/>elasticsearch.yml
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **TIMEOUT**
+        </DNT>
+      </td>
+
+      <td>
+        Tiempo de espera para solicitudes de API, en segundos.
+      </td>
+
+      <td>
+        30
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **COLLECT_INDICES**
+        </DNT>
+      </td>
+
+      <td>
+        Señaliza si recoger índices métricos o no.
+      </td>
+
+      <td>
+        verdadero
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **COLLECT_PRIMARIES**
+        </DNT>
+      </td>
+
+      <td>
+        Indica si se deben recoger primarias métricas o no.
+      </td>
+
+      <td>
+        verdadero
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **INDICES_REGEX**
+        </DNT>
+      </td>
+
+      <td>
+        Filtrar qué índices se recopilan.
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **MASTER_ONLY**
+        </DNT>
+      </td>
+
+      <td>
+        Recoja el clúster métrico únicamente en el maestro elegido.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **METRICS**
+        </DNT>
+      </td>
+
+      <td>
+        Establezca en `true` para habilitar la recopilación solo métrica.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **INVENTORY**
+        </DNT>
+      </td>
+
+      <td>
+        Configúrelo en `true` para habilitar la recopilación solo de inventario.
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+  </tbody>
+</table>
+
+Los valores para estas configuraciones se pueden definir de varias maneras:
+
+* Agregando el valor directamente en el archivo de configuración. Esta es la forma más común.
+* Reemplazar los valores de las variables de entorno usando la notación `{{ }}` . Lea más sobre [el uso de transferencias de variables de entorno con integración en el host](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#passthrough) o vea el ejemplo para [el reemplazo de variables de entorno](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-integration#envvar-replacement). <Callout variant="important">Esto requiere el agente de infraestructura v1.14.0+.</Callout>
+* Utilizando la gestión de secretos. Utilícelo para proteger información confidencial, como contraseñas que quedarían expuestas en texto sin formato en el archivo de configuración. Para obtener más información, consulte [gestión de secretos](/docs/integrations/host-integrations/installation/secrets-management).
+
+### Etiquetas y atributos personalizados [#labels]
+
+Puedes decorar aún más tu métrica usando etiquetas. Las etiquetas le permiten agregar valor par principal atributo a su métrica, que luego puede usar para consultar, filtrar o agrupar su métrica.<br/> El [archivo de muestra de configuración básica elasticsearch-config.yml](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-integration#basic-config) incluye el uso de etiquetas. Sin embargo, como no son obligatorios, puedes eliminar, modificar o agregar nuevos a tu elección.
+
+```yaml
+ labels:
+   env: production
+   role: load_balancer
+```
+
+## Datos de inventario [#inventory]
+
+La integración Elasticsearch captura el parámetro de configuración del nodo Elasticsearch, como se especifica en el [archivo de configuración YAML](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-integration/#basic-config). También recopila información de configuración del nodo del extremo `\_nodes/\_local` . Los datos están disponibles en la [página de inventario de infraestructura](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure), en la fuente `config/elasticsearch` .
+
+Para obtener más información sobre los datos de inventario, consulte cómo [comprender los datos de integración](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#inventory-data).

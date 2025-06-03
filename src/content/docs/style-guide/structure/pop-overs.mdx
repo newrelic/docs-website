@@ -1,0 +1,63 @@
+---
+title: Pop-overs
+---
+
+Pop-overs provide a lot of direction in a small space for our readers. Popovers give quick inline definitions of key concepts, and provide a path to learn more in the docs or try it out in the UI.
+
+<img
+  title="Popover"
+  alt="A screenshot of a popover"
+  src="/images/style-guide_screenshot-crop_popover.webp"
+/>
+
+## Using pop-overs [#use-pop]
+
+A pop-over is written in a [JSON file](https://github.com/newrelic/docs-website/blob/develop/src/data/popovers_en.json), and can be put into any doc you like using the following format:
+
+```
+<InlinePopover type="title" />
+```
+
+Where `title` is the name of the component in the JSON file. In the screenshot above, `synthetics` is the pop-over used.
+
+<Callout variant="tip">
+  The Keyboard Maestro macro for pop-overs is `kkpopover`
+</Callout>
+
+## Creating or editing pop-overs
+
+Pop-overs are contained within an editable JSON file. You can edit the file to create your own pop-overs using the procedure below:
+
+<Steps>
+  <Step>
+    Open the [JSON file](https://github.com/newrelic/docs-website/blob/develop/src/data/popovers_en.json) in VS Code.
+  </Step>
+
+  <Step>
+    Copy and paste an existing pop-over, and modify it as needed for the pop-over you want to create.
+
+    * The first line is the "title" of the pop-over used in the format example above.
+    * `inlineText` is the text that appears in the doc you put the component in, before the user hovers over the pop-over.
+    * `header` is the title of the pop-over once it displays.
+    * `text` is the copy that displays in the body of the pop-over.
+    * `learnMoreUrl` is the URL of the doc you want to send the reader to for more information.
+    * `primaryButton` is the text of the main button as it appears in the pop-over.
+    * `primaryButtonUrl` is the link you want the button to send the reader to when clicked.
+    * `secondaryButton` is the text of the right-most button as it appears in the pop-over.
+    * `secondaryButtonUrl` is the link you want the right-most button to send the reader to when clicked.
+
+      Keep the list in the JSON file in alphabetical order to make things easier to find.
+  </Step>
+
+  <Step>
+    Test the popover locally.
+  </Step>
+
+  <Step>
+    Open a PR based on your changes, and contact someone in Docs Eng to have them review.
+  </Step>
+
+  <Step>
+    Once the PR is reviewed and merged, you can use your new pop-over in any doc you like!
+  </Step>
+</Steps>

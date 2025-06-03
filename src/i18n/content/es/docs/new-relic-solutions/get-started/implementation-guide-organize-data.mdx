@@ -1,0 +1,153 @@
+---
+title: 'Parte de implementación 3: organizar y comprender los datos'
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: 'Part 3 of the New Relic implementation guide, where you become acquainted with the New Relic UI and organize your data.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+_Esta es la tercera parte de [nuestra guía de implementación](/docs/new-relic-solutions/get-started/implementation-guide-intro)._
+
+En la última [etapa de implementación](/docs/new-relic-solutions/get-started/implementation-guide-instrument), ingresó datos de algunas fuentes y probablemente exploró un poco la UI de New Relic. Para obtener un valor óptimo de New Relic, será útil tener una comprensión sólida de cómo se organizan sus datos de New Relic y cómo se muestran en nuestra plataforma.
+
+En esta etapa, podrás:
+
+* Vea algunas experiencias UI que le brindan una descripción general del rendimiento de su sistema.
+* Aprenda a crear gráficos y paneles personalizados
+* Piensa más en cómo organizar tus datos con etiqueta y carga de trabajo
+
+Empecemos.
+
+## Obtenga vistas de alto nivel de su sistema y entidad [#high-level-views]
+
+<img
+  title="New Relic Navigator"
+  alt="New Relic Navigator"
+  src="/images/alerts_screenshot-full_nrnavigator-.webp"
+/>
+
+<figcaption>
+  New Relic Navigator es una de nuestras experiencias de plataforma que lo ayuda a comprender rápidamente el estado de su sistema.
+</figcaption>
+
+Nuestra plataforma facilita la obtención de una vista de alto nivel de su sistema y toda su entidad. Aquí hay algunas características importantes que su equipo probablemente usará mucho. Le recomendamos que dedique algún tiempo a explorar estas y otras experiencias UI para sentirse cómodo con la UI de New Relic.
+
+* Utilice [nuestro explorador de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find) para explorar la entidad de su monitor.
+* Utilice [New Relic Navigator](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/#view-navigator) para ver una visualización de todo su sistema, con énfasis en el estado de salud/alerta.
+* Utilice [rastreo distribuido](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui) para ver un análisis detallado basado en el tiempo de las solicitudes que ocurren en su sistema. Recomendado: [configure Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing) para desbloquear una característica de rastreo más potente.
+* Utilice [mapas de servicios](/docs/understand-dependencies/understand-system-dependencies/service-maps/introduction-service-maps) o [vistas de mapas automáticos](/docs/new-relic-one/use-new-relic-one/ui-data/automaps) para ver representaciones visuales de su topología.
+* Utilice la [página de dependencia de la interfaz de usuario](/docs/new-relic-one/use-new-relic-one/ui-data/explore-downstream-dependencies-new-relic-one) de un servicio específico para comprender los servicios entrantes y salientes a los que se conecta una entidad.
+
+¿Quieres ver un vídeo con un recorrido por la plataforma? Ver [Conozca la plataforma](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform).
+
+## Organiza tus datos [#organize-data]
+
+Organizar sus datos en New Relic es importante porque le ayuda a eliminar el ruido y diagnosticar problemas más rápidamente. A continuación se ofrecen algunos consejos para garantizar que sus datos estén bien organizados en New Relic.
+
+### Configurar el panel personalizado [#dashboards]
+
+Proporcionamos muchas vistas seleccionadas y paneles listos para usar, pero es probable que necesites crear tu propio panel personalizado para estar atento a métricas relevantes para el negocio o proyectos específicos. Puede compartir el panel con otros miembros del equipo para realizar un seguimiento del rendimiento y solucionar problemas.
+
+La creación de gráficos y paneles personalizados comienza con la consulta de sus datos. Nuestro lenguaje de consulta, NRQL, es un lenguaje similar a SQL que le brinda todo el poder que utilizamos para construir nuestra vista seleccionada.
+
+<img
+  title="new-relic-view-chart-nrql-query.png"
+  alt="New Relic view chart NRQL query"
+  src="/images/alerts_screenshot-crop_new-relic-view-chart-nrql-query.webp"
+/>
+
+<figcaption>
+  Nuestro generador de consultas le ayuda a consultar sus datos y crear gráficos personalizados.
+</figcaption>
+
+Nuestros clientes que aprovechan al máximo New Relic tienen un sólido conocimiento de cómo realizar consultas, lo que les brinda la capacidad de crear gráficos y paneles útiles. No es necesario que aprenda NRQL en profundidad ahora, pero aprender algunos conceptos básicos puede resultar útil.
+
+Aquí hay un breve video de 2 minutos sobre cómo comenzar a consultar:
+
+<Video
+  id="4awnx2n1FRc"
+  type="youtube"
+/>
+
+Cuando esté listo, le sugerimos crear un dashboard. Cuando ejecuta una consulta, puede presionar <DNT>**Add to dashboard**</DNT> en la parte inferior de la pantalla y luego tendrá la opción de crear un nuevo dashboard.
+
+A continuación se muestran algunos recursos para aprender a crear consultas y visualizaciones personalizadas:
+
+* [Introducción a la consulta](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data)
+* [Curso de New Relic University sobre NRQL](https://learn.newrelic.com/writing-nrql-queries)
+* [Nuestra aplicación New Relic para aprender NRQL](https://opensource.newrelic.com/projects/newrelic/nr1-learn-nrql)
+
+### Configurar etiqueta [#tags]
+
+Hablamos un poco sobre estrategias de etiquetas [anteriormente en la guía de implementación](/docs/new-relic-solutions/get-started/implementation-guide-planning-setup#data-organization). etiqueta son pares de valores principales que se pueden agregar a una entidad. Algunas etiquetas se agregan automáticamente a sus datos: por ejemplo, el nombre del host, el nombre de la cuenta y algunos otros metadatos básicos. Pero para aprovechar al máximo New Relic, querrás agregar una etiqueta personalizada.
+
+Con una estrategia de etiquetas bien pensada e implementada de manera consistente, su equipo podrá explorar más fácilmente sus datos y encontrar la entidad relacionada con un problema. etiqueta son importantes para el uso óptimo de carga de trabajo, consultas y otras características.
+
+La etiqueta puede variar mucho, dependiendo de su arquitectura y sus objetivos. Pero aquí hay algunos ejemplos de etiquetas de uso común:
+
+* Unidad de negocio
+* Ambiente
+* Equipo
+* Negocios críticos
+* Región
+
+Algunos recursos para configurar y optimizar etiquetas:
+
+* [Más información sobre la etiqueta en New Relic](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data)
+* [Un vídeo de 22 minutos sobre recursos de etiquetas para un análisis más rápido](https://www.youtube.com/watch?v=ytpBFviAJ0Y)
+* [Un vídeo de 3 minutos sobre la etiqueta APM](https://www.youtube.com/watch?v=JImDdncerko)
+* [Una aplicación para mejorar las etiquetas](https://github.com/newrelic/nr1-tag-improver)
+
+Algunos recursos para automatizar etiquetas:
+
+* [Automatizar etiquetas a través de la API NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-tagging-api-tutorial)
+* [Terraformar](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/entity_tags)
+* Nuestra [CLI New Relic](https://developer.newrelic.com/automate-workflows/get-started-new-relic-cli) le permite [buscar y etiquetar entidad](https://developer.newrelic.com/automate-workflows/5-mins-tag-resources)
+
+### Configurar carga de trabajo [#workloads]
+
+Nuestra característica <DNT>**workloads**</DNT> te brinda la posibilidad de agrupar y monitor entidades según tus propios criterios (por ejemplo, un equipo específico o un conjunto de responsabilidades). Luego podrá ver datos agregados de salud y actividad para esa carga de trabajo en toda su stack.
+
+[Aprenda a configurar una carga de trabajo.](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) [Aquí hay un video sobre el uso de etiquetas](https://www.youtube.com/watch?v=nXCH_3XjGkQ) para crear carga de trabajo generada dinámicamente.
+
+## Configurar Apdex para APM [#apdex]
+
+Apdex es un estándar de la industria para medir la satisfacción del usuario. Es esencialmente una solución de acuerdo de nivel de servicio (SLA) simplificada que le ayuda a ver qué tan satisfechos están los usuarios con su aplicación. Si su sistema utiliza muchos microservicios (servicios que realizan una única función empresarial), Apdex es una excelente opción.
+
+Le recomendamos leer [nuestros documentos de Apdex](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction) para comprender cómo funciona Apdex. Luego, si desea configurarlo, intente averiguar cuál debería ser el umbral de Apdex correcto y configúrelo. Si no conoce el valor correcto, puede establecer el umbral al mínimo ahora y luego ajustarlo a un valor mejor.
+
+Algunos recursos para configurar Apdex:
+
+* [Una publicación de blog sobre cómo establecer un Apdex óptimo](https://newrelic.com/blog/best-practices/how-to-choose-apdex-t)
+* [Una aplicación New Relic para optimizar Apdex](https://opensource.newrelic.com/projects/newrelic/nr1-apdex-optimizer)
+* Consejo de automatización: puede utilizar nuestra API NerdGraph para [consultar sus datos](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial) y determinar el Apdex T correcto, y luego [configurar el Apdex a través de API](/docs/apis/nerdgraph/examples/apm-config-nerdgraph).
+
+## Administración a nivel de servicio (SLM) [#slm]
+
+El nivel de servicio se utiliza para medir el desempeño de un servicio desde el punto de vista del usuario final. Por ejemplo, un nivel de servicio puede representar si un video se cargó lo suficientemente rápido o si un servicio de indicaciones devolvió al menos una ruta posible entre dos puntos.
+
+<img
+  title="Example of several service levels.png"
+  alt="Example of several service levels"
+  src="/images/alerts_screenshot-crop_service-levels-intro.webp"
+/>
+
+<figcaption>
+  Una captura de pantalla de nuestra UI de SLM (haga clic para ampliar).
+</figcaption>
+
+Algunos recursos para aprender más sobre SLM:
+
+* [Un vídeo de 3 minutos sobre New Relic SLM](https://www.youtube.com/watch?v=tIwAjmUmbwc)
+* [Nuestros documentos SLM](/docs/service-level-management/intro-slm)
+
+Recursos de observabilidad como código:
+
+* [Utilice nuestra API NerdGraph para configurar el nivel de servicio](/docs/apis/nerdgraph/examples/nerdgraph-slm)
+* [Utilice Terraform para nivel de servicio](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/service_level)
+
+## Siguiente etapa [#next]
+
+¿Listo para continuar su viaje de implementación? Vaya a la siguiente etapa: [<DNT>**Alerting and proactive solutions**</DNT>](/docs/new-relic-solutions/get-started/implementation-guide-alerting-proactive-solutions/).

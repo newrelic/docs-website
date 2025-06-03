@@ -1,0 +1,40 @@
+---
+title: Guide to improving web uptime
+tags:
+  - Observability maturity
+  - Customer experience
+  - Digital customer experience
+  - Implementation guide
+  - Uptime
+  - Availability
+metaDescription: Steps to follow to improve web uptime.
+redirects:
+  - /docs/new-relic-solutions/observability-maturity/cx-improve-web-uptime
+  - /docs/new-relic-solutions/observability-maturity/customer-experience/cx-improve-web-uptime
+freshnessValidatedDate: never
+---
+
+This guide includes some ideas on how to improve web uptime.
+
+## 1. Investigate synthetics checks
+
+Investigate and resolve failed synthetics checks when they occur. Tips on how to do this:
+
+* Check multiple locations.
+* Set up an alert to notify you when multiple locations fail.
+
+## 2. Create workloads
+
+Create workloads that correlate synthetic monitors with browser applications, services, and infrastructure.  Include a link to the workload in the alert runbook. You can also find the correlated workload for a synthetic using global search.
+
+Make sure that <InlinePopover type="alerts"/> are configured for each tier of your workload. This way you can see the health of each of the tiers in one view. This will save you time in troubleshooting. You don't need to create alert notifications for each tier to benefit from this view.
+
+## 3. Investigate outages at lowest tier first
+
+When an outage occurs, start investigating at the lowest tier that is alerting. For instance, if you see that you have an infrastructure issue and a JavaScript issue, investigate infrastructure prior to JavaScript unless you have a second person or team you can delegate that to.
+
+Use the tools that are available to you for troubleshooting:
+
+* Make sure that distributed tracing is enabled for <InlinePopover type="browser"/> as well as <InlinePopover type="apm"/>.
+* Use the browser UI to help you understand what is happening at the end user tier.
+* Use Lookout to help you understand what's causing flapping or reoccurring issues.

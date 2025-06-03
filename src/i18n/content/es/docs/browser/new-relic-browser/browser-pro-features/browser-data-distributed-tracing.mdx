@@ -1,0 +1,252 @@
+---
+title: Datos del navegador en rastreo distribuido
+metaDescription: 'Browser: How to enable browser-side (end-user) data for distributed tracing in New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si utiliza New Relic para monitor la actividad browser del usuario final, puede aprovechar [rastreo distribuido](/docs/distributed-tracing/concepts/introduction-distributed-tracing/) para ver la traza del lado browserque se origina en la experiencia del usuario final.
+
+## Trazar la actividad desde el frontend hasta el backend [#benefits]
+
+Al informar los datos del navegador en rastreo distribuido, puede ver la conexión entre la actividad del frontend y la actividad del backend. New Relic traza datos a lo largo de una transacción completa, desde el tiempo que pasa un usuario final en el browser web hasta la actividad de la red y los servicios backend asociados. Esto te ayuda:
+
+* Detecta latencia, errores y anomalías en el browser o en la red con mayor facilidad.
+* Resuelva los problemas de los clientes más rápidamente.
+* Aplique todos los [beneficios del rastreo distribuido](/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works/) al monitoreo de su usuario final.
+
+Esta característica informa las solicitudes AJAX (`Fetch` y `XHR`) que ocurren durante una [interacción del navegador](/docs/browser/single-page-app-monitoring/use-spa-data/spa-data-collection/#browser-interaction). De forma predeterminada, solo se supervisan las solicitudes de origen único, a menos que esté habilitado [el uso compartido de recursos entre orígenes](#cors) .
+
+## Versiones browser y APM. [#requirements]
+
+Asegúrese de tener las versiones mínimas necesarias para su agente <InlinePopover type="browser"/>y su agente <InlinePopover type="apm"/>:
+
+<DNT>
+  **Browser monitoring:**
+</DNT>
+
+* Para rastreo distribuido: [Agente Browser Pro+SPA](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#agent-types) con [rastreo distribuido habilitado](#enable) y [agente del navegador versión 1153](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1153) o superior
+* Para [compartir recursos entre orígenes](#cors): [agente del navegador versión 1158](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1158) o superior
+* Para compatibilidad con [W3C Trace Context](https://www.w3.org/TR/trace-context/) : [agente del navegador versión 1173](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1173) o superior
+
+<DNT>
+  **APM:**
+</DNT>
+
+* [Java 5.9.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-590) o superior
+* [PHP](/docs/release-notes/agent-release-notes/php-release-notes/php-agent-940249) 9.4.0 o superior
+* [Otros requisitos de versión del agente APM](/docs/understand-dependencies/distributed-tracing/enable-configure/enable-distributed-tracing#compatibility-requirements)
+
+## Habilitar rastreo distribuido [#enable]
+
+De forma predeterminada, para la versión 1173 y superiores del agente, los encabezados `newrelic`, `traceparent` y `tracestate` se agregarán a todas las solicitudes AJAX del mismo origen. (Si los excluye, no se enviarán encabezados). Para obtener más información, consulte nuestra documentación sobre [los encabezadosW3C Trace Context ](#w3c).
+
+Para habilitar el rastreo distribuido para el monitoreo del navegador:
+
+1. Asegúrese de que su agente de monitoreo de navegador y su agente APM sean [compatibles](#requirements) con el rastreo distribuido. Actualice a la versión más reciente si corresponde.
+
+2. Vaya a
+
+   <DNT>
+     **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Settings > Application settings**
+   </DNT>
+
+   .
+
+3. Active la palanca
+
+   <DNT>
+     **Distributed tracing**
+   </DNT>
+
+   .
+
+4. Opcional: [habilite el uso compartido de recursos entre orígenes](#cors).
+
+5. [Vuelva a implementar el agente de monitoreo de navegador](/docs/browser/new-relic-browser/installation/upgrade-browser-agent), ya sea reiniciando el agente APM asociado o actualizando la instalación del navegador copiando y pegando.
+
+6. Si tiene aplicaciones o servicios posteriores a la aplicación de su browser y utilizan Infinite Tracing, complete los [pasos de configuración para Infinite Tracing](#infinite-tracing).
+
+## Encabezados W3C Trace Context [#w3c]
+
+Con el lanzamiento de la versión 1173 del agente de monitoreo de navegador, admitimos los encabezados W3C Trace Context (`traceparent` y `tracestate`), así que asegúrese de permitirlos en su configuración. W3C Trace Context define un par de encabezados HTTP de contexto estandarizados que sirven para propagar información de correlación de contexto entre servicios:
+
+* Un encabezado `traceparent` contiene los elementos de datos que cada modelo de rastreo distribuido requiere para definir y propagar el contexto: un ID de traza, un ID principal y una bandera de muestra.
+* Un encabezado `tracestate` contiene datos contextuales específicos del proveedor, normalmente para admitir funciones adicionales u optimizaciones asociadas con una herramienta de seguimiento en particular.
+
+Para obtener más información sobre W3C Trace Context, consulte nuestra [publicación de blog](https://newrelic.com/blog/nerdlog/w3c-trace-context-distributed-tracing-standard).
+
+## Habilitar el intercambio de recursos entre orígenes (CORS) [#cors]
+
+Si tiene solicitudes AJAX que necesitan recursos de diferentes orígenes, puede habilitar el uso compartido de recursos entre orígenes (CORS). De forma predeterminada, rastreo distribuido para solicitudes de origen cruzado no está habilitado debido a restricciones de seguridad CORS browser : rastreo distribuido se implementa agregando encabezados HTTP personalizados (`newrelic`, `traceparent` y `tracestate`) a las solicitudes AJAX salientes, y el navegador normalmente no permiten encabezados personalizados en solicitudes de origen cruzado.
+
+Se requieren dos configuraciones separadas para habilitar el rastreo distribuido entre orígenes:
+
+1. Configure el servicio en el origen diferente para aceptar el encabezado personalizado `newrelic` .
+
+2. Configura el monitoreo de navegador en tu
+
+   <DNT>
+     **Application settings**
+   </DNT>
+
+   para incluir el origen objetivo en el rastreo distribuido.
+
+Esta sección proporciona conceptos y pasos clave para habilitar y configurar CORS. Si necesita más información sobre cómo funciona el intercambio de recursos entre orígenes, le recomendamos este [documento para desarrolladores de Mozilla](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS).
+
+<Callout variant="caution">
+  Como se explica en la siguiente sección, el intercambio de recursos entre orígenes puede exponerlo a un alto nivel de riesgo si los servicios en los diferentes orígenes no están configurados correctamente. Le recomendamos que lea las siguientes tres secciones de forma secuencial.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="mitigation"
+    title="Importante: lea sobre los riesgos y la mitigación de CORS antes de comenzar"
+  >
+    Si los servicios de diferentes orígenes no están configurados correctamente, las solicitudes AJAX probablemente devolverán un error, lo que provocará una variedad de fallas, que incluyen:
+
+    * Los recursos no se cargan (por ejemplo, imágenes y contenido clave)
+
+    * Fallos de inicio de sesión
+
+    * Interrupciones de todo el sitio (según el tipo de solicitudes habilitadas)
+
+      Al habilitar esta característica de intercambio de recursos entre orígenes, usted reconoce lo siguiente:
+
+    * Entiendes que esta característica es opcional y no obligatoria.
+
+    * Usted comprende los pasos que debe seguir para habilitar esta característica para sus servicios y su dominio.
+
+    * Usted comprende que New Relic no es responsable de errores o problemas relacionados con su mala configuración de servidores o servicios.
+
+    * Usted acepta total y exclusivamente los riesgos y desea continuar.
+
+      La mejor manera de minimizar el riesgo es asegurarse de comprender completamente el proceso y probarlo primero en un entorno de prueba. Le recomendamos que lea la siguiente descripción general del proceso CORS antes de continuar con el procedimiento de configuración de CORS.
+  </Collapser>
+
+  <Collapser
+    id="cors-overview"
+    title="Descripción general del proceso CORS"
+  >
+    Para usar rastreo distribuido con recursos de orígenes cruzados, usted completa una lista de recursos de orígenes cruzados aprobados en New Relic y luego enviamos automáticamente los siguientes encabezados personalizados a esos recursos: `newrelic`, `traceparent` y `tracestate`. Para que este proceso funcione, primero debe asegurarse de que alguien haya configurado los servicios en los otros orígenes para aceptar este encabezado personalizado.
+
+    El intercambio de recursos entre orígenes utiliza una variedad de encabezados HTTP, tanto en la solicitud como en la respuesta. El encabezado que se aplica específicamente a New Relic es el encabezado de respuesta `Access-Control-Allow-Headers` , que puede incluir `newrelic`, `traceparent`, `tracestate` o `newrelic, traceparent, tracestate` en su valor dependiendo de las estrategias de seguimiento que habilitó en su monitor APM. aplicación.
+
+    Debe configurar su servidor para devolver este encabezado CORS en su respuesta. Ejemplo:
+
+    ```
+    Access-Control-Allow-Headers: newrelic, traceparent, tracestate
+    ```
+
+    <Callout variant="important">
+      New Relic no puede realizar ninguna validación para garantizar que los servicios en los otros orígenes estén configurados correctamente. Si no está seguro de cómo permitir estos encabezados, <DNT>**do not**</DNT> agregue recursos de origen cruzado a la lista aprobada en la UI de New Relic.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="cors-configure"
+    title="Configurar CORS"
+  >
+    <Callout variant="caution">
+      Intente siempre habilitar CORS en un entorno de prueba antes de configurarlo en producción.
+    </Callout>
+
+    Para habilitar el intercambio de recursos entre orígenes:
+
+    1. Confirme que los servicios en los otros orígenes estén configurados para aceptar el encabezado `newrelic` usando:
+
+       ```
+       Access-Control-Allow-Headers: newrelic, traceparent, tracestate
+       ```
+
+       Para obtener más información, consulte [Riesgos y mitigaciones](#mitigation).
+
+    2. Asegúrese de que su agente de monitoreo de navegador y su agente <InlinePopover type="apm"/>sean [compatibles](#requirements) con rastreo distribuido para CORS. Actualice a la versión más reciente si corresponde.
+
+    3. Vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Settings > Application settings**</DNT>.
+
+    4. Active la opción <DNT>**Distributed tracing**</DNT> si aún no está habilitada.
+
+    5. Active la palanca <DNT>**Cross-origin resource sharing (CORS)**</DNT> .
+
+    6. En <DNT>**Cross-origin resource sharing (CORS)**</DNT>, agregue recursos de origen cruzado a la lista aprobada. Asegúrese de que sus recursos de origen cruzado incluyan el prefijo `http://` o `https://` y el nombre de dominio. Incluya su número de puerto si es diferente al predeterminado para HTTP (puerto 80) o HTTPS (puerto 443).
+
+    7. Seleccione <DNT>**Save application settings**</DNT> para actualizar la configuración del agente.
+
+    8. [Vuelva a implementar el agente del navegador](/docs/browser/new-relic-browser/installation/upgrade-browser-agent) (ya sea reiniciando el agente APM asociado o actualizando la instalación de copiar y pegar del navegador).
+  </Collapser>
+</CollapserGroup>
+
+## Habilitar seguimiento infinito [#infinite-tracing]
+
+Ofrecemos una característica distribuida al final del rastreo llamada [Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing). Si las aplicaciones de su browser tienen servicios descendentes, asegúrese de habilitarlos. Esto garantiza que su intervalo raíz (la aplicación browser de inicio) esté incluido en el resto de los intervalos rastreados por Infinite Tracing.
+
+Para configurar el seguimiento infinito:
+
+1. Complete los pasos para [habilitar rastreo distribuido](#enable).
+2. Vaya a nuestra [documentación de Infinite Tracing](/docs/distributed-tracing/infinite-tracing/set-trace-observer), luego siga los pasos para crear un observador de traza y seleccionar qué aplicaciones (fuentes de datos) desea enviar tramos de traza al observador de traza de Infinite Tracing.
+
+## Explora los datos de tu traza [#find-data]
+
+A continuación se ofrecen algunos consejos para encontrar y consultar los datos de su traza en New Relic.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Examinar la traza que se origina a partir de la experiencia del usuario final.
+      </td>
+
+      <td>
+        Vaya a cualquier [página de rastreo distribuido](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/) en la UI de New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver tramos finales de usuario
+      </td>
+
+      <td>
+        En la UI usuario del rastreo distribuido, los intervalos finales del usuario se indican con el<img title="distributed-tracing-browser-span-icon.png" alt="New Relic distributed tracing browser span icon" src="/images/browser_icon_browser-icon.webp" style={{height: "30px", width: "30px"}}/>
+
+        icono. Para ver el atributo de un intervalo,
+
+        [seleccione un intervalo](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#span-details)
+
+        en la UI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Consultar datos de tramo
+      </td>
+
+      <td>
+        Los intervalos se informan como [`Span` datos](/attribute-dictionary/?event=Span). Puedes [consultar datos de span](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) en New Relic. Por ejemplo:
+
+        * Consulta por nombre de la aplicación browser configurando `browserApp.name`.
+        * Consulta para traza que contiene al menos una aplicación browser con `browserApp.name is not null`.
+        * Consulta de traza que contiene al menos una aplicación backend con `appName is not null`.
+        * Consulta para traza que contiene tramos de browser y backend combinando las dos condiciones anteriores.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Resolución de problemas [#troubleshooting]
+
+Si no ve los intervalos finales del usuario o tiene otros problemas con el rastreo distribuido, consulte nuestra documentación [de resolución de problemas](/docs/distributed-tracing/troubleshooting/missing-trace-data/#browser) .

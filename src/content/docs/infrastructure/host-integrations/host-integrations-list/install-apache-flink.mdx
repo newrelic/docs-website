@@ -1,0 +1,180 @@
+---
+title: Apache Flink integration
+tags:
+    - Integrations
+    - Configure Prometheus OpenMetrics for Flink
+    - Apache Flink integration on New Relic
+metaDescription: Get a dashboard of all your most important Flink metrics with our quickstart.
+redirects:
+    - /docs/infrastructure/prometheus-integrations/install-configure-openmetrics/install-apache-flink/
+freshnessValidatedDate: never
+---
+
+With our Apache Flink dashboard, you can easily track your logs, keep an eye on your instrumentation sources, and get an overview of uptime and downtime for all your applications' instances. Built with our infrastructure agent and our Prometheus OpenMetrics integration, Flink <InlinePopover type="dashboards"/> take advantage of OpenMetrics endpoint scraping, so you can view all your most important data, all in one place.
+
+<img
+  src="/images/dashboards_screenshot-full_apache-flink-quickstart.webp"
+  title="Apache Flink dashboard landing page"
+  alt="A screenshot of a dashboard with Apache Flink metrics."
+/>
+
+<figcaption>
+  After setting up Flink with New Relic, your data will display in dashboards like these, right out of the box.
+</figcaption>
+
+## Install the infrastructure agent [#install]
+
+Before getting Flink data into New Relic, first install our infrastructure agent, then expose your metrics by installing Prometheus OpenMetrics.
+
+There are two ways of installing our infrastructure agent:
+
+* Through our [guided install](https://one.newrelic.com/nr1-core?state=5e236fa2-fbfd-1f53-e55d-9241d2a73068).
+
+* Install the infrastructure agent [manually](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), via the command line.
+
+## Configure Apache Flink to expose metrics [#expose-apache-flink-metrics]
+
+You will need the Apache Flink prometheus jar file to expose metrics on a configured port. Ideally, on downloading the Apache Flink, the file named `flink-metrics-prometheus-VERSION.jar` will be placed in the below path.
+
+File path: `FLINK-DIRECTORY/plugins/metrics-prometheus/`
+
+Update the flink configuration file to expose metrics on ports 9250 to 9260
+
+Apache Flink configuration file path: `FLINK-DIRECTORY/conf/flink-conf.yaml`
+
+```yml
+metrics.reporters: prom
+metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+metrics.reporter.prom.host: localhost
+metrics.reporter.prom.port: 9250-9260
+```
+
+Follow the below command to start an Apache Flink cluster
+
+```bash
+./bin/start-cluster.sh
+```
+
+You should now be able to see metrics on the below URLs
+
+* Job manager metrics
+
+```yml
+http://YOUR_DOMAIN:9250
+```
+
+* Task manager metrics
+
+```yml
+http://YOUR_DOMAIN:9251
+```
+
+You may also cross check if there are any other task manager ports running on your PC by running the below command:
+
+```yml
+sudo lsof -i -P -n | grep LISTEN
+```
+
+## Configure `nri-prometheus` for Apache Flink [#configure]
+
+First, create a file named `nri-prometheus-config.yml` in the below path
+
+Path: `/etc/newrelic-infra/integrations.d`
+
+Now, update the fields listed below:
+
+* cluster_name: "YOUR_DESIRED_CLUSTER_NAME", for example: `cluster_name: "apache_flink"`
+
+* urls: ["http://YOUR_DOMAIN:9250", "http://YOUR_DOMAIN:9251"], for example: `urls: ["http://localhost:9250", "http://localhost:9251"]`
+
+Your `nri-prometheus-config.yml` file should look like this:
+
+```yml
+integrations:
+  - name: nri-prometheus
+    config:
+      standalone: false
+      # Defaults to true. When standalone is set to `false`, `nri-prometheus` requires an infrastructure agent to send data.
+      emitters: infra-sdk
+      # When running with infrastructure agent emitters will have to include infra-sdk
+      cluster_name: "YOUR_DESIRED_CLUSTER_NAME"
+      # Match the name of your cluster with the name seen in New Relic. 
+      targets:
+        - description: "YOUR_DESIRED_DESCRIPTION_HERE"
+          urls: ["http://YOUR_DOMAIN:9250", "http://YOUR_DOMAIN:9251"]
+      #    tls_config:
+      #      ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+      #      cert_file_path: "/etc/etcd/etcd-client.crt"
+      #      key_file_path: "/etc/etcd/etcd-client.key"
+
+      verbose: false
+      # Defaults to false. This determines whether or not the integration should run in verbose mode.
+      audit: false
+      # Defaults to false and does not include verbose mode. Audit mode logs the uncompressed data sent to New Relic and can lead to a high log volume.
+      # scrape_timeout: "YOUR_TIMEOUT_DURATION"
+      # `scrape_timeout` is not a mandatory configuration and defaults to 30s. The HTTP client timeout when fetching data from endpoints.
+      scrape_duration: "5s"
+      # worker_threads: 4
+      # `worker_threads` is not a mandatory configuration and defaults to `4` for clusters with more than 400 endpoints. Slowly increase the worker thread until scrape time falls between the desired `scrape_duration`. Note: Increasing this value too much results in huge memory consumption if too many metrics are scraped at once.
+      insecure_skip_verify: false
+      # Defaults to false. Determins if the integration should skip TLS verification or not.
+    timeout: 10s
+```
+
+## Manually set up log forwarding [#logs]
+
+You can use our [log forwarding](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) documentation to forward application specific logs to New Relic.
+
+On installing infrastructure agent on the linux machines, your log file named `logging.yml` should be present in this path: `/etc/newrelic-infra/logging.d/`.
+
+If you don't see your log file in the above path, then you will need to create a log file by following the above log forwarding documentation.
+
+Here is an example of the log name which will look similar as below:
+
+```yml
+- name: flink-u1-taskexecutor-0-u1-VirtualBox.log
+```
+
+Add the below script to the `logging.yml` file to send Apache Flink logs to New Relic.
+
+```yml
+logs:
+  - name: flink-<REST_OF_THE_FILE_NAME>.log 
+    file: <FLINK-DIRECTORY>/log/flink-<REST_OF_THE_FILE_NAME>.log
+    attributes:
+      logtype: flink_logs
+```
+
+## Restart New Relic infrastructure agent [#restart-infrastructure-agent]
+
+Before you can start reading your data, [restart your infrastructure agent](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/).
+
+## Monitor Apache Flink on New Relic
+
+If you want to use our pre-built dashboard template named Apache Flink to monitor your Apache Flink metrics, follow these steps:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/)**</DNT> and click on <DNT>**+ Integrations & Agents**</DNT>.
+2. Click on <DNT>**Dashboards**</DNT> tab.
+3. In the search box, search for <DNT>**Apache Flink**</DNT>.
+4. Click on the Apache Flink dashboard to install it in your account.
+
+Once your application is integrated by following the above steps, the dashboard should reflect metrics on it.
+
+To instrument the Apache Flink quickstart and to see metrics and alerts, you can also follow our [Apache Flink quickstart page](https://newrelic.com/instant-observability/apache-flink) by clicking on the <DNT>**Install now**</DNT> button.
+
+## Use NRQL to query your data
+
+You can use NRQL to [query your data](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/). For example, if you want to view the total number of completed checkpoints on New Relic's Query Builder, use this NRQL query:
+
+```sql
+FROM Metric SELECT latest(flink_jobmanager_job_numberOfCompletedCheckpoints) AS 'Number of Completed Checkpoints'
+```
+
+## What's next?
+
+If you want to further customize your Apache Flink dashboards, you can learn more about building NRQL queries and managing your <InlinePopover type="dashboards"/> in the New Relic UI:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to create basic and advanced queries.
+* [Introduction to dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to customize your dashboard and carry out different actions.
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) to adjust your dashboards display mode, or to add more content to your dashboard.

@@ -1,0 +1,672 @@
+---
+title: "Template variables: dynamically filter dashboards"
+tags:
+  - Dashboards
+  - Template variables
+metaDescription: 'For New Relic custom dashboards: use template variables to allow your dashboard users to dynamically filter your dashboard views.'
+redirects:
+freshnessValidatedDate: never
+---
+
+For custom dashboards, you can use <DNT>**template variables**</DNT> to dynamically filter charts and other widgets. Template variables make your dashboards more useful and help you more easily create dashboards that you can reuse for different use cases.
+
+## Why use template variables? [#defined]
+
+Template variables are a powerful and dynamic way of filtering an entire dashboard based on specific metadata values a dashboard creator chooses. The benefits of using template variables are:
+
+* They make dashboards easier to use: Your users don't have to understand the structure of the data; they can simply choose from the various filter options you've set.
+
+* They allow you to create reusable dashboard templates that you can then duplicate and customize for many other uses.
+
+Here's an example of a dashboard with several template variables, which you can see at the top of the dashboard.
+
+<img
+  title="Dashboard with template variables"
+  alt="Dashboard with template variables"
+  src="/images/dashboards_screenshot-full_with-template-variables.webp"
+/>
+
+<figcaption>
+    Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Dashboards**</DNT>
+</figcaption>
+
+
+With template variables, you can set up a wide variety of variables and filters to create the dashboard experience you need. Examples of experiences you can create:
+
+* A dropdown to choose an app name
+* A dropdown to choose specific regions
+* A dropdown to select specific durations or other numeric values
+* Filters that use free text fields to find matching strings
+
+Furthermore, you can now decide if you want to include the variable or not without having to modify your queries. See the [Include variable](/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#include-variable) section for details. 
+
+## Include and exclude variables [#include-variable]
+
+The <DNT>**Include variable**</DNT> toggle allows you to set a desired value and include or exclude that value in your dashboards. See the [template variables](/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/#create-variables) section for more info.
+
+For example, you may be investigating an issue that is not specific to any particular value within a variable. In such cases, the variable's existing values might be limiting query results, even when selecting all possible options. To address this, you can exclude the variable from the query. This effectively removes the variable's condition and replaces it with a neutral boolean value (true or false), ensuring query validity and returning comprehensive results.  
+
+### Example
+
+Consider a query that filters results based on a `countryCode` variable. If you want to view data for all countries without filtering, you can exclude the variable:
+
+Original query:
+
+  ```sql
+  FROM PageAction 
+  SELECT count(*) AS 'views' 
+  WHERE countryCode IN ({{countryCode}}) AND appName = 'Test App' FACET countryCode
+  ```
+
+Query with an excluded variable:
+
+  ```sql
+  FROM PageAction 
+  SELECT count(*) AS 'views' 
+  WHERE true AND appName = 'Test App' FACET countryCode
+  ```
+
+This feature is particularly useful when: 
+
+* The variable has more values than the maximum allowed (for instance, 5000 max results for uniques by default) or a very high number of values. Choosing to disable the variable by default will deliver considerable performance improvements.
+
+* The data source for the variable differs from the database you're querying. 
+In these cases, selecting all values from the database using "Select all" isn't sufficient. By excluding the variable, you can retrieve all values from the database.
+
+Limitations on include variable: 
+
+* When used in FACET cases, the condition is replaced with true and converts it to an always-true condition. 
+
+* When used in other contexts like functions or with the `SELECT` statement, you'll get the following error: `"Unknown function Disable_variable()"`. This is because the disable variable function isn't implemented for these specific cases yet.
+
+## Requirements and limitations [#requirements]
+
+Template variables can only be used in the context of making widgets for custom dashboards. See [NRQL variables](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#with-as-nrql-var) for using variables in a NRQL query.
+
+Queries with template variables can only be used in the context of a dashboard. For this reason, some query-related features don't work. For example, the `Export dashboard as PDF` option doesn't support widgets with variables.
+
+Important points to note about adding a query:
+
+* The variable you defined goes inside the `{{ … }}` brackets.
+
+* The variable generates a string value.
+
+* To help you when you're creating a query, there's a color code:
+  * Clauses, `FROM`, `SELECT`, `FACET`, and `WHERE`, are in pink.
+  * Identifiers are in black.
+  * Functions are in blue.
+  * Strings are in green.
+  * Integers are in brown.
+
+* See our [How to use NRQL: the mechanics of querying](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-how-nrql-works/#syntax) page if you want to know more about writing queries with NRQL.
+
+For restrictions related to writing queries, see [Writing queries](#query-variable-rules).
+
+## Use template variables [#create-variables]
+
+We'll walk you through creating a template variable, and then we'll give you a few [examples](#examples) of different kinds of template variables.
+
+Creating a template variable consists of two steps.
+
+<Steps>
+    <Step>
+
+    ### Define the template variable [#step1]
+
+First, you'll define a template variable. This is the variable that you'll use in a NRQL query to create a widget.
+
+    To define a variable:
+
+    1. From a new dashboard without variables, click the edit <Icon name="fe-edit-2"/> button, and then, click <DNT>**+ Add variable**</DNT> button located at the top-left corner. Once you've finished adding variables, click <DNT>**Done editing**</DNT>.
+
+       If the dashboard includes widgets, click the <DNT>**+ Add variable**</DNT> button.
+
+       <img
+         title="Dashboard without widgets"
+         alt="Dashboard without widgets"
+         src="/images/dashboards_screenshot-full_add-variables.webp"
+       />
+
+    2. Complete the <DNT>**Add variable**</DNT> workflow. Below are some rules and tips for each of the fields.
+
+    <table>
+      <thead>
+        <tr>
+          <th width={200}>
+            **Field**
+          </th>
+
+          <th>
+            **Details**
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Name to use in queries
+          </td>
+
+          <td>
+            The name of the variable. This is what you'll use in the query, surrounded by `{{...}}`. For example, if you use `country` here as the name, then when writing a query you'll call the variable with `{{country}}`.
+
+            Variable names must start with a letter and can contain letters, numbers, and underscores.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Display name
+          </td>
+
+          <td>
+            Optional. This is how the variable will display above the dashboard so that dashboard users know what the variable represents. If this is left blank, it will use the main name value.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Type
+          </td>
+
+          <td>
+            There are three options:
+
+            * <DNT>**Query**</DNT>: You can write a query that will return a dynamic list of options used in the dropdown menu. For example, the following query would return a dynamic list of `country` values:
+
+              ```sql
+              SELECT uniques(countryCode) FROM PageAction SINCE 2 days ago
+              ```
+
+              For rules and tips on writing queries, see [Query-type variables](#query-variable-rules).
+
+            * <DNT>**List**</DNT>: A list of comma-separated values that are used to populate the options in the dropdown menu. For example, you could manually define a list of `country` values using a list like: `ES, US, CA.`
+
+            * <DNT>**Text field**</DNT>: Instead of a dropdown of values to choose from, this allows dashboard users to filter for whatever text they input.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Account
+          </td>
+
+          <td>
+            Only present for `query` type. For organizations with multiple accounts, this sets the account that is queried.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Query
+          </td>
+
+          <td>
+            Write here your query using `uniques(attribute)`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Ignore time picker
+          </td>
+
+          <td>
+            Optional. Only present for query type. By turning this option off, the query will be run using the selected time picker’s value in the dashboard. That way, when the value of the time picker changes, the results of the variable’s dropdown will dynamically respond to the new selected time range.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Multi-select
+          </td>
+
+          <td>
+            Optional. This option allows a dropdown to allow multiple selections at the same time instead of a single selection.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Default values
+          </td>
+
+          <td>
+            Optional. These are the default values that the dashboard will filter on. For example, if you used the `country` query above, you could input `ES` as the default value and the dashboard would automatically filter to that value. You can also select all possibilities.
+
+            To use multiple values on a `WHERE` clause you need to use [`IN`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-where) instead of `=`.
+            
+            The ** Include variable** toggle will determine the default configuration, include or exclude, for that variable in the dashboard. This configuration can be modified by the user viewing the dashboard by using the ** Include variable** toggle in the variable dropdown menu. The user selected configuration will be valid for the duration of the session. 
+            <Callout variant="important">
+            Note that you can only configure default values when the toggle is set to include variable. Once you select the default values you can switch the toggle so the variable is not included by default. The default values will be preselected when any user turns the toggle to include the variable from the variable dropdown menu.
+            </Callout>
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Output format
+          </td>
+
+          <td>
+            This lets you change how the data generated by the variable is handled in the query. The selected option you choose here is related to the query you're going to add later in the widget. The <DNT>**default**</DNT> option is string because this is the more common option used in the majority of queries. You can change the <DNT>**default**</DNT> option to one of these:
+
+            * <DNT>**String**</DNT>: Use this for non-numeric text values.
+            * <DNT>**Number**</DNT>: Use this for numeric values.
+            * <DNT>**Identifier**</DNT>: Use this when you want to substitute parts of the query, like event names or facet names.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    See this example of what a template variable for `country` values would look like:
+
+    <img
+      width="40%;"
+      title="Define a template variable"
+      alt="Define a template variable"
+      src="/images/dashboards_screenshot-crop_variable-country-example.webp"
+    />
+
+    Once you've defined your template variable, you can add a widget that uses your created template variable.
+
+        
+    </Step>
+    <Step>
+    ### Create widgets that use the template variable [#step2]
+
+    Once you've configured a template variable, you'll need widgets on a dashboard that use the variable that you've defined in their query.
+
+    To create a widget:
+
+    1. From your dashboard click <DNT>**+ Add widget**</DNT> button located at the top-right corner.
+
+    2. There are 2 options:
+       * Add a chart. You'll create your widget using the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/).
+       * Add text, images, or links. You'll create your widget adding your own content using our [Markdown editor](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#markdown).
+
+    3. We choose <DNT>**Add a chart**</DNT> option.
+
+    4. Add your query and click <DNT>**Run**</DNT>.
+
+       Following our example mentioned in step 1:
+
+       ```sql
+       SELECT countryCode 
+       FROM PageAction 
+       WHERE countryCode IN ({{countryCode}})
+       ```
+
+       <img
+         title="Example of adding a widget"
+         alt="Example of adding a widget"
+         src="/images/dashboards_screenshot-crop_example-add-widget.webp"
+       />
+
+       Notice that these are the NRQL clauses that will accept template variables as values: `SELECT`, `FROM`, `FACET`, `ORDER BY` and `WHERE`.
+
+       Instead, the following list of NRQL clauses will not accept template variables as arguments: `AS`, `COMPARE WITH`, `LIMIT`, `OFFSET`, `SINCE`, `SLIDE BY`, `TIMESERIES`, `UNTIL` and `WITH`....
+
+    5. Click <DNT>**Save**</DNT>
+
+    </Step>
+</Steps>
+
+When you're done defining a template variable and adding a widget that references that variable, you can verify it's working as expected by choosing different options from the template variable bar and seeing if the widget changes based on your selection.
+
+Here's an example of the resulting widget, on the right, with the `country` dropdown to the left.
+
+<img title="Country template variable example" alt="Country template variable example" src="/images/dashboards_screenshot-crop_country-variable-example.webp"/>
+
+## Rules for writing a query-type template variable [#query-variable-rules]
+
+As discussed in the [section on defining template variables](#step1), there are three variable types: query, list, and text field. The query-type variable is the most complex to create because you must create a working query that returns **a list of values**, which are then used to populate the dropdown in the template variable bar at the top of the dashboard.
+
+<Callout variant="important">
+  Note that this is a different topic than writing queries that make use of a template variable.
+</Callout>
+
+You can use almost any NRQL query as long as it returns a list of values. For that, you can use either the `uniques` or `keyset` functions.
+
+With [`uniques`](/docs/nrql/nrql-syntax-clauses-functions/#func-uniques):
+
+```sql
+FROM PageAction SELECT uniques(countryCode)
+```
+
+```sql
+-- you can use the second param to define the maximum number of results to be listed.
+FROM PageAction SELECT uniques(countryCode, 10000) --> this will return up to 10k results
+```
+
+With [`keyset`](/docs/nrql/nrql-syntax-clauses-functions/#keyset):
+
+```sql
+-- with `keyset`, you'll get a list with all of the attributes from the table you're querying from
+FROM PageAction SELECT keyset() SINCE 1 day ago  
+```
+
+Keep in mind that nested variables are not supported as there can't be variables within variables.
+
+## Some examples [#examples]
+
+Here are some different types of template variable implementations.
+
+<CollapserGroup>
+  <Collapser
+    id="multi-value"
+    title="Use multi-value option"
+  >
+    You can enable the multi-value option from the display options section when creating a variable of type `NRQL/ENUM`.
+
+    Here's an example of a query that creates a variable named `{{MultiValue}}` and returns a list of all unique eventId's:
+
+    ```sql
+    SELECT uniques(eventId) FROM AjaxRequest
+    ```
+
+    <img
+      width="30%;"
+      title="Multi-value template variable example"
+      alt="Multi-value template variable example"
+      src="/images/dashboards_screenshot-crop_add-multivalue.webp"
+    />
+
+    Then you would create a widget with the following query:
+
+    ```sql
+    SELECT count(*) FROM AjaxRequest WHERE eventId IN ({{MultiValue}})
+    ```
+
+    <img
+      width="80%;"
+      title="Creating a widget"
+      alt="Creating a widget"
+      src="/images/dashboards_screenshot-full_multivalue-add-widget.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="multiple-variables"
+    title="Use multiple variables for one widget"
+  >
+    You can define only one template variable at a time, but you can use more than one template variable in a single widget.
+
+    Here's an example of a query that uses two template variables. Note that this assumes the `countryCode` and `city` template variables would have already been created and that they have a single value.
+
+    ```sql
+    SELECT countryCode, city FROM PageAction 
+    WHERE countryCode = {{countryCode}} AND city = {{city}}
+    ```
+
+    <img
+      title="Creating a widget using multiple variables"
+      alt="Creating a widget using multiple variables"
+      src="/images/dashboards_screenshot-crop_add-widget-multiple-variable.webp"
+    />
+
+    If you have multiple values for your variables, such as `Chicago`, `New York`, `Paris` for your `city` variable, you need to use `IN`:
+
+    ```sql
+    SELECT countryCode, city FROM PageAction 
+    WHERE countryCode IN ({{countryCode}}) AND city IN ({{city}})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="variables-partial-match"
+    title="Use variables and partial match"
+  >
+    Using variables and [regex](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-capture), you can create a filter, provided you're sure that a part of the filter is fixed.
+
+    You need to use this partial match if you want to use `LIKE`.
+
+    Let's say you want to filter by release version. The query returns something like: `release-1234`.
+
+    You can create a variable using [`aparse`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-aparse) to parse the version number:
+
+    ```sql
+    SELECT uniques(aparse(platformVersion, 'release-*')) FROM PageView 
+    ```
+
+    <img
+      width="40%;"
+      title="Creating the release version variable"
+      alt="Creating the release version variable"
+      src="/images/dashboards_screenshot-crop_add-var-release-version.webp"
+    />
+
+    Then create a widget with the following query:
+
+    ```sql
+    SELECT count(*) FROM PageAction 
+    WHERE aparse(platformVersion, 'release-*') IN ({{releaseversion}}) FACET platformVersion
+    ```
+
+    <img
+      title="Creating the widget"
+      alt="Creating the widget"
+      src="/images/dashboards_screenshot-crop_add-widget-aparse.webp"
+    />
+
+    Or if you prefer, you could use the [`capture`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-capture) command:
+
+    ```sql
+    SELECT count(*) FROM PageAction 
+    WHERE capture(platformVersion, r'release-(?P<platformVersion>\d+)') IN ({{releaseversion}}) FACET platformVersion
+    ```
+
+    <img
+      title="Creating the widget"
+      alt="Creating the widget"
+      src="/images/dashboards_screenshot-crop_add-widget-capture.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="variables-regex-like-rlike"
+    title="Use variables and regex with LIKE and RLIKE"
+  >
+    You can use `LIKE` and `RLIKE` as template variables to filter data in a dashboard. To use this feature, the value you add when creating the template variable must use the `%` wildcard symbols at the start and end of the value.
+
+    Here's an example. You define a string variable, as shown here:
+
+    <img
+      width="40%;"
+      title="Add `LIKE` as template variable"
+      alt="Add `LIKE` as template variable"
+      src="/images/dashboards_screenshot-crop_add-var-like-filter.webp"
+    />
+
+    You can then create a widget chart and use your variable like this:
+
+    ```sql
+    FROM NrdbQuery SELECT user WHERE user LIKE {{like_filter}}
+    ```
+
+    <img
+      title="Add `LIKE` as template variable"
+      alt="Add `LIKE` as template variable"
+      src="/images/dashboards_screenshot-crop_add-widget-like-filter.webp"
+    />
+
+    or like this:
+
+    ```sql
+    FROM NrdbQuery SELECT user WHERE user RLIKE {{like_filter}}
+    ```
+  </Collapser>
+
+  <Collapser
+    id="variables-dynamic-grouping"
+    title={<>Use variable <InlineCode>facet</InlineCode> with a NRQL query</>}
+  >
+    You can create a variable of type NRQL with a string output format and use it after a `FACET` clause to group by different values.
+
+    For example, you might create a variable named `{{userAgentName}}` that would look like:
+
+    ```sql
+    SELECT uniques(userAgentName) FROM PageAction
+    ```
+
+    <img
+      width="30%;"
+      title="Creating the variable"
+      alt="Creating the variable"
+      src="/images/dashboards_screenshot-crop_add-var-facet.webp"
+    />
+
+    Then you'd create a widget with the following query:
+
+    ```sql
+    SELECT count(*) FROM PageAction 
+    WHERE userAgentName={{userAgentName}} FACET userAgentName
+    ```
+
+    <img
+      title="Creating widget using facet"
+      alt="Creating widget using facet"
+      src="/images/dashboards_screenshot-crop_add-widget-facet.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="variables-dynamic-grouping"
+    title="Use variables for dynamic grouping"
+  >
+    You can create a variable with an `identifier` output format and use it after a `FACET` clause to group by different values.
+
+    For example, you might create a `{{location}}` variable of type list with two possible values: `countryCode` and `city`. You'd set the output format to `identifier`.
+
+    <img
+      width="40%;"
+      title="Adding the variable for dynamic grouping"
+      alt="Adding the variable for dynamic grouping"
+      src="/images/dashboards_screenshot-crop_add-var-dynamic-grouping.webp"
+    />
+
+    Then you'd create a widget with the following query:
+
+    ```sql
+    SELECT count(*) FROM PageAction FACET {{location}}
+    ```
+
+    <img
+      title="Adding the widget for dynamic grouping"
+      alt="Adding the widget for dynamic grouping"
+      src="/images/dashboards_screenshot-crop_add-widget-dynamic-grouping.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="variables-dynamically-change-percentile"
+    title="Use variables to dynamically change the percentile"
+  >
+    You can create a variable with output format `number` and use that inside a percentile function.
+
+    For example, you could create a `{{percentile}}` variable of type `list` with two possible values: `55` and `90`. You'd want to set the output format as `number`.
+
+    <img
+      width="40%;"
+      title="Adding the variable for dynamically change the percentile"
+      alt="Adding the variable for dynamically change the percentile"
+      src="/images/dashboards_screenshot-crop_add-var-dynamic-percentile.webp"
+    />
+
+    Then you'd create a widget with the following query:
+
+    ```sql
+    SELECT percentile(duration, {{percentile}}) FROM PageAction
+    ```
+
+    <img
+      title="Adding the widget for dynamically change the percentile"
+      alt="Adding the widget for dynamically change the percentile"
+      src="/images/dashboards_screenshot-crop_add-widget-dynamic-percentile.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="variables-filter"
+    title="Use variables to filter"
+  >
+    To use variables for filtering you only need to add the created variable on the right side of a `WHERE` clause, like this:
+
+    ```sql
+    SELECT countryCode, city FROM PageAction 
+    WHERE countryCode IN ({{countryCode}})
+    ```
+
+    <img
+      title="Use variables to filter"
+      alt="Use variables to filter"
+      src="/images/dashboards_screenshot-crop_variables-to-filter.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="ignore-time-picker"
+    title="Use ignore time picker option"
+  >
+    By default the “ignore time picker” option is enabled, meaning that the query is always run using the default `1 hour` time range value, even if the time picker in the dashboard has a different value selected (ex. `5 minutes`, `3 hours`, etc). The exception for that case is when the query has an explicit time range set with a `SINCE` clause, like for example:
+
+    ```sql
+    SELECT uniques(eventId) 
+    FROM AjaxRequest 
+    SINCE 5 minutes ago
+    ```
+
+    The results will be in the range of the last 5 minutes.
+
+    When the "ignore time picker" option is turned off, the query will run with the value selected in the time picker. For example, if you set the time picker to 30 minutes, such as in the screenshot below, in the form for editing the variables, the "ignore time picker" field will set to off.
+
+    <img
+      title="Example time picker"
+      alt="A screenshot showing the time picker"
+      src="/images/dashboards_screenshot-crop_example-time-picker.webp"
+    />
+
+    This results in the values for the last 30 minutes. When you set the time picker value to <DNT>**Default**</DNT> and your query has a `SINCE` clause, the latest value will be used to run the query.
+
+    <img
+      title="Example form"
+      alt="A screenshot showing the variable form"
+      src="/images/dashboards_screenshot-crop_example-form.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="from-data-types"
+    title="Use variables to select your `FROM` data type"
+  >
+    Sometimes you have queries that apply the same rules to different types of data. Here are examples of two widgets that are identical except for the data type:
+
+    * Widget 1:
+      ```sql
+      SELECT count(*) FROM DataType1 SINCE 1 day ago
+      ```
+    * Widget 2:
+      ```sql
+      SELECT count(*) FROM DataType2 SINCE 1 day ago
+      ```
+
+    Instead of creating two separate widgets, you can create one widget with a variable that has the **Identifier** for **Output format**. Then, you can use it in a `FROM` clause to query different data types.
+
+    For example, you might create a `{{dataType}}` variable of type **List** with two possible values: `DataType1` and `DataType2`. You'd set the **Output Format** to **Identifier**:
+
+    <img
+      title="Screenshot showing how to add variable for FROM clause"
+      alt="Screenshot showing how to add variable for FROM clause"
+      src="/images/dashboards_screenshot-crop_add-variable-for-from-clause.webp"
+    />
+
+    Then, you'd create and run the widget:
+
+    <img
+      title="Screenshot showing how to create a widget query"
+      alt="Screenshot showing how to create a widget query"
+      src="/images/dashboards_screenshot-crop_create-widget-for-from-clause.webp"
+    />
+  </Collapser>
+</CollapserGroup>

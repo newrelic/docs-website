@@ -1,0 +1,82 @@
+---
+title: Update the Android agent
+tags:
+  - Mobile monitoring
+  - New Relic Mobile Android
+  - Install configure
+metaDescription: 'If you have previously installed the Android agent, follow these steps before upgrading to the latest version.'
+redirects:
+  - /docs/mobile-apps/android-1-upgrade
+  - /docs/mobile-monitoring-installation/android-1-upgrade
+  - /docs/mobile-monitoring/mobile-monitoring-installation/android/upgrading-new-relic-mobiles-android
+  - /docs/mobile-monitoring/mobile-monitoring-installation/android/upgrading-new-relic-mobiles-android-sdk
+  - /docs/mobile-monitoring/new-relic-mobile-android/install-configure/upgrading-new-relic-mobiles-android-sdk
+  - /docs/mobile-monitoring/new-relic-mobile-android/legacy/install-android-apps-android-22-support/
+  - /docs/mobile-monitoring/mobile-monitoring-installation/android/installing-android-apps-android-22-support
+  - /docs/mobile-monitoring/mobile-monitoring-installation/legacy/installing-android-apps-android-22-support
+  - /docs/mobile-monitoring/new-relic-mobile-android/legacy/installing-android-apps-android-22-support
+  - /docs/mobile-monitoring/new-relic-mobile-android/install-configure/upgrade-new-relic-mobiles-android-sdk
+freshnessValidatedDate: 2024-02-01
+---
+
+To ensure you have the most current version of the Android agent, see the [Android agent release notes](/docs/release-notes/mobile-release-notes/android-release-notes). Instructions to upgrade your Android app will vary, based on which version of the Android agent SDK you are currently using.
+
+## Upgrade from Android SDK versions 2 or 3 [#android_upgrade_2]
+
+If you have previously installed version 2 or 3 of the Android SDK: Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select an app) > Settings > Upgrade.**</DNT>
+
+## Upgrade Android SDK version 1 [#android_upgrade_1]
+
+If you have previously installed version 1 of the Android SDK, follow these [one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) >
+
+<table>
+  <thead>
+    <tr>
+      <th width={75}>
+        <DNT>
+          **Step**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Notes**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        1.
+      </td>
+
+      <td>
+        <DNT>
+          **Open your AndroidManifest.xml file, and remove the `NewRelicApplication` class.**
+        </DNT>
+
+        When you first ran <DNT>**nrandroid-setup**</DNT>, the `NewRelicApplication` class was added to your `AndroidManifest.xml` file. This has been removed from the New Relic SDK and is no longer necessary.
+
+        If you had an existing `Application` subclass and modified it to inherit from `NewRelicApplication`, update your subclass to inherit from `Application` instead.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        2.
+      </td>
+
+      <td>
+        <DNT>
+          **Stop using `nrandroid-ant`.**
+        </DNT>
+
+        The <InlinePopover type="mobile"/> capability no longer requires the custom Ant wrapper script for Android applications. Once you upgrade, simply use your standard build tools.
+
+        If you modified an existing Maven configuration to invoke the mobile build steps, remove those modifications, and use the revised build instructions.
+      </td>
+    </tr>
+  </tbody>
+</table>

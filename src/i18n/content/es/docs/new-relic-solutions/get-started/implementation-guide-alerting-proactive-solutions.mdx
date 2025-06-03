@@ -1,0 +1,198 @@
+---
+title: 'Parte de implementación 4: Alertas y otras soluciones proactivas'
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: 'Part 4 of the New Relic implementation guide, where you think about your alerting strategies, and set up alerting, synthetic monitors, and errors inbox.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+_Esta es la cuarta y última parte de [nuestra guía de implementación](/docs/new-relic-solutions/get-started/implementation-guide-intro)._
+
+En etapas de implementación anteriores, [instrumentó su stack](/docs/new-relic-solutions/get-started/implementation-guide-instrument) y [se familiarizó con la plataforma New Relic](/docs/new-relic-solutions/get-started/implementation-guide-organize-data). Ahora es un buen momento para pensar en soluciones proactivas que le notificarán los problemas con antelación y le ayudarán a evitar los peores escenarios. En esta etapa, aprenderá sobre algunas soluciones importantes en esta área, que incluyen:
+
+* Alertando
+* Monitor sintético
+* Errors Inbox
+
+## Piense en su estrategia de alerta [#alert-strategy]
+
+<img
+  title="Alerts UI"
+  alt="Alerts UI"
+  src="/images/alerts_screenshot-full_alerting-ui.webp"
+/>
+
+<figcaption>
+  LaUI de New Relic <InlinePopover type="alerts"/>le brinda una vista del estado de condición de alerta en una cuenta.
+</figcaption>
+
+Antes de configurar alertas, recomendamos dedicar algo de tiempo a pensar en sus objetivos y estrategia de alerta. Cuanto más grande sea su organización, más importante será.
+
+Cuando no se tiene una estrategia de alertas y, en cambio, se configuran alertas de forma rápida y desordenada para resolver problemas puntuales, se pueden generar demasiadas alertas. Cuando eso suceda, su equipo sufrirá un exceso de alertas y comenzará a ignorarlas. Dedicar algún tiempo a pensar en su estrategia de alerta le asegurará configurar alerta de una manera inteligente que pueda escalar a medida que su organización crece o a medida que agrega más datos a New Relic.
+
+Para enviarle mensajes de notificación de alerta, utilizamos <DNT>**workflows**</DNT> (las reglas de cómo el incidente crea la notificación y qué datos se envían) y <DNT>**notification destinations**</DNT> (dónde se envía la notificación). Le recomendamos que planifique cómo se configurarán para que sean coherentes y mantenibles en toda su organización. Si se está integrando con otro servicio, como Slack o PagerDuty, considere cómo controlará y mantendrá esta integración a largo plazo.
+
+Evitar el exceso de alertas debe ser un objetivo central de su estrategia de alerta. Una estrategia que podría aplicar es categorizar su alerta según la gravedad del impacto empresarial. Aquellos que son más severos o críticos deberían hacer el ruido más fuerte y entregarse a las partes interesadas que están en condiciones de responder, mientras que aquellos que tienen un menor impacto en el negocio deberían entregarse más silenciosamente, con un "radio de explosión" más pequeño.
+
+Por ejemplo, podría considerar definir algunos protocolos de gravedad de alertas que pueda aplicar en toda la organización y utilizar el flujo de trabajo para garantizar que las alertas se enruten correctamente. Los equipos pueden aplicar rutas ligeramente diferentes para cada gravedad, pero introducir un lenguaje común y una comprensión del impacto en toda la organización puede generar dividendos a medida que se amplían los esfuerzos de alerta.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Gravedad
+      </th>
+
+      <th>
+        Impacto
+      </th>
+
+      <th>
+        Audiencia
+      </th>
+
+      <th>
+        Integracion
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Nivel 1 / P1
+      </td>
+
+      <td>
+        Crítico
+      </td>
+
+      <td>
+        On call ingeniería de confiabilidad del sitio (SRE), C-Level Manager / incidente Commander /, Relevant Product Owner y equipos DevOps
+      </td>
+
+      <td>
+        PagerDuty, Slack, Correo electrónico
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        División 2 / P2
+      </td>
+
+      <td>
+        Alto
+      </td>
+
+      <td>
+        Equipos relevantes de Product Owner y DevOps
+      </td>
+
+      <td>
+        PagerDuty, flojo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sección 3 / P3
+      </td>
+
+      <td>
+        Medio
+      </td>
+
+      <td>
+        Equipos DevOps
+      </td>
+
+      <td>
+        Slack
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Caja de arena/Sev 4/P4
+      </td>
+
+      <td>
+        Bajo/Ninguno
+      </td>
+
+      <td>
+        Equipos DevOps
+      </td>
+
+      <td>
+        Holgura de la caja de arena
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<figcaption>
+  Un ejemplo de cómo una organización podría definir algunos protocolos de seguridad de alerta.
+</figcaption>
+
+Para garantizar la calidad de las alertas a largo plazo, es posible que desee considerar la planificación de revisiones periódicas de su condición de alerta para garantizar que se aborde cualquier exceso de alertas y que las alertas se clasifiquen correctamente. Para ello será necesario analizar con qué frecuencia alertan los disparos y cuáles son los tiempos de respuesta y resolución.
+
+Para conocer formas de comenzar con las alertas:
+
+* Para comenzar rápidamente a configurar una condición de alerta y un destino de notificación, consulte [nuestros documentos sobre cómo crear su primera alerta](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition).
+* Para obtener orientación detallada sobre cómo planificar e implementar una estrategia de alerta, consulte nuestra [guía de gestión de calidad de alerta](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide).
+
+Aquí hay algunos documentos sobre cómo automatizar su alerta:
+
+* [Utilice nuestra API NerdGraph para configurar alerta](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/alerts-nerdgraph/nerdgraph-api-examples)
+* [Configurar alerta usando Terraform](https://newrelic.com/blog/how-to-relic/observability-as-code-new-relic-terraform-provider)
+
+## Monitoreo sintetico [#synthetics]
+
+Nuestro monitoreo sintético le brinda un conjunto de herramientas automatizadas y programables para monitor sus sitios web, transacciones comerciales críticas y extremos de API. Estas herramientas le permiten ejecutar un monitor simple para verificar el tiempo de actividad y la funcionalidad básica, o crear scripts complejos que imiten las acciones y el flujo de trabajo de un usuario real.
+
+Para utilizar bien Sintético, su equipo debe identificar los recorridos de los clientes críticos para el negocio y las API dependientes, y configurar el monitor Sintético para realizar un seguimiento de ellos. Sus informes de seguimiento de Sintético pueden ser parte de su carga de trabajo u otro panel de control.
+
+<img
+  title="Synthetic monitoring - Monitors index"
+  alt="Synthetic monitoring - Monitors index"
+  src="/images/synthetic_screenshot-full_monitor-index.webp"
+/>
+
+<figcaption>
+  Puedes comprobar el estado y métrica de tu monitor con el índice de monitores.
+</figcaption>
+
+Para comenzar con Sintético, consulte [Introducción a Sintético](/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring) y [Crear un monitor](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors).
+
+## Errors Inbox [#errors-inbox]
+
+Nuestra característica Errors Inbox le ayuda a detectar, priorizar y tomar medidas proactivas ante los errores antes de que afecten a su usuario final. Recibirás una alerta cada vez que surja un error crítico que afecte a los clientes a través de tu canal de comunicación preferido, como Slack.
+
+<img
+  title="ui-main"
+  alt="This is an image of the main errors inbox UI"
+  src="/images/errors-inbox_screenshot-full_errors-ui.webp"
+/>
+
+<figcaption>
+  La le Errors Inbox UI permite revisar fácilmente los errores de su carga de trabajo.
+</figcaption>
+
+Para utilizar Errors Inbox, deberás haber configurado alguna carga de trabajo. Recursos para comenzar:
+
+* Lea los [documentosErrors Inbox](/docs/errors-inbox/errors-inbox)
+* Vea [un vídeo breve sobre cómo configurar Errors Inbox](https://www.youtube.com/watch?v=HEbX0dgeGGw)
+
+## ¿Que sigue? [#whats-next]
+
+Esta guía le ha ayudado a establecer una base sólida de observabilidad, pero ese es sólo el primer paso para avanzar hacia la excelencia en observabilidad. A continuación, es posible que desees concentrarte en aprender los puntos más finos de New Relic y optimizar tu configuración. Algunas ideas para los próximos pasos:
+
+* Si cree que aún necesita más instrumentación, [busque e instale más herramientas de observabilidad](https://newrelic.com/instant-observability).
+* Lea [los documentos de las herramientas y características que está utilizando](http://docs.newrelic.com) para obtener información sobre las opciones de configuración y personalización.
+* [Comprenda y optimice su ingesta de datos.](/docs/data-apis/manage-data/manage-your-data)
+* Complete [una clase de New Relic University sobre consulta de datos](https://learn.newrelic.com/writing-nrql-queries) y tome [otras clases](https://learn.newrelic.com).
+* Para profundizar en la planificación de sus objetivos de observabilidad y lograr la excelencia en observabilidad, consulte nuestra [serie Madurez de observabilidad](/docs/new-relic-solutions/observability-maturity/introduction). Incluye guías para [garantizar una instrumentación óptima](/docs/new-relic-solutions/observability-maturity/operational-efficiency/service-characterization-optimize-telemetry-data-guide), [observabilidad como código](/docs/new-relic-solutions/observability-maturity/operational-efficiency/observability-as-code-guide), [gestión de calidad de alertas](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) y más.

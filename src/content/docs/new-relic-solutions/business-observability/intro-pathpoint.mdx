@@ -1,0 +1,435 @@
+---
+title: Introduction to New Relic Pathpoint
+tags:
+  - Business observability
+  - Get started
+metaDescription: "What is Pathpoint? An intro to New Relic's business journey observability."
+redirects: 
+  - /docs/business-observability/pathpoint
+  - /docs/business-observability/intro-pathpoint
+  - /docs/new-relic-solutions/business-observability/configure-pathpoint
+  - /docs/new-relic-solutions/business-observability/troubleshoot-pathpoint
+  - /docs/new-relic-solutions/business-observability/working-with-touchpoints
+freshnessValidatedDate: 2024-07-23
+---
+
+New Relic Pathpoint is a visualization application that offers a unique approach to business process observability. It models system health in relation to the actual business journey giving you an optimized view of any problems your digital business may have.
+
+By monitoring and analyzing the health and performance of all phases of the journey, including relevant internal processes and external dependencies, Pathpoint allows organizations to easily identify and resolve issues that impact the journey, optimize internal processes, and improve the overall customer experience.
+
+Install the app directly from the [New Relic catalog](https://onenr.io/0bRm7rdJZQy).  You can also explore the [GitHub repository](https://github.com/newrelic/nr-labs-pathpoint).
+
+<img
+  title="Business observability overview"
+  alt="Business observability overview"
+  src="/images/pathpoint_v2_splash_screenshot.webp"
+/>
+
+<figcaption>
+  New Relic Pathpoint helps large organizations monitor and analyze a wide range of data no matter where it comes from in their system, which help them more efficiently optimize their processes.
+</figcaption>
+
+The sections below cover important concepts and procedures about Pathpoint.
+
+## Pathpoint UI [#pathoint-ui]
+
+Pathpoint can be a key part of optimizing your business observability. It maps an organization's business process or "customer journey" to tangible signals from various services, alerts, and infrastructure to help you rapidly pinpoint where your business or customer journey is impacted. This top down approach to observability allows you to share observability data with a wide variety of technical and non-technical personnel.
+
+Each Pathpoint flow is divided into:
+
+<CollapserGroup>
+  <Collapser
+    id="pathpoint-stages"
+    title="Stages"
+  >
+    These are the highest level business stages. At the actual system level these will be a rollup of many services and methods and show the complete health, congestion, count and infrastructure state of a Pathpoint.
+
+    <img
+      title="Pathpoint stages"
+      alt="Pathpoint stages"
+      src="/images/pathpoint_v2_screenshot_stages.webp"
+    />
+
+    The different stages of a Pathpoint enables you to gain a high-level overview of business processes and identify the different services and methods presented at the system level for each commercial stage.
+
+    ### Add stages [#adding-stages]
+
+    Adding stages is as fast as typing in the stage names.
+
+    <img
+      title="Add stages"
+      alt="Add stages"
+      src="/images/pathpoint_v2_screenshot_add_stages.webp"
+    />
+
+    ### Get real-time and historical information for each stage [#real-time-info-for-stage]
+
+    View real-time details for each stage, including any errors. Stages are color-coded to indicate their status: green for normal operation, yellow for critical signals, and red for multiple anomalies requiring attention.
+
+    In addition to the current state of these indicators, Pathpoint allows for the vizualization of previous states (recently and not so recently) using "playback".
+
+    <img
+      title="Pathpoint playback"
+      alt="Pathpoint plaback"
+      src="/images/pathpoint_v2_screenshot_playback.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="pathpoint-steps"
+    title="Steps"
+  >
+    Steps are "sub-stages" of a parent stage and represent the various events occurring throughout the stage.
+
+    <img
+      title="Pathpoint steps"
+      alt="Pathpoint steps"
+      src="/images/pathpoint_v2_screenshot_steps.webp"
+    />
+
+    Steps break down stages but also offer a level of abstraction. Often steps can be represented in some sequential order, known as levels. This allows New Relic to intuitively understand if there are some sequential dependencies between steps.
+
+    ### Add steps [#adding-steps]
+
+    <img
+      title="Add steps"
+      alt="Add steps"
+      src="/images/pathpoint_v2_screenshot_add_steps.webp"
+    />
+  </Collapser>
+
+  <Collapser
+    id="pathpoint-signals"
+    title="Signals"
+  >
+    Signals are the most granular elements in the Pathpoint model. They are often a specific application monitored by our <InlinePopover type="apm"/> or <InlinePopover type="browser"/>, but you can use any New Relic entity or alert as a signal. This provides almost limitless flexibility.
+
+    Every signal provides a snapshot of its current status, connected information, and a record of previous states.
+
+    <img
+      title="Pathpoint signals"
+      alt="Pathpoint signals"
+      src="/images/pathpoint_v2_screenshot_signals.webp"
+    />
+
+    ### Add signals [#adding-signals]
+
+    Adding signals to Pathpoint is as simple as navigating a list of entities and alerts in your account. It is easy to filter them by name and add only the ones you want. No custom queries are required.
+
+    <img
+      title="Add signals"
+      alt="Add signals"
+      src="/images/pathpoint_v2_screenshot_add_signals.webp"
+    />
+
+    ### Signal status [#touchpoint-status]
+
+    Like the entities or alerts they are related to signals have three different health statuses, which are color-coded for easy identification:
+
+    * Green: Optimal performance. The related entity or alert is functioning as expected.
+    * Yellow: Warning state. The related entity or alert has an active warning condition.  Some attention may be needed.
+    * Red: Critical state. The related entity or alert has an active critical condition.  Immediate attention is needed.
+    * Gray: Requires attention. Potential configuration issues or data gaps exist, such as a missing alert or the telemetry is not available.
+
+    Each Pathpoint step relies on one or more signals, making signal health crucial to overall Pathpoint performance. By tracking signal status, you can effectively monitor system health and quickly identify issues.
+
+    <Callout variant="tip">
+      By default, you'll see all signals regardless of their status. However you can choose to see "unhealthy only" or "critical only" to simplify your view by focusing your view on signals that need attention.
+
+      Also, by default, Pathpoint will condense or hide some of the non-critical signal names. You can toggle on "expand all signals" to see all signal names.
+    </Callout>
+
+    ### View signal details [#view-signal-details]
+
+    Signals linked to a New Relic entity adopt the entity's health status. Clicking a signal icon displays a window with detailed signal information, including:
+
+    * Open incidents
+    * Golden signal status
+    * Link to the entity's details page for deeper analysis
+
+    <img
+      title="View signal details"
+      alt="View signal details"
+      src="/images/pathpoint_v2_signal_details.webp"
+    />
+
+    The image above shows the details page for an APM entity signal.
+  </Collapser>
+
+  <Collapser
+    id="business-flow-kpis"
+    title="Business flow KPIs"
+  >
+    Beyond structured signals tied to New Relic entities or alerts, Pathpoint supports flexible KPI tracking via custom NRQL queries. This enables correlation of lower-level entity health with broader business impact metrics. Common use cases include monitoring event counts (such as user logins, registrations, checkouts, cart abandonment, etc.) and monetary values (such as total checkout value, returned product value, etc.). These KPIs can be derived from existing telemetry sources such as logs, custom metrics, or other data independent of specific entities.
+
+    <img
+      title="Pathpoint flow KPIs"
+      alt="Pathpoint flow KPIs"
+      src="/images/pathpoint_v2_screenshot_flow_kpis.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+By tracking each of these components, Pathpoint provides a comprehensive view of how customers interact with an organization at every stage of their journey. This makes it possible to identify and diagnose issues quickly, optimize the customer experience, and make data-driven decisions to drive better business outcomes.
+
+## Create flows [#flows]
+
+In previous sections we described the main elements within the pathpoint UI: stages, steps, and touchpoints. In Pathpoint the highest level grouping of these elements is the _flow_. A flow is usually used to model a "business journey" or "customer journey". The stages of a flow represent higher level concepts that compose the journey. When we think about what kinds of stages to use it helps to think about what our business process or "journey" is and how we think of it in sequence. Often it helps to look at other flows within a similar industries. Examples of industries or verticals are:
+
+* Hotel or hospitality
+* Cruise line or airline
+* Rideshare
+* Consumer packaged goods
+* Online marketplace
+* General retail
+* Quick-service restaurant
+* Mining, construction, oil, gas
+* Digital streaming media
+* Online news media
+* Retail or commercial banking
+* Insurance
+* Talent management
+
+Within an industry, it's often useful to model more than one flow. For example, in the insurance industry, you may want to model separate flows for purchasing a policy and filing a claim respectively. In fact, due to how the organization is structured, you may want a flow that separates home insurance from auto insurance or consumer insurance from commercial insurance. However, we recommend to start off with a simple flow of 4-5 steps, and either break it down later or add to it to make it more complete. Generally stage names are non-technical. They may be industry specific but should be generally understood by any C-level or VP personnel in an organization.
+
+<img
+  title="Example Flow List"
+  alt="Example Flow List"
+  src="/images/pathpoint_v2_example_flow_list.webp"
+/>
+
+When you're developing a flow, you must first focus on the stages that a user or process progresses through in the journey. At first, practitioners may have trouble brainstorming a high-level flow, but as this example of an airline business journey shows, there are numerous details that comprise a complete business journey that may not be obvious when you're focused on the services and infrastructure that run your business (rather than the business process itself).
+
+<img
+  title="Airport Flow Example"
+  alt="Airport Flow Example"
+  src="/images/pathpoint_v2_airport_flow_example.webp"
+/>
+
+### Stage examples [#stage-examples]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Industry
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Flow description
+      </th>
+
+      <th>
+        Stages
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Hotel (hospitality)
+      </td>
+
+      <td>
+        Guest booking and stay
+      </td>
+
+      <td>
+        1. Browse available rooms
+        2. Book a room
+        3. Check in and stay
+        4. Check out
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Online marketplace
+      </td>
+
+      <td>
+        Basic purchase journey
+      </td>
+
+      <td>
+        1. Browse available products
+        2. Add to/manage products in a cart
+        3. Complete a purchase
+        4. Receive and/or return a purchase
+        5. Manage notifications and marketing
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rideshare
+      </td>
+
+      <td>
+        Book and take a ride
+      </td>
+
+      <td>
+        1. Book a ride
+        2. Get assigned a driver
+        3. Start a ride start
+        4. End a ride
+        5. Pay
+        6. Provide feedback
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Steps examples [#examples]
+
+Steps are used to bridge the gap between the abstraction of stages and the detail of signals. While stages may be understood by higher level stakeholders, steps may sometimes be more technical or operations specific. The key thing is that steps do not require a link to a single specific signal. Signals are where we connect to the underlying telemetry.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Flow::Stage
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Steps
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Rideshare::Book
+      </td>
+
+      <td>
+        1. Login
+        2. Search
+        3. Set pickup
+        4. Set destination
+        5. Select ride type
+        6. Payment option
+        7. Confirm ride
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rideshare::Payment
+      </td>
+
+      <td>
+        1. Payment initiation
+        2. Payment processing
+        3. Verification
+        4. Payment confirmation
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Rideshare::Feedback
+      </td>
+
+      <td>
+        1. Initiate feedback request
+        2. Receive user feedback
+        3. Aggregate ratings
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<img
+  title="Rideshare Flow Example"
+  alt="Rideshare Flow Example"
+  src="/images/pathpoint_v2_sample_flow_rideshare.webp"
+/>
+
+<figcaption>
+  The rideshare journey, including stages and steps (without signals)
+</figcaption>
+
+### Select relevant signals [#selecting-relevant-signals]
+
+When developing Pathpoint flows, it's best to focus on the stages and steps first (a top-down approach). This allows you to think in terms of what's important to the business process before searching for low-level signals. This exercise will help you prioritize which which signals to capture. In Pathpoint you can select any entity or alert as a signal. This can make it a bit daunting to see what signals to include. We recommend working in the following order:
+
+1. Journey critical front-end transactions or SLIs that directly impact revenue or customer experience.
+2. Journey critical back-end transactions or SLIs that directly impact revenue or customer experience.
+3. Journey critical third party services (often obtained via Synthetics).
+4. Analyze the overall health of the most important services in each step.
+5. Support infrastructure and platforms relevant to each step (often cloud services such as load balancers, container services, managed databases, or messaging systems).
+
+For example, for a login step, you may consider these metrics:
+
+1. A Javascript error rate for the login page action
+2. The overall latency for the login page action
+3. SLIs related to backend transactions for authenticating
+4. Backend transactions or services related to user lookup
+5. Database health of databases used for storing user information
+6. Load balancer health for a load balancer sitting in front of authentication service
+7. Redis database health for a cache of user state information
+
+The goal is provide signals which have a level of independence, and when an incident occurs, you'll be able to deduce from what is _red_ what the problem may be.
+
+<img
+  title="Signal Selection"
+  alt="Selection Selection"
+  src="/images/pathpoint_v2_signal_selection.webp"
+/>
+
+### Best practices [#best-practices]
+
+**Work from the top down**
+
+When designing our flow, the reason we start from the top down is we may not have all of the signals needed yet to properly cover the flow. During flow development, we'll identify areas were we do and do not have coverage.
+
+It’s better to have a well thought out flow with some signal gaps than a flow that's put together hastily with a random set of signals.
+
+**Use multiple flows if your journey is very complex**
+
+Trying to force all relevant signals into a single flow can lead to a congested and confusing signal. Consult with internal stakeholders (and the New Relic account team) to see how best to organize flows. For example, an insurance company might want to separate the following flows:
+
+* Finding and purchasing new policies
+* Filing and paying out insurance claims
+
+**Don’t use a signal just because it’s available**
+
+Be selective and focus on the signals that are most likely related to immediate business or user impact.  You may have 5 alert conditions related to an entity, however you may choose to only add 1 or 2.
+
+**Don’t be afraid to improve existing signals**
+
+Flapping signals will create a noisy, flapping Pathpoint flow. Consider refining alert thresholds or service level queries to make signals more actionable and meaningful. If a signal is red, there should be real or at least probably risk to the business process.
+
+**Use Synthetics to capture external dependencies**
+
+Your process may be responsible for 3 or 4 third-party APIs or other SaaS systems. Synthetics is the conventional way to capture the health of those systems.
+
+**Use Workloads to group entities**
+
+Workloads offer a powerful method to consolidate related entities into a unified view. By aggregating infrastructure components such as load balancers, RDBMS, and other cloud services, critical issues affecting individual sub-entities can be efficiently surfaced at the workload level. Additionally, workloads can be used to combine multiple service levels into a single, overarching service level for simplified monitoring and management.
+
+**Use useful metadata tags on your entities**
+
+It's good practice to put tags on your entities such as service levels, workloads, synthetics etc. It's especially helpful to add flow, stage, and step tags on your entities. This will allow you to use these signals more easily with Pathpoint.
+
+**Use the Pathpoint KPIs row to capture important counts, monetary values, etc. related to your flow**
+
+Utilize the Pathpoint KPIs row to monitor essential counts and monetary values relevant to your workflow. This includes critical events such as user logins, registrations, checkouts, and cart abandonments, as well as financial metrics like total checkout and returned product value. Many of these metrics can be derived from existing telemetry data and do not require association with specific entities. They can be sourced from logs, custom metrics, or other available data points.
+
+Let’s say you have a stage called “search”, you may want to have KPI’s like:
+
+* Successful searches
+* Slow searches
+* Failed searches
+
+If you have stages for order, cart, or checkout, you may want to have KPIs like:
+
+* Order count
+* Failed orders
+* Order value
+* Abandoned cart
+* Average cart value

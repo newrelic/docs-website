@@ -1,0 +1,86 @@
+---
+title: Factores que afectan su acceso a las características o datos de New Relic
+tags:
+  - Accounts
+  - Accounts and billing
+  - Account structure
+metaDescription: 'Factors that can affect your permissions and access to New Relic features, data, and accounts.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Hay varios factores que pueden afectar su acceso a una característica de New Relic o a los datos de New Relic.
+
+## Factores relacionados con los permisos [#user-permissions]
+
+La configuración relacionada con el usuario puede afectar la característica o los datos a los que tiene acceso. Si cree que sus permisos de usuario le impiden acceder a algo, usted o sus administradores deben examinar el tipo de usuario, los roles y las cuentas asignados para comprender a qué tiene acceso.
+
+Posibles factores relacionados con los permisos que pueden afectar su acceso:
+
+### Tipo de usuario [#user-type]
+
+Su [tipo de usuario](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) (plataforma básica, central o completa) puede afectar a qué puede acceder. En la mayoría de los casos, las características que están prohibidas debido al tipo de usuario mostrarán un mensaje UI al respecto.
+
+### Roles asignados [#roles]
+
+Los roles asignados pueden afectar a qué puede acceder. El funcionamiento de su rol de usuario y sus permisos depende del [modelo de usuario](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models) en el que se encuentre:
+
+* Nuestro modelo de usuario más nuevo: [obtenga información sobre el acceso de usuarios](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#understand-concepts).
+* Nuestro modelo de usuario original: [aprenda sobre el acceso de usuarios](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles).
+
+### Edición de precios [#pricing]
+
+Tenemos cuatro ediciones de precios: Free, Standard, Pro y Enterprise. Tu edición afecta tu acceso a alguna característica. Para obtener más información sobre esto, consulte [Ediciones](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions).
+
+### Exceder los límites de sesión y dirección IP [#session-limits]
+
+Un usuario de New Relic tiene prohibido compartir su inicio de sesión con otras personas. Para hacer cumplir esa regla, tenemos límites en la cantidad de sesiones activas y direcciones IP que un usuario de New Relic en una organización puede tener al mismo tiempo. Un usuario de New Relic puede tener un máximo de tres sesiones activas simultáneas en uso en un momento dado, o tres direcciones IP únicas en uso en un momento dado. (En este contexto, una sesión representa un inicio de sesión único en la plataforma New Relic. La sesión se rastrea mediante un token asignado para esa sesión).
+
+Si excede el límite, verá un mensaje `Active session limit reached` al iniciar sesión y una opción para cerrar las sesiones abiertas.
+
+Para saber cómo configurar las sesiones de sus usuarios, consulte [Configuración de sesión](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more#session-mgmt).
+
+## Acceso a la cuenta y factores de inicio de sesión [#account-access]
+
+Si inicia sesión pero no puede encontrar una cuenta o página UI de usuario esperada, puede deberse a que se encuentra en la cuenta incorrecta de su organización o en el dominio de autenticación incorrecto de su organización. Algunos consejos:
+
+* Si su organización tiene varias cuentas y tiene acceso a esas cuentas, puede cambiar a otra cuenta utilizando el [selector de cuentas](/docs/new-relic-solutions/get-started/glossary/#account-switcher).
+
+* Si tiene varios registros de usuario (por ejemplo, acceso a más de una organización New Relic), puede [cambiar entre sus registros de usuario](/docs/accounts/accounts-billing/account-setup/multiple-logins-found).
+
+* Si no puede encontrar una cuenta esperada, puede deberse a que no se le ha asignado acceso a esa cuenta. Ver [problemas de permisos de usuario](#user-permissions).
+
+* Si marca el selector de cuentas y no puede ver la cuenta que está buscando, puede deberse a uno de estos motivos:
+
+  * Es posible que deba agregarlo a esa cuenta. La forma de hacer esto depende de su modelo de usuario: [Nuestro modelo de usuario más nuevo](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure/#account-access) \| [Nuestro modelo de usuario original](/docs/accounts/original-accounts-billing/original-users-roles/original-account-structure).
+
+  * Es posible que tenga más de un inicio de sesión de New Relic asociado con la misma dirección de correo electrónico. Si cree que este puede ser el caso, log sesión y log a iniciarla. Cuando ingresa su dirección de correo electrónico, la UI usuario de inicio de sesión muestra una nota si detecta múltiples registros de usuario y le brinda [una opción para verificar su correo electrónico para ver todas las cuentas disponibles](/docs/accounts/accounts-billing/account-setup/multiple-logins-found). Otros detalles sobre inicios de sesión múltiples:
+
+    * Para ver todas las opciones de inicio de sesión disponibles la próxima vez que inicie sesión, seleccione
+
+      <DNT>
+        **Remember me**
+      </DNT>
+
+      al iniciar sesión.
+
+    * Si una de sus opciones de inicio de sesión dice "Cuenta original", significa que es un registro de usuario en nuestro [modelo de usuario original](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-user-models).
+
+    * Para obtener más información, consulte esta [publicación del Foro de soporte sobre varias cuentas](https://discuss.newrelic.com/t/relic-solution-so-youve-created-a-new-account-and-cant-seem-to-access-your-old-account/113122).
+
+Otros documentos relacionados:
+
+* [Factores de permiso del usuario](#user-permissions)
+* [Resolución de problemas de login y contraseña](/docs/accounts/install-new-relic/account-setup/troubleshoot-password-email-address-login-problems)
+* [Organización y estructura de cuentas](/docs/accounts/accounts-billing/new-relic-one-pricing-users/account-user-structure)
+
+## Mensaje de error por falta de acceso [#entity-not-found]
+
+Es posible que encuentre una pantalla de error en la UI de New Relic por una de varias razones, que incluyen:
+
+* No tienes [permisos](#user-permissions) para ver esa característica o no tienes el [acceso adecuado a la cuenta](#account-access).
+* No se encontró una entidad monitora. Esto podría generar un error como "La entidad que está buscando no existe o no está asociada con su cuenta".
+
+## Retención de datos
+
+Los diferentes tipos de datos de New Relic tienen diferentes períodos de retención de datos. Una vez que los datos han superado un punto de retención de datos determinado, pueden eliminarse o agregarse para un almacenamiento a más largo plazo. Para más detalles, consulte [retención de datos](/docs/manage-stored-data).

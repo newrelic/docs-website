@@ -1,0 +1,60 @@
+---
+title: Blazor WebAssembly integration
+tags:
+    - Blazor WebAssembly integration
+    - New Relic integrations
+metaDescription: Install our Blazor WebAssembly to monitor various datapoints in New Relic.
+redirects: 
+  - /docs/infrastructure/host-integrations/host-integrations-list/browser-monitoring-integrations/blazor-webassembly
+freshnessValidatedDate: never
+---
+
+With our Blazor WebAssembly dashboard, you can easily monitor your golden metrics, track end user experience, and see your total page views over time.
+
+Built with our browser monitoring agent, the Blazor WebAssembly integration gives you a set of default <InlinePopover type="dashboards"/> that let you view your most critical query data, all in one place.
+
+<img
+  title="Blazor WebAssembly dashboard"
+  alt="Blazor WebAssembly dashboard page"
+  src="/images/infrastructure_screenshot-full_Blazor-WebAssembly-dashboard.webp"
+/>
+
+<figcaption>
+  After setting up the Blazor WebAssembly integration with New Relic, your data will display in dashboards like these, right out of the box.
+</figcaption>
+
+## Install the infrastructure agent [#infra]
+
+You don't need the infrastructure agent to integrate Blazor WebAssembly with New Relic, but we recommend installation if you want full observability of your system. The infrastructure agent collects logs and other data about your hosts, showing your performance metrics alongside your application metrics.
+
+There are two methods to install the infrastructure agent:
+
+* Follow our [guided install](https://one.newrelic.com/launcher/catalog-pack-details.launcher/?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyJ9) to instrument your system with the infrastructure agent.
+
+## Integrate Blazor WebAssembly with New Relic [#integrate]
+
+To collect data from Blazor WebAssembly, follow the below procedures:
+
+1. From [one.newrelic.com](https://one.newrelic.com), go to the [<DNT>**Integrations & Agents**</DNT> page](https://one.newrelic.com/marketplace).
+2. Click <DNT>**Browser and mobile**</DNT>, then click <DNT>**Browser monitoring**</DNT>.
+3. Select the <DNT>**Select copy/paste JavaScript code**</DNT> option (for more about this code, see [our browser install docs](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent)).
+4. Complete the rest of the steps and click <DNT>**Enable.**</DNT>
+5. Go to the `wwwroot` directory of your Blazor WebAssembly application.
+6. Open the `index.html` file.
+7. Paste our browser code snippet right before the body tag ends (`</body>`).
+8. Restart your application.
+9. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, then click <DNT>**Metrics & events**</DNT>. Run a sample NRQL query to confirm New Relic is collecting data:
+
+   ```sql
+   SELECT average(windowLoad) FROM PageViewTiming WHERE (deviceType = 'Desktop') FACET `userAgentName` SINCE 604800 seconds AGO TIMESERIES
+   ```
+10. Install the default dashboards by going to the [Blazor WebAssembly instant observability page](https://newrelic.com/instant-observability/blazor-web-assembly), then clicking <DNT>**Install**</DNT> at the top of the page.
+11. Go to <DNT>**Dashboards**</DNT> from <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT> and click Blazor WebAssembly to view your dashboards.
+
+## What's next?
+
+To learn more about building NRQL queries and generating dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to create basic and advanced queries.
+* [Introduction to dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to customize your dashboard and carry out different actions.
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) to adjust your dashboards display mode, or to add more content to your dashboard.

@@ -2,160 +2,277 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   GlobalHeader,
-  Layout,
   Link,
   Logo,
   MobileHeader,
   useLayout,
+  Icon,
+  Button,
+  addPageAction,
+  LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
-import { graphql } from 'gatsby';
+import { isNavClosed, setNavClosed } from '../utils/navState';
 import { css } from '@emotion/react';
+import { scroller } from 'react-scroll';
+import { CSSTransition } from 'react-transition-group';
+import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import SubNavigation from '../components/SubNavigation';
-import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
+import { MainLayoutContext } from '../components/MainLayoutContext';
 
-const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { nav, rootNav } = data;
-  const { contentPadding } = useLayout();
+const MainLayout = ({ children, pageContext }) => {
+  const { sidebarWidth } = useLayout();
+  const { locale, slug } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-
-  const transition = useTransition(nav, {
-    key: nav?.id,
-    config: { mass: 1, friction: 34, tension: 400 },
-    initial: { position: 'absolute' },
-    from: (nav) => ({
-      opacity: 0,
-      position: 'absolute',
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
-    }),
-
-    enter: { opacity: 1, transform: 'translateX(0)' },
-    leave: (nav) => ({
-      opacity: 0,
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
-    }),
-  });
+  const [sidebar, setSidebar] = useState(true);
+  const navHeaderHeight = '55px';
+  const isStyleGuide =
+    slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
+  const addTrailingSlash = (path) => {
+    if (path.endsWith('/')) {
+      return path;
+    } else {
+      return path.concat('/');
+    }
+  };
 
   useEffect(() => {
     setIsMobileNavOpen(false);
+    setSidebar(!isNavClosed());
+    // react scroll causes the page to crash if it doesn't find an element
+    // so we're checking for the element before firing
+    const pathName = addTrailingSlash(location.pathname);
+    const scrollElement = document.getElementsByName(pathName);
+    if (location.pathname !== '/' && scrollElement.length === 1) {
+      scroller.scrollTo(pathName, {
+        duration: 600,
+        delay: 0,
+        smooth: 'easeInOutQuart',
+        containerId: 'nav',
+        offset: -5,
+      });
+    }
   }, [location.pathname]);
+
+  useEffect(() => {
+    setNavClosed(!sidebar);
+  }, [sidebar]);
+
+  const navCollapser = (
+    <div
+      css={css`
+        grid-column: 1;
+        grid-row: 1;
+        height: calc(100vh - var(--global-header-height));
+        left: 269px;
+        padding: 1.5rem 0;
+        position: sticky;
+        top: var(--global-header-height);
+        width: 0;
+        z-index: 1;
+
+        @media (max-width: 760px) {
+          display: none;
+        }
+
+        @media (max-width: 1240px) {
+          left: 208px;
+        }
+      `}
+    >
+      <Button
+        variant={Button.VARIANT.PLAIN}
+        css={css`
+          background: var(--system-background-hover-dark);
+          color: var(--brand-button-primary-accent);
+          height: 40px;
+          width: 40px;
+          padding: 0;
+          border-radius: 50%;
+          transition: 300ms translate ease;
+
+          ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
+
+          @media (max-width: 1240px) {
+            ${!sidebar &&
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
+          }
+        `}
+        onClick={() => {
+          addPageAction({
+            eventName: sidebar ? 'closeNav' : 'openNav',
+            category: 'NavCollapserClick',
+          });
+          setSidebar(!sidebar);
+        }}
+      >
+        <Icon name="nr-nav-collapse" size="1rem" />
+      </Button>
+    </div>
+  );
 
   return (
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch={nav?.id === rootNav.id && true}
+        hideSearch
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        {nav?.id === rootNav.id ? (
-          <RootNavigation nav={nav} />
-        ) : (
-          <SubNavigation nav={nav} />
-        )}
+        <RootNavigation locale={locale} isStyleGuide={isStyleGuide} />
       </MobileHeader>
-      <Layout
-        css={css`
-          margin-top: 1rem;
-          -webkit-font-smoothing: antialiased;
-          font-size: 1.125rem;
-        `}
-      >
-        <Layout.Sidebar
-          css={css`
-            background: var(--primary-background-color);
-            hr {
-              border-color: var(--border-color);
-            }
-          `}
-        >
-          <Link
-            to="/"
+      <LoggedInProvider>
+        <MainLayoutContext.Provider value={[sidebar]}>
+          <Layout
             css={css`
-              display: block;
-              margin-bottom: 1rem;
-              text-decoration: none;
+              --sidebar-width: ${sidebarWidth};
+              -webkit-font-smoothing: antialiased;
+              font-size: 1.125rem;
+              @media screen and (max-width: 1240px) {
+                --sidebar-width: 278px;
+              }
             `}
           >
-            <Logo />
-          </Link>
-          {transition((style, nav) => {
-            const containerStyle = css`
-              left: ${contentPadding};
-              right: ${contentPadding};
-              top: calc(${contentPadding} + 3rem);
-              padding-bottom: ${contentPadding};
-            `;
+            {navCollapser}
+            <Layout.Sidebar
+              aria-hidden={!sidebar}
+              css={css`
+                padding: 0;
+                > div {
+                  height: 100%;
+                  overflow: hidden;
+                }
+                background: var(--erno-black);
 
-            return nav?.id === rootNav.id ? (
-              <animated.div style={style} css={containerStyle}>
-                <RootNavigation nav={nav} />
-              </animated.div>
-            ) : (
-              <animated.div style={style} css={containerStyle}>
-                <SubNavigation nav={nav} />
-              </animated.div>
-            );
-          })}
-        </Layout.Sidebar>
-        <Layout.Main
-          css={css`
-            display: ${isMobileNavOpen ? 'none' : 'block'};
-          `}
-        >
-          {children}
-        </Layout.Main>
-        <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
-      </Layout>
+                hr {
+                  border: none;
+                  height: 1rem;
+                  margin: 0;
+                }
+              `}
+            >
+              <div
+                css={css`
+                  height: ${navHeaderHeight};
+                `}
+              >
+                <div
+                  css={css`
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  `}
+                >
+                  <Link
+                    to="/"
+                    css={css`
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      text-decoration: none;
+                      color: var(--system-text-primary-dark);
+                      &:hover {
+                        color: var(--system-text-primary-dark);
+                      }
+                    `}
+                  >
+                    <Logo
+                      css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
+                        ${!sidebar &&
+                        css`
+                          display: none;
+                        `}
+                      `}
+                    />
+                  </Link>
+                </div>
+              </div>
+
+              <>
+                <RootNavigation
+                  isStyleGuide={isStyleGuide}
+                  locale={locale}
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        3rem
+                    );
+                  `}
+                />
+              </>
+            </Layout.Sidebar>
+            <CSSTransition
+              in={sidebar}
+              timeout={300}
+              classNames="main-transition"
+            >
+              <Layout.Main
+                css={css`
+                  display: ${isMobileNavOpen ? 'none' : 'block'};
+                  position: relative;
+                  padding-top: 2.75rem;
+
+                  @media (min-width: 1241px) {
+                    padding-right: 1.5rem;
+                  }
+
+                  @media (min-width: 760px) {
+                    ${!sidebar &&
+                    `padding-left: calc(var(--site-content-padding) + 50px);`}
+                  }
+
+                  &.main-transition-enter {
+                    translate: 50px;
+                  }
+                  &.main-transition-enter-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-enter-done {
+                    translate: 0;
+                  }
+
+                  &.main-transition-exit {
+                    translate: -50px;
+                  }
+                  &.main-transition-exit-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-exit-done {
+                    translate: 0;
+                  }
+                `}
+              >
+                {children}
+              </Layout.Main>
+            </CSSTransition>
+            <Layout.Footer
+              fileRelativePath={pageContext.fileRelativePath}
+              css={css`
+                height: 80px;
+                ${!sidebar &&
+                css`
+                  grid-column: 1/3;
+                `}
+              `}
+            />
+          </Layout>
+        </MainLayoutContext.Provider>
+      </LoggedInProvider>
     </>
   );
 };
 
 MainLayout.propTypes = {
   children: PropTypes.node,
-  data: PropTypes.object,
   pageContext: PropTypes.object,
 };
-
-export const query = graphql`
-  fragment MainLayout_query on Query {
-    rootNav: nav(slug: "/") {
-      id
-    }
-    nav(slug: $slug) {
-      id
-      title(locale: $locale)
-      url
-      filterable
-      pages {
-        ...MainLayout_navPages
-        pages {
-          ...MainLayout_navPages
-          pages {
-            ...MainLayout_navPages
-            pages {
-              ...MainLayout_navPages
-              pages {
-                ...MainLayout_navPages
-                pages {
-                  ...MainLayout_navPages
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  fragment MainLayout_navPages on NavItem {
-    title(locale: $locale)
-    url
-    icon
-  }
-`;
 
 export default MainLayout;

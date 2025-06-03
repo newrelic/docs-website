@@ -1,0 +1,433 @@
+---
+title: "NerdGraph tutorial: Browser agent monitoring examples"
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+  - Browser
+  - Mobile
+metaDescription: Use the New Relic NerdGraph API to configure the browser monitoring agent.
+freshnessValidatedDate: never
+---
+
+Here are some examples of various browser configurations you can make with GraphQL.
+
+## Create a new browser application [#create-browser]
+
+You can create browser applications using our NerdGraph API instead of using the UI. The advantage to this is that when it's time to instrument your browser application with New Relic, you can programmatically create and retrieve the JavaScript snippet to copy and paste into your browser app.
+
+For how to use npm to set up <InlinePopover type="browser"/> for multiple applications, see [Instrument multiple apps with npm](/docs/apis/nerdgraph/examples/combining-npm-nerdgraph).
+
+Here's an example mutation to create a new browser application with default settings.
+
+Mutation:
+
+```graphql
+mutation CreateExampleBrowserApplication(
+  $accountId: Int!
+  $name: String!
+  $settings: AgentApplicationBrowserSettingsInput
+) {
+  agentApplicationCreateBrowser(
+    accountId: $accountId
+    name: $name
+    settings: $settings
+  ) {
+    guid
+    name
+    settings {
+      cookiesEnabled
+      distributedTracingEnabled
+      loaderScript
+      loaderType
+    }
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "accountId": Int!,
+  "name": String!,
+  "settings": {
+    "cookiesEnabled": Boolean,
+    "distributedTracingEnabled": Boolean,
+    "loaderType": AgentApplicationBrowserLoader
+  }
+}
+```
+
+## Retrieve the JavaScript snippet [#get-browser-snippet]
+
+You can retrieve the JavaScript snippet to [copy/paste into your application](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#copy-paste). Note that the returned snippet is a JSON encoded string that will need to be parsed before it can be copy/pasted.
+
+Query:
+
+```graphql
+query FetchBrowserJavaScriptSnippet($guid: EntityGuid!) {
+  actor {
+    entity(guid: $guid) {
+      ... on BrowserApplicationEntity {
+        guid
+        name
+        browserProperties {
+          jsLoaderScript
+        }
+      }
+    }
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "guid": EntityGuid!
+}
+```
+
+## Examples of configuring browser monitoring [#configure-browser-application]
+
+Browser settings can be configured through NerdGraph. Here is an example mutation that changes the [apdex](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/) of an application.
+
+Mutation:
+
+```graphql
+mutation UpdateBrowserApdexTarget(
+  $guid: EntityGuid!
+  $settings: AgentApplicationSettingsUpdateInput!
+) {
+  agentApplicationSettingsUpdate(guid: $guid, settings: $settings) {
+    browserSettings {
+      browserConfig {
+        apdexTarget
+      }
+    }
+    errors {
+      description
+      errorClass
+      field
+    }
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "guid": EntityGuid!,
+  "settings": {
+    "browserConfig": {
+      "apdexTarget": Float
+    }
+  }
+}
+```
+
+For more information on what browser settings can be updated via NerdGraph, reference the following mutation. Documentation for each field can be found in the [NerdGraph explorer](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#explorer).
+
+Mutation:
+
+```graphql
+mutation UpdateBrowserSettingsExample(
+  $guid: EntityGuid!
+  $settings: AgentApplicationSettingsUpdateInput!
+) {
+  agentApplicationSettingsUpdate(guid: $guid, settings: $settings) {
+    browserSettings {
+      browserConfig {
+        apdexTarget
+      }
+      browserMonitoring {
+        ajax {
+          denyList
+        }
+        distributedTracing {
+          allowedOrigins
+          corsEnabled
+          corsUseNewrelicHeader
+          corsUseTracecontextHeaders
+          enabled
+          excludeNewrelicHeader
+        }
+        loader
+        privacy {
+          cookiesEnabled
+        }
+      }
+      dataManagement {
+        sendTransactionEventsToInternalStream
+      }
+    }
+    errors {
+      description
+      errorClass
+      field
+    }
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "guid": EntityGuid!,
+  "settings": {
+    "browserConfig": {
+      "apdexTarget": Float
+    },
+    "browserMonitoring": {
+      "ajax": {
+        "denyList": [String!]
+      },
+      "distributedTracing": {
+        "allowedOrigins": [String!],
+        "corsEnabled": Boolean,
+        "corsUseNewrelicHeader": Boolean,
+        "corsUseTracecontextHeaders": Boolean,
+        "enabled": Boolean,
+        "excludeNewrelicHeader": Boolean
+      }
+      "loader": AgentApplicationSettingsBrowserLoaderInput,
+      "privacy": {
+        "cookiesEnabled": Boolean
+      }
+    }
+    "dataManagement": {
+      "sendTransactionEventsToInternalStream": Boolean
+    }
+  }
+}
+```
+
+## Retrieve the application configuration [#retrieve-app-config]
+
+You can retrieve the browser application configuration to use with the [npm package installation method](https://www.npmjs.com/package/@newrelic/browser-agent). Depending on your needs, the configuration can be returned in two different formats:
+
+* a JSON encoded string for injection into the `head` element of your webpage.
+* an object that can be used as is in your application source code.
+
+Query:
+
+```graphql
+query FetchBrowserConfiguration($guid: EntityGuid!) {
+  actor {
+    entity(guid: $guid) {
+      ... on BrowserApplicationEntity {
+        guid
+        name
+        browserProperties {
+          jsConfig
+          jsConfigScript
+        }
+      }
+    }
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "guid": EntityGuid!
+}
+```
+
+## Group your data with browser segments [#browser-segments]
+
+You can group your browser monitoring results by browser segments to get more meaningful data. Instead of doing this in the [UI](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/browser-monitoring-best-practices-guide/#segment-allowlist), you can do it with GraphQL.
+
+### List segments [#list-segments]
+
+Get started by listing existing segments:
+
+```graphql
+{
+  actor {
+    entity(guid: "YOUR_GUID") {
+      ... on BrowserApplicationEntity {
+        segmentAllowListAggregate {
+          segments
+        }
+      }
+    }
+  }
+}
+```
+
+Here's the response:
+
+```json
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "segmentAllowListAggregate": {
+          "segments": [
+            "urlsegment1",
+            "urlsegment2"
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+### Create segments [#create-segments]
+
+Create browser segments using the `agentApplicationSegmentsReplaceAllBrowserSegmentAllowList` mutation:
+
+```graphql
+mutation {
+  agentApplicationSegmentsReplaceAllBrowserSegmentAllowList(
+    entityGuid: "YOUR_GUID"
+    allowList: { segments: ["urlsegment1", "urlsegment2", "urlsegment3"] }
+  ) {
+    segments
+  }
+}
+```
+
+Here's the response:
+
+```json
+{
+  "data": {
+    "agentApplicationSegmentsReplaceAllBrowserSegmentAllowList": {
+      "segments": [
+        "urlsegment3",
+        "urlsegment2",
+        "urlsegment1"
+      ]
+    }
+  }
+}
+```
+
+## Browser agent version pinning [#browser-agent-version-pinning]
+
+New Relic's GraphQL API provides you a method to "pin" a specific version of the New Relic Browser agent, ensuring it remains consistent within your platform. By pinning a version, you can prevent automatic updates that might introduce unexpected changes or behaviors. The key benefits this feature include these:
+
+* <DNT>**Control**</DNT>: Retain autonomy over when and how updates are applied.
+* <DNT>**Confidence**</DNT>: Ensure that a tested and approved version of the agent is running at all times.
+* <DNT>**Testability**</DNT>: Easily test new versions in isolated environments before deciding to update.
+* <DNT>**Stability**</DNT>: Minimize unexpected disruptions and maintain consistent application behavior.
+* <DNT>**Efficiency**</DNT>: Reduce deploy time and mitigate deployment difficulties.
+
+Here is an overview of how to use the Browser Agent Version Pinning API:
+
+<CollapserGroup>
+  <Collapser
+    id="step1"
+    title="Step 1. Retrieve the current pinned version"
+  >
+    Use this NerdGraph query to determine which agent type your browser application uses as well as if a specific version is already pinned.
+
+    ```graphql
+    query FetchBrowserMonitoringAgentSettings {
+      actor {
+        entity(guid: "YOUR_BROWSER_APP_GUID") {
+          ... on BrowserApplicationEntity {
+            guid
+            name
+            browserSettings {
+              browserMonitoring {
+                loader
+                pinnedVersion
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    An example response to the above query:
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "entity": {
+            "browserSettings": {
+              "browserMonitoring": {
+                "loader": "SPA",
+                "pinnedVersion": null
+              }
+            },
+            "guid": "YOUR_BROWSER_APP_GUID",
+            "name": "Example Single Page App"
+          }
+        }
+      }
+    }
+    ```
+
+    In this example, the `loader` is `SPA` type and the `pinnedVersion` is `null`, which indicates that there is no version pinned.
+
+    You may run this query at any time to verify your combination of loader and pinned version.
+  </Collapser>
+
+  <Collapser
+    id="step2"
+    title="Step 2. Review the available versions"
+  >
+    Find the desired agent version from the [New Relic browser agent releases page](/docs/browser/browser-monitoring/getting-started/browser-agent-eol-policy/).
+
+    The `Browser agent release` column contains all of the currently supported browser agent versions. Make note of the semantic version number you want to pin.
+  </Collapser>
+
+  <Collapser
+    id="step3"
+    title="Step 3. Pin the desired version"
+  >
+    Once you've identified the version you want to pin, use the following GraphQL mutation to set it.
+
+    <Callout variant="tip">
+      Make sure to use the semantic version of the browser agent that you would like your app to use. Leave this blank to use the most recent version. Use `'x'` in place of a numeric digit to represent the latest release within the version range (for example, `'1.x.x'`).
+    </Callout>
+
+    ```graphql
+    mutation {
+      agentApplicationSettingsUpdate(
+        guid: "YOUR_BROWSER_APP_GUID"
+        settings: { browserMonitoring: { pinnedVersion: "1.229.0" } }
+      ) {
+        browserProperties {
+          jsLoaderScript
+        }
+        browserSettings {
+          browserMonitoring {
+            loader
+            pinnedVersion
+          }
+        }
+      }
+    }
+    ```
+
+    Note that the return fields for this mutation will contain the updated `pinnedVersion` value, as well as the updated `jsLoaderScript`.
+
+    Changing the `loader` value to `NONE` will remove any pinned semantic version.
+  </Collapser>
+
+  <Collapser
+    id="step4"
+    title="Step 4. Re-deploy your application or restart your agent"
+  >
+    For applications using the copy/paste method, replace the existing JavaScript snippet with the new, decoded `<script>`. Then re-deploy your application.
+
+    For applications that have browser monitoring via a backend-installed agent (such as Ruby, Python, etc.), the agent will need to be restarted in order to fetch the new values.
+
+    In either case, the next time your application serves a browser page, it should be using the pinned agent version to report data to your New Relic account.
+
+    Remember that you can check the pinned version and loader type by using the query in the first step.
+  </Collapser>
+</CollapserGroup>

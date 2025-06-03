@@ -1,0 +1,379 @@
+---
+title: 'Conozca NerdGraph: nuestra API GraphQL'
+tags:
+  - APIs
+  - NerdGraph
+  - Get started
+metaDescription: 'NerdGraph is New Relic''s GraphQL-format API, used to query data and do some product configurations.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+NerdGraph es nuestra API en formato GraphQL que le permite consultar datos de New Relic y configurar algunas características de New Relic. Después de [registrarse para obtener una cuenta gratuita de New Relic](https://newrelic.com/signup) e [instalar](/docs/using-new-relic/cross-product-functions/install-configure/install-new-relic/) cualquiera de nuestros servicios de monitoreo, puede comenzar con NerdGraph.
+
+## ¿Qué es NerdGraph? [#overview]
+
+NerdGraph es una de varias [API](/docs/apis/get-started/intro-apis/introduction-new-relic-apis/) de New Relic. NerdGraph es la API que recomendamos para consultar datos de New Relic y realizar alguna configuración específica ([obtenga más información sobre la característica](#tutorials)). NerdGraph proporciona una única interfaz API para devolver datos de las diversas API y microservicios de New Relic. Con el tiempo, se agregarán otras capacidades de configuración a NerdGraph.
+
+<Callout variant="important">
+  NerdGraph no se utiliza para la ingesta de datos. Para eso, usarías nuestras [API de ingesta de datos](/docs/apis/get-started/intro-apis/introduction-new-relic-apis/#data-type-apis).
+</Callout>
+
+NerdGraph se creó utilizando [GraphQL](https://graphql.org), que es un formato API de código abierto que le permite solicitar exactamente los datos necesarios, sin exceso ni falta de captura.
+
+## Requisitos [#requirements]
+
+Antes de comenzar:
+
+* Necesita una cuenta New Relic y con esa cuenta puede acceder a su API
+
+  <InlinePopover type="userKey"/>
+
+  que debe incluir con consultas y mutaciones.
+
+* El tipo de usuario y los roles asignados pueden afectar sus permisos de NerdGraph. Para obtener más detalles, consulte [Factores que afectan el acceso](/docs/accounts/accounts-billing/account-structure/factors-affecting-access-features-data#user-permissions).
+
+## Extremo [#endpoints]
+
+Los extremos de API que utilice dependen de [la región de su centro de datos](/docs/accounts/accounts-billing/account-setup/choose-your-data-center):
+
+* Extremo principal: `https://api.newrelic.com/graphql`
+* Extremo para cuentas que utilizan el centro de datos de la UE: `https://api.eu.newrelic.com/graphql`
+
+Para acceder al extremo, puede realizar llamadas desde su código, usar el [explorador de API NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer) o crear un comando curl similar a este:
+
+```bash
+curl -X POST https://api.newrelic.com/graphql \
+     -H 'Content-Type: application/json' \
+     -H 'API-Key: YOUR_NEW_RELIC_USER_KEY' \
+     -d '{ "query":  "{ requestContext { userId apiKey } }" }'
+```
+
+## Utilice el explorador de API NerdGraph [#explorer]
+
+Una forma sencilla de experimentar con la API NerdGraph es utilizar el explorador de API NerdGraph. Para obtener ayuda para comenzar a usar esta herramienta, consulte [el tutorial del explorador de API NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer).
+
+## Funcionalidad NerdGraph [#tutorials]
+
+La funcionalidad de NerdGraph se puede dividir en dos categorías principales:
+
+* <DNT>
+    **Querying data.**
+  </DNT>
+
+  Puede recuperar datos para diversos fines, incluido su uso en un flujo de trabajo programático o la creación de una [aplicación New Relic](https://developer.newrelic.com/build-apps) para visualizaciones de datos personalizadas.
+
+* <DNT>
+    **Configuring features.**
+  </DNT>
+
+  Hay una variedad de configuraciones disponibles y se agregarán más con el tiempo. Puedes hacer cosas como agregar etiquetas, configurar carga de trabajo o personalizar las "métricas doradas".
+
+Puede utilizar NerdGraph para devolver y configurar una amplia gama de datos. Una forma de ver lo que puede hacer NerdGraph es comenzar a crear consultas y explorar el esquema utilizando el [explorador NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer).
+
+Estas son algunas de las características de NerdGraph más utilizadas:
+
+* [Obtén datos sobre tu monitor entidad](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial)
+* [Consulta tus datos usando NRQL](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial) (nuestro lenguaje de consulta)
+* [Crear panel](/docs/apis/nerdgraph/examples/create-widgets-dashboards-api)
+
+Aquí están todos nuestros documentos NerdGraph disponibles:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "240px" }}>
+        Tema
+      </th>
+
+      <th>
+        Tutoriales
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Administración de cuentas
+      </td>
+
+      <td>
+        * [Cuentas de administración](/docs/apis/nerdgraph/examples/manage-accounts-nerdgraph)
+        * [Administrar usuario](/docs/apis/nerdgraph/examples/nerdgraph-manage-users)
+        * [Administrar grupos de usuarios](/docs/apis/nerdgraph/examples/nerdgraph-user-mgmt)
+        * [Crear y administrar clave de API](/docs/apis/nerdgraph/examples/use-nerdgraph-manage-license-keys-user-keys) (claves de ingesta de datos y claves de usuario)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Alerta
+      </td>
+
+      <td>
+        * Para alerta New Relic: vea [todos los tutoriales relacionados con alerta](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/alerts-nerdgraph/nerdgraph-api-examples)
+        * Para inteligencia aplicada: [configuración de topología para correlación de incidentes](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <InlinePopover type="apm"/>agentes
+      </td>
+
+      <td>
+        [Configuración del agente APM](/docs/apis/nerdgraph/examples/apm-config-nerdgraph)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <InlinePopover type="browser"/>
+      </td>
+
+      <td>
+        * [Instalar agente del navegador y configurar la monitorización](/docs/apis/nerdgraph/examples/browser-monitoring-config-nerdgraph)
+        * [Instrumentado múltiples aplicaciones usando el paquete npm](/docs/apis/nerdgraph/examples/combining-npm-nerdgraph)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Seguimiento de cambios
+      </td>
+
+      <td>
+        * [Seguimiento de cambios utilizando NerdGraph](/docs/change-tracking/change-tracking-graphql/)
+        * [Seguimiento de cambios mediante la CLI](/docs/change-tracking/change-tracking-cli/#create-list)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Panel
+      </td>
+
+      <td>
+        * [Crear y administrar panel](/docs/apis/nerdgraph/examples/nerdgraph-dashboards)
+        * [Panel de control: gráficos y widget.](/docs/apis/nerdgraph/examples/create-widgets-dashboards-api)
+        * [Exportar panel a otras cuentas](/docs/apis/nerdgraph/examples/export-import-dashboards-using-api/)
+        * [Exportar panel como archivos](/docs/apis/nerdgraph/examples/export-dashboards-pdfpng-using-api/)
+        * [Administrar el panel compartido externamente](/docs/apis/nerdgraph/examples/manage-live-chart-urls-via-api)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Integración en la nube (AWS, Azure, GCP)
+      </td>
+
+      <td>
+        [Configurar la integración en la nube](/docs/apis/nerdgraph/examples/nerdgraph-cloud-integrations-api-tutorial)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Gestión de datos
+      </td>
+
+      <td>
+        * [Convertir datos de eventos a datos métricos](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/analyze-monitor-data-trends-metrics)
+        * [Retención de datos](/docs/telemetry-data-platform/manage-data/manage-data-retention/#api-examples)
+        * [Exportación de streaming de datos](/docs/apis/nerdgraph/examples/nerdgraph-streaming-export)
+        * [Soltar datos](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        rastreo distribuido
+      </td>
+
+      <td>
+        * [Consulta rastreo datos distribuidos](/docs/apis/nerdgraph/examples/nerdgraph-distributed-trace-data-tutorial)
+        * [Configurar el seguimiento infinito](/docs/apis/nerdgraph/examples/configure-infinite-tracing-graphql)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entidad
+      </td>
+
+      <td>
+        * [Obtener datos sobre monitor entidad](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial)
+        * [Comprender las relaciones entre entidades y la dependencia](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial) (utilizadas para crear mapas de servicios)
+        * [consultar y configurar "golden metrics"](/docs/apis/nerdgraph/examples/golden-metrics-entities-nerdgraph-api-tutorial) (entidad métrica importante)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Administración de logs
+      </td>
+
+      <td>
+        * [Administrar particiones de datos log](/docs/apis/nerdgraph/examples/nerdgraph-data-partition-rules-tutorial)
+        * [Administrar reglas de análisis de registros](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/)
+        * [Manejar la expresión de ofuscación y las reglas.](/docs/logs/ui-data/obfuscation-ui/)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de moviles
+      </td>
+
+      <td>
+        * [Crear una nueva aplicación móvil](/docs/apis/nerdgraph/examples/mobile-monitoring-config-nerdgraph/#create-mobile)
+
+        * [Recuperar un token de aplicación](/docs/apis/nerdgraph/examples/mobile-monitoring-config-nerdgraph/#get-mobile-token)
+
+        * [Ejemplos de configuración](/docs/apis/nerdgraph/examples/mobile-monitoring-config-nerdgraph/#configure-mobile-application)
+
+          <InlinePopover type="mobile">
+            [](/docs/apis/nerdgraph/examples/mobile-monitoring-config-nerdgraph/#configure-mobile-application)
+          </InlinePopover>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        New Relic
+      </td>
+
+      <td>
+        [Crea una aplicación New Relic](https://developer.newrelic.com/explore-docs/query-and-store-data)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Socios y revendedores
+      </td>
+
+      <td>
+        [Administrar suscripción](/docs/apis/nerdgraph/tutorials/provisions-your-subscriptions-nerdgraph) (solo para socios que utilizan [el modelo de precios original](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-changes-pricing-user-model/#pricing-plans))
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Consultas y gráficos
+      </td>
+
+      <td>
+        * [Ejecute la consulta NRQL de sus datos](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial)
+        * [Ejecutar consulta en varias cuentas](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/#cross-account-query)
+        * [Asincrónico, consulta de mayor duración](/docs/apis/nerdgraph/examples/async-queries-nrql-tutorial)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nivel de servicio
+      </td>
+
+      <td>
+        [Configurar y gestionar el nivel de servicio.](/docs/apis/nerdgraph/examples/nerdgraph-slm)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo sintetico
+      </td>
+
+      <td>
+        [Administra tu monitor](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Etiqueta
+      </td>
+
+      <td>
+        [Agregar y administrar etiqueta](/docs/apis/nerdgraph/examples/nerdgraph-tagging-api-tutorial)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Carga de trabajo
+      </td>
+
+      <td>
+        [Ver y configurar carga de trabajo](/docs/apis/nerdgraph/tutorials/nerdgraph-workloads-api-tutorials)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Terminología de NerdGraph [#terminology]
+
+Los siguientes son términos que se originan en GraphQL, el formato API que utiliza NerdGraph.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Término
+      </th>
+
+      <th>
+        Definición
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Consulta y mutaciones
+      </td>
+
+      <td>
+        Hay dos clases de operaciones GraphQL:
+
+        * [consulta](https://graphql.org/learn/queries) son solicitudes básicas que se utilizan únicamente para obtener datos. Estas consultas no son estáticas, es decir que puedes pedir más o menos datos, dependiendo de tus necesidades. Para cada consulta, puede especificar exactamente qué datos desea recuperar, siempre que sean compatibles con el [esquema](https://graphql.org/learn/schema).
+        * [Las mutaciones](https://graphql.org/learn/queries/#mutations) son solicitudes que realizan una acción, como crear un recurso o cambiar la configuración. Las mutaciones requieren la palabra clave `mutation`, así como el `name` de la mutación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Tipo
+      </td>
+
+      <td>
+        Los datos en GraphQL están organizados en tipos. Los tipos pueden ser [escalares](https://graphql.org/learn/schema/#scalar-types) (como cadenas, números o booleanos) o tipos de objetos.
+
+        Un [tipo de objeto](https://graphql.org/learn/schema/#object-types-and-fields) es un tipo personalizado formado por una colección de campos. Por ejemplo, un tipo de objeto llamado `User` puede representar a un usuario en un sistema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Campo
+      </td>
+
+      <td>
+        Un [campo](https://graphql.org/learn/schema/#object-types-and-fields) representa una información sobre un tipo de objeto que se puede consultar. Los campos pueden ser escalares, listas u objetos. Por ejemplo, un tipo de objeto `User` podría tener un campo de cadena llamado `name`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Interfaz
+      </td>
+
+      <td>
+        Una [interfaz](https://graphql.org/learn/schema/#interfaces) es un tipo abstracto que representa una colección de campos comunes que otros tipos de objetos pueden `implement`.
+      </td>
+    </tr>
+  </tbody>
+</table>

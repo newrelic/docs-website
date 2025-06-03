@@ -1,0 +1,1 @@
+This plugin code was sourced from https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-remark-autolink-headers and tweaked to fit our needs by adding the ability to copy the header links to the clipboard

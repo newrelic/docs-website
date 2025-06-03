@@ -1,0 +1,673 @@
+---
+title: Include the Java agent with a JVM argument
+tags:
+  - Agents
+  - Java agent
+  - Installation
+translate:
+  - jp
+  - kr
+metaDescription: Detailed instructions on how to set APM's Java agent startup argument for your JVM or framework.
+redirects:
+  - /docs/apm/agents/java-agent/installation/include-java-agent-jvm-argument/
+  - /docs/agents/java-agent/installation/pass-java-agent-argument-your-jvm
+  - /docs/agents/java-agent/installation/start-java-agent-jvm-switch
+  - /docs/agents/java-agent/installation/include-java-agent-jvm-switch
+  - /docs/agents/java-agent/installation/include-java-agent-jvm-argument
+tocUnlisted: true
+freshnessValidatedDate: never
+---
+
+This document describes how to pass the `-javaagent` argument to the JVM for your framework. This installation step ensures the agent is included in your app. For all app servers, ensure you pass the full path to the `newrelic.jar` file.
+
+This document is simply a reference for how to pass the argument. For detailed installation procedures, see [Java agent installation](/docs/agents/java-agent/installation/java-agent-manual-installation).
+
+## ColdFusion [#Installing_on_ColdFusion]
+
+To pass the `-javaagent` argument on ColdFusion:
+
+1. Start your ColdFusion server and navigate to your ColdFusion admin console.
+2. From the left menu, select <DNT>**SERVER SETTINGS > Java and JVM**</DNT>.
+3. If using the agent API: Specify the path to `newrelic-api.jar` in the <DNT>**ColdFusion Class Path**</DNT> field.
+4. In the <DNT>**JVM Arguments**</DNT> field, add the `-javaagent` argument:
+
+   ```
+   -javaagent:/full/path/to/newrelic.jar
+   ```
+5. Select <DNT>**Submit Changes**</DNT>, then restart your ColdFusion server.
+
+## Geronimo [#Installing_on_Geronimo]
+
+To pass the `-javaagent` argument on Geronimo, refer to the New Relic agent jar in the `JAVA_OPTS` environment variable when running the startup command:
+
+```sh
+export JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar" && geronimo run
+```
+
+## Glassfish [#Installing_on_Glassfish]
+
+To pass the `-javaagent` argument on Glassfish:
+
+1. From the Glassfish console, select <DNT>**Application Server > JVM Settings > JVM options**</DNT>.
+2. On the JVM options page, select <DNT>**Add JVM option**</DNT>.
+3. Add an entry for the `-javaagent` argument:
+
+   ```
+   -javaagent:/full/path/to/newrelic.jar
+   ```
+4. Save and restart Glassfish.
+
+If Glassfish does not start, the `-javaagent` argument might not have been set correctly. You can change the server JVM arguments by editing the `domain.xml` file.
+
+<Callout variant="important">
+  A bug in Glassfish 2.1 prevents classes on the bootstrap class loader (the New Relic agent) from using the Java logging API. This appears to be fixed in 2.1.1 or higher releases.
+</Callout>
+
+## Grails [#Installing_on_Grails]
+
+To pass the `-javaagent` argument on Grails:
+
+<CollapserGroup>
+  <Collapser
+    id="grails-run-app"
+    title="Pass with run-app"
+  >
+    1. Begin with an unzipped version of Grails.
+    2. Run this command:
+
+       ```sh
+       grails -noreloading -javaagent:/full/path/to/newrelic.jar run-app
+       ```
+  </Collapser>
+
+  <Collapser
+    id="grails-run-war"
+    title="Pass with run-war"
+  >
+    1. In your Grails app, open this file with your text editor:
+
+       ```
+       grails-app/conf/BuildConfig.groovy
+       ```
+    2. Add or edit the JVM arguments line:
+
+       ```ini
+       grails.tomcat.jvmArgs = ["-javaagent:/full/path/to/newrelic.jar"]
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## JBoss [#Installing_on_JBoss]
+
+To pass the `-javaagent` argument on JBoss:
+
+<CollapserGroup>
+  <Collapser
+    id="jboss-domain-mode"
+    title="Set with domain mode (6.x EAP and 7.0 AS)"
+  >
+    Use domain mode for JBoss versions 6.x EAP and 7.0 AS or above:
+
+    1. Edit the JVM properties for your server group, located in:
+
+       ```
+       domain/configuration/domain.xml
+       ```
+    2. Modify the properties to include the `-javaagent` argument:
+
+       ```xml
+       <server-group name="main-server-group" profile="full">
+         <jvm name="default">
+           <jvm-options>
+             <option value="-javaagent:/full/path/to/newrelic.jar"/>
+           </jvm-options>
+         </jvm>
+         ...
+       </server-group>
+       ```
+
+       <Callout variant="caution">
+         A [JBoss bug in 7.0.2.Final and 7.1.0.Alpha1](https://issues.jboss.org/browse/AS7-1868) does not allow JVM options to be set in `domain.xml`. If you encounter this problem, upgrade your JBoss application server.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="jboss-standalone-mode"
+    title="Set with standalone mode (other versions)"
+  >
+    Use standalone mode for other platforms and versions:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            Platform
+          </th>
+
+          <th>
+            Directions
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Unix or macOS with 6.x EAP or 7.0.x AS and above
+          </td>
+
+          <td>
+            At the bottom of `bin/standalone.conf`, add:
+
+            ```ini
+            JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar"
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Windows with 6.x EAP or 7.0.x AS or higher
+          </td>
+
+          <td>
+            In `bin/standalone.bat`, before the line:
+
+            ```batch
+            set JBOSS_ENDORSED_DIRS=%JBOSS_HOME%\lib\endorsed
+            ```
+
+            Add:
+
+            ```batch
+            set "JAVA_OPTS=-javaagent:C:/full/path/to/newrelic.jar %JAVA_OPTS%"
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Unix or macOS with 6.x or earlier
+          </td>
+
+          <td>
+            At the bottom of `bin/run.conf`, add this:
+
+            ```ini
+            JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar"
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Windows with 6.x or earlier
+          </td>
+
+          <td>
+            In `bin/run.bat`, before the line:
+
+            ```batch
+            set JBOSS_CLASSPATH=%RUN_CLASSPATH%
+            ```
+
+            Add:
+
+            ```batch
+            set "JAVA_OPTS=-javaagent:C:/full/path/to/newrelic.jar %JAVA_OPTS%"
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Jetty [#Installing_on_Jetty]
+
+To pass the `-javaagent` argument on Jetty:
+
+<CollapserGroup>
+  <Collapser
+    id="jetty-jettysh"
+    title={<>If you set exec in <InlineCode>jetty.sh</InlineCode></>}
+  >
+    Edit the `JAVA_OPTIONS` in your `jetty.sh` script:
+
+    ```sh
+    export JAVA_OPTIONS="${JAVA_OPTIONS} -javaagent:/full/path/to/newrelic.jar"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="jetty-startini"
+    title={<>If you set exec in <InlineCode>start.ini</InlineCode></>}
+  >
+    Add the agent path to your `start.ini` config file:
+
+    ```
+    -javaagent:/full/path/to/newrelic.jar
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Play [#Installing_on_Play]
+
+To pass the `-javaagent` argument on Play:
+
+<CollapserGroup>
+  <Collapser
+    id="play-1-2-4"
+    title="Play 1.2.4"
+  >
+    Append the `-javaagent` argument when running your Play application:
+
+    ```sh
+    play run your_app_name -javaagent:/full/path/to/newrelic.jar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="play-2.0"
+    title="Play 2.0"
+  >
+    1. Begin with an <DNT>**unzipped**</DNT> distribution containing the `start` script:
+
+       ```sh
+       play clean dist && unzip dist/*.zip
+       ```
+    2. Append the `-javaagent` argument when starting your Play app:
+
+       ```sh
+       cd unzipped/folder; chmod a+x start; ./start -javaagent:/full/path/to/newrelic.jar
+       ```
+  </Collapser>
+
+  <Collapser
+    id="play-2-2"
+    title="Play 2.2"
+  >
+    1. Begin with an <DNT>**unzipped**</DNT> distribution containing the `start` script:
+
+       ```sh
+       play clean dist && unzip target/directory/universal/*.zip
+       ```
+    2. Append the `-J-javaagent` argument when starting your Play app:
+
+       ```sh
+       cd unzipped/folder; ./bin/scriptname -J-javaagent:/full/path/to/newrelic.jar
+       ```
+
+       <Callout variant="tip">
+         To enable page load timing, see [Manual instrumentation with Play 2.2](/docs/agents/java-agent/instrumentation/page-load-timing-java#manual-play-2-2).
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="play-2-3-etc"
+    title="Play 2.3, 2.4, and 2.5"
+  >
+    1. Begin with an <DNT>**unzipped**</DNT> distribution containing the `start` script:
+
+       ```sh
+       activator clean dist && unzip target/directory/universal/*.zip
+       ```
+    2. Append the `-J-javaagent` argument when starting your Play app:
+
+       ```sh
+       cd unzipped/folder; ./bin/scriptname -J-javaagent:/full/path/to/newrelic.jar
+       ```
+    3. If you use Typesafe Activator with Play 2.4, add this line to your `build.sbt`:
+
+       ```scala
+       javaOptions ++= Seq("-javaagent:/full/path/to/newrelic.jar")
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Resin [#Installing_on_Resin]
+
+Java 8
+
+* Option 1: Add the `javaagent` argument via the `jvmargs` property in server's `resin.properties` file:
+  ```properties
+  jvm_args  : -javaagent:/full/path/to/newrelic.jar
+  ```
+* Option 2: Specify the `-javaagent` argument by adding it to the `<jvm-args>` section in your `conf/resin.conf` or `conf/resin.xml` file:
+  ```xml
+  <jvm-arg>-javaagent:/full/path/to/newrelic.jar</jvm-arg>
+  ```
+
+Java 9 or higher
+
+The module system introduced in Java 9 can lead to the exception `NoClassDefFoundError: java/sql/SQLException` if the `-javaagent` property is added to the `conf/resin.conf` or `conf/resin.xml` files. If you're using Java 9 or higher make sure that the `-javaagent` property is not included in those files.
+
+Resin can be run on Java 9 or higher, with the Java agent using one of the following options:
+
+* Option 1: Add the `javaagent` argument via the `jvmargs` property in server's `resin.properties` file:
+  ```properties
+  jvm_args  : -javaagent:/full/path/to/newrelic.jar
+  ```
+  The Resin server can then be run with `./bin/resin.sh start`.
+
+* Option 2: Run resin jar with the `-javaagent` property on the command line:
+  ```sh
+  java -javaagent:/path/to/newrelic.jar -jar lib/resin.jar start
+  ```
+
+<Callout variant="important">
+  The agent will not work with Resin on Windows when using Java 9 or higher.
+</Callout>
+
+## Solr [#Installing_on_solr]
+
+To pass the `-javaagent` argument on <DNT>Solr</DNT>:
+
+<CollapserGroup>
+  <Collapser
+    id="solr-standalone-5"
+    title="Standalone Solr 5.x or higher"
+  >
+    Add the `-javaagent` property to `bin/solr.in.sh`:
+
+    ```sh
+    SOLR_OPTS="$SOLR_OPTS -javaagent:/full/path/to/newrelic.jar"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="solr standalone-other"
+    title="Standalone Solr 4.x or lower"
+  >
+    Add the `-javaagent` before the `start.jar`:
+
+    ```sh
+    java -javaagent:/full/path/to/newrelic.jar -jar start.jar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="solr-app-server"
+    title="App server Solr"
+  >
+    When running Solr in an <DNT>**application server**</DNT>, follow the instructions of that application server to add the `-javaagent` flag. Also ensure that JMX is enabled for the application server. If you don't see data in the APM UI's Solr page, follow the [troubleshooting procedures for Solr data](/docs/agents/java-agent/troubleshooting/solr-data-not-appearing-apm-solr-tab-java).
+  </Collapser>
+</CollapserGroup>
+
+## Spring Boot
+
+To pass the `-javaagent` argument on Spring Boot, add it to the command line in which you start your app. Make sure to add it before the `-jar` argument:
+
+```sh
+java -javaagent:/full/path/to/newrelic.jar -jar app.jar
+```
+
+## Tanuki Wrapper
+
+To pass the `-javaagent` argument on Tanuki Wrapper, add a wrapper option `wrapper.conf`. In the line below, substitute `XXX` for an unused number in this file:
+
+```ini
+wrapper.java.additional.XXX=-javaagent:/full/path/to/newrelic.jar
+```
+
+<Callout variant="tip">
+  On Linux systems, no quotation marks are required when setting this value. This behavior may vary on other operating systems.
+</Callout>
+
+## Tomcat [#Installing_on_Tomcat]
+
+To pass the `-javaagent` argument on Tomcat:
+
+<CollapserGroup>
+  <Collapser
+    id="tomcat-setenvsh"
+    title="With setenv.sh"
+  >
+    Create a `CATALINA_BASE/bin/setenv.sh` script if one doesn't already exist. Configure your `setenv.sh` script to use the New Relic agent using the `CATALINA_OPTS` environment variable:
+
+    ```sh
+    export CATALINA_OPTS="$CATALINA_OPTS -javaagent:/full/path/to/newrelic.jar"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tomcat-setenvbat"
+    title="With setenv.bat"
+  >
+    Create a `CATALINA_BASE/bin/setenv.bat` script if one doesn't already exist. Configure your `setenv.bat` script to use the New Relic agent using the `CATALINA_OPTS` environment variable:
+
+    ```batch
+    SET "CATALINA_OPTS=%CATALINA_OPTS% -javaagent:/full/path/to/newrelic.jar"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tomcat-catalinash"
+    title="With catalina.sh (NOT RECOMMENDED)"
+  >
+    <Callout variant="tip">
+      We recommend that you do not set any variables in this script. Instead put them into a script `setenv.sh` in `CATALINA_BASE/bin` to keep your customizations separate.
+    </Callout>
+
+    Configure your `catalina.sh` file to use the New Relic agent using the `JAVA_OPTS` environment variable:
+
+    ```sh
+    export JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tomcat-catalinabat"
+    title="With catalina.bat (NOT RECOMMENDED)"
+  >
+    <Callout variant="tip">
+      We recommend that you do not set any variables in this script. Instead put them into a script `setenv.bat` in `CATALINA_BASE/bin` to keep your customizations separate.
+    </Callout>
+
+    If you use `catalina.bat` to launch Tomcat, set the `JAVA_OPTS` variable near the top of the file:
+
+    ```batch
+    SET JAVA_OPTS=%JAVA_OPTS% -javaagent:/full/path/to/newrelic.jar
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tomcat-windows"
+    title="With Windows"
+  >
+    1. Select <DNT>**Start > Apache Tomcat X.Y.Z. > Configure Tomcat > Java**</DNT>.
+    2. In the <DNT>**Java Options**</DNT> text box, enter the argument. Use forward slashes `/` for the path separator. For Tomcat 6, add a line break after the `-javaagent` argument.
+
+       ```
+       -javaagent:/full/path/to/newrelic.jar
+       ```
+    3. Select <DNT>**Apply**</DNT>, then restart Tomcat.
+  </Collapser>
+
+  <Collapser
+    id="apache-commons-daemon"
+    title="With Apache Commons daemon"
+  >
+    The version of Apache Commons Daemon (jsvc) included with Tomcat 6 does not support the `-javaagent` argument used by New Relic. However, a build of the jsvc daemon from the trunk source will support the `-javaagent` argument via the `-X` prefix. See the [Apache bug tracking the issue](https://issues.apache.org/jira/browse/DAEMON-84).
+
+    There is a fix in the Apache Commons source repository. For more information:
+
+    * See the [Apache source repository documentation](https://commons.apache.org/svninfo.html).
+    * Go directly to the [SVN source repository](https://subversion.apache.org/).
+  </Collapser>
+</CollapserGroup>
+
+## WebLogic [#Installing_on_WebLogic]
+
+To pass the `-javaagent` argument on WebLogic:
+
+<CollapserGroup>
+  <Collapser
+    id="weblogic-nix"
+    title="Administration servers on Linux or macOS"
+  >
+    1. Edit your `startWebLogic.sh` file, located in the domain's `bin` directory.
+    2. Near the beginning of the file, add:
+
+       ```sh
+       export JAVA_OPTIONS="$JAVA_OPTIONS -javaagent:/full/path/to/newrelic.jar"
+       ```
+  </Collapser>
+
+  <Collapser
+    id="weblogic-windows"
+    title="Administration servers on Windows"
+  >
+    1. Edit your `startWebLogic.bat` file, located in the domain's `bin` directory.
+    2. Near the beginning of the file, add:
+
+       ```batch
+       set JAVA_OPTIONS=%JAVA_OPTIONS% -javaagent:"C:\full\path\to\newrelic.jar"
+       ```
+  </Collapser>
+
+  <Collapser
+    id="weblogic-managed-server"
+    title="Managed server instances"
+  >
+    For administration server instances, follow the Linux/macOS or Windows instructions. You cannot use the administration console to install administration server instances.
+
+    For managed server instances, use the admin console:
+
+    1. From the administration console, navigate to <DNT>**Environments > Servers > (select a server) > Server Start > Arguments**</DNT>.
+    2. From <DNT>**Arguments**</DNT>, add:
+
+       ```
+       -javaagent:/full/path/to/newrelic.jar
+       ```
+    3. Save the page, then restart your server instance.
+  </Collapser>
+</CollapserGroup>
+
+## WebSphere [#Installing_on_Websphere]
+
+To pass the `-javaagent` argument on WebSphere:
+
+1. From the admin console, select <DNT>**Servers > Application servers > (select a server) > Configuration > Service Infrastructure > Java and Process Management**</DNT>.
+2. Select <DNT>**Process Definition > Additional Properties**</DNT>, then select <DNT>**Java Virtual Machine**</DNT>.
+3. In the <DNT>**Generic JVM arguments**</DNT> field, add the `-javaagent` argument for your `newrelic.jar` file:
+
+   ```
+   -javaagent:/full/path/to/newrelic.jar
+   ```
+4. Select <DNT>**Apply**</DNT>, then select <DNT>**Save**</DNT>.
+5. Restart your server.
+
+For more information, see the documentation about [collecting WebSphere PMI metrics](/docs/agents/java-agent/features/jvm-metrics-page#default-pmi).
+
+## WebSphere Community [#Installing_on_Websphere_Community_Edition]
+
+To pass the `-javaagent` argument on WebSphere Community Edition, refer to the New Relic agent jar in the `JAVA_OPTS` environment variable when running the startup command:
+
+```sh
+export JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar" && startup
+```
+
+## WebSphere Liberty Profile [#Installing_on_WebSphere_Liberty_Profile]
+
+To pass the `-javaagent` argument on WebSphere Liberty Profile:
+
+1. Edit `${server.config.dir}/jvm.options`.
+2. Add the `-javaagent` argument to point to your `newrelic.jar` file:
+
+   ```
+   -javaagent:/full/path/to/newrelic.jar
+   ```
+3. Restart your server.
+
+## Wildfly [#Installing_on_WildFly]
+
+To pass the `-javaagent` argument on Wildfly (if using Wildfly 11 or higher, see [additional install instructions](/docs/agents/java-agent/additional-installation/wildfly-version-11-installation-java)):
+
+<CollapserGroup>
+  <Collapser
+    id="wildfly-domain-mode"
+    title="Set with domain mode"
+  >
+    1. Edit the JVM properties for your server group, located in:
+
+       ```
+       domain/configuration/domain.xml
+       ```
+    2. Modify the properties to include the `-javaagent` argument:
+
+       ```xml
+       <server-group name="main-server-group" profile="full">
+         <jvm name="default">
+           <jvm-options>
+             <option value="-javaagent:/full/path/to/newrelic.jar"/>
+           </jvm-options>
+         </jvm>
+         ...
+       </server-group>
+       ```
+  </Collapser>
+
+  <Collapser
+    id="wildfly-standalone-mode"
+    title="Set with standalone mode"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            Platform
+          </th>
+
+          <th>
+            Directions
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Unix or macOS
+          </td>
+
+          <td>
+            At the bottom of `bin/standalone.conf`, add:
+
+            ```ini
+            JAVA_OPTS="$JAVA_OPTS -javaagent:/full/path/to/newrelic.jar"
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Windows
+          </td>
+
+          <td>
+            In `bin/standalone.bat`, find this line:
+
+            ```batch
+            rem Setup JBoss specific properties
+            ```
+
+            Then add:
+
+            ```batch
+            set "JAVA_OPTS=-javaagent:C:/full/path/to/newrelic.jar %JAVA_OPTS%"
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Other application servers [#other-app-servers]
+
+The New Relic Java agent works on any [supported app server](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent). If your app server is not listed in this document, follow standard procedures for your app server to pass this argument to the JVM before the app jar:
+
+```
+-javaagent:/full/path/to/newrelic.jar
+```

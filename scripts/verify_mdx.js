@@ -1,17 +1,7 @@
-const mdx = require('@mdx-js/mdx');
-const fs = require('fs');
 const glob = require('glob');
+const path = require('path');
 
-const readFile = async (filePath) => {
-  try {
-    console.log(`reading ${filePath}`);
-    const mdxText = fs.readFileSync(filePath, 'utf8');
-    const jsx = mdx.sync(mdxText);
-  } catch (exception) {
-    console.log(JSON.stringify(exception, null, 4));
-    return filePath;
-  }
-};
+const { verifyImages, verifyMDX } = require('./utils/verify-mdx-utils');
 
 const main = async () => {
   let filePaths = process.argv.slice(2);
@@ -19,15 +9,20 @@ const main = async () => {
   if (filePaths.length === 0) {
     // if user did not supply paths, default to all
     filePaths = glob.sync(
-      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx}`
+      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx,/install/**/*.mdx}`
     );
+    // if user supplies a path that is a directory, get all files recursively
+    // assumes one path is supplied
+  } else if (!path.extname(filePaths[0])) {
+    // remove a possible trailing slash
+    const dirPath = filePaths[0].endsWith('/')
+      ? filePaths[0].slice(0, -1)
+      : filePaths[0];
+
+    filePaths = glob.sync(`${__dirname}/../${dirPath}/**/*.mdx`);
   }
 
-  const allResults = await Promise.all(filePaths.map(readFile));
-  const results = allResults.filter(Boolean);
-
-  console.log(results);
-  console.log(`Failed file count: ${results.length}`);
+  await verifyMDX(filePaths);
 };
 
 main();

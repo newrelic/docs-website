@@ -5,6 +5,8 @@ import * as glob from 'glob';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { LOCALES } from '../actions/utils/constants';
+
 import simpleGit from 'simple-git';
 const git = simpleGit();
 
@@ -153,8 +155,7 @@ const getRenameChanges = (renamedFiles: FileRename[]): FileRename[] => {
   const i18nRenames: FileRename[] = [];
 
   renamedFiles.forEach((f) => {
-    // TODO: rather than hardcode, we should refer to some central locale code.
-    ['jp', 'kr'].forEach((locale) => {
+    LOCALES.forEach((locale) => {
       const localeFromPath = f.from.replace(
         'src/content/docs',
         `src/i18n/content/${locale}/docs`
@@ -186,10 +187,10 @@ const printRenameChanges = (renameChanges: FileRename[]): void => {
  * Method to make renames changes. printRenameChanges will display the changes that will be made.
  */
 const makeRenameChanges = (renameChanges: FileRename[]): void => {
-  renameChanges.forEach(async (rename) => {
+  renameChanges.forEach((rename) => {
     fs.mkdirSync(path.dirname(rename.to), { recursive: true });
     console.log(`Moving ${rename.from} to ${rename.to}`);
-    await git.mv(rename.from, rename.to);
+    git.mv(rename.from, rename.to);
   });
 };
 

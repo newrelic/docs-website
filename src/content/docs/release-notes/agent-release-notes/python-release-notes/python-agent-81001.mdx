@@ -1,0 +1,34 @@
+---
+subject: Python agent
+releaseDate: '2023-08-17'
+version: 8.10.1
+downloadLink: 'https://pypi.python.org/pypi/newrelic'
+features: ['Add support for new commands introduced in Redis v5']
+bugs: ['Fix crash in MetricNormalizationRules', 'Fix DeprecationWarning in pacakge version detection for Python 3.10+']
+security: []
+---
+
+## Notes
+
+This release of the Python agent fixes an issue with MetricNormalizationRules, fixes a DeprecationWarning in pacakge version detection, and adds support for new commands introduced in [Redis v5](https://pypi.org/project/redis/).
+
+Install the agent using `easy_install/pip/distribute` via the [Python Package Index](https://pypi.python.org/pypi/newrelic) or download it directly from the [New Relic download site](https://download.newrelic.com/python_agent/release).
+
+## Enhancements
+
+* **Add support for new commands introduced in Redis v5**
+  Adds full instrumentation support for [Redis v5](https://pypi.org/project/redis/).
+
+## Bug fixes
+
+* **Fix crash in MetricNormalizationRules**
+  Fixed a crash when using client side MetricNormalizationRules to ignore metrics (set through NerdGraph and available under a feature flag). The metrics should now be properly ignored.
+
+* **Fix DeprecationWarning in pacakge version detection for Python 3.10+**
+  Fixed a DeprecationWarning emitted by pacakge version detection used internally for Python 3.10+. When importlib.metadata is available, prefer using it to avoid checking deprecated **version** attributes on modules. (Thanks @renanivo for the contribution!)
+
+## Support statement
+
+We recommend updating to the latest agent version as soon as it's available. If you can't upgrade to the latest version, update your agents to a version no more than 90 days old. Read [more](/docs/new-relic-solutions/new-relic-one/install-configure/update-new-relic-agent/) about keeping agents up to date.
+
+See the New Relic Python agent [EOL policy](/docs/apm/agents/python-agent/getting-started/python-agent-eol-policy/) for information about agent releases and support dates.

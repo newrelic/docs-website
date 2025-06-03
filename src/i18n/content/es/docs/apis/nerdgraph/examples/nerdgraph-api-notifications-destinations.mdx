@@ -1,0 +1,559 @@
+---
+title: 'Tutorial NerdGraph: destinos de inteligencia aplicada'
+tags:
+  - Notifications
+  - Notifications and Nerdgraph
+  - Destinations
+  - Notification Destinations
+metaDescription: 'For New Relic applied intelligence: how to list, create, update, and delete destinations with our NerdGraph API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Además de administrar sus [destinos de inteligencia aplicada en la UI](/docs/alerts-applied-intelligence/notifications/destinations), puede utilizar nuestra API NerdGraph.
+
+<Callout variant="tip">
+  Para obtener ayuda para comenzar con NerdGraph, consulte [Introducción a NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+</Callout>
+
+## Listar y filtrar destinos [#list-and-filter]
+
+La consulta `destinations` le permite paginar todos sus destinos por cuenta. También permite algunas funciones de filtrado.
+
+<CollapserGroup>
+  <Collapser
+    id="list-all-destinations"
+    title="Listado de todos los destinos para una cuenta"
+  >
+    He aquí un ejemplo:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations {
+              entities {
+                id
+                name
+              }
+              error {
+                details
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="paginate"
+    title="Paginar a través de destinos con paginación del cursor"
+  >
+    Para paginar sus destinos, debe solicitar el campo `nextCursor` en su consulta inicial.
+
+    Con la paginación del cursor, continúa realizando una solicitud a través del conjunto de resultados hasta que el `nextCursor` que se devuelve de la respuesta vuelve vacío. Esto significa que llegó al final de sus resultados.
+
+    He aquí un ejemplo:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations(cursor: "") {
+              nextCursor
+              entities {
+                id
+                name
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    El código anterior devuelve un conjunto de resultados como este:
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "aiNotifications": {
+              "destinations": {
+                "nextCursor": "/8o0y2qiR54m6thkdgHgwg==:jZTXDFKbTkhKwvMx+CtsPVM=",
+                "entities": [
+                  {
+                    "id": "01c0cbe7-3d70-47c1-99e0-adf906eed6c2",
+                    "name": "Destination Name"
+                  },
+                  {
+                    "id": "05db0207-c137-4985-8cb5-f21e7e57b8cc",
+                    "name": "Another Destination Name"
+                  }
+                  // ... more destinations here in reality
+                ],
+                "totalCount": 807
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Entonces, en su solicitud posterior, proporcione el cursor así, hasta que el cursor esté vacío:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations(cursor: "") {
+              nextCursor
+              entities {
+                id
+                name
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-destinations-by-name"
+    title="Encuentra todos los destinos por nombre"
+  >
+    La API permite consultar el destino por su nombre. El filtro `name` devuelve coincidencias exactas y coincidencias parciales. No distingue entre mayúsculas y minúsculas. Esto solo devolverá la información de los destinos que coincidan con el nombre proporcionado.
+
+    En este ejemplo, queremos buscar destinos con `"DevOps"` en el nombre:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations(filters: {
+              name: "DevOps"
+            }) {
+              entities {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-by-id"
+    title="Buscar destino por ID"
+  >
+    La API te permite consultar por ID de destino:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations(filters: {id: YOUR_DESTINATION_ID}) {
+              entities {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-by-type"
+    title="Encuentra todos los destinos por tipo"
+  >
+    La API te permite consultar por tipo de destino. La siguiente consulta devolverá todos los destinos de correo electrónico en la cuenta elegida:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          aiNotifications {
+            destinations(filters: {type: EMAIL}) {
+              entities {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Crear un destino [#create-destination]
+
+Para crear un destino, se deben proporcionar diferentes entradas para cada tipo de destino. Una propiedad `two_way_integration` opcional está disponible para integraciones que permiten la integración bidireccional.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="jira"
+    title="Atlassian Jira"
+  >
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: JIRA,
+        name: "Destination Name",
+        auth: {
+          type: BASIC,
+          basic: {
+            "user": YOUR_EMAIL,
+            "password": YOUR_PASSWORD
+          }
+        },
+        properties: [
+          {
+            key: "url",
+            value: "https://YOUR_INSTANCE.atlassian.net"
+          },
+          {
+            key: "two_way_integration",
+            value: "true"
+          }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="servicenow"
+    title="ServiceNow (Incident-Management)"
+  >
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: SERVICE_NOW,
+        name: "Destination Name",
+        auth: {
+          type: BASIC,
+          basic: {
+            "user": YOUR_EMAIL,
+            "password": YOUR_PASSWORD
+          }
+        },
+        properties: [
+          {
+            key: "url",
+            value: "https://YOUR_INSTANCE.service-now.com"
+          },
+         {
+           key: "two_way_integration",
+           value: "true"
+         }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="slack"
+    title="Slack"
+  >
+    Debido a que nuestra integración con slack solo está disponible con autenticación OAuth2, el destino no se puede crear con una mutación.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="webhook"
+    title="Webhook"
+  >
+    En este ejemplo, `auth` es opcional, según el servicio que se integre.
+
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: WEBHOOK,
+        name: "Destination Name",
+        auth: {
+          type: BASIC,
+          basic: {
+            "user": YOUR_EMAIL,
+            "password": YOUR_PASSWORD
+          }
+        },
+        properties: [
+          {
+            key: "url",
+            value: YOUR_WEBHOOK
+          },
+         {
+           key: "two_way_integration",
+           value: "true"
+         }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="email"
+    title="Correo electrónico"
+  >
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: EMAIL,
+        name: "Destination Name",
+        properties: [
+          {
+            key: "email",
+            value: YOUR_EMAIL
+          }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="eventBridge"
+    title="AWS EventBridge"
+  >
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: EVENT_BRIDGE,
+        name: "Destination Name",
+        auth: {
+          type: BASIC,
+          basic: {
+            "user": YOUR_IAM_USER,
+            "password": YOUR_PASSWORD
+          }
+        },
+        properties: [
+          {
+            key: "AWSAccountId",
+            value:  YOUR_AWS_ACCOUNT_ID
+          },
+          {
+            key: "AWSRegion",
+            value:  YOUR_AWS_REGION
+          }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="pagerduty"
+    title="PagerDuty"
+  >
+    PagerDuty tiene dos tipos de integración, nivel de servicio y nivel de cuenta. Para obtener más información, consulte los [documentos de integración de PagerDuty](/docs/alerts-applied-intelligence/notifications/notification-integrations#pagerduty).
+
+    Nivel de servicio:
+
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: PAGERDUTY_SERVICE_INTEGRATION,
+        name: "Destination Name",
+        auth: {
+          type: TOKEN,
+          basic: {
+            token: YOUR_INTEGRATION_TOKEN,
+            prefix: "Token token="
+          }
+        },
+        properties: []
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+
+    Nivel de cuenta:
+
+    ```graphql
+    mutation {
+      aiNotificationsCreateDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+        type: PAGERDUTY_ACCOUNT_INTEGRATION,
+        name: "Destination Name",
+        auth: {
+          type: TOKEN,
+          basic: {
+            token: YOUR_API_KEY,
+            prefix: "Token token="
+          }
+        },
+        properties: [
+          {
+            key: "two_way_integration",
+            value: "true"
+          }
+        ]
+      }) {
+        destination {
+          id
+          name
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Actualizar un destino [#update-destination]
+
+Cuando actualiza un destino, tenga en cuenta que no es necesario proporcionar todos los atributos del destino. Por ejemplo, solo necesita proporcionar el nombre si solo desea actualizarlo:
+
+```graphql
+mutation {
+  aiNotificationsUpdateDestination(accountId: YOUR_ACCOUNT_ID, destinationId: YOUR_destination_ID, destination: {
+    name: "Updated destination Name"
+  }) {
+    destination {
+      id
+      name
+    }
+  }
+}
+```
+
+## Probando un destino [#test-destination]
+
+Puede probar destinos a través de la API NerdGraph. Esto se puede hacer antes o después de crear el destino.
+
+```graphql
+mutation {
+  aiNotificationsTestDestination(accountId: YOUR_ACCOUNT_ID, destination: {
+    type: EMAIL,
+    name: "Destination Name",
+    properties: [
+      {
+        key: "email",
+        value: YOUR_EMAIL
+      }
+    ]
+  }) {
+    error {
+      details
+    }
+    details
+    result
+  }
+}
+```
+
+```graphql
+mutation {
+  aiNotificationsTestDestinationById(accountId: YOUR_ACCOUNT_ID, destinationId: YOUR_DESTINATION_ID) {
+    error {
+      details
+    }
+    details
+    result
+  }
+}
+```
+
+## Eliminar un destino [#delete-destination]
+
+Puede eliminar destinos a través de la API NerdGraph.
+
+```graphql
+mutation {
+  aiNotificationsDeleteDestination(accountId: YOUR_ACCOUNT_ID, destinationId: YOUR_DESTINATION_ID) {
+    ids
+    error {
+      details
+    }
+  }
+}
+```
+
+<Callout variant="important">
+  Si recibe un mensaje de error que indica `Entity type channel is in use`, deberá identificar los canales utilizados por el destino y eliminarlos antes de continuar. Para lograr esto, primero busque todos los canales asociados con el destino y luego elimine cada canal individualmente.
+</Callout>
+
+```graphql
+{
+  actor {
+    account(id: YOUR_ACCOUNT_ID) {
+      aiNotifications {
+        channels(filters: {destinationId: YOUR_DESTINATION_ID}) {
+          entities {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+```graphql
+mutation {
+aiNotificationsDeleteChannel(accountId: YOUR_ACCOUNT_ID, channelId: YOUR_CHANNEL_ID) {
+ids
+error {
+  details
+}
+}
+}
+```

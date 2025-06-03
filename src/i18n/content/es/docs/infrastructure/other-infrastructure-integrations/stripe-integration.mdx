@@ -1,0 +1,110 @@
+---
+title: Integración de Stripe
+tags:
+  - Stripe integration
+  - New Relic integration
+metaDescription: Install our Stripe dashboards and see your Stripe data in New Relic.
+freshnessValidatedDate: '2023-08-31T00:00:00.000Z'
+translationType: machine
+---
+
+Para monitor su aplicación Stripe, configurará la aplicación para que envíe datos a la New Relic métrica API. Luego, puede ver los datos en un único dashboard Stripe prediseñado que rastrea métricas como descripción general de las transacciones, volumen de las transacciones, ingresos y errores de las transacciones.
+
+<img title="Stripe" alt="Stripe dashboard" src="/images/infrastructure_screenshot-stripe-dashboard.webp" />
+
+<figcaption>
+  Vea todas las métricas de su aplicación Stripe en un solo dashboard.
+</figcaption>
+
+## Configurar el monitoreo de Stripe [#stripe-setup]
+
+Para configurar el monitoreo de Stripe, creará una llamada desde su aplicación Stripe a la API de New Relic Metrics. La forma de hacerlo variará según el idioma y el agente que esté utilizando. A continuación se muestra un ejemplo de cómo crear esta llamada API usando JavaScript.
+
+<Callout variant="tip">
+  Para obtener más orientación sobre el uso de esta API, consulte la [documentación API de métrica](/docs/data-apis/ingest-apis/metric-api/report-metrics-metric-api/).
+</Callout>
+
+Antes de comenzar, cerciórate de tener una New Relic clave de licencia [New Relic de (ver Clave de de API](/docs/apis/intro-apis/new-relic-api-keys/)).
+
+Tras un pago de Stripe exitoso, recibimos un JSON del servicio API de Stripe. Necesitamos enviar estos valores a New Relic formateando el JSON de acuerdo con los New Relic API requisitos métrica .
+
+El siguiente fragmento de código JavaScript formatea los datos y los envía a la New Relic API URL métrica de .
+
+```javascript
+const sendDataToNewRelic = (sessionJSON) => {
+  const currentDate = new Date();
+  const currentTime = currentDate.getTime();
+  const nrMetrics = [{
+    "metrics": [
+      {
+        "name": "stripe_metrics",
+        "timestamp": currentTime,
+        "value": 0,
+        "attributes": {
+          "stripe.session_id": sessionJSON.id,
+          "stripe.amount_total": sessionJSON.amount_total,
+          "stripe.customer_email": sessionJSON.customer_details.email,
+          "stripe.created_at": sessionJSON.created,
+          "stripe.currency" : sessionJSON.currency,
+          "stripe.payment_status": sessionJSON.payment_status,
+          "stripe.status": sessionJSON.status,
+          "stripe.discount_amount":sessionJSON.total_details.amount_discount,
+          "stripe.shipping_amount":sessionJSON.total_details.amount_shipping,
+          "stripe.tax_amount":sessionJSON.total_details.amount_tax
+        }
+      }
+    ]
+  }]
+
+  const nrMetricAPI = 'https://metric-api.newrelic.com/metric/v1'
+  axios({
+    url: nrMetricAPI,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Api-Key': 'LICENSE_KEY'
+      },
+    data: JSON.stringify(nrMetrics)
+  })
+    .then((response) => {
+    // Handle the response here if needed
+    console.log('Metrics data sent successfully:', response.data);
+  })
+  .catch((error) => {
+    // Handle any errors that occur during the request
+    console.error('Error sending metrics data to New Relic:', error);
+  })
+}
+
+```
+
+Cerciórate de cambiar `sessionJSON` según tu respuesta y llama a esta función donde obtengas Stripe métrica en tu aplicación:
+
+```javascript
+  sendDataToNewRelic (session)
+```
+
+## Ver tu Stripe métrica [#view-stripe-metrics]
+
+Puedes visualizar las métricas consultándolas o configurando un dashboard de Stripe.
+
+### Ver en el generador de consultas [#stripe-in-query-builder]
+
+Puede emplear NRQL para consultar métrica directamente en el generador de consultas. Si necesita más información, consulte [Introducción al generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder).
+
+Por ejemplo, si desea ver los ingresos netos obtenidos de Stripe, pruebe esta consulta en el generador de consultas:
+
+```sql
+SELECT stripe.amount_total 
+FROM Metric 
+WHERE metricName = 'stripe_metrics'
+```
+
+### Instale nuestro dashboard de monitoreo de Stripe [#add-dashboard]
+
+Para configurar nuestro dashboard de Stripe prediseñado para monitor su aplicación métrica, vaya a la [instalación dashboard de Stripe](https://onenr.io/0ZQWYYE1rRW) y siga las instrucciones. Una vez instalado, el dashboard debe mostrar métrica.
+
+Si necesita ayuda con el panel de control, consulte:
+
+* [Introducción al panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) para personalizar tu dashboard y realizar diferentes acciones.
+* [Administre su dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) para ajustar su <InlinePopover type="dashboards" />modo de visualización o para agregar más contenido a su dashboard.

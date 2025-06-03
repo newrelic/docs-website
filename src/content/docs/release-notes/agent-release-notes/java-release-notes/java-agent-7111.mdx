@@ -1,0 +1,99 @@
+---
+subject:  Java agent
+releaseDate:  '2022-11-15'
+version:  7.11.1
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/7.11.1/'
+features: ["Update snakeyaml lib to v1.33 security patch"]
+bugs: ["Fix bug with log4j2 metrics", "Adds a previously missing delimiter in POSTGRES_DIALECT_PATTERN"]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/7.11.1/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+<Callout variant="important">
+  We recommend updating to the latest agent version as soon as it's available. If your organization has established practices that prevent you from upgrading to the latest version, ensure that your agents are regularly updated to a version at most 90 days old. Read more about [keeping your agent up to date](/docs/new-relic-solutions/new-relic-one/install-configure/update-new-relic-agent/).
+</Callout>
+
+## New features and improvements
+
+## Fixes
+
+* Fix bug with log4j2 metrics [1068](https://github.com/newrelic/newrelic-java-agent/pull/1068)
+* Adds a previously missing delimiter in POSTGRES_DIALECT_PATTERN "|" [1050](https://github.com/newrelic/newrelic-java-agent/pull/1050)
+* Update snakeyaml lib to v1.33 security patch [1077](https://github.com/newrelic/newrelic-java-agent/pull/1077)
+
+## Deprecation notice
+
+The following instrumentation modules have been deprecated for removal:
+
+* cassandra-datastax-2.1.2
+* httpclient-3.0
+* jdbc-embedded-derby-10.10.1.1
+* jetty-7
+* jetty-7.6
+* jetty-9
+* jetty-9.0.4
+* jetty-9.1
+* mongodb-2.12
+* mongodb-2.14
+* mongodb-3.0
+* okhttp-3.0.0
+* okhttp-3.4.0
+* okhttp-3.5.0
+
+The `httpResponseCode`, `response.status` and `response.statusMessage` transaction/span attributes are deprecated and will be removed in a future release. These have been replaced by `http.statusCode` and `http.statusText`.
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes)
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you are moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.

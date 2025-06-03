@@ -1,0 +1,76 @@
+---
+title: No stack traces 
+type: troubleshooting
+tags:
+  - Agents
+  - Java agent
+  - Troubleshooting
+metaDescription: Troubleshooting steps for situations when stack traces are missing for error traces with your New Relic Java app.
+redirects:
+freshnessValidatedDate: never
+---
+
+## Problem
+
+Depending on the situation, you may find [error traces](/docs/apm/applications-menu/error-analytics/error-analytics-manage-error-traces) in the APM UI that do not include stack traces for your application.
+
+## Solution
+
+Depending on the situation, follow these troubleshooting procedures.
+
+<CollapserGroup>
+  <Collapser
+    id="Caps on error reporting"
+    title="Caps on error reporting"
+  >
+    For performance reasons, we cap error reporting as follows:
+
+    * 100 events per minute per agent instance
+    * 20 trace details per minute per agent instance
+  </Collapser>
+
+  <Collapser
+    id="Handled exceptions"
+    title="Handled exceptions"
+  >
+    Our APM agents automatically report errors for unhandled exceptions. In situations where application logic handles the error, our APM agent may miss the error, and won't report a stack trace.
+
+    You can use the `notice_error()` [agent-specific API](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/#error-collection) to record handled exceptions.
+  </Collapser>
+
+  <Collapser
+    id="Ignored errors"
+    title="Errors are ignored"
+  >
+    If you configured errors to be [ignored](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/#ignore), the stack trace won't be avilable
+  </Collapser>
+
+  <Collapser
+    id="500-errors"
+    title="No stack traces for 500 errors"
+  >
+    Returning a `500` error means that the application server itself detected an error and set the HTTPS `500` status code.
+
+    * If the error condition was detected and handled by application logic, there was no exception object and thus, no stack.
+    * If there was an exception object at some point, but it was handled internally by the application code that set the `500` status on the response, then the exception never became visible to the agent. There is no stack available for the agent to report.
+
+      When stack traces are reported, the error results from an exception that was not caught and handled within the application server logic. The agent sees the unhandled exception during a monitored transaction, so it reports the stack trace.
+  </Collapser>
+</CollapserGroup>
+
+## Agent specific behavior for missing stack traces
+
+### Java Agent
+
+<CollapserGroup>
+  <Collapser
+    id="repeated-errors"
+    title="No stack traces for rapidly repeated errors"
+  >
+    When an error is thrown in a rapidly repeated sequence, the Java compiler may optimize the stack trace away to help performance. To disable this optimization: In your JVM flags, include:
+
+    ```
+    -XX:-OmitStackTraceInFastThrow
+    ```
+  </Collapser>
+</CollapserGroup>

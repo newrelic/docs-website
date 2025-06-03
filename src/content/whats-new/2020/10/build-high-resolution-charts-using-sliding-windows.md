@@ -9,7 +9,7 @@ Sliding windows enable you to increase chart resolution without losing the inten
 
 Sliding windows generate charts using the `SLIDE BY` clause in conjunction with the `TIMESERIES` clause. With sliding windows, data is gathered in time "windows" that overlap with each other. The first duration associated with `TIMESERIES` defines the size of the aggregation windows, which defines how many results are captured per window. The second duration associated with `SLIDE BY`, defines the step size between each aggregation, which then defines the charts resolution.
 
-![NRQL for sliding windows](./images/SW1.gif "NRQL for sliding windows")
+![NRQL for sliding windows](/images/SW1.gif 'NRQL for sliding windows')
 
 NRQL syntax follows the following format:
 

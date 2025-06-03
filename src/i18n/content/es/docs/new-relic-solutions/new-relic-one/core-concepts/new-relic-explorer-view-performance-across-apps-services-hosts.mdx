@@ -1,0 +1,225 @@
+---
+title: 'Comprenda su sistema con el explorador, el Lookout y el Navegador de entidades de New Relic'
+tags:
+  - New Relic
+  - Use New Relic
+  - Core concepts
+metaDescription: 'Use the New Relic entity explorer, and New Relic Lookout and Navigator, to see all your monitored entities in one place and explore the reported data.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En los negocios digitales, los sistemas son cada vez más grandes, complejos e interdependientes. Es posible que tenga cientos de aplicaciones y servicios ejecutándose al mismo tiempo y que necesite monitor miles de elementos que emiten datos. En New Relic, a esas fuentes de datos de monitor las llamamos [entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic).
+
+Puede utilizar nuestro explorador de entidades y New Relic Lookout y Navigator para acceder y contextualizar los datos de rendimiento de todas sus entidades de monitor. Puede ver rápidamente la entidad relacionada con un problema, exponiendo las posibles causas raíz y qué otros sistemas podrían verse afectados. ¿Quieres probarlo? [¡Crea una cuenta New Relic](https://newrelic.com/signup) gratis, para siempre!
+
+<img
+  title="New Relic entity list view"
+  alt="New Relic entity list view"
+  src="/images/solutions_screenshot-crop_entity-list-view.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com](https://one.newrelic.com)**</DNT>: Cuando abres New Relic, accedes a la página UI <DNT>**All entities**</DNT>, que te brinda una descripción general de la entidad de tu monitor. Desde allí puede cambiar a las vistas New Relic Navigator y Lookout, que resaltan problemas y cambios en su sistema.
+</figcaption>
+
+<Callout variant="tip">
+  ¿Quieres un recorrido introductorio por nuestra plataforma? Ver [Conozca la plataforma](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform).
+</Callout>
+
+## Por qué es importante [#why-it-matters]
+
+Con nuestras experiencias de descripción general de la entidad, usted será más que simplemente observar su métrica: comprenderá la raíz de lo que está sucediendo, y no solo los síntomas. Vas a:
+
+* Obtenga una amplia visibilidad de cada entidad monitora, su [estado de alerta](#alert-status) y cómo están conectadas las entidades.
+* Consulta toda tu [carga de trabajo](/docs/new-relic-one/use-new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) y crea una nueva en un clic.
+* Obtenga una vista de alto nivel de cómo funciona su sistema con New Relic Navigator.
+* Capte rápidamente tendencias y comportamientos inusuales con New Relic Lookout.
+* Filtre y agrupe entidades relacionadas para profundizar rápidamente en los problemas.
+
+## La entidad exploradora. [#find]
+
+Cuando abras <DNT>**[New Relic](https://one.newrelic.com)**</DNT>, accederás a la vista <DNT>**List**</DNT> de la página <DNT>**All entities**</DNT> : esto también se conoce como <DNT>**entity explorer**</DNT>, porque es donde puedes encontrar y explorar todas [las entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) de tu monitor.
+
+Su entidad se separará en algunas categorías. Si tiene muchas entidades de monitor, es posible que la vista de lista solo le muestre algunas entidades por categoría, destacando aquellas en las que detectamos problemas.
+
+<img
+  title="New Relic entity list categories"
+  alt="New Relic entity list categories"
+  src="/images/platform_screenshot-crop_entity-categories.webp"
+/>
+
+Aquí hay algunos detalles sobre las categorías de entidades:
+
+* <DNT>
+    **Services**
+  </DNT>
+
+  : Monitor de aplicaciones y servicios [APM](/docs/apm) .
+
+* <DNT>
+    **Hosts**
+  </DNT>
+
+  : su [infraestructura](/docs/infrastructure) de monitor (sus servidores y hosts).
+
+* <DNT>
+    **Mobile applications**
+  </DNT>
+
+  : tus [aplicaciones móviles](/docs/mobile-monitoring).
+
+* <DNT>
+    **Browser applications**
+  </DNT>
+
+  : tus [aplicaciones de navegador](/docs/browser) frontend.
+
+* <DNT>
+    **Integration-reported data**
+  </DNT>
+
+  : datos de servicios monitoreados por [nuestra integración](https://newrelic.com/integrations), incluida nuestra [integración en el host](/docs/integrations/host-integrations/getting-started/introduction-host-integrations) (como Kubernetes, StatsD y NGINX) y la integración de plataforma en la nube, como Amazon, Microsoft Azure y Google Cloud Platform (GCP).
+
+* <DNT>
+    **Workloads**
+  </DNT>
+
+  , tus agrupaciones de entidades personalizadas.
+
+* <DNT>
+    **Containers**
+  </DNT>
+
+  , como Kubernetes o docker.
+
+* <DNT>
+    **[Synthetic monitors](/docs/synthetics)**
+  </DNT>
+
+  , para simulaciones.
+
+<Callout variant="tip">
+  Puede crear nuevos tipos de entidades para monitor cualquier fuente de datos. Obtenga más información sobre [la síntesis de entidades](https://github.com/newrelic/entity-definitions#entity-definitions).
+</Callout>
+
+Desde esta UI, puede utilizar la siguiente característica:
+
+<img
+  title="A view of the New Relic entity explorer"
+  alt="A view of the New Relic entity explorer"
+  src="/images/solutions_screenshot-crop_entity-explorer-sections.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**</DNT>: Utilice la lista de entidades y el explorador para localizar y examinar su entidad.
+</figcaption>
+
+* R. Desde la vista de lista, puede cambiar a
+
+  * [New Relic ](#view-navigator). Esto le brinda una descripción general de alta densidad de toda su entidad, lo que le ayuda a detectar cualquier problema y patrón de salud de un vistazo.
+  * [New Relic Lookout](#view-lookout): esto te ayuda a detectar entidades que han tenido cambios recientes en el rendimiento.
+
+* B. [barra de filtro de entidad](#filter-tag): filtre la entidad que desea examinar y guarde las vistas filtradas que desee para usarlas más adelante.
+
+* C. Su sistema: explore las diferentes categorías de entidades de monitor desplazándose por esta barra lateral.
+
+### Filtra tu entidad [#filter-entities]
+
+La barra de filtro de entidad está disponible en la vista <DNT>**All entities**</DNT> y en muchas experiencias de New Relic, incluidas <InlinePopover type="apm"/>, <InlinePopover type="browser"/>, monitoreo de infraestructura y más. Para saber cómo filtrar su entidad y guardar vistas filtradas, consulte [Filtrar entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities).
+
+### New Relic Navigator [#view-navigator]
+
+New Relic Navigator facilita la exploración de grandes cantidades de entidades, ya que muestra intuitivamente todo el estado de su sistema en una vista de panal muy densa con colores de semáforo basados en alerta.
+
+<img
+  title="nrnavigator.png"
+  alt="nrnavigator.png"
+  src="/images/platform_screenshot-full_New-Relic-Navigator.webp"
+/>
+
+Con New Relic Navigator puedes:
+
+* Explore rápidamente la salud de su entorno de un vistazo.
+* Vea todas las entidades que pertenecen a todas sus cuentas y concéntrese en tipos de entidades específicas o grupos específicos de entidades agrupadas por etiqueta.
+* Agrupa y filtra todas tus entidades para concentrarte rápidamente en los problemas.
+* Haga clic en cualquier entidad para ver una mini descripción general de su actividad, métrica y metadatos.
+
+## New Relic Lookout [#view-lookout]
+
+New Relic Lookout proporciona una vista intuitiva de las entidades que se desvían del comportamiento normal, utilizando visualización circular con colores que indican la gravedad y el tamaño que transmite la escala de los cambios recientes. No es necesario configurar nada: New Relic Lookout compara automáticamente el rendimiento de los últimos cinco minutos con la hora anterior.
+
+<img
+  title="nrlookout.png"
+  alt="nrlookout.png"
+  src="/images/platform_screenshot-full_lookout-ui.webp"
+/>
+
+Utilice New Relic Lookout para:
+
+* Seleccione el tipo de entidad para ver señales doradas de rendimiento, tiempo de respuesta y errores en todas sus cuentas.
+* Acérquese con correlaciones, historial anormal, traza y la capacidad de aprovechar los perfiles de New Relic en todo su patrimonio.
+* Haga clic en una entidad de interés para acceder al componente de mini descripción general.
+
+Para obtener más información, consulte [New Relic Lookout](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-lookout-monitor-your-estate-glance).
+
+<Callout variant="tip">
+  Puede modificar la paleta de colores para centrarse en el clúster de interés.
+</Callout>
+
+## Comprenda el estado de su sistema con el estado de salud (alerta) [#alert-status]
+
+La plataforma New Relic utiliza un [estado de salud](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/view-entity-health-status-find-entities-without-alert-conditions/) codificado por colores para la entidad. Por ejemplo, es posible que vea un estado de alerta roja que indica que se está produciendo un incidente crítico.
+
+<img
+  title="New Relic entity alert status"
+  alt="New Relic entity alert status"
+  src="/images/alerts_screenshot-crop_entity-alert-status-red.webp"
+/>
+
+* Para ver qué significa un estado de alerta, pase el mouse sobre él.
+* Para ver detalles sobre el estado de alerta de una entidad, seleccione la entidad.
+
+[Las condiciones de alerta NRQL](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) no se utilizan para determinar el estado de alerta porque no están asociadas con una entidad específica.
+
+## Entidad retención de datos [#data-retention]
+
+La disponibilidad de datos depende de estos factores:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Alcance
+      </th>
+
+      <th>
+        Retención de datos
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Explorador y buscador de entidades
+      </td>
+
+      <td>
+        En la [lista de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find), los datos están disponibles durante ocho días después de que una entidad ya no existe, con una excepción: los datos reportados por integración, como Amazon AWS, solo están disponibles durante un día después de que una entidad deja de existir.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nuestra base de datos (accesible mediante [consulta NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql))
+      </td>
+
+      <td>
+        Para consultar nuestra base de datos (por ejemplo, a través del [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) o métrica y evento, la disponibilidad depende de la [retención de datos](/docs/telemetry-data-platform/get-data-new-relic/manage-data/manage-retention-stored-data) para ese tipo de datos.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Como resultado de estos factores, es posible que una entidad de corta duración (como un host en la nube) no esté disponible en la lista del explorador o mediante la búsqueda, pero sus datos aún pueden estar disponibles mediante la consulta NRQL.

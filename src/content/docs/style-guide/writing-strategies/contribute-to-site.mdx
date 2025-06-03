@@ -1,0 +1,365 @@
+---
+title: Contribute to the docs site 
+redirects:
+  - >-
+    /docs/new-relic-only/style-guide/processes-and-procedures/creating-and-editing-content
+  - >-
+    /docs/new-relic-only/style-guide/processes-procedures/creating-editing-content
+  - >-
+    /docs/new-relic-only/basic-style-guide/basic-style-guide/creating-editing-content
+  - /docs/new-relic-only/basic-style-guide/basic-style-guide/create-edit-content
+  - /docs/style-guide/writing-guidelines/create-edit-content
+  - /docs/style-guide/writing-docs/processes-procedures/create-edit-content
+---
+
+The Docs team welcomes your contributions, whether you're a New Relic employee or a New Relic user. This doc walks you through three different methods for making or requesting changes to the docs site.
+
+## Prerequisites [#prereq]
+
+Whatever method you choose, you need to sign up for a [GitHub account](https://github.com/join) if you haven't yet.
+
+GitHub is at the heart of our whole process. When you propose a change to the docs site, GitHub manages the two different versions of a doc: the original version as it exists on **docs.newrelic.com** and the edited version that exists on your screen. With any edit you make, the Docs team reviews and approves it before it's published.
+
+<Callout variant="tip">
+  If you're a New Relic employee, we recommend joining the New Relic org on GitHub. To join the org, ping the @hero in our #help-security-tooling channel.
+</Callout>
+
+## Contribute to the docs site [#contribute-work]
+
+You don't need a complete understanding of git or GitHub to get set up, but you might encounter some unfamiliar terms:
+
+* A **commit** acts like a save.
+* A **branch** houses your commit(s).
+* A **pull request** packages your branch and sends it to us to review and publish.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="edit-browser">
+      Edit via the browser
+    </TabsBarItem>
+
+    <TabsBarItem id="copy-repo">
+      Edit the site locally
+    </TabsBarItem>
+
+    <TabsBarItem id="request">
+      Make a request to the team
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="edit-browser">
+      For most cases, we recommend editing the docs site via your browser. On every page, you can click **Edit this doc** to edit directly from your browser.
+
+      <Steps>
+        <Step>
+          ### Click **Edit this doc**
+
+          On the doc you'd like to edit, click **Edit this doc** from the right nav. This opens a text view of the doc in question, letting you view the copy alongside its code.
+
+          <img
+            title="Make small changes to a doc"
+            alt="Click the edit button to make small changes"
+            src="/images/style-guide_screenshot-crop_edit-doc.webp"
+          />
+        </Step>
+
+        <Step>
+          ### Make your edits
+
+          Click the edit button (it's the pencil icon) in the top right. This lets you interract with the doc in edit-mode rather than the default view-only mode.
+
+          <img
+            title="Click the pencil button"
+            alt="Click the pencil button to go into edit mode"
+            src="/images/style-guide_screenshot-crop_edit-button.webp"
+          />
+
+          Make any changes you like. Don't worry about formatting or grammar — that's what your Docs team is here for.
+        </Step>
+
+        <Step>
+          ### Apply your changes
+
+          <img
+            title="Commit your changes"
+            alt="Click the pencil button to go into edit mode"
+            src="/images/style-guide_screenshot-crop_edit-commit-changes.webp"
+          />
+
+          Once you're ready to save your progress, click the **Commit changes...** button. This brings you to a page that looks like this:
+
+          <img
+            title="Write a commit message"
+            alt="Click the pencil button to go into edit mode"
+            src="/images/style-guide_screenshot-crop_edit-commit-message.webp"
+          />
+
+          Let's break down what this form is asking:
+
+          * **Commit message**: Required. A commit message is a brief explanation of what you changed. For example, one might read like: `Updated requirements and added content to install procedures`
+          * **Extended description**: Optional, but can be used for additional context: `Existing install procedures caused customer confusion`.
+          * Always choose **Create a new branch for this commit...**. We won't accept any contribution made directly to `develop`.
+
+          There are no hard and fast rules about how often you should commit. You can make as many or as few commits as you'd like.
+        </Step>
+
+        <Step>
+          ### Navigate your new pull request
+
+          Your changes—that is, your  branch and its commits—will be packaged into a pull request. This creates a working space for you and anyone who wants to review your work. Here's an example pull request page:
+
+          <img
+            title="Your PR and you"
+            alt="Your pull request is a working space for your contributions"
+            src="/images/style-guide_screenshot-crop_edit-pr-page.webp"
+          />
+
+          The two main areas are **Conversation** and **Files changed**.
+
+          * The **Conversation** tab lets you see status updates of your pull request and a preview of the doc. You can also leave comments.
+            * When your edits are still in progress, you might consider keeping the pull request in  a draft state. This lets the team know that it's not ready for review yet.
+              <img title="Change the status of your project" alt="Your pull request is a working space for your contributions" src="/images/style-guide_screenshot-crop_edit-manage-project-status.webp"/>
+            * When you're ready for a review, scroll to the bottom of the **Conversation** tab and click the **Ready for review** button. This will ensure that the Docs team will see, review, and approve your contribution.
+              <img title="Change the status of your project" alt="Your pull request is a working space for your contributions" src="/images/style-guide_screenshot-crop_edit-manage-project-status2.webp"/>
+            * You can find the comment box at the bottom of the page, too. Many contributors leave updates about the status of their work, like when they'd like their contributions reviewed and released, or if there are any blockers to the work's progress.
+          * The **Files changed** tab lets you review or continue your work. Click the ellipses to open up the text edit view. You can continue to make commits from this tab.
+            <img title="Your PR workspace" alt="The files changed tab lets you continue work on a doc" src="/images/style-guide_screenshot-crop_edit-files-changed.webp"/>
+        </Step>
+
+        <Step>
+          ### Wait for a docs review
+
+          The Docs team will assign the pull request to one of our tech writers when it's in review. You can track the status of your pull request from **Projects** in the right nav. Make sure to return to your pull request for any changes requested or follow-up questions from a writer.
+
+          After we've reviewed and approved your PR, you'll see a purple button that says **Merged**. At this point you'll see your changes reflected on the live docs after our scheduled releases. We have them three times a day: morning, afternoon, and evening.
+        </Step>
+      </Steps>
+
+      If you want an end-to-end demo of this process, watch our video:
+
+      <Video
+        type="wistia"
+        id="7hg3erav5p"
+      />
+    </TabsPageItem>
+
+    <TabsPageItem id="copy-repo">
+      You can also copy a version of the docs repo to your GitHub account and local machine. This gives you more flexibility in exchange for some upfront work. A typical contributor who works this way may edit in VS Code and make commits and file pull requests via GitHub Desktop.
+
+      This process has three broad phases:
+
+      1. You fork, or copy, the docs site repo to your GitHub account and local machine.
+      2. You sync your version of the docs repo with the real version of the docs repo. This is an important step. The Docs team will not receive your PRs if you do not sync your fork with our repo.
+      3. You submit a test PR to confirm you've completed these steps successfully.
+
+      If you're choosing this method, we recommend that you [install GitHub Desktop](https://desktop.github.com/). This is a GUI that handles git commands for you so you don't need to open your CLI after set-up.
+
+      <Steps>
+        <Step>
+          ### Edit the site locally
+
+          From the [docs-website repo](https://github.com/newrelic/docs-website), click the **Fork** button. GitHub will prompt you to choose an owner, repo name, and description.
+
+          <SideBySide>
+            <Side>
+              <img
+                title="Fork the docs repo"
+                alt="Click the fork button"
+                src="/images/style-guide_screenshot-crop_edit-fork-repo.webp"
+              />
+            </Side>
+
+            <Side>
+              <img
+                title="Fork the docs repo"
+                alt="Click the fork button"
+                src="/images/style-guide_screenshot-crop_edit-fork-modal.webp"
+              />
+            </Side>
+          </SideBySide>
+        </Step>
+
+        <Step>
+          ### Clone your copy to your local machine
+
+          From your GitHub account profile, find your newly copied `docs-website` repo.  Click the **Code** button and copy the HTTPS URL. Open your CLI.
+
+          <img
+            title="Fork the docs repo"
+            alt="Click the fork button"
+            src="/images/style-guide_screenshot-crop_edit-clone-fork.webp"
+          />
+
+          You need to choose where you want the docs site to live.
+
+          * If you want your copy to live in your Documents folder, for example, then you'd run this command to ensure that your copied repo goes to your Documents folder: `cd <YOUR_PATH_TO_FOLDER>`.
+          * Using the HTTPS URL you copied from the previous step, run this command: `git clone <YOUR_PASTE_OF_HTTPS_URL>`
+        </Step>
+
+        <Step>
+          ### Connect your copy with the original docs repo
+
+          If you tried to create a PR at this stage, you'd only be changing your version of the docs site — the Docs team wouldn't receive your PR. The following steps establish a connection between your fork and the original docs repo, a process called syncing upstream.
+
+          1. Go to the [docs-website repo](https://github.com/newrelic/docs-website) and click the **Code** button. Copy the HTTPS URL just as you did in the previous step. Unlike the last step, however, you're copying the HTTPS URL of the docs repo, **not** your fork.
+          2. From your CLI, change directory to the location of your cloned fork. For example, if you copied to your Documents folder, the command would read: `cd <YOUR_PATH_TO_DOCUMENTS_FOLDER>/docs-website`
+          3. Run `git remote -v`
+          4. Run `git remote add upstream <HTTPS_URL_HERE>`
+          5. Run `git remote -v` to confirm you successfully added the upstream repo. You should see something like this, which is a different print from what you saw in step 3:
+
+             ```git
+               git remote -v
+               origin    https://github.com/YOUR_USERNAME/YOUR_FORK.git (fetch)
+               origin    https://github.com/YOUR_USERNAME/YOUR_FORK.git (push)
+               upstream  https://github.com/ORIGINAL_OWNER/ORIGINAL_REPOSITORY.git (fetch)
+               upstream  https://github.com/ORIGINAL_OWNER/ORIGINAL_REPOSITORY.git (push)
+             ```
+        </Step>
+
+        <Step>
+          ### Set up GitHub Desktop to create pull requests
+
+          At this stage, we recommend you open up GitHub Desktop to edit the docs site rather than using git from your CLI. If you're a git wiz, then you can skip this step and file your first pull request.
+
+          From GitHub Desktop, go to **File**, then click **Add local repository**. Use the finder to add your clone of the docs  site. To create a test pull request:
+
+          1. Create a new branch.
+
+             <img
+               title="Create new branch from GitHub Desktop"
+               alt="Create new branch from GitHub Desktop"
+               src="/images/style-guide_screenshot-crop_edit-ghd-new-branch.webp"
+             />
+          2. Open the `docs-website` folder in VS Code or an editor of your choice. Make sure you're working on your new branch.
+          3. Make an edit to any doc and save your changes. In GitHub Desktop, you should see your changes reflected in the **Changes** tab.
+          4. In the **Summary (required)** field, describe  your changes. If you're just making a test edit, you can write: Test pull request, do not merge. Click **Commit**.
+          5. Follow the prompts in GitHub Desktop to file the pull request. GitHub will open in your browser. Make sure the `base` is set to `develop`.
+
+             <img
+               title="Make sure your base is develop"
+               alt="Make sure your base is develop"
+               src="/images/style-guide_screenshot-crop_edit-ghd-base-compare.webp"
+             />
+        </Step>
+      </Steps>
+
+      Congratulations! You're done. A good thing to keep in mind is to routinely **Fetch origin** from GitHub Desktop. This keeps your fork updated with the upstream repo.
+
+      Now that you've successfully forked the repo, you have the option to collaborate with people on their existing branches. Check out our video tutorial for what this looks like:
+
+      <Video
+        type="wistia"
+        id="poyranqlgs"
+      />
+    </TabsPageItem>
+
+    <TabsPageItem id="request">
+      You have a few different options for making a request to the team:
+
+      * If you're a New Relic employee, you can ping the @hero at our documentation help channel. Our hero is a dedicated interruptible person, who publishes doc edits and answers doc questions.
+      * You can submit a Jira request. From the right nav, click one of the buttons in the **Was this doc helpful?** element.
+      * You can file a GitHub issue from the [docs site repo](https://github.com/newrelic/docs-website). In the top-most nav under the search box, click **Issues**, then **New Issue**.
+
+      You can expect follow-up on your request based on this timeline:
+
+      <table>
+        <thead>
+          <tr>
+            <th>
+              **Type**
+            </th>
+
+            <th>
+              **SLA**
+            </th>
+
+            <th>
+              **Notes**
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              **Small self-service edits**
+            </td>
+
+            <td>
+              1 business day
+            </td>
+
+            <td>
+              A "smaller" edit is any edit that is a few sentences or less. The majority of self-service edits fall into this bucket.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              **Larger self-service edits**
+            </td>
+
+            <td>
+              3 business days
+            </td>
+
+            <td>
+              A larger edit is any edit that is a few sentences or more, or any edit that involves an all-new doc. When you submit a "larger" edit, the Docs Hero will create a docs Jira on your behalf, notify you with a link, and place that ticket at the top of our Jira board.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              **Requests for Docs team to update docs**
+            </td>
+
+            <td>
+              2+ weeks lead time for Tech Docs team
+            </td>
+
+            <td>
+              Our team works in one-week sprints. Time-sensitive requests should be made at least two weeks in advance for "ordinary" features (roughly, MMF-sized features), and at least six weeks in advance for "larger" features (roughly, milestone-sized projects).
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      A good request includes a link to the doc(s) in question and a brief explanation about the nature of the problem. For example, letting us know if install procedures are out of date or unclear.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## Create a new doc [#create]
+
+To create a new doc:
+
+1. Clone the repo on your computer.
+2. In `/src/content/docs/`, find a good location for your doc.
+3. Create a new .mdx file or copy an existing doc in your text editor.
+4. Write your content.
+5. Optional: Add your doc to the right nav .yml file. The navigation files can be a bit hard to work with, so feel free to leave this step for a Docs writer to handle when they review your pull request.
+6. Commit your changes and create a pull request.
+
+The Docs team has a hero waiting for new pull requests. We'll help you get the content finalized and make sure that it's in the right place.
+
+## Structure your docs with MDX components [#structure-mdx]
+
+As a contributor, any draft content you provide is more than appreciated—whether it's a skeleton draft of bullet points or the next great American novel. Still, the Docs team is always willing to structure, add images, update the nav, or provide copy edits per our style guide. You still might find these docs helpful, though:
+
+* Check out our [Basic template](/docs/style-guide/writing-docs/article-templates/basic-doc-template) doc. We have other doc types and templates in this category as well.
+* If you're unsure about capitalization, you can refer to our [Capitalization guide for products and features](/docs/style-guide/capitalization/product-capability-feature-usage). We don't expect perfection here! We can correct anything you send our way.
+* We have [a bunch of components](/docs/style-guide/structure/intro-to-components) that can structure a doc. Our contributors use collapsers and tables the most.
+* You can [add images](/docs/style-guide/images/embed-images) as well. We're more than happy to add images for you, however.
+
+## Troubleshoot build errors [#troubleshoot]
+
+As a rule, the Docs team will always troubleshoot a failing pull request for you. When you submit a PR, it'll be assigned to a tech writer who oversees its progress from draft state to its release, including routine checks for any errors. That said, we have some best practices for common, simple errors:
+
+* Doublecheck your Markdown, especially on tables or our components.
+* Check your backticks, `“`s (curled) and `"`s (uncurled).
+* Try closing and re-opening a PR. If this doesn't work, then leave a comment in the PR or, if you're a New Relic employee, ping the @hero.
+
+<Callout variant="tip">
+  More often than not, images are the likely cause to errors. If you've checked everything and the PR is still failing, chances are it's related to images. We'll step in and fix the PR for you.
+</Callout>

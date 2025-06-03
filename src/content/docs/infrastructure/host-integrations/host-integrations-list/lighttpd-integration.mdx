@@ -1,0 +1,197 @@
+---
+title: Lighttpd integration
+tags:
+   - Lighttpd  integration
+   - New Relic integrations
+metaDescription: Install our Lighttpd dashboards and see your Lighttpd  data in New Relic.
+freshnessValidatedDate: never
+---
+
+With our Lighttpd dashboard, your team can monitor outcome measures and inventory data. Lighttpd monitoring provides important information to help you construct a complete picture of your web server's performance. This performance data includes uptime, network in bytes and packets, number of connections, and more. Metric data can be seen on our pre-built dashboards, and you can also create your own custom searches, graphs, and alert policies. Our Lighttpd integration uses a NRI-Flex setup.
+
+<img
+  title="Lighttpd dashboard"
+  alt="Lighttpd dashboard"
+  src="/images/infrastructure_screenshot-full_Lighttptd-dashboard.webp"
+/>
+
+<figcaption>
+  After setting up the integration with New Relic, see your data in dashboards like these, right out of the box.
+</figcaption>
+
+## Install the infrastructure agent [#install]
+
+To get data into New Relic, install our infrastructure agent. Our infrastructure agent collects and ingests data so you can keep track of your app's performance. The version should be 1.10.7 or later to support NRI-Flex integration.
+
+You can install the infrastructure agent two different ways:
+
+* Our [guided install](https://one.newrelic.com/nr1-core?state=4f81feab-35f7-e97e-9903-52510f8542bd) is a CLI tool that inspects your system and installs the infrastructure agent alongside the application monitoring agent that best works for your system. To learn more about how our guided install works, check out our [Guided install overview](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview).
+* If you'd rather install our infrastructure agent manually, you can follow a tutorial for manual installation for [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/), or [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/).
+
+## Integrate Lighttpd with New Relic [#integrate]
+
+Once installed, the infrastructure agent can ingest data from your app and send it to New Relic, but you still need to integrate— or establish a line of communication—between the agent and your app. Once integrated, you can get started with an out of the box monitoring solution for your Lighttpd app.
+
+<Steps>
+  <Step>
+    ### Manually configure the `lighttpd.conf` file
+
+    To export metrics on the url `http://INSERT_DOMAIN:INSERT_PORT/server-status?json`, use the following steps:
+
+    1. Go to lighttpd config file path.
+
+       ```shell
+       cd /etc/lighttpd/
+       ```
+
+    2. Open `lighttpd.conf` file to edit.
+
+       ```shell
+       sudo nano lighttpd.conf
+       ```
+
+    3. Add `mod_status` inside `server.modules` object.
+
+    4. Add `status.status-url = /server-status` after `server.modules`.
+
+    5. Update `server.document-root` with the lighttpd file path `/var/www/html/lighttpd-webpage`
+
+    6. Update `server.port` on which you're running lighttpd.
+
+       ```
+       server.port = 9880.
+       ```
+
+    7. Open `http://INSERT_DOMAIN:INSERT_PORT/server-status?json` on the browser to check server related metrics.
+
+       Here is a sample configuration file:
+
+       ```
+       server.modules = (
+           "mod_indexfile",
+           "mod_access”,
+           "mod_alias",
+           "mod_redirect”,
+           "mod_status"
+       )
+
+       server.document-root	= "/var/www/html/lighttpd-webpage"
+       server.upload-dirs	  = ( "/var/cache/lighttpd/uploads" )
+       server.errorlog		    = "/var/log/lighttpd/error.log"
+       server.pid-file		    = "/run/lighttpd.pid"
+       server.username		    = "www-data"
+       server.groupname	    = "www-data"
+       server.port		        = 9880
+       status.status-url	    = "/server-status”
+       ```
+  </Step>
+
+  <Step>
+    ## NRI-Flex configuration [#nri-flex-config]
+
+    Once you've installed the infrastructure agent on your host, `nri-flex` binary is also installed with it.
+
+    If the infrastructure agent was not installed, follow the [installation steps](https://github.com/newrelic/nri-flex/blob/master/docs/basic-tutorial.md) of `nri-flex` from [nri-flex repository](https://github.com/newrelic/nri-flex).
+
+    To create a flex configuration file follow these steps:
+
+    1. Create a file named `lighttpd-http-config.yml` in this path:
+
+       ```shell
+       /etc/newrelic-infra/integrations.d
+       ```
+
+    2. Update the file `lighttpd-http-config.yml` with these configurations:
+
+       * `EVENT_TYPE`: You can consider `EVENT_TYPE` as a New Relic database table that you can query using NRQL (for example, `LighttpdStatusSample`).
+       * `URL`: This contains the json-formatted metrics (for example, `http://127.0.0.1:9880/server-status?json`).
+
+       Here is a sample configuration file:
+
+       ```yml
+       ---
+       integrations:
+         - name: nri-flex
+           # interval: 30s
+           config:
+             name: lighttpdFlex
+             apis:
+               - event_type: INSERT_EVENT_TYPE
+                 url: INSERT_URL  
+       ```
+  </Step>
+
+  <Step>
+    ### Forward Lighttpd logs to New Relic
+
+    You can use our [log forwarding](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) to forward Lighttpd logs to New Relic.
+
+    On Linux machines, your log file named `logging.yml` should be present in the path below. If you don't see your log file, then you will need to create it by following the above log forwarding documentation.
+
+    ```shell
+    /etc/newrelic-infra/logging.d/
+    ```
+
+    Once the log file is created, add the following script to the `logging.yml` file:
+
+    ```yml
+      - name: error.log
+        file: /var/log/lighttpd/error.log
+        attributes:
+          logtype: lighttpd_log
+    ```
+  </Step>
+
+  <Step>
+    ### Restart the New Relic infrastructure agent and lighttpd service
+
+    Before you can start reading your data, use the instructions in our [infrastructure agent docs](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) to restart your infrastructure agent.
+
+    ```shell
+    sudo systemctl restart lighttpd.service && sudo systemctl restart newrelic-infra.service
+    ```
+  </Step>
+
+  <Step>
+    ### Monitor your application [#monitor-app]
+
+    You can choose our pre-built dashboard template named `Lighttpd` to monitor your Lighttpd server metrics. Follow these steps to use our pre-built dashboard template:
+
+    1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/)**</DNT> and click on <DNT>**+ Integrations & Agents**</DNT>.
+    2. Click on the <DNT>**Dashboards**</DNT> tab.
+    3. In the search box, type `lighttpd`.
+    4. When you see our pre-build dashboard, click on it to install it in your account.
+
+    Once your application is integrated by following the above steps, the dashboard should display metrics.
+
+    To instrument the Lighttpd quickstart and to see metrics and alerts, you can also follow our [Lighttpd quickstart page](https://newrelic.com/instant-observability/lighttpd) that has an <DNT>**Install now**</DNT> button.
+
+    Here are some example queries:
+
+    <DNT>**Example:**</DNT> View the captured metrics on the New Relic query builder.
+
+    ```sql
+    SELECT * FROM LighttpdStatusSample  LIMIT MAX
+    ```
+
+    <DNT>**Example:**</DNT> Check the active connection per server.
+
+    ```sql
+    SELECT latest(BusyServers) FROM LighttpdStatusSample TIMESERIES AUTO
+    ```
+  </Step>
+</Steps>
+
+## See Lighttpd metrics in a dashboard [#dashboard]
+
+With only the infrastructure agent installed and instrumented with your app, you can view your raw data in our Metrics & events. Our default <InlinePopover type="dashboards"/> transform that raw data into charts and graphs, which provide a bird's eye view of your system's health.
+
+To instrument the Lighttpd quickstart, install our default dashboards, and to see metrics and alerts, you can also follow our [Lighttpd quickstart page](https://newrelic.com/instant-observability/lighttpd) by clicking on the <DNT>**Install now**</DNT> button.
+
+## What's next? [#whats-next]
+
+To learn more about building NRQL queries and generating dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to create basic and advanced queries.
+* [Introduction to dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) to customize your dashboard and carry out different actions.
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard) to adjust your <InlinePopover type="dashboards"/> display mode, or to add more content to your dashboard.

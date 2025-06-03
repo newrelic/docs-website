@@ -1,0 +1,66 @@
+---
+title: save (SPA API)
+type: apiDoc
+shortDescription: Ensures a SPA browser interaction will be saved when it ends.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser monitoring to ensures an interaction will be saved when it ends.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicinteractionsave
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/browser-spa-api-newrelicinteractionsave
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/newrelicinteractionsave-browser-spa-agent-api
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/spa-save
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/save-browser-spa-api
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```js
+newrelic.interaction().save()
+```
+
+Ensures a SPA browser interaction will be saved when it ends.
+
+## Requirements
+
+* Browser Pro+SPA agent (v963 or higher)
+* If you're using npm to install the browser agent, you must enable the `spa` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description
+
+This SPA method ensures a browser interaction will be saved when it ends. Normally an interaction is only saved and sent to New Relic if it is an initial page load or if it results in a URL or hash change. You must call this method to override this behavior and guarantee the interaction will be recorded.
+
+## Return values
+
+This method returns the same API object created by `interaction()`, which is associated with a [`BrowserInteraction` event](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browserinteraction-attributes).
+
+## Examples
+
+```js
+window.addEventListener('scroll', () => {
+  if (atBottomOfPage()) {
+    newrelic.interaction() // Start monitoring this interaction.
+      .setName('loadNextPage') // Set name of interaction.
+      .save(); // Ensure that this interaction will be saved as a BrowserInteraction event when it ends.
+    loadNextPage(); // Start loading the next page.
+  }
+});
+```

@@ -1,0 +1,225 @@
+---
+title: Understanding required .NET agent environment variables
+tags:
+  - Agents
+  - NET agent
+  - Other installation
+redirects:
+freshnessValidatedDate: never
+---
+
+Our .NET agent is a .NET CLR profiler and relies on your app's environment variables to connect your .NET app with New Relic. To learn more about which environment variables the .NET agent uses, see the sections below.
+
+## Terms overview [#terms-overview]
+
+Here are some tips for understanding terms used on this page:
+
+* ".NET Core" refers to .NET versions (and applications built with and for .NET versions) 5.0 and higher (just ".NET") as well as .NET Core 2.0 through 3.1.
+* "Profiler" refers to the component of the agent that implements the .NET profiling API. When things are configured correctly, the CLR attaches the profiler to your .NET application. The profiler then loads the rest of the agent into the application.
+
+## How environment variables are used by the .NET agent [#env-variables]
+
+Our .NET agent is a [.NET CLR profiler](https://learn.microsoft.com/en-us/dotnet/framework/unmanaged-api/profiling/profiling-overview) and implements a subset of the .NET profiling API.
+[Certain environment variables](https://learn.microsoft.com/en-us/dotnet/framework/unmanaged-api/profiling/setting-up-a-profiling-environment) must be present in the environment of a .NET process to tell the .NET runtime that the process should be profiled, and by what profiler.
+Additional environment variables are used by the .NET agent itself to let it know where and how it's installed.
+
+To use the .NET agent, we require environment variables for:
+
+* [Enabling profiling and identifying the correct profiler](#enable)
+* [Telling the profiler where the rest of the agent is](#agent)
+
+### Variables to enable profiling and identify the correct profiler [#enable]
+
+There is a set of three environment variables used to tell the .NET runtime whether or not to enable profiling, and which profiler to use: `COR_ENABLE_PROFILING`, `COR_PROFILER`, and `COR_PROFILER_PATH`. The names of these variables and the correct value for each depends on whether your application is built for .NET Framework or .NET Core.
+
+#### For .NET Framework applications:
+
+`COR_ENABLE_PROFILING` tells the runtime whether or not to enable profiling for an application. Set to 1 to enable profiling, set to 0 to disable it.
+
+`COR_PROFILER` tells the runtime which profiler to use. The value is a GUID unique to a given profiler. For New Relic's profiler for .NET Framework, the correct value is `{71DA0A04-7777-4EC6-9643-7D28B46A8A41}`.
+
+`COR_PROFILER_PATH` tells the runtime where to find the profiler on the system, and depends on the install type and platform. Note that this may not be required if the agent was installed with the MSI installer, which registers the profiler DLL with the system based on the GUID set in `COR_PROFILER`. However, it's safe to have it set anyway as long as the value is set to the correct path.
+
+Typical values:
+
+```ini
+COR_ENABLE_PROFILING=1
+COR_PROFILER={71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+COR_PROFILER_PATH="C:\Program Files\New Relic\.NET Agent\netframework\NewRelic.Profiler.dll"
+```
+
+#### For .NET Core applications:
+
+`CORECLR_ENABLE_PROFILING` tells the runtime whether or not to enable profiling for an application. Set to 1 to enable profiling, set to 0 to disable it.
+
+`CORECLR_PROFILER` tells the runtime which profiler to use. The value is a GUID unique to a given profiler. For New Relic's profiler for .NET Core, the correct value is `{36032161-FFC0-4B61-B559-F6C5D41BAE5A}`.
+
+`CORECLR_PROFILER_PATH` tells the runtime where to find the profiler on the system.
+
+Typical values:
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="C:\Program Files\New Relic\.NET Agent\netcore\NewRelic.Profiler.dll"
+```
+
+Note: The behavior of .NET agent profiler differs slightly between the .NET Framework and .NET Core. For .NET Framework, even when profiling is enabled in the environment of a .NET Framework process, it will only be instrumented by the agent if one of the following conditions are met:
+
+* The application is hosted in IIS (a) application pools are configured to be instrumented by default, or (b) the application pool hosting the application is configured to be instrumented explicitly.
+* The application is explicitly configured to be instrumented in the system-wide `newrelic.config` file
+* `AgentEnabled="true"` is set in an app-local `newrelic.config` file
+
+However, for the .NET agent, any process where `CORECLR_ENABLE_PROFILING` is set to 1 in its environment will be instrumented by the agent. Therefore, we don't recommend setting this environment variable to `1` system wide, as it may result in excess system resource consumption and/or more data being sent to New Relic than expected. Instead, only set this variable to `1` in the environment of the processes you want instrumented.
+
+### Variables to tell the profiler where the rest of the .NET agent is [#agent]
+
+Now that the .NET runtime knows how to find the profiler and attach it to your application, other environment variables are needed to find the rest of the agent assets, which include both binary (DLL) and configuration (XML) components. These variables are also used by parts of the rest of the agent.
+
+Note: Depending on your installation scenario, only some of these variables are required.
+
+#### `NEWRELIC_HOME`
+
+This variable:
+
+* is only used in the .NET Framework version of the agent
+* is used to find the agent configuration assets (`newrelic.config` and the instrumentation XML files in the `extensions` subfolder)
+* may be used to find the agent binary assets, if they are installed in the same place as the configuration assets
+
+Note: When the agent is installed with the MSI installer, this variable may not need to be set, since the MSI also sets a registry key (`HKEY_LOCAL_MACHINE\Software\New Relic\.NET Agent\NewRelicHome`) with the correct value. The environment variable takes precedence if set.
+
+#### `CORECLR_NEWRELIC_HOME`
+
+This variable is:
+
+* Only used in the .NET Core version of the agent
+* Used to find the agent configuration assets (`newrelic.config` and the instrumentation XML files in the `extensions` subfolder)
+* May be used to find the agent binary assets, if they are installed in the same place as the configuration assets
+
+Note: This variable always needs to be set for the .NET Core version of the agent.
+
+#### `NEWRELIC_INSTALL_PATH`
+
+This variable is primarily used:
+
+* When both the .NET and .NET Core versions of the agent are installed side-by-side on the system
+* When the binary components of the agent are installed in a different location on the system than the configuration assets
+* When the agent is installed with the MSI installer on Windows (which does both of the above)
+
+This variable is set to a directory/folder and is used by the profiler to find the agent `Core.dll`. If the path specified in this variable contains the `NewRelic.Agent.Core.dll` file, it's used. If the `Core.dll` isn't found, the profiler appends either `netframework` or `netcore` to the path specified, and searches for the `Core.dll` in that location. If the `Core.dll` is still not found, the profiler falls back to searching in either `NEWRELIC_HOME` (.NET Framework) or `CORECLR_NEWRELIC_HOME` (.NET Core).
+
+This variable is also used by the agent to load the instrumentation extension binaries from the `extensions` subfolder. The agent always appends either `netframework` or `netcore` to the value of this variable when it's set. If it isn't set, the agent falls back to searching in `NEWRELIC_HOME\extensions` (.NET Framework) or `CORECLR_NEWRELIC_HOME\extensions` (.NET Core).
+
+### Values for typical installation scenarios
+
+#### MSI installer (Windows)
+
+The MSI is easy to use because it does almost everything for you automatically, but what it's doing behind the scenes is complicated.
+The MSI installer puts different parts of the agent in different places on the system. By default, it puts the binary agent assets in `C:\Program Files\New Relic\.NET Agent` and it puts the configuration assets in `C:\ProgramData\New Relic\.NET Agent`. This is to support scenarios where non-privileged users can access/edit files in `ProgramData` but not in `Program Files`.
+The MSI installer installs both framework and Core versions of the agent side-by-side. The MSI installer also sets a number of registry keys which make explicitly setting some of the required environment variables unneccessary, as explained above.
+
+Assuming you don't specifiy a custom installation path when using the MSI installer, these are the correct environment variable values:
+
+##### For .NET Framework applications:
+
+```ini
+COR_ENABLE_PROFILING=1
+COR_PROFILER={71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+COR_PROFILER_PATH="C:\Program Files\New Relic\.NET Agent\netframework\NewRelic.Profiler.dll" # may not be necessary due to profiler being registered with the system
+NEWRELIC_INSTALL_PATH="C:\Program Files\New Relic\.NET Agent"
+NEWRELIC_HOME="C:\ProgramData\New Relic\.NET Agent" # may not be necessary due to registry key being set
+```
+
+##### For .NET Core applications:
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="C:\Program Files\New Relic\.NET Agent\netcore\NewRelic.Profiler.dll"
+NEWRELIC_INSTALL_PATH="C:\Program Files\New Relic\.NET Agent"
+CORECLR_NEWRELIC_HOME="C:\ProgramData\New Relic\.NET Agent"
+```
+
+#### ZIP Archive (Windows)
+
+The ZIP archive of the agent for Windows contains both the Framework and Core versions of the agent in side-by-side directories. Replace `CUSTOM_AGENT_PATH` with the path wherever you unzip the archive on your system.
+
+##### For .NET Framework applications:
+
+```ini
+COR_ENABLE_PROFILING=1
+COR_PROFILER={71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+COR_PROFILER_PATH="CUSTOM_AGENT_PATH\netframework\NewRelic.Profiler.dll"
+NEWRELIC_HOME="CUSTOM_AGENT_PATH\netframework"
+```
+
+##### For .NET Core applications:
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="CUSTOM_AGENT_PATH\netcore\NewRelic.Profiler.dll"
+CORECLR_NEWRELIC_HOME="CUSTOM_AGENT_PATH\netcore"
+```
+
+#### Linux Packages
+
+The Linux install package (.deb or .rpm, as appropriate for your Linux distribution) installs the .NET agent for .NET Core. By default, it installs everything in `/usr/local/newrelic-dotnet-agent`.
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="/usr/local/newrelic-dotnet-agent/libNewRelicProfiler.so"
+CORECLR_NEWRELIC_HOME="/usr/local/newrelic-dotnet-agent"
+```
+
+There is also a `.tar.gz` archive of the agent for manual installation on Linux. In that case, replace `/usr/local/newrelic-dotnet-agent` with wherever you unpack the archive on your system in the above variables.
+
+#### NewRelic.Agent NuGet Package
+
+When added to your application's project, the NewRelic.Agent NuGet package adds the agent to a `newrelic` subdirectory of your application. The correct version of the agent is added for .NET Framework or .NET Core depending on the type of your application. The profilers for both Windows and Linux are added, including both 64- and 32-bit versions of the Windows profiler and x64 and arm64 versions of the Linux profiler. Using `<YOUR_APPLICATION_PATH>` as a placeholder for whever your application is deployed on the system, these are the correct environment variable values.
+
+##### For .NET Framework applications (64-bit):
+
+```ini
+COR_ENABLE_PROFILING=1
+COR_PROFILER={71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+COR_PROFILER_PATH="<YOUR_APPLICATION_PATH>\newrelic\NewRelic.Profiler.dll"
+NEWRELIC_HOME="<YOUR_APPLICATION_PATH>\newrelic"
+```
+
+##### For .NET Framework applications (32-bit):
+
+```ini
+COR_ENABLE_PROFILING=1
+COR_PROFILER={71DA0A04-7777-4EC6-9643-7D28B46A8A41}
+COR_PROFILER_PATH="<YOUR_APPLICATION_PATH>\newrelic\x86\NewRelic.Profiler.dll"
+NEWRELIC_HOME="<YOUR_APPLICATION_PATH>\newrelic"
+```
+
+##### For .NET Core applications (Windows):
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="<YOUR_APPLICATION_PATH>\newrelic\NewRelic.Profiler.dll"
+CORECLR_NEWRELIC_HOME="<YOUR_APPLICATION_PATH>\newrelic"
+```
+
+##### For .NET Core applications (Linux, x64):
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="<YOUR_APPLICATION_PATH>/newrelic/libNewRelicProfiler.so"
+CORECLR_NEWRELIC_HOME="<YOUR_APPLICATION_PATH>/newrelic"
+```
+
+##### For .NET Core applications (Linux, arm64):
+
+```ini
+CORECLR_ENABLE_PROFILING=1
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+CORECLR_PROFILER_PATH="<YOUR_APPLICATION_PATH>/newrelic/linux-arm64/libNewRelicProfiler.so"
+CORECLR_NEWRELIC_HOME="<YOUR_APPLICATION_PATH>/newrelic"
+```

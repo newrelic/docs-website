@@ -1,0 +1,447 @@
+---
+title: 'Página de transacciones: Encuentre problemas de rendimiento específicos'
+tags:
+  - APM
+  - APM UI pages
+  - Monitoring
+metaDescription: 'APM''s Transactions page shows app, browser, or other transaction details, average response time, and throughput as requests per minute or CPU usage.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La página <DNT>**Transactions**</DNT> de APM le ayuda a identificar [transacciones](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) que pueden ser buenas candidatas para ajustar problemas de rendimiento o resolver errores. Esta página enumera la transacción de la aplicación seleccionada <DNT>**Requests**</DNT>, las veinte transacciones principales por porcentaje de [tiempo de reloj](#wall_clock_time) y [el rendimiento](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#throughput) relevante (solicitudes por minuto o <DNT>**rpm**</DNT>).
+
+Para [transacciones no web](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions) (como procesamiento de mensajes, tareas en segundo plano y otros procesos y trabajos que no manejan solicitudes web), esta página muestra gráficos de uso de CPU y memoria.
+
+## Tipos de transacción [#tx_types]
+
+<Callout variant="tip">
+  Para obtener una descripción general de alto nivel de todas sus aplicaciones y servicios, utilice nuestro [explorador de entidades](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer).
+</Callout>
+
+Dependiendo de la aplicación seleccionada, la página <DNT>**Transactions**</DNT> puede incluir un menú desplegable que puede usar para seleccionar entre los [tipos de transacción disponibles](#txn-type-dropdown). New Relic mide [el tiempo de procesamiento](/docs/apm/applications-menu/features/request-queuing-tracking-front-end-time) por tipo de solicitud ([transacción web](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#transaction) o [transacción no web](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#non-web-transaction)). Esto puede incluir:
+
+* <DNT>
+    **Web:**
+  </DNT>
+
+  Solicitudes del servidor de aplicaciones
+
+* <DNT>
+    **Non-web:**
+  </DNT>
+
+  Otras solicitudes (operaciones, tareas en segundo plano, etc.)
+
+La página <DNT>**Transactions**</DNT> también puede incluir enlaces a [la traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces) y a [la clave de transacción](/docs/apm/transactions/key-transactions/introduction-key-transactions). Los tipos de información disponibles dependerán de la aplicación seleccionada y del tipo de solicitud (web o no web).
+
+## Tiempo de reloj [#wall_clock_time]
+
+Tiempo de reloj es la cantidad de tiempo que registra el reloj. New Relic usa tiempo de reloj para todas las transacciones y luego suma ese valor en todas las transacciones.
+
+El host puede ejecutar solicitudes en paralelo, por lo que es posible que vea porcentajes superiores a 100. Por ejemplo, 100% indicaría que el tiempo de ejecución en todas las transacciones seleccionadas es igual al tiempo empleado al registrar el tiempo de reloj.
+
+## Ver transacción [#tx_viewing]
+
+Para ver información sobre las solicitudes de transacciones de su aplicación:
+
+1. Haz una de las siguientes:
+
+   * Vaya a
+
+     <DNT>
+       **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & services > (select an app) > Monitor > Transactions**
+     </DNT>
+
+     .
+
+   * Vaya a
+
+     <DNT>
+       **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > APM & Services > (select an app) > Monitor > Transactions**
+     </DNT>
+
+     .
+
+2. Si corresponde: Para cambiar qué [tipos](#tx_types) de transacciones disponibles aparecen, seleccione
+
+   <DNT>
+     **Type**
+   </DNT>
+
+   .
+
+3. Seleccione el [orden de clasificación](#sort-definitions) o mantenga el predeterminado.
+
+4. Seleccione el [tipo de vista](/docs/using-new-relic/user-interface-functions/view-your-data/select-chart-views) como gráfico (predeterminado), histograma o percentil, si está disponible.
+
+5. Para ver detalles adicionales, utilice cualquiera de las [funciones de desglose](#tx_functions) de transacciones.
+
+6. Para agregar un gráfico a un dashboard, pase el mouse sobre el gráfico y luego seleccione el enlace
+
+   <DNT>
+     **Add to a dashboard**
+   </DNT>
+
+   que aparece debajo.
+
+Si el fondo de un gráfico es de color rojo claro, esto indica un período de tiempo en el que se superó [el umbral<DNT>**Critical**</DNT> ](/docs/alerts/new-relic-alerts/defining-conditions/define-thresholds-trigger-alert)de una condición de alerta. Para ver los [detalles del incidente](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/view-event-details-incidents) en [las alertas](/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts), haga clic en el gráfico.
+
+Para obtener más información, consulte la documentación sobre [cómo administrar su panel](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/).
+
+## Usar funciones de desglose [#tx_functions]
+
+Utilice cualquiera de [las funciones de interfaz de usuario](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform) estándar de New Relic para profundizar en información detallada. La página <DNT>**Transactions**</DNT> tiene funciones de desglose adicionales.
+
+<CollapserGroup>
+  <Collapser
+    id="txn-type-dropdown"
+    title="Cambiar el tipo de transacción mostrado"
+  >
+    <img
+      title="trx-type-dropdown.png"
+      alt="Screenshot showing the dropdown that allows you to choose other transaction types."
+      src="/images/apm_screenshot-crop_dropdown.webp"
+    />
+
+    Si el menú desplegable <DNT>**Type**</DNT> aparece encima de la lista de transacciones, puede seleccionar el tipo de transacción que prefiera. Los tipos disponibles dependen de qué transacción utiliza su aplicación.
+  </Collapser>
+
+  <Collapser
+    id="sort-definitions"
+    title="Seleccione el tipo de medición de rendimiento (Ordenar)"
+  >
+    El menú desplegable <DNT>**Sort**</DNT> encima de la lista de transacciones le permite revisar las transacciones según diferentes mediciones. Esto le ayuda a identificar buenos candidatos para ajustar el rendimiento o corregir errores.
+
+    Puedes ordenar por:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            <DNT>
+              **Sort option**
+            </DNT>
+          </th>
+
+          <th>
+            <DNT>
+              **Comments**
+            </DNT>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Consume más tiempo (predeterminado)
+          </td>
+
+          <td>
+            Mayor porcentaje del tiempo total utilizado de la aplicación.
+
+            Esto mide qué transacción consumió más tiempo en total. Esto se calcula multiplicando el número de veces que se llama a la transacción por el tiempo que tardó en completarse la transacción. Una transacción puede ser corta, pero si se llama con frecuencia, aparecerá en lo más alto de este ranking.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Tiempo de respuesta promedio más lento
+          </td>
+
+          <td>
+            Transacción individual más lenta para el período de tiempo promediada.
+
+            Esto mide los tipos de transacción más lentos. Una transacción podría llamarse solo unas pocas veces, pero si es una de las transacciones que más tardan en finalizar, aparecería en lo más alto de este ranking.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Apdex más insatisfactorio
+          </td>
+
+          <td>
+            transacción con mayores porcentajes de niveles de insatisfacción de usuarios por el tiempo de respuesta de sus aplicaciones y servicios web ([Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction)).
+
+            El [nivel de insatisfacción](/docs/apm/new-relic-apm/apdex/view-your-apdex-score#apdex-dissat) es la diferencia entre una puntuación Apdex perfecta (1,0) y la puntuación `apdex_t` ("tolerante") de su aplicación, según su [configuración de Apdex](/docs/apm/new-relic-apm/apdex/change-your-apdex-settings). Las transacciones que tienen mayor (peor) porcentaje aparecen en la parte superior de este ranking.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Mayor rendimiento
+          </td>
+
+          <td>
+            Esto mide la cantidad de [rendimiento](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#throughput), solicitudes en operación por minuto o <DNT>**rpm**</DNT>. (Para el rendimiento web, las solicitudes por minuto a veces se denominan páginas por minuto o <DNT>**ppm**</DNT>). Las transacciones que tienen mayor número de solicitudes por minuto aparecen en la parte superior de este ranking.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Dependiendo del tipo de transacción que elija, pueden estar disponibles diferentes opciones de clasificación.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="tx-summary"
+    title="Pase el mouse sobre información resumida sobre una transacción"
+  >
+    <img
+      title="crop-tx-summary-details"
+      alt="crop-tx-summary-details"
+      src="/images/apm_screenshot-crop_transaction-summary.webp"
+    />
+
+    Para ver rápidamente información clave sobre la transacción, pase el mouse sobre su nombre en la lista.
+  </Collapser>
+
+  <Collapser
+    id="tx-details"
+    title="Seleccionar información detallada sobre una transacción"
+  >
+    <img
+      title="icon-detail-tabs.png"
+      alt="Transaction details tab"
+      src="/images/apm_screenshot-crop_transaction-detail-tab.webp"
+    />
+
+    Para ver información detallada, seleccione una transacción de la lista y luego seleccione <DNT>**App performance**</DNT> o <DNT>**Historical performance**</DNT>. También puedes [ver la traza de la transacción](/docs/traces/viewing-transaction-traces).
+  </Collapser>
+
+  <Collapser
+    id="chart-views"
+    title="Ver datos de transacciones en diferentes formatos visuales."
+  >
+    <img
+      title="chart_type_selectors.png"
+      alt="Screenshot showing selectors to change the chart."
+      src="/images/apm_screenshot-crop_chart-selector.webp"
+    />
+
+    El gráfico <DNT>**Top 20 transactions**</DNT> de la página <DNT>**Transaction**</DNT> y la ventana <DNT>**App performance**</DNT> de una transacción seleccionada incluyen opciones para ver los datos como:
+
+    * [Cuadro](/docs/using-new-relic/user-interface-functions/view-your-data/select-chart-views)
+
+    * [Histograma](/docs/using-new-relic/user-interface-functions/view-your-data/histograms-view-data-distribution)
+
+    * [Percentil](/docs/using-new-relic/user-interface-functions/view-your-data/percentiles-compare-ranked-data)
+
+      Además, desde la tabla <DNT>**Breakdown**</DNT> para una transacción seleccionada, puede seleccionar el enlace para mostrar u ocultar todos los segmentos de los datos desglosados.
+  </Collapser>
+
+  <Collapser
+    id="browser-data"
+    title="Mostrar los datos de solicitud browser correspondientes"
+  >
+    Para poder ver la información del navegador, debe [instalar el agente del navegador](/docs/new-relic-browser/browser-settings). Luego, para ver los datos [de solicitud del navegador](/docs/browser/new-relic-browser/additional-standard-features/page-views-understanding-your-sites-popularity) correspondientes, utilice cualquiera de estas opciones:
+
+    * Seleccione el enlace
+
+      <DNT>
+        **Browser drill-down**
+      </DNT>
+
+      si está disponible.
+
+    * Vaya a
+
+      <DNT>
+        **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Page views**
+      </DNT>
+
+      .
+  </Collapser>
+
+  <Collapser
+    id="breakdown-table"
+    title="Identificar segmentos de transacciones con alto número de llamadas o tiempos"
+  >
+    <img
+      title="APM-transaction-high-time-colorization.png"
+      alt="Transaction segment with high call time count colorization"
+      src="/images/apm_screenshot-crop_apm-high-transaction.webp"
+    />
+
+    En el <DNT>**Breakdown table**</DNT> de una transacción, la columna <DNT>**Avg calls (per txn)**</DNT> puede incluir valores de segmento coloreados. Estos indican segmentos instrumentados que han superado el umbral.
+
+    * <Icon
+        style={{color: 'yellow'}}
+        name="fe-square"
+      />
+
+      Amarillo: el tiempo del segmento es más del 10% del tiempo total de transacción y el recuento de llamadas es superior a 10.
+
+    * <Icon
+        style={{color: 'red'}}
+        name="fe-square"
+      />
+
+      Rojo: el tiempo del segmento es más del 10% del tiempo total de transacción y el recuento de llamadas es superior a 20.
+  </Collapser>
+</CollapserGroup>
+
+## Funciones adicionales [#more_tx_functions]
+
+A continuación se muestran algunas funciones adicionales para la transacción seleccionada de la página <DNT>**Transactions**</DNT> .
+
+<table>
+  <thead>
+    <tr>
+      <th width={250}>
+        <DNT>
+          **If you want to...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Ver transacciones para operaciones y otras tareas en segundo plano.
+      </td>
+
+      <td>
+        Cambie <DNT>**Type**</DNT> a <DNT>**Other transactions**</DNT> (o un tipo específico enumerado), luego seleccione una transacción específica.
+
+        La página <DNT>**Transactions**</DNT> muestra las cinco transacciones principales para esta selección por [tiempo de reloj](#wall_clock_time), uso de CPU y uso de memoria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Realice un seguimiento de una transacción que sea importante para su negocio
+      </td>
+
+      <td>
+        Seleccione el nombre de la transacción y luego seleccione [<DNT>**Track as key transaction**</DNT>](/docs/apm/transactions/key-transactions/introduction-key-transactions).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver detalles de la traza de la transacción
+      </td>
+
+      <td>
+        Una [traza de la transacción](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#transaction-trace) es una imagen completa de una sola transacción.
+
+        1. Desde la página
+
+           <DNT>
+             **Transactions**
+           </DNT>
+
+           , seleccione la [traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces).
+
+        2. [Seleccione la vista](/docs/apm/transactions/transaction-traces/introduction-transaction-traces#find-view) para
+
+           <DNT>
+             **Summary**
+           </DNT>
+
+           ,
+
+           <DNT>
+             **Trace details**
+           </DNT>
+
+           o
+
+           <DNT>
+             **Database queries**
+           </DNT>
+
+           , si está disponible.
+
+        3. Para expandir la traza de la transacción a la vista de pantalla completa, seleccione la pantalla completa
+
+           <Icon
+             style={{color: '#4392AA'}}
+             name="fe-maximize-2"
+           />
+
+           icono.
+
+        4. Para regresar a la página
+
+           <DNT>
+             **Transactions**
+           </DNT>
+
+           : Al lado del nombre de la traza de la transacción, seleccione la flecha hacia atrás.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Examinar el registro para obtener detalles de la traza.
+      </td>
+
+      <td>
+        Si está utilizando nuestra característica [de inicio de sesión en contexto](/docs/logs/logs-context/configure-logs-context-apm-agents/) , podrá ver cualquier registro que esté vinculado a su traza.
+
+        1. Desde la página
+
+           <DNT>
+             **Transactions**
+           </DNT>
+
+           , haga clic en una traza para ir a la página de detalles de la traza.
+
+        2. Desde la página de detalles de la traza, haga clic en
+
+           <DNT>
+             **See logs**
+           </DNT>
+
+           .
+
+        3. Para ver detalles relacionados con un mensaje de registro individual, haga clic directamente en el mensaje.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregar o ver segmentos de transacciones
+      </td>
+
+      <td>
+        * Para agregar segmentos a una transacción, utilice [instrumentación personalizada](/docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation/).
+        * Para ver los segmentos de una transacción específica, utilice [la traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver los informes
+      </td>
+
+      <td>
+        También puede utilizar el [informe de análisis de transacciones web](/docs/apm/reports/other-performance-analysis/web-transactions-analysis-report) para transacción web y el [informe de análisis de trabajos en segundo plano](/docs/apm/reports/other-performance-analysis/background-jobs-analysis-report) para transacción no web para comparar la cantidad de tiempo dedicado al rendimiento, el tiempo total en la transacción, el tiempo promedio para ejecutarla y la puntuación de Apdex, según corresponda.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Eliminar toda la traza de la transacción
+      </td>
+
+      <td>
+        <Callout variant="caution">
+          Si selecciona [<DNT>**Delete all traces**</DNT>](/docs/traces/deleting-transaction-traces), no podrá recuperarlos.
+        </Callout>
+      </td>
+    </tr>
+  </tbody>
+</table>

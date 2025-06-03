@@ -1,0 +1,112 @@
+---
+title: Fallas de segmentación
+type: troubleshooting
+tags:
+  - Agents
+  - PHP agent
+  - Troubleshooting
+metaDescription: Learn what to do if your site seg faults with the New Relic PHP agent
+freshnessValidatedDate: '2024-08-27T00:00:00.000Z'
+translationType: machine
+---
+
+## Problema [#problem]
+
+Su sitio genera errores de segmentación cuando el agente PHP de New Relic (versiones 10.18.0.8 o superiores) está habilitado en PHP 8.0+.
+
+### Descripción [#description]
+
+La API Observer de PHP actualmente tiene algunos errores que pueden provocar fallas de segmentación. El agente PHP New Relic emplea OAPI para instrumentar su aplicación en PHP 8.0+ desde la versión 10.18 del agente. Estas fallas de segmentación solo ocurren cuando el agente está habilitado. Esto se debe a que las rutas de código OAPI de PHP solo se ejecutan si hay un observador conectado y, con toda probabilidad, el agente PHP de New Relic es lo único en su entorno que se conecta a OAPI.
+
+### Traza [#trace]
+
+En estas situaciones, el rastreo de la stack parece ser relativamente consistente. Lo que vemos es, como siempre, el controlador de señal fatal `nr` en la parte superior. Todo lo que hay en la stack por encima de `nr_php_fatal_signal_handler` siempre estará presente ante una falla de segmentación cuando se instala el agente PHP, ya que detectamos la falla con fines de logging. Luego, vemos que el controlador de señales fue llamado durante `zend_observer_fcall_end_all`. Esto sucede cuando PHP accede a una memoria no válida al intentar llamar a todos los observadores registrados. Cada vez que vemos `zend_observer_*` en el rastreo del stack sin ningún código New Relic antes del controlador de señales, deberían surgir algunas preguntas sobre si PHP es el problema.
+
+```
+0 nr_php_backtrace_get_call_site () at php_stack.c:220
+
+1 nr_php_frame_info () at php_stack.c:267
+
+2 nr_php_backtrace_fd () at php_stack.c:462
+
+3 0x00007fa6d6df026c in nr_php_fatal_signal_handler () at php_minit.c:740
+
+&lt;signal handler called&gt;
+
+5 0x00007fa6db184c63 in zend_observer_fcall_end_all () from libphp8.2.so
+
+6 0x00007fa6db081abd in php_request_shutdown () from libphp8.2.so
+```
+
+## `zend_test` [#zend-test-observer]
+
+Puedes probar si el problema es PHP o el agente. PHP tiene una extensión incorporada llamada `zend_test` que tiene un observador de pruebas. Al habilitar esto (mientras se deshabilita el agente), se permite que las rutas de código OAPI sean ejecutadas por algo que no sea nuestro agente. Estos son los pasos para probarlo:
+
+* Deshabilite completamente el agente configurando `newrelic.enabled=0`. Pruebe aquí para cerciorar de que esté realmente deshabilitado.
+* Habilitar la extensión PHP `zend_test`. Esto se puede hacer modificando su Dockerfile como se muestra a continuación.
+* Establezca los ajustes `ini` `zend_test.observer.enabled=1` y `zend_test.observer.observe_all=1`. Esto debería habilitar la API de observador de PHP.
+* Vea si el problema se puede reproducir en estas circunstancias.
+
+A continuación se muestra un ejemplo para Debian que emplea una imagen docker PHP:
+
+```
+FROM php:8.0
+
+RUN apt update && apt install -y libxml2-dev && \
+    EXTRA_CFLAGS="$(xml2-config --cflags) -I/usr/src/php" docker-php-ext-install zend_test
+
+RUN echo "zend_test.observer.enabled=1" >> $(php-config --ini-dir)/docker-php-ext-zend_test.ini
+RUN echo "zend_test.observer.observe_all=1" >> $(php-config --ini-dir)/docker-php-ext-zend_test.ini
+```
+
+A continuación se muestra un ejemplo que emplea una imagen docker PHP de Alpine:
+
+```
+FROM php:8.0-alpine
+
+RUN apk add --no-cache libxml2-dev && \
+    EXTRA_CFLAGS="$(xml2-config --cflags) -I/usr/src/php" docker-php-ext-install zend_test
+
+RUN echo "zend_test.observer.enabled=1" >> $(php-config --ini-dir)/docker-php-ext-zend_test.ini
+RUN echo "zend_test.observer.observe_all=1" >> $(php-config --ini-dir)/docker-php-ext-zend_test.ini
+```
+
+A continuación se muestra un ejemplo de la salida `phpinfo()` si la extensión está instalada y habilitada como se indica anteriormente:
+
+```
+zend_test
+
+zend_test extension => enabled
+
+Directive => Local Value => Master Value
+zend_test.limit_copy_file_range => -1 => -1
+zend_test.not_empty_str_test => val => val
+zend_test.observe_opline_in_zendmm => Off => Off
+zend_test.observer.enabled => On => On
+zend_test.observer.execute_internal => Off => Off
+zend_test.observer.fiber_destroy => Off => Off
+zend_test.observer.fiber_init => Off => Off
+zend_test.observer.fiber_switch => Off => Off
+zend_test.observer.observe_all => On => On
+zend_test.observer.observe_declaring => Off => Off
+zend_test.observer.observe_function_names => no value => no value
+zend_test.observer.observe_functions => Off => Off
+zend_test.observer.observe_includes => Off => Off
+zend_test.observer.show_init_backtrace => Off => Off
+zend_test.observer.show_opcode => Off => Off
+zend_test.observer.show_opcode_in_user_handler => no value => no value
+zend_test.observer.show_output => On => On
+zend_test.observer.show_return_type => Off => Off
+zend_test.observer.show_return_value => Off => Off
+zend_test.print_stderr_mshutdown => Off => Off
+zend_test.quantity_value => 0 => 0
+zend_test.register_passes => Off => Off
+zend_test.replace_zend_execute_ex => Off => Off
+zend_test.str_test => no value => no value
+```
+
+## Reproducción conocida y seguimiento de la solución [#known-issues]
+
+Consulte esta [página php-src](https://github.com/php/php-src/issues?q=is%3Aissue+segfault+observer) que muestra problemas relacionados con OAPI y fallas de segmentación.
+
+Recomendamos actualizar a la versión más reciente de PHP para recibir las correcciones pertinentes a medida que se publiquen.

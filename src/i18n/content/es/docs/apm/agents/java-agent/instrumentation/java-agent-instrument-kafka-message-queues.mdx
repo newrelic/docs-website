@@ -1,0 +1,282 @@
+---
+title: 'Agente de Java: instrumento Kafka cola de mensajes'
+tags:
+  - Agents
+  - Java agent
+  - Instrumentation
+metaDescription: 'New Relic for Java includes built-in Kafka monitoring, as well as advanced event and distributed tracing data collection.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente de Java New Relic recopila automáticamente datos de la biblioteca de clientes Java de [Kafka](https://kafka.apache.org/documentation/). Debido a que Kafka es un sistema de mensajería de alto rendimiento que genera una gran cantidad de datos, puede personalizar el agente para el rendimiento y los casos de uso específicos de su aplicación.
+
+Este documento explica cómo recopilar y ver tres tipos de datos de Kafka:
+
+* [Kafka métrica](#view-kafka-metrics)
+* [Evento kafka](#collect-kafka-events)
+* [Habilitar la transacción de Kafka Streams](#collect-kafka-streams-transactions)
+* [Kafka rastreo distribuido](#collect-kafka-distributed-traces)
+
+<Callout variant="tip">
+  También tenemos una integración de Kafka. Para obtener detalles al respecto, consulte [Integración de monitoreo de Kafka](/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration).
+</Callout>
+
+## Requisitos [#requirements]
+
+La instrumentación de los clientes Kafka está disponible en las versiones 4.12.0 o superiores del agente de Java. La instrumentación de Kafka Streams está disponible en las versiones 8.1.0 del agente de Java. o mas alto. Para ver todas las bibliotecas de Kafka compatibles, consulte la [página de requisitos y compatibilidad de Java](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent). Tenga en cuenta que Kafka Streams se ejecuta sobre los clientes de Kafka, por lo que toda la instrumentación que se aplica a los clientes de Kafka también se aplica a Streams.
+
+## Ver Kafka métrica
+
+Después de [la instalación](/docs/agents/java-agent/installation/install-java-agent), el agente informa automáticamente Kafka métrica enriquecido con información sobre tasas de mensajería, latencia, retraso y más. El agente de Java recopila todas [las métricas de consumidores y productores de Kafka](https://kafka.apache.org/documentation/#monitoring) (pero no conecta ni transmite métricas).
+
+Para ver estas métricas, crea un panel personalizado:
+
+1. Vaya al [explorador métrico de New Relic](/docs/insights/use-insights-ui/explore-data/metric-explorer-search-chart-metrics-sent-new-relic-agents).
+
+2. Utilice el explorador de métricas para localizar su métrica. Aquí te dejamos algunas carpetas donde puedes encontrar métrica:
+
+   * Kafka métrica:
+
+     ```
+     MessageBroker/Kafka/Internal/KafkaMetricName
+     ```
+
+     Por ejemplo, `request-rate` métrica:
+
+     ```
+     MessageBroker/Kafka/Internal/consumer-metrics/request-rate
+     ```
+
+   * Corrientes de Kafka:
+
+     ```
+     Kafka/Streams/KafkaStreamsMetricName
+     ```
+
+     Por ejemplo, `poll-latency-avg` métrica:
+
+     ```
+     Kafka/Streams/stream-thread-metrics/poll-latency-avg
+     ```
+
+   * Conexión Kafka:
+
+     ```
+     Kafka/Connect/KafkaConnectMetricName
+     ```
+
+     Por ejemplo, `connector-count` métrica:
+
+     ```
+     Kafka/Connect/connect-worker-metrics/connector-count
+     ```
+
+3. Agregue la métrica que desea monitor a un dashboard haciendo clic en <DNT>**Add to dashboard**</DNT>.
+
+<Callout variant="tip">
+  Para obtener una lista completa de consumidores, productores y transmisiones métricas de Kafka, consulte los [documentos de Kafka](https://kafka.apache.org/documentation/#remote_jmx). Las métricas en esos documentos se pueden buscar a través de JMX. Tenga en cuenta que no todas las métricas mencionadas en los documentos se exportarán a New Relic. Esto podría deberse a una de estas razones:
+
+  * En realidad, la métrica no la generan los clientes de Kafka ni Kafka Streams. Esto puede deberse al uso de una versión anterior de clientes o Streams o a cómo configura y usa su biblioteca Kafka.
+  * La métrica no es numérica o su valor es `NaN`. New Relic solo acepta métricas con valor numérico.
+</Callout>
+
+## Habilitar la colección de eventos de Kafka [#collect-kafka-events]
+
+Puede configurar el agente para que recopile datos de eventos en lugar de datos de intervalo de tiempo de métrica (para conocer la diferencia entre intervalo de tiempo de métrica y datos de eventos, consulte [recopilación de datos](/docs/using-new-relic/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#overview)). Esto le permite utilizar [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) para filtrar y facetar la métrica Kafka predeterminada. Cuando está habilitado, el agente recopila un evento de Kafka cada 30 segundos. Este evento contiene todos los datos de [consumo y producción de Kafka métrica](https://kafka.apache.org/documentation/#monitoring) capturados desde el evento anterior.
+
+Si está utilizando Kafka Streams, el agente genera un evento separado que contiene todos los datos de [Kafka Stream métrica](https://kafka.apache.org/documentation/#remote_jmx) capturados desde el evento anterior. El evento también se recopila cada 30 segundos.
+
+<Callout variant="important">
+  El agente registra hasta 2000 eventos por [ciclo de recolección](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#harvest-cycle), aunque puede cambiar este valor con [`max_samples_stored`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#ae-max_samples_stored). Los datos de eventos de Kafka están incluidos en este grupo. Si usas la llamada API `recordCustomEvent()` para enviar [evento personalizado](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) a New Relic y envías más de 2000 eventos, el agente descartará algún Kafka o evento personalizado.
+</Callout>
+
+Para habilitar la colección de eventos de Kafka:
+
+1. Agregue el elemento `kafka.metrics.as_events.enabled` a su archivo de configuración `newrelic.yml` :
+
+   ```yml
+   kafka.metrics.as_events.enabled: true
+   ```
+
+2. Reinicie su JVM.
+
+3. Utilice el [explorador de eventos](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data) para ver sus eventos de Kafka, ubicados en el tipo de evento `KafkaMetrics` . O utilice [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) para consultar su evento directamente. Por ejemplo:
+
+   ```sql
+   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   ```
+
+   Si está consultando métricas de Kafka Streams, utilice el tipo de evento `KafkaStreamsMetrics` para acceder a métricas específicas de las secuencias.
+
+<Callout variant="important">
+  Tenga en cuenta que las limitaciones sobre qué tipo de métrica Kafka puede enviar a New Relic como métrica de segmento de tiempo también se aplican al evento. Es decir, no numéricos y NaN métricos no se incluyen como atributo de evento.
+</Callout>
+
+## Habilitar nodo Kafka métrica [#kafka-node-metrics]
+
+Existe un módulo de instrumentación alternativo para clientes de Kafka que brindará más granularidad a Kafka métrica. Este módulo de instrumentación está disponible desde el agente 8.6.0 y está deshabilitado de forma predeterminada.
+
+Para habilitar este módulo de instrumentación, debe deshabilitar el módulo de instrumentación existente y habilitar el nuevo agregando lo siguiente a su archivo de configuración `newrelic.yml` :
+
+```yml
+class_transformer:
+  kafka-clients-metrics:
+    enabled: false
+  kafka-clients-node-metrics:
+    enabled: true
+```
+
+## Habilitar evento de configuración de Kafka [#kafka-config]
+
+El módulo de instrumentación `kafka-clients-config` enviará periódicamente un evento con el contenido de la configuración de su cliente Kafka. Este módulo está disponible desde el agente 8.6.0 y está deshabilitado de forma predeterminada.
+
+Para habilitar `kafka-clients-config` agregue lo siguiente a su archivo de configuración `newrelic.yml` :
+
+```yml
+class_transformer:
+  kafka-clients-config:
+    enabled: true
+```
+
+## Habilitar la transacción de Kafka Streams [#collect-kafka-streams-transactions]
+
+Si está utilizando Kafka Streams, de forma predeterminada no habilitamos la transacción. Esto es para evitar gastos generales innecesarios porque las aplicaciones Kafka tienden a tener un alto rendimiento.
+
+A diferencia de las transacciones JMS, las transacciones de Kafka Streams no se procesan por registro. En cambio, una transacción comienza cuando un consumidor de Kafka sondea los registros y luego se procesan los datos resultantes.
+
+Si desea crear una transacción, debe habilitar un módulo `kafka-streams-spans` :
+
+```yml
+class_transformer:
+  kafka-streams-spans:
+    enabled: true
+```
+
+## Transacción Kafka Connect habilitada [#collect-kafka-connect-transactions]
+
+Si estás utilizando Kafka Connect, de forma predeterminada no habilitamos la transacción. Esto es para evitar gastos generales innecesarios porque las aplicaciones Kafka tienden a tener un alto rendimiento.
+
+Las transacciones de Kafka Connect se registran para cada iteración de la tarea receptor/fuente. Para una tarea receptora, una transacción consiste en sondear a un consumidor de Kafka, convertir cada mensaje y enviar datos al objetivo. Para una tarea fuente, una transacción consiste en leer del objetivo, convertir los datos en mensajes y enviar cada mensaje con un productor Kafka.
+
+Si desea recopilar estas transacciones, debe habilitar un módulo `kafka-connect-spans` :
+
+```yml
+class_transformer:
+  kafka-connect-spans:
+    enabled: true
+```
+
+## Habilitar Kafka rastreo distribuido [#collect-kafka-distributed-traces]
+
+El agente de Java también puede recopilar [rastreo distribuido](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) desde clientes Kafka. Debido a que Kafka Streams se ejecuta sobre clientes Kafka, también se aplican los pasos para administrar rastreo distribuido. Habilitar traza no afecta las operaciones normales del agente; seguirá reportando datos métricos o de eventos de Kafka.
+
+Impactos y requisitos a considerar antes de habilitar:
+
+* <DNT>
+    **The instrumentation adds a 150 to 200 byte payload to message headers.**
+  </DNT>
+
+  Si sus mensajes Kafka son muy pequeños, traza puede agregar una importante sobrecarga de procesamiento y almacenamiento. Este tamaño de carga útil adicional podría hacer que Kafka descarte mensajes si exceden el límite de tamaño de mensajes de Kafka. Por este motivo, recomendamos probar Kafka rastreo distribuido en un entorno de desarrollo antes de habilitarlos en producción.
+
+* Rastreo distribuido sólo está disponible para las versiones del cliente Kafka 0.11.0.0 o superiores.
+
+* Si **no** ha habilitado rastreo distribuido para su aplicación antes, lea la [guía de transición](/docs/apm/distributed-tracing/getting-started/transition-guide-distributed-tracing) antes de habilitarlo.
+
+* Para propagar W3C Trace Context a través de encabezados de mensajes de Kafka, consulte la [guía de uso API distribuida por rastreo](/docs/agents/java-agent/api-guides/guide-using-java-agent-api#trace-calls) para obtener detalles sobre las API que se lanzaron en agente de Java 6.4.0. Tenga en cuenta que agregar encabezados adicionales a los mensajes de Kafka aumentará aún más el tamaño de la carga útil. Para ver estas API en acción, consulte [Uso de las API del agente de Java traza con Kafka](https://github.com/newrelic/newrelic-java-examples/tree/main/newrelic-java-agent/distributed-tracing/kafka-examples).
+
+* Si está utilizando Kafka Streams, debe habilitar un módulo de instrumentación de tramo (consulte la [sección Transacción de Kafka Streams](#collect-kafka-streams-transactions)). Debido a que una transacción no se registra por registro, aceptar encabezados de rastreo distribuido solo funcionará para un registro.
+
+El proceso completo para habilitar esto se describe a continuación, pero en un nivel alto implica estos pasos básicos: 1) habilitar el rastreo a través de la configuración del agente y 2) llamar a la [API del agente de Java](/docs/agents/java-agent/api-guides/guide-using-java-agent-api) para la transacción de instrumentos tanto en el lado del productor como en el del consumidor.
+
+Para recopilar el rastreo distribuido de Kafka:
+
+<CollapserGroup>
+  <Collapser
+    id="enable-dt-kafka"
+    title="1. Habilite rastreo distribuido en el archivo de configuración"
+  >
+    Si no ha habilitado rastreo distribuido para su aplicación antes, lea la [guía de transición de rastreo distribuido](/docs/apm/distributed-tracing/getting-started/transition-guide-distributed-tracing) antes de habilitarlo.
+
+    Para habilitar Kafka rastreo distribuido, estas dos configuraciones deben estar habilitadas en su [archivo de configuración`newrelic.yml` ](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#Structure):
+
+    * Asegúrese de que el elemento [`distributed_tracing`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#distributed-tracing) esté habilitado:
+
+      ```yml
+      distributed_tracing:
+        enabled: true
+      ```
+
+    * Habilite la característica de distribución de rastreo específica de Kafka agregando lo siguiente a su archivo de configuración:
+
+      ```yml
+      class_transformer:
+        com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
+          enabled: true
+      ```
+  </Collapser>
+
+  <Collapser
+    id="instrument-kafka-producer"
+    title="2. instrumento el productor Kafka"
+  >
+    Para instrumentar a su productor Kafka, deberá iniciar una transacción antes de realizar cualquier llamada a `Producer.send(ProducerRecord<K, V> record)`. Para hacer esto, agregue la anotación agente de Java `@Trace(dispatcher = true)` al método.
+
+    Por ejemplo:
+
+    ```java
+    @Trace(dispatcher = true)
+    public static void createAndSend(KafkaProducer<String, String> producer){
+      ProducerRecord<String, String> data = new ProducerRecord<String, String>("topic", "key", "value");
+      producer.send(data);
+    }
+    ```
+
+    <Callout variant="important">
+      Si utiliza Kafka Streams, no necesita iniciar directamente una transacción ni enviar datos a un productor.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="instrument-kafka-consumer"
+    title="3. instrumento el consumidor de Kafka"
+  >
+    Para instrumentar a su consumidor de Kafka, deberá iniciar una transacción cuando se esté procesando el mensaje. El agente almacena el encabezado de carga útil de rastreo distribuido bajo la clave `newrelic` o bajo las claves `traceparent` y `tracestate` del W3C. Recupere el encabezado y luego llame a la API de transacciones de New Relic para aceptar la carga útil.
+
+    Por ejemplo:
+
+    ```java
+    @Trace(dispatcher = true)
+    private static void processMessage(ConsumerRecord<String, String> rec) {
+      // create a distributed trace headers map
+      Headers dtHeaders = ConcurrentHashMapHeaders.build(HeaderType.MESSAGE);
+
+      // Iterate through each record header and insert the trace headers into the dtHeaders map
+      for (Header header : rec.headers()) {
+        String headerValue = new String(header.value(), StandardCharsets.UTF_8);
+
+        // using the newrelic key
+        if (header.key().equals("newrelic")) {
+          dtHeaders.addHeader("newrelic", headerValue);
+        }
+
+        // or using the W3C keys
+        if (header.key().equals("traceparent")) {
+          dtHeaders.addHeader("traceparent", headerValue);
+        }
+
+        if (header.key().equals("tracestate")) {
+          dtHeaders.addHeader("tracestate", headerValue);
+        }
+      }
+
+      // Accept distributed tracing headers to link this request to the originating request
+      NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+
+    <Callout variant="important">
+      Si habilitó transacciones con Kafka Streams (consulte la [sección Transacción de Kafka Streams](#collect-kafka-streams-transactions)), aunque una transacción se aplica a muchos registros, la aceptación de encabezados de rastreo distribuido solo se aplicará a un registro.
+    </Callout>
+  </Collapser>
+</CollapserGroup>

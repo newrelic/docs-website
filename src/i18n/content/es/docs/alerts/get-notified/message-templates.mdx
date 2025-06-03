@@ -1,0 +1,421 @@
+---
+title: Plantillas de mensajes de notificación
+tags:
+  - Alerts
+  - Notification templates
+metaDescription: Read about various notification message templates you can use and apply.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Las plantillas de mensajes de notificación le permiten personalizar los datos de su evento de notificación antes de enviarlos a su destino externo. Las plantillas asignan sus valores personalizados a los valores utilizados por su destino de terceros.
+
+Esto le brinda control total sobre qué datos se enviarán y dónde, además de poder participar plenamente en los servicios que utiliza.
+
+## Variables de plantilla de mensaje [#variables]
+
+Una plantilla de mensaje es lo que se utiliza para convertir los datos del evento New Relic en datos que puede consumir su servicio de terceros. Las variables son atributos específicos que se asignan a campos de datos en su servicio de terceros.
+
+Las plantillas de mensajes están escritas en un lenguaje de plantillas sencillo llamado [Manillar](https://handlebarsjs.com/guide/). Las variables en las plantillas de mensajes se escriben como [expresiones](https://handlebarsjs.com/guide/expressions.html) dentro de llaves dobles `{{ }}`.
+
+<img
+  title="An example webhook notification message template."
+  alt="A screenshot of an example webhook notification message template."
+  src="/images/accounts_screenshot-crop_notification-payload-template.webp"
+/>
+
+<figcaption>
+  Utilice la plantilla de mensaje de notificación para asignar sus notificaciones de New Relic a los campos de sus servicios externos.
+</figcaption>
+
+## El menú de variables. [#variables-menu]
+
+Los nombres de las variables de New Relic se enumeran en el menú de variables de la plantilla de mensaje. Las variables se agrupan en subcategorías.
+
+En el menú de variables, escriba `{{` para seleccionar de una lista de variables. A medida que escribe, los nombres de las variables aparecen mediante autocompletar. El tipo de variable está escrito en el lado derecho. Si el flujo de trabajo tiene [enriquecimientos](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/#enrichments), aparecerán en la parte superior de la lista luego de escribir `{{`.
+
+<img
+  title="The variables menu that shows the breadth of variable options available."
+  alt="A screenshot of the variables menu that. shows the breadth of variable options available."
+  src="/images/accounts_screenshot-crop_notification-custom-variables.webp"
+/>
+
+<figcaption>
+  El menú de variables muestra las opciones que tiene cuando asigna campos de notificación de New Relic a los campos de su servicio externo.
+</figcaption>
+
+<Callout variant="important">
+  Las variables específicas del problema, como `accumulations.tag.foo` no aparecerán a menos que ya hubo un problema que contenga estos metadatos. Para crear una plantilla de mensaje que los incluya antes de que ocurra un problema, use la [declaración`#if` ](/docs/alerts-applied-intelligence/notifications/message-templates/#missing-attributes)que se describe a continuación.
+</Callout>
+
+## Utilice la sintaxis de manillares [#handlebars-syntax]
+
+Cuando un evento genera una notificación, la plantilla de mensaje utiliza las variables del manillar para asignar los datos de la notificación a los campos utilizados por su servicio de terceros.
+
+El lenguaje de manillar proporciona muchas características además del reemplazo básico de variables, incluida la evaluación de funciones y [objetos de entrada anidados](https://handlebarsjs.com/guide/#nested-input-objects) , como iteraciones (bucles), declaraciones condicionales y más. En Manillar, estas funciones se denominan ayudantes. Haga clic [aquí](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/custom-variables-incident-workflows/) para obtener una explicación de las variables utilizadas para el flujo de trabajo.
+
+## Funciones auxiliares [#help-functions]
+
+Nuestras plantillas de mensajes son compatibles con los [asistentes integrados de](https://handlebarsjs.com/guide/builtin-helpers.html) Manubrios.
+
+Además, hemos agregado otras ayudas que podrían resultarle útiles.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="json"
+    title="JSON"
+  >
+    El asistente `{{json}}` convierte texto en un elemento JSON.
+
+    Úselo cuando esté configurando la carga útil de un Webhook, que usa una sintaxis JSON, y en cualquier otra situación en la que desee pasar datos con formato JSON.
+
+    Por ejemplo, con una variable llamada `data`.
+
+    ```json
+    {
+      "data":{
+        "tags":["infra, team-a"]
+      }
+    }
+    ```
+
+    Para obtener la matriz `tags` como elemento JSON, utilice el asistente `{{json}}` :
+
+    ```handlebars
+    {{json data.tags}}
+    ```
+
+    Llegar:
+
+    ```json
+     ["infra","team-a"]
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="escape"
+    title="Escapar"
+  >
+    De manera similar al asistente `{{json}}` , el asistente `{{escape}}` escapa de los caracteres de separación JSON, pero no genera resultados JSON.
+
+    Emplee el asistente de escape cuando el valor de la variable contenga texto con caracteres de separación JSON, como `"`, que se debe emplear como escape para que la plantilla de mensaje tenga la sintaxis correcta.
+
+    Por ejemplo, lo siguiente debe enviar como texto, como cuando se envía a un extremo de webhook de Slack:
+
+    ```json
+    {
+      "text": "id:{{ escape issueId }},\nEnrichment Data: {{ escape [latest my_enrichment] }},\nDescription:{{ escape accumulations.conditionDescription }}"
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="equality"
+    title="Igualdad"
+  >
+    Utilice el asistente de igualdad `{{#eq}}` para comparar variables.
+
+    ```handlebars
+    Compares variables a and b, renders 'yes' or 'no':
+
+    {{#eq a b}} yes {{else}} no {{/eq}}
+
+    Compares string value "a" to variable b, renders 'yes' or 'no':
+
+    {{#eq "a" b}} yes {{else}} no {{/eq}}
+
+    Renders 'true' or 'false':
+
+    {{eq a b}}
+
+    Renders 'y' or 'n':
+
+    {{eq a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="contains"
+    title="Contiene"
+  >
+    Utilice el asistente `{{#contains}}` para comparar variables.
+
+    ```handlebars
+    Asserts that b contains a, renders 'yes' or 'no':
+
+    {{#contains a b}} yes {{else}} no {{/contains}}
+
+    Asserts that variable b contains string value "a", renders 'yes' or 'no':
+
+    {{#contains "a" b}} yes {{else}} no {{/contains}}
+
+    Renders 'true' or 'false':
+
+    {{contains a b}}
+
+    Renders 'y' or 'n':
+
+    {{contains a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="math"
+    title="Matemáticas"
+  >
+    Utilice el `{{#math}}` para realizar operaciones matemáticas simples.
+
+    ```handlebars
+    Renders addition of two number values:
+
+    {{#math openIncidentsCount '+' closedIncidentsCount}} {{/math}}
+
+    Renders subtraction of two number values:
+
+    {{#math createdAt '-' closedAt}}{{/math}}
+
+    Renders multiplication of two number values:
+
+    {{#math 3 '*' 3}}{{/math}}
+
+    Renders division of two number values:
+
+    {{#math 9 '/' 3}}{{/math}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="timezone"
+    title="Zona horaria"
+  >
+    Utilice `{{#timezone}}` para convertir el tiempo epoch en una fecha en el formato 'aaaa-MM-dd HH:mm:ss zzz'. Puede encontrar una lista de zonas horarias de la base de datos tz [aquí](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+
+    Ejemplo n.º 1: convertir createdAt en la hora de epoch a la zona horaria del este de EE. UU.:
+
+    ```handlebars
+    {{#timezone createdAt 'US/Eastern'}}{{/timezone}}
+    ```
+
+    Llegar:
+
+    ```
+    "2023-06-06 09:45:07 EDT"
+    ```
+
+    Ejemplo #2: convertir la hora de epoch a la zona horaria de París::
+
+    ```handlebars
+    {{#timezone 1686059107319 'Europe/Paris'}}{{/timezone}}
+    ```
+
+    Llegar:
+
+    ```
+    "2023-06-06 15:45:07 GMT+2"
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="replace"
+    title="Reemplazar"
+  >
+    El asistente `replace` reemplaza la instancia del primer parámetro en el segundo parámetro con el bloque secundario.
+
+    Utilice la cláusula `else` para especificar qué sucede cuando no se encuentra ninguna instancia del primer parámetro. Si se omite se generará una cadena vacía.
+
+    Ejemplo n.º 1: reemplace la palabra `dog` con `cat` en la oración `The dog likes to eat`:
+
+    ```handlebars
+    {{#replace "dog" "The dog likes to eat"}}cat{{/replace}}
+    ```
+
+    Llegar:
+
+    ```
+    The cat likes to eat
+    ```
+
+    Ejemplo #2: reemplace la palabra `cat` con `mouse` en la oración `The dog likes to eat`:
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{/replace}}
+    ```
+
+    para obtener una cadena vacía:
+
+    ```
+
+    ```
+
+    Ejemplo #3: reemplace la palabra `cat` con `mouse` en la oración `The dog likes to eat`, usando la cláusula `else` :
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{else}}There is no cat to replace{{/replace}}
+    ```
+
+    Llegar:
+
+    ```
+    There is no cat to replace
+    ```
+
+    Ejemplo #4: reemplace la palabra `dog` con `cat` en la oración `The DOG likes to eat` ignorando mayúsculas y minúsculas:
+
+    ```handlebars
+    {{#replace "/dog/i" "The DOG likes to eat"}}cat{{/replace}}
+    ```
+
+    Llegar:
+
+    ```
+    The cat likes to eat
+    ```
+
+    Ejemplo #5: reemplace la variable `{{needle}}` con la variable `{{replacement}}` en la variable `{{haystack}}`:
+
+    ```handlebars
+    {{#replace needle haystack}}{{replacement}}{{/replace}}
+    ```
+
+    usando estos datos:
+
+    ```json
+    {
+      "needle": "/dog/i",
+      "haystack": "The DOG likes to eat",
+      "replacement": "cat"
+    }
+    ```
+
+    Llegar:
+
+    ```
+    The cat likes to eat
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Nuestras funciones auxiliares también se pueden anidar. Aquí hay un ejemplo:
+
+```handlebars
+{{#eq "a" b}} yes1 {{else}}{{#eq "a" c}} yes2 {{else}} no {{/eq}}{{/eq}}
+```
+
+## Ejemplos de uso [#usage-examples]
+
+Los ejemplos se basan en una variable llamada `data`:
+
+```json
+"data": {
+  "tags":["infra, team-a"],
+  "id":123456789,
+  "name": "Alice",
+}
+```
+
+El valor `data` tiene un formato equivalente con puntos:
+
+```json
+"data.tags": ["infra, team-a"]
+"data.id": 123456789
+"data.name": "Alice"
+```
+
+### Validar datos [#validate]
+
+Si `id` es igual a `123456789`, entonces el resultado es `valid`. Si no, la salida es `not valid`.
+
+```handlebars
+{{eq data.name "Alice" yes='valid' no='not valid'}}
+```
+
+Si `name` es igual a `Alice`, entonces el resultado es `valid`.
+
+### Devolver JSON [#json]
+
+Obtenga `tags` y las propiedades del objeto en formato JSON:
+
+```handlebars
+{{json data.tags}}
+```
+
+Esto devolvería el siguiente JSON:
+
+```json
+["infra","team-a"]
+```
+
+### Obtener valores de una matriz [#array]
+
+Obtenga la primera etiqueta de la matriz `tags` :
+
+```handlebars
+{{json data.tags.[0]}}
+```
+
+Esto devolvería el primer valor de la matriz:
+
+```
+"infra"
+```
+
+### Iterar a través de una matriz [#iterate-array]
+
+Itere una variable de tipo matriz y agregue los valores en una cadena:
+
+```handlebars
+{{#each tags}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+El resultado contiene la etiqueta, separada por comas (se omite la coma final):
+
+```
+infra, team
+```
+
+De manera similar, itere la variable `data` , agregue los valores del objeto y genere un elemento JSON:
+
+```handlebars
+{{#each (json data)}}{{this}}{{/each}}
+```
+
+Esto devolvería un JSON como:
+
+```json
+{
+  "tags":["infra, team-a"],
+  "name":"Alice",
+  "id":"123456789"
+}
+```
+
+Itere la variable `data` y luego agregue las entradas del objeto a una cadena:
+
+```handlebars
+{{#each data}}{{@key}}: {{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+Esto devolvería una cadena como:
+
+```
+tags: infra,team-a, name: Alice, id: 123456789
+```
+
+### Manejar el atributo que falta [#missing-attributes]
+
+En algunos casos, como en el caso de etiquetas que no estaban presentes en números anteriores, es posible que falte un atributo en el [menú de variables](/docs/alerts-applied-intelligence/notifications/message-templates/#variables-menu) o que no exista en absoluto.
+
+Podemos usar la instrucción `#if` para establecer un respaldo, como por ejemplo:
+
+```handlebars
+{{#if data.type}} {{ json data.type }} {{else}}"N/A"{{/if}}
+```
+
+Esto devolvería la cadena `"N/A"`.

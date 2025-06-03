@@ -1,0 +1,578 @@
+---
+title: 適切なサービス テレメトリを取得する
+metaDescription: This guide will help you to optimize application telemetry for issue detection and resolution
+freshnessValidatedDate: never
+translationType: machine
+---
+
+あなたのサービスが何をするのか考えてみましょう。おそらく、注文を受け取り、注文の整合性を検証する必要があり、その注文を決済機関サービスに伝え、要求者に中継される確認コードを受け取ります。この例では、サービスの機能を分析し、サービスがどのように機能しているかを決定するための十分なテレメトリとコンテキストがあるかどうかを評価するための明確な道筋を示しています。New Relic のエージェントを使用している場合は、このセクションの冒頭の質問に答えるために必要な情報がすべて揃っている必要があります。ただし、特定の実装では追加の計測が必要になる場合があります。
+
+<img src="/images/oma-oe_diagram_sc-service.webp" alt="Service Diagram" title="Service Diagram" />
+
+次の質問リストは、インストルメンテーションを通じてテレメトリまたはメタデータ キャプチャを追加する必要がある場所を見つけるのに役立ちます。以下の[改善プロセスの](#improvement-process)セクションでは、サービスの管理に必要なデータを取得する方法について説明します。
+
+インストルメンテーションに関する考察
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        ベースとなるテレメトリの要件は満たされていますか？
+      </td>
+
+      <td>
+        そうでない場合は、そのギャップを文書化し、カスタム設定や追加の計測技術によって解消できるかどうかを評価します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        テレメトリ内で個別のユーザーストーリーを分離することはできますか？
+      </td>
+
+      <td>
+        そうでない場合は、エージェントのトレース機能を使って、適切なコンテキストメタデータを持つ個別のユーザーストーリーの呼び出しをキャプチャします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ユーザーストーリーを起動するパラメータを把握しているか？
+      </td>
+
+      <td>
+        そうでない場合は、エージェントSDKでカスタム属性を使用して、トランザクションとスパンにコンテキストを追加します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ソフトウェアの主要な機能コンポーネントを測定することができますか？
+      </td>
+
+      <td>
+        そうでない場合は、インスツルメンテーションSDKを使用して、コードの特定の機能要素に関するベースライン・メトリクスを作成します。(キャッシュルックアップ、処理ルーチン、ユーティリティー関数など）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        自分のコードから外部システムへのクライアントのインタラクションを測定することはできますか？
+      </td>
+
+      <td>
+        そうでない場合は、リクエストとレスポンスがコンポーネント レベルの追跡によってキャプチャされていることを確認してください。クライアントの呼び出しが同期していない場合は、処理を正しく表示するために分散トレース機能を実装することを検討してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Steps>
+  <Step>
+    ## 機器のニーズを把握する [#instrumentation-needs]
+
+    まず、何をする必要があるかを具体的に決定する必要があります。ビジネス ニーズを満たすすべてのサービスには、次の質問に答えるのに十分なツールが必要です。今は、どの領域に注力する必要があるかを知るために、答えられる質問と答えられない質問を整理する良い機会です。
+
+    * どのくらいのリクエストがあるのですか？
+    * メッセージやHTTPリクエストの送信数はどのくらいですか？
+    * どのくらいのリクエストが成功しているのでしょうか？
+    * フルリクエストのレスポンスタイムはどのくらいですか？
+    * 依存先への呼び出し時の応答時間はどのくらいですか？
+    * どのくらいのリクエスト数で、このプロセスはどのくらいのリソースを必要とするのか？
+    * 私の失敗のポイントは何ですか？
+  </Step>
+
+  <Step>
+    ## インストルメンテーションを構成する [#config-based-instrumentation]
+
+    次に、インストルメンテーションの構成を開始します。各 New Relic エージェントは、さまざまな構成オプションを提供します。通常は、インフラストラクチャ ホスト、アプリケーション ランタイム、およびクラウド サービス プロバイダーへの接続内にエージェントを含める標準的なアプローチを定義します。デフォルトのエージェント構成は、広く適用できるように作成されています。
+
+    開発者がデプロイメントの適用性に影響を与えるための最良の方法の 1 つは、サービス インスタンスのデフォルト構成オプションをオーバーライドすることです。考慮すべきデフォルトのインスツルメンテーション オプションは次のとおりです。
+
+    <CollapserGroup>
+      <Collapser id="service-naming" title="効果的なサービス名の作成">
+        <Callout variant="tip">
+          New Relic エージェントは、サービス ランタイム名を定義するためのさまざまなオプションを提供します。ランタイム環境の実装の詳細については、 [アプリケーション命名ガイド](/docs/new-relic-solutions/best-practices-guides/full-stack-observability/apm-best-practices-guide/#1-standardize-application-names-naming)を参照してください。
+        </Callout>
+
+        サービスに付ける名前によって、 <DNT>**namespace**</DNT> (エージェント データがある場所) が提供されます。 New Relic がサービスの動作を理解するために使用する最も重要な戦略の 1 つは、類似するものをまとめて集約し、この集約からの共通点を使用して差異を分離することです。 デプロイ サービスを利用する場合は、名前を付けるのに役立つ次の質問をしてください。
+
+        * 私のサービスは、特定のユーザーを対象としていますか？
+        * 私のサービスは別のコードベースで動いているのでしょうか？
+        * 私のコードベースは、異なるランタイム構成を使用していますか？
+
+        これらの質問のいずれかに「はい」と答えた場合は、以下に基づいてサービスに一意の名前を作成することを検討してください。
+
+        <CollapserGroup>
+          <Collapser id="audience-criteria" title="聴衆の基準">
+            オーディエンスとは、エンドユーザーまたはサービス機能のグループと考えてください。サービスが北米と欧州のデプロイメントに分かれている場合、それらのデプロイメントのランタイムをそれに応じてグループ化する必要があります。例えば、以下のようになります。
+
+            ```
+            newrelic.appname = PORTAL_AMER
+            ```
+
+            および
+
+            ```
+            newrelic.appname = PORTAL_EMEA
+            ```
+
+            これにより、そのオーディエンスによって作成された遠隔測定がグループ化され、特定のユーザーオーディエンスに関連するサービス問題の文脈上の類似性をよりよく理解することができます。
+
+            例えば、管理機能を持つポータル・アプリケーションのように、アプリケーションの展開方法によって、サービスの運用状況が分断されることがあります。管理機能はポータルの一般的なコードベースに組み込まれていますが、クラスタ内の1つのインスタンスだけがポータルの管理リクエストを処理している場合があります。このような場合、機能的なオーディエンスのセグメンテーションの機会があるので、適切な名前をつけるようにする必要があります。例えば
+
+            ```
+            newrelic.appname = PORTAL_MAIN
+            ```
+
+            および
+
+            ```
+            newrelic.appname = PORTAL_ADMIN
+            ```
+          </Collapser>
+
+          <Collapser id="codebase-criteria" title="コードベースの基準">
+            1つのサービスを装って異なるコードバージョンを実行している場合は、それらのランタイムインスタンスをセグメント化し、ネーミングスキームの一部としてバージョンネーミングを組み込むことを検討してください。異なるサービスバージョンを実行している1つのサービス名としてコードをグループ化すると、生成するメトリックのノイズ対信号比が向上します。
+
+            コードのバージョンが違えば、使用する計算機資源の量やデータの処理方法も違ってきます。メトリクスから得られるシグナルが異なる機能の実装に起因する場合、サービスが正常に動作しているかどうかを判断することは非常に困難になります。
+
+            複数のバージョンを同時に実行している場合は、サービス名に数値IDを追加することを検討してください。例えば：
+
+            ```
+            newrelic.appname = PORTAL_MAIN_V112
+            ```
+
+            および
+
+            ```
+            newrelic.appname = PORTAL_MAIN_V115
+            ```
+
+            LaunchDarkly や Split などの機能フラグ フレームワークを採用する場合、単一のコードベース内にアプリケーションまたはサービスの複数のバージョンが存在する可能性があります。これらの状況に対処するには、サービス機能の分離に関するセクションを参照してください。
+          </Collapser>
+
+          <Collapser id="runtime-criteria" title="ランタイム基準">
+            サービスのインスタンスが異なるランタイム制約を持つシステムにデプロイされる場合は、独自のインスタンススペースにカプセル化する必要があります。 これは、共有リソースへのネットワーク接続の利点を提供する別のデータセンターへのデプロイメントである場合もあれば、異なるメモリまたはスレッド設定を持つ別のコンピューティング ティアでサービスが実行されている場合もあります。
+
+            コードの実行時の動作に影響を与えるこれらの特性は、異なる操作の動作につながる異なる動作を引き起こします。例えば、以下のようなものです。
+
+            ```
+            newrelic.appname = PORTAL_NYC_DC
+            ```
+
+            および
+
+            ```
+            newrelic.appname = PORTAL_REALLY_BIG_FOOTPRINT
+            ```
+          </Collapser>
+        </CollapserGroup>
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## デフォルトのエージェント設定を上書きする [#override-default-agent-config]
+
+    <Callout variant="tip">
+      New Relicエージェントは、ランタイム構成にさまざまなオプションを提供します。ランタイムに固有のオプションについては、 [APMエージェントの構成ドキュメント](/docs/new-relic-one/install-configure/configure-new-relic-agents)を参照してください。
+    </Callout>
+
+    各 New Relic APM エージェントは、デフォルト設定を変更するためのさまざまなオプションを提供します。これを行う最も一貫した場所は、各エージェントのインストールに付随する構成ファイルです。ただし、コマンド ライン パラメーターをサービス インスタンス ランタイムに直接渡すか、環境変数を使用するか、実行時にエージェントの SDK 内の関数を呼び出すことによって、エージェントを構成することもできます。
+
+    .NETエージェントの構成オプションは次のとおりです。
+
+    * [New Relic .NET SDK APIの使用について](/docs/apm/agents/net-agent/net-agent-api/)
+    * [環境変数](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#environment-variables)
+    * [コンフィグファイルのオプション](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#setup)
+  </Step>
+
+  <Step>
+    ## サービス機能の分離 [#isolate-service-functions]
+
+    [「効果的なサービス名の作成」](#service-naming)セクションで示したように、インストルメンテーションの主な目的の 1 つは、同様の実行時制約を 1 つの名前付きユニットとしてグループ化するように New Relic エージェントを構成することです。特定の入力セットについては、期待される範囲の測定可能な結果が得られるはずです。これらを名前付きサービス ランタイム コンポーネントにどの程度快適に含めることができるかは、通常の動作を理解し、問題を切り分けるのに大いに役立ちます。
+
+    New Relic エージェントは、トランザクションが検出されたときにその名前空間を作成する一連の前提条件を使用して構成されています。これらの前提条件は、エージェント言語ランタイムごとに異なります。Java エージェントがトランザクション名を決定する方法の良い例は[、Java エージェントのトランザクション命名ドキュメント](/docs/apm/agents/java-agent/instrumentation/transaction-naming-protocol/)にあります。
+
+    ただし、エージェント トランザクション命名プロトコルを適用した後でも、ニーズによっては満足のいく結果が得られない場合があります。追加のインストルメンテーションを追加してトランザクションに名前を付け、そのコンテキストを改善することにより、サービスの実行動作の理解を大幅に向上させることができます。
+
+    <img src="/images/oma-oe-sc_screenshot-full_transaction-breakdown.webp" alt="Transaction Breakdown" title="Transaction Breakdown" />
+
+    トランザクションの名前付けの目標は、開発者以外にも理解しやすいアプローチでサービス機能を適切にセグメント化する APM トランザクションのビューである必要があります。上のトランザクションの内訳画像は、トランザクションのセグメント化の良い例です。これは、サービスの広範なコードベース内で各トランザクションによって実行される作業量の詳細な追跡を提供するだけでなく、トランザクションの内容を理解できるわかりやすいユーザーフレンドリーな名前を付けたトランザクションも提供します。トランザクションの名前付けと属性の組み込みについて詳しく学ぶときは、技術者以外のデータ観察者でも名前付けのアプローチを利用できるようにしてください。
+
+    <img src="/images/oma-oe-sc-transaction-breakdown-weighted.webp" alt="Transaction Breakdown Weighted" title="Transaction Breakdown Weighted" />
+
+    上の画像のトランザクションの内訳は、トランザクション名のセグメント化の悪い例を示しています。この場合、トランザクション量の約 60% が`OperationHandler/handle`という名前になります。トランザクション量の割合と名前の一般的な性質の両方から、その名前空間の下にトランザクションの集約が多すぎる可能性があることが示されています。
+
+    目的は、以下のような固有の特性が最も少ないトランザクションのグループ化を容易にするトランザクション名を作成することです。
+
+    <img src="/images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-normal.webp" alt="Transaction Histogram" title="Transaction Histogram" />
+
+    正規分布画像は、サービス内のより意図的に名前が付けられたトランザクションを示しています。 この場合、ウェブ上の応答タイムはより厳密にグループ化されており、一貫した実行特性が示されています。
+  </Step>
+
+  <Step>
+    ## カスタムトランザクション名の定義 [#custom-transaction-names]
+
+    <Callout variant="tip">
+      [New Relicエージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm)のAPIガイドを参照して、ランタイムのトランザクション命名手順を確認してください。
+    </Callout>
+
+    New Relic エージェントのトランザクション ネーミング サービスでは、New Relic エージェント SDK への`SetName(String name)`のような API 呼び出しを呼び出す必要があります。各言語ランタイム エージェントには、名前を設定するための独自の構文とオプションがあります。さらに詳しい情報が必要な場合は、以下の例を参照してください。
+
+    <CollapserGroup>
+      <Collapser id="transaction-example" title="例">
+        HTTP リクエストパラメータの値を取得し、それを使用して New Relic Java エージェントのトランザクションに名前を付けるには、次のようなコードを使用できます。
+
+        ```
+        com.newrelic.agent.Agent.LOG.finer("[my query handler] Renaming transaction based on an important query parameter");
+
+        com.newrelic.api.agent.NewRelic.setTransactionName("Query Handler_" + (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    トランザクション名には最大容量があります。報告されるトランザクション名が多すぎる場合は、それらのトランザクション名をグループ化するルールを作成しようとします。詳細については、メトリック グループ化の問題に関連する[エージェントのトラブルシューティング ガイド](/docs/using-new-relic/cross-product-functions/troubleshooting/metric-grouping-issues)を参照してください。潜在的なトランザクション名が数千ある場合、トランザクションの命名戦略は、ある程度の特異性を犠牲にする必要があります。
+
+    メトリクスのグループ化の問題が疑われる場合は、サポート ケースを開いてください。喜んで協力して、ネーミングの問題の原因を特定します。
+  </Step>
+
+  <Step>
+    ## トランザクションでパラメータを取得 [#capture-parameters]
+
+    <Callout variant="tip">
+      エージェント言語の[NewRelicエージェントカスタム属性ガイド](/docs/using-new-relic/data/customize-data/collect-custom-attributes/)を参照して、属性カスタマイズのメタデータ拡張オプションを確認してください。
+    </Callout>
+
+    トランザクション名はサービスをセグメント化するための強力な方法であり、その動作をよりよく理解できるようになります。これにより、New Relic UI で機能を直接個別に分離できます。
+
+    ただし、トランザクション名を分離することなく、サービスの機能に関する追加のコンテキストを取得したい場合が多くあります。これは、サービスによる属性キャプチャを導入することで実現できます。
+
+    `name:value`ペア属性を追加して、各トランザクションの詳細を装飾できます。属性は、APM トランザクション トレースおよびエラー UI を介して、または`Transaction`イベント タイプからのパラメーターの直接クエリを通じて、各トランザクション イベントで使用できます。APM エラー UI で確認できるトランザクション追跡の詳細の例を次に示します。
+
+    <img src="/images/oma-oe-sc_screenshot-crop_error-attributes.webp" alt="Error Attributes" title="Error Attributes" />
+
+    便利なトランザクション名セグメンテーションを開発した場合は、追加された属性のコンテキストを使用して、予期しない結果につながった入力、コホート、またはセグメントをより深く理解することができます。
+
+    APM UI 内でトランザクションのコンテキストを理解できることに加えて、パラメーターを使用すると、トランザクション データを直接クエリしてトランザクションを分析するのに役立ちます。各トランザクションにカスタム属性を追加すると、特定の条件を簡単に分離できます。
+
+    パラメータキャプチャアプローチは、SplitやLaunchDarklyなどの機能フラグシステムでも使用できます。この場合、機能フラグの決定ハンドラーを実装するときに、顧客に表示されるバージョンまたは機能を制御するコードのブロックに適用されているフラグコンテキスト（たとえば、 `optimized_version = on` ）をキャプチャすることを検討してください。
+
+    たとえば、HTTPリクエストパラメータの値を取得し、それをNew Relic Javaエージェントでカスタム属性として保存するには、次のようなコードを使用できます。
+
+    ```
+    com.newrelic.agent.Agent.LOG.finer("[my query handler] Adding an Attribute to transaction based on an important query parameter");
+
+    com.newrelic.api.agent.NewRelic.addCustomParameter("ImportantParm", (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+    ```
+  </Step>
+
+  <Step>
+    ## サービスコンポーネントの測定 [#component-measurement]
+
+    サービスのコンテキスト内での特定のトランザクションの動作は、ソフトウェア システムが効果的に動作していることを確認する強力な方法です。ただし、ソフトウェア システムの動作を調べる別の方法は、その実装の詳細なコンポーネント実行モデルを確認することです。アプリケーション フレームワークのコード コンポーネントはサービス全体で共有され、コンポーネントのパフォーマンスを継続的に評価することで、サービス全体の健全性についての洞察が得られます。
+
+    New Relic には、コンポーネントの実行の詳細を確認できる場所が 2 つあります。APM のサービス概要ダッシュボードには、コンポーネント部分 (ガベージ コレクションの実行やデータベース呼び出しなど) ごとに分類されたサービスの複合実行のビューが表示されます。
+
+    <img src="/images/oma-oe-sc_screenshot-full_summary-components.webp" alt="Summary Components" title="Summary Components" />
+
+    トランザクション コンポーネント セグメントは、一貫したパフォーマンス動作を示す傾向があります。 これを使用して、基本的な動作の変化を検出できます。 これは根本的な問題を示している可能性があります。 これにより、サービス内で実行されているコードの共通部分を通じて依存関係を見つけることができます。
+  </Step>
+
+  <Step>
+    ## 自社のフレームワークを確実に測定する [#framework-measurement]
+
+    <Callout variant="tip">
+      インストルメンテーションにメトリック名を追加する方法については、特定のAPMエージェントのインストルメンテーションおよびSDKガイドを参照してください。
+    </Callout>
+
+    フレームワーク インストルメンテーションの構文は、サービスが記述されている言語に固有ですが、一般的なアプローチはすべての言語で一貫しています。スタック上での各メソッドまたは関数の実行は、追加のインストルメンテーションを追加する機会となります。
+
+    <img src="/images/oma-oe-sc_screenshot-full_summary-client.webp" alt="Service Summary Components" title="Service Summary Components" />
+
+    サービスまたはトランザクションの機能にロジックの特定のセグメントが必要な場合は、その呼び出しを New Relic エージェントへのコールバックでラップすることを検討してください。そうすることで、エージェントは個別のコード コンポーネントに入ったことを理解し、その中で消費された時間を集計できるようになります。それに応じてコンポーネント。メトリック名をコールバックに渡すことにより、サービスとトランザクションのコンポーネント セグメント メトリックを作成します。
+
+    メトリックの命名オプションは、計測器の言語によって異なりますので、各言語のマニュアルを参照してください。
+
+    当社のエージェントでは、インストルメンテーションのカスタム メトリック名を指定できます。`metricName`を使用して、コンポーネントの集計指標を決定します。次の例は、Java エージェント SDK `@Trace`アノテーションに渡される`metricName`パラメータを示しています。
+
+    <CollapserGroup>
+      <Collapser id="metric-code-example" title="例">
+        ```
+        @Weave
+        public abstract class MQOutboundMessageContext implements OutboundTransportMessageContext {
+
+            @Trace(dispatcher = true, metricName="MQTransport")
+            public void send(final TransportSendListener listener) throws TransportException {
+                try {
+                    NewRelic.getAgent().getTracedMethod().setMetricName("Message", "MQ", "Produce");
+                    MQHelper.processSendMessage(this, NewRelic.getAgent().getTracedMethod());
+                } catch (Exception e) {
+                    NewRelic.getAgent().getLogger().log(Level.FINE, e, "Unable to set metadata on outgoing MQ message");
+                }
+
+                Weaver.callOriginal();
+            }
+
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## 外部サービス呼び出しを追跡する [#external-services]
+
+    <Callout variant="tip">
+      クライアントライブラリのインストルメンテーションの詳細については、関連するAPMエージェントのインストルメンテーションおよびSDKガイドを参照してください。
+    </Callout>
+
+    クライアント インストルメンテーションとは、サービスから外部リソースへの呼び出しを行うことを指します。一般に、New Relic エージェントは、HTTP、gRPC、メッセージング、およびデータベース プロトコルで一般的なクライアントを認識しており、適切なインストルメンテーション パターンを適用して、それらのクライアントへの呼び出しを外部サービスとして集約します。
+
+    プロトコル用に独自のクライアント ハンドラーを作成した場合、または非常に新しいものを使用している場合、エージェントはクライアントを認識せず、クライアント呼び出しの動作を記録できない可能性があります。この目的を達成するには、APM 内の外部サービスとデータベースがサービスに予期されるすべての外部性を表していることを確認する必要があります。
+
+    すべてのサービスの依存関係がここに示されていることを検証することが重要です。サービスの依存関係が表示されない場合は、APM エージェントが外部呼び出しを追跡できるように、外部呼び出しをインターセプトするための新しいインスツルメンテーションを導入する必要があります。次の例は、エージェントによるキャプチャのために外部呼び出しを Golang でラップする方法を示しています。
+
+    <CollapserGroup>
+      <Collapser id="external-service-example" title="例">
+        ```
+        package main
+
+        import (
+        	"net/http"
+
+        	"github.com/newrelic/go-agent/v3/newrelic"
+        )
+
+        func currentTransaction() *newrelic.Transaction {
+        	return nil
+        }
+
+        func main() {
+        	txn := currentTransaction()
+        	client := &http.Client{}
+        	request, _ := http.NewRequest("GET", "http://www.example.com", nil)
+        	segment := newrelic.StartExternalSegment(txn, request)
+        	response, _ := client.Do(request)
+        	segment.Response = response
+        	segment.End()
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    他のエージェントAPIの外部コールトレースの例。
+
+    * [Go `ExternalSegment`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#ExternalSegment)
+    * [Java `ExternalParameters`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TracedMethod.html#reportAsExternal\(com.newrelic.api.agent.ExternalParameters\))
+    * [Python `external_trace`](/docs/apm/agents/python-agent/python-agent-api/externaltrace-python-agent-api/)
+  </Step>
+
+  <Step>
+    ## エンドポイントのテスト [#endpoint-testing]
+
+    <CollapserGroup>
+      <Collapser id="endpoint-testing2" title="エンドポイントテストの理解">
+        始める前に、エンドポイント テストの概念を必ず理解してください。エンドポイント テストは、特定のシステム障害の根本原因の発見を迅速化する、シンプルで実用的なアプローチです。これにより、運用チームとサポート チームは実際に問題があることをすぐに認識し、その問題を特定のサービスに切り分けることができます。
+
+        最新のソフトウェア システムは、タスクを完了するために多くのサービスに依存しています。これまで、これらのサービス エンドポイントを監視するプロセスは簡単でした。アーキテクチャ チームは、運用チーム向けに詳細に文書化された依存関係のマップを作成し、項目別のエンドポイントのチェックを作成します。
+
+        現在、継続的デリバリー プロセスと小さなバッチ変更により、新しいエンドポイントと依存関係を作成し、それらを運用チームが予測して事前に合成チェックを定義することが困難な速度でデプロイできるようになりました。開発段階で実稼働サービスのテストを定義するためのより広い制御範囲をサービス開発者に与えることで、可観測性プログラムのテストの対象範囲が大幅に広がります。
+      </Collapser>
+    </CollapserGroup>
+
+    エンドポイントテストは、サービスインストルメンテーションプログラムに2つの利点を提供します。
+
+    * <DNT>**Defect detection:**</DNT> 単純な true/false 結果を生成するエンドポイントのテストをエンコードすることにより、運用では個別の障害を分離して、サービス配信の整合性が損なわれているかどうかを判断できます。
+    * <DNT>**Baselining:**</DNT> 外部監視または機械テストでは、制御の観点からサービス提供の一貫性を評価できる予測可能な一連の条件が提供されます。
+
+    当社の合成モニタリングは、強化された Selenium JavaScript SDK を採用することで、さまざまなタイプのテストを作成する機能を提供します。Selenium ベースのテスト スクリプトが定義されたら、スクリプトの実行場所とその頻度を管理します。総合テストでは、それぞれに独自の焦点を当てたさまざまなテスト オプションが提供されます。詳細については、[合成モニタリングのドキュメント](/docs/synthetics/)を参照してください。
+
+    まず、合成チェック用の意思決定マトリックスを作成する必要があります。合成チェックを作成する必要があるかどうかを判断するのは簡単です。依存関係で最初に障害が発生したことを知りたい場合があります。次の質問のいずれかに「はい」と答えた場合は、専用の総合チェックの作成を検討してください。
+
+    * エンドポイントは顧客向けですか？
+    * エンドポイントは新しい依存関係を起動しますか？
+    * エンドポイントが別のネットワークインフラ上にあるか？
+    * エンドポイントは複数のサービスで共有されているか？
+    * エンドポイントは、CDNがサポートするコンテンツオリジンですか？
+
+    次に、エンドポイントの可用性と整合性を評価するために、可能な限り単純なテストの実装を検討する必要があります。たとえば、通貨グループの現在の為替レートを提供する新しいサービス エンドポイントを作成したとします。これは、JSON オブジェクト配列を返すエンドポイントでの単純な GET です。
+
+    * リクエストの例： `http://example-ip:3000/exchange`
+    * 対応例。
+
+    ```
+      [
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bf97f61c22f4fb5beb5c9",
+          "name": "cdn",
+          "Created_date": "2021-07-12T18:10:07.488Z",
+          "__v": 1
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb2a61c22f4fb5beb5ca",
+          "name": "usd",
+          "Created_date": "2021-07-12T18:17:14.224Z",
+          "__v": 0.80
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb3261c22f4fb5beb5cb",
+          "name": "eur",
+          "Created_date": "2021-07-12T18:17:22.476Z",
+          "__v": 0.68
+        },
+        {
+          "status": [
+            "quote"
+          ],
+          "_id": "5b9bfb3761c22f4fb5beb5cc",
+          "name": "mex",
+          "Created_date": "2021-07-12T18:17:27.009Z",
+          "__v": 15.97
+        }
+      ]
+    ```
+
+    このサービスが運用可能であると見なされるためには、要求に応答するだけでなく、4つの通貨応答も提供する必要があります。現時点ではコンテンツについて心配していません。CDN、USD、EUR、MEXの各通貨について、配列に4つの要素が1つ戻っているという事実だけです。
+
+    New Relic のシンセティックモニタリングを使用すると、API テストスクリプトは以下のようになります。
+
+    ```
+      /**
+      * This script checks to see if we get the currency data from the endpoint.
+      */
+      var assert = require('assert');
+      var myQueryKey = 'secret_key';
+      var options = {
+        uri: 'http://example_ip:3000/exchange',
+        headers: {
+          'X-Query-Key': myQueryKey,
+          'Accept': 'application/json'
+        }
+      };
+
+      function callback (err, response, body){
+        var data = JSON.parse(body);
+        var info = body;
+        if (Array.isArray(data)) {
+          if (data.length !== 4) {
+            assert.fail('Unexpected results in API Call, result was ' + JSON.stringify(data));
+          }
+        }
+      }
+
+      $http.get(options, callback);
+    ```
+
+    New Relicインターフェースで外部監視スクリプトを直接設定できますが、ソースのリポジトリ システム内でエンドポイント テストを維持し、自動化を採用することを強くお勧めします。 これにより、エンドポイント テストが、サービスが本番環境のサービス配信に導入する新しいエンドポイント依存関係を伴うようになります。
+  </Step>
+</Steps>
+
+## 価値を実現する [#value-realization]
+
+サービスを監視するプロセスと同様に、可観測性プログラムは、努力への投資に対する期待収益を批判的に考える専用のチーム機能を通じて利益を得ることができます。次のセクションでは、可観測性の実践にサービス インストルメンテーションを組み込むことで予想されるコストとメリットを見積もるアプローチの概要を説明します。
+
+### 投資 [#investments]
+
+<CollapserGroup>
+  <Collapser id="inv-training" title="トレーニング">
+    すべての開発者がNew RelicのエージェントSDKとプラットフォームの機能に精通していることを確認する。
+
+    **コスト モデル:**会社の開発者 FTE モデルとプロジェクト見積もりによって異なります。 **推定:**通常、開発者がNew Relicインストゥルメンテーション機能を有効に使用できるようになるまでに数時間かかります。
+
+    * 初期: 16時間のトレーニングと探索
+    * 定期的：4時間/Qレビュー
+    * 開発者ごとに、コア スキルを開発し、 New Relicプラットフォームのスキルの最新性を維持するために、年間 16 ～ 40 時間のトレーニングを投資します。
+  </Collapser>
+
+  <Collapser id="inv-maintain" title="開発・保守">
+    サービスプロジェクト内でインストルメンテーションを実装および保守するために必要な開発作業。
+
+    **コスト モデル:**会社の開発者 FTE モデルとプロジェクト見積もりによって異なります。 **見積もり:**これは、プロジェクトの範囲と必要なインストゥルメンテーション作業の量に依存する傾向があります。
+
+    * 初期：サービスごとに開発者ごとに8時間
+    * 定期的：4時間/Qメンテナンス
+    * 開発者によると、サービスの開発と保守にかかるプロジェクトの推定時間は 16 ～ 32 時間です。
+  </Collapser>
+</CollapserGroup>
+
+### 利点 [#benefits]
+
+<CollapserGroup>
+  <Collapser id="returns-aqm-impact" title="アラートの品質への影響">
+    [アラートの品質](/docs/tutorial-create-alerts/manage-alert-quality/)に関する当社のドキュメントは、さまざまなシステム パフォーマンスからのアラート通知が迅速に処理されることを保証することで、運用チームに大きな利益をもたらします。これにより、インシデント修復時のサービス提供とリソース割り当てが改善されます。
+
+    可観測性プログラムに統合された効果的なインストルメンテーションプラクティスは、意味のあるアラートを作成するチームの能力を大幅に向上させます。
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * ボリューム：インシデント数
+    * ボリューム：累積インシデント期間
+    * ボリューム：平均クローズ時間（MTTC）
+    * ユーザーエンゲージメント：調査する平均時間
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * 警報音の低減
+    * 警報や事故への対応力の向上
+    * 未知の根本原因が少ない
+    * オペレーションの生産性向上
+    * サービス提供の向上
+  </Collapser>
+
+  <Collapser id="returns-service-quality-improvement" title="サービス品質の向上">
+    サービス品質の向上は、サービスの主要な財務指標に直接影響します。これには、アプリケーションに対して十分に合理化された財務モデルが必要です。通常、この収益は、エラーやapdexの達成などのコアサービス品質測定値の改善率ごとに通貨値を関連付けることで予測できます。
+
+    サービスインストルメンテーションへの投資が増えると、サービス品質測定の達成度が向上するはずです。
+
+    <DNT>**KPI:**</DNT> サービス品質（ビジネスKPI）
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * ユーザーに影響を与えるエラーの数が減少
+    * より高性能で回復力のあるサービスコンポーネント
+  </Collapser>
+
+  <Collapser id="returns-service-delivery-improvement" title="サービスデリバリーの改善">
+    サービスインスタンスからより優れたテレメトリを提供することにより、配信組織は、変動性またはダウンタイムをより迅速に検出し、より迅速に修正できるようになります。これにより、全体的なサービス提供KPIが向上し、停止または劣化のエピソードが減少します。
+
+    コストは、インシデントの検出、調査、修復にかかる時間と関連しています。これは、サービスが組織に提供している価値がイベント中に失われることに関連しているかもしれませんし、動作不良のサービスに対処するための一般的なコストに関連しているかもしれません。
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * 検出までの平均時間（MTTD）
+    * 平均識別時間（MTTI）
+    * 解決までの平均時間 (MTTR)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * インシデント検出までの時間が短縮
+    * インシデント解決までの時間の短縮
+  </Collapser>
+</CollapserGroup>
+
+<DocTiles>
+  <DocTile title="Capture the right data" path="/docs/tutorial-reporting-data/capture-the-right-data/" />
+
+  <DocTile title="Capture web telemetry" path="/docs/tutorial-reporting-data/capture-web-telemetry/" />
+</DocTiles>

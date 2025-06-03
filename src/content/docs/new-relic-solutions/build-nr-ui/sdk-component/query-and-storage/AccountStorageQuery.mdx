@@ -1,0 +1,177 @@
+---
+title: 'AccountStorageQuery'
+metaDescription: 'Learn how to work the AccountStorageQuery component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Query NerdStorage for account scoped data.
+
+It is possible to retrieve an entire collection or a single document.
+
+### Usage
+
+```js
+import { AccountStorageQuery } from 'nr1'
+```
+
+### Examples
+
+#### Query collection
+
+```js
+<AccountStorageQuery accountId={1} collection="foo">
+  {({ loading, error, data }) => {
+    if (loading) {
+      return <Spinner />;
+    }
+
+
+    if (error) {
+      return 'Error!';
+    }
+
+
+    return <pre>{JSON.stringify(data, null, 4)}</pre>;
+  }}
+</AccountStorageQuery>
+```
+
+#### Query document
+
+```js
+<AccountStorageQuery accountId={1} collection="foo" documentId="bar">
+  {({ loading, error, data }) => {
+    if (loading) {
+      return <Spinner />;
+    }
+
+
+    if (error) {
+      return 'Error!';
+    }
+
+
+    return <pre>{JSON.stringify(data, null, 4)}</pre>;
+  }}
+</AccountStorageQuery>
+```
+
+#### Imperative query
+
+```js
+AccountStorageQuery.query({
+  accountId: 1,
+  collection: 'myCollection',
+  documentId: 'myDocumentId',
+}).then(({ data }) => console.log(data));
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `accountId` <h5>REQUIRED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        Account identifier.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>function</h5>
+      </td>
+
+      <td>
+        Render prop function as a child.
+
+        <FunctionDefinition
+          returnValue={[{"type":"React.ReactNode","description":""}]}
+          arguments={[{"name":"queryResult","type":"QueryResult","description":"Results of the query."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `collection` <h5>REQUIRED</h5><h5>string</h5>
+      </td>
+
+      <td>
+        Collection name.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `documentId` <h5>string</h5>
+      </td>
+
+      <td>
+        Document identifier to operate in. When omitted the whole collection is returned.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fetchPolicyType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Allows you to specify how you want your query to interact with the cached data.
+
+        * `CACHE_AND_NETWORK`: The query returns your initial data from the cache if available. However, regardless of whether or not the full data is in your cache, the query always makes a request using your network interface and returns the updated data. This option is not available when using the static `query()` method of the component.
+        * `CACHE_FIRST`: The query makes a request using your network interface **only** if the data for your query is not already in the cache.
+        * `CACHE_ONLY`: The query **never** makes a request using your network interface. Instead it returns the data available in the cache. If the data for your query does not exist in the cache, then an error is thrown.
+        * `NETWORK_ONLY`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface.
+        * `NO_CACHE`: The query **never** returns your initial data from the cache. Instead it **always** makes a request using your network interface. Unlike the `NETWORK_ONLY` policy, it does not write any data to the cache after the query completes.
+
+          <OptionReference>
+            AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_AND_NETWORK,
+            AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST,
+            AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_ONLY,
+            AccountStorageQuery.FETCH_POLICY_TYPE.NETWORK_ONLY,
+            AccountStorageQuery.FETCH_POLICY_TYPE.NO_CACHE,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `pollInterval` <h5>number</h5>
+      </td>
+
+      <td>
+        Interval in milliseconds to poll for new data. Set to zero to avoid any kind of regular polling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `skip` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When set to `true`, the query will be skipped entirely from rendering.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `AccountStorageQuery.query`
+
+<FunctionDefinition
+  arguments={[{"description":"An object containing the query options. Any `AccountStorageQuery` prop is a valid option except `children` and `pollInterval`.","name":"props","type":"Object"}]}
+  returnValue={{"description":"","type":"PromiseQueryResult"}}
+/>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"PromiseQueryResult","properties":[{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>
+
+<TypeDefReference typeDef={{"name":"QueryResult","properties":[{"description":"Indicates that the request is in flight.","name":"loading","type":"boolean"},{"description":"Runtime error with `graphQLErrors` and `networkError` properties.","name":"error","type":"ApolloClient.ApolloError"},{"description":"Object containing the result of your query.","name":"data","type":"Object"},{"description":"If not `null`, `fetchMore` allows you to load more results for your query. New data is merged with previous data.","name":"fetchMore","type":"function|null"},{"description":"Refetch the query.","name":"refetch","type":"function"}]}}/>

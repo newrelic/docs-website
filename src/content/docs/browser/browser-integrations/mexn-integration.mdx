@@ -1,0 +1,101 @@
+---
+title: MExN integration
+tags:
+    - New Relic integrations
+    - MEAN stack integration
+    - MERN stack integration
+    - MEVN stack integration
+metaDescription: Use New Relic browser monitoring to get a dashboard with metrics from your MExN stack.
+freshnessValidatedDate: never
+---
+
+MEAN, MERN, and MEVN stacks are open-source full stack software development kits. Each kit uses a single codebase to develop web applications. New Relic has consolidated all three stacks into a single quickstart. Our MExN integration makes use of the <InlinePopover type="browser"/> agent, Node.js agent, and MongoDB integration to provide you with a pre-built dashboard with your most important metrics (like response time, CPU utilization, traffic, and login frequencies).
+
+<img
+  title="Mean Mern Mevn dashboard"
+  alt="A screenshot depicting the mean mern Mevn dashboard"
+  src="/images/infrastructure_screenshot-full_mean-mern-integration-dashboard.webp"
+/>
+
+<figcaption>
+  After setting up our MExN integration, we give you a dashboard for your MExN web app metrics.
+</figcaption>
+
+## Install [#install]
+
+<Steps>
+  <Step>
+    ### Optional: Install the infrastructure agent [#infra-install]
+
+    Installing the infrastructure agent is optional, but doing this will get you important metrics about the host where your app is running.
+
+    To do this, follow [the infrastructure agent install steps](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent).
+  </Step>
+
+  <Step>
+    ### Install MongoDB quickstart
+
+    1. Check out our MongoDB agent requirements in our [documentation](/docs/infrastructure/host-integrations/host-integrations-list/mongodb-monitoring-integration/)  before installing the agent.
+    2. Open the [MongoDB quickstart installation](https://newrelic.com/instant-observability/mongodb).
+    3. Click  <DNT>**Install now**</DNT> to start the MongoDB agent installation.
+  </Step>
+
+  <Step>
+    ### Install Node.js agent
+
+    1. Check out our Node.js agent requirements in our [documentation](/docs/apm/agents/nodejs-agent/getting-started/compatibility-requirements-nodejs-agent/).
+    2. Open the [Node.js quickstart installation](https://newrelic.com/instant-observability/node-js).
+    3. Click  <DNT>**Install now**</DNT> to start the Node.js agent installation.
+  </Step>
+
+  <Step>
+    ### Install the browser agent [#browser-install]
+
+    1. From [one.newrelic.com](https://one.newrelic.com), go to the [<DNT>**+ Integrations & Agents**</DNT> page](https://one.newrelic.com/marketplace).
+    2. Click <DNT>**Browser and mobile**</DNT>, then click <DNT>**Browser monitoring**</DNT>.
+    3. Select the <DNT>**Select copy/paste JavaScript code**</DNT> option (for more about this code, see [our browser install docs](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent)).
+    4. Complete the rest of the steps and click <DNT>**Enable.**</DNT>
+    5. Go to the `index.html ` file of your React application or Angular application or Vue application.
+    6. Paste our browser code snippet script tag right before the body tag ends (`</body>`).
+    7. Restart your application.
+
+    In a couple of minutes, your application will send metrics to [one.newrelic.com](https://one.newrelic.com).
+  </Step>
+</Steps>
+
+## Find your data [#find-data]
+
+To get your MExN dashboard:
+
+1. From [one.newrelic.com](https://one.newrelic.com), go to the <DNT>**+Integrations & Agents**</DNT> page.
+2. Click on <DNT>**Dashboards**</DNT>.
+3. In the search bar, type `MExN`.
+4. The MExN dashboard should appear. Click on it to install it.
+
+Your MExN dashboard is considered a custom dashboard and can be found in the <DNT>**Dashboards**</DNT> UI. For docs on using and editing dashboards, see [our dashboard docs](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+For information about data reported, see the docs for each of the tools you installed:
+
+* [Browser monitoring events](/docs/data-apis/understand-data/event-data/events-reported-browser-monitoring).
+* [Infrastructure data](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data/#infrastructure-events).
+* [MongoDB data](/docs/infrastructure/host-integrations/host-integrations-list/mongodb/mongodb-monitoring-integration-new/#find-and-use/).
+* [Node.js data](/docs/apm/agents/nodejs-agent/getting-started/introduction-new-relic-nodejs/).
+
+Here's a NRQL query checking the average window load time for the various browsers used by users on desktop computers:
+
+```sql
+SELECT average(windowLoad) 
+FROM PageViewTiming 
+WHERE (deviceType = 'Desktop') 
+FACET `userAgentName` 
+SINCE 604800 seconds 
+AGO TIMESERIES
+```
+
+## What's next? [#whats-next]
+
+To learn more about querying your data and creating custom dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)
+* [Introduction to custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard)

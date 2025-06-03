@@ -1,0 +1,312 @@
+---
+title: 'TileGroup'
+metaDescription: 'Learn how to work the TileGroup component'
+freshnessValidatedDate: 2024-06-03
+---
+
+### Usage
+
+```js
+import { TileGroup } from 'nr1'
+```
+
+### Examples
+
+#### Basic tile group
+
+```js
+<TileGroup>
+  <Tile onClick={console.log}>Tile 1</Tile>
+  <Tile onClick={console.log}>Tile 2</Tile>
+  <Tile onClick={console.log}>Tile 3</Tile>
+</TileGroup>
+```
+
+#### Tile group with small gap type
+
+```js
+<TileGroup gapType={TileGroup.GAP_TYPE.SMALL}>
+  <Tile onClick={console.log}>Tile 1</Tile>
+  <Tile onClick={console.log}>Tile 2</Tile>
+  <Tile onClick={console.log}>Tile 3</Tile>
+</TileGroup>
+```
+
+#### Tile group with 3 columns
+
+```js
+<TileGroup tileWidth="4fr">
+  {Array.from({ length: 12 }).map((_, index) => (
+    <Tile onClick={console.log}>Tile {index + 1}</Tile>
+  ))}
+</TileGroup>
+```
+
+#### Tile group with custom tile width
+
+```js
+<TileGroup tileWidth={120}>
+  {Array.from({ length: 12 }).map((_, index) => (
+    <Tile onClick={console.log}>Tile {index + 1}</Tile>
+  ))}
+</TileGroup>
+```
+
+#### Selectable tiles
+
+```js
+<TileGroup selectionType={TileGroup.SELECTION_TYPE.SINGLE} tileWidth={120}>
+  {Array.from({ length: 12 }).map((_, index) => (
+    <Tile onClick={console.log}>Tile {index + 1}</Tile>
+  ))}
+</TileGroup>
+```
+
+#### Selectable tiles with default tile checked
+
+```js
+<TileGroup
+  defaultValue="tile-0"
+  selectionType={TileGroup.SELECTION_TYPE.SINGLE}
+  tileWidth={120}
+>
+  {Array.from({ length: 12 }).map((_, index) => (
+    <Tile value={`tile-${index}`} onClick={console.log}>
+      Tile {index + 1}
+    </Tile>
+  ))}
+</TileGroup>
+```
+
+#### Controlled selectable tiles
+
+```js
+class MyComponent extends React.PureComponent {
+  constructor() {
+    super(...arguments);
+    this.state = {
+      checkedTile: 'tile-0',
+    };
+    this._onChange = this._onChange.bind(this);
+  }
+  _onChange(evt, tileValue) {
+    this.setState({ checkedTile: tileValue });
+  }
+  render() {
+    const { checkedTile } = this.state;
+    return (
+      <TileGroup
+        value={checkedTile}
+        onChange={this._onChange}
+        tileWidth={120}
+        selectionType={TileGroup.SELECTION_TYPE.SINGLE}
+      >
+        {Array.from({ length: 12 }).map((_, index) => (
+          <Tile
+            sizeType={Tile.SIZE_TYPE.SMALL}
+            value={`tile-${index}`}
+            key={index}
+            onClick={console.log}
+          >
+            Tile {index + 1}
+          </Tile>
+        ))}
+      </TileGroup>
+    );
+  }
+}
+```
+
+#### Multi-select tiles
+
+```js
+<TileGroup selectionType={TileGroup.SELECTION_TYPE.MULTIPLE} tileWidth={120}>
+  {Array.from({ length: 12 }).map((_, index) => (
+    <Tile onClick={console.log}>Tile {index + 1}</Tile>
+  ))}
+</TileGroup>
+```
+
+#### Controlled multi-select tiles
+
+```js
+class MyComponent extends React.PureComponent {
+  constructor() {
+    super(...arguments);
+    this.state = {
+      checkedTiles: [],
+    };
+    this._onChange = this._onChange.bind(this);
+  }
+  _onChange(evt, tileValue, checked) {
+    this.setState((state) => {
+      return {
+        checkedTiles: checked
+          ? [...state.checkedTiles, tileValue]
+          : state.checkedTiles.filter((value) => value !== tileValue),
+      };
+    });
+  }
+  render() {
+    const { checkedTiles } = this.state;
+    return (
+      <TileGroup
+        value={checkedTiles}
+        onChange={this._onChange}
+        tileWidth={120}
+        selectionType={TileGroup.SELECTION_TYPE.MULTIPLE}
+      >
+        {Array.from({ length: 12 }).map((_, index) => (
+          <Tile
+            sizeType={Tile.SIZE_TYPE.SMALL}
+            value={`tile-${index}`}
+            key={index}
+            onClick={console.log}
+          >
+            Tile {index + 1}
+          </Tile>
+        ))}
+      </TileGroup>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Tiles to display.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>string|number|string\[]|number\[]</h5>
+      </td>
+
+      <td>
+        The initial tile that should be checked.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `gapType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Size of the gap between tiles.<OptionReference>TileGroup.GAP_TYPE.MEDIUMTileGroup.GAP_TYPE.SMALL</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Function called when a tile is checked or unchecked.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":"Event source of the callback."},{"name":"tileValue","type":"any","description":"The value of the tile."},{"name":"checked","type":"boolean","description":"The new checked state."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `selectionType` <h5>enum</h5>
+      </td>
+
+      <td>
+        <OptionReference>
+          TileGroup.SELECTION_TYPE.MULTIPLE,
+          TileGroup.SELECTION_TYPE.NONE,
+          TileGroup.SELECTION_TYPE.SINGLE,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          TileGroup.SPACING_TYPE.EXTRA_LARGE,
+          TileGroup.SPACING_TYPE.LARGE,
+          TileGroup.SPACING_TYPE.MEDIUM,
+          TileGroup.SPACING_TYPE.NONE,
+          TileGroup.SPACING_TYPE.OMIT,
+          TileGroup.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `tileWidth` <h5>string|number</h5>
+      </td>
+
+      <td>
+        Represents the width of the columns. Columns always have the same width. It can be one of the following types:
+
+        * `'YYpx'`: where `YY` is a number, represents the minimum width of the columns in pixels. When the tiles don't fit in the available width they will be wrapped in a new row.
+        * `'YYfr'`: where `YY` is a number, it represents a fraction of the available width in a 12 fraction grid; for instance, a tile group with the tile width of `'6fr'`, will always render two columns (`12fr/6fr = 2`) where each tile will occupy 50% of the available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string|number|string\[]|number\[]</h5>
+      </td>
+
+      <td>
+        The tile or tiles with the matching value will be checked. Can be a single value or an array of values when the selection type is `multiple`.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+  </tbody>
+</table>

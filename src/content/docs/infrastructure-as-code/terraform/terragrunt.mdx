@@ -1,0 +1,639 @@
+---
+title: Using Terragrunt to Manage Multiple Environments
+metaDescription: Learn how to use [Terragrunt](https://www.terraform.io/) to manage configurations in multiple environments
+translate:
+  - kr
+freshnessValidatedDate: never
+redirects:
+  - /docs/more-integrations/terraform/terragrunt
+---
+
+[Terraform](https://www.terraform.io/) is a popular infrastructure-as-code software tool built by HashiCorp. You use it to provision all kinds of infrastructure and services, including New Relic <InlinePopover type="dashboards"/> and alerts.
+
+[Terragrunt](https://terragrunt.gruntwork.io/#:~:text=Terragrunt%20is%20a%20thin%20wrapper,modules%2C%20and%20managing%20remote%20state.) is a thin wrapper around Terraform that provides extra tools for:
+
+* Reducing repetition
+* Working with multiple Terraform modules
+* Managing remote state
+
+In this guide, you use Terragrunt to:
+
+* Generate your Terraform configurations
+* Create files
+* Manage multiple environments
+
+<Video
+  id="ivbp4e8t1f"
+  type="wistia"
+/>
+
+## Before you begin
+
+To use this guide, you should have some basic knowledge of both New Relic and Terraform.
+
+If you haven't already:
+
+* [Install the New Relic infrastructure agent](/docs/infrastructure/install-infrastructure-agent) on your host
+* [Install the Terraform CLI](https://www.terraform.io/intro/getting-started/install.html)
+* [Install Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/install/)
+
+To follow the examples in this guide, you can find example code on [GitHub](https://github.com/jsbnr/nr-terragrunt-intro-example).
+
+## Create a configuration
+
+Terragrunt provides extra tooling for your Terraform configurations. Here, you create a configuration using Terragrunt, Terraform, and New Relic.
+
+<Steps>
+  <Step>
+    Initialize a workspace:
+
+    ```bash
+    mkdir terragrunt-config && cd terragrunt-config
+    ```
+  </Step>
+
+  <Step>
+    In your new folder, create a _terragrunt.hcl_ file:
+
+    ```bash
+    touch terragrunt.hcl
+    ```
+  </Step>
+
+  <Step>
+    Next, create an _environments_ folder with a subfolder called _dev_:
+
+    ```bash
+    mkdir -p environments/dev
+    ```
+  </Step>
+
+  <Step>
+    Then, create a _src_ folder with _main.tf_ and _provider.tf_ files:
+
+    ```bash
+    mkdir src
+    touch src/main.tf
+    touch src/provider.tf
+    ```
+
+    You configure Terraform resources in _main.tf_ and providers in _provider.tf_.
+  </Step>
+
+  <Step>
+    In _src/provider.tf_, configure a [New Relic provider](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs).
+
+    ```hcl
+    terraform {
+    	required_version = "~> 0.14.3"
+    	required_providers {
+    		newrelic = {
+    			source = "newrelic/newrelic"
+    			version = "~> 2.14.0"
+    		}
+    	}
+    }
+    ```
+  </Step>
+
+  <Step>
+    In _src/main.tf_, add a New Relic alert policy named `DemoPolicy`:
+
+    ```hcl
+    resource "newrelic_alert_policy" "DemoPolicy" {
+    	name = "My Demo Policy"
+    }
+    ```
+  </Step>
+
+  <Step>
+    In _environments/dev_, create a file named _terragrunt.hcl_:
+
+    ```bash
+    touch environments/dev/terragrunt.hcl
+    ```
+  </Step>
+
+  <Step>
+    In it, add the following `include` statement:
+
+    ```hcl
+    include {
+    	path = find_in_parent_folders()
+    }
+    ```
+
+    This instructs Terragrunt to use any .hcl configuration files it finds in parent folders.
+  </Step>
+
+  <Step>
+    Add a [`terraform`](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#terraform) block to give Terragrunt a source reference:
+
+    ```hcl
+    include {
+    	path = find_in_parent_folders()
+    }
+
+    terraform {
+    	source = "../../src"
+    }
+    ```
+  </Step>
+
+  <Step>
+    In _src/provider.tf_, configure the New Relic provider with an API key, account ID, and region:
+
+    ```hcl
+    terraform {
+        required_version = "~> 0.14.3"
+        required_providers {
+            newrelic = {
+                source = "newrelic/newrelic"
+                version = "~> 2.14.0"
+            }
+        }
+    }
+
+    variable "newrelic_personal_apikey" {}
+    variable "newrelic_account_id" {}
+    variable "newrelic_region" {}
+
+    provider "newrelic" {
+    	account_id = var.newrelic_account_id
+    	api_key = var.newrelic_personal_apikey
+    	region = var.newrelic_region
+    }
+    ```
+
+    You use variables to keep your configuration dynamic.
+  </Step>
+
+  <Step>
+    In _environments/dev_, initialize terragrunt:
+
+    ```bash
+    terragrunt init
+    ```
+
+    This sets up a bit of context, including environment variables, then runs `terraform init`:
+
+    ```bash copyable=false
+    [output] Terraform has created a lock file .terraform.lock.hcl to record the provider
+    [output] selections it made above. Include this file in your version control repository
+    [output] so that Terraform can guarantee to make the same selections by default when
+    [output] you run "terraform init" in the future.
+    [output]
+    [output] Terraform has been successfully initialized!
+    [output]
+    [output] You may now begin working with Terraform. Try running "terraform plan" to see
+    [output] any changes that are required for your infrastructure. All Terraform commands
+    [output] should now work.
+    [output]
+    [output] If you ever set or change modules or backend configuration for Terraform,
+    [output] rerun this command to reinitialize your working directory. If you forget, other
+    [output] commands will detect it and remind you to do so if necessary.
+    [output] [terragrunt] [/workspace/terragrunt-config/environments/dev] 2021/02/02 13:30:31 Copying lock file [output] from /workspace/terragrunt-config/environments/dev/.terragrunt-cache/e-PoBgWhdv3v8QGOtDQxS_WeYu4/
+    [output] 69zjIFUfApJiUt8gFmi-6-dcPe8/.terraform.lock.hcl to /workspace/terragrunt-config/environments/dev
+    ```
+  </Step>
+
+  <Step>
+    In _environments/dev/terragrunt.hcl_, add an `inputs` block to provide values for your New Relic account variables:
+
+    ```hcl
+    inputs = {
+    	newrelic_personal_apikey = "NRAK-*<DNT>**" # Your New Relic account ID
+    	newrelic_account_id = "12345" # Your New Relic account ID
+    	newrelic_region = "US" # US or EU (defaults to US)
+    }
+    ```
+  </Step>
+
+  <Step>
+    Now, run `terragrunt plan`:
+
+    ```bash copyable=false
+    [output] An execution plan has been generated and is shown below.
+    [output] Resource actions are indicated with the following symbols:
+    [output]  + create
+    [output]
+    [output] Terraform will perform the following actions:
+    [output]
+    [output]  # newrelic_alert_policy.DemoPolicy will be created
+    [output]  + resource "newrelic_alert_policy" "DemoPolicy" {
+    [output]    + account_id     = (known after apply)
+    [output]    + id         = (known after apply)
+    [output]    + incident_preference = "PER_POLICY"
+    [output]    + name        = "My Demo Policy"
+    [output]   }
+    [output]
+    [output] Plan: 1 to add, 0 to change, 0 to destroy.
+    [output]
+    [output] ------------------------------------------------------------------------
+    [output]
+    [output] Note: You didn't specify an "-out" parameter to save this plan, so Terraform
+    [output] can't guarantee that exactly these actions will be performed if
+    [output] "terraform apply" is subsequently run.
+    ```
+
+    Terragrunt provides the `inputs` block's values.
+  </Step>
+
+  <Step>
+    Run `terragrunt apply`:
+
+    ```bash
+    terragrunt apply
+    ```
+
+    Now your Demo Policy is in your New Relic account.
+  </Step>
+</Steps>
+
+## Add to your configuration
+
+Now that you've created a basic New Relic configuration, add the configurations from our [Getting Started with New Relic and Terraform](/docs/more-integrations/terraform/terraform-intro/) and [Terraform modules](/terraform/terraform-modules) guides.
+
+<Callout variant="tip">
+  If you haven't done these guides yet, you can copy their configurations from the [Terragrunt intro Github repo](https://github.com/jsbnr/nr-terragrunt-intro-example).
+</Callout>
+
+<Steps>
+  <Step>
+    In _src/main.tf_, update the email address in the alert channel to your preferred email address:
+
+    ```hcl
+    resource "newrelic_alert_policy" "DemoPolicy" {
+    	name = "My Demo Policy"
+    }
+
+    resource "newrelic_alert_channel" "DemoChannel" {
+    	name = "My Demo Channel"
+    	type = "email"
+
+    	config {
+    		recipients = "your@email_address.com"
+    		include_json_attachment = "1"
+    	}
+    }
+
+    resource "newrelic_alert_policy_channel" "ChannelSubs" {
+    	policy_id = newrelic_alert_policy.DemoPolicy.id
+    	channel_ids = [
+    		newrelic_alert_channel.DemoChannel.id
+    	]
+    }
+
+    module "HostConditions" {
+    	source = "git::https://github.com/jsbnr/demo-terraform.git"
+    	policyId = newrelic_alert_policy.DemoPolicy.id
+    	cpu_critical = 88
+    	cpu_warning = 78
+    	diskPercent = 68
+    }
+    ```
+
+    Here, you added a New Relic alert channel, subscribed the demo policy to the alert channel, and added a module hosted on Github.
+  </Step>
+
+  <Step>
+    Run `terragrunt init` and then run `terragrunt apply`:
+
+    ```bash
+    terragrunt init
+    terragrunt apply
+    ```
+
+    After Terraform finishes processing, your alert policy has two conditions and one alert channel.
+  </Step>
+</Steps>
+
+## Use your environment as a Terragrunt variable
+
+With Terragrunt, you can add the name of the environment you're running to the name of the data you're creating, making your resource more identifiable in New Relic.
+
+<Steps>
+  <Step>
+    In the root _terragrunt.hcl_ file, create an input for `env_name`:
+
+    ```hcl
+    inputs = {
+    	env_name = "develop"
+    }
+    ```
+  </Step>
+
+  <Step>
+    In the _src/main.tf_, file add a new variable called `env_name`:
+
+    ```hcl
+    variable "env_name" {}
+    ```
+  </Step>
+
+  <Step>
+    Add the new `env_name` variable to the alert policy and alert channel resource blocks:
+
+    ```hcl
+    resource "newrelic_alert_policy" "DemoPolicy" {
+    	name = "${var.env_name}: My Demo Policy"
+    }
+
+    resource "newrelic_alert_channel" "DemoChannel" {
+    	name = "${env_name}: My Demo Channel"
+    	type = "email"
+
+    	config {
+    		recipients = "your@email_address.com"
+    		include_json_attachment = "1"
+    	}
+    }
+    ```
+  </Step>
+
+  <Step>
+    Run `terragrunt plan` to see the environment variable added to your policy name:
+
+    ```bash copyable=false
+    [output] # newrelic_alert_policy.DemoPolicy will be updated in-place
+    [output] ~ resource "newrelic_alert_policy" "DemoPolicy" {
+    [output]    id         = "1216533"
+    [output]   ~ name        = "My Demo Policy" -> "develop: My Demo Policy"
+    [output]    # (2 unchanged attributes hidden)
+    [output]  }
+    [output]
+    [output] # newrelic_alert_policy_channel.ChannelSubs must be replaced
+    [output] -/+ resource "newrelic_alert_policy_channel" "ChannelSubs" {
+    [output]   ~ channel_ids = [
+    [output]     - 4737437,
+    [output]    ] -> (known after apply) # forces replacement
+    [output]   ~ id     = "1216533:4737437" -> (known after apply)
+    [output]    # (1 unchanged attribute hidden)
+    [output]  }
+    ```
+
+    Here, you hardcoded the environment in _terragrunt.hcl_. To make this more dynamic, use a terragrunt built-in function to get the environment for you.
+  </Step>
+
+  <Step>
+    In the root _terragrunt.hcl_ file, update the input to use `path_relative_to_include()`, and pass the value as the `env_name` variable:
+
+    ```hcl
+    inputs = {
+    	env_name = path_relative_to_include()
+    }
+    ```
+  </Step>
+
+  <Step>
+    Run `terragrunt plan`:
+
+    ```bash copyable=false
+    [output] # newrelic_alert_policy.DemoPolicy will be updated in-place
+    [output] ~ resource "newrelic_alert_policy" "DemoPolicy" {
+    [output]    id         = "1216533"
+    [output]   ~ name        = "My Demo Policy" -> "environments/dev: My Demo Policy"
+    [output]    # (2 unchanged attributes hidden)
+    [output]  }
+    [output]
+    [output] # newrelic_alert_policy_channel.ChannelSubs must be replaced
+    [output] -/+ resource "newrelic_alert_policy_channel" "ChannelSubs" {
+    [output]   ~ channel_ids = [
+    [output]     - 4737437,
+    [output]    ] -> (known after apply) # forces replacement
+    [output]   ~ id     = "1216533:4737437" -> (known after apply)
+    [output]    # (1 unchanged attribute hidden)
+    [output]  }
+    [output]
+    [output] Plan: 2 to add, 1 to change, 2 to destroy.
+    ```
+
+    Note that the `env_name` variable has the entire `./environments/dev/` path. Instead, you want to include only the "dev" part.
+  </Step>
+
+  <Step>
+    Update the _terragrunt.hcl_ to strip "environements/" from `env_name`:
+
+    ```hcl
+    locals {
+    	env_name = replace(path_relative_to_include(), "environments/", "")
+    }
+
+    inputs = {
+    	env_name = local.env_name
+    }
+    ```
+
+    Here, you added a `locals` block to create a local variable and used the built-in `replace` function to remove the unwanted parts of the relative path.  Then, you updated the `inputs` block to use the local variable.
+  </Step>
+
+  <Step>
+    Run `terragrunt plan`:
+
+    ```bash copyable=false
+    [output]  # newrelic_alert_policy.DemoPolicy will be updated in-place
+    [output]  ~ resource "newrelic_alert_policy" "DemoPolicy" {
+    [output]     id         = "1216533"
+    [output]    ~ name        = "My Demo Policy" -> "dev: My Demo Policy"
+    [output]     # (2 unchanged attributes hidden)
+    [output]   }
+    [output]
+    [output]  # newrelic_alert_policy_channel.ChannelSubs must be replaced
+    [output] -/+ resource "newrelic_alert_policy_channel" "ChannelSubs" {
+    [output]    ~ channel_ids = [
+    [output]      - 4737437,
+    [output]     ] -> (known after apply) # forces replacement
+    [output]    ~ id     = "1216533:4737437" -> (known after apply)
+    [output]     # (1 unchanged attribute hidden)
+    [output]   }
+    [output]
+    [output] Plan: 2 to add, 1 to change, 2 to destroy.
+    ```
+
+    Your new policy name is "dev: My Demo Policy".
+  </Step>
+
+  <Step>
+    Run `terragrunt apply` to update your configurations:
+
+    ```bash
+    terragrunt apply
+    ```
+  </Step>
+</Steps>
+
+## Move your state to remote storage
+
+At the moment, your state file is local. Now, you update your Terraform configurations to store it in Amazon S3.
+
+<Callout variant="tip">
+  Since Terragrunt allows you to configure multiple environments, you should store state files in their own S3 buckets so they don't overwrite each other.
+</Callout>
+
+<Steps>
+  <Step>
+    [Create an S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/creating-bucket.html) for you development state file.
+  </Step>
+
+  <Step>
+    [Create an IAM user](https://docs.aws.amazon.com/IAM/latest/UserGuide/intro-structure.html) with [permissions to store files in your bucket](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_s3_rw-bucket.html).
+  </Step>
+
+  <Step>
+    In your root _terragrunt.hcl_, add a `remote_state` block that tells Terragrunt where to place your file in S3:
+
+    ```hcl
+    remote_state {
+    	backend = "s3"
+    	generate = {
+    		path = "backend.tf"
+    		if_exists = "overwrite_terragrunt"
+    	}
+    	config = {
+    		bucket = "YOUR_S3_BUCKET_NAME" # Amazon S3 bucket required
+
+    		key     = "envs/${local.env_name}/terraform.tfstate"
+    		region  = "us-east-1"
+    		encrypt = true
+    		profile = "YOUR_PROFILE_NAME" # Profile name required
+    	}
+    }
+    ```
+
+    Here, you defined a remote state configuration that specifies a bucket name, region, encryption, and profile. Make sure you replace the placeholder values with real ones. For `key`, you used the local `env_name` you created earlier to dynamically set the environment for the state file. Finally, you told Terragrunt to generate a new file called _backend.tf_ in your bucket.
+  </Step>
+
+  <Step>
+    Run `terragrunt plan`:
+
+    ```bash
+    terragrunt plan
+    ```
+
+    In your bucket, you see a folder named _envs._ Inside it is a folder called _devs_ containing a _terraform.tfstate_ file.
+
+    <Callout variant="tip">
+      Inside `envs/dev`, there is a hidden folder named _terragrunt-cache_. In it, is the _backend.tf_ file that Terragrunt generated.
+    </Callout>
+  </Step>
+</Steps>
+
+## Create a new environment
+
+Now that you've configured your development environment, create another that reuses most of your work.
+
+<Steps>
+  <Step>
+    Under _environments_, create a folder named _nonprod_. In it, create a file called _terragrunt.hcl_:
+
+    ```bash
+    mkdir nonprod && cd nonprod
+    touch terragrunt.hcl
+    ```
+  </Step>
+
+  <Step>
+    In _environments/nonprod/terragrunt.hcl_, copy the configuration from the _environments/dev/terragrunt.hcl_:
+
+    ```hcl
+    include {
+    	path= find_in_parent_folders()
+    }
+
+    terraform {
+    	source = "../../src"
+    }
+
+    inputs = {
+    	newrelic_personal_apikey = "NRAK-**</DNT>*" # Your New Relic account ID
+    	newrelic_account_id = "12345" # Your New Relic account ID
+    	newrelic_region = "US" # US or EU (defaults to US)
+    }
+    ```
+
+    <Callout variant="tip">
+      If you're using a different account for your nonprod environment, update `inputs` with a new account ID, API key, and region.
+    </Callout>
+  </Step>
+
+  <Step>
+    Inside _nonprod_, run `terragrunt init` and `terragrunt apply`:
+
+    ```bash
+    terragrunt init
+    terragrunt apply
+    ```
+
+    Terraform creates a new set of resources prefixed with "nonprod:".
+
+    Now, you've created two environments, dev and nonprod, but they're the same, other than their name.
+  </Step>
+
+  <Step>
+    In _src/main.tf_, add new variables for the Host Conditions module:
+
+    ```hcl
+    variable "cpu_critical" {default = 89}
+    variable "cpu_warningl" {default = 79}
+    variable "diskPercentage" {default = 69}
+    ```
+
+    Using variables like these makes your configurations more dynamic.
+  </Step>
+
+  <Step>
+    Update `HostConditions` to use the `cpu_critical`, `cpu_warning`, and `diskPercentage` variables:
+
+    ```hcl
+    module "HostConditions" {
+    	source = "git::https://github.com/jsbnr/demo-terraform.git"
+    	policyId = newrelic_alert_policy.DemoPolicy.id
+    	cpu_critical = var.cpu_critical
+    	cpu_warning = var.cpu_warninig
+    	diskPercent = var.dskPercentage
+    }
+    ```
+  </Step>
+
+  <Step>
+    Run `terragrunt plan`:
+
+    ```bash
+    terragrunt plan
+    ```
+
+    The `HostConditions` values now include the variable defaults.
+  </Step>
+
+  <Step>
+    In _nonprod/terragrunt.hcl_, add values for your variables:
+
+    ```hcl
+    inputs = {
+    	newrelic_personal_apikey = "NRAK-***" # Your New Relic account ID
+    	newrelic_account_id = "12345" # Your New Relic account ID
+    	newrelic_region = "US" # US or EU (defaults to US)
+
+    	cpu_critical = 50
+    	cpu_warninig = 40
+    	diskPercentage = 98
+    }
+    ```
+
+    This passes the values into your environment configurations.
+  </Step>
+
+  <Step>
+    Run `terragrunt apply`:
+
+    ```bash
+    terragrunt apply
+    ```
+
+    In your New Relic account, you have a new policy with nonprod-specific configurations.
+  </Step>
+</Steps>
+
+## Conclusion
+
+Congratulations! You've used Terragrunt to generate New Relic configurations and manage multiple environments. Review the [Terragrunt intro example](https://github.com/jsbnr/nr-terragrunt-intro-example), [New Relic Terraform provider documentation](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs), and [Terragrunt quick start](https://terragrunt.gruntwork.io/docs/getting-started/quick-start/) to learn how you can take your configuration to the next level.

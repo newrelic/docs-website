@@ -1,0 +1,87 @@
+---
+title: 'Harbor integration'
+tags:
+  - Integrations
+  - Harbor
+  - Prometheus
+  - Kubernetes
+freshnessValidatedDate: never
+---
+
+[Harbor](https://goharbor.io/) is an open-source registry that secures artifacts with policies and role-based access control, ensures images are scanned and free from vulnerabilities, and signs images as trusted. Harbor, a CNCF Graduated project, delivers compliance, performance, and interoperability to help you consistently and securely manage artifacts across cloud native compute platforms like Kubernetes and Docker.
+
+Use New Relic to view a dashboard based on Prometheus metrics which helps you understand the Harbor infrastructure of your k8s cluster. With New Relic you can monitor:
+
+* Harbor service status
+* Harbor Project byte quota utilization percentage
+* Harbor Server and Client error rates
+
+<img
+  title="Harbor Dashboard"
+  alt="Harbor Dashboard"
+  src="/images/kubernetes_screenshot-crop_harbor-dashboard.webp"
+/>
+
+## Enable the integration
+
+Follow these steps to enable the integration.
+
+1. Follow the [Harbor documentation](https://goharbor.io/docs/2.2.0/administration/metrics/#scrapping-metrics-with-prometheus) for Prometheus to discover the Harbor metrics endpoints.
+
+2. Set up Prometheus monitoring. Prometheus metrics needs to be integrated with New Relic, you can use the Prometheus Agent or the Remote Write integration. See [how to send Prometheus metrics](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) for more details.
+
+   <Callout variant="important">
+     The [Prometheus Agent](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/setup-prometheus-agent#scrape-metrics-only-from-prometheus-integrations-scrape-prometheus-integrations) only scrapes metrics by default from a [set of integrations](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro).
+
+     In this case, you must identify your pod or endpoint with one of the these labels `app.kubernetes.io/name`, `app.newrelic.io/name`, `k8s-app` containing the string `harbor`.
+   </Callout>
+
+3. Use the following query to confirm metrics are being ingested as expected:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE metricName LIKE 'harbor_%' FACET metricName LIMIT MAX
+   ```
+
+4. Install the [Harbor quickstart](https://newrelic.com/instant-observability/harbor) to access built-in dashboards and [alerts](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts/).
+
+   Once imported, you can edit or clone the assets to adapt them to your specific requirements.
+
+   <Callout variant="important">
+     Some charts of the dashboard include queries with conditions that require the identification of your pod or endpoint with one of the these labels `app.kubernetes.io/name`, `app.newrelic.io/name`, `k8s-app` containing the string `harbor`.
+   </Callout>
+
+## Find and use metrics
+
+Prometheus metrics are stored as dimensional metrics. You can [query using NRQL](/docs/telemetry-data-platform/get-data/apis/query-metric-data-type/) or use the [Data Explorer](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) to browse the available metrics, facet, and filter by the associated dimensions.
+
+The different sets of metrics exposed by this integration are defined in the [Harbor documentation](https://goharbor.io/docs/2.2.0/administration/metrics/).
+
+Use the following NRQL queries to understand the metrics being ingested in New Relic:
+
+* List unique metric names:
+
+  ```sql
+  FROM Metric SELECT keysetlike('harbor_%')
+  ```
+
+* Count number of metric updates:
+
+  ```sql
+  FROM Metric SELECT datapointcount() WHERE metricName LIKE 'harbor_%' LIMIT MAX
+  ```
+
+* Estimate data ingestion (daily ingest, in bytes):
+
+  ```sql
+  FROM Metric SELECT bytecountestimate() FACET metricName WHERE metricName LIKE 'harbor_%' SINCE 1 DAY AGO LIMIT MAX
+  ```
+
+## Troubleshooting
+
+* Use this command to verify that the Harbor Prometheus endpoint is emitting metrics on any K8s node configured with Harbor:
+
+  ```sh
+  curl <Harbor-Pod-IP>:9090/metrics
+  ```
+
+* You can also check the specific [troubleshooting guidelines](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/troubleshooting-guide/) for Prometheus integrations.

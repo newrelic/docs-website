@@ -1,0 +1,45 @@
+---
+title: Useful scripts to verify your work
+metaDescription: "When you're working on docs, use these useful scripts to help you make sure that you've done it right."
+---
+
+Our lovely engineering team has put together a handful of useful scripts to make writing for our site easier. Run these commands in your terminal when you're in the `docs-website` repository directory. Read on for information on how and when to use them.
+
+## clean [#clean]
+
+```
+yarn clean
+```
+
+Use `yarn clean` to clear out your cache files. This can make your local builds run more smoothly. "I run this every time before I start a local build," one of our engineers told me. Use it liberally and often.
+
+## verify-mdx [#mdx]
+
+```bash
+yarn verify-mdx PATH_TO_MDX_FILE
+yarn verify-mdx PATH_TO_MDX_DIRECTORY # reads files recursively
+```
+
+Use `yarn verify-mdx` to check for common issues in your MDX files. It also checks for common image import errors, like mismatches between filenames and image aliases. If you run this command without a file or folder path, it will check every single MDX file in the docs repo. This can take a few minutes.
+
+This is a good one to run when you've touched a lot of MDX files/images or you're just not certain about some changes you've made. It's also good to use this when your local build has failed and you're not sure why.
+
+## verify-install-page [#branching]
+
+```
+yarn verify-install-page PATH_TO_BRANCHING_DOC_DIRECTORY
+```
+
+Use `yarn verify-install-page` to check for common issues with branching doc files. The branching docs are all located in the `src/install` directory.
+
+This script also passes the install directory to `verify-mdx` to check for MDX errors.
+
+## remove-unused-images [#unused-images]
+
+```
+yarn remove-unused-images
+```
+
+Use `yarn remove-unused-images` to delete any image file that isn't being used by one of our docs. Specifically, it looks for any image files that don't have a matching import statement anywhere in our docs site.
+
+This one can take a few minutes to run.

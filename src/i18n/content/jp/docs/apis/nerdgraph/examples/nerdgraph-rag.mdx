@@ -1,0 +1,180 @@
+---
+title: 'NerdGraph チュートリアル: RAG ツールとドキュメントを構成する'
+tags:
+  - NerdGraph
+  - RAG
+  - NRAI
+  - Agentic AI
+metaDescription: Enhance NRAI with RAG (Retrieval Augmented Generation)
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+New Relic を使用すると、RAG を使用して NRAI エージェントを強化できます。 これは、ドキュメント、ランブック、インシデント レトロ、さらにはソースコードをサービスに関連付けることができ、NRAI がシステムの問題をより適切にインサイトに提供できることを意味します。
+
+## RAGを使い始める [#get-started]
+
+### 組織IDを取得する [#get-org-id]
+
+```graphql
+{
+  actor {
+    organization {
+      id
+    }
+  }
+}
+```
+
+### RAGツールを作成する [#create-rag-tool]
+
+注意してください - RAG ツールの名前と説明は非常に重要です。 LLM は、ツールの名前と説明の正確さに基づいてプロンプトに応答するときに、ツールを活用することを選択します。
+
+```graphql
+mutation {
+  entityManagementCreateRagTool(
+    ragToolEntity: {
+      description: "Runbooks for resolving incidents with APIs",
+      name: "API Runbooks",
+      scope: {id: `${ORGANIZATION_ID}`, type: ORGANIZATION}
+    }
+  ) {
+    entity {
+      id
+    }
+  }
+}
+```
+
+### Blob APIにドキュメントをアップロードする [#upload-document]
+
+<Callout variant="important">
+  インデックスが作成されたすべてのドキュメントは、組織内のすべてのユーザーに表示されます。インデックスを作成するドキュメントが、サービスの使用に関する社内ポリシーに準拠していることを確認してください。
+</Callout>
+
+* この特定の手順は NerdGraph を経由しないことに注意してください。 これは、NerdGraph が API を介したファイルのアップロードをサポートしているためです。
+
+```shell
+curl -X POST https://blob-api.one-service.newrelic.com/v1/e/organizations/$ORGANIZATION_ID/RagDocuments \
+     -H 'Api-Key: NRAK-XXXXXXXXXX' \
+     -H 'NewRelic-Entity: {"name": "Runbooks for API service" }' \
+     -H 'Content-Type: application/json' \
+     -d @incidents.json
+```
+
+応答は次のようになります。
+
+```json
+{
+  "entityGuid": "MTIyODU0NTN8TkdFUHxSQUdfRE9DVU1FTlR8MDE5NGUyOTgtYmQzMS03NzA4LWI3NzItYzQ4MTZlYjNhYThk",
+  "blobVersionEntity": null
+}
+```
+
+### NerdGraph で表現された RAG ドキュメント エンティティを表示する
+
+```graphql
+{
+  actor {
+    entityManagement {
+      entity(
+        id: `${RAG_DOCUMENT_GUID}`
+      ) {
+        ... on EntityManagementRagDocumentEntity {
+          id
+          name
+          blob {
+            url
+          }
+          type
+        }
+      }
+    }
+  }
+}
+```
+
+RAG ツールと RAG ドキュメントができたので、それらを相互に関連付ける必要があります。 これは、NerdGraph のエンティティ管理 API を介して行われます。
+
+### RAGドキュメントとRAGツールの関係を作成する
+
+```graphql
+mutation {
+  entityManagementCreateRelationship(
+    relationship: {
+      source: {
+        scope: ORGANIZATION,
+        id: `${RAG_DOCUMENT_GUID}`
+      },
+      target: {
+        scope: ORGANIZATION,
+        id: `${RAG_TOOL_GUID}`
+      },
+      type: "INDEXED_FOR"
+    }
+  ) {
+    relationship {
+      type
+      target {
+        id
+        type
+      }
+      source {
+        id
+        type
+      }
+    }
+  }
+}
+```
+
+### RAG ドキュメントと RAG ツールの関係を確認するためのクエリ
+
+```graphql
+{
+  actor {
+    entityManagement {
+      relationships(
+        filter: {sourceId: {eq: `${RAG_DOCUMENT_ID}`}}
+      ) {
+        items {
+          type
+          target {
+            id
+            type
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### RAGツールをクエリする
+
+RAG ツールをクエリし、特定のツールに対してインデックス付けされたドキュメントに基づいてチャンク化された一致を受け取ることができます。 NRAI を使用して返されたチャンクの一致を要約することも、NerdGraph API を使用して一致を取得し、独自のシステムで独自の AI を使用することもできます。
+
+```graphql
+{
+  actor {
+    machineLearning {
+      ragQueryData(
+        prompt: "tell me about the incident", 
+        toolId: `${RAG_TOOL_GUID}`
+      ) {
+        blobId
+        chunk
+        documentId
+        score
+        toolId
+      }
+    }
+  }
+}
+```

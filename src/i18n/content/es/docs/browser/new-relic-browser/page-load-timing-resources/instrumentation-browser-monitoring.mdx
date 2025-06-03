@@ -1,0 +1,216 @@
+---
+title: Instrumentación para monitoreo de navegador
+tags:
+  - Browser
+  - Browser monitoring
+  - Page load timing resources
+metaDescription: 'For an overview of instrumentation for browser''s page load timing and browser monitoring features, start here.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para [el tiempo de carga de página](/docs/browser/new-relic-browser/page-load-timing/page-load-timing-process) estándar, a veces denominado monitoreo de usuarios reales (RUM), medimos el tiempo total para cargar toda la página web. El monitoreo adicional después de la carga de la página proporciona detalles sobre llamadas AJAX en la página, errores de JavaScript y otros eventos e interacciones.
+
+Nuestro <InlinePopover type="browser"/>puede aprovechar el agente New Relic para inyectar dinámicamente JavaScript en las páginas a medida que se crean, a fin de recopilar información de tiempo de backend más detallada. El navegador también puede monitor aplicaciones con [arquitectura de aplicación de página única (SPA)](/docs/browser/single-page-app-monitoring/get-started/add-apps-single-page-app-monitoring).
+
+## Instrumentación para recopilar datos del navegador. [#instrumentation]
+
+Para recopilar datos, monitoreo de navegador utiliza elementos JavaScript pegados o inyectados en sus páginas web, generalmente como parte del HEAD de la página, que contienen detalles de configuración e instrumentación esencial del entorno browser . Una vez que la página termina de cargarse, se descarga un script adicional desde un servidor CDN. Este script adicional procesa los datos recopilados y los informa a New Relic a través de <DNT>**bam.nr-data.net**</DNT> para que pueda ver los datos en su cuenta de New Relic.
+
+Los elementos del script se pueden inyectar automáticamente o a través de la [API del agente](/docs/browser/new-relic-browser/installation-configuration/browser-settings-ui-options-browser-monitoring#agent-instrumentation) mediante un agente APM instalado en la aplicación backend, o se pueden [insertar manualmente mediante copiar/pegar](/docs/browser/new-relic-browser/installation-configuration/adding-apps-new-relic-browser#copy-paste-app). Tanto la API de llamada como el método copiar/pegar le permiten controlar cuándo y dónde se insertan los elementos del script.
+
+Utilizamos estos métodos para recopilar la información sobre el tiempo de carga de la página:
+
+<table id="navigation-api">
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        <DNT>
+          **Method**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Collecting page load timing information**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Navegador <DNT>**with**</DNT> API de especificación de tiempo de navegación
+      </td>
+
+      <td>
+        Para los navegadores que implementan la API [de especificación de tiempo de navegación](http://www.w3.org/TR/navigation-timing/ "El enlace se abre en una ventana nueva.") , la información del tiempo de carga de la página se lee desde el browser y el agente del navegador la informa a New Relic. Los valores apropiados simplemente se leen del objeto de sincronización de rendimiento de la página web para capturar la información de sincronización.
+
+        * <DNT>
+            **Navigation start**
+          </DNT>
+
+          : `navigationStart`
+
+        * <DNT>
+            **First byte**
+          </DNT>
+
+          : `responseStart`
+
+        * <DNT>
+            **DOM ready**
+          </DNT>
+
+          : `DOMContentLoadedEventEnd`
+
+        * <DNT>
+            **Page ready**
+          </DNT>
+
+          : `loadEventEnd`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Navegador <DNT>**without**</DNT> API de especificación de tiempo de navegación
+      </td>
+
+      <td>
+        Para los navegadores que no implementan la API de especificación de tiempos de navegación, confiamos en la [cookie NREUM](/docs/browser/new-relic-browser/miscellaneous/new-relic-cookies#nreum) y el agente del navegador para recopilar información de tiempos. <Callout variant="important">Para la versión 1220 y posteriores del agente del browser, [el uso de cookies de sesión ha quedado obsoleto](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1220/#removed-3rd-party-cookies), por lo que esta información solo es relevante si está utilizando la versión 1216 y anteriores del agente del browser.</Callout>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Instrumentación adicional
+      </td>
+
+      <td>
+        Browser también utiliza:
+
+        * Instrumentación del objeto `XMLHttpRequest` para recopilar [datos de temporización AJAX](/docs/browser/new-relic-browser/browser-pro-features/ajax-dashboard-identifying-time-consuming-calls).
+        * Instrumentación de funciones de JavaScript para recopilar [errores de JavaScript](/docs/browser/new-relic-browser/browser-pro-features/js-errors-dashboard-examining-errors-over-time) no detectados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        API de sincronización de recursos
+      </td>
+
+      <td>
+        Para los navegadores que implementan la [API de sincronización de recursos](http://www.w3.org/TR/resource-timing/), el agente del navegador lee e informa los detalles [del rastreo de sesión](/docs/browser/new-relic-browser/browser-pro-features/session-traces-exploring-webpages-life-cycle) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Monitoreo de aplicación de página única (SPA)
+      </td>
+
+      <td>
+        Para [el monitoreo de SPA](/docs/browser/new-relic-browser/getting-started/compatibility-requirements-browser-monitoring#spa), requerimos la API de [especificación de tiempo de navegación](http://www.w3.org/TR/navigation-timing/) y la API `addEventListener` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Requisitos de ubicación de JavaScript [#javascript-placement]
+
+Inyectar JavaScript en línea en HEAD es un requisito inusual para una biblioteca de JavaScript y es diferente de cómo se incluyen normalmente los scripts de terceros. Requerimos esto para que browser proporcione información precisa sin afectar el rendimiento de carga de la página.
+
+Los elementos JavaScript inyectados browser envuelven muchas de las API integradas del browser para registrar información sobre errores de JavaScript o tiempos de devolución de llamadas. La ubicación inusual del elemento de código es necesaria por las siguientes razones:
+
+* La ubicación de HEAD en línea garantiza que el código de instrumentación se cargue antes que todos los demás scripts, de modo que se produzca el ajuste cuando se registren otras bibliotecas.
+* La colocación de código en línea también elimina los viajes de ida y vuelta de la red causados por secuencias de comandos con referencias externas.
+
+## Transmisión de datos [#transmission]
+
+Para ambas páginas web https <DNT>**and**</DNT> http, transmitimos datos a través de https. Esto resume cuándo se transmiten los datos hacia y desde la página web.
+
+<Callout variant="important">
+  New Relic requiere compatibilidad con la función hash SHA256, que algunos sistemas operativos más antiguos no admiten. Si un usuario final carece de SHA256, el agente del navegador no se conectará a New Relic y no se enviarán datos.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        <DNT>
+          **Data transmission**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Frequency**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Obtener el script del agente
+      </td>
+
+      <td>
+        Una vez que la siguiente página se carga a través de https
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enviar datos de tiempo de carga de la página
+      </td>
+
+      <td>
+        Una vez que la siguiente página se carga a través de https
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enviar datos de tiempo de visualización de la página (`PageViewTiming`)
+      </td>
+
+      <td>
+        Los datos se envían 10 segundos después de la carga de la página inicial y luego cada 30 segundos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enviar datos de error de AJAX y JavaScript
+      </td>
+
+      <td>
+        Una vez cada 10 segundos cuando hay actividad vía https
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enviar datos del rastreo de sesión
+      </td>
+
+      <td>
+        Cada diez segundos cuando hay actividad y se está produciendo un rastreo de sesión vía https
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enviar datos SPA
+      </td>
+
+      <td>
+        Al finalizar una interacción vía https
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,63 @@
+---
+title: 'Deploy your application'
+metaDescription: 'Spin up your demo services to follow along the lab'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. If you haven't already, checkout the [course introduction](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+</Callout>
+
+Before you build a quickstart, you need to spin up your demo services.
+
+## Spin up demo services [#spin-demo-services]
+
+Clone the lab repository from GitHub:
+
+```bash
+    git clone https://github.com/newrelic-experimental/build-a-quickstart-lab.git
+```
+
+Change to the demo directory, called `flashDB`.
+
+```bash
+
+cd build-a-quickstart-lab/flashDB
+
+```
+
+This directory contains code for two important services:
+
+* A python program that mimics the database and also provides functions for create, read, update, and delete (CRUD) operations.
+* A simulator service that generates dummy database traffic so you don't have to manually perform CRUD operations
+
+Execute the following command to run your services:
+
+```Python
+python simulator.py
+```
+
+Here, you run the simulator that generates mock traffic against your database. Once the simulator is up and running, you see the following output in your terminal:
+
+```bash animate
+python simulator.py
+[output] Writing...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Reading...
+[output] try_send
+[output] Reading...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Reading...
+```
+
+Next, you use [newrelic_telemetry_sdk](https://github.com/newrelic/newrelic-telemetry-sdk-python) to send telemetry data from your flashDB service to New Relic.
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. Continue on to next lesson: [send telemetry data to New Relic](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/send-telemetry-to-nr).
+</Callout>

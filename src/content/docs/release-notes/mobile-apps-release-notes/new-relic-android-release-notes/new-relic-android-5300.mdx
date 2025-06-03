@@ -1,0 +1,10 @@
+---
+subject: Mobile app for Android
+releaseDate: '2023-06-05'
+version: 5.3.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+New Relic now supports Social Sign In for all users.  You can click the “Social Sign In” button on the login screen to sign into your New Relic account with other social providers.

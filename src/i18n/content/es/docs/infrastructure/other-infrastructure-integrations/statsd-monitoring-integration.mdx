@@ -1,0 +1,599 @@
+---
+title: Integración de monitoreo de StatsD
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra integración de StatsD le permite obtener fácilmente datos en formato [StatsD](https://github.com/statsd/statsd)en New Relic. También puede agregar cualquier etiqueta arbitraria (pares de valores principales) a sus datos. Una vez que tus métricas estén en New Relic, podrás [consultar tus datos](#find-use-data) y crear gráficos y paneles personalizados.
+
+¿Quieres probar nuestra integración de StatsD? ¡ [Crea una cuenta New Relic](https://newrelic.com/signup) gratis! No se requiere tarjeta de crédito.
+
+## Requisitos
+
+Esta integración utiliza nuestra [API métrica](/docs/data-ingest-apis/get-data-new-relic/metric-api/introduction-metric-api) y nuestra [API de eventos](/docs/insights/insights-data-sources/custom-data/introduction-event-api) para ingerir datos. Para utilizar estas API, necesitará un <InlinePopover type="licenseKey" />.
+
+La integración cumple con los [requisitos de API métrica y los límites de datos](/docs/data-ingest-apis/get-data-new-relic/metric-api/metric-api-limits-restricted-attributes). Para ver si es posible que esté alcanzando el límite de velocidad, ejecute la siguiente consulta NRQL del [evento`NrIntegrationError` ](/docs/telemetry-data-platform/manage-data/nrintegrationerror):
+
+```sql
+SELECT count(*) FROM NrIntegrationError 
+WHERE newRelicFeature = 'Metrics' 
+FACET category, message
+LIMIT 100 SINCE 1 day ago
+```
+
+La integración está disponible como una imagen de contenedor de Linux en [DockerHub](https://hub.docker.com/r/newrelic/nri-statsd/tags) para amd64 y arm64 arquitectura.
+
+## Instalar
+
+Esta sección explicará cómo realizar una instalación estándar. Si desea ejecutar StatsD en Kubernetes, consulte [Instalación de Kubernetes](#kubernetes).
+
+Para instalar la integración de StatsD, ejecute el siguiente comando e incluya su [ID de cuenta de New Relic](/docs/accounts/install-new-relic/account-setup/account-id) y <InlinePopover type="licenseKey" />. Esto genera un archivo de configuración TOML utilizado por `gostatsd`.
+
+```shell
+docker run \
+  -d --restart unless-stopped \
+  --name newrelic-statsd \
+  -h $(hostname) \
+  -e NR_ACCOUNT_ID=YOUR_ACCOUNT_ID \
+  -e NR_API_KEY=NEW_RELIC_LICENSE_KEY \
+  -p 8125:8125/udp \
+  newrelic/nri-statsd:latest
+```
+
+Si su organización se encuentra en la [región del centro de datos de la UE](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center), agregue esto al comando anterior:
+
+```shell
+-e NR_EU_REGION=true \
+```
+
+Después de la instalación, puedes:
+
+* Realizar [configuración adicional](#configure)opcional
+* [Define tu métrica](#metric-format)
+* [Añade una etiqueta personalizada](#add-tags) a tus datos
+* [Crear alerta](#alerts)
+
+### Instalar para Kubernetes [#kubernetes]
+
+A continuación se muestran ejemplos de manifiestos de Kubernetes para implementación y objetos de servicio:
+
+<CollapserGroup>
+  <Collapser id="k8s-manifest-examples" title="Ejemplos de manifiesto de Kubernetes">
+    A continuación se muestran ejemplos de manifiestos de Kubernetes para implementar StatsD en un entorno de Kubernetes y crear un servicio de StatsD denominado `newrelic-statsd`. Debes insertar tu [ID de cuenta](/docs/accounts/install-new-relic/account-setup/account-id) y tu <InlinePopover type="licenseKey" />.
+
+    <DNT>**deployment.yml**</DNT>:
+
+    ```yml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: newrelic-statsd
+      namespace: tooling
+      labels:
+        app: newrelic-statsd
+    spec:
+      selector:
+        matchLabels:
+          app: newrelic-statsd
+      replicas: 2
+      revisionHistoryLimit: 2
+      template:
+        metadata:
+          labels:
+            app: newrelic-statsd
+        spec:
+          serviceAccountName: newrelic-statsd
+          containers:
+            - name: newrelic-statsd
+              image: newrelic/nri-statsd:latest
+              env:
+                - name: NR_ACCOUNT_ID
+                  value: "NEW_RELIC_ACCOUNT_ID"
+                - name: NR_API_KEY
+                  value: "NEW_RELIC_LICENSE_KEY"
+    ```
+
+    <DNT>**service.yml**</DNT>:
+
+    ```yml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: newrelic-statsd
+      namespace: tooling
+      labels:
+        app: newrelic-statsd
+    spec:
+      type: ClusterIP
+      ports:
+        - name: newrelic-statsd
+          port: 80
+          targetPort: 8125
+          protocol: UDP
+      selector:
+        app: newrelic-statsd
+    ```
+
+    <DNT>**service-account.yml**</DNT>:
+
+    ```yml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: newrelic-statsd
+      namespace: default
+    ```
+
+    Para obtener detalles sobre la configuración, consulte [Configuración de Kubernetes](#k8s-config).
+  </Collapser>
+
+  <Collapser id="k8s-helm-chart" title="Gráfico de timón de Kubernetes">
+    También está disponible un [gráfico StatsD Helm](https://github.com/newrelic/helm-charts/tree/master/charts/nri-statsd) para instalar la integración.
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback />
+
+## Configurar
+
+En el [procedimiento de instalación](#install), ejecuta `nri-statsd` con variables de entorno y esto genera un archivo de configuración TOML. Además, puede establecer estas opciones de configuración:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Opciones de configuración
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `expiry-interval`
+
+        *cadena*
+      </td>
+
+      <td>
+        Si una métrica no se actualiza durante este período de tiempo, dejamos de informar esa métrica. El valor predeterminado es `5m`.
+
+        Si desea enviar la métrica solo si el valor se actualizó entre los intervalos de descarga, configúrelo en `1ms`. Para nunca caducar métrica, configúrelo en `0`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `percent-threshold`
+
+        *lista de números enteros*
+      </td>
+
+      <td>
+        Especifica el percentil utilizado para la agregación métrica. Predeterminado: `90`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metrics-addr`
+
+        *cadena*
+      </td>
+
+      <td>
+        Indica dirección en la que escuchar métrica. Predeterminado: `:8125`. Desde nri-statsd `v2.3.0` (goStatsD `v34.2.1`), se admite la conexión a través de Unix dominio Socket (UDS). Emplee `metrics-addr=/some/path/newrelic-statsd.socket` en lugar de `[host]:port` en la configuración.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  Para garantizar el cumplimiento de FedRAMP al utilizar la integración de StatsD, debe definir el siguiente extremo en la configuración personalizada:
+
+  ```ini
+  address = 'https://gov-insights-collector.newrelic.com/v1/accounts/$NR_ACCOUNT_ID/events'
+  ```
+
+  ```ini
+  address-metrics = 'https://gov-infra-api.newrelic.com/metric/v1'
+  ```
+</Callout>
+
+A continuación se muestran algunos ejemplos de personalización de la configuración sobrescribiendo la configuración predeterminada:
+
+<CollapserGroup>
+  <Collapser id="config-example" title="Ejemplo de configuración personalizada">
+    ```ini
+    # Specify after how long do we expire metrics, default:5m
+    expiry-interval = '1ms'
+
+    # percent-threshold specify a list of percentiles for metrics aggregation, default:90
+    percent-threshold = [90, 99]
+
+    backends='newrelic'
+    [newrelic]
+    # flush types supported: metrics,  insights, infra
+    flush-type = 'metrics'
+    transport = 'default'
+    address = 'https://insights-collector.newrelic.com/v1/accounts/$NR_ACCOUNT_ID/events'
+    address-metrics = 'https://metric-api.newrelic.com/metric/v1'
+    api-key = 'NEW_RELIC_LICENSE_KEY'
+    ```
+
+    <DNT>
+      **Disable timer sub-metrics:**
+    </DNT>
+
+    De forma predeterminada, `nri_statsd` calcula lo siguiente para el temporizador métrico: desviación estándar, media, mediana, suma, límites inferior y superior para el intervalo de descarga. Si deseas deshabilitar esas métricas puedes hacerlo agregando una sección de configuración `disabled-sub-metrics` y configurando `true` para las que deseas deshabilitar. He aquí un ejemplo:
+
+    ```ini
+    # disabled-sub-metrics configuration section allows disabling timer sub-metrics
+    [disabled-sub-metrics]
+    # Regular metrics
+    count=false
+    count-per-second=false
+    mean=false
+    median=false
+    lower=false
+    upper=false
+    stddev=false
+    sum=false
+    sum-squares=false
+
+    # Percentile metrics
+    count-pct=false
+    mean-pct=false
+    sum-pct=false
+    sum-squares-pct=false
+    lower-pct=false
+    upper-pct=false
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="docker-config" title="Docker: sobrescribe la configuración predeterminada">
+    Para sobrescribir la configuración predeterminada `nri-statsd` mientras se ejecuta en un contenedor, puede montar un archivo de configuración dentro del contenedor.
+
+    Puede adoptar la siguiente plantilla según sea necesario para su situación.
+
+    Ejemplo:
+
+    ```ini
+    backends='newrelic'
+    flush-interval='10s'
+
+    [newrelic]
+    # flush types supported: metrics,  insights, infra
+    flush-type = 'metrics'
+    transport = 'default'
+    address-metrics = 'https://metric-api.newrelic.com/metric/v1'
+    api-key = 'NEW_RELIC_LICENSE_KEY'
+    ```
+
+    Para ejecutar el contenedor con el archivo montado en la ruta adecuada:
+
+    ```shell
+    docker run \
+      ...
+      -v ${PWD}/nri-statsd.toml:/etc/opt/newrelic/nri-statsd.toml \
+      ...
+      newrelic/nri-statsd:latest
+    ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="k8s-config" title="Kubernetes: sobrescribe la configuración predeterminada">
+    El mejor enfoque para configurar `nri-statsd` ejecutándose en Kubernetes es usar un `configMap` y montar el `configMap` en el contenedor. (Este es un proceso similar al de montar el archivo de configuración en docker).
+
+    Ejemplo:
+
+    ```yml
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: nri-statsd-config
+      namespace: default
+    data:
+      nri-statsd.toml: |
+        backends='newrelic'
+        flush-interval='10s'
+
+        [newrelic]
+        # flush types supported: metrics,  insights, infra
+        flush-type = 'metrics'
+        transport = 'default'
+        address = 'https://metric-api.newrelic.com/metric/v1'
+        api-key = '$NEW_RELIC_LICENSE_KEY'
+    ```
+
+    Para usar configMap, declare un volumen en su plantilla de especificación desplegable y luego declare un `volumeMount` en su especificación de contenedor.
+
+    Ejemplo:
+
+    ```yml
+    apiVersion: apps/v1
+    kind: Deployment
+    spec:
+      template:
+        spec:
+        containers:
+          # ....
+          volumeMounts:
+            - mountPath: /etc/opt/newrelic/
+              name: nri-statsd-config
+        volumes:
+          - name: nri-statsd-config
+            configMap:
+              name: nri-statsd-config
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Formato métrico
+
+La integración recibe métrica utilizando el [protocolo StatsD](https://github.com/statsd/statsd). Opcionalmente, se puede configurar la frecuencia de muestreo y agregar una etiqueta.
+
+Este es el formato de datos métrico que utilizamos:
+
+```
+<metric name>:<value>|<type>|@<sample rate>|#<tags>
+```
+
+Aquí hay explicaciones de estos campos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Nombre del campo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `<metric name>`
+
+        *cadena*
+      </td>
+
+      <td>
+        <DNT>**Required.**</DNT> Nombre de la métrica.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `<value>`
+
+        *cadena*
+      </td>
+
+      <td>
+        <DNT>**Required.**</DNT> El [tipo de métrica](#metric-types):
+
+        * `c` = contador
+        * `g` = medidor
+        * `ms` = temporizador
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `@<sample rate>`
+
+        *Flotante*
+      </td>
+
+      <td>
+        <DNT>**Optional**</DNT> para contadores simples o contadores temporizadores. Cuando se deben enviar muchas métricas, se puede utilizar el muestreo para reducir el tráfico de la red. La desventaja es una reducción en la resolución de los datos.
+
+        Un ejemplo de cómo funcionaría esto para frecuencias de muestreo inferiores a `1`: si lo configura en `0.1`, el contador enviará una medición una de cada 10 veces.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `#<tags>`
+
+        *cadena*
+      </td>
+
+      <td>
+        <DNT>**Optional.**</DNT> La etiqueta adjunta a su métrica se convierte en atributo (valor principal pares). Para obtener más información sobre las opciones de etiquetas, consulte [etiqueta](#add-tags).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Tipos métricos
+
+A continuación se detallan los tipos de métricas y cómo formatearlas:
+
+<CollapserGroup>
+  <Collapser id="counter" title="Encimera">
+    Un contador mide el número de ocurrencias de un evento. Los ejemplos incluyen el almacenamiento de caché por intervalo de informe y el número de subprocesos creados por intervalo de informe.
+
+    Un contador se puede incrementar o disminuir durante el mismo intervalo de descarga agregando un signo al valor. En el siguiente ejemplo, el valor del contador será `2`:
+
+    ```
+    counter:4|c
+    counter:-2|c
+    ```
+
+    En cada descarga, el recuento actual se envía y se restablece a `0`. Si el recuento no se actualiza, en el siguiente lavado enviará el valor `0`. Puede optar por desactivar este comportamiento configurando [`expiry-interval`](#configure) en `1ms`.
+
+    A continuación se muestra un ejemplo de un contador que se muestrea 1 de cada 10 veces:
+
+    ```
+    counter:4|c@0.1
+    ```
+  </Collapser>
+
+  <Collapser id="gauge" title="Medidor">
+    Un medidor representa un valor que puede aumentar o disminuir con el tiempo. Ejemplos de medidor incluyen temperatura, uso de CPU y memoria. He aquí un ejemplo:
+
+    ```
+    temperature:40|g
+    ```
+
+    Si el medidor no se actualiza, en la siguiente descarga enviará el valor anterior. Puede optar por desactivar este comportamiento configurando [`expiry-interval`](#configure) en `1ms`.
+  </Collapser>
+
+  <Collapser id="timer" title="Temporizador">
+    El tipo de métrica de temporizador mide los datos de tiempo.
+
+    De forma predeterminada, `nri_statsd` calcula lo siguiente para el temporizador métrico: desviación estándar, media, mediana, suma, límites inferior y superior para el intervalo de descarga. Estos se envían como submétricos en el siguiente formato:
+
+    ```
+    <metric_base_name>.std_dev 
+    <metric_base_name>.median
+    <metric_base_name>.summary
+    <metric_base_name>.sum_squares
+    <metric_base_name>.mean
+    <metric_base_name>.per_second
+    ```
+
+    El percentil configurado generará la siguiente métrica. El valor del umbral percentil se adjuntará como etiqueta.
+
+    ```
+    <metric_base_name>.sum_squares.percentiles
+    <metric_base_name>.sum.percentiles
+    <metric_base_name>.count.percentiles
+    <metric_base_name>.upper.percentiles
+    <metric_base_name>.mean.percentiles
+    ```
+
+    El umbral percentil se puede modificar con la opción de configuración [`percent-threshold`](#configure) . Estos se pueden controlar a través de la [sección de configuración`disabled-sub-metrics` ](#config-example).
+  </Collapser>
+</CollapserGroup>
+
+## Agregar etiqueta (atributo) [#add-tags]
+
+Puedes agregar una etiqueta a tus datos, que guardamos como [atributo](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute) (valor principal pares). Hay dos opciones para agregar etiquetas:
+
+* Agregue una etiqueta predeterminada que se aplique a todas las métricas: Estas se aplican a todas las métricas. Son fijos y no cambian con el tiempo.
+* Agregar etiqueta de nivel de métrica: se aplican a métricas específicas y permiten cambiar el valor entre dos envíos.
+
+<CollapserGroup>
+  <Collapser id="tags-nri-statsd" title="Agregar etiqueta predeterminada que se aplica a todas las métricas.">
+    Agregue etiqueta a métrica y evento definiendo una variable de entorno en el [comando de inicio](#install).
+
+    Aquí hay un ejemplo que crearía dos etiquetas:
+
+    ```sh
+    -e TAGS="environment:production region:us"
+    ```
+
+    Aquí está la variable de entorno utilizada en el [comando de inicio](#install):
+
+    ```sh
+    docker run \
+      -d --restart unless-stopped \
+      --name newrelic-statsd \
+      -h $(hostname) \
+      -e NR_ACCOUNT_ID=YOUR_ACCOUNT_ID \
+      -e NR_API_KEY=NEW_RELIC_LICENSE_KEY \
+      -e TAGS="environment:production region:us" \ 
+      -p 8125:8125/udp \
+      newrelic/nri-statsd:latest
+    ```
+  </Collapser>
+
+  <Collapser id="tags-app-code" title="Agregar etiqueta a nivel de métrica">
+    Al definir el [formato métrico](#metric-format), puede agregar una etiqueta usando este formato:
+
+    ```
+    <bucket name>:<value>|<type>|#<tags>
+    ```
+
+    En este ejemplo, `<tags>` es una lista de etiquetas separadas por comas. El formato de la etiqueta es: `simple` o `key:value`.
+  </Collapser>
+</CollapserGroup>
+
+A continuación se muestra un ejemplo de consulta [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) que incluye una etiqueta personalizada:
+
+```sql
+SELECT count(*) FROM Metric WHERE environment = 'production'
+```
+
+## Crear alerta [#alerts]
+
+Puede alertar sobre datos de StatsD usando [NRQL condición de alerta](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries).
+
+<CollapserGroup>
+  <Collapser id="alert-example" title="Ejemplo de alerta">
+    Este procedimiento le guiará en el envío de algunos datos de muestra y luego en la creación de una condición de alerta utilizando esos datos.
+
+    Primero, envíe estos datos al contenedor StatsD de New Relic:
+
+    ```sh
+    echo "prod.test.num:32|g" | nc -v -w 1 -u localhost 8125
+    ```
+
+    A continuación, cree una [condición de alerta NRQL](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) utilizando esta consulta:
+
+    ```sql
+    SELECT latest(prod.test.num) FROM Metric WHERE metricName = 'prod.test.num'
+    ```
+
+    Aquí hay una imagen que muestra la creación de esta condición de alerta NRQL. Observe que los datos de muestra enviados están representados por el punto azul en la parte superior derecha del gráfico.
+
+    <img title="statsd-nrql-alert-condition-example.png" alt="StatsD NRQL alert condition query" src="/images/infrastructure_screenshot-crop_statsd-nrql-condition.webp" />
+
+    Ahora podemos crear la condición de alerta con esta configuración:
+
+    <img title="StatsD NRQL alert condition creation example" alt="StatsD NRQL alert condition creation example" src="/images/infrastructure_screenshot-crop_statsd-nrql-alert.webp" />
+
+    Cuando cree la condición de alerta NRQL, asegúrese de configurar <DNT>**Condition name**</DNT>.
+
+    Si se envía una métrica con un valor superior a 50, se crea y notifica un incidente. El incidente se cierra automáticamente después de 24 horas. Para probar que la alerta está funcionando, ejecute este comando:
+
+    ```sh
+    echo "prod.test.num:60|g" | nc -v -w 1 -u localhost 8125
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Buscar y utilizar datos [#find-use-data]
+
+Para consultar tus datos, utilizarías cualquier [opción de consulta](/docs/using-new-relic/data/understand-data/query-new-relic-data) de New Relic. Por ejemplo, podrías ejecutar una consulta [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) como:
+
+```sql
+SELECT count(*) FROM Metric WHERE metricName = 'myMetric' and environment = 'production'
+```
+
+Para obtener más información sobre cómo consultar el tipo de datos `Metric` , consulte [consulta métrica de datos](/docs/data-ingest-apis/get-data-new-relic/metric-api/view-query-you-metric-data).
+
+## Resolución de problemas [#troubleshooting]
+
+**Problema**:
+
+Seguiste los pasos para ejecutar la integración de StatsD pero aún necesitas ver la métrica esperada en New Relic.
+
+**Soluciones**:
+
+Siga los pasos a continuación para solucionar problemas de su configuración:
+
+* Asegúrese de que <InlinePopover type="licenseKey" />contenga su clave de licencia de 40 caracteres hexadecimales y que sea una licencia válida para el ID de cuenta de New Relic seleccionado.
+* Asegúrese de que se haya seleccionado el centro de datos correcto, EE. UU. o UE, para su cuenta New Relic. Consejo: Si la clave\_licencia comienza con &quot;eu&quot;, entonces debe utilizar la marca `NR_EU_REGION=true` .
+* Asegúrese de que no haya ningún [`NrIntegrationError`](/data-apis/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) relacionado con la integración de StatsD.
+* El log detallado se puede habilitar usando la variable de entorno `NR_STATSD_VERBOSE`, modifique el comando de ejecución docker agregando la siguiente variable: `-e NR_STATSD_VERBOSE=true`.
+* Se puede enviar una prueba métrica para confirmar que la integración está enviando las métricas esperadas. Ejemplo de uso de la utilidad NetCat `nc` :
+  * `echo "example.gauge:123|g" | nc -u -w0 127.0.0.1 8125` (actualice `127.0.0.1` con la dirección IP/dirección del contenedor en ejecución).
+
+## Comprueba el código fuente [#source-code]
+
+Esta integración es software de código abierto. Eso significa que puedes [explorar su código fuente](https://github.com/newrelic/nri-statsd/) y enviar mejoras, o crear tu propia bifurcación y compilarla.

@@ -1,0 +1,277 @@
+---
+title: 'Lab part 4: Debug frontend slowness in your application'
+metaDescription: 'Part 4 of a multi-part lab on using New Relic browser monitoring to troubleshoot your site: Debug your frontend'
+freshnessValidatedDate: never
+---
+
+<Callout
+  variant="course"
+  title="lab"
+>
+  This procedure is part of a lab that teaches you how to troubleshoot your web app with New Relic <InlinePopover type="browser"/>.
+
+  Each procedure in the lab builds upon the last, so make sure you've completed the last procedure, [_Debug errors in your application_](/docs/browser/new-relic-browser/lab/debug-errors), before starting this one.
+</Callout>
+
+After fixing JavaScript errors in your application, you and your team are feeling confident. Ready for your down time, you head over to social media but you check Twitter and see some confused customers:
+
+<img
+  title="unhappy customers"
+  alt="unhappy customers"
+  src="/images/browser-lab-screenshot-tweet.webp"
+/>
+
+Uh oh! You customers don't look happy. It's time to use New Relic browser monitoring to discover the source of delay.
+
+<Callout variant="important">
+  In order to see your data in New Relic, you need to enable browser monitoring for this procedure.
+
+  If you haven't already, [instrument your app with our browser agent](/docs/browser/new-relic-browser/lab/install-browser-agent).
+</Callout>
+
+## Debug slowness in your application
+
+<Steps>
+  <Step>
+    From the New Relic homepage, navigate to <DNT>**Browser**</DNT> and choose your <DNT>**Relicstaurants**</DNT> application.
+
+    <img
+      title="view relicstaurants"
+      alt="view relicstaurants"
+      src="/images/browser-lab-screenshot-view-relicstaurants.webp"
+    />
+  </Step>
+
+  <Step>
+    Here, you see all the data related to your browser application including <DNT>**Page views with JavaScript errors**</DNT>, <DNT>**Core web vitals**</DNT>, <DNT>**User time on the site**</DNT>, <DNT>**Initial page load and route changes**</DNT>, and others.
+
+    <img
+      title="Relicstaurants summary"
+      alt="Relicstaurants summary"
+      src="/images/browser-lab-screenshot-relicstaurants-browser-app.webp"
+    />
+
+    Notice the <DNT>**largest contentful paint (LCP)**</DNT>.
+
+    <img
+      title="LCP"
+      alt="LCP"
+      src="/images/browser-lab-screenshot-LCP.webp"
+    />
+
+    Largest contentful paint (LCP) represents how quickly the main content of a web page is loaded. Ideally, the content should not take more than a second or two to load.
+    Here, you see that your site is loading in more than 5 seconds. No wonder your users are complaining!
+
+    But what's causing this delay? back end?
+  </Step>
+
+  <Step>
+    Scroll down and notice the <DNT>**Front end vs. back end**</DNT> graph.
+
+    <img
+      title="frontend vs backend graph"
+      alt="frontend vs backend graph"
+      src="/images/browser-lab-screenshot-frontend-vs-backend.webp"
+    />
+
+    Click on <DNT>**Back end (time to first byte) (50%)**</DNT> to filter the graph and see how long backend takes to load.
+
+    <img
+      title="backend time consumption"
+      alt="backend time consumption"
+      src="/images/browser-lab-screenshot-backend.webp"
+    />
+
+    The graph indicates that the back end took maximum 140 mili seconds to process the request in worst case. Does this mean your front end is causing delay?
+
+    Click on <DNT>**Front end (Window load + AJAX) (50%)**</DNT>.
+
+    <img
+      title="frontend time consumption"
+      alt="frontend time consumption"
+      src="/images/browser-lab-screenshot-frontend.webp"
+    />
+
+    There's the problem! The graph indicates that the delay is happening on front end.
+  </Step>
+
+  <Step>
+    To narrow down what might be causing the delat on front end, take a closer look at <DNT>**Initial page load and route change**</DNT> graph.
+
+    <img
+      title="page load graph"
+      alt="page load graph"
+      src="/images/browser-lab-screenshot-page-load-graph.webp"
+    />
+  </Step>
+
+  <Step>
+    Click on <DNT>**Initial page load (Window load + AJAX)**</DNT>.
+
+    <img
+      title="initial page load"
+      alt="initial page load"
+      src="/images/browser-lab-screenshot-initial-page-load.webp"
+    />
+
+    The graph indicates that <DNT>**Initial page load (Window load + AJAX)**</DNT> is taking 5-6 seconds which is alarming.
+  </Step>
+
+  <Step>
+    Click <DNT>**Initial page load and route change**</DNT> to see more details.
+
+    <img
+      title="page load details"
+      alt="page load details"
+      src="/images/browser-lab-screenshot-page-load-detail.webp"
+    />
+
+    This takes you to <DNT>**Page views**</DNT>.
+
+    <img
+      title="page views"
+      alt="page views"
+      src="/images/browser-lab-screenshot-page-views.webp"
+    />
+  </Step>
+
+  <Step>
+    Sort the pages by <DNT>**Most time-consuming**</DNT>.
+
+    <img
+      title="sort page"
+      alt="sort page"
+      src="/images/browser-lab-screenshot-sort-pages.webp"
+    />
+
+    Notice that the initial page is taking almost 90% of time to load.
+
+    <img
+      title="most time consuming pages"
+      alt="most time consuming pages"
+      src="/images/browser-lab-screenshot-most-time-consuming-page.webp"
+    />
+
+    Click on it to view it's details.
+
+    <img
+      title="most time consuming page detail"
+      alt="most time consuming page detail"
+      src="/images/browser-lab-screenshot-most-time-consuming-page-detail.webp"
+    />
+
+    This page shows you <DNT>**Page view breakdown**</DNT>, <DNT>**Median initial page load time**</DNT>, and other important details. <DNT>**Page view breakdown**</DNT> graph is especially important here since it helps you narrow down why and where your page is taking longer.
+    Upon taking a closer look into this graph, you see that <DNT>**Page rendering**</DNT> is taking as long as 5000 miliseconds.
+
+    <img
+      title="page rendering"
+      alt="page rendering"
+      src="/images/browser-lab-screenshot-page-rendering.webp"
+    />
+
+    You now know that initial page is taking quite long to render making your application slow. Next, we observe the <DNT>**Session traces**</DNT> to figure out what is slowing down the rendering process.
+
+    Exit this view by clicking the <DNT>**X**</DNT> in the top right hand corner.
+  </Step>
+
+  <Step>
+    From left hand navigation, navigate to <DNT>**Session traces**</DNT> and sort them in the decending order of <DNT>**Page load**</DNT>.
+
+    <img
+      title="most time consuming pages"
+      alt="most time consuming pages"
+      src="/images/browser-lab-screenshot-session-traces.webp"
+    />
+  </Step>
+
+  <Step>
+    Here, you see the session traces sorted in the order of <DNT>**Page load**</DNT> time.
+
+    <img
+      title="sorted session traces"
+      alt="sorted session traces"
+      src="/images/browser-lab-screenshot-sorted-session-traces.webp"
+    />
+  </Step>
+
+  <Step>
+    From the list, click the first one.
+
+    <img
+      title="navigate to trace detail"
+      alt="trace detail"
+      src="/images/browser-lab-screenshot-navigate-to-trace-detail.webp"
+    />
+
+    ![image showing sorted session traces](../../../images/nr-browser/navigate-to-trace-detail.webp)
+
+    This takes you to <DNT>**Session traces**</DNT> detail page.
+
+    Here, you see the complete trace for that particular session. This page also shows you <DNT>**Backend**</DNT>, <DNT>**Dom Processing**</DNT>, <DNT>**Page Load**</DNT>, and other trace related information.
+
+    <img
+      title="full trace"
+      alt="full trace"
+      src="/images/browser-lab-screenshot-trace.webp"
+    />
+  </Step>
+
+  <Step>
+    Note that <DNT>**Page load**</DNT> is taking longer than expected. You're need a detailed timeline of the load. Scroll the pointer on the left and right to adjust the timeline.
+
+    <img
+      title="adjust trace timeline"
+      alt="adjust trace timeline"
+      src="/images/browser-lab-screenshot-adjust-timeline.webp"
+    />
+  </Step>
+
+  <Step>
+    Scroll through the trace to move through the time window and see the details of individual events during this session.
+
+    <img
+      title="adjust time window"
+      alt="adjust time window"
+      src="/images/browser-lab-screenshot-trace-time-window-detail.webp"
+    />
+  </Step>
+
+  <Step>
+    Notice that a particular event is taking more than 5 seconds.
+
+    <img
+      title="image trace"
+      alt="image trace"
+      src="/images/browser-lab-screenshot-image-trace.webp"
+    />
+  </Step>
+
+  <Step>
+    Click on the event to see its details.
+
+    <img
+      title="image trace detail"
+      alt="image trace detail"
+      src="/images/browser-lab-screenshot-image-trace-detail.webp"
+    />
+
+    Notice that it's an image. Particularly, it's the background image of your application which is taking 5 - 6 seconds to load and causing the delay.
+  </Step>
+</Steps>
+
+Based on these findings, you hypothesize that the background image is the culprit here. High-resolution, unoptimized images are the most common reason behind the website slowness.
+Good news! now that you know the reason, you can fix the problem.
+
+## Summary
+
+To recap, you observed slowness in your application and used New Relic browser monitoring to:
+
+1. Observe Core web vitals of your site
+2. Narrow down the sources of slowness
+
+## Homework
+
+Well done! Now that you've gotten a jump start with our monitoring, here are some docs that will help you take the next steps on your journey.
+
+* [Introduction to browser monitoring](/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/)
+* [Browser monitoring features](/docs/browser/new-relic-browser/browser-pro-features/intro-to-browser-pro-features)

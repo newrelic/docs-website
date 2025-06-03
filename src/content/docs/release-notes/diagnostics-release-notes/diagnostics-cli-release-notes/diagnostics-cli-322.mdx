@@ -1,0 +1,9 @@
+---
+subject: Diagnostics CLI (nrdiag)
+releaseDate: '2023-10-05'
+version: 3.2.2
+---
+
+## Fixes
+
+* Fixed an issue with Base/Collector/ConnectUS and Base/Collector/ConnectEU that caused the tasks to always return a Warning. ([#199](https://github.com/newrelic/newrelic-diagnostics-cli/pull/199))

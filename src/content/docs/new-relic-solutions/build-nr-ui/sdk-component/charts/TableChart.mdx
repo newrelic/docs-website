@@ -1,0 +1,240 @@
+---
+title: 'TableChart'
+metaDescription: 'Learn how to work the TableChart component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Creates a table chart. Data can either be obtained by performing a NRQL query against a particular account, or it can be passed through the `data` prop.
+
+The `data` format is a series of objects, each containing `metadata` and `data`. Each `data` contains both values from this point, and `x` and `y` keys used to plot the chart.
+
+### Usage
+
+```js
+import { TableChart } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<TableChart accountIds={[1]} query="SELECT count(*) FROM `Synthetics` SINCE 1 DAY AGO TIMESERIES AUTO FACET jobType" />
+```
+
+#### With multiple accounts
+
+```js
+<TableChart accountIds={[1, 1067061]} query="SELECT count(*) FROM `Synthetics` SINCE 1 DAY AGO TIMESERIES AUTO FACET jobType" />
+```
+
+#### Fill container
+
+```js
+<TableChart
+  accountIds={[1]}
+  query="SELECT count(*) FROM `Synthetics` SINCE 1 DAY AGO TIMESERIES AUTO FACET jobType"
+  fullWidth
+  fullHeight
+/>
+```
+
+#### With custom data
+
+```js
+function render() {
+  const data = [
+     {
+       metadata: {
+         id: 'series-1',
+         name: 'Serie 1',
+         color: '#008c99',
+         viz: 'main',
+         columns: ['jobType', 'count'],
+       },
+       data: [
+         {
+           jobType: 'SIMPLE',
+           count: 18,
+         },
+         {
+           jobType: 'SCRIPT_BROWSER',
+           count: 27,
+         },
+         {
+           jobType: 'SCRIPT_API',
+           count: 33,
+         },
+         {
+           jobType: 'BROWSER',
+           count: 29,
+         },
+         {
+           jobType: 'SELENIUM_JSON',
+           count: 22,
+         },
+         {
+           jobType: 'SCRIPT',
+           count: 31,
+         },
+       ],
+     },
+   ];;
+
+
+  return <TableChart data={data} fullWidth />;
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `accountId` <h5>DEPRECATED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        <Callout
+          variant="caution"
+          title="Due November 1st, 2022"
+        >
+          The accountId is deprecated, use accountIds instead
+        </Callout>
+
+        Sets the account ID to perform the query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `accountIds` <h5>number\[]</h5>
+      </td>
+
+      <td>
+        Sets the account IDs to perform the query.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `data` <h5>object\[]</h5>
+      </td>
+
+      <td>
+        Data is an array of objects where each object represents a series to be drawn. Each series comprises visualization metadata and an array of data points.
+
+        ```
+        const data = [
+          {
+            metadata: {
+              id: 'series-1',
+              name: 'Serie 1',
+              color: '#008c99',
+              viz: 'main',
+              columns: ['jobType', 'count'],
+            },
+            data: [
+              {
+                jobType: 'SIMPLE',
+                count: 18,
+              },
+              {
+                jobType: 'SCRIPT_BROWSER',
+                count: 27,
+              },
+              {
+                jobType: 'SCRIPT_API',
+                count: 33,
+              },
+              {
+                jobType: 'BROWSER',
+                count: 29,
+              },
+              {
+                jobType: 'SELENIUM_JSON',
+                count: 22,
+              },
+              {
+                jobType: 'SCRIPT',
+                count: 31,
+              },
+            ],
+          },
+        ]; 
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the chart to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the chart to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClickTable` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a click listener that gets triggered when the user clicks over the corresponding table.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHoverTable` <h5>function</h5>
+      </td>
+
+      <td>
+        Adds a hover listener that gets triggered when the cursor is hovered over the corresponding table.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `query` <h5>string</h5>
+      </td>
+
+      <td>
+        NRQL query used for fetching data. The query is performed against the provided `accountIds`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+  </tbody>
+</table>

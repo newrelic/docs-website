@@ -1,0 +1,704 @@
+---
+title: サブスクリプションの使用状況（元の価格設定モデル）
+tags:
+  - Accounts
+  - Original accounts and billing
+  - Original pricing model usage
+metaDescription: 'For New Relic customers on our original pricing plan: about the end-of-life of the original pricing usage UI and how to query your usage.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  このドキュメントでは、当社のオリジナルの製品ベースの価格モデルを参照しています。価格変更の詳細については、 [「価格モデルの概要」](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models/)を参照してください。
+</Callout>
+
+2023 年 5 月 31 日に、元の料金モデルの使用 UI はサポート終了 (EoL) に達します。このドキュメントには、元の価格モデルを使用しているお客様が使用法を理解するために使用できる NRQL クエリがあります。
+
+## 影響を受ける顧客は? [#who-is-affected]
+
+これは、 New Relic組織の[元の価格モデル](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models/)に影響します。この価格モデルでは、さまざまな製品 (<InlinePopover type="apm"/>、<InlinePopover type="browser"/>、インフラストラクチャ モニタリングなど) ごとに課金されます。
+
+## あなたは何ができますか？ [#actions]
+
+組織がこのサポート終了の影響を受け、元の料金プランを継続する場合、次のオプションがあります。
+
+* 以下の使用状況クエリを含む [カスタム ダッシュボード](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) を作成します
+* 使用状況を把握する必要がある場合は、1 回限りのクエリを実行します
+
+## クエリの詳細 [#querying]
+
+使用状況データのクエリに関する詳細:
+
+* 使用状況データは [`NrDailyUsage` イベント タイプ](/attribute-dictionary/?event=NrDailyUsage) と [`NrUsage` イベント タイプ](/attribute-dictionary/?event=NrUsage)に保存されます
+* `consumingAccount`をクエリする場合は、必ず [アカウント ID](/docs/accounts/accounts-billing/account-structure/account-id)を入力してください。
+* UI で [クエリ ビルダーを](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 使用してクエリを実行すると、特定のアカウントとすべての子アカウントがクエリされます。 [NerdGraph を使用して、クロスアカウントのクエリを実行する](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/#cross-account-query)こともできます。
+
+以下に、さまざまな製品カテゴリの使用クエリの例をいくつか示します。
+
+<CollapserGroup>
+  <Collapser
+    id="apm-cu"
+    title="CU ベースの APM 使用状況クエリ"
+  >
+    CU ベースの価格設定の詳細については、 [「ホストおよび CU ベースの価格設定」](#cu-vs-host)を参照してください。
+
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    ホスト別の一定期間の使用状況:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET hostId,agentHostname,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    ホスト別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET hostId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="apm-host"
+    title="ホストベースの APM 使用状況クエリ"
+  >
+    ホストベースの価格設定の詳細については、 [ホストベースおよび CU ベースの価格設定](#cu-vs-host)を参照してください。
+
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed) / 24, 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    ホスト別の一定期間の使用状況:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET hostId,agentHostname,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    ホスト別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET hostId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="browser"
+    title="ブラウザ監視の使用状況クエリ"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(browserPageViewCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT SUM(browserPageViewCount) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    アカウントを消費することによる、一定期間にわたる使用量:
+
+    ```sql
+    SELECT rate(SUM(browserPageViewCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    消費アカウント別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT SUM(browserPageViewCount) as usage 
+    FROM NrDailyUsage, NrUsage WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="mobile"
+    title="モバイル監視の使用状況クエリ"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード、月間ユーザー数:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    期間の傾向グラフ、月間ユーザー数:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    一定期間の使用状況 (モバイル アプリ名別):
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET mobileAppName,mobileAppId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    モバイルアプリ名別の一定期間のトレンドチャート:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET mobileAppName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="infra"
+    title="インフラストラクチャ監視の使用状況クエリ"
+  >
+    インフラストラクチャ CU ベースの料金体系の詳細については、 [「ホストおよび CU ベースの料金」](#cu-vs-host)を参照してください。
+
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(infrastructureComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT SUM(infrastructureComputeUnits) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    エージェントのホスト名ごとの一定期間の使用状況:
+
+    ```sql
+    SELECT rate(SUM(infrastructureComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET agentHostname 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    ホスト別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT SUM(infrastructureComputeUnits) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET agentHostname 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="logs"
+    title="使用状況のクエリをログに記録します"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    アカウントを消費することによる、一定期間にわたる使用量:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    消費アカウント別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics"
+    title="使用状況のクエリを監視するメトリクス"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    アカウントを消費することによる、一定期間にわたる使用量:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    消費アカウント別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="serverless"
+    title="サーバーレス モニタリングの使用状況クエリ"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    アカウントを消費することによる、一定期間にわたる使用量:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    消費アカウント別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="synthetics"
+    title="Synthetics 使用状況クエリ"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    一定期間の使用状況 (モニター名別):
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsMonitorName,syntheticsMonitorId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    モニター名別の一定期間の傾向グラフ:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    FACET syntheticsMonitorName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+
+    タイプ ラベル別の期間の使用状況:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsTypeLabel 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    タイプ ラベル別の期間にわたるトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' TIMESERIES 1 day 
+    FACET syntheticsTypeLabel 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+
+    場所別の一定期間の使用状況:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsLocation 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    場所別の期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    FACET syntheticsLocation 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="traces"
+    title="使用状況クエリをトレースします"
+  >
+    ### 概要クエリ
+
+    前の期間と比較したビルボード:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### 詳細なクエリ
+
+    アカウントを消費することによる、一定期間にわたる使用量:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    消費アカウント別の一定期間のトレンド チャート:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## APMとインフラストラクチャ：コンピューティングユニットとホストベースの価格設定 [#cu-vs-host]
+
+APMは、[コンピューティングユニット（CU）ベースの価格設定](#compute-unit)と[ホスト](#host-based)ベースの価格設定の2つの価格設定モデルから選択できます。New Relic Infrastructureは、 [CUベースの価格設定](#compute-unit)のみを提供します。このセクションでは、両方のオプションの計算方法を示し、これらの価格設定コンテキストでの「ホスト」の意味を説明します。
+
+<CollapserGroup>
+  <Collapser
+    id="compute-unit"
+    title="単価の計算"
+  >
+    オリジナルの価格モデルでは、これらの New Relic 製品に CU ベースの価格が適用されます。
+
+    * APM（CUベースの価格設定または[ホスト](#host-based)ベースの価格設定のいずれかを選択）
+
+    * インフラストラクチャ：CUベースの価格設定のみ
+
+      CUベースの料金設定では、月額料金は、New Relicを実行している[ホスト](#understand)のサイズ（コンピューティングパワーとメモリ）と、その月にNewRelicに接続する時間数によって決まります。ホストが1時間の間にいつでもNewRelicに接続されている場合、その時間はCU計算にカウントされます。
+
+      各ホストは、ホストがデータを報告するNewRelicアカウントごとに個別にカウントされます。たとえば、2つの子アカウントを持つ親アカウントがあり、それぞれが同じホスト上で特定の月に3,000 CUのアプリケーションを実行している場合、親アカウントの使用量は6,000CUになります。
+
+      APM の場合、クラウドベースの動的コンピューティング リソースが多数ある場合は、CU ベースの価格設定が最適です。 このため、CU ベースの価格設定は<DNT>**cloud pricing**</DNT>と呼ばれることもあります。
+
+      CUは次のように計算されます。
+
+      `CUs = (# of CPUs + GBs of RAM) x hours used`
+
+      特定のホストの最大サイズ（CPU + GB RAM）は16に制限されています。
+
+      例：
+
+    * ホストに2つのCPUコアと2GBのRAMがあり、New Relicに1時間（または1時間未満）接続する場合、4つのCUを消費します。
+
+    * ホストに2つのCPUコアと2GBのRAMがあり、New Relicに1か月間接続する場合（標準の月のサイズとして750時間使用）、3,000CUを消費します。
+
+      CUのブロックを購入して、毎月消費することができます。毎月購入されるCUの総数は、その月のすべてのホストの推定CU消費量を合計することによって計算されます。未使用のCUの月ごとのロールオーバーはありません。また、New Relicは、JVM、コンテナー（DockerやCloud Foundryなど）、またはアプリケーションインスタンスによって課金されません。これらのコンテナーまたはアプリケーションインスタンスを実行しているホストによって課金されます。
+
+      価格ポイントは、New Relic 製品とサブスクリプション レベルによって異なります。
+  </Collapser>
+
+  <Collapser
+    id="host-based"
+    title="ホストベースの価格設定"
+  >
+    <Callout variant="tip">
+      当社の元の価格モデルでは、APM の価格は CU ベースまたはホスト ベースのいずれかになりますが、New Relic Infrastructure は [CU ベースの価格](#compute-unit)のみを使用します。
+    </Callout>
+
+    ホストベースの料金設定では、New Relic は 1 か月に使用された<DNT>**equivalent hosts**</DNT>の数に基づいて料金を請求します。 1 つの<DNT>**equivalent host**</DNT>は、New Relic に 750 時間接続された[ホスト](#understand)(750 時間は標準の月間サイズとして使用されます) として定義されます。 1 時間の間にホストが New Relic に接続されている場合、その時間はホストの計算にカウントされます。
+
+    これらの時間は複数のホスト間で分割できます。 たとえば、1 か月間に 3 台のホストがそれぞれ New Relic に 250 時間接続しているとします。これらの時間の合計は 1 つの<DNT>**equivalent host**</DNT>になります。
+
+    各ホストは、ホストがデータを報告するNewRelicアカウントごとに個別にカウントされます。たとえば、2つの子アカウントを持つ親アカウントがあり、それぞれが同じ単一のホスト上で特定の月に750時間アプリケーションを実行している場合、親アカウントの使用量は2つの同等のホストになります。
+
+    New Relicに接続すると、ホストは一意のホスト名で区別されます。言語エージェントがアクティブでホストにデプロイされている場合、ホストはNewRelicに接続されます。New Relicは、コンテナー（DockerやCloud Foundryなど）、JVM、またはアプリケーションインスタンスによって課金されません。これらのコンテナまたはアプリケーションインスタンスを実行しているホストによって課金されます。
+
+    New Relic APMでは、ホストベースの価格設定と[CU](#compute-unit)ベースの価格設定のどちらかを選択できます。ホストベースの価格設定は、主に静的な環境があり、独自のデータセンターで管理するホストで構成されている場合に理想的です。
+  </Collapser>
+
+  <Collapser
+    id="understand"
+    title="「ホスト」はどのように定義されますか？"
+  >
+    New Relicが[ホストベースの価格設定](#host-based)と[CU ベースの価格設定](#compute-unit)の両方をどのように計算するかを理解するには、<DNT>**host**</DNT> という単語の使用方法を理解することが重要です。 ホストは次のいずれかになります。
+
+    * <DNT>**physical machine**</DNT>は、メモリ、プロセッサ、ストレージなどの専用物理リソースを搭載したハードウェアベースのデバイスです。各マシンには、アプリケーションが稼働するOSが個別にインストールされています。
+
+    * <DNT>**virtual machine**</DNT>（VM）は、物理マシンのようにプログラムを実行する物理マシンのソフトウェア実装です。1台以上の仮想マシンを物理マシン上で実行できます。各仮想マシンにはOSが個別にインストールされ、RAMやCPUなどの仮想マシンリソースが割り当てられています。
+
+    * <DNT>**cloud instance**</DNT>は、パブリッククラウド内で実行される仮想マシンのタイプです。この文脈では、仮想マシンとクラウドインスタンスはJava仮想マシン（JVM）やコンテナとは異なります。
+
+      New Relic の価格計算では、 <DNT>**month**</DNT> 750 時間と定義されます。
+  </Collapser>
+</CollapserGroup>

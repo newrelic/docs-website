@@ -1,0 +1,114 @@
+---
+title: setErrorHandler
+type: apiDoc
+shortDescription: Allows selective ignoring and grouping of known errors that the browser agent captures.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: Browser monitoring API call to allow selective ignoring and grouping of known errors captured by the agent.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-apis/browser-api-newrelicseterrorhandler
+  - /docs/browser/new-relic-browser/browser-agent-api/browser-api-newrelicseterrorhandler
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/newrelicseterrorhandler-browser-agent-api
+  - docs/browser/new-relic-browser/browser-agent-spa-api/set-error-handler
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```js
+newrelic.setErrorHandler(function $callback)
+```
+
+Allows selective ignoring and grouping of known errors that the browser agent captures.
+
+## Requirements
+
+* Browser Pro or Pro+SPA agent (v974 or higher)
+  * For error grouping capability, [v1.230.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1.230.0) or higher is required.
+* If you're using npm to install the browser agent, you must enable the `jserrors` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { JSErrors } from '@newrelic/browser-agent/features/jserrors';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      JSErrors
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description
+
+The `newrelic.setErrorHandler()` API call allows you to selectively ignore known errors that the browser agent captures. It takes a single error handler function, which will be called for each error that the browser agent captures. If the handler returns `true`, New Relic does **not** record the error. Otherwise the error will be processed normally.
+
+In addition, later versions of the agent support fingerprinting or grouping of exceptions with a custom provided label. To do this, return an object instead of a boolean with a `group` property set to the desired _string_. It's important to know that providing an empty string, or any object that does not conform to this exact spec, is treated the same as the `true` case, for which the error will be _ignored_. This behavior is backwards compatible with prior versions.
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$callback`
+
+        _function_
+      </td>
+
+      <td>
+        Required<DNT>**.**</DNT> When an error occurs, the callback is called with the error object as a parameter. The callback will be called with each error, so it is not specific to one error.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Examples
+
+### Use a basic error handler function [#include-error]
+
+Include the error object inside of the callback function to ignore specific errors that the browser agent captures.
+
+```js
+newrelic.setErrorHandler(function(err) {
+  if (shouldIgnoreError(err)) {
+    return true;
+  } else {
+    return false;
+  }
+});
+```
+
+### Fingerprinting errors in handler function
+
+Assign custom labels to specific errors for view in the Errors Inbox UI.
+
+```js
+newrelic.setErrorHandler(function(err) {
+  if (isReferenceError(err)) {
+    return { group: 'My reference errors' }; // error is included and tagged under this label
+  } else if (isSomeSpecificError(err)) {
+    return { group: '' }; // error will be excluded!
+    // return { Group: 'still excluded - prop name has capital G!' };
+  } else {
+    return false; // error is included without any label
+  }
+})
+```

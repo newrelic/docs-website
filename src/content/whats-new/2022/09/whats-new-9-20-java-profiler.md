@@ -2,9 +2,8 @@
 title: 'Use Pixie to find performance bottlenecks and understand your Java app CPU usage'
 summary: 'Find performance bottlenecks and understand your Java application CPU usage with Pixie’s continuous application profiling.'
 releaseDate: '2022-09-20'
-learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/' 
+learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/'
 getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie/'
-
 ---
 
 ## Optimize your Java code by understanding CPU utilization using flamegraphs
@@ -14,7 +13,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-
 3. Avoid downtime with no need to re-deploy your application.
 4. Get full system visibility, including for both Java and all other running applications.
 
-**Note**: Pixie's continuous profiler *also* supports Go, C++, and Rust.
+**Note**: Pixie's continuous profiler _also_ supports Go, C++, and Rust.
 
 ## How to get started
 
@@ -25,6 +24,6 @@ getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-
 
 Learn more and check out a deep-dive video on the [Pixie docs page](https://docs.px.dev/tutorials/pixie-101/profiler/).
 
-![A screenshot showing CPU utilization by function.](./images/Java_profiler.png "A screenshot showing CPU utilization by function.")
+![A screenshot showing CPU utilization by function.](/images/Java_profiler.webp 'A screenshot showing CPU utilization by function.')
 
 <figcaption>A screenshot showing CPU utilization by function.</figcaption>

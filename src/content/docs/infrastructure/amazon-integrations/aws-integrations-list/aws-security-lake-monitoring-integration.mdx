@@ -1,0 +1,3229 @@
+---
+title: Amazon Security Lake integration
+tags:
+  - Integrations
+  - Amazon integrations
+  - AWS integrations list
+metaDescription: "The New Relic Amazon Security Lake integration: what data it reports, and how to enable it."
+freshnessValidatedDate: never
+---
+
+[New Relic infrastructure integrations](/docs/infrastructure/introduction-infra-monitoring) include an integration for AWS Security Lake, allowing you to send your security log data to New Relic.
+
+Collect and send telemetry data to New Relic from [Security Lake](https://aws.amazon.com/security-lake/) using our integration. You can use this integration to monitor your services, query incoming data, and build dashboards to observe everything at a glance.
+
+## Activate integration [#activate]
+
+To enable this integration, set up an S3 log forwarder. We suggest using our serverless forwarder application for ease and convenience, but you can also set your own.
+
+<Callout variant="tip">
+  You have two options for Security Lake monitoring setup. You can consolidate multiple regions to avoid repeating steps, or you can set it up on a per-region basis.
+  For more details, see [managing multiple regions](https://docs.aws.amazon.com/security-lake/latest/userguide/manage-regions.html).
+</Callout>
+
+## Prerequisites [#prerequisites]
+
+Before enabling this integration, first make sure these steps are completed for Security Lake:
+
+1. Complete the steps mentioned in the Amazon Security Lake [Getting started guide](https://docs.aws.amazon.com/security-lake/latest/userguide/getting-started.html).
+2. Complete the prerequisites to setting up a subscriber with data access by following the steps in the [Security Lake subscriber guide](https://docs.aws.amazon.com/security-lake/latest/userguide/subscriber-data-access.html#prereqs-creating-subscriber).
+
+## Configuration steps [#steps]
+
+Here's an overview of the steps you'll be doing:
+
+1. [Create a Security Lake subscriber](#create-subscriber).
+2. [Install our dedicated Amazon Security Lake log forwarder](#install-log-forwarder).
+3. [Find and use your log data](#logs).
+
+## Create a Security Lake subscriber [#create-subscriber]
+
+1. Navigate to the Security Lake feature in your [AWS Console](console.aws.amazon.com/securitylake).
+
+2. Select <DNT>**Subscribers**</DNT>, and select <DNT>**Create Subscriber**</DNT>.
+
+3. Give the subscriber a name and select a region.
+
+4. Select which log and event sources you want sent to New Relic.
+
+5. Fill out the remaining details as described below:
+
+   <table>
+     <thead>
+       <tr>
+         <th style={{ width: "200px" }}>
+           Field
+         </th>
+
+         <th>
+           Value
+
+         </th>
+       </tr>
+     </thead>
+
+     <tbody>
+       <tr>
+         <td>
+           `Data access method`
+         </td>
+
+         <td>
+           S3
+
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           `Account ID`
+
+         </td>
+
+         <td>
+           Insert the AWS `account ID` where you plan on installing the New Relic-provided serverless application.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           `External ID`
+         </td>
+
+         <td>
+           Insert your New Relic `AccountID`. For more info, see [externalID](https://docs.aws.amazon.com/security-lake/latest/userguide/subscriber-data-access.html#subscriber-external-id)
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           `Notification details`
+         </td>
+
+         <td>
+           SQS queue
+
+         </td>
+       </tr>
+     </tbody>
+   </table>
+
+6. Select <DNT>**Create**</DNT>.
+
+7. From the <DNT>**Subscriber details**</DNT> page, copy your <DNT>**AWS role ID**</DNT> and <DNT>**Subscription endpoint**</DNT> ARN's. You will need them for the next step.
+
+## Install our Amazon Security Lake log forwarder [#install-log-forwarder]
+
+To install the log forwarder:
+
+1. Open the [AWS Serverless Application Repository](https://serverlessrepo.aws.amazon.com/applications) in your browser.
+   <img title="AWS Lambda - Select region" alt="AWS Lambda - Select region" src="/images/serverless_screenshot-crop_AWS-Lambda-select-region.webp"/>
+2. Search for `newrelic` and check <DNT>**Show apps that create custom IAM roles or resource policies**</DNT> to find the `newrelic-securitylake-s3-processor-LogForwarder`.
+3. Click the `newrelic-securitylake-s3-processor-LogForwarder` details, and click <DNT>**Deploy**</DNT>.
+4. Copy/paste the `AWS role ID` ARN from the previous step into the `SecurityLakeSubscriberRoleArn` field.
+5. Copy/paste the `Subscription endpoint` ARN from the previous step into the `SecurityLakeSubscriberRoleArn` field.
+6. Input the `ExternalID` that you added in the previous step.
+7. Input your <InlinePopover type="licenseKey"/> into the `NRLicenseKey` field.
+8. Acknowledge and select <DNT>**Deploy**</DNT>.
+
+For more details on this, see [our Amazon Security Lake log forwarder docs](/docs/logs/forward-logs/aws-lambda-sending-security-logs-s3).
+
+## Find and use Log data [#logs]
+
+To find your logs on New Relic, go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DNT> and set <DNT>**Attributes**</DNT> to `product.name`, and then choose the log source you want.
+
+The following log sources are currently supported:
+
+* [ROUTE 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/logging-monitoring.html)
+* [VPC FLOW](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html)
+* [CLOUDTRAIL](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-getting-started.html)
+* [SECURITY HUB](https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html)
+
+<Callout variant="tip">
+  Amazon Security Lake uses the [OCSF Schema](https://schema.ocsf.io/) for its logs.
+</Callout>
+
+Here are attributes you can find in Security Lake logs:
+
+<CollapserGroup>
+  <Collapser
+    id="vpcflowlogs"
+    title="VPC Flow Logs"
+  >
+    Query `Amazon VPC` logs to view data for the following attributes:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            Name
+          </th>
+
+          <th>
+            Description
+          </th>
+
+          <th>
+            Data type
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `activity_id`
+          </td>
+
+          <td>
+            activity ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `activity_name`
+          </td>
+
+          <td>
+            activity name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.invoked_function_arn`
+          </td>
+
+          <td>
+            ARN of the invoked log forward function
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_bucket_name`
+          </td>
+
+          <td>
+            name of the S3 bucket where the log was forwarded from
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_key`
+          </td>
+
+          <td>
+            key record of the security event from the flow log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_name`
+          </td>
+
+          <td>
+            name of the category of the log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_uid`
+          </td>
+
+          <td>
+            unique ID of the category
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_name`
+          </td>
+
+          <td>
+            name of the log class
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_uid`
+          </td>
+
+          <td>
+            unique ID of the class
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.account_uid`
+          </td>
+
+          <td>
+            AWS account where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.provider`
+          </td>
+
+          <td>
+            shows the name of the cloud provider - in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.region`
+          </td>
+
+          <td>
+            AWS region where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.zone`
+          </td>
+
+          <td>
+            AWS zone where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.boundary`
+          </td>
+
+          <td>
+            boundary of the flow log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.boundary_id`
+          </td>
+
+          <td>
+            ID of the boundary
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.direction`
+          </td>
+
+          <td>
+            shows if the connection was inbound or outbound
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.direction_id`
+          </td>
+
+          <td>
+            ID of the direction
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.protocol_num`
+          </td>
+
+          <td>
+            protocol number of the flow
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.protocol_ver`
+          </td>
+
+          <td>
+            protocol version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.tcp_flags`
+          </td>
+
+          <td>
+            TCP flags
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.instance_uid`
+          </td>
+
+          <td>
+            instance ID of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.interface_uid`
+          </td>
+
+          <td>
+            interface ID of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.intermediate_ips`
+          </td>
+
+          <td>
+            intermediate IP addresses of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.ip`
+          </td>
+
+          <td>
+            IP address of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.port`
+          </td>
+
+          <td>
+            port of the destination
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.subnet_uid`
+          </td>
+
+          <td>
+            subnet ID of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.svc_name`
+          </td>
+
+          <td>
+            service name of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.vpc_uid`
+          </td>
+
+          <td>
+            VPC ID of the destination
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `end_time`
+          </td>
+
+          <td>
+            end time of the flow
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            defines the logtype
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.feature.name`
+          </td>
+
+          <td>
+            name of the feature where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.name`
+          </td>
+
+          <td>
+            name of the product where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.vendor_name`
+          </td>
+
+          <td>
+            name of the vendor for the log; in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.version`
+          </td>
+
+          <td>
+            name of the product version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.profiles`
+          </td>
+
+          <td>
+            names of the profiles
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.version`
+          </td>
+
+          <td>
+            metadata version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelic.source`
+          </td>
+
+          <td>
+            source of the log in New Relic
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.type`
+          </td>
+
+          <td>
+            type of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.version`
+          </td>
+
+          <td>
+            version of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity`
+          </td>
+
+          <td>
+            severity level of the log finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity_id`
+          </td>
+
+          <td>
+            ID of the severity level
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.instance_uid`
+          </td>
+
+          <td>
+            instance ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.interface_uid`
+          </td>
+
+          <td>
+            interface ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.intermediate_ips`
+          </td>
+
+          <td>
+            intermediate IP addresses of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.ip`
+          </td>
+
+          <td>
+            IP address of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.port`
+          </td>
+
+          <td>
+            port of the source
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.subnet_uid`
+          </td>
+
+          <td>
+            subnet ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.svc_name`
+          </td>
+
+          <td>
+            service name of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.vpc_uid`
+          </td>
+
+          <td>
+            VPC ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `start_time`
+          </td>
+
+          <td>
+            start time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time`
+          </td>
+
+          <td>
+            start time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            time of the log reaching New Relic
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `traffic.bytes`
+          </td>
+
+          <td>
+            amount of bytes being sent or received
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `traffic.packets`
+          </td>
+
+          <td>
+            amount of packets being sent or received
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_name`
+          </td>
+
+          <td>
+            event type name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_uid`
+          </td>
+
+          <td>
+            ID of the event type
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unmapped`
+          </td>
+
+          <td>
+            unparsed data not mapped to a field
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cloudtrail"
+    title="CloudTrail"
+  >
+    Query `CloudTrail` logs to view data for the following attributes:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            Name
+          </th>
+
+          <th>
+            Description
+          </th>
+
+          <th>
+            Data type
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `activity_id`
+          </td>
+
+          <td>
+            activity ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `activity_name`
+          </td>
+
+          <td>
+            activity name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.operation`
+          </td>
+
+          <td>
+            operation of the API activity
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.request.uid`
+          </td>
+
+          <td>
+            unique ID of the API request
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.response.error`
+          </td>
+
+          <td>
+            error response of the API request
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.response.message`
+          </td>
+
+          <td>
+            message of the API response
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.service.name`
+          </td>
+
+          <td>
+            name of the service where the request originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `api.version`
+          </td>
+
+          <td>
+            API version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.invoked_function_arn`
+          </td>
+
+          <td>
+            ARN of the invoked log forward function
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_bucket_name`
+          </td>
+
+          <td>
+            name of the S3 bucket where the log was forwarded from
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_key`
+          </td>
+
+          <td>
+            key record of the security event from the flow log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_name`
+          </td>
+
+          <td>
+            name of the category of the log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_uid`
+          </td>
+
+          <td>
+            unique ID of the category
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_name`
+          </td>
+
+          <td>
+            name of the log class
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_uid`
+          </td>
+
+          <td>
+            unique ID of the class
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.provider`
+          </td>
+
+          <td>
+            shows the name of the cloud provider - in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.region`
+          </td>
+
+          <td>
+            AWS region where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `http_request.user_agent`
+          </td>
+
+          <td>
+            user agent of the HTTP request
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.idp.name`
+          </td>
+
+          <td>
+            IDP name of the requester
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.invoked_by`
+          </td>
+
+          <td>
+            name of the feature invoking the request
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.session.created_time`
+          </td>
+
+          <td>
+            session creation time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.session.issuer`
+          </td>
+
+          <td>
+            ARN of the issuer
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.session.mfa`
+          </td>
+
+          <td>
+            MFA enabled
+          </td>
+
+          <td>
+            boolean
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.account_uid`
+          </td>
+
+          <td>
+            AWS account of the user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.credential_uid`
+          </td>
+
+          <td>
+            credential ID of the user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.name`
+          </td>
+
+          <td>
+            name of the user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.type`
+          </td>
+
+          <td>
+            type of user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.uid`
+          </td>
+
+          <td>
+            ID of the user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `identity.user.uuid`
+          </td>
+
+          <td>
+            ARN of the user
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            defines the logtype
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.feature.name`
+          </td>
+
+          <td>
+            name of the feature where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.name`
+          </td>
+
+          <td>
+            name of the product where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.vendor_name`
+          </td>
+
+          <td>
+            name of the vendor for the log; in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.version`
+          </td>
+
+          <td>
+            name of the product version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.profiles`
+          </td>
+
+          <td>
+            names of the profiles
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.version`
+          </td>
+
+          <td>
+            metadata version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelic.source`
+          </td>
+
+          <td>
+            source of the log in New Relic
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.type`
+          </td>
+
+          <td>
+            type of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.version`
+          </td>
+
+          <td>
+            version of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ref_event_uid`
+          </td>
+
+          <td>
+            unique ID for reference event
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resources`
+          </td>
+
+          <td>
+            resources
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity`
+          </td>
+
+          <td>
+            severity level of the log finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity_id`
+          </td>
+
+          <td>
+            ID of the severity level
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.domain`
+          </td>
+
+          <td>
+            domain of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.ip`
+          </td>
+
+          <td>
+            IP address of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.uid`
+          </td>
+
+          <td>
+            unique ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time`
+          </td>
+
+          <td>
+            start time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            time of the log reaching New Relic
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_name`
+          </td>
+
+          <td>
+            event type name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_uid`
+          </td>
+
+          <td>
+            ID of the event type
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unmapped`
+          </td>
+
+          <td>
+            unparsed data not mapped to a field
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="securityhub"
+    title="Security Hub Logs"
+  >
+    Query `Security Hub` logs to view data for the following attributes:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            Name
+          </th>
+
+          <th>
+            Description
+          </th>
+
+          <th>
+            Data type
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `activity_id`
+          </td>
+
+          <td>
+            activity ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `activity_name`
+          </td>
+
+          <td>
+            activity name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `answers`
+          </td>
+
+          <td>
+            answers
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.invoked_function_arn`
+          </td>
+
+          <td>
+            ARN of the invoked log forward function
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_bucket_name`
+          </td>
+
+          <td>
+            name of the S3 bucket where the log was forwarded from
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_key`
+          </td>
+
+          <td>
+            key record of the security event from the flow log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_name`
+          </td>
+
+          <td>
+            name of the category of the log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_uid`
+          </td>
+
+          <td>
+            unique ID of the category
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_name`
+          </td>
+
+          <td>
+            name of the log class
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_uid`
+          </td>
+
+          <td>
+            unique ID of the class
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.account_uid`
+          </td>
+
+          <td>
+            ID of the AWS account
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.provider`
+          </td>
+
+          <td>
+            shows the name of the cloud provider - in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.region`
+          </td>
+
+          <td>
+            AWS region where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.direction`
+          </td>
+
+          <td>
+            direction of the connection
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.direction_id`
+          </td>
+
+          <td>
+            ID for the direction of the connection
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `connection_info.protocol_name`
+          </td>
+
+          <td>
+            protocol of the connection
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.instance_uid`
+          </td>
+
+          <td>
+            destination instance ID
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `dst_endpoint.interface_uid`
+          </td>
+
+          <td>
+            destination interface ID
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            defines the logtype
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.feature.name`
+          </td>
+
+          <td>
+            name of the feature where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.name`
+          </td>
+
+          <td>
+            name of the product where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.vendor_name`
+          </td>
+
+          <td>
+            name of the vendor for the log; in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.version`
+          </td>
+
+          <td>
+            name of the product version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.profiles`
+          </td>
+
+          <td>
+            names of the profiles
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.version`
+          </td>
+
+          <td>
+            metadata version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelic.source`
+          </td>
+
+          <td>
+            source of the log in New Relic
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.type`
+          </td>
+
+          <td>
+            type of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.version`
+          </td>
+
+          <td>
+            version of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query.class`
+          </td>
+
+          <td>
+            query class
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query.hostname`
+          </td>
+
+          <td>
+            query hostname
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `query.type`
+          </td>
+
+          <td>
+            query type
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rcode`
+          </td>
+
+          <td>
+            response code
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `rcode`
+          </td>
+
+          <td>
+            response code ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity`
+          </td>
+
+          <td>
+            severity level of the log finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity_id`
+          </td>
+
+          <td>
+            ID of the severity level
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.instance_uid`
+          </td>
+
+          <td>
+            instance ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.ip`
+          </td>
+
+          <td>
+            IP address of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.port`
+          </td>
+
+          <td>
+            port of the source
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `src_endpoint.vpc_uid`
+          </td>
+
+          <td>
+            VPC ID of the source
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time`
+          </td>
+
+          <td>
+            start time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            time of the log reaching New Relic
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_name`
+          </td>
+
+          <td>
+            event type name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_uid`
+          </td>
+
+          <td>
+            ID of the event type
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unmapped`
+          </td>
+
+          <td>
+            unparsed data not mapped to a field
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="route53"
+    title="Route 53 Resolver Query Logs"
+  >
+    Query `Route 53` logs to view data for the following attributes:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            Name
+          </th>
+
+          <th>
+            Description
+          </th>
+
+          <th>
+            Data type
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `activity_id`
+          </td>
+
+          <td>
+            activity ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `activity_name`
+          </td>
+
+          <td>
+            activity name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.invoked_function_arn`
+          </td>
+
+          <td>
+            ARN of the invoked log forward function
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_bucket_name`
+          </td>
+
+          <td>
+            name of the S3 bucket where the log was forwarded from
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `aws.s3_key`
+          </td>
+
+          <td>
+            key record of the security event from the flow log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_name`
+          </td>
+
+          <td>
+            name of the category of the log
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `category_uid`
+          </td>
+
+          <td>
+            unique ID of the category
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_name`
+          </td>
+
+          <td>
+            name of the log class
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `class_uid`
+          </td>
+
+          <td>
+            unique ID of the class
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.account_uid`
+          </td>
+
+          <td>
+            ID of the AWS account
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.provider`
+          </td>
+
+          <td>
+            shows the name of the cloud provider - in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cloud.region`
+          </td>
+
+          <td>
+            AWS region where the flow log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `compliance.requirements`
+          </td>
+
+          <td>
+            compliance requirements
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `compliance.status`
+          </td>
+
+          <td>
+            compliance status
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `compliance.status_detail`
+          </td>
+
+          <td>
+            details about the compliance status
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `confidence`
+          </td>
+
+          <td>
+            confidence
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.created_time`
+          </td>
+
+          <td>
+            creation time of the finding
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.desc`
+          </td>
+
+          <td>
+            description of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.first_seen_time`
+          </td>
+
+          <td>
+            time when the finding was first seen
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.last_seen_time`
+          </td>
+
+          <td>
+            time when the finding was last seen
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.first_seen_time`
+          </td>
+
+          <td>
+            time when the finding was first seen
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.modified_time`
+          </td>
+
+          <td>
+            time when the finding was modified
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.related_events`
+          </td>
+
+          <td>
+            events related to the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.remediation.desc`
+          </td>
+
+          <td>
+            information about the remediation for the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.remediation.kb_articles`
+          </td>
+
+          <td>
+            knowledge base articles about the remediation for the findings
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.src_url`
+          </td>
+
+          <td>
+            URL for the source of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.title`
+          </td>
+
+          <td>
+            title of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.types`
+          </td>
+
+          <td>
+            list of types relative to the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `finding.uid`
+          </td>
+
+          <td>
+            ARN of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `logtype`
+          </td>
+
+          <td>
+            defines the logtype
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `malware`
+          </td>
+
+          <td>
+            malware
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.feature.name`
+          </td>
+
+          <td>
+            name of the feature where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.name`
+          </td>
+
+          <td>
+            name of the product where the log originated
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.vendor_name`
+          </td>
+
+          <td>
+            name of the vendor for the log; in this case `AWS`
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.product.version`
+          </td>
+
+          <td>
+            name of the product version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.profiles`
+          </td>
+
+          <td>
+            names of the profiles
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metadata.version`
+          </td>
+
+          <td>
+            metadata version
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `newrelic.source`
+          </td>
+
+          <td>
+            source of the log in New Relic
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.type`
+          </td>
+
+          <td>
+            type of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `plugin.version`
+          </td>
+
+          <td>
+            version of plugin used
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.created_time`
+          </td>
+
+          <td>
+            process creation time
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.file.name`
+          </td>
+
+          <td>
+            process file name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.file.path`
+          </td>
+
+          <td>
+            process file path
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.file.type_id`
+          </td>
+
+          <td>
+            process file type ID
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.name`
+          </td>
+
+          <td>
+            process name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.parent_process.pid`
+          </td>
+
+          <td>
+            process ID of the parent process
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.pid`
+          </td>
+
+          <td>
+            process ID
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `process.terminated_time`
+          </td>
+
+          <td>
+            process termination time
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `resources`
+          </td>
+
+          <td>
+            resources
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity`
+          </td>
+
+          <td>
+            severity level of the log finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `severity_id`
+          </td>
+
+          <td>
+            ID of the severity level
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `state`
+          </td>
+
+          <td>
+            state of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `state_id`
+          </td>
+
+          <td>
+            state ID of the finding
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time`
+          </td>
+
+          <td>
+            start time
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            time of the log reaching New Relic
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_name`
+          </td>
+
+          <td>
+            event type name
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `type_uid`
+          </td>
+
+          <td>
+            ID of the event type
+          </td>
+
+          <td>
+            integer
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `unmapped`
+          </td>
+
+          <td>
+            unparsed data not mapped to a field
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `vulnerabilities`
+          </td>
+
+          <td>
+            vulnerabilities
+          </td>
+
+          <td>
+            string
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## How to use your data
+
+To know more about how to use your data, see [understand integration data](/docs/infrastructure/infrastructure-integrations/get-started/understand-use-data-infrastructure-integrations/).
+
+## Alerts
+
+You can set up <InlinePopover type="alerts"/> to notify you of breaking changes. For example, an alert can be set up to notify relevant parties of critical or fatal errors.
+
+Learn more about [creating alerts](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts/).
+
+## Other AWS integrations
+
+Read more about New Relic AWS integrations:
+
+* [Route 53 monitoring](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-route-53-monitoring-integration/)
+* [VPC Flow Logs monitoring](/docs/network-performance-monitoring/setup-performance-monitoring/cloud-flow-logs/aws-vpc-flow-log-monitoring/)
+* [CloudTrail monitoring](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-cloudtrail-monitoring-integration/)
+* [Ingest logs from S3](/docs/logs/forward-logs/aws-lambda-sending-logs-s3/)

@@ -1,0 +1,50 @@
+---
+title: 'Prometheus integrations'
+tags:
+  - Integrations
+  - Prometheus
+  - Kubernetes
+freshnessValidatedDate: never
+---
+
+The Prometheus integrations of New Relic helps you to get curated experiences for services that expose metrics in Prometheus or Open Metrics format bundling everything you need to start monitoring like a pro right out of the box.
+
+These experiences include service entities in entity explorer with golden metrics and entity dashboards, a service overview dashboard, and recommended alerts.
+
+## Get started [#get-started]
+
+To get started you need to send [Prometheus metric data](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic) to New Relic.
+Each service might require additional prerequisites to enable and configure the metrics endpoint to be scrapped. You can review specific settings and requirements for each particular service in the [Prometheus integrations list](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro#list).
+
+## Find and use the data [#find-use-data]
+
+### Metrics
+
+Prometheus metrics are stored as [dimensional metrics](/docs/data-apis/understand-data/metric-data/query-metric-data-type/). You can query using [NRQL](/docs/telemetry-data-platform/get-data/apis/query-metric-data-type/) or use the Data Explorer to browse available metrics, facet, and filter by dimensions.
+
+### Entities
+
+Most of the integrations result in those monitored entities becoming available in our [entity explorer](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer). These integrations enable general platform capabilities, including golden metrics, entity dashboards, workloads, and service levels.
+
+### Dashboards
+
+You can set up your services <InlinePopover type="dashboards"/> through [our instant observability page](https://onenr.io/06vjAmnD3jP). Dashboards provide a high-level overview of the service performance and follow the recommended observability best-practices for each service. Once you imported, you can adapt and customize them to your specific requirements.
+
+### Alerts
+
+You can import the recommended alert policies from [our instant observability page](https://onenr.io/06vjAmnD3jP). Once imported, [NRQL alert conditions](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) are available, but they won't be automatically enabled. Review the notification settings and adjust the condition as needed before turning them on.
+
+## Prometheus integrations list [#list]
+
+We offer curated experiences for these services:
+
+* [Argo CD](/docs/infrastructure/prometheus-integrations/integrations-list/argocd-integration)
+* [Calico](/docs/infrastructure/prometheus-integrations/integrations-list/calico-integration)
+* [Cockroach Database](/docs/infrastructure/prometheus-integrations/integrations-list/cockroach-db-integration)
+* [CoreDNS](/docs/infrastructure/prometheus-integrations/integrations-list/core-dns-integration)
+* [Etcd](/docs/infrastructure/prometheus-integrations/integrations-list/etcd-integration)
+* [Harbor](/docs/infrastructure/prometheus-integrations/integrations-list/harbor-integration)
+* [NGINX Ingress Controller](/docs/infrastructure/prometheus-integrations/integrations-list/ingress-controller-integration)
+* [Redis](/docs/infrastructure/prometheus-integrations/integrations-list/redis-integration)
+* [Traefik](/docs/infrastructure/prometheus-integrations/integrations-list/traefik-integration)
+* [Velero](/docs/infrastructure/prometheus-integrations/integrations-list/velero-integration)

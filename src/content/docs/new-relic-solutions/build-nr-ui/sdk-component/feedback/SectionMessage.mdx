@@ -1,0 +1,202 @@
+---
+title: 'SectionMessage'
+metaDescription: 'Learn how to work the SectionMessage component'
+freshnessValidatedDate: 2024-06-03
+---
+
+## SectionMessage
+
+Use a Section Message to inform of the status of a section or a group of items.
+
+Section Messages can't be dismissed by the user. Remove them once the situation has been resolved or the user has taken the appropriate action.
+
+### Usage
+
+```js
+import { SectionMessage } from 'nr1'
+```
+
+### Examples
+
+#### Types
+
+```js
+<Stack
+  directionType={Stack.DIRECTION_TYPE.VERTICAL}
+  horizontalType={Stack.HORIZONTAL_TYPE.FILL}
+>
+  <StackItem>
+    <SectionMessage
+      description="Your Metric query has been transformed into a compatible query with the previous Infrastructure metric format."
+      actions={[{ label: 'See our docs', to: 'https://support.newrelic.com/' }]}
+    />
+  </StackItem>
+  <StackItem>
+    <SectionMessage
+      type={SectionMessage.TYPE.SUCCESS}
+      title="File has been uploaded"
+      description="We are unable to save any progress at this time."
+      actions={[
+        { label: 'Primary action', onClick: console.log },
+        { label: 'Secondary action', onClick: console.log },
+      ]}
+    />
+  </StackItem>
+  <StackItem>
+    <SectionMessage
+      type={SectionMessage.TYPE.WARNING}
+      title="Cannot connect to the database"
+      description="We are unable to save any progress at this time."
+      actions={[
+        { label: 'Primary action', onClick: console.log },
+        { label: 'Secondary action', onClick: console.log },
+      ]}
+    />
+  </StackItem>
+  <StackItem>
+    <SectionMessage
+      type={SectionMessage.TYPE.CRITICAL}
+      title="Error on the request"
+      description="We tried to transform your query into a query that is compatible with both new Metric and previous Infrastructure metric formats, but the transformation process failed."
+      actions={[
+        { label: 'Contact support', to: 'https://support.newrelic.com/' },
+      ]}
+    />
+  </StackItem>
+</Stack>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `actions` <h5>shape\[]</h5>
+      </td>
+
+      <td>
+        You may use up to two actions to help the user navigate to another view, trigger background events, or change the nerdlet/section behavior.
+
+        <h3>
+          shape
+        </h3>
+
+        `ariaLabel` <h5>string</h5>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        <SideBySide>
+          <Side>
+            `onClick` <h5>function</h5>
+          </Side>
+
+          <Side>
+            Callback fired any time the user clicks on the button.
+
+            <FunctionDefinition
+              returnValue={[]}
+              arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+            />
+          </Side>
+        </SideBySide>
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+
+            <h3>
+              shape
+            </h3>
+
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to provide further details and explain, if any, the steps for the user to take.
+
+        Note: `title` and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to provide the main message.Note: `title` and `description` props are optional, but at least one of them has to be provided.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Info (default) - Use it to indicate that an something is new, that an item has just been created, or to provide help.
+        * Success - Use it to communicate positive changes or conditions.
+        * Warning - Use it to communicate a possible problem, undesired situation, cautionary advice, or advanced notice of some sort.
+        * Critical - Use it to communicate a problem.
+
+          <OptionReference>
+            SectionMessage.TYPE.CRITICAL,
+            SectionMessage.TYPE.INFO,
+            SectionMessage.TYPE.SUCCESS,
+            SectionMessage.TYPE.WARNING,
+          </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>

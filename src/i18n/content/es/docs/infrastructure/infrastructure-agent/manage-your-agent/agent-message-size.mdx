@@ -1,0 +1,12 @@
+---
+title: Tamaño del mensaje del agente
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Manage your agent
+metaDescription: A list of the events and attributes used by New Relic's infrastructure agent to collect and store your host data.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Desde [la versión 1.0.989](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) del agente de infraestructura, el tamaño máximo de mensaje es 1MB (10^6 bytes), y puede incluir integración de evento, métrica e inventario indistintamente. Anteriormente, el tamaño máximo de mensaje era de 5 MB, aunque los datos de inventario estaban limitados a 3 MB.

@@ -1,0 +1,244 @@
+---
+title: Registro de transmisión desde Heroku
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+  - Heroku
+metaDescription: 'Install and configure New Relic logging for Heroku, so you can use enhanced log management capabilities.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si sus log datos ya están siendo monitoreados por Heroku el enrutador [Logplex](https://devcenter.heroku.com/articles/logplex) integrado, puede usar nuestra integración para reenviar y enriquecer sus datos en New Relic.
+
+Reenviar su registro Heroku a New Relic le brindará <InlinePopover type="logs"/>capacidades mejoradas para recopilar, procesar, explorar, consultar y alertar sobre sus datos log .
+
+Actualmente admitimos [drenajes Heroku HTTPS](https://devcenter.heroku.com/articles/log-drains#https-drains) y [drenajes Heroku Syslog](https://devcenter.heroku.com/articles/log-drains#syslog-drains).
+
+Al utilizar los drenajes HTTPS Heroku , podrá agregar metadatos personalizados a su registro. De esa manera, puedes configurar un atributo diferente para cada uno de tus desagües, como el nombre de la aplicación o cualquier otro atributo que puedas necesitar. Además, todo el proceso de registrar nuevos drenajes y eliminarlos es más sencillo que con syslog.
+
+Los drenajes Heroku Syslog en la contraparte no le permiten agregar estos metadatos personalizados, por lo que es más difícil diferenciar entre los drenajes configurados en el registro.
+
+## Drenajes HTTPS de Heroku [#heroku-https-drains]
+
+Para configurar este tipo de drenaje:
+
+1. Asegúrese de tener el [rol de administrador](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles).
+
+2. Vaya al [mercado New Relic ](https://one.newrelic.com/marketplace).
+
+3. En
+
+   <DNT>
+     **Logging**
+   </DNT>
+
+   , haga clic en el mosaico `Heroku` . También puedes buscarlo usando la barra de búsqueda.
+
+4. Si tiene varias cuentas, seleccione la cuenta a la que desea enviar el registro.
+
+5. Opcional: haga clic en
+
+   <DNT>
+     **Add metadata**
+   </DNT>
+
+   si desea agregar metadatos personalizados al drenaje log y completar la lista con los pares de claves que necesita.
+
+6. Dale un nombre a tu aplicación. Lo usarás para encontrar tus datos más adelante.
+
+7. Copie el comando CLI de Heroku a su portapapeles haciendo clic en el botón
+
+   <DNT>
+     **Copy to clipboard**
+   </DNT>
+
+   .
+
+8. Vaya a su terminal en el directorio donde tiene configurada la CLI de Heroku. Si está empleando la máquina virtual (VM) de Windows, emplee el tradicional símbolo del sistema en lugar de Git Bash.
+
+9. Ejecute el comando en su terminal.
+
+10. Opcional: haga clic en
+
+    <DNT>
+      **Test for logs**
+    </DNT>
+
+    si desea comprobar si los registros llegan New Relic.
+
+## Drenajes de Heroku Syslog [#heroku-syslog-drain]
+
+Le sugerimos que utilice [drenajes HTTPSHeroku ](#heroku-https-drains)siempre que sea posible, ya que son fáciles de instalar y eliminar y también permiten agregar atributos personalizados a su registro.
+
+### Crear un drenaje Heroku Syslog [#create-syslog-drain]
+
+Le recomendamos que utilice drenajes HTTPS Heroku porque son fáciles de configurar y porque le permiten agregar atributos a su registro. Pero si necesita utilizar un drenaje syslog, este es el procedimiento:
+
+1. Asegúrese de tener el [rol de administrador](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles).
+
+2. Descargue e instale la [CLI de Heroku](https://devcenter.heroku.com/articles/heroku-cli#download-and-install).
+
+3. Utilice la CLI Heroku para crear un drenaje Syslog y adjuntarlo a la aplicación desde la que desea transmitir el registro, reemplazando `YOUR_APP_NAME` con el nombre de su aplicación Heroku .
+
+   ```shell
+   heroku drains:add syslog+tls://newrelic.syslog.nr-data.net:6515 -a YOUR_APP_NAME
+   ```
+
+   Si se encuentra en Europa, ejecute este comando en su lugar:
+
+   ```shell
+   heroku drains:add syslog+tls://newrelic.syslog.eu.nr-data.net:6515 -a YOUR_APP_NAME
+   ```
+
+4. Ejecute el siguiente comando y copie el [token de drenaje](https://devcenter.heroku.com/articles/log-drains#drain-tokens) Heroku Syslog del atributo `token` :
+
+   ```shell
+   heroku drains -a YOUR_APP_NAME --json
+   ```
+
+   ```json
+   {
+     "addon": null,
+     "created_at": "2018-12-04T00:59:46Z",
+     "id": "906262a4-e151-45d2-b35a-a2dc0ea9e688",
+     "token": "d.f14da5dc-106b-468d-b1bd-bed0ed9fa1e7",
+     "updated_at": "2018-12-04T00:59:47Z",
+     "url": "syslog+tls://newrelic.syslog.nr-data.net:6515"
+   }
+   ```
+
+### Registre un drenaje de syslog de Heroku [#register-syslog]
+
+A continuación, deberá registrar su drenaje Heroku Syslog recién creado en New Relic:
+
+1. Asegúrese de tener el [rol de administrador](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles).
+
+2. Vaya al [mercado New Relic ](https://one.newrelic.com/marketplace).
+
+3. En
+
+   <DNT>
+     **Logging**
+   </DNT>
+
+   , haga clic en el mosaico `Heroku (syslog)` . También puedes buscarlo usando la barra de búsqueda.
+
+4. Si tiene varias cuentas, seleccione la cuenta en la que desea registrar el token de drenaje.
+
+5. Pegue su token de drenaje Heroku recién creado en el campo
+
+   <DNT>
+     **Heroku drain token**
+   </DNT>
+
+   .
+
+6. Haga clic en
+
+   <DNT>
+     **Add Heroku drain log**
+   </DNT>
+
+   para completar el registro.
+
+<Callout variant="important">
+  Actualmente Heroku no admite la personalización del formato del registro enviado desde Logplex. Para obtener más información, consulte [la documentación sobre el formato de registro de Heroku](https://devcenter.heroku.com/articles/logging#log-format).
+</Callout>
+
+<InstallFeedback/>
+
+### Eliminar un Heroku token mapeo de drenaje de syslog [#delete-syslog-drain]
+
+Puede eliminar el Heroku mapeo de drenaje de syslog token a través de la New Relic UI o mediante API.
+
+Para eliminar un Heroku mapeo de drenaje de syslog token a través de la UI:
+
+1. Asegúrese de tener el [rol de administrador](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles).
+
+2. Vaya al [mercado New Relic ](https://one.newrelic.com/marketplace).
+
+3. En
+
+   <DNT>
+     **Logging**
+   </DNT>
+
+   , haga clic en el mosaico `Heroku (syslog)` . También puedes buscarlo usando la barra de búsqueda.
+
+4. Si tiene varias cuentas, seleccione la cuenta que contiene el mapeo token drenaje que desea eliminar y haga clic en
+
+   <DNT>
+     **Continue**
+   </DNT>
+
+   . De lo contrario, vaya al paso 6.
+
+5. Busque el mapeo del token de drenaje que desea eliminar y haga clic en el ícono vertical de tres puntos que se encuentra al lado. A continuación, haga clic en
+
+   <DNT>
+     **Delete Heroku drain token**
+   </DNT>
+
+   .
+
+6. Se elimina el mapeo de su token de drenaje de Heroku.
+
+Para eliminar un Heroku mapeo de drenaje de syslog token a través de REST:API
+
+1. Busque o genere un <InlinePopover type="userKey"/>.
+
+2. Ejecute el siguiente comando para recuperar una lista de mapeo de Heroku drenaje token de su New Relic cuenta , cerciorar de actualizar los valores para [`YOUR_NR_LICENSE_KEY`](/docs/apis/intro-apis/new-relic-api-keys/#license-key) y [`YOUR_NR_ACCOUNT_ID`](/docs/accounts/accounts-billing/account-structure/account-id):
+
+   ```shell
+   curl -H 'api-key: YOUR_NR_LICENSE_KEY' https://log-syslog-configuration-api.service.newrelic.com/heroku-account-mappings?accountId=YOUR_NR_ACCOUNT_ID
+   ```
+
+   El resultado formateado se parece a esto:
+
+   ```json
+   [
+     {
+       "herokuMappingId": 1549,
+       "drainToken": "YOUR_DRAIN_TOKEN",
+       "nrApiInsertKey": "YOUR_DRAIN_TOKEN_NR_API_KEY",
+       "createdAt": "2022-05-13T07:47:23",
+       "createdBy": "YOUR_EMAIL_ADDRESS"
+     }
+   ]
+   ```
+
+   Necesita el `herokuMappingId` para cada token de drenaje que desee eliminar.
+
+3. Para eliminar un token de drenaje, ejecute el siguiente comando. Cerciorar de actualizar los valores de [`YOUR_NR_LICENSE_KEY`](/docs/apis/intro-apis/new-relic-api-keys/#license-key), [`YOUR_NR_ACCOUNT_ID`](/docs/accounts/accounts-billing/account-structure/account-id/) y `herokuMappingId` que recuperó en el último paso:
+
+   ```shell
+   curl -X DELETE -H 'api-key: YOUR_NR_LICENSE_KEY' https://log-syslog-configuration-api.service.newrelic.com/heroku-account-mappings/<herokuMappingId>?accountId=YOUR_NR_ACCOUNT_ID
+   ```
+
+Cuando haya terminado, la API devuelve una respuesta HTTP 204 y se elimina el mapeo token de drenaje.
+
+## Ver datos log [#find-data]
+
+Si todo está configurado correctamente y se están recopilando sus datos, debería ver el registro de datos en ambos lugares:
+
+* [Nuestra UI de registro](https://one.newrelic.com/launcher/logger.log-launcher)
+* New Relic para ejecutar [consultaNRQL ](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data). Por ejemplo, puedes ejecutar una consulta como esta:
+
+```sql
+SELECT * FROM Log
+```
+
+Si no aparecen datos después de habilitar nuestras capacidades de administración de logs, siga nuestros [procedimientos estándar de resolución de problemas de logs](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui/).
+
+## ¿Que sigue? [#what-next]
+
+* Explore los datos de registro en su plataforma con [nuestra UI de logs](/docs/logs/log-management/ui-data/use-logs-ui/).
+* Obtenga una visibilidad más profunda de los datos de rendimiento de su aplicación y de su plataforma reenviando su log con nuestras capacidades [de logs en el contexto](/docs/logs/enable-log-management-new-relic/configure-logs-context/configure-logs-context-apm-agents/) .
+* Configurar [alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+* [Consulta tus datos](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) y [crea un panel](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).
+
+## Desactivar reenvío de logs [#disable]
+
+Para deshabilitar las capacidades de reenvío de registros, siga los procedimientos estándar en [la documentación Heroku Syslog](https://devcenter.heroku.com/articles/log-drains#syslog-drains). No necesitas hacer nada más en New Relic.

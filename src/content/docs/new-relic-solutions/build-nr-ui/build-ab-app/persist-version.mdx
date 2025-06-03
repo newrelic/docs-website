@@ -1,0 +1,461 @@
+---
+title: 'Persist the selected version'
+metaDescription: 'Persist the selected version'
+freshnessValidatedDate: never
+---
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. If you haven't already, check out the Overview.
+
+  Each lesson in the course builds upon the last, so make sure you've completed the last lesson, Add a section to end your test, before starting this one.
+</Callout>
+
+In the previous lesson, you created a section of your application that allows you to pick the most effective design from your A/B test. The goal of this section is to end the test once you've selected a winner.
+
+When you select a version from this form, the selection does not persist in the `Select` component. Now, it's time to implement that behavior.
+
+<Steps>
+  <Step>
+    Change to the `persist-selected-version/ab-test` directory of the [coursework repository](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/persist-selected-version/ab-test
+    ```
+  </Step>
+
+  <Step>
+    In `end-test.js`, initialize `EndTestSection.state` with a default `selectedVersion` field:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        render() {
+            return <Select>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Pass the `selectedVersion`, as a prop, to `VersionSelector`:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        render() {
+            return <Select>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Supply the `selectedVersion` to your `Select` component in `VersionSelector`:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Create a method, `selectVersion()`, that updates `EndTestSection.state`:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    You must bind `selectVersion` to the `EndTestSection` component so it can access `state`.
+  </Step>
+
+  <Step>
+    Pass the method to `VersionSelector` as a prop:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Set `selectVersion` as the `onChange` callback in `VersionSelector`:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Navigate to the root of your Nerdpack at `nru-programmability-course/persist-selected-version/ab-test`.
+  </Step>
+
+  <Step>
+    Generate a new UUID for your Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Because you cloned the coursework repository that contained an existing Nerdpack, you need to generate your own unique identifier. This UUID maps your Nerdpack to your New Relic account.
+  </Step>
+
+  <Step>
+    Serve your application locally:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Go to [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local), and view your application under **Apps > Your apps**.
+
+    When you're finished, stop serving your New Relic application by pressing `CTRL+C` in your local server's terminal window.
+  </Step>
+</Steps>
+
+Voila! When you select a new version as the winner of the A/B test, that version is reflected in the menu. However, when you press **End test**, nothing happens. In the next lesson, you'll create a confirmation dialog to protect yourself from prematurely ending your A/B test.
+
+<Callout variant="tip">
+  This lesson is part of a course that teaches you how to build a New Relic application from the ground up. Continue on to the next lesson: Present an end test confirmation modal.
+</Callout>

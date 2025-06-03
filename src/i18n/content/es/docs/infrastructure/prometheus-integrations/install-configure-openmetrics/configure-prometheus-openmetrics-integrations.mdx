@@ -1,0 +1,578 @@
+---
+title: Configurar la integración de Prometheus OpenMetrics
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: Configuration options and examples for your Prometheus OpenMetrics integration with New Relic in Docker and Kubernetes environments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A menos que se indique lo contrario, las opciones de configuración para su integración de Prometheus OpenMetrics con New Relic se aplican tanto a los entornos docker como Kubernetes . Como mínimo, los siguientes valores de configuración son <DNT>**required**</DNT>:
+
+* <InlinePopover type="licenseKey"/>
+* [Nombre del clúster](#definitions-configuration-file)
+
+Recomendación: configure su clave de licencia de New Relic como una variable de entorno denominada `LICENSE_KEY`. Esto proporciona un entorno más seguro, ya que New Relic puede cargar su variable de entorno desde un [secreto de autenticación TLS mutuo](/docs/integrations/prometheus-integrations/install-configure/add-mutual-tls-prometheus-endpoints).
+
+## Configurar nri-prometheus-latest.yaml [#general-config]
+
+El archivo de manifiesto `nri-prometheus-latest.yaml` incluye el mapa `nri-prometheus-cfg` que muestra una configuración de ejemplo. Utilice el archivo de manifiesto para configurar el siguiente parámetro.
+
+<CollapserGroup>
+  <Collapser
+    id="example-configuration-file"
+    title="Archivo de configuración de ejemplo"
+  >
+    El siguiente es un archivo de configuración de ejemplo que puede guardar y modificar para adaptarlo a sus necesidades. Para obtener más información, consulte la documentación sobre [la autenticación TLS mutua](/docs/integrations/prometheus-integrations/install-configure/add-mutual-tls-prometheus-endpoints) y [la traducción de PromQL a NRQL](/docs/integrations/prometheus-integrations/view-query-data/translate-promql-queries-nrql).
+
+    ```
+    # The name of your cluster. It's important to match other New Relic products to relate the data.
+    cluster_name: "<YOUR_CLUSTER_NAME>"
+
+    # When standalone is set to false nri-prometheus requires an infrastructure agent to work and send data. Defaults to true
+    # standalone: true
+
+    # How often the integration should run. Defaults to 30s.
+    # scrape_duration: "30s"
+
+    # The HTTP client timeout when fetching data from targets. Defaults to 5s.
+    # scrape_timeout: "5s"
+
+    # How old must the entries used for calculating the counters delta be
+    # before the telemetry emitter expires them. Defaults to 5m.
+    # telemetry_emitter_delta_expiration_age: "5m"
+
+    # How often must the telemetry emitter check for expired delta entries.
+    # Defaults to 5m.
+    # telemetry_emitter_delta_expiration_check_interval: "5m"
+
+    # Wether the integration should run in verbose mode or not. Defaults to false.
+    verbose: false
+
+    # Whether the integration should run in audit mode or not. Defaults to false.
+    # Audit mode logs the uncompressed data sent to New Relic. Use this to log all data sent.
+    # It does not include verbose mode. This can lead to a high log volume, use with care.
+    audit: false
+
+    # Wether the integration should skip TLS verification or not. Defaults to false.
+    insecure_skip_verify: false
+
+    # The label used to identify scrapable targets. Defaults to "prometheus.io/scrape".
+    scrape_enabled_label: "prometheus.io/scrape"
+
+    # scrape_services Allows to enable scraping the service and not the endpoints behind.
+    # When endpoints are scraped this is no longer needed
+    scrape_services: true
+
+    # scrape_endpoints Allows to enable scraping directly endpoints instead of services as prometheus service natively does.
+    # Please notice that depending on the number of endpoints behind a service the load can increase considerably
+    scrape_endpoints: false
+
+    # Whether k8s nodes need to be labelled to be scraped or not. Defaults to true.
+    require_scrape_enabled_label_for_nodes: true
+
+    # Number of worker threads used for scraping targets.
+    # For large clusters with many (>400) targets, slowly increase until scrape
+    # time falls between the desired `scrape_duration`.
+    # Increasing this value too much will result in huge memory consumption if too
+    # many metrics are being scraped.
+    # Default: 4
+    # worker_threads: 4
+
+    # Maximum number of metrics to keep in memory until a report is triggered.
+    # Changing this value is not recommended unless instructed by the New Relic support team.
+    # max_stored_metrics: 10000
+
+    # Minimum amount of time to wait between reports. Cannot be lowered than the default, 200ms.
+    # Changing this value is not recommended unless instructed by the New Relic support team.
+    # min_emitter_harvest_period: 200ms
+
+    # targets:
+    #   - description: Secure etcd example
+    #     urls: ["https://192.168.3.1:2379", "https://192.168.3.2:2379", "https://192.168.3.3:2379"]
+    #     tls_config:
+    #       ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+    #       cert_file_path: "/etc/etcd/etcd-client.crt"
+    #       key_file_path: "/etc/etcd/etcd-client.key"
+
+    # Proxy to be used by the emitters when submitting metrics. It should be
+    # in the format [scheme]://[domain]:[port].
+    # The emitter is the component in charge of sending the scraped metrics.
+    # This proxy won't be used when scraping metrics from the targets.
+    # By default it's empty, meaning that no proxy will be used.
+    # emitter_proxy: "http://localhost:8888"
+
+    # Certificate to add to the root CA that the emitter will use when
+    # verifying server certificates.
+    # If left empty, TLS uses the host's root CA set.
+    # emitter_ca_file: "/path/to/cert/server.pem"
+
+    # Set to true in order to stop autodiscovery in the k8s cluster. It can be useful when running the Pod with a service account
+    # having limited privileges. Defaults to false.
+    # disable_autodiscovery: false
+
+    # Whether the emitter should skip TLS verification when submitting data.
+    # Defaults to false.
+    # emitter_insecure_skip_verify: false
+
+    # Histogram support is based on New Relic's guidelines for higher
+    # level metrics abstractions https://github.com/newrelic/newrelic-exporter-specs/blob/master/Guidelines.md.
+    # To better support visualization of this data, percentiles are calculated
+    # based on the histogram metrics and sent to New Relic.
+    # By default, the following percentiles are calculated: 50, 95 and 99.
+    #
+    # percentiles:
+    #   - 50
+    #   - 95
+    #   - 99
+
+    # transformations:
+    #   - description: "General processing rules"
+    #     rename_attributes:
+    #       - metric_prefix: ""
+    #         attributes:
+    #           container_name: "containerName"
+    #           pod_name: "podName"
+    #           namespace: "namespaceName"
+    #           node: "nodeName"
+    #           container: "containerName"
+    #           pod: "podName"
+    #           deployment: "deploymentName"
+    #     ignore_metrics:
+    #       # Ignore all the metrics except the ones listed below.
+    #       # This is a list that complements the data retrieved by the New
+    #       # Relic Kubernetes Integration, that's why Pods and containers are
+    #       # not included, because they are already collected by the
+    #       # Kubernetes Integration.
+    #       - except:
+    #         - kube_hpa_
+    #         - kube_daemonset_
+    #         - kube_statefulset_
+    #         - kube_endpoint_
+    #         - kube_service_
+    #         - kube_limitrange
+    #         - kube_node_
+    #         - kube_poddisruptionbudget_
+    #         - kube_resourcequota
+    #         - nr_stats
+    #     copy_attributes:
+    #       # Copy all the labels from the time series with metric name
+    #       # `kube_hpa_labels` into every time series with a metric name that
+    #       # starts with `kube_hpa_` only if they share the same `namespace`
+    #       # and `hpa` labels.
+    #       - from_metric: "kube_hpa_labels"
+    #         to_metrics: "kube_hpa_"
+    #         match_by:
+    #           - namespace
+    #           - hpa
+    #       - from_metric: "kube_daemonset_labels"
+    #         to_metrics: "kube_daemonset_"
+    #         match_by:
+    #           - namespace
+    #           - daemonset
+    #       - from_metric: "kube_statefulset_labels"
+    #         to_metrics: "kube_statefulset_"
+    #         match_by:
+    #           - namespace
+    #           - statefulset
+    #       - from_metric: "kube_endpoint_labels"
+    #         to_metrics: "kube_endpoint_"
+    #         match_by:
+    #           - namespace
+    #           - endpoint
+    #       - from_metric: "kube_service_labels"
+    #         to_metrics: "kube_service_"
+    #         match_by:
+    #           - namespace
+    #           - service
+    #       - from_metric: "kube_node_labels"
+    #         to_metrics: "kube_node_"
+    #         match_by:
+    #           - namespace
+    #           - node
+    # integration definition files required to map metrics to entities
+    # definition_files_path: /etc/newrelic-infra/definition-files
+    ```
+  </Collapser>
+
+  <Collapser
+    id="definitions-configuration-file"
+    title="Nombres y definiciones clave"
+  >
+    A continuación se muestran algunos nombres y definiciones clave para su archivo de configuración de Prometheus OpenMetrics.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Nombre clave
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr id="cluster-name">
+          <td>
+            `cluster_name`
+
+            <DNT>
+              **Required.**
+            </DNT>
+          </td>
+
+          <td>
+            El nombre del clúster. Este valor se incluirá como atributo `clusterName` para todas las métricas.
+          </td>
+        </tr>
+
+        <tr id="verbose">
+          <td>
+            `verbose`
+          </td>
+
+          <td>
+            Booleano stringificado.
+
+            * `true` (predeterminado): registra información de depuración.
+            * `false`: Sólo registra mensajes de error.
+          </td>
+        </tr>
+
+        <tr id="targets">
+          <td>
+            `targets`
+          </td>
+
+          <td>
+            Configuración del extremo estático que será eliminado por la integración. Contiene una lista de objetos. Para obtener más información sobre esta estructura, consulte la documentación sobre [configuración de objetivos](#target-config).
+          </td>
+        </tr>
+
+        <tr id="scrape-enabled-label">
+          <td>
+            `scrape_enabled_label`
+
+            <img
+              style={{ width: '30px', height: '25px'}}
+              class="inline"
+              title="img-integration-k8.png"
+              alt="img-integration-k8.png"
+              src="/images/os_icon_k8.webp"
+            />
+
+            <DNT>
+              **Kubernetes**
+            </DNT>
+          </td>
+
+          <td>
+            Cadena. La integración comprobará si el pod y el servicio de Kubernetes están anotados o tienen una etiqueta con este valor para decidir si es necesario eliminarlo.
+
+            Esto es particularmente útil cuando desea limitar la cantidad de datos ignorando métricas o incluyendo métricas específicas que se envían a New Relic. Dado que de forma predeterminada usamos la misma etiqueta que usa Prometheus para descubrir el objetivo que se puede eliminar, la mayoría de los exportadores que instala configuran automáticamente esta etiqueta.
+
+            Para mantener un control detallado sobre el objetivo que desea que elimine la integración, puede configurar esta opción en algún otro valor (como `newrelic/scrape`) y luego agregar la anotación o etiqueta `newrelic/scrape: "true"` a sus objetos Kubernetes . Si se configuran ambos, las anotaciones tienen prioridad sobre las etiquetas.
+
+            Por defecto: `"prometheus.io/scrape"`
+          </td>
+        </tr>
+
+        <tr id="scrape-duration">
+          <td>
+            `scrape_duration`
+          </td>
+
+          <td>
+            ¿Con qué frecuencia debe funcionar el raspador?
+
+            * Para reducir el uso de memoria, aumente este valor.
+
+            * Para aumentar el uso de memoria, disminuya este valor.
+
+              El impacto en el uso de la memoria se debe a la distribución de la recuperación de objetivos durante el intervalo de extracción para evitar consultar (y almacenar en el búfer) todos los datos a la vez.
+
+              El valor predeterminado es `30s`. Los valores válidos incluyen `1s`, `15s`, `30s`, `1m`, `5m`, etc.
+          </td>
+        </tr>
+
+        <tr id="scrape-timeout">
+          <td>
+            `scrape_timeout`
+          </td>
+
+          <td>
+            El tiempo de espera del cliente HTTP al recuperar datos del extremo.
+
+            Predeterminado: `5s`. Los valores válidos incluyen `1s`, `15s`, `30s`, `1m`, `5m`, etc.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `worker_threads`
+          </td>
+
+          <td>
+            Número de subprocesos de trabajo utilizados para el objetivo de scraping. Se puede aumentar en entornos con una gran cantidad de objetivos o objetivos con alta latencia, pero puede aumentar el consumo de memoria.
+
+            Predeterminado: `4`. No se recomienda utilizar más de 10.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `require_scrape_enabled_label_for_nodes`
+
+            <img
+              style={{ width: '30px', height: '25px'}}
+              class="inline"
+              title="img-integration-k8.png"
+              alt="img-integration-k8.png"
+              src="/images/os_icon_k8.webp"
+            />
+
+            <DNT>
+              **Kubernetes**
+            </DNT>
+          </td>
+
+          <td>
+            Si los nodos de Kubernetes necesitan o no etiquetas para ser eliminados.
+
+            Predeterminado: `true`.
+          </td>
+        </tr>
+
+        <tr id="percentiles">
+          <td>
+            `percentiles`
+          </td>
+
+          <td>
+            El soporte de histograma se basa en [las pautas de New Relic para abstracciones métricas de nivel superior](https://github.com/newrelic/newrelic-exporter-specs/blob/master/Guidelines.md).
+
+            Para respaldar mejor la visualización de estos datos, los percentiles se calculan en función del histograma métrico y se envían a New Relic. Los valores válidos incluyen `50`, `95` y `99`.
+          </td>
+        </tr>
+
+        <tr>
+          <td id="emitter-proxy">
+            `emitter_proxy`
+          </td>
+
+          <td>
+            Proxy utilizado por la integración al enviar métrica:
+
+            `[scheme]://[domain]:[port]`
+
+            Este proxy no se utilizará al obtener métricas del objetivo.
+
+            De forma predeterminada, está vacío y no se utilizará ningún proxy.
+          </td>
+        </tr>
+
+        <tr>
+          <td id="emitter-ca-file">
+            `emitter_ca_file`
+          </td>
+
+          <td>
+            Certificado para agregar a la CA raíz que el emisor utilizará al verificar los certificados del servidor. Si se deja vacío, TLS utiliza el conjunto de CA raíz del host.
+          </td>
+        </tr>
+
+        <tr id="emitter-insecure-skip-verify">
+          <td>
+            `emitter_insecure_skip_verify`
+          </td>
+
+          <td>
+            Si el emisor debe omitir la verificación TLS al enviar datos. Predeterminado: `false`.
+          </td>
+        </tr>
+
+        <tr id="disable-autodiscovery">
+          <td>
+            `disable_autodiscovery`
+          </td>
+
+          <td>
+            Establezca en verdadero para deshabilitar la detección automática en el clúster k8s. Puede resultar útil cuando se ejecuta el pod con una cuenta de servicio que tiene privilegios limitados. Predeterminado: `false`.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Configurar objetos en clave objetivo [#target-config]
+
+Si desea que la clave de destino en el archivo de configuración contenga uno o más objetos, use la siguiente estructura en la lista YAML:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Nombre clave
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="description">
+      <td>
+        `description`
+      </td>
+
+      <td>
+        Una descripción de las URL de este objetivo.
+      </td>
+    </tr>
+
+    <tr id="urls">
+      <td>
+        `urls`
+      </td>
+
+      <td>
+        Una lista de cadenas con las URL que se eliminarán.
+      </td>
+    </tr>
+
+    <tr id="tls-config">
+      <td>
+        `tls_config`
+      </td>
+
+      <td>
+        Configuración de autenticación utilizada para enviar solicitudes. Es compatible con TLS y TLS mutuo. Para obtener más información, consulte la documentación sobre [la autenticación TLS mutua](/docs/integrations/prometheus-integrations/install-configure/add-mutual-tls-prometheus-endpoints).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id="specify-path-port"
+    title={<><img src="/images/os_icon_k8.webp" title="img-integration-k8s@2x.png" alt="img-integration-k8s@2x.png" style={{ width: '30px', height: '25px' }} />PuertoKubernetes </>}
+  >
+    La integración Prometheus OpenMetrics de New Relic descubre automáticamente qué objetivo eliminar. Para especificar el puerto y la ruta del extremo que se usarán al construir el objetivo, puede usar las anotaciones o etiquetas `prometheus.io/port` y `prometheus.io/path` en su pod y servicios Kubernetes . Las anotaciones tienen prioridad sobre las etiquetas.
+
+    * Si `prometheus.io/port` no está presente, la integración intentará eliminar cada `port` o `ContainerPort` definido para el servicio.
+    * Si `prometheus.io/path` no está presente, la integración será predeterminada en `/metrics`.
+    * Si un servicio no se ejecuta en la ruta `/my-metrics-path` predeterminada, agregue una etiqueta al pod `prometheus.io/path=my-metrics-path`. Si la ruta al extremo métrico es más compleja y no puede ser un valor de etiqueta válido (por ejemplo, `foo/bar`), utilice anotaciones en su lugar.
+  </Collapser>
+
+  <Collapser
+    id="example-port-path"
+    title={<><img src="/images/os_icon_k8.webp" title="img-integration-k8s@2x.png" alt="img-integration-k8s@2x.png" style={{ width: '30px', height: '25px' }} /></>}
+  >
+    En este ejemplo, tienes un despliegue en tu clúster, y el pod expone Prometheus métrica en el puerto `8080` y en la ruta `my-metrics.`
+
+    En los metadatos `PodSpec` del manifiesto desplegable, establece las etiquetas `prometheus.io/port: "8080"` y `prometheus.io/path: "my-metrics"`. Cuando la integración intente recuperar la métrica de su pod, enviará una solicitud a `http://<pod-ip>:8080/my-metrics`.
+
+    ```
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: my-deployment
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: my-app
+      template:
+        metadata:
+          labels:
+            app: my-app
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "8080"
+            prometheus.io/path: "my-metrics"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Servicios y comportamiento de raspado extremo.
+
+De forma predeterminada, los servicios se eliminan directamente en lugar del extremo subyacente, ya que `scrape_services` está configurado en `true` y `scrape_endpoints` en `false`.
+
+Para cambiar este comportamiento, establezca `scrape_endpoints` en `true` configurando `Prometheus OpenMetrics integrations` para eliminar el extremo subyacente, como lo hace el servidor Prometheus de forma nativa, en lugar de directamente los servicios.
+
+Tenga en cuenta que dependiendo del número de extremos detrás de los servicios en el clúster, la carga y los datos ingeridos pueden aumentar considerablemente, monitor y, si es necesario, aumentar los requisitos de recursos.
+
+Además, incluso si fuera posible establecer `scrape_services` y `scrape_endpoints` en verdadero para garantizar la retrocompatibilidad, se producirían datos duplicados.
+
+## Recargar la configuración [#reload-config]
+
+La integración de Prometheus OpenMetrics <DNT>**does not**</DNT> recarga automáticamente la configuración cuando realiza cambios en el archivo de configuración.
+
+<img
+  style={{ width: '30px', height: '25px'}}
+  class="inline"
+  title="Docker icon"
+  alt="Docker icon"
+  src="/images/os_icon_docker.webp"
+/>
+
+<DNT>
+  **Docker**
+</DNT>
+
+Para recargar la configuración, reinicie el contenedor que ejecuta la integración:
+
+```
+docker restart nri-prometheus
+```
+
+<img
+  style={{ width: '30px', height: '25px'}}
+  class="inline"
+  title="img-integration-k8.png"
+  alt="img-integration-k8.png"
+  src="/images/os_icon_k8.webp"
+/>
+
+<DNT>
+  **Kubernetes**
+</DNT>
+
+Para recargar la configuración, resetear la integración. Recomendación: Escale el despliegue a cero réplicas y luego vuelva a escalarlo a una réplica:
+
+```
+kubectl scale deployment nri-prometheus --replicas=0
+kubectl scale deployment nri-prometheus --replicas=1
+```
+
+## Docker: ejecuta el archivo de configuración anterior [#run-previous]
+
+<img
+  style={{ width: '30px', height: '25px'}}
+  class="inline"
+  title="Docker icon"
+  alt="Docker icon"
+  src="/images/os_icon_docker.webp"
+/>
+
+<DNT>**Docker:**</DNT> Para ejecutar la integración con el archivo de configuración anterior:
+
+1. Copie el contenido y guárdelo en un archivo `config.yaml` .
+
+2. Desde dentro del mismo directorio, ejecute el comando:
+
+   ```
+   docker run -d --restart unless-stopped \
+       --name nri-prometheus \
+       -e CLUSTER_NAME="YOUR_CLUSTER_NAME" \
+       -e LICENSE_KEY="YOUR_LICENSE_KEY" \
+       -v "$(pwd)/config.yaml:/config.yaml" \
+       newrelic/nri-prometheus:latest --configfile=/config.yaml
+   ```

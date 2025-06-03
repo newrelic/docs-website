@@ -1,0 +1,183 @@
+---
+title: addPageAction
+type: apiDoc
+shortDescription: Reports a browser PageAction event along with a name and optional attributes.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: Browser API call to report a PageAction event with your user-defined name and attributes to New Relic Dashboards.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-apis/browser-api-newrelicaddpageaction
+  - /docs/browser/new-relic-browser/browser-agent-api/browser-api-newrelicaddpageaction
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/newrelicaddpageaction-browser-agent-api
+  - /docs/browser/browser-monitoring/browser-agent-and-spa-api
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/view-all-methods
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/add-page-action
+freshnessValidatedDate: never
+---
+
+## Syntax [#syntax]
+
+```js
+newrelic.addPageAction(string $name[, JSON object $attributes])
+```
+
+Reports a browser PageAction event along with a name and optional attributes.
+
+## Requirements
+
+* Browser Pro or Pro+SPA agent (v593 or higher)
+* If you're using npm to install the browser agent, you must enable the `generic_events` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { GenericEvents } from '@newrelic/browser-agent/features/generic_events';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      GenericEvents
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description [#description]
+
+This API call sends a browser [`PageAction` event](/docs/insights/explore-data/custom-events/insert-browser-custom-events-attributes-insights-javascript-api) with your user-defined name and optional attributes to [dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards), along with [several default attributes](/attribute-dictionary/?event=PageAction). This is useful to track any event that is not already tracked automatically by the browser agent, such as clicking a <DNT>**Subscribe**</DNT> button or accessing a tutorial.
+
+* `PageAction` events are sent every 30 seconds.
+* If 1,000 events are observed, the agent will harvest the buffered events immediately, bypassing the harvest cycle interval.
+
+<Callout variant="important">
+  In earlier agent versions, events were dropped after 120 were observed. The event limit was increased from 120 to 1,000 in version [1.264.0](https://docs.newrelic.com/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1.264.0/) and are no longer dropped.
+</Callout>
+
+## Parameters [#parameters]
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$name`
+
+        _string_
+      </td>
+
+      <td>
+        Required. Name or category of the action. Reported as the `actionName` attribute.
+
+        Avoid using [reserved NRQL words](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when you name the attribute or value.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$attributes`
+
+        _JSON object_
+      </td>
+
+      <td>
+        Optional. JSON object with one or more key/value pairs. For example: `{key:"value"}`. The key is reported as its own `PageAction` attribute with the specified values.
+
+        Avoid using [reserved NRQL words](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when you name the attribute/value.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Examples [#examples]
+
+### Record link clicks (JavaScript) [#example-link-click-js]
+
+This example records a PageAction event whenever a user selects the <DNT>**Try Me**</DNT> link. The event is recorded with an `actionName` of `clickedTryMe`:
+
+```html
+<a href="/demo" id="try-me">Try Me!</a>
+<script>
+    document.getElementById('try-me').addEventListener('click', function(e) {
+        newrelic.addPageAction('clickedTryMe');
+    })
+</script>
+```
+
+You can then query the number of times the <DNT>**Try Me**</DNT> button was clicked with the following NRQL query:
+
+```sql
+SELECT count(*) FROM PageAction WHERE actionName = 'clickedTryMe' SINCE 1 hour ago
+```
+
+### Record link clicks (jQuery) [#example-link-click-jquery]
+
+This example sends a PageAction event when a user clicks on an element with the class `copy-text`. The `actionName` is `copy-text-button` and the value is reported as another attribute called `Result` that corresponds to methods named `success` and `error` that handle the outcome.
+
+```js
+$('.copy-text').click(function() {
+    var clipboard = new Clipboard('.copy-text');
+    clipboard.on('success', function(event) {
+        // Do stuff
+        // Report data to New Relic
+        if (typeof newrelic == 'object') {
+            newrelic.addPageAction('copy-text-button', { result: 'success' });
+        }
+    });
+    clipboard.on('error', function(event) {
+        // Do stuff
+        // Report data to New Relic
+        if (typeof newrelic == 'object') {
+            newrelic.addPageAction('copy-text-button', { result: 'error' });
+        }
+    });
+});
+```
+
+Then in the query builder, you can create a pie chart to see the breakdown of how many button clicks resulted in success versus error over the past 30 days:
+
+```sql
+SELECT count(*) AS 'Clicks' FROM PageAction WHERE actionName = 'copy-text-button' FACET result SINCE 30 days ago
+```
+
+Or you can create a query to see what pages have the most copy button clicks in the last 30 days:
+
+```sql
+SELECT count(*) AS 'Clicks' FROM PageAction WHERE actionName = 'copy-text-button' FACET currentUrl SINCE 30 days ago
+```
+
+### Capture form input [#example-form-input]
+
+This example captures user input (email addresses) from a form called <DNT>**Signup**</DNT>. The event is recorded with an `actionName` of `userSignup`:
+
+```html
+<form action="/signup" id="myform">
+    <input id="email" name="email">
+    <input type="submit" value="Signup">
+</form>
+<script type="text/javascript">
+    document.getElementById('myform').addEventListener('submit', function(e) {
+        var email = e.target.elements['email'].value;
+        newrelic.addPageAction('userSignup', { email: email });
+    })
+</script>
+```
+
+You can then see the emails that you gathered with the following NRQL query:
+
+```sql
+SELECT uniques(email) FROM PageAction WHERE actionName = 'userSignup' SINCE 1 hour ago
+```

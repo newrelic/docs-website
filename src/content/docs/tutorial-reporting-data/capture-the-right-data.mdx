@@ -1,0 +1,147 @@
+---
+title: "Capture the right data with New Relic" 
+metaDescription: "This guide helps you set up the best telemetry possible to describe the runtime operation of your services."
+redirects:
+  - /docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation
+  - /docs/new-relic-solutions/observability-maturity/operational-efficiency/sc-implementation-guide
+  - /docs/new-relic-solutions/observability-maturity/operational-efficiency/service-characterization-optimize-telemetry-data-guide/
+freshnessValidatedDate: never
+---
+
+Data observibility gives you important insight into the details of your services when they're report the right data. Things like distributed tracing and script instrumentation allow teams to quickly collect detailed telemetry data. Unfortunately, operations teams usually aren't in the best position to evaluate the quality of the telemetry they get, which can result in too much data which delays the ability to resolve problems in your system.
+
+Revealing improperly instrumented services to users puts customer satisfaction at risk as teams release new features from code bases without knowing the links between software delivery and observability programs. Service instrumentation planning is the approach used to describe a single service runtime through telemetry, and this guide focuses on the metrics of your application's code as well as external measurements through synthetic testing.
+
+<img
+  title="Capture the right data"
+  alt="A diagram displaying the path for capturing relevant data with New Relic. The path is 1. Capture your service telemetry, 2. capture your web telemetry, and 3. optimize your reporting"
+  src="/images/capture_diagram_data-reporting-optimization-path.webp"
+/>
+
+You're a good candidate for using this guide if any of the following are true:
+
+* Your development teams are disconnected from production observability design.
+* You have new services/capabilities that run in production and before fully establishing telemetry and alerting.
+* You need to provide additional business context to your instrumentation to improve diagnosis and business KPI measurement.
+* You employ a highly customized or proprietary software framework.
+* Your service is under active development. Legacy services, and services built from commercial-off-the-shelf platforms, tend to be better served with generic instrumentation options.
+
+## Understand the benefits [#understand-benefits]
+
+Making sure that you're capturing the right data can help your developers get more involved in the process of fixing issues when they arise by providing them relevant service data more efficienctly. Doing so will:
+
+1. Improve troubleshooting:
+
+* Good telemetry naming gives operations staff a common language to use with developers during incidents, reducing the time to triage and fix problems.
+* More precise and contextually relevant telemetry from your service allows for more accurate detection of faults that you can take action on.
+
+2. Make better informed development decisions by:
+
+* Detecting areas of volatility or unexpected behavior and addressing them.
+* Understanding what dependencies in your code lack redundancy and taking measures to improve the service.
+* Appreciating how end-users are employing your software. You can better understand where improvements will have the biggest impact.
+
+## Use key performance indicators [#key-perf-indicators]
+
+It's important know a few simple KPIs to track the ongoing improvements in your software delivery and operations programs. Here are two main types of KPIs to consider as you improve instrumentation:
+
+* <DNT>**Business KPIs**</DNT> are aligned to your overall program objectives and should be consistently measured to demonstrate ongoing improvement for each service. Business KPIs include:
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-service-quality"
+    title="Service quality"
+  >
+    This metric defines how well your service is operating. This will depend upon the needs of your organization and the constraints of the services being monitored.
+
+    <DNT>**Goal:**</DNT> Improved service quality attainment score over time.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * Create a graphical representation as a trend of service quality achievement for defined periods (monthly and/or quarterly).
+    * Service Apdex can provide an effective service-specific quality score. (See [Apdex: Measure user satisfaction](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/).)
+    * A well defined service level management (SLM) approach using SLIs that describe the level of expected operation for service boundaries can be a useful way to establish a single measurement of quality.
+  </Collapser>
+
+  <Collapser
+    id="kpi-release-frequency"
+    title="Release frequency"
+  >
+    "Release frequency" refers to the number of releases for a given service. This indicates the release velocity of the software delivery organization.
+
+    <DNT>**Goal:**</DNT> Consistency of attainment with consistent or improving service quality indicator.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * Derive data from deployment markers or other events sent to New Relic.
+    * Measure directly from code or project management tools such as JIRA, BitBucket, GitHub.
+    * Consider implementing a collection mechanism to capture release events and store them directly in New Relic. See [New Relic CICD innovation](https://github.com/newrelic-experimental/nr1-innovation-cicd/tree/main/Webhooks) for example JIRA and BitBucket configs.
+  </Collapser>
+</CollapserGroup>
+
+* <DNT>**Practitioner KPIs**</DNT> are used to measure changes in the execution of job functions for those participating in the development and management of services. Practictioner KPIs include:
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-feature-release-frequency"
+    title="Feature release frequency"
+  >
+    The "feature release frequency" deals with the percentage of releases that are directly related to new feature development versus bug fixes or technical debt. The relationship between features and fixes will vary between teams and projects based on the history of the service.
+
+    <DNT>**Goal:**</DNT> A consistent or improving feature release frequency consistent with the service delivery goals.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * Practitioner feature release frequency is often acquired in the same manner as the broader release frequency business KPI. This metric is then made available to the development team for the service.
+  </Collapser>
+
+  <Collapser
+    id="kpi-mean-time-to-close"
+    title="Mean time to close"
+  >
+    "Mean time to close" refers to the average duration of alert-driven incidents in New Relic.
+
+    <DNT>**Goal:**</DNT> Steady decrease of incident close time for identified services.
+
+    <DNT>**Best practices:**</DNT>\* follow the [Alert quality management guide](/docs/tutorial-create-alerts/manage-alert-quality/) to help you understand the behavior of your services through using <InlinePopover type="alerts"/> to help improve your service delivery.
+  </Collapser>
+</CollapserGroup>
+
+## Prerequisites [#prerequisites]
+
+As you work through the steps in the guide, keep the following documentation resources handy:
+
+* [APM agent install](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) and [configure](/docs/new-relic-one/install-configure/configure-new-relic-agents)
+* Instrumentation guides:
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [Go](/docs/apm/agents/go-agent/instrumentation)
+  * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [Node.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [OpenTelemetry SDKs](https://opensource.newrelic.com/projects/open-telemetry)
+* [Introduction to New Relic synthetic monitoring](/docs/synthetics/)
+
+## Next Steps [#next-steps]
+
+Choose one of the guides below based on what data you want to capture:
+
+<DocTiles>
+  <DocTile
+    title="Capture service telemetry"
+    path="/docs/tutorial-reporting-data/capture-service-telemetry/"
+  />
+
+  <DocTile
+    title="Capture web telemetry"
+    path="/docs/tutorial-reporting-data/capture-web-telemetry/"
+  />
+</DocTiles>

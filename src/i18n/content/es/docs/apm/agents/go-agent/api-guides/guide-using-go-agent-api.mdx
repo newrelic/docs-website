@@ -1,0 +1,535 @@
+---
+title: Guía para usar la API del agente Go
+tags:
+  - Agents
+  - Go agent
+  - API guides
+metaDescription: Learn what you can do extend the agent's standard functionality by using the New Relic Go agent API.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El [agente de New Relic Go](/docs/agents/go-agent/get-started/introduction-new-relic-go) monitorea su aplicación de lenguaje Go y sus microservicios para ayudarlo a identificar y resolver problemas de rendimiento. La API del agente Go es una de varias [API de New Relic](/docs/apis/getting-started/introduction-new-relic-apis) disponibles.
+
+<Callout variant="important">
+  Debido a que la aplicación Go se ejecuta desde un archivo binario nativo compilado, necesita [instrumentar manualmente su código](/docs/agents/go-agent/get-started/instrument-go-transactions) para monitor las transacciones de su aplicación Go agregándole métodos New Relic.
+</Callout>
+
+## Monitor transacciones [#monitor]
+
+Antes de instrumentar manualmente su código para monitor [transacciones](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm), asegúrese de cumplir con la [compatibilidad y los requisitos](/docs/agents/go-agent/get-started/go-agent-compatibility-requirements) y de que esté utilizando la [última versión del agente Go](/docs/release-notes/agent-release-notes/go-release-notes).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilice este método...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Comience a cronometrar una transacción
+      </td>
+
+      <td>
+        [`StartTransaction()`](/docs/agents/go-agent/get-started/instrument-go-transactions#go-txn)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Dejar de cronometrar una transacción
+      </td>
+
+      <td>
+        [`txn.End()`](/docs/agents/go-agent/get-started/instrument-go-transactions#go-txn)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evitar que una transacción se informe a New Relic
+      </td>
+
+      <td>
+        [`Ignore()`](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.Ignore)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Utilice el paquete de biblioteca HTTP estándar para monitor transacciones
+      </td>
+
+      <td>
+        [Envoltura de solicitudes HTTP](/docs/agents/go-agent/get-started/instrument-go-transactions#http-handler-txns)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Métodos específicos de tiempo que utilizan segmentos [#segments]
+
+Si una transacción ya es visible en New Relic, pero no tiene suficientes datos sobre un método en particular que se llamó durante esa transacción, puede crear [segmentos](/docs/agents/go-agent/get-started/instrument-go-segments). Por ejemplo, si desea cronometrar un método que tiene una lógica compleja, puede crear un segmento para cada uno de los métodos de la transacción.
+
+Para instrumentar un método dentro de una transacción existente, cree segmentos para lo siguiente:
+
+* [Bloques de codigo](/docs/agents/go-agent/get-started/instrument-go-segments#segment-code-block)
+* [Funciones](/docs/agents/go-agent/get-started/instrument-go-segments#segment-function)
+* [Almacenes de datos](/docs/agents/go-agent/get-started/instrument-go-segments#go-datastore-segments)
+* [Servicios externos](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments)
+
+Si el trabajo se realiza en una rutina diferente a la que comenzó la transacción, debe utilizar la API [`NewGoroutine()`](/docs/agents/go-agent/features/tracing-asynchronous-applications) .
+
+## Mejorar los metadatos de una transacción [#metadata]
+
+Puedes gestionar los metadatos que New Relic reporta para transacciones. A continuación se muestran algunos ejemplos de casos en los que es posible que desee un nivel diferente de detalle para su transacción:
+
+* Si tiene un [problema de agrupación métrica](/docs/agents/manage-apm-agents/troubleshooting/metric-grouping-issues#video), cambie los nombres predeterminados de su transacción para hacerlos más identificables.
+* Si desea crear un panel para su transacción, agregue [un atributo personalizado](/docs/agents/go-agent/instrumentation/go-agent-attributes#custom-attributes).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilizar esta...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cambiar el nombre de una transacción
+      </td>
+
+      <td>
+        [`SetName()`](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.SetName)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregue metadatos (como el nombre de la cuenta de sus clientes o el nivel de suscripción) a su transacción
+      </td>
+
+      <td>
+        [`AddAttribute()`](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.AddAttribute)
+      </td>
+
+      <td/>
+    </tr>
+  </tbody>
+</table>
+
+## Instrumentar las llamadas a servicios externos [#externals]
+
+Utilice estos métodos para recopilar datos sobre las conexiones de su aplicación a otras aplicaciones o base de datos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilizar esta...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cronometrar una llamada a un recurso externo (como un servicio externo, un servidor de base de datos o una cola de mensajes)
+      </td>
+
+      <td>
+        [`StartExternalSegment()`](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Conecte la actividad a otra aplicación instrumentada por un agente de New Relic
+      </td>
+
+      <td>
+        [Rastreo multiaplicación](/docs/agents/go-agent/features/cross-application-tracing-go)
+
+        <Callout variant="important">
+          El rastreo de aplicaciones múltiples ha quedado obsoleto en favor de [Distributed tracing](/docs/agents/go-agent/features/distributed-tracing-go) y se eliminará en una versión futura de agente.
+        </Callout>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Vea el camino que sigue una solicitud a medida que viaja a través de un sistema distribuido.
+      </td>
+
+      <td>
+        [rastreo distribuido](/docs/agents/go-agent/features/distributed-tracing-go)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Cobro o error omitido [#errors]
+
+El agente detecta errores automáticamente. Si desea cambiar la forma en que el agente Go informa errores a New Relic, cambie la [configuración del selector de errores](/docs/agents/go-agent/configuration/go-agent-configuration#error-collector).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilizar esta...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Informar un error que el agente no informa automáticamente
+      </td>
+
+      <td>
+        [`NoticeError()`](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#error-reporting)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informar un error esperado que el agente no informa automáticamente y no activa alertas
+      </td>
+
+      <td>
+        [`NoticeExpectedError()`](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#error-reporting)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evitar que el agente informe un error en absoluto
+      </td>
+
+      <td>
+        [`ErrorCollector.IgnoreStatusCodes()`](/docs/agents/go-agent/configuration/go-agent-configuration#error-ignore-status)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Error huellas dactilares: aplica dinámicamente un grupo de errores a cada error detectado [#error-fingerprinting]
+
+Se puede proporcionar una función de devolución de llamada al agente para aplicar dinámicamente un [grupo de errores](/docs/errors-inbox/errors-inbox) deseado a cada error detectado. Utilice la opción de configuración Ir al agente [`newrelic.ConfigSetErrorGroupCallbackFunction`](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#error-group-callback) para proporcionarle al agente una devolución de llamada.
+
+Esta llamada API toma un método de devolución de llamada (debe ser del tipo `newrelic.ErrorGroupCallback`) como único argumento. He aquí un ejemplo:
+
+```go
+myCallbackFunc := CallbackFunc(errorInfo newrelic.ErrorInfo) string {
+   if errorInfo.Message == "example error message" {
+       return "example group 1"
+   }
+   if errorInfo.GetHttpResponseCode() == "403" && errorInfo.GetUserID() == "user 2" {
+       return "user 2 payment issue"
+   }
+
+   // use default error grouping behavior
+   return ""
+}
+
+app, err := newrelic.NewApplication(
+   newrelic.ConfigSetErrorGroupCallbackFunction(myCallbackFunc)
+)
+```
+
+En el ejemplo que se muestra, se crea un proceso de devolución de llamada que aceptará un objeto de tipo `newrelic.ErrorInfo` y devolverá una cadena que representa el grupo de error. Tenga en cuenta que cuando su función `ErrorGroupCallback` devuelve una cadena que no está vacía, anulará el comportamiento de agrupación predeterminado de un error detectado y aplicará la lógica de agrupación del lado del servidor.
+
+Se espera que la función de devolución de llamada reciba exactamente un argumento de entrada, un objeto `newrelic.ErrorInfo` . El objeto contiene lo siguiente:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Key**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Value**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Error`
+      </td>
+
+      <td>
+        El objeto de error Go detectado. Esto será nulo para errores HTTP y pánicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `TimeOccured`
+      </td>
+
+      <td>
+        La time.Time en que el agente notó el error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Message`
+      </td>
+
+      <td>
+        El mensaje de error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Class`
+      </td>
+
+      <td>
+        La clase de error New Relic. Si un error implementa `errorClasser`, su valor se derivará de eso. En caso contrario, se derivará de la forma en que el error fue recogido por el agente. Para errores HTTP, este será el número de error. Los pánicos serán el valor constante público `newrelic.PanicErrorClass`. De lo contrario, la clase de error se extraerá del objeto de error raíz llamando a `reflect.TypeOf()`. La clase de error raíz más común es `*errors.errorString`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Expected`
+      </td>
+
+      <td>
+        Un bool que es `true` cuando se esperaba el error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `TransactionName`
+      </td>
+
+      <td>
+        El nombre formateado de una transacción tal como aparecería en la UI de New Relic.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetTransactionUserAttributes(attribute string)`
+      </td>
+
+      <td>
+        Un método que toma un nombre de atributo como entrada, luego busca y devuelve un atributo de usuario de transacción como `interface{}` y un bool que es `true` si la clave se encontró en el mapa de atributos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetErrorAttribute(attribute string)`
+      </td>
+
+      <td>
+        Un método que toma un nombre de atributo como entrada, luego busca y devuelve un atributo de usuario de error como `interface{}` y un bool que es `true` si la clave se encontró en el mapa de atributos de error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetStackTraceFrames()`
+      </td>
+
+      <td>
+        Un método que devuelve una porción de `StackTraceFrame` objetos que contienen un máximo de 100 líneas de rastreo de la pila relevantes para un error. Tenga en cuenta que llamar a este método puede resultar costoso porque es necesario asignar y completar el segmento. Se recomienda llamar a este método solo cuando sea necesario para optimizar el rendimiento.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetRequestURI()`
+      </td>
+
+      <td>
+        Un método que devuelve el URI de la solicitud HTTP realizada durante la transacción principal del error actual. Si no se produjo ninguna solicitud web, se devolverá una cadena vacía.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetRequestMethod()`
+      </td>
+
+      <td>
+        Un método que devuelve el método HTTP de la solicitud web que ocurrió durante la transacción principal de este error. Si no se produjo ninguna solicitud web, se devolverá una cadena vacía.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetHttpResponseCode()`
+      </td>
+
+      <td>
+        Un método que devuelve el código de respuesta HTTP que se devolvió durante la solicitud web que se produjo durante la transacción principal de este error. Si no se produjo ninguna solicitud web, se devolverá una cadena vacía.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `GetUserID()`
+      </td>
+
+      <td>
+        Un método que devuelve el `UserID` que se aplicó a este error y transacción. Si no se definió ningún `UserID` , se devolverá una cadena vacía.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Seguimiento de usuarios: asociar un ID de usuario a cada transacción y error [#user-tracking]
+
+Las transacciones y los errores se pueden asociar con una identificación de usuario si el agente de New Relic Go la conoce. Utilice Go API del agente `txn.SetUserID("example user ID")` para proporcionarle al agente un ID de usuario.
+
+Esta llamada API requiere un único argumento de una cadena que represente un identificador único para un usuario final. Esta cadena puede ser un UUID, una identificación de base de datos o similar. La llamada API debe realizarse al menos una vez por transacción para informar al agente de New Relic Go con qué ID de usuario asociar la transacción. Luego, a su vez, cuando el agente detecta errores durante la vida útil de la transacción, los errores llevarán un atributo de agente `enduser.id` que contiene el valor de ID de usuario.
+
+Debido a que la API está diseñada para ser llamada cada vez que una nueva ID de usuario ingresa al alcance, idealmente se llamará a través de un middleware que tenga en cuenta la creación de la sesión del usuario. Una vez que el agente de New Relic Go conozca el ID de usuario, proporcionará el atributo de agente `enduser.id` en la transacción actual, así como en cualquier error detectado durante la vida útil de la transacción actual.
+
+## Envía datos personalizados desde tu aplicación [#custom-data]
+
+Para registrar [datos personalizados](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data) con el agente Go, puede utilizar cualquiera de los siguientes métodos:
+
+* [Evento personalizado](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents#go)
+* [Atributo personalizado](/docs/insights/insights-data-sources/custom-data/add-custom-attributes-apm-data)
+* [Métrica personalizada](/docs/agents/manage-apm-agents/agent-data/collect-custom-metrics)
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilizar esta...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Envía datos sobre un evento para que puedas analizarlo en [New Relic](/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights)
+      </td>
+
+      <td>
+        [`RecordCustomEvent()`](/docs/agents/go-agent/features/create-custom-events-insights-go)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Etiqueta tu evento con metadatos para filtrarlos y facetarlos
+      </td>
+
+      <td>
+        [`AddAttribute()`](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.AddAttribute)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informar datos de rendimiento personalizados durante un período de tiempo específico
+      </td>
+
+      <td>
+        [`RecordCustomMetric()`](/docs/agents/go-agent/instrumentation/create-custom-metrics-go)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ver registro relacionado [#logs]
+
+Para ver el registro directamente dentro del contexto de los errores y la traza de su aplicación, use estas llamadas API para anotar su registro:
+
+* [`GetTraceMetadata`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#Transaction.GetTraceMetadata)
+* [`GetLinkingMetadata`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#Transaction.GetLinkingMetadata)
+
+Para obtener más información sobre cómo correlacionar los datos log con otros telemetry data, consulte nuestra documentación [logs en el contexto](/docs/logs/logs-context/configure-logs-context-go/) .
+
+## Monitor el rendimiento browser con monitoreo de browser [#browser]
+
+Para monitor el rendimiento del browser de su aplicación mediante [<InlinePopover type="browser"/>y el agente Go](/docs/agents/go-agent/features/install-new-relic-browser-go-apps), puede utilizar cualquiera de los siguientes métodos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilizar esta...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Instalar el agente del navegador
+      </td>
+
+      <td>
+        Utilice el [método de copiar/pegar del browser](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent#copy-paste-app)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregue el código JavaScript de monitoreo de browser directamente a las páginas HTML
+      </td>
+
+      <td>
+        [`BrowserTimingHeader()`](/docs/agents/go-agent/features/install-new-relic-browser-go-apps)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Cambiar los ajustes de configuración del agente Go [#configuration]
+
+Para administrar algunos aspectos del monitoreo de New Relic, puede [cambiar la configuración de su agente Go](/docs/agents/go-agent/configuration/go-agent-configuration); Por ejemplo:
+
+* Activar el modo de alta seguridad
+* Agregar etiquetas personalizadas para filtrar y ordenar
+* Gestionar la información que se reporta

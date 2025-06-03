@@ -1,0 +1,89 @@
+---
+title: 'ChartGroup'
+metaDescription: 'Learn how to work the ChartGroup component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Groups different types of charts so that they can perform actions all together, like moving the needle according to their x-axes, showing the tooltip for the corresponding series, or graying out the area being selected in all charts at the same time.
+
+The component acts like a React fragment; it will not render an additional tag in the DOM (it only enables grouping for all charts inside it). This means that this component, unlike others, does not accept `className` or `style` tags.
+
+### Usage
+
+```js
+import { ChartGroup } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+function render() {
+  const query =
+    'SELECT count(*) FROM `Synthetics` SINCE 1 DAY AGO TIMESERIES AUTO FACET jobType';
+  const chartStyle = { height: 200 };
+
+
+  return (
+    <ChartGroup>
+      <AreaChart style={chartStyle} accountIds={[1]} query={query} />
+      <LineChart style={chartStyle} accountIds={[1, 1067061]} query={query} />
+      <ScatterChart style={chartStyle} accountIds={[1]} query={query} />
+    </ChartGroup>
+  );
+}
+```
+
+#### Fill container
+
+```js
+function render() {
+  const query =
+    'SELECT count(*) FROM `Synthetics` SINCE 1 DAY AGO TIMESERIES AUTO FACET jobType';
+  const chartStyle = { height: 200 };
+
+
+  return (
+    <ChartGroup>
+      <AreaChart
+        style={chartStyle}
+        accountIds={[1]}
+        query={query}
+        fullWidth
+        fullHeight
+      />
+      <LineChart
+        style={chartStyle}
+        accountIds={[1, 1067061]}
+        query={query}
+        fullWidth
+        fullHeight
+      />
+      <ScatterChart
+        style={chartStyle}
+        accountIds={[1]}
+        query={query}
+        fullWidth
+        fullHeight
+      />
+    </ChartGroup>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Arbitrary content. All charts inside `ChartGroup` communicate between each other.
+      </td>
+    </tr>
+  </tbody>
+</table>

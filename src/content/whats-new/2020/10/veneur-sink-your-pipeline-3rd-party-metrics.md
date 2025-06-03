@@ -12,8 +12,8 @@ Build a pipeline to send metrics to New Relic using our Veneur [sink](https://gi
 
 With Veneur you get:
 
-* Reduced data ingestion and storage costs by pre-aggregating metrics (such as timers) into percentiles
-* Improved efficiency over other metric aggregator implementations because vendors charge based on the number of metrics they consume
-* Improved reliability by building a more resilient forwarding system over single points of failure
+- Reduced data ingestion and storage costs by pre-aggregating metrics (such as timers) into percentiles
+- Improved efficiency over other metric aggregator implementations because vendors charge based on the number of metrics they consume
+- Improved reliability by building a more resilient forwarding system over single points of failure
 
-![Veneur metrics](./images/veneur_metrics-768x733.jpeg "Veneur metrics")
+![Veneur metrics](/images/veneur_metrics-768x733.webp 'Veneur metrics')

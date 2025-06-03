@@ -1,0 +1,262 @@
+---
+title: 'Tile'
+metaDescription: 'Learn how to work the Tile component'
+freshnessValidatedDate: 2024-06-03
+---
+
+### Usage
+
+```js
+import { Tile } from 'nr1'
+```
+
+### Examples
+
+#### Basic tile
+
+```js
+<Tile onClick={console.log}>
+  <HeadingText type={HeadingText.TYPE.HEADING_6}>
+    Single location failure
+  </HeadingText>
+  <BlockText>
+    Check your company’s style guides. Great copy that doesn’t fit with the rest
+    of the interface or marketing materials can be jarring to users.
+  </BlockText>
+</Tile>
+```
+
+#### Disabled tile
+
+```js
+<Tile onClick={console.log} disabled>
+  <HeadingText type={HeadingText.TYPE.HEADING_6}>
+    Single location failure
+  </HeadingText>
+  <BlockText>
+    Check your company’s style guides. Great copy that doesn’t fit with the rest
+    of the interface or marketing materials can be jarring to users.
+  </BlockText>
+</Tile>
+```
+
+#### Link tile
+
+```js
+<Tile to="https://login.newrelic.com/login">Login</Tile>
+```
+
+#### Sizes
+
+```js
+<Stack>
+  <StackItem>
+    <Tile sizeType={Tile.SIZE_TYPE.SMALL} onClick={console.log}>
+      <HeadingText type={HeadingText.TYPE.HEADING_6}>
+        Single location failure
+      </HeadingText>
+      <BlockText>
+        Check your company’s style guides. Great copy that doesn’t fit with the
+        rest of the interface or marketing materials can be jarring to users.
+      </BlockText>
+    </Tile>
+  </StackItem>
+  <StackItem>
+    <Tile sizeType={Tile.SIZE_TYPE.MEDIUM} onClick={console.log}>
+      <HeadingText type={HeadingText.TYPE.HEADING_6}>
+        Single location failure
+      </HeadingText>
+      <BlockText>
+        Check your company’s style guides. Great copy that doesn’t fit with the
+        rest of the interface or marketing materials can be jarring to users.
+      </BlockText>
+    </Tile>
+  </StackItem>
+</Stack>
+```
+
+#### Types
+
+```js
+<Stack>
+  <StackItem>
+    <Tile onClick={console.log} type={Tile.TYPE.PLAIN}>
+      <HeadingText type={HeadingText.TYPE.HEADING_6}>
+        Single location failure
+      </HeadingText>
+      <BlockText>
+        Check your company’s style guides. Great copy that doesn’t fit with the
+        rest of the interface or marketing materials can be jarring to users.
+      </BlockText>
+    </Tile>
+  </StackItem>
+  <StackItem>
+    <Tile onClick={console.log} type={Tile.TYPE.OUTLINE}>
+      <HeadingText type={HeadingText.TYPE.HEADING_6}>
+        Single location failure
+      </HeadingText>
+      <BlockText>
+        Check your company’s style guides. Great copy that doesn’t fit with the
+        rest of the interface or marketing materials can be jarring to users.
+      </BlockText>
+    </Tile>
+  </StackItem>
+  <StackItem>
+    <Tile onClick={console.log} type={Tile.TYPE.SOLID}>
+      <HeadingText type={HeadingText.TYPE.HEADING_6}>
+        Single location failure
+      </HeadingText>
+      <BlockText>
+        Check your company’s style guides. Great copy that doesn’t fit with the
+        rest of the interface or marketing materials can be jarring to users.
+      </BlockText>
+    </Tile>
+  </StackItem>
+</Stack>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to describe better the context of the component's action for users on screen readers.`<Tile to="/dashboards" ariaLabel="Go to your dashboard">   Dashboards </Tile>`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Content to render inside the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When `true`, the tile is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the tile.<FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sizeType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Specifies the desired size of the tile (smaller sizes have less internal padding).<OptionReference>Tile.SIZE_TYPE.MEDIUMTile.SIZE_TYPE.SMALL</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.<OptionReference array>Tile.SPACING_TYPE.EXTRA_LARGETile.SPACING_TYPE.LARGETile.SPACING_TYPE.MEDIUMTile.SPACING_TYPE.NONETile.SPACING_TYPE.OMITTile.SPACING_TYPE.SMALL</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.
+
+        <h3>
+          shape
+        </h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        Type can be:
+
+        * Plain — use when tiles don't need to be emphasized.
+        * Outline — the default tile type.
+        * Solid — use when tiles needs to contrast against a white background.
+
+          <OptionReference>
+            Tile.TYPE.OUTLINE,
+            Tile.TYPE.PLAIN,
+            Tile.TYPE.SOLID,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string|number</h5>
+      </td>
+
+      <td>
+        Unique identifier of the tile. Used by the `<TileGroup>` to identify checked tiles.
+      </td>
+    </tr>
+  </tbody>
+</table>

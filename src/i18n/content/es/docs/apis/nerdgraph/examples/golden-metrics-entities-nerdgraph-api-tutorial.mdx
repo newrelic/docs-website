@@ -1,0 +1,554 @@
+---
+title: 'Tutorial de NerdGraph: ver y configurar las métricas doradas de una entidad'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: Use New Relic NerdGraph (our GraphQL API) to query or override golden metrics and tags.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<DNT>**Golden metrics**</DNT> y <DNT>**golden tags**</DNT> son fragmentos de información sobre una [entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) que consideramos más importantes para esa entidad. Usamos esta información para mostrar una breve descripción general de una entidad en toda New Relic. Puedes ver y contribuir a las definiciones estándar de las métricas doradas y etiqueta en este [repositorio público](https://github.com/newrelic/entity-definitions#golden-tags).
+
+Este documento explica cómo consultar la métrica personalizada de una entidad utilizando [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+
+<Callout variant="tip">
+  Para obtener más información sobre cómo consultar entidad utilizando la API [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) , consulte [nuestro tutorial](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial).
+</Callout>
+
+## Obtener métricas doradas [#golden-metrics]
+
+Al buscar métricas doradas para un GUID específico o una lista de GUID, las consultas proporcionadas ya están filtradas para usted. Puede ejecutar la consulta resultante tal cual en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder). La métrica resultante puede ser un `TIMESERIES` o un valor único.
+
+A continuación se muestra un ejemplo de una consulta de métricas doradas para una entidad de tabla de AWS DynamoDB con el GUID `ENTITY_GUID`.
+
+```sql
+SELECT average(provider.getSuccessfulRequestLatency.Average)
+FROM DatastoreSample
+WHERE entityGuid IN ('ENTITY_GUID') AND provider='DynamoDbTable'
+TIMESERIES
+```
+
+Puede utilizar NerdGraph para consultar las métricas de oro de una entidad específica; Por ejemplo:
+
+```graphql
+{
+  actor {
+    entity(guid: "ENTITY_GUID") {
+      goldenMetrics {
+        metrics {
+          query
+          title
+        }
+      }
+    }
+  }
+}
+```
+
+## Obtener etiqueta dorada [#golden-tags]
+
+Las etiquetas doradas siempre se representan de la misma manera, ya sea que las solicite `guid` o `entityType`. Siempre recibirá la lista de claves de etiqueta consideradas las más importantes de la entidad.
+
+```graphql
+{
+  actor {
+    entity(guid: "ENTITY_GUID") {
+      goldenTags {
+        tags {
+          key
+        }
+      }
+    }
+  }
+}
+```
+
+## Personaliza métricas doradas y etiqueta dorada. [#customize-golden-metrics]
+
+Si desea cambiar las métricas doradas y la etiqueta dorada según las especificidades de su entorno, puede anularlas en dos contextos diferentes, en su cuenta o en una carga de trabajo.
+
+### Anule las métricas doradas o la etiqueta dorada para un tipo de entidad específico en toda su cuenta [#override-golden-metrics-account]
+
+En este caso, las nuevas métricas doradas o la nueva etiqueta dorada se aplicarán en todo New Relic, convirtiendo su nueva métrica y etiqueta en las predeterminadas para el tipo de entidad especificado.
+
+Para hacer eso, puede usar una mutación NerdGraph para anular las métricas doradas de una entidad específica.
+
+```graphql
+mutation {
+  entityGoldenMetricsOverride(
+    context: { account: ACCOUNT_TO_OVERRIDE_GOLDEN_METRICS }
+    domainType: { domain: DOMAIN, type: TYPE }
+    metrics: [
+      {
+        eventId: EVENT_ID
+        select: NRDB_QUERY_SELECT
+        from: NRDB_QUERY_EVENT
+        where: NRDB_QUERY_WHERE
+        title: TITLE_OF_THE_METRIC
+        facet: FACET
+        name: NAME_OF_THE_METRIC
+      }
+    ]
+  ) {
+    errors {
+      message
+      type
+    }
+    metrics {
+      context {
+        account
+        guid
+      }
+      domainType {
+        domain
+        type
+      }
+      metrics {
+        definition {
+          eventId
+          facet
+          from
+          select
+          where
+        }
+        name
+        query
+        title
+      }
+    }
+  }
+}
+```
+
+Dónde:
+
+* `domainType`: El tipo de entidad de la métrica a anular.
+
+* `context`: El contexto del que se obtienen las métricas doradas. En este caso, debes configurar la cuenta que deseas anular.
+
+* `metrics`: La nueva consulta NRDB se mostrará como métricas doradas.
+
+  * `eventId`: el campo utilizado para filtrar la entidad en la métrica. Cómo se define el [GUID de la entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic#find) en su evento.
+
+  * `select`: La cláusula `SELECT` de la consulta NRDB. Este campo es
+
+    <DNT>
+      **required**
+    </DNT>
+
+    .
+
+  * `from`: La cláusula `FROM` de la consulta NRDB.
+
+  * `where`: Cláusula `WHERE` complementaria para identificar el campo de tipo de entidad.
+
+  * `facet`: El campo a `FACET`.
+
+  * `title`: El título de las métricas doradas. Este campo es opcional.
+
+  * `name`: El nombre de las métricas doradas. Este campo es
+
+    <DNT>
+      **required**
+    </DNT>
+
+    .
+
+<CollapserGroup>
+  <Collapser
+    id="override-account"
+    title="Anular métricas doradas para el tipo de aplicación APM"
+  >
+    ```graphql
+    mutation {
+      entityGoldenMetricsOverride(
+        context: { account: ACCOUNT_ID }
+        domainType: { domain: "APM", type: "APPLICATION" }
+        metrics: [
+          {
+            eventId: "entity.guid"
+            from: "Transaction"
+            name: "cpuUsage"
+            select: "max(cpuUsage)"
+            title: "CPU Usage"
+          }
+          {
+            eventId: "guid"
+            from: "Metric"
+            where: "metricTimesliceName in ('HttpDispatcher', 'OtherTransaction/all')"
+            facet: "appName"
+            select: "count(newrelic.timeslice.value)"
+            name: "throughput"
+            title: "Throughput"
+          }
+        ]
+      ) {
+        errors {
+          message
+          type
+        }
+        metrics {
+          context {
+            account
+            guid
+          }
+          domainType {
+            domain
+            type
+          }
+          metrics {
+            definition {
+              eventId
+              facet
+              from
+              select
+              where
+            }
+            name
+            query
+            title
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+El objeto de entrada métrica define las partes de una consulta NRDB, dividida en secciones. Una de estas secciones es la `eventId,` que se utiliza para identificar el campo que define el GUID dentro del _Evento NRDB_ que desea utilizar como métricas doradas. Por ejemplo:
+
+```sql
+SELECT average(provider.getSuccessfulRequestLatency.Average)
+FROM DatastoreSample
+WHERE entityGuid IN ('EntityGuid') AND
+      provider='DynamoDbTable'
+FACET entityName TIMESERIES
+```
+
+Se define de la siguiente manera:
+
+```
+{
+    eventId: "entityGuid",
+    from: "DatastoreSample",
+    where: "provider='DynamoDbTable'",
+    facet: "entityName",
+    select: "average(provider.getSuccessfulRequestLatency.Average)",
+    name: GetItem latency (ms),
+    title: GetItem latency (ms)
+}
+```
+
+Como puede ver en el objeto resultante, la cláusula `where` solo contiene el campo _del proveedor_ . El sistema agrega la cláusula donde con el campo `eventId` de forma predeterminada.
+
+Puedes hacer lo mismo con la etiqueta dorada usando esta mutación NerdGraph:
+
+```graphql
+mutation {
+  entityGoldenTagsOverride(
+    context: { account: ACCOUNT_ID }
+    domainType: { domain: "APM", type: "APPLICATION" }
+    tags: [{ key: "applicationName" }, { key: "environment" }]
+  ) {
+    errors {
+      message
+      type
+    }
+    tags {
+      context {
+        account
+      }
+      domainType {
+        domain
+        type
+      }
+      tags {
+        key
+      }
+    }
+  }
+}
+```
+
+### Anular métricas doradas de un tipo de entidad particular en una carga de trabajo [#override-golden-metrics-workload]
+
+[La carga de trabajo de New Relic](/docs/new-relic-one/use-new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) proporciona una vista agregada de los datos de salud y rendimiento de un grupo de entidades. Los gráficos de series temporales que se muestran para cada tipo de entidad en una carga de trabajo están definidos por las métricas doradas en la cuenta de carga de trabajo.
+
+Si desea personalizar aún más qué serie temporal mostrar para un tipo de entidad específico en una carga de trabajo particular, anule las métricas doradas en la cuenta con la siguiente mutación:
+
+```graphql
+mutation {
+  entityGoldenMetricsOverride(
+    context: { guid: WORKLOAD_TO_OVERRIDE_GOLDEN METRICS }
+    domainType: { domain: DOMAIN, type: TYPE }
+    metrics: [
+      {
+        eventId: EVENT_ID
+        select: NRDB_QUERY_SELECT
+        from: NRDB_QUERY_EVENT
+        where: NRDB_QUERY_WHERE
+        title: TITLE_OF_THE_METRIC
+        facet: FACET
+        name: NAME_OF_THE_METRIC
+      }
+    ]
+  ) {
+    errors {
+      message
+      type
+    }
+    metrics {
+      context {
+        account
+        guid
+      }
+      domainType {
+        domain
+        type
+      }
+      metrics {
+        definition {
+          eventId
+          facet
+          from
+          select
+          where
+        }
+        name
+        query
+        title
+      }
+    }
+  }
+}
+```
+
+Consulte arriba para obtener detalles sobre cada campo. En este caso, `context` es el GUID de la carga de trabajo.
+
+<CollapserGroup>
+  <Collapser
+    id="override-workload"
+    title="Anular una aplicación APM"
+  >
+    ```graphql
+    mutation {
+      entityGoldenMetricsOverride(
+        context: { guid: WORKLOAD_ENTITY_GUID }
+        domainType: { domain: "APM", type: "APPLICATION" }
+        metrics: [
+          {
+            eventId: "entity.guid"
+            from: "Transaction"
+            name: "cpuUsage"
+            select: "max(cpuUsage)"
+            title: "CPU Usage"
+          }
+          {
+            eventId: "guid"
+            from: "Metric"
+            where: "metricTimesliceName in ('HttpDispatcher', 'OtherTransaction/all')"
+            facet: "appName"
+            select: "count(newrelic.timeslice.value)"
+            name: "throughput"
+            title: "Throughput"
+          }
+        ]
+      ) {
+        errors {
+          message
+          type
+        }
+        metrics {
+          context {
+            account
+            guid
+          }
+          domainType {
+            domain
+            type
+          }
+          metrics {
+            definition {
+              eventId
+              facet
+              from
+              select
+              where
+            }
+            name
+            query
+            title
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Obtenga las métricas doradas personalizadas y la etiqueta dorada [#fetch-golden-metrics]
+
+La consulta definida en los apartados anteriores siempre devuelve por defecto las métricas doradas y la etiqueta dorada. Si desea recuperar sus métricas doradas personalizadas o su etiqueta dorada, debe enviar el contexto definido en la consulta, por ejemplo:
+
+```graphql
+{
+  actor {
+    entity(guid: INFRA_AWSDYNAMODBTABLE_GUID) {
+      goldenMetrics(
+        context: { account: ACCOUNT_ID, guid: WORKLOAD_ENTITY_GUID }
+      ) {
+        metrics {
+          title
+          query
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+Para etiqueta dorada:
+
+```graphql
+{
+  actor {
+    entity(guid: INFRA_AWSDYNAMODBTABLE_GUID) {
+      goldenTags(context: { account: ACCOUNT_ID, guid: WORKLOAD_ENTITY_GUID }) {
+        tags {
+          key
+        }
+      }
+    }
+  }
+}
+```
+
+Puedes enviar ambos contextos simultáneamente para consultar, si tu métrica o etiqueta tiene el contexto dentro de la carga de trabajo. La API devuelve las métricas doradas o etiqueta dorada más específicas según el contexto que definiste en las solicitudes. La prioridad es la carga de trabajo y la cuenta.
+
+### Restablecer métrica personalizada y etiqueta dorada [#reset-custom-metrics]
+
+Si sus métricas doradas personalizadas ya no son relevantes para usted, puede restaurar los valores predeterminados definidos por New Relic. En el parámetro de contexto, configure la cuenta o el guid de carga de trabajo deseado (en el parámetro guid).
+
+Para restaurar sus métricas doradas en una cuenta, ejecute esta consulta:
+
+```graphql
+mutation {
+  entityGoldenMetricsReset(
+    context: { guid: ACCOUNT_TO_OVERRIDE_GOLDEN_METRICS }
+    domainType: { domain: DOMAIN, type: TYPE }
+  ) {
+    errors {
+      message
+      type
+    }
+    metrics {
+      context {
+        account
+        guid
+      }
+      domainType {
+        domain
+        type
+      }
+      metrics {
+        definition {
+          eventId
+          facet
+          from
+          select
+          where
+        }
+        name
+        query
+        title
+      }
+    }
+  }
+}
+```
+
+Dónde:
+
+* `domainType`: El tipo de entidad de la métrica a anular.
+* `context`: El contexto del que se obtienen las métricas doradas. En este caso, debes configurar la cuenta que deseas restablecer.
+
+Para restaurar sus métricas doradas en una carga de trabajo, ejecute esta consulta:
+
+```graphql
+mutation {
+  entityGoldenMetricsReset(
+    context: { guid: GUID_TO_OVERRIDE_GOLDEN_METRICS }
+    domainType: { domain: DOMAIN, type: TYPE }
+  ) {
+    errors {
+      message
+      type
+    }
+    metrics {
+      context {
+        account
+        guid
+      }
+      domainType {
+        domain
+        type
+      }
+      metrics {
+        definition {
+          eventId
+          facet
+          from
+          select
+          where
+        }
+        name
+        query
+        title
+      }
+    }
+  }
+}
+```
+
+Puedes hacer lo mismo con tu etiqueta dorada personalizada:
+
+```graphql
+mutation {
+  entityGoldenTagsReset(
+    context: { guid: WORKLOAD_ENTITY_GUID }
+    domainType: { domain: "APM", type: "APPLICATION" }
+  ) {
+    errors {
+      message
+      type
+    }
+    tags {
+      context {
+        account
+        guid
+      }
+      domainType {
+        domain
+        type
+      }
+      tags {
+        key
+      }
+    }
+  }
+}
+```
+
+## Error esperado
+
+Todas estas mutaciones pueden responder con el resultado de la operación o una lista de errores.
+
+Estos son todos los errores esperados que puedes recibir:
+
+* `INVALID_CONTEXT`: El contexto no es válido. Solo puede haber un contexto, una cuenta o el GUID de una carga de trabajo. Si usa ambos, o usa cualquier otro concepto, o un GUID que no pertenece a una carga de trabajo, obtendrá este error.
+* `INVALID_DOMAIN_TYPE`: El tipo de dominio no es válido.
+* `LIMIT_EXCEEDED`: La cantidad máxima de métrica es 9. Si excede este límite, obtendrá este error.
+* `NOT_AUTHORIZED`: El usuario no tiene los permisos para realizar esta acción.

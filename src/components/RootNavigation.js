@@ -1,29 +1,25 @@
 import React from 'react';
-import PropTypes from 'prop-types';
-import { NavItem } from '@newrelic/gatsby-theme-newrelic';
-import { css } from '@emotion/react';
+import KrNav from './KrNav';
+import JpNav from './JpNav';
+import EsNav from './EsNav';
+import PtNav from './PtNav';
+import EnNav from './EnNav';
+import FrNav from './FrNav';
+import StyleGuideNav from './StyleGuideNav';
 
-const RootNavigation = ({ nav }) => {
-  return (
-    <nav
-      role="navigation"
-      aria-label="Navigation"
-      css={css`
-        margin-top: 1rem;
-      `}
-    >
-      {nav.pages.map((page) => {
-        if (page.title === 'section-break') {
-          return <hr />;
-        }
-        return <NavItem key={page.title} page={page} />;
-      })}
-    </nav>
-  );
-};
-
-RootNavigation.propTypes = {
-  nav: PropTypes.arrayOf(PropTypes.object).isRequired,
+const RootNavigation = ({ locale, className, isStyleGuide }) => {
+  const LOCALIZED_NAVS = {
+    kr: <KrNav className={className} />,
+    jp: <JpNav className={className} />,
+    en: <EnNav className={className} />,
+    es: <EsNav className={className} />,
+    pt: <PtNav className={className} />,
+    fr: <FrNav className={className} />,
+  };
+  if (isStyleGuide) {
+    return <StyleGuideNav className={className} />;
+  }
+  return LOCALIZED_NAVS[locale] || <EnNav className={className} />;
 };
 
 export default RootNavigation;

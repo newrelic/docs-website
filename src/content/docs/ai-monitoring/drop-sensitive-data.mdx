@@ -1,0 +1,237 @@
+---
+title: 'Remove sensitive data with drop filters'
+metaDescription: 'Drop filters prompts AI monitoring to drop attributes containing sensitive data.'
+freshnessValidatedDate: never
+---
+
+You have two options for dropping sensitive AI data before you send it to New Relic. This doc guides you through these two methods so you can have better control over the kinds of data the agent collects.
+
+## Disable ai.monitoring.record_content.enabled [#disable-event]
+
+When you disable `ai_monitoring.record_content.enabled`, event data containing end user prompts and AI responses won’t be sent to NRDB. You can read more about agent configurations at our [AI monitoring configuration doc](/docs/ai-monitoring/customize-agent-ai-monitoring).
+
+## Create drop filters [#create-filter]
+
+<Callout variant="caution">
+  Use caution when deciding to drop data. The data you drop is not recoverable. Before using this feature, [review your data compliance responsibilities](#responsibilities).
+</Callout>
+
+A single drop filter targets a specified attribute within one event type, but sensitive information from a single AI interaction is stored in multiple events. To drop information before it enters NRDB, you need six separate drop filters.
+
+<img
+  title="Create a set of drop filters by adding events you want to drop data from"
+  alt="A gif displaying the workflow for creating a set of drop filters"
+  src="/images/ai_screenshot-crop_drop-filter-modal.gif"
+/>
+
+<figcaption>
+  From <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > AI monitoring > Drop filters**</DNT>: To create a drop filter, select the events that may contain sensitive data, then choose the Regex that corresponds with the type of data you'd like to drop.
+</figcaption>
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > AI monitoring > Drop filters**</DNT>, then click <DNT>**Create drop filter**</DNT>.
+2. Create a filter name. We recommend creating names based on the information dropped, like "credit card",  "emails", "addresses", and so on.
+3. Choose the events you want to drop information from, or choose to drop from all events.
+4. Assign regex to the drop filter. Keep in mind that while you can select multiple events when creating a set of drop filters, you can only select one regex type per filter  creation.
+5. Repeat the above steps for other kinds of information you want to drop. For example, if you assigned regex to your first set to drop credit card information, then your next set should drop attributes for another kind of information.
+
+## How drop filters work [#drop-rules-work]
+
+In a typical AI interaction, a prompt or request undergoes certain processes (like embedding) that are recorded as discrete events. For example, let's say a customer requests a street address on file. The model processes the prompt, which pulls additional context through various services and databases. Your AI assistant then returns with a response that contains the requested information.
+
+A drop filter can contain three parts:
+
+* **Events**: A stored record from an interaction within your system.
+* **Regex**: A string of characters and operators that corresponds to kinds of information. 
+* **Matching criteria** (optional): A NRQL clause that adds specificity to the drop filter. For example, if you only want to drop data from `openai`, you can add `vendor IN ('openai')`
+
+A drop filter evaluates data forwarded by the agent within the data ingest pipeline so sensitive information can be dropped.
+
+### Regex
+
+Since the agent's default behavior is to capture all parts of event data before sending it to New Relic, you need to direct the ingest pipeline to match sensitive information with regex. By targeting an attribute with regex, you can still capture the event itself without storing sensitive information in our databases.
+
+Refer to the regex below to start building your first queries:
+
+<CollapserGroup>
+  <Collapser
+    id="cahcn"
+    title="Canada health card number"
+  >
+    **Expression:**
+
+    ```regex
+    (\d{10})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="caphin"
+    title="Canada personal health/social insurance number (PHIN/SIN)"
+  >
+    **Expression:**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{3}[-\s\.]?\d{3})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="email"
+    title="Email address"
+  >
+    **Expression:**
+
+    ```regex
+    ([a-zA-Z0-9!#$'*+?^_`{|}~.-]+(?:@|%40)(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="indiapanid"
+    title="India PAN ID"
+  >
+    **Expression:**
+
+    ```regex
+    ([a-zA-Z]){5}([0-9]){4}([a-zA-Z]){1}?
+    ```
+  </Collapser>
+
+  <Collapser
+    id="indiaaadhaar"
+    title="India AADHAAR ID"
+  >
+    **Expression:**
+
+    ```regex
+    ([2-9]{1}[0-9]{3}\s\d{4}\s\d{4})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ipv4"
+    title="IP address (ipv4)"
+  >
+    **Expression:**
+
+    ```regex
+    ([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="japanid"
+    title="Japan national identity number (My number)"
+  >
+    **Expression:**
+
+    ```regex
+    (d{4}\sd{4}\sd{4})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="spainnid"
+    title="Spain National ID (NIE/DNI/NIF)"
+  >
+    **Expression:**
+
+    ```regex
+    ([a-zA-Z]?[-\s]?\d{7,8}[-\s]?[a-zA-Z])
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ssn"
+    title="US social security number"
+  >
+    **Expression:**
+
+    ```regex
+    (\d{3}[-\s\.]?\d{2}[-\s\.]?\d{4})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="uknino"
+    title="UK national insurance number (NINO)"
+  >
+    **Expression:**
+
+    ```regex
+    ([a-zA-Z]{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?[a-dA-D])
+    ```
+  </Collapser>
+
+  <Collapser
+    id="usstreetaddress"
+    title="US street address"
+  >
+    **Expression:**
+
+    ```regex
+    \d{1,}(\s{1}\w{1,})(\s{1}?\w{1,})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="usphone"
+    title="US phone number"
+  >
+    **Expression:**
+
+    ```regex
+    (^[\+]?[1]?[\W]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="uspassport"
+    title="US passport number"
+  >
+    **Expression:**
+
+    ```regex
+    ([a-zA-Z]?\d?\d{5,8})
+    ```
+  </Collapser>
+
+  <Collapser
+    id="dob"
+    title="US Date of birth"
+  >
+    **Expression:**
+
+    ```regex
+    ((?:\d{2})?\d\d(?:\\)?(?:\/)?\d\d(?:\\)?(?:\/)?\d{2}(?:\d{2})?)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="ccn"
+    title="Credit card number"
+  >
+    **Expression:**
+
+    ```regex
+    ((?:(?:4\d{3})|(?:5[1-5]\d{2})|6(?:011|5[0-9]{2}))(?:-?|\040?)(?:\d{4}(?:-?|\040?)){3}|(?:3[4,7]\d{2})(?:-?|\040?)\d{6}(?:-?|\040?)\d{5})
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Your data compliance responsibilities [#responsibilities]
+
+New Relic can't guarantee that this functionality completely resolves your data disclosure concerns, nor can we provide support for building out your NRQL queries. We recommend that you:
+
+* Review your drop filters and confirm they're accurately identifying and discarding the data you want dropped.
+* Check that your drop filters are still dropping sensitive information after you've created them.
+
+While drop filters help ensure that personal information about your end users aren't stored in NRDB, creating the rules themselves imply the kinds of data you maintain, including the format of your data or systems. This is important when determining control permissions for certain users in your org, as certain permissions let users view and edit all information in the rules you create.
+
+## What's next? [#whats-next]
+
+Now that you've secured your customer's data, you can explore AI monitoring:
+
+* [Learn to explore your AI data](/docs/ai-monitoring/view-ai-data).
+* Want to adjust your data ingest? [Learn about how to configure AI monitoring](/docs/ai-monitoring/customize-agent-ai-monitoring).
+* Did you enable logs? Learn how to [obfuscate sensitive information](/docs/logs/ui-data/obfuscation-ui) from your logs, or [remove entire log messages if they contain sensitive information](/docs/logs/ui-data/drop-data-drop-filter-rules).

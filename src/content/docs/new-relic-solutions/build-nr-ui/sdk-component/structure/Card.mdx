@@ -1,0 +1,349 @@
+---
+title: 'Card'
+metaDescription: 'Learn how to work the Card component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Draws a flexible and extensible content container.
+
+### Usage
+
+```js
+import { Card } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Card>
+  <CardHeader title="Card title" subtitle="This is a subtitle" />
+  <CardBody>
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+    tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+    quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+    consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
+    cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat
+    non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+  </CardBody>
+</Card>
+```
+
+#### Collapsible - Uncontrolled
+
+```js
+<Card collapsible>
+  <CardHeader
+    title="Card title"
+    subtitle="This is a subtitle"
+    additionalInfoLink={{
+      label: 'See more',
+      onClick: console.log,
+      to: '#',
+    }}
+  />
+  <CardBody>
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+    tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+    quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+    consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
+    cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat
+    non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+  </CardBody>
+</Card>
+```
+
+#### Collapsible - Controlled
+
+```js
+class MyComponent extends React.PureComponent {
+  constructor(...args) {
+    super(...args);
+    this.state = {
+      collapsed: false,
+    };
+  }
+  render() {
+    const { collapsed } = this.state;
+    return (
+      <Card
+        collapsible
+        collapsed={collapsed}
+        onChange={(evt, collapsed) => this.setState({ collapsed })}
+      >
+        <CardHeader
+          title="Card title"
+          subtitle="This is a subtitle"
+          additionalInfoLink={{
+            label: 'See more',
+            onClick: console.log,
+            to: '#',
+          }}
+        />
+        <CardBody>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
+          minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+          aliquip ex ea commodo consequat. Duis aute irure dolor in
+          reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+          pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
+          culpa qui officia deserunt mollit anim id est laborum.
+        </CardBody>
+      </Card>
+    );
+  }
+}
+```
+
+#### Multiple collapsible cards
+
+```js
+<Grid>
+  {[
+    {
+      title: 'Services - APM',
+      count: 11746,
+    },
+    {
+      title: 'Services - Open Telemetry',
+      count: 2845,
+    },
+    {
+      title: 'Hosts',
+      count: 1845,
+    },
+    {
+      title: 'Containers',
+      count: 394,
+    },
+  ].map((section) => (
+    <GridItem columnSpan={12}>
+      <Card collapsible>
+        <CardHeader
+          title={section.title}
+          additionalInfoLink={{
+            label: `View all (${section.count})`,
+            onClick: console.log,
+            to: '#',
+          }}
+        />
+        <CardBody>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua.
+        </CardBody>
+      </Card>
+    </GridItem>
+  ))}
+</Grid>
+```
+
+#### Custom header
+
+```js
+class MyComponent extends React.PureComponent {
+  constructor(...args) {
+    super(...args);
+    this.state = {
+      collapsed: false,
+    };
+  }
+  render() {
+    const { collapsed } = this.state;
+    return (
+      <Card
+        collapsible
+        collapsed={collapsed}
+        onChange={(evt, collapsed) => this.setState({ collapsed })}
+      >
+        <CardHeader>
+          <HeadingText>Custom header</HeadingText>
+        </CardHeader>
+        <CardBody>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
+          minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+          aliquip ex ea commodo consequat. Duis aute irure dolor in
+          reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+          pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
+          culpa qui officia deserunt mollit anim id est laborum.
+        </CardBody>
+      </Card>
+    );
+  }
+}
+```
+
+#### Sectioned card
+
+```js
+class SectionedCard extends React.Component {
+  renderForm() {
+    return (
+      <Form
+        layoutType={Form.LAYOUT_TYPE.SPLIT}
+        splitSizeType={Form.SPLIT_SIZE_TYPE.SMALL}
+      >
+        <Switch label="Fit to data" />
+        <TextField label="Custom min" placeholder="0" />
+        <TextField label="Custom max" placeholder="Auto" />
+        <MultilineTextField
+          label="Config"
+          type={MultilineTextField.TYPE.PREFORMATTED}
+          placeholder={`{ showLabels: "true" }`}
+        />
+      </Form>
+    );
+  }
+
+
+  render() {
+    return (
+      <Card>
+        <CardBody>
+          <CardSection collapsible>
+            <CardSectionHeader title="Y axis"></CardSectionHeader>
+            <CardSectionBody>{this.renderForm()}</CardSectionBody>
+          </CardSection>
+          <CardSection collapsible>
+            <CardSectionHeader title="X axis"></CardSectionHeader>
+            <CardSectionBody>{this.renderForm()}</CardSectionBody>
+          </CardSection>
+        </CardBody>
+      </Card>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Content to render inside the card.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `collapsed` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Set this prop to control the collapsed state of the component.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `collapsible` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Set this prop to make the component collapsible.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultCollapsed` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the initial collapsed state of the card is `collapsed`.Useful when you don't want to use a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the card to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the card to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        This function will be called whenever the user clicks the header to collapse or expand the component. If you are controlling the state of the component, use this to set the value of the `collapsed` prop.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""},{"name":"collapsed","type":"boolean","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Card.SPACING_TYPE.EXTRA_LARGE,
+          Card.SPACING_TYPE.LARGE,
+          Card.SPACING_TYPE.MEDIUM,
+          Card.SPACING_TYPE.NONE,
+          Card.SPACING_TYPE.OMIT,
+          Card.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

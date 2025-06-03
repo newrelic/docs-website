@@ -1,0 +1,525 @@
+---
+title: Consulta y alerta sobre datos de uso
+tags:
+  - Accounts
+  - Accounts and billing
+  - New Relic pricing and billing
+  - Data Ingest Governance
+  - Data ingest cost
+metaDescription: How to create queries and alerts for your New Relic billing-related usage.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para ayudarlo a comprender su [uso y facturación de New Relic](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing), proporcionamos una [UIde usuario](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui) para comprender su uso relacionado con la facturación. Además, puede ejecutar una consulta NRQL personalizada para obtener detalles adicionales y puede crear notificaciones de alerta para cuando su uso haya alcanzado ciertos niveles.
+
+Tenga en cuenta lo siguiente al utilizar la UI usuario de uso o realizar consultas de consumo:
+
+* Los resultados son aproximados y no corresponden exactamente a los valores utilizados para calcular el importe de su factura.
+
+* Utilice estas herramientas para encontrar y realizar un seguimiento de sus áreas de mayor uso.
+
+* Utilice consulta para crear
+
+  <InlinePopover type="alerts"/>
+
+  para saber si se está acercando a un límite.
+
+## Consulta sobre el uso de la ingesta de datos [#data-queries]
+
+La [UIusuario de uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui) muestra la ingesta de datos a lo largo del tiempo. Si necesita más detalles de los que proporciona la UI , puede utilizar una variedad de consultas NRQL. Los ejemplos siguientes incluyen dos tipos de datos:
+
+* `NrConsumption`: utilice esto para profundizar en los detalles de su uso hora por hora. Es menos útil como sustituto de su factura.
+* `NrMTDConsumption`: utilice esto para ver una buena aproximación de su uso agregado mensual.
+
+<CollapserGroup>
+  <Collapser
+    id="daily-gb"
+    title="Uso diario de datos"
+  >
+    Esta consulta suma el total de los datos ingeridos facturables y muestra un valor diario de los últimos tres meses:
+
+    ```sql
+    FROM NrConsumption SELECT sum(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform' 
+    SINCE 3 months ago TIMESERIES 1 day
+    ```
+  </Collapser>
+
+  <Collapser
+    id="daily-source"
+    title="Uso diario por fuente"
+  >
+    Esta consulta suma el total de los datos ingeridos facturables y muestra un valor diario de los últimos tres meses facetado por la fuente:
+
+    ```sql
+    FROM NrConsumption SELECT sum(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform' SINCE 3 months ago 
+    FACET usageMetric TIMESERIES 1 day
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics-analysis"
+    title="Ingesta métrica por fuente"
+  >
+    Esta consulta desglosa [los datos métricos](/docs/telemetry-data-platform/understand-data/new-relic-data-types/#dimensional-metrics) según los diez nombres métricos principales. También puede facetar por `appName` o `host` para ajustar el análisis.
+
+    ```sql
+    FROM Metric SELECT bytecountestimate()/10e8 as 'GB Estimate' 
+    SINCE 24 hours ago
+    FACET metricName LIMIT 10 TIMESERIES 1 hour
+    ```
+
+    Para obtener más información sobre `bytecountestimate()`, consulte [Estimación del recuento de bytes](#byte-count-estimate).
+  </Collapser>
+
+  <Collapser
+    id="month-gb"
+    title="Uso de datos del mes hasta la fecha"
+  >
+    Esta consulta muestra los datos ingeridos de la plataforma completa actual. En otras palabras, muestra cuánto se le facturaría por sus datos durante ese mes si se le facturara ahora.
+
+    ```sql
+    FROM NrMTDConsumption SELECT latest(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="month-cost"
+    title="Costo de datos estimado hasta la fecha"
+  >
+    Para saber cómo determinar una estimación del costo, consulte [Consulta de costos estimados](#estimated-cost).
+  </Collapser>
+</CollapserGroup>
+
+## Límites de consulta y ingesta de datos [#data-limits]
+
+Para obtener información sobre los límites de ingesta de datos y los límites de consulta, consulte [Límites de datos de New Relic](/docs/data-apis/manage-data/view-system-limits).
+
+## Consulta de recuento de usuarios [#user-queries]
+
+Para ver su recuento de usuarios, consulte la [](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#usage-ui). Si necesita más detalles, puede utilizar el ejemplo de consulta NRQL que aparece a continuación. Para obtener detalles sobre cómo se calculan los usuarios, consulte [Cálculos de usuarios facturables](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/user-count-billing).
+
+La mayoría de las organizaciones de New Relic tienen la capacidad de agregar usuarios principales. Esta sección incluye consultas que funcionarán para esas organizaciones. Si pertenece a una organización anterior que no ha [optado por desbloquear el usuario principal](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing#core-acceptance), consulte [la consulta para organizaciones sin usuario principal](#queries-non-core).
+
+Aquí hay algunas reglas para consultar a su usuario:
+
+* Utilice sólo el evento `NrMTDConsumption` .
+* Los atributos utilizados para consultar al usuario son `CoreUsersBillable` y `FullPlatformUsersBillable`.
+
+A continuación se muestran algunos ejemplos de consultas NRQL para determinar el recuento de usuarios:
+
+### Usuario de plataforma completa del mes hasta la fecha
+
+Esta consulta muestra el usuario de plataforma completa facturable para el mes. En otras palabras, muestra cuánto se le facturaría por su usuario de plataforma completa durante ese mes si se le facturara ahora.
+
+```sql
+FROM NrMTDConsumption 
+SELECT latest(FullPlatformUsersBillable)
+```
+
+### Usuario principal del mes hasta la fecha
+
+Esta consulta muestra la cantidad de usuarios principales que se le facturarían si se le facturara ahora mismo:
+
+```sql
+FROM NrMTDConsumption 
+SELECT latest(CoreUsersBillable)
+```
+
+### Costo estimado
+
+Aquí hay una consulta para obtener el costo del mes actual para su usuario de plataforma completa. Tenga en cuenta que deberá conocer el costo total de usuario de la plataforma de su organización.
+
+```sql
+FROM NrMTDConsumption 
+SELECT latest(FullPlatformUsersBillable) * <var>YOUR_PER_FULL_PLATFORM_USER_COST</var>
+```
+
+### Consulta de usuario para organización sin usuario principal [#queries-non-core]
+
+Estas consultas se aplican a algunas organizaciones New Relic más antiguas que solo tienen dos tipos de usuarios disponibles: usuario básico y usuario de plataforma completa.
+
+<CollapserGroup>
+  <Collapser
+    id="non-core-org-user-queries"
+    title="Consulta de usuario para organización sin usuario principal"
+  >
+    Para organizaciones que no tienen habilitado el usuario principal, aquí hay algunas reglas para consultar su usuario:
+
+    * Puede utilizar el evento `NrMTDConsumption` o `NrConsumption` .
+    * Los atributos utilizados para consultar por tipo de usuario son: `BasicUsersBillable` y `FullUsersBillable`.
+
+      ### Usuario de plataforma completa facturable para el mes
+
+      Esta consulta muestra el usuario de plataforma completa facturable para el mes. En otras palabras, muestra cuánto te facturarían por tu usuario durante el mes actual si te cobraran en ese momento.
+
+      ```sql
+      FROM NrMTDConsumption 
+          SELECT latest(FullUsersBillable)
+      ```
+
+      Esta consulta muestra cuántos usuarios de plataforma completa se contaron por hora. Esto es útil para ver cómo cambió el recuento total de usuarios de la plataforma con el tiempo.
+
+      ```sql
+      FROM NrConsumption 
+      SELECT max(FullUsers) 
+      SINCE 10 days ago TIMESERIES 1 hour
+      ```
+
+      ### Recuento mensual proyectado de usuarios de la plataforma completa
+
+      Esta consulta muestra un recuento proyectado de usuarios mensuales de la plataforma completa. Esta consulta no sería buena para usar en un dashboard; requiere valores basados en a) los días restantes del mes, b) el inicio del mes. A continuación se muestra un ejemplo que consulta el recuento proyectado de fin de mes con 10 días restantes en ese mes:
+
+      ```sql
+      FROM NrMTDConsumption 
+      SELECT predictLinear(FullUsers, 10 days)
+      SINCE '2020-09-01'
+      ```
+
+      ### Recuento de usuario de plataforma completa y usuario básico
+
+      El [](/docs/accounts/accounts-billing/new-relic-one-pricing-users/pricing-billing#billing-usage-ui)muestra el recuento de usuarios de plataforma completa y usuarios básicos. La consulta utilizada es:
+
+      ```sql
+      FROM NrUsage SELECT max(usage) SINCE 10 days ago
+      WHERE productLine='FullStackObservability' 
+      WHERE metric in ('FullUsers', 'BasicUsers') 
+      FACET metric
+      ```
+
+      Para ver el recuento de usuarios de plataforma completa y usuarios básicos a lo largo del tiempo:
+
+      ```
+      FROM NrUsage SELECT max(usage) SINCE 10 days ago
+      WHERE productLine='FullStackObservability' 
+      WHERE metric in ('FullUsers', 'BasicUsers') FACET metric TIMESERIES 1 hour
+      ```
+
+      ### Costo estimado
+
+      Aquí hay una consulta para obtener el costo del mes actual para su usuario de plataforma completa. Tenga en cuenta que deberá conocer el costo total de usuario de la plataforma de su organización.
+
+      ```sql
+      FROM NrMTDConsumption 
+      SELECT latest(FullPlatformUsersBillable)* <var>YOUR_PER_FULL_PLATFORM_USER_COST</var> 
+      ```
+
+      Aquí hay uno equivalente para su usuario principal:
+
+      ```sql
+      FROM NrMTDConsumption 
+      SELECT latest(CoreUsersBillable)* <var>YOUR_PER_CORE_USER_COST</var>
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## Uso sintético [#synthetics-usage]
+
+Hay un número determinado de checks sintéticos incluidos de forma gratuita con cada edición. Para obtener detalles al respecto, consulte [Límites de Sintético](/docs/synthetics/synthetic-monitoring/using-monitors/monitor-limits).
+
+El [evento NrMTDConsumption](/attribute-dictionary/?event=NrMTDConsumption) activa la UI de usuario de uso y debe usarse para [alertas de uso](#alerts).
+
+El [evento NrDailyUsage](/attribute-dictionary/?event=NrDailyUsage) puede ayudarle a desglosar aún más el uso de Sintético, pero es posible que los resultados no coincidan con la UI usuario de uso y [el evento NrMTDConsumption](/attribute-dictionary/?event=NrMTDConsumption). Se genera una vez al día. La marca de tiempo de uso corresponde a la hora en que New Relic recibe y procesa un cheque sintético. Esto puede introducir una ligera diferencia en los datos de uso en comparación con el momento en que se ejecutaron los controles sintéticos.
+
+Al utilizar [`FACET`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet) con el [evento NrDailyUsage](/attribute-dictionary/?event=NrDailyUsage), puede dividir su consumo en varias categorías, incluida cuenta, ubicación, tipo de monitor y nombre del monitor. Si tiene una [estructura de cuenta principal](/docs/accounts/original-accounts-billing/original-users-roles/parent-child-account-structure/), asegúrese de ejecutar la consulta en una cuenta principal para ver el uso agregado de esa cuenta principal y sus cuentas secundarias.
+
+Tanto los controles exitosos como los fallidos contribuyen al consumo general de Sintético. A continuación se muestran ejemplos de consultas para ver y facetar su consumo de Sintético, utilizando ambos tipos de eventos según corresponda:
+
+<CollapserGroup>
+  <Collapser
+    id="TotalUsage"
+    title="Consumo total de Sintético este mes"
+  >
+    ```sql
+    SELECT latest(freeConsumption) AS 'Included checks', latest(billableConsumption) AS 'Extra checks'
+    FROM NrMTDConsumption
+    WHERE metric='SyntheticChecks'
+    SINCE this month
+    ```
+  </Collapser>
+
+  <Collapser
+    id="UsageByMonth"
+    title="Consumo de sintético por mes"
+  >
+    ```sql
+    SELECT latest(freeConsumption) AS 'Included checks', latest(billableConsumption) AS 'Extra checks'
+    FROM NrMTDConsumption
+    WHERE metric='SyntheticChecks'
+    SINCE 6 months ago 
+    FACET monthOf(timestamp)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="UsageByAccount"
+    title="Consumo de sintético por cuenta"
+  >
+    ```sql
+    SELECT (sum(syntheticsFailedCheckCount) + sum(syntheticsSuccessCheckCount)) 
+    AS 'Total Checks' 
+    FROM NrDailyUsage 
+    WHERE syntheticsTypeLabel != 'Ping' 
+    SINCE 1 month ago 
+    FACET consumingAccountName
+    ```
+  </Collapser>
+
+  <Collapser
+    id="UsageByMonitorType"
+    title="Consumo de sintético por tipo de monitor"
+  >
+    ```sql
+    SELECT (sum(syntheticsFailedCheckCount) + sum(syntheticsSuccessCheckCount)) 
+    AS 'Total Checks' 
+    FROM NrDailyUsage 
+    WHERE syntheticsTypeLabel != 'Ping' 
+    SINCE 1 month ago 
+    FACET syntheticsTypeLabel
+    ```
+  </Collapser>
+
+  <Collapser
+    id="UsageByMonitorName"
+    title="Consumo de sintético por nombre de monitor"
+  >
+    ```sql
+    SELECT (sum(syntheticsFailedCheckCount) + sum(syntheticsSuccessCheckCount)) 
+    AS 'Total Checks' 
+    FROM NrDailyUsage 
+    WHERE syntheticsTypeLabel != 'Ping' 
+    SINCE 1 month ago 
+    FACET syntheticsMonitorName
+    ```
+  </Collapser>
+
+  <Collapser
+    id="UsageByLocation"
+    title="Consumo de sintético por ubicación"
+  >
+    ```sql
+    SELECT (sum(syntheticsFailedCheckCount) + sum(syntheticsSuccessCheckCount)) 
+    AS 'Total Checks' 
+    FROM NrDailyUsage 
+    WHERE syntheticsTypeLabel != 'Ping' 
+    SINCE 1 month ago 
+    FACET syntheticsLocationLabel
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Consulta relacionada con los costos [#estimated-cost]
+
+Aquí hay algunas recomendaciones de consulta para ayudarlo a comprender el costo estimado para el mes actual.
+
+<CollapserGroup>
+  <Collapser
+    id="month-cost"
+    title="Obtenga el costo estimado de los datos para el mes"
+  >
+    Aquí hay una consulta para llegar a una estimación del costo de ingesta de datos para el mes actual. Para ejecutar esta consulta, necesitará conocer [el costo de datos ingeridos por GB](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices) de su organización.
+
+    ```sql
+    FROM NrMTDConsumption 
+    SELECT latest(GigabytesIngestedBillable)*YOUR_PER_GB_COST
+    ```
+
+    A continuación se muestra un ejemplo de esta consulta utilizando un [costo por GB de $0,30](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-prices):
+
+    ```sql
+    FROM NrMTDConsumption 
+    SELECT latest(GigabytesIngestedBillable)*.30
+    ```
+  </Collapser>
+
+  <Collapser
+    id="user-cost"
+    title="Obtenga el costo de usuario facturable para el mes"
+  >
+    Consulte las secciones de consulta de usuarios facturables:
+
+    * [Para organizaciones con usuario principal](#user-queries)
+    * [Para organizaciones sin usuario principal](#non-core-org-user-queries)
+  </Collapser>
+</CollapserGroup>
+
+## Establecer alerta de uso [#alerts]
+
+Para ayudar [a administrar su facturación](/docs/telemetry-data-platform/get-data-new-relic/manage-data/manage-your-data), puede configurar una alerta para que le notifique sobre aumentos inesperados en la ingesta de datos o el recuento de usuarios.
+
+Antes de crear una condición de alerta relacionada con el uso, aquí hay algunos consejos:
+
+* Para conocer los conceptos básicos sobre cómo configurar alertas, consulte [NRQL condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#create).
+* Se recomienda el [método de agregación del temporizador de eventos](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/choose-your-aggregation-method/#event-timer-detail) porque funciona mejor para datos poco frecuentes.
+
+A continuación se muestran algunos ejemplos de condición de alerta NRQL.
+
+<CollapserGroup>
+  <Collapser
+    id="gb-exceeds-value"
+    title="Los gigabytes ingeridos superan el umbral"
+  >
+    Esta consulta creará una alerta cuando su uso por hora exceda un valor fijo:
+
+    ```sql
+    FROM NrConsumption 
+    SELECT sum(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform'
+    ```
+
+    Si su organización tiene varias [cuentas infantiles](/docs/accounts/install-new-relic/account-setup/manage-apps-or-users-sub-accounts), es posible que desee establecer una alerta de umbral para una cuenta específica:
+
+    ```sql
+    FROM NrConsumption 
+    SELECT sum(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform' 
+    AND consumingAccountId = YOUR_CHILD_ACCOUNT_ID
+    ```
+  </Collapser>
+
+  <Collapser
+    id="gb-exceeds-threshold"
+    title="El uso supera el umbral de GB"
+  >
+    Esta consulta creará una alerta cuando su uso supere el umbral mensual fijo de GB:
+
+    ```sql
+    FROM NrMTDConsumption 
+    SELECT latest(GigabytesIngested) 
+    WHERE productLine = 'DataPlatform'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="user-threshold"
+    title="El uso supera el umbral de recuento de usuarios"
+  >
+    Este es un ejemplo de una consulta de alerta que se activará cuando el recuento de usuarios de toda la plataforma exceda un número determinado:
+
+    ```sql
+    FROM NrMTDConsumption 
+    SELECT latest(FullPlatformUsersBillable)
+    ```
+
+    Tenga en cuenta que esta consulta se aplica a organizaciones con la versión principal de nuestro precio basado en el uso, con usuario principal. Para obtener más información sobre esto y sobre cómo consultar el recuento de usuarios, consulte [consulta usuario](#user-queries).
+  </Collapser>
+
+  <Collapser
+    id="usage-exceeds-cost"
+    title="El uso supera el umbral de coste estimado"
+  >
+    En mayo de 2022, el atributo `estimatedCost` quedó obsoleto ([más información](/docs/release-notes/org-user-mgmt-release-notes/org-users-22-05-01)). Si está utilizando ese atributo, debe reemplazarlo con la consulta recomendada aquí.
+
+    Tenga en cuenta que para ejecutar esta consulta necesitará conocer el costo de datos ingeridos por GB de su organización.
+
+    ```sql
+    FROM NrMTDConsumption 
+    SELECT latest(GigabytesIngestedBillable)*YOUR_PER_GB_COST
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Para configurar alertas relacionadas con límites de ingesta de datos y límites de consulta, consulte [Establecer alerta para alcanzar límites de datos](/docs/data-apis/manage-data/query-limits#set-alerts-on-resource-metrics).
+
+## Consulta cambios en tu cuenta [#account-changes]
+
+Para ver los cambios realizados en su cuenta (por ejemplo, cambios relacionados con la gestión de usuarios), puede consultar [`NrAuditEvent`](/docs/insights/insights-data-sources/default-data/nrauditevent-event-data-query-examples).
+
+## Evento y atributo relacionados con el uso [#data-types]
+
+<Callout variant="tip">
+  Para obtener información detallada y avanzada sobre la gestión de la ingesta de datos en una organización compleja, consulte [Gobernanza de la ingesta de datos](/docs/new-relic-solutions/observability-maturity/operational-efficiency/dg-intro/).
+</Callout>
+
+Estos son los eventos principales a consultar para comprender su uso:
+
+* `NrConsumption` registra el uso cada hora y es el equivalente al uso en "tiempo real". Utilice este evento para observar las tendencias de uso a lo largo del tiempo.
+* `NrMTDConsumption` genera valores agregados del evento `NrConsumption` . Utilice este evento para ver el uso por período de facturación mensual. Este es el mejor evento para consultar el recuento de usuarios.
+
+Éstos son algunos de los atributos más importantes adjuntos al evento relacionado con el uso.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Atributo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `productLine`
+      </td>
+
+      <td>
+        La categoría de uso. Hay tres opciones: `DataPlatform`, `FullStackObservability` y `ProactiveDetection`. (A partir del 1 de noviembre de 2021, `IncidentIntelligence` ya no es un factor de facturación). Para más detalles sobre estas categorías, consulte [la plataforma New Relic](https://newrelic.com/platform).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metric`
+      </td>
+
+      <td>
+        Esto consolidará múltiples categorías de uso en una sola métrica. Útil al facetar por `productLine`. Es una enumeración con posibles valores de `BasicUsers`, `FullPlatformUsers` y `GigabytesIngested`. Los valores para la [versión principal del usuario](#user-queries) incluyen `FullPlatformUsers` y `CoreUsers`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `consumingAccountId`
+      </td>
+
+      <td>
+        ID de la cuenta New Relic directamente responsable del evento almacenado, según lo determinado a partir del <InlinePopover type="licenseKey"/>utilizado.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Estimación del recuento de bytes [#byte-count-estimate]
+
+Una herramienta que puede utilizar para obtener más información sobre su uso es la función `bytecountestimate()` (por ejemplo, consulte [esta consulta que la utiliza](#metrics-analysis)).
+
+Algunos puntos importantes que debe saber sobre el uso de `bytecountestimate()`:
+
+* Debido a que devuelve todos los datos que encuentra, y algunos de esos datos no cuentan para su ingesta ni facturación, es solo una estimación de su uso real. Por esa razón, es especialmente útil para investigar los datos reportados por varias fuentes o para comprender el límite superior de datos reportados.
+* Recomendamos usarlo principalmente para consultar rangos de tiempo inferiores a 24 horas y, si lo desea, usarlo para extrapolar. Esto se debe a que es una función que requiere consultar una gran cantidad de datos y a que no encontrará datos que superen los límites de retención.
+
+Para obtener más información sobre la estimación del uso, consulte [nuestra publicación de blog sobre la estimación del uso](https://newrelic.com/blog/nerdlog/estimate-data-cost).
+
+A continuación se muestran algunos detalles técnicos sobre cómo funciona `bytecountestimate()` :
+
+* Hay varios tipos de datos que [no cuentan para la ingesta](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#usage-calculation) , pero que la función `bytecountestimate()` devuelve. Esto significa que esta función a veces muestra
+
+  <DNT>
+    **more**
+  </DNT>
+
+  datos de los que realmente se cuentan para su uso. Es posible que rara vez muestre una cantidad menor pero, si lo hace, será sólo ligeramente menor.
+
+* Algunos telemetry data reportados por una entidad comparten un atributo común (por ejemplo, atributo sobre su cuenta New Relic). No contamos el atributo duplicado para su ingesta, pero `bytecountestimate()` sí cuenta esos atributos. En ocasiones, esto puede generar una gran discrepancia entre una consulta `bytecountestimate()` y su uso real.
+
+* Nuestros
+
+  <InlinePopover type="apm"/>
+
+  ,
+
+  <InlinePopover type="browser"/>
+
+  y
+
+  <InlinePopover type="mobile"/>
+
+  informan un tipo de datos conocidos como [datos de intervalo de tiempo de métrica](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data). Estos datos no se almacenan en NRDB como lo están nuestros otros tipos de datos, por lo que intentar utilizar `bytecountestimate()` en estos datos puede generar resultados confusos. Al consultar estos datos, recomendamos facetar por nombre de la aplicación y no por nombre de la métrica.

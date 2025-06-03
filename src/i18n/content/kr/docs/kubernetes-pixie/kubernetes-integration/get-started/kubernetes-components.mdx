@@ -1,0 +1,249 @@
+---
+title: Kubernetes 통합 구성요소
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Kubernetes components
+metaDescription: Learn what components are deployed after installing the Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic Kubernetes 통합은 Kubernetes를 온프레미스에서 실행하든 클라우드에서 실행하든 관계없이 클러스터의 상태와 성능에 대한 완전한 관찰 가능성을 제공합니다. Kubernetes 네임스페이스, 배포, 복제 세트, 노드, 포드 및 컨테이너에 대한 가시성을 제공합니다.
+
+[`newrelic-infrastructure` 차트는](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure) 통합의 주요 구성요소입니다. [여기에서](#architecture) 아키텍처에 대해 알아보세요.
+
+[`nri-bundle` 차트는](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 하나의 차트만 사용하여 통합을 쉽게 설치하고 업그레이드할 수 있는 `newrelic-infrastructure` 포함하여 통합을 위한 개별 차트를 그룹화합니다. [여기](#components) 에서 이 차트를 사용하여 설치할 수 있는 기본 및 선택적 구성 요소에 대해 알아보세요.
+
+## 아키텍처 [#architecture]
+
+`newrelic-infrastructure` 차트에는 `nrk8s-ksm`, `nrk8s-kubelet` 및 `nrk8s-controlplane` 의 세 가지 구성요소가 있습니다. 첫 번째는 배포이고 다음 두 개는 DaemonSet입니다.
+
+각 구성 요소에는 2개의 컨테이너가 있습니다.
+
+1. 메트릭 수집을 담당하는 통합용 컨테이너입니다.
+2. New Relic에 메트릭을 보내는 데 사용되는 New Relic 인프라 에이전트가 있는 컨테이너입니다.
+
+### Kube-state-metrics 구성 요소 [#nrk8s-ksm]
+
+Kubernetes 조직 자체에 있는 OSS 프로젝트 [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics) 위에 클러스터 상태 측정항목을 구축합니다.
+
+특정 배포 `nrk8s-ksm` 는 KSM 찾기 및 스크래핑을 처리합니다. 이 포드는 수명이 길고 단일하므로 엔드포인트 정보 제공자를 안전하게 사용하여 KSM 포드의 IP를 찾고 스크랩할 수 있습니다. 정보 제공자는 자동으로 클러스터의 정보 제공자 목록을 로컬로 캐시하고 새로운 정보 제공자를 감시하여 팟(Pod)이 있는 위치를 파악하라는 요청으로 API 서버를 급습하는 것을 방지합니다.
+
+KSM에서 해당 지표가 기본적으로 활성화되어 있지 않은 경우, 커리, 목표 지표를 활성화해야 합니다. 예를 들어 KSM v2+는 기본적으로 레이블과 주석 지표를 비활성화합니다. [여기](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/developer/cli-arguments.md) 쿠버네티스 클러스터에 설명된 `metric-labels-allowlist` 또는 `metric-annotations-allowlist` 옵션을 사용하여 디버그, 목표 라벨 및 주석 지표를 모니터로 활성화할 수 있습니다.
+
+KSM 지원 버전에 대한 자세한 내용은 [자체 KSM 가져오기를](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/README.md#bring-your-own-ksm) 참조하세요.
+
+<Callout variant="important">
+  `customAttributes` 사용하여 특정 노드에 엄격하게 연결되지 않은 항목( `K8sNamespaceSample`, `K8sDeploymentSample`, `K8sReplicasetSample`, `K8sDaemonsetSample`, `K8sStatefulsetSample`, `K8sServiceSample`및 `K8sHpaSample`과 관련된 샘플에 속성을 추가합니다. .
+</Callout>
+
+### Kubelet 구성 요소 [#nrk8s-kubelet]
+
+Kubelet은 모든 Kubernetes 노드에서 실행되고 컨트롤 플레인의 지시에 따라 컨테이너 생성을 담당하는 서비스인 "Kubernetes 에이전트"입니다. Container Runtime과 밀접하게 협력하는 Kubelet이기 때문에 CPU, 메모리, 디스크, 네트워크 등의 사용과 같은 통합을 위한 인프라 메트릭의 주요 소스입니다. 완전히 문서화되지는 않았지만 Kubelet API는 대부분의 Kubernetes 지표에 대한 사실상의 소스입니다.
+
+Kubelet 스크랩은 일반적으로 리소스가 적은 작업입니다. 이를 감안하고 가능할 때마다 노드 간 트래픽을 최소화하려는 의도를 감안할 때 `nrk8s-kubelet` 은 각 인스턴스가 동일한 노드에서 실행 중인 Kubelet에서 측정항목을 수집하는 DaemonSet으로 실행됩니다.
+
+`nrk8s-kubelet` 노드 IP를 사용하여 Kubelet에 연결합니다. 이 프로세스가 실패하면 `nrk8s-kubelet` 는 API 서버 프록시를 통해 노드에 도달하기 위해 대체됩니다. 이 폴백 메커니즘은 많은 kubelet을 프록싱하면 API 서버의 부하가 증가할 수 있으므로 매우 큰 클러스터에 도움이 됩니다. 로그에서 다음과 같은 메시지를 찾아 API 서버가 프록시로 사용되고 있는지 확인할 수 있습니다.
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### 제어 평면 구성 요소 [#nrk8s-controlplane]
+
+주요 Kubernetes 배포판으로 `hostNetwork: true` 을(를) 사용하여 `nrk8s-controlplane` 을 DaemonSet로 배포합니다. 구성은 자동 검색 및 정적 끝점을 지원하도록 구성됩니다. 즉시 사용 가능한 다양한 배포판과 호환되도록 구성 항목으로 알려진 다양한 기본값을 제공합니다. 코드 대신 구성에서 이 작업을 수행하면 필요에 따라 자동 검색을 조정할 수 있습니다.
+
+선택자당 여러 엔드포인트를 가질 수 있고 올바른 것을 자동으로 감지하는 프로브 메커니즘을 추가할 수 있습니다. 이를 통해 동일한 선택기를 사용하여 포트 또는 프로토콜과 같은 다른 구성을 시도할 수 있습니다.
+
+etcd CP 구성 요소의 스크래핑 구성은 모든 구성 요소에 동일한 구조와 기능이 적용되는 다음과 같습니다.
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+`staticEndpoint` 가 설정되면 구성요소가 스크랩을 시도합니다. 엔드포인트에 도달할 수 없는 경우 통합이 실패하므로 수동 엔드포인트가 구성될 때 자동 오류가 발생하지 않습니다.
+
+`staticEndpoint` 이 설정되지 않은 경우 구성요소는 지정된 `namespace` 의 `selector` 과 일치하는 첫 번째 포드를 찾는 자동 검색 항목을 반복하고 선택적으로 DaemonSet의 동일한 노드에서 실행 중입니다( `matchNode` `true` 로 설정됨). 포드가 검색된 후 구성 요소는 http `HEAD` 요청을 실행하여 나열된 엔드포인트를 순서대로 검색하고 선택한 인증 유형을 사용하여 첫 번째로 성공한 프로브를 스크랩합니다.
+
+위에서 `etcd` 구성요소에 대한 구성 발췌를 보여주지만 스크래핑 로직은 다른 구성요소에 대해 동일합니다.
+
+컨트롤 플레인 모니터링을 구성하는 방법에 대한 자세한 지침은 [컨트롤 플레인 모니터링](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) 페이지를 확인하십시오.
+
+### 투구 차트 [#helm-charts]
+
+Helm은 솔루션을 클러스터에 배포하기 위해 제공하는 기본 수단입니다. Helm 차트는 하나의 배포와 각각 구성이 약간 다른 두 개의 DaemonSet를 관리합니다. 이렇게 하면 차트 및 생성된 매니페스트 위에 수동 패치를 적용할 필요 없이 필요에 따라 솔루션을 더 유연하게 조정할 수 있습니다.
+
+새로운 Helm 차트가 노출하는 새로운 기능 중 일부는 다음과 같습니다.
+
+* 모든 포드에 대한 `securityContext` 의 전체 제어
+* 모든 포드에 대해 포드 `labels` 및 `annotations` 에 대한 전체 제어
+* 추가 환경 변수 추가 기능, `volumes` 및 `volumeMounts`
+* 도달한 끝점, 자동 검색 동작 및 스크래핑 간격을 포함하여 통합 구성에 대한 전체 제어
+* Helm 관용구 및 표준과의 더 나은 정렬
+
+[`README.md` 차트](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md) 에서 전환할 수 있는 모든 스위치의 전체 세부정보를 볼 수 있습니다.
+
+## 구성품 [#components]
+
+`nri-bundle` 사용하여 Kubernetes 통합을 설치하면 기본적으로 다음 2개의 구성요소가 설치됩니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        요소
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [뉴렐릭 인프라](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)
+      </td>
+
+      <td>
+        노드, 클러스터 객체(예: 배포, 포드) 및 제어 플레인에 대한 지표를 New Relic으로 보냅니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-메타데이터-주입](https://github.com/newrelic/k8s-metadata-injection/tree/main/charts/nri-metadata-injection)
+      </td>
+
+      <td>
+        Kubernetes 정보로 New Relic-instrumented 애플리케이션(APM)을 강화합니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+다음은 `nri-bundle` 사용하거나 별도로 설치할 수 있는 선택적 구성요소입니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        요소
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [kube-상태-메트릭](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics)
+      </td>
+
+      <td>
+        클러스터 수준 지표를 수집하기 위해 newrelic-infrastructure에 필요합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-kube-이벤트](https://github.com/newrelic/nri-kube-events/tree/main/charts/nri-kube-events)
+      </td>
+
+      <td>
+        Kubernetes 이벤트를 New Relic에 보고합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [뉴렐릭 인프라 운영자](https://github.com/newrelic/newrelic-infra-operator/tree/main/charts/newrelic-infra-operator)
+      </td>
+
+      <td>
+        (베타) 일반적인 DaemonSet 대신 사이드카로 newrelic-infrastructure를 주입하기 위해 Fargate 또는 서버리스 환경에서 사용됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-k8s-메트릭-어댑터](https://github.com/newrelic/newrelic-k8s-metrics-adapter/tree/main/charts/newrelic-k8s-metrics-adapter)
+      </td>
+
+      <td>
+        (베타) New Relic의 NRQL 쿼리를 기반으로 HPA(Horizontal Pod Autoscalers)에 대한 데이터 소스를 제공합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [새로운 유물 로깅](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging)
+      </td>
+
+      <td>
+        클러스터에서 실행되는 Kubernetes 구성 요소 및 워크로드에 대한 로그를 New Relic으로 보냅니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-프로메테우스](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
+      </td>
+
+      <td>
+        Prometheus 측정항목을 New Relic에 노출하는 애플리케이션의 측정항목을 보냅니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-프로메테우스-구성자](https://github.com/newrelic/newrelic-prometheus-configurator/tree/master/charts/newrelic-prometheus-agent)
+      </td>
+
+      <td>
+        New Relic Prometheus 엔드포인트에 메트릭을 보내도록 에이전트 모드에서 Prometheus 인스턴스를 구성합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [뉴렐릭-픽시](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-pixie)
+      </td>
+
+      <td>
+        Pixie API에 연결하고 Pixie에서 New Relic 플러그인을 활성화합니다. 플러그인을 사용하면 장기간 데이터 보존을 위해 Pixie에서 New Relic으로 데이터를 내보낼 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [픽시](https://docs.pixielabs.ai/installing-pixie/install-schemes/helm/#3.-deploy)
+      </td>
+
+      <td>
+        eBPF를 사용하여 수동 계측 없이 원격 측정 데이터를 자동으로 캡처하는 Kubernetes 애플리케이션용 오픈 소스 관찰 도구입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>

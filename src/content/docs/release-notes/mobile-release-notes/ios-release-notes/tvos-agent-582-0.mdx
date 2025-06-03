@@ -1,0 +1,15 @@
+---
+subject: iOS agent
+title: tvOS agent v5.8.2
+releaseDate: '2016-09-22'
+version: 5.8.2
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.8.2.zip'
+---
+
+### Improvements
+
+* Added support for control characters in Insights data. Control characters will now be displayed by their common escaped character representation. For example: an 'end-of-text' control character will be displayed as '^C'.
+
+### Fixes
+
+* Removed instrumentation of ASI networking framework. This prevents collisions with Apple's private API scans, which produces a false positive when scanning our instrumentation of this library. We recommend anyone still using ASI for networking to use our [custom network instrumentation](https://docs.newrelic.com/docs/mobile-monitoring/new-relic-mobile-ios/install-configure/work-ios-sdk-api) tools going forward.

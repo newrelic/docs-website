@@ -1,0 +1,245 @@
+---
+title: 'Form'
+metaDescription: 'Learn how to work the Form component'
+freshnessValidatedDate: 2024-06-03
+---
+
+`<Form>` is a container which displays a set of related user input fields in a structured way. It can contain one or more of the following form components:
+
+* `<TextField>`
+* `<MultilineTextField>`
+* `<Checkbox>`
+* `<Radio>`
+* `<RadioGroup>`
+* `<Switch>`
+* `<Select>`
+* `<Dropdown>`
+
+The component supports different type of layouts which can be specified through the `layoutType` prop.
+
+### Usage
+
+```js
+import { Form } from 'nr1'
+```
+
+### Examples
+
+#### Default layout
+
+```js
+<Form>
+  <TextField placeholder="AAA Production" label="Name" />
+  <Select label="Select account">
+    <SelectItem>Option 1</SelectItem>
+    <SelectItem>Option 2</SelectItem>
+  </Select>
+  <TextField
+    defaultValue="help-production-db"
+    label="Help channel"
+    invalid="Please enter a valid slack channel"
+  />
+  <MultilineTextField
+    label="Description"
+    info="Info tooltip"
+    placeholder="Placeholder text"
+  />
+  <Button
+    type={Button.TYPE.PRIMARY}
+    sizeType={Button.SIZE_TYPE.SMALL}
+    spacingType={[
+      HeadingText.SPACING_TYPE.EXTRA_LARGE,
+      HeadingText.SPACING_TYPE.NONE,
+    ]}
+  >
+    Create dashboard
+  </Button>
+</Form>
+```
+
+#### Split layout
+
+```js
+<Form layoutType={Form.LAYOUT_TYPE.SPLIT}>
+  <TextField placeholder="AAA Production" label="Name" />
+  <Select label="Select account">
+    <SelectItem>Option 1</SelectItem>
+    <SelectItem>Option 2</SelectItem>
+  </Select>
+  <TextField
+    defaultValue="help-production-db"
+    label="Help channel"
+    invalid="Please enter a valid slack channel"
+  />
+  <MultilineTextField
+    label="Description"
+    info="Info tooltip"
+    placeholder="Placeholder text"
+  />
+  <Button
+    type={Button.TYPE.PRIMARY}
+    sizeType={Button.SIZE_TYPE.SMALL}
+    spacingType={[
+      HeadingText.SPACING_TYPE.EXTRA_LARGE,
+      HeadingText.SPACING_TYPE.NONE,
+    ]}
+  >
+    Create dashboard
+  </Button>
+</Form>
+```
+
+#### Split layout with size type
+
+```js
+<Form
+  layoutType={Form.LAYOUT_TYPE.SPLIT}
+  splitSizeType={Form.SPLIT_SIZE_TYPE.LARGE}
+>
+  <TextField placeholder="AAA Production" label="Name" />
+  <Select label="Select account">
+    <SelectItem>Option 1</SelectItem>
+    <SelectItem>Option 2</SelectItem>
+  </Select>
+  <TextField
+    defaultValue="help-production-db"
+    label="Help channel"
+    invalid="Please enter a valid slack channel"
+  />
+  <MultilineTextField
+    label="Description"
+    info="Info tooltip"
+    placeholder="Placeholder text"
+  />
+  <Button
+    type={Button.TYPE.PRIMARY}
+    sizeType={Button.SIZE_TYPE.SMALL}
+    spacingType={[
+      HeadingText.SPACING_TYPE.EXTRA_LARGE,
+      HeadingText.SPACING_TYPE.NONE,
+    ]}
+  >
+    Create dashboard
+  </Button>
+</Form>
+```
+
+#### Form with required fields
+
+```js
+<Form>
+  <TextField required placeholder="AAA Production" label="Name" />
+  <TextField defaultValue="help-production-db" label="Help channel" />
+  <MultilineTextField
+    label="Description"
+    info="Info tooltip"
+    placeholder="Placeholder text"
+  />
+  <Button
+    type={Button.TYPE.PRIMARY}
+    sizeType={Button.SIZE_TYPE.SMALL}
+    spacingType={[
+      HeadingText.SPACING_TYPE.EXTRA_LARGE,
+      HeadingText.SPACING_TYPE.NONE,
+    ]}
+  >
+    Create dashboard
+  </Button>
+</Form>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Form fields to display.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `layoutType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Layout of the form:
+
+        * Form.LAYOUT_TYPE.NORMAL: The form fields will be aligned vertically
+        * Form.LAYOUT_TYPE.SPLIT: Except for Radio and Checkbox components, the form field labels will be placed on the left side and the input on the right.The `SPLIT` layout supports various sizes which can be specified through the `splitSizeType` prop.
+
+          <OptionReference>
+            Form.LAYOUT_TYPE.NORMALForm.LAYOUT_TYPE.SPLIT
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Form.SPACING_TYPE.EXTRA_LARGE,
+          Form.SPACING_TYPE.LARGE,
+          Form.SPACING_TYPE.MEDIUM,
+          Form.SPACING_TYPE.NONE,
+          Form.SPACING_TYPE.OMIT,
+          Form.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `splitSizeType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Specifies the size of the columns when using the split layout.
+        <OptionReference>Form.SPLIT_SIZE_TYPE.LARGE,
+        Form.SPLIT_SIZE_TYPE.MEDIUM,
+        Form.SPLIT_SIZE_TYPE.SMALL,</OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+  </tbody>
+</table>

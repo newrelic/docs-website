@@ -1,0 +1,136 @@
+---
+title: Actualizar el agente del navegador
+tags:
+  - Browser
+  - Browser monitoring
+  - Installation
+metaDescription: 'How to check your browser agent version number, and update to the latest version of the browser agent.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La ejecución de la última versión de nuestro agente del navegador garantiza que pueda acceder a todas las características y mejoras browser . Para actualizar a la última versión, [verifique su número de versión](#checking) y luego siga los pasos para [actualizar una instalación administrada por APM](#upgrading-apm) o [actualizar una instalación de copiar y pegar](#upgrading-copy-paste).
+
+## Comprueba tu número de versión [#checking]
+
+Para verificar el número de versión de su browser , intente uno de los siguientes:
+
+* Inspeccionar la carga de recolección del agente (`Any Browser Agent Version`):
+
+  1. Abra las herramientas de desarrolladores de su browser.
+  2. Abra la vista en las herramientas de desarrolladores que muestra el tráfico de red.
+  3. Filtre los resultados solo para aquellos que incluyan `nr-data.net`.
+  4. La versión se incluirá en el parámetro de consulta de cada llamada al extremo `nr-data.net` , en el formato de `?v=<version>`.
+
+* Inspeccione el código fuente del fragmento del agente:
+
+  * Para`v1217` o superior:
+
+    1. Ver el código fuente de una página que incluye el fragmento de JavaScript.
+    2. Busque en la fuente de la página `PROD` : la versión se antepondrá en el formato `<version>.PROD`.
+
+  * Para `v1216` o menos:
+
+    1. Ver el código fuente de una página que incluye el fragmento de JavaScript.
+    2. Busque en la fuente de la página `js-agent.newrelic.com/nr-`.
+    3. Los números que siguen `nr-` son su versión actual. Por ejemplo, `js-agent.newrelic.com/nr-593.min.js` indica que está ejecutando la versión `593` del script browser .
+
+* Inspeccione el objeto global newrelic (v1224 o superior):
+
+  1. Abra las herramientas de desarrolladores de su browser.
+  2. Abra la vista de la consola.
+  3. En la consola, ingresa `newrelic.initializedAgents`.
+  4. En el objeto resultante, expanda el objeto de agente relevante.
+  5. Dentro del objeto de agente relevante, busque `runtime.version`.
+
+## Verifique su tipo de instalación
+
+Hay diferentes [tipos de agentes](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#agent-types). Los archivos del cargador del agente Pro+SPA utilizan el formato `js-agent.newrelic.com/nr-loader-<type>-<version>.min.js`. Para verificar la versión del browser script cargador en su página, inspeccione el objeto global newrelic (v1224 o superior):
+
+1. Abra las herramientas de desarrolladores de su browser.
+2. Abra la vista de la consola.
+3. En la consola, ingresa `newrelic.initializedAgents`.
+4. En el objeto resultante, expanda el objeto de agente relevante.
+5. Dentro del objeto de agente relevante, busque `runtime.loaderType`.
+
+## Comprueba si tu versión está desactualizada
+
+Para verificar si la versión de su browser está desactualizada:
+
+1. Consulte la tabla [de fin de vida útil del agente del navegador](/docs/browser/browser-monitoring/getting-started/browser-agent-eol-policy/) .
+2. Si el número de la última versión es mayor que el número de la versión que está ejecutando actualmente, actualice su agente del navegador.
+
+## Verifique el método de implementación [#deploy-method]
+
+Es posible que su agente del navegador se haya [implementado](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#options) de dos maneras: mediante una implementación manual (copiando y pegando el fragmento) o instrumentado automáticamente mediante un agente <InlinePopover type="apm"/>. Para verificar qué método de implementación se utilizó, ejecute este comando en la consola de JavaScript:
+
+```
+> newrelic.info.sa
+```
+
+Si el comando devuelve `1`, entonces su agente del navegador utilizó el [método copiar/pegar](#upgrading-copy-paste).
+
+## Actualice su instalación administrada por APM [#upgrading-apm]
+
+Para actualizar [la instalación de su navegador administrado por APM](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#options), reinicie su agente APM. Su aplicación se actualizará automáticamente al último fragmento de JavaScript.
+
+Para asegurarse de que el nuevo script se registre, es posible que deba borrar su caché. Para obtener más información, siga los procedimientos de resolución de problemas para [verificar y borrar manualmente el caché](/docs/browser/new-relic-browser/troubleshooting/troubleshooting-browser-monitoring-installation#manual_check_cache).
+
+## Actualice su instalación de copiar/pegar [#upgrading-copy-paste]
+
+Utilice cualquiera de las siguientes opciones para acceder al fragmento de JavaScript browser necesario para actualizar una instalación de copiar y pegar. Después de acceder al fragmento, asegúrese de reemplazar <DNT>**all**</DNT> de su fragmento existente con la nueva versión.
+
+* Si tiene una instalación independiente con algunas aplicaciones, puede recuperar el fragmento de la UI y luego reemplazarlo con la nueva versión.
+* Si tiene muchas aplicaciones, puede utilizar la API REST o el cargador extremo para automatizar el proceso de actualización.
+
+<Callout variant="caution">
+  No cambie simplemente el número de versión en el fragmento existente. Esto puede resultar en una recopilación de datos incompleta. Para obtener mejores resultados después de utilizar cualquiera de las siguientes opciones, actualice siempre el agente.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="snippet"
+    title="Recuperar el fragmento de la UI"
+  >
+    Descargue la última versión del fragmento: vaya a <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Browser > (select an app) > Application settings**</DNT>.
+
+    Esta opción sólo está disponible para instalación independiente.
+  </Collapser>
+
+  <Collapser
+    id="rest_api"
+    title="Extraiga el fragmento con la API REST"
+  >
+    Para actualizar el fragmento utilizando la API REST de New Relic, siga el proceso para [ver una aplicación de navegador específica](/docs/apm/apis/browser-examples-v2/adding-or-listing-browser-apps-api-v2#specific-browser-app). El atributo `loader_script` en su respuesta incluirá el último fragmento de JavaScript.
+
+    Esta puede ser una buena solución si tiene muchas aplicaciones que administrar o si la aplicación de su browser está vinculada a una <InlinePopover type="apm"/>aplicación.
+  </Collapser>
+
+  <Collapser
+    id="end_point"
+    title="Actualizar usando el cargador extremo"
+  >
+    Para actualizar el fragmento del extremo del cargador New Relic, puede elegir qué tipo de [agente del navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#agent-types) desea:
+
+    * [Pro+SPA extremo](https://js-agent.newrelic.com/nr-loader-spa-current.min.js)
+
+    * [Pro extremo](https://js-agent.newrelic.com/nr-loader-full-current.min.js)
+
+    * [Lite extremo](https://js-agent.newrelic.com/nr-loader-rum-current.min.js)
+
+      Estos extremos siempre apuntan a la última versión del agente.
+
+      Recomendamos utilizar el agente Pro+SPA. [Lea más sobre estos tipos de agentes.](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#agent-types)
+
+      Estos cargadores extremos son genéricos y no incluyen sus datos de configuración específicos. Para agregar sus datos de configuración a los cargadores:
+
+    1. Encuentre el ID de la aplicación de su navegador y la clave de licencia: siga los procedimientos estándar para utilizar la [UIde New Relic](/docs/browser/new-relic-browser/installation-configuration/copying-your-browser-monitoring-license-key-app-id) o la [API REST](/docs/apm/apis/browser-examples-v2/adding-or-listing-browser-apps-api-v2#specific-browser-app).
+
+    2. Configure el ID de la aplicación de su browser y la clave de licencia inmediatamente después del fragmento.
+
+       ```
+       NREUM.info = { applicationID: "YOUR-APPLICATION-ID",
+                      licenseKey:    "YOUR-BROWSER-LICENSE-KEY" };
+       ```
+  </Collapser>
+</CollapserGroup>

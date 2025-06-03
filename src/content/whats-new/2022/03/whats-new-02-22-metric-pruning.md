@@ -11,6 +11,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/data-apis/manage-data/drop-data-
 Metric aggregate pruning is ideal for high cardinality attributes sometimes included on metrics, such as a container id or other unique identifiers. They contain important details when troubleshooting during an incident (narrow time window), but they lose their value over time and are not relevant when looking for longer term trends.
 
 # How to get started
+
 To learn more, check out our [Docs](https://docs.newrelic.com/docs/data-apis/manage-data/drop-data-using-nerdgraph/#drop-attributes-on-dimensional-metric-rollups).
 
-![Screenshot showing GraphQL mutation for drop rules](./images/metric-pruning.png "Screenshot showing GraphQL mutation for drop rules")
+![Screenshot showing GraphQL mutation for drop rules](/images/metric-pruning.webp 'Screenshot showing GraphQL mutation for drop rules')

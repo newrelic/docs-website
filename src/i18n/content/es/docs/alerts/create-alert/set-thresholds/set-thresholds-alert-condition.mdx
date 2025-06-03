@@ -1,0 +1,162 @@
+---
+title: Establecer umbral para una condición de alerta
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: 'In alerts, thresholds are what determines when a condition will trigger an incident.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Cuando crea una condición, establece <DNT>**thresholds**</DNT> personalizado que determina qué abrirá un incidente. Este documento explica qué son los umbrales y cómo establecerlos.
+
+## ¿Qué es un umbral? [#threshold-definition]
+
+Para una [condición](/docs/using-new-relic/welcome-new-relic/get-started/glossary#alert-condition), los umbrales son las configuraciones que determinan lo que abre un [incidente](/docs/new-relic-solutions/get-started/glossary/#alert-incident). Dependiendo de la [preferencia de creación de problemas](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents) de una política y de cualquier [flujo de trabajo](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/) que haya configurado, un incidente puede resultar en:
+
+* La creación de un problema
+* Notificación siendo enviada
+
+### Hay dos tipos de umbral: [#threshold-types]
+
+* <DNT>**Static**</DNT>: Un valor establecido por usted.
+* <DNT>**Anomaly**</DNT>: Un umbral [de anomalía](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/other-condition-types/create-anomaly-alert-conditions/#set-anomaly-thresholds) utiliza datos pasados para predecir dinámicamente el comportamiento de los datos en el futuro cercano. Esto se ajustará con el tiempo a medida que aprenda los patrones de sus datos.
+
+### Ejemplos de umbral: [#threshold-examples]
+
+* El tiempo de respuesta web promedio de una aplicación es superior a 5 segundos durante 15 minutos.
+* La tasa de errores por minuto de una aplicación alcanza el 10% o más al menos una vez cada hora.
+* El tiempo de respuesta AJAX de una aplicación se desvía en cierta medida de su comportamiento esperado.
+
+Además de un nivel umbral crítico, también puede establecer umbrales para un [nivel de advertencia](#threshold-levels) menos grave.
+
+## Ver y establecer umbral [#viewing-thresholds]
+
+Los umbrales se establecen durante el proceso de [creación de una condición](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions):
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "220px" }}>
+        Meta
+      </th>
+
+      <th>
+        Instrucciones
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Establecer un umbral para una nueva condición
+      </td>
+
+      <td>
+        Establezca un umbral como parte del proceso de [creación de una condición](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions#create-condition).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ver y actualizar el umbral para las condiciones existentes
+      </td>
+
+      <td>
+        Para ver el umbral de una condición: [busque esa condición en la UI](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions#alert-condition-view). Para actualizar el umbral, seleccione el umbral de una condición y realice cambios.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Para obtener más información sobre tipos específicos de condición de alerta (como anomalía y NRQL), consulte [Tipos de condiciones](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions#condition-types).
+
+Detalles sobre otras funciones y reglas:
+
+<CollapserGroup>
+  <Collapser
+    id="use-api"
+    title="Utilice la API de alerta"
+  >
+    Puede enumerar y editar condiciones con [la API de alerta](/docs/alerts/rest-api-alerts/new-relic-alerts-rest-api/rest-api-calls-new-relic-alerts).
+  </Collapser>
+
+  <Collapser
+    id="threshold-levels"
+    title="Establecer umbral"
+  >
+    Puede establecer un umbral para dos niveles: crítico y advertencia. Se debe establecer al menos un umbral.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Nivel de umbral
+          </th>
+
+          <th>
+            Detalles
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <img
+              title="Alerts v3: Critical alert icon"
+              alt="icon-alert-critical.png"
+              src="/images/accounts_icon_alerts-critical.webp"
+            />
+
+            Crítico (rojo)
+          </td>
+
+          <td>
+            Opcional. Abrirá un incidente de nivel de prioridad crítico y enviará una notificación según la [configuración de preferencia de creación de problemas](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents) de la política y cualquier [flujo de trabajo](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/) que configuró. Pérdida de señal umbral, al activar, también abre incidente de nivel de prioridad crítico. Vea [más abajo](/docs/alerts/create-alert/set-thresholds/set-thresholds-alert-condition/#signal-loss) para más detalles.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <img
+              title="Alerts v3: Warning alert icon"
+              alt="icon-alert-warning.png"
+              src="/images/accounts_icon_alert-warning.webp"
+            />
+
+            Advertencia (amarillo)
+          </td>
+
+          <td>
+            Opcional. Abrirá un incidente de nivel de alta prioridad y podrá enviar una notificación dependiendo de la [configuración de preferencia de creación de problemas](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents) de la política y de cualquier [flujo de trabajo](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/) que configuró. Emplee un umbral de advertencia si desea monitor cuándo el comportamiento de un sistema es preocupante o digno de mención pero no lo suficientemente importante como para requerir un umbral de nivel crítico.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="signal-loss"
+    title="Pérdida de señal (solo NRQL)"
+  >
+    Una [pérdida de señal](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#signal-loss) es un período de tiempo en el que New Relic no recibe datos. Esto podría ser el resultado de que una entidad o servicio se desconecte, un problema con un agente o recopilador, o problemas de red en un centro de datos o en Internet. Puede utilizar la detección de pérdida de señal para crear un nuevo incidente si una señal se detiene y espera que el servicio sea estable. También es posible que desee utilizar esto para determinar cuándo se detiene un servicio efímero y configurar la acción para cerrar cualquier incidente abierto que exista para esta condición.
+
+    Es posible que también necesites configurar la pérdida de señal si utilizas `count(*)` o `uniqueCount(*)` en tu consulta. Consulte [las condiciones de NRQL y el orden de las operaciones de consulta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#query-order) para obtener más detalles.
+  </Collapser>
+
+  <Collapser
+    id="time-intervals"
+    title="Establecer intervalos de tiempo"
+  >
+    Los diferentes tipos de condiciones tienen diferentes intervalos de tiempo mínimos. Por ejemplo, algunos tipos de condición tienen un intervalo de tiempo mínimo de 5 minutos (por ejemplo, <InlinePopover type="apm"/>condición métrica de alerta) y otros tienen un intervalo de tiempo mínimo de 1 minuto (por ejemplo, NRQL condición de alerta). Lo mismo ocurre con el intervalo de tiempo máximo, donde la cantidad es de 120 minutos.
+  </Collapser>
+
+  <Collapser
+    id="runbook"
+    title="Establecer URL para instrucciones del runbook"
+  >
+    Para saber cómo configurar esto a través de la UI, consulte [las instrucciones de Runbook](/docs/alerts/new-relic-alerts/defining-conditions/provide-runbook-instructions-alert-activity).
+  </Collapser>
+</CollapserGroup>

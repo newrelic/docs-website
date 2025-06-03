@@ -1,0 +1,117 @@
+---
+subject:  Java agent
+releaseDate:  '2024-11-14'
+version:  8.16.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.16.0/'
+features: []
+bugs: []
+security: []
+---
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.16.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Obfuscate JVM properties [2114](https://github.com/newrelic/newrelic-java-agent/pull/2114)
+<br/>The Java agent will now obfuscate values passed to JVM properties. For example: `-Dprop=12345` will now be sent as `-Dprop=obfuscated`. The [documentation](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#jvm-properties-obfuscation) has information on how to disable obfuscation and how to add exceptions.
+
+
+* Cloud API [2081](https://github.com/newrelic/newrelic-java-agent/pull/2081)
+<br/>The Cloud API allows cloud provider account information to be provided to the agent. This will allow the agent to populate the `cloud.resource_id` attribute in calls to select cloud services.
+<br/>The [API documentation](/docs/apm/agents/java-agent/api-guides/guide-using-java-agent-api/#additional) has information on how to use it programmatically.
+<br/>This information can also be provided using a [configuration option](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#aws-account_id).
+
+
+* Support distributed tracing for Kafka Stream 3.7.x [2095](https://github.com/newrelic/newrelic-java-agent/pull/2095)
+
+* Report if agent was installed via Azure site extension [2094](https://github.com/newrelic/newrelic-java-agent/pull/2094)
+
+* Lazy initialization of GUIDs on DefaultTracers [2088](https://github.com/newrelic/newrelic-java-agent/pull/2088)
+
+* Java HttpClient:  Addition of status code to reported externals [2089](https://github.com/newrelic/newrelic-java-agent/pull/2089)
+
+* AWS Lambda: populate `cloud.resource_id` using data from Cloud API [2115](https://github.com/newrelic/newrelic-java-agent/pull/2115)
+
+* Kinesis Data Streams: populate `cloud.resource_id` [2112](https://github.com/newrelic/newrelic-java-agent/pull/2112)
+
+* DynamoDB: populate `cloud.resource_id` [2113](https://github.com/newrelic/newrelic-java-agent/pull/2113)
+
+## Fixes
+
+* Use recordResponseTimeMetric instead of recordMetric [2128](https://github.com/newrelic/newrelic-java-agent/pull/2128)
+
+* Use WeakReference HttpUrlConnection instrumentation [2082](https://github.com/newrelic/newrelic-java-agent/pull/2082)
+
+* Fix a bug where Jetty 12 would not properly link distributed traces [2140](https://github.com/newrelic/newrelic-java-agent/pull/2140)
+
+* Update to JFR daemon 1.13.0 [2129](https://github.com/newrelic/newrelic-java-agent/pull/2129)
+<br/>This update changes the HTTP client used, which caused problems with some proxies.
+
+
+## IAST
+
+* CSEC version bump to 1.5.1 [2076](https://github.com/newrelic/newrelic-java-agent/pull/2076)
+
+* Changelog: https://github.com/newrelic/csec-java-agent/releases/tag/1.5.1
+
+
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you're moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).
+
+

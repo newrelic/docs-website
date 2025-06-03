@@ -1,0 +1,126 @@
+name: update PR comment after Netlify notification
+env:
+  repo: ${{ github.repository }}
+on:
+  workflow_dispatch:
+    inputs:
+      prNumber:
+        description: PR to update with build status
+        required: true
+        type: number
+      buildStatus:
+        description: current build status from Netlify
+        required: true
+        type: choice
+        options:
+          - building
+          - ready
+          - error
+      deployUrl:
+        description: URL of live branch deploy
+        required: false
+      deployLogUrl:
+        description: URL of logs
+        required: true
+      sha:
+        description: SHA hash of the commit built
+        required: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      # set body of the PR comment
+      - name: construct message
+        id: construct-message
+        run: |
+          case '${{ inputs.buildStatus }}' in
+            "building")
+              comment_body=$(cat <<-END
+          ### <span aria-hidden="true">⏳</span> Deploy Preview building!
+
+          |  Name | Link |
+          |:-:|------------------------|
+          |<span aria-hidden="true">🔨</span> Latest commit | ${{ inputs.sha }} |
+          |<span aria-hidden="true">🔍</span> Latest deploy log | ${{ inputs.deployLogUrl }} |
+          ---
+          END
+              )
+              ;;
+            "ready")
+              comment_body=$(cat <<-END
+          ### <span aria-hidden="true">✅</span> Deploy Preview ready!
+
+          |  Name | Link |
+          |:-:|------------------------|
+          |<span aria-hidden="true">🔨</span> Latest commit | ${{ inputs.sha }} |
+          |<span aria-hidden="true">🔍</span> Latest deploy log | ${{ inputs.deployLogUrl }} |
+          |<span aria-hidden="true">😎</span> Deploy Preview | [${{ inputs.deployUrl }}](${{ inputs.deployUrl }}) |
+          ---
+          END
+              )
+              ;;
+            "error")
+              comment_body=$(cat <<-END
+          ### <span aria-hidden="true">❌</span> Deploy Preview failed!
+
+          |  Name | Link |
+          |:-:|------------------------|
+          |<span aria-hidden="true">🔨</span> Latest commit | ${{ inputs.sha }} |
+          |<span aria-hidden="true">🔍</span> Latest deploy log | ${{ inputs.deployLogUrl }} |
+          ---
+          END
+              )
+              ;;
+          esac
+          {
+          echo 'comment_body<<EOF'
+          echo "$comment_body"
+          echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: update PR check - pending
+        if: ${{ inputs.buildStatus == 'building' }}
+        env: 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method POST \
+            -f state='pending' \
+            -f target_url='${{ inputs.deployLogUrl }}' \
+            -f description='The build has started' \
+            -f context='netlify/build' \
+            /repos/${{ env.repo }}/statuses/${{ inputs.sha }}
+
+      - name: update PR check - error
+        if: ${{ inputs.buildStatus == 'error' }}
+        env: 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method POST \
+            -f state='failure' \
+            -f target_url='${{ inputs.deployLogUrl }}' \
+            -f description='The build has failed' \
+            -f context='netlify/build' \
+            /repos/${{ env.repo }}/statuses/${{ inputs.sha }}
+
+      - name: update PR check - ready
+        if: ${{ inputs.buildStatus == 'ready' }}
+        env: 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method POST \
+            -f state='success' \
+            -f target_url='${{ inputs.deployLogUrl }}' \
+            -f description='The build has finished successfully' \
+            -f context='netlify/build' \
+            /repos/${{ env.repo }}/statuses/${{ inputs.sha }}
+
+      - name: update PR comment with Netlify status
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: ${{ steps.construct-message.outputs.comment_body }}
+          pr_number: ${{ inputs.prNumber }}
+          comment_tag: manual-build-comment

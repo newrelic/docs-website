@@ -10,11 +10,11 @@ The New Relic Netlify integration is built for enterprise customers who want vis
 
 Here are some key benefits:
 
-* User traffic monitoring: Identify traffic from bots and bad actors, which can help your security and compliance engineers proactively defend your sites.
-* Access and analyze your Netlify traffic logs: Traffic logs are only accessible through log drains, not the Netlify UI.
-* Long-term log retention: The Netlify console provides a 24-hour storage window for logs. The Netlify console provides a 24-hour storage window for function logs. With New Relic One, you get long-term cold storage for your Netlify log data and the ability to make month-over-month comparisons.
-* User agent analytics: Analyze your user agents for performance issues.
-* Session tracking: Gain insight into user activity and journeys across your sites.
+- User traffic monitoring: Identify traffic from bots and bad actors, which can help your security and compliance engineers proactively defend your sites.
+- Access and analyze your Netlify traffic logs: Traffic logs are only accessible through log drains, not the Netlify UI.
+- Long-term log retention: The Netlify console provides a 24-hour storage window for logs. The Netlify console provides a 24-hour storage window for function logs. With New Relic One, you get long-term cold storage for your Netlify log data and the ability to make month-over-month comparisons.
+- User agent analytics: Analyze your user agents for performance issues.
+- Session tracking: Gain insight into user activity and journeys across your sites.
 
 ## How to configure the plugin with New Relic
 
@@ -22,8 +22,4 @@ Open the [Instant Observability (I/O) quickstart](https://newrelic.com/instant-o
 
 Alternatively, you can follow along manually using the [documentation](https://docs.netlify.com/monitor-sites/log-drains/).
 
-![Netlify Dashboard](./images/netlify-logs_dashboard_2022-03-30.png  "Netlify Dashboard")
-
-
-
-
+![Netlify Dashboard](/images/netlify-logs_dashboard_2022-03-30.webp 'Netlify Dashboard')

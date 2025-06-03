@@ -1,0 +1,33 @@
+---
+subject: Node.js agent
+releaseDate: '2022-12-06'
+version: 9.7.1
+features: ["Reintroduce throttling during startup to prevent EMFILE issues.","Add a new test stanza to run Restify >=10 on Node 18.","Add `newrelic.noticeError()` example to our API docs.","Remove async from benchmark tests, fix failing benchmark suites, and remove deprecated suites."]
+bugs: []
+security: []
+downloadLink: 'https://www.npmjs.com/package/newrelic'
+---
+
+## Notes
+
+* Reintroduced throttling during reading of instrumented application's dependency tree during startup, to prevent EMFILE issues.
+
+* Improved Restify support
+  * Added a new test stanza to run restify >=10 on Node 18.
+  * Update our versioned tests to support Restify 9.0.0.
+
+* Laid foundation for supporting Code Level Metrics via [CodeStream](/docs/codestream/how-use-codestream/performance-monitoring/). Note that this integration is not fully finished and should not be used.
+
+* Improved the readability and maintainability of agent by reducing the [Cognitive Complexity](https://www.sonarsource.com/resources/cognitive-complexity/) of various aspects of the agent.
+
+* Added `newrelic.noticeError()` example to our API docs.
+
+* Upgraded @grpc/grpc-js from 1.6.9 to 1.7.3.
+
+* Upgraded @grpc/proto-loader from 0.6.13 to 0.7.3.
+
+* Removed async from benchmark tests, fixed failing benchmark suites, and removed deprecated suite.
+
+### Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software).

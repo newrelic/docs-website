@@ -1,0 +1,69 @@
+---
+title: Monitoreo de mejores prácticas del navegador en Java
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: Best practices for setting up browser monitoring with your New Relic Java agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede utilizar [el monitoreo del navegador](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser) con <InlinePopover type="apm"/>para Java para medir los tiempos de carga del usuario final. Este documento explica las mejores prácticas para configurar <InlinePopover type="browser"/>. Para obtener información sobre cómo configurar el monitoreo del navegador para su aplicación Java, consulte [monitoreo del navegador y el agente de Java](/docs/agents/java-agent/instrumentation/page-load-timing-java).
+
+## Asegúrese de estar utilizando el compilador Apache Jasper. [#jasper]
+
+El agente de Java New Relic sólo auto-instrumentado páginas compiladas con el compilador Apache Jasper. Los siguientes servidores de aplicaciones utilizan el compilador Jasper de forma predeterminada:
+
+* Tomcat
+* Jetty
+* Glassfish
+* JBoss 4
+
+## Coloque metaetiquetas inmediatamente después de la etiqueta principal inicial. [#meta-tags]
+
+Recomendación: coloque todas las etiquetas `<meta>` inmediatamente luego de la etiqueta `<head>` inicial. Algunas metaetiquetas tienen requisitos sobre qué tan cerca deben estar del comienzo de un documento HTML. [La codificación de caracteres](http://www.w3.org/TR/html-markup/syntax.html#character-encoding) debe declarar dentro de los primeros 512 bytes del documento HTML. Si el encabezado New Relic se coloca antes de la codificación de caracteres, es posible que la codificación de caracteres esté fuera de ese límite de 512 bytes. Colocar la metaetiqueta de codificación de caracteres inmediatamente luego de la etiqueta `<head>` garantizará que el encabezado New Relic se coloque luego de la codificación de caracteres.
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<%= com.newrelic.api.agent.NewRelic.getBrowserTimingHeader() %>
+ . . .
+</head>
+```
+
+La metaetiqueta `X-UA-Compatible` debe estar dentro de las metaetiquetas inmediatamente después de la etiqueta `<head>` . Esta etiqueta permite a los autores de páginas configurar el modo de documento utilizado para representar la página en Internet Explorer. Esta etiqueta debe colocarse antes de cualquier etiqueta de script. Si el encabezado New Relic se coloca antes de la metaetiqueta `X-UA-Compatible` , es posible que la página se muestre incorrectamente en Internet Explorer.
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=9">
+<%= com.newrelic.api.agent.NewRelic.getBrowserTimingHeader() %>
+ . . .
+</head>
+```
+
+## Evite las declaraciones if... else en la sección principal. [#if-else]
+
+El script de instrumentación automática no reconoce declaraciones `if ... else` dentro de una página JSP. Si tiene un bloque `if ... else` antes de su primera etiqueta que no sea meta ni título, es posible que el encabezado New Relic esté colocado en la posición incorrecta de la página. Por ejemplo, este código podría provocar que el script de instrumentación automática se inserte antes de la metaetiqueta:
+
+```
+if (expression) {
+  <nonmeta tag>
+}
+<meta tag>
+<meta tag>
+```
+
+## Evite expresiones con el signo menor que en la sección principal. [#for-loops]
+
+El agente de Java New Relic busca el corchete angular abierto `<` para marcar el comienzo de una etiqueta HTML. Esto significa que si tiene una expresión que usa un signo menor que, deberá cambiar su expresión para usar un signo mayor que o usar instrumentación manual. Por ejemplo:
+
+```
+<head>
+<% for (i = 0; i < variable; i++)
+. . . 
+%>
+```

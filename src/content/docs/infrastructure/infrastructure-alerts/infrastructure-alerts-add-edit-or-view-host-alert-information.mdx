@@ -1,0 +1,281 @@
+---
+title: 'Alerts for infrastructure: Add, edit, or view host alert information'
+tags:
+  - Infrastructure
+  - Infrastructure alerts
+  - Infrastructure alert conditions
+metaDescription: Integrate infrastructure monitoring with New Relic alerts to define and view conditions that trigger alert notifications for your hosts.
+redirects:
+  - /docs/servers/servers-dashboards/servers-ui/view-servers-alert-policies-conditions
+  - /docs/servers/servers-dashboards/servers-ui/view-servers-alert-information
+  - /docs/add-edit-or-view-host-alert-information
+  - /docs/infrastructure-alerts-add-edit-or-view-host-alert-information
+  - /docs/infrastructure-add-edit-or-view-host-alert-information
+  - /docs/servers/servers-pages/servers-ui/view-servers-alert-information
+  - /docs/server/server-monitoring-alerts
+  - /docs/infrastructure/new-relic-infrastructure/configuration/infrastructure-alerts-add-edit-or-view-host-alert-information
+  - /docs/servers/servers-pages/servers-ui/alert-information-new-relic-servers
+  - /docs/infrastructure/new-relic-infrastructure/advanced-alerts/infrastructure-alert-conditions
+freshnessValidatedDate: never
+---
+
+With New Relic's infrastructure monitoring, you can create [alert conditions](/docs/alerts/new-relic-alerts/getting-started/alerts-glossary#alert-condition) directly within the context of what you're currently monitoring with New Relic.
+
+For example, if you've used the [filter bar](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities) to filter to a specific set of hosts, and you notice a problem, you can create an alert from the infrastructure UI. To create the alert, select a saved filter view, and tailor the alert condition directly from the chart you're viewing. This helps you proactively manage and monitor the alerting system for your environment.
+
+Want to try out alert conditions with our infrastructure agent? [Create a New Relic account](https://newrelic.com/signup) for free! No credit card required.
+
+## Create alert conditions for infrastructure [#create-condition]
+
+Alert conditions apply to alert [policies](/docs/alerts/new-relic-alerts/getting-started/alerts-glossary#alert-policy). You can select an existing policy or create a new policy with email notifications from our infrastructure UI. If you want to use other types of [notification channels](/docs/alerts/new-relic-alerts/managing-notification-channels/notification-channels-controlling-where-send-alerts), create a [new policy](/docs/alerts/new-relic-alerts/configuring-alert-policies/name-or-rename-alert-policy) from within the <InlinePopover type="alerts"/> UI.
+
+<Callout
+  id="rest-api-alert-limit"
+  variant="important"
+>
+  The Infrastructure REST API has a limit of 3,700 alert conditions, including both active <DNT>**and**</DNT> disabled conditions. The API, whether used directly or via the UI, will reject all requests to add any additional alert conditions beyond the 3,700 alert condition limit.
+</Callout>
+
+To add an infrastructure alert condition to an alerts policy:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure**</DNT>. Mouse over a chart you want to alert on, select the ellipses <Icon name="fe-more-horizontal"/> icon, and then select <DNT>**Create alert condition**</DNT>.
+2. Type a meaningful condition name.
+3. Select the <DNT>**Alert type**</DNT>, or refer to the [examples](/docs/infrastructure/new-relic-infrastructure/infrastructure-alert-conditions/infrastructure-alerting-examples) to decide which type to select.
+4. Create individual filters, or copy all the filters from the [entity filter bar](/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities) to identify the hosts that you want the alert condition to use.
+5. Define the <DNT>**Critical**</DNT> (required) and <DNT>**Warning**</DNT> (optional, if available) [thresholds](/docs/alerts/new-relic-alerts/getting-started/alerts-glossary#alert-threshold) for triggering the alert notification.
+6. Optional: To create the condition criteria proactively but not receive alert notifications at this time, turn off the [<DNT>**Enabled**</DNT> checkbox option](/docs/infrastructure/new-relic-infrastructure/configuration/infrastructure-alerts-add-edit-or-view-host-alert-information#enabled).
+7. Select an existing policy for the new condition.
+
+   OR
+
+   Select the option to create a new policy and identify the email for alert notifications.
+8. Optional: Add a [runbook url](#runbook-url-infrastructure).
+9. Optional: Set the [<DNT>**Close open incidents after**</DNT>](#incident-time-limit) time limit to automatically close open incidents after a certain amount of time (this defaults to 24 hours for infrastructure conditions).
+10. Select <DNT>**Create**</DNT>.
+
+<Callout variant="important">
+  If New Relic hasn't received a cloud integration service's attribute in the past 60 minutes, we refer to this as a "silent attribute," and it won't be available to use as an alert condition in the UI. In this situation, you can use the [API](/docs/infrastructure/new-relic-infrastructure/infrastructure-alert-conditions/rest-api-calls-new-relic-infrastructure-alerts/) to create alert conditions for silent attributes.
+</Callout>
+
+## Other infrastructure alert condition methods [#methods]
+
+You can also use these other methods to create an infrastructure alert condition:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="alerts-ui"
+    title="Use the alerts UI"
+  >
+    Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Alert policies > New alert policy > Create new condition**</DNT>, then select <DNT>**Infrastructure**</DNT> as the product.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="infrastructure-ui"
+    title="Use the Infrastructure UI"
+  >
+    1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Hosts**</DNT>.
+    2. Mouse over the chart you want to alert on, select the ellipses <Icon name="fe-more-horizontal"/> icon, and then select <DNT>**Create alert**</DNT>.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="integration"
+    title="Use infrastructure settings for integrations"
+  >
+    <Callout variant="tip">
+      Use this method to create an alert condition for infrastructure integrations.
+    </Callout>
+
+    1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Settings > Alerts**</DNT>, and then click <DNT>**Create alert condition**</DNT>.
+    2. Name and describe the alert condition.
+    3. Click the <DNT>**Integrations**</DNT> alert type, and then select the integration data source you'd like to use.
+    4. Use the <DNT>**Filter entities**</DNT> dropdown to limit your condition to specific attributes.
+    5. Use the <DNT>**Define thresholds**</DNT> dropdowns to define your condition's thresholds, and then click <DNT>**Create**</DNT>.
+
+       The configuration settings are optional. You can always update them later.
+  </Collapser>
+</CollapserGroup>
+
+## View host alert events [#view-alerts]
+
+Anyone included in the policy's [notification channels](#notification) receive alert notifications directly. In addition, anyone with permissions for your New Relic account can view infrastructure alert incidents and individual incidents through the user interface.
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Events**</DNT>.
+2. To change the hosts or time frame, use the search window, entity filter bar, or time functions.
+3. From the <DNT>**Events**</DNT> list, select the alert incident.
+4. To [view detailed information in alerts](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/view-event-details-incidents) about the selected incident, select the link.
+
+## Update or delete host alert information [#maintain-alerts]
+
+To edit, disable (or re-enable), or delete host alert information:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Settings > Alerts**</DNT>.
+2. Optional: Use the search window or <DNT>**Select all**</DNT> checkbox to locate one or more alert conditions.
+3. Select any of the available functions to <Icon name="fe-edit-2"/>
+   edit, disable, enable, or <Icon name="fe-trash-2"/>
+   delete the selected conditions.
+
+## Use alerts to monitor your entire infrastructure [#nr-alerts]
+
+[Alerts](/docs/alerts/new-relic-alerts-beta/getting-started/new-relic-alerts) provides a single, coordinated alerting tool across all of your New Relic products. This allows you to manage [alert policies](/docs/alerts/new-relic-alerts-beta/getting-started/alerts-glossary#alert-policy) and [conditions](/docs/alerts/new-relic-alerts-beta/getting-started/alerts-glossary#alert-condition) that focus on the metrics for [entities](/docs/alerts/new-relic-alerts-beta/getting-started/alerts-glossary#alert-entity) that you care about the most, such as Docker containers, JVMs, and more.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        <DNT>
+          **Alert features**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Features in infrastructure monitoring**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Alert conditions
+      </td>
+
+      <td>
+        * Create: Use the [Infrastructure](#create-condition) UI.
+        * View, change, disable (or re-enable), or delete: Use the [Infrastructure <DNT>**Settings > Alerts**</DNT>](#maintain-alerts) UI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Information on alerts
+      </td>
+
+      <td>
+        * View summary information about [events](/docs/alerts/new-relic-alerts/getting-started/alerts-glossary#event): Use the [Infrastructure <DNT>**Events**</DNT>](#view-alerts) UI.
+        * View detailed information about [alert incidents](/docs/new-relic-solutions/get-started/glossary/#alert-incident): Use the [alerts](/docs/alerts/new-relic-alerts/reviewing-alert-incidents/explore-incident-history-incidents-index) UI or the [notification channel](#notification) integrated with the associated policy.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Alert policies
+      </td>
+
+      <td>
+        View, add, change, disable, or delete:
+
+        * For policies with a variety of notification channels: Use the [alerts](/docs/alerts/new-relic-alerts/updating-alert-policies/change-alert-policies) UI.
+        * For policies only needing [email notifications](#notification): Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Settings > Alerts > Create a new policy**</DNT>, and add one or more email addresses as needed.
+
+          Add host conditions to an existing policy: Use the [Infrastructure](#create-condition) UI.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Notification channels
+      </td>
+
+      <td>
+        To view, add, change, or delete [available notification options](#notification):
+
+        1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Settings > Alerts**</DNT>.
+        2. Optional: Search for the condition or policy name.
+        3. From the list of conditions, select the policy link to view notification channel information in the alerts UI.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Add a description [#description]
+
+The use of the <DNT>**Description**</DNT> field is available for these alert condition types:
+
+* NRQL conditions: add a description using the [NerdGraph API](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-alerts-nrql-conditions).
+* Infrastructure conditions: add a description using the UI or the REST API.
+
+The text you place in an alert condition's <DNT>**Description**</DNT> field is passed downstream to associated incidents and notifications. A description can be used for several purposes, including:
+
+* Capturing the reason for the alert condition.
+* Defining the signal being monitored.
+* Defining next steps.
+* Add metadata to downstream systems.
+
+You can use template substitution to insert values from the attributes in the associated incident event. The template format is `{{attributeName}}`. For the attributes you can use when creating a description, see [incident event attributes](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes).
+
+One available attribute is the special `{{tag.*}}` attribute. This attribute prefix is used to access any of the tag values that are included with the target signal, or any of the entity tags that are associated with the target signal.
+
+If there are entity tags associated with your incident, then they can be accessed using the entity tag name. An example of this would be `{{tag.aws.awsRegion}}`. When entity tags are available to use, you see them included with the incident, and displayed when you view the incident.
+
+This field has a maximum character size of 4,000.
+
+## Add or edit a runbook URL [#runbook-url-infrastructure]
+
+The [alert condition creation process](#create-condition) includes an option for setting a URL for runbook instructions. This lets you link to information or standard procedures for handling an incident. Before adding or updating the link, make sure you use a valid URL.
+
+To add, update, or delete an alert condition's runbook URL:
+
+1. Select an alert condition, and make changes to the <DNT>**Runbook URL**</DNT> link.
+2. Save the condition.
+
+In order to be saved, the URL must be a valid URL.
+
+## Incident time limit [#incident-time-limit]
+
+The incident time limit allows you to define a time period after which incidents will be force-closed. By default, incident time limit is 24 hours for insfrastructure conditions.
+
+To add or update an alert condition's incident time limit:
+
+1. Select an alert condition, and make changes to the incident time limit.
+2. Save the condition.
+
+## Alert conditions that generate too-long NRQL queries [#alert-nrql-error]
+
+Alert conditions created for infrastructure rely on behind-the-scenes NRQL queries, and NRQL queries have a 4096-character limit. This means that if your condition generates a very complex NRQL query that filters on many elements (for example, including many hosts or many tags), it will exceed this limit and display an error message saying that the condition failed.
+
+To solve this problem, reduce the number of elements you are using in your alert condition. For example:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Problem
+      </th>
+
+      <th>
+        Solution
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Hosts
+      </td>
+
+      <td>
+        * If you entered a large number of hosts that caused the condition to fail, reduce the number of hosts.
+        * Use substrings to target hosts. For example, instead of targeting `prod-host-01`, `prod-host-02`, and `prod-host-03`, just target all hosts with `prod-host-0` in the name.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entities
+      </td>
+
+      <td>
+        * Edit your alert condition to target specific attributes that apply to the entities you're trying to target.
+        * Create custom attributes for the entities you want to target, and use those attributes in your alert condition.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For more information, see [Best practices for filtering in infrastructure alerts](https://discuss.newrelic.com/t/relic-solution-best-practice-for-filtering-in-infrastructure-alerts/58065) in New Relic's Support Forum.

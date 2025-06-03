@@ -1,0 +1,252 @@
+---
+title: 'CheckboxGroup'
+metaDescription: 'Learn how to work the CheckboxGroup component'
+freshnessValidatedDate: 2024-06-03
+---
+
+A group of `<Checkbox>` buttons. The `<Checkbox>` buttons may either be direct children or descendants of the checkbox group.
+
+**Note**: Setting `value` will override `defaultValue` as it puts the group of checkboxes into a controlled state. `value` will not override checkboxes that have `checked` set, as `CheckboxGroup` will take control of uncontrolled `Checkbox` components and can't override controlled ones. `value` will however override `defaultChecked` on `Checkbox`.
+
+The `onChange` event handler for `CheckboxGroup` will fire after any `onChange` event handler set on individual `Checkbox` components. However, it is highly recommended to only set one event handler for the whole group in a controlled `CheckboxGroup`.
+
+`Checkbox` components **must** have a `value` set on them in order to be controlled by `CheckboxGroup`.
+
+### Usage
+
+```js
+import { CheckboxGroup } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<CheckboxGroup label="My checkbox group">
+  <Checkbox label="Checkbox 1" />
+  <Checkbox label="Checkbox 2" />
+  <Checkbox label="Checkbox 3" />
+</CheckboxGroup>
+```
+
+#### With label and info
+
+```js
+<CheckboxGroup label="My checkbox group" info="Info value">
+  <Checkbox label="Checkbox 1" />
+  <Checkbox label="Checkbox 2" />
+  <Checkbox label="Checkbox 3" />
+</CheckboxGroup>
+```
+
+#### With inline label
+
+```js
+<CheckboxGroup label="My checkbox group" labelInline>
+  <Checkbox label="Checkbox 1" />
+  <Checkbox label="Checkbox 2" />
+  <Checkbox label="Checkbox 3" />
+</CheckboxGroup>
+```
+
+#### With description
+
+```js
+<CheckboxGroup label="My checkbox group" description="Description value">
+  <Checkbox label="Checkbox 1" />
+  <Checkbox label="Checkbox 2" />
+  <Checkbox label="Checkbox 3" />
+</CheckboxGroup>
+```
+
+#### With invalid message
+
+```js
+<CheckboxGroup label="My checkbox group" invalid="Invalid message value">
+  <Checkbox label="Checkbox 1" />
+  <Checkbox label="Checkbox 2" />
+  <Checkbox label="Checkbox 3" />
+</CheckboxGroup>
+```
+
+#### With default values
+
+```js
+<CheckboxGroup label="My checkbox group" defaultValue={['1', '2']}>
+  <Checkbox label="Checkbox 1" value="1" />
+  <Checkbox label="Checkbox 2" value="2" />
+  <Checkbox label="Checkbox 3" value="3" />
+</CheckboxGroup>
+```
+
+#### Controlled component
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      values: ['2'],
+    };
+
+
+    this.onChange = this.onChange.bind(this);
+  }
+
+
+  onChange(event, values) {
+    this.setState({ values });
+  }
+
+
+  render() {
+    return (
+      <CheckboxGroup value={this.state.values} onChange={this.onChange}>
+        <Checkbox label="Checkbox 1" value="1" />
+        <Checkbox label="Checkbox 2" value="2" />
+        <Checkbox label="Checkbox 3" value="3" />
+      </CheckboxGroup>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Content of the CheckboxGroup.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>string\[]</h5>
+      </td>
+
+      <td>
+        Default values of the checkbox group. The `<Checkbox>` components with matching values will be selected.Useful when you don't want to use a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean\|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the checkbox group value changes (a `<Checkbox>` in the group is selected).
+        <FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.ChangeEvent","description":"Event source of the callback."},{"name":"value","type":"string[]","description":"The values of the selected checkboxes."}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string\[]</h5>
+      </td>
+
+      <td>
+        Values of the checkbox group. The `<Checkbox>` components with matching values will be selected.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,323 @@
+---
+title: Send data using the security data API
+redirects:
+- /docs/vulnerability-management/integrations/security-api
+- /docs/vulnerability-management/integrations/security-data-api
+metaDescription: 'Send your security data using our security data API.'
+freshnessValidatedDate: never
+---
+
+Send custom vulnerability or security data to New Relic through our security data API through a simple POST request. Use the API if we don't currently support your security service with an integration or if sending security data through an API fits your custom workflow better.
+
+## Prerequisites
+
+* A New Relic <InlinePopover type="licenseKey"/> for the account you want to report data to.
+
+## Send data to New Relic [#send-data]
+
+To send vulnerability or other security data, send a JSON object via POST method containing a findings array. Each object in the array describes a detected vulnerability or other security event.
+Make sure to include the security endpoint for New Relic. Use one of the following according to your region:
+
+* For the US, `https://security-api.newrelic.com/security/v1`
+* For EU, `https://security-api.service.eu.newrelic.com/security/v1`
+
+Here's an example POST request. We'll take a look at individual components in the next section:
+
+```shell
+curl -X POST https://security-api.newrelic.com/security/v1 \
+  -H "Content-Type: application/json" \
+  -H "Api-Key: INSERT_YOUR_API_KEY " \
+  -d '{
+    "findings": [
+        {
+            "source": "Insert security tool name, such as Snyk",
+            "title": "Insert a short description of security issue",
+            "message": "Insert long description and remediation advice",
+            "issueType": "Insert Library|Container|Host Vulnerability",
+            "issueId": "Insert vulnerability identifier like CVE, CWE, CIS, etc.",
+            "issueVendorId": "Vendor-specific identifier if different from issueId",
+            "issueInstanceKey": "Insert the unique path to this instance of the issue",
+            "disclosureUrl": "Insert a URL to additional information on the issue",
+            "severity": "Insert CRITICAL|HIGH|MEDIUM|LOW|INFO",
+            "remediationExists": Insert boolean true | false (no quotation marks),
+            "remediationRecommendation": "Explain the action to take",
+            "detectedAt": "Insert timestamp when detected, in milliseconds since epoch",
+            "entityType": "Insert Host|Service|Repository|Image|AWS",
+            "entityLookupValue": "Insert a URL to find entity",
+            "entityGuid": "ABCDEFG",
+            "customFields": {
+                "sourceDetailInfo": "DecadeCoffee"
+            }
+        }
+    ]
+}'
+```
+
+## URL Parameters [#url-params]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `repository`
+      </td>
+
+      <td>
+        Optional: The respositiory url for the application with your integration.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Required fields [#req-fields]
+
+The following fields are required in the request:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Field
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `source`
+      </td>
+
+      <td>
+        The user-friendly name of the security tool that generated this event such as `Snyk` or `Dependabot`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title`
+      </td>
+
+      <td>
+        A short (50-100 character) summary of the issue. Should be suitable for use as a page title or table cell content.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `message`
+      </td>
+
+      <td>
+        Detailed description of the issue, including explanation of the finding and how to remediate it. May include markdown.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issueType`
+      </td>
+
+      <td>
+        An issue type supported by New Relic. Currently these are:
+
+        * `Library Vulnerability`
+        * `Container Vulnerability`
+        * `Host Vulnerability`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issueId`
+      </td>
+
+      <td>
+        A standard identifier for the detected issue. For example, the CVE or CWE identifier, or the  CIS benchmark rule. If multiple tools detect the same issue, the `issueId` should be the same across all tools.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `severity`
+      </td>
+
+      <td>
+        The defined community consensus on the severity of the issue or the scanning tool. This should be one of the following:
+
+        * `CRITICAL`
+        * `HIGH`
+        * `MEDIUM`
+        * `LOW`
+        * `INFO`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entityType`
+      </td>
+
+      <td>
+        Used to correlate reported issue to an [entity](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) known to the New Relic platform. Must be one of the types recognized by the entity search api, or special cases supported by Security API (`Image` and `AWS`).
+
+        An example with `entityLookupValue` would be:
+
+        ```json
+        "entityType": "AWS",
+        "entityLookupValue": "arn:aws:rds:us-east-2:403720000000:db:my-database"
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entityLookupValue`
+      </td>
+
+      <td>
+        Used to find the appropriate entity of that type.
+
+        An example with `entityType` would be:
+
+        ```json
+        "entityType": "Repository",
+        "entityLookupValue": "https://github.com/newrelic/ruby_agent"
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entityGuid`
+      </td>
+
+      <td>
+        A unique identifier for a specific entity within the New Relic platform, essential for tracking and managing applications, services, or infrastructure components.
+
+        An example of `entityGuid` would be:
+
+        ```
+        "entityGuid": "MTI1NjM5fEFQfEFQUExJQ0FUSU9OfDEyMzQ1Njc4OQ"
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Optional fields [#optional-fields]
+
+Your request may contain any of the following optional fields:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Field
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `cvssScore`
+      </td>
+
+      <td>
+        The CVSSv3 score assigned to the CVE, as a floating point number in JSON/
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cvssVector`
+      </td>
+
+      <td>
+        The CVSSv3 vector describing this CVE.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issueInstanceKey`
+      </td>
+
+      <td>
+        A path or identifier that uniquely identifies the occurrence of this instance of the vulnerability from other instances in the same repo, service, entity, or account. For example: full path to file plus the line number for a source code finding, or path to a vulnerable binary on a host or in a container image. The instance key should be identical for repeat findings of the same issue while differentiating multiple instances that each need remediation. If not provided, the resolved `entityGuid` or user-supplied `entityLookupValue` is used.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issueVendorID`
+      </td>
+
+      <td>
+        Vendor-specific identifier for the issue, if different from `issueId`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disclosureUrl`
+      </td>
+
+      <td>
+        A URL to additional information on the issue, either from the source tool vendor’s website or public disclosure references. Should be a trustworthy source.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `remediationExists`
+      </td>
+
+      <td>
+        Boolean indicating whether a fix for the issue is known to exist.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `remediationRecommendation`
+      </td>
+
+      <td>
+        Short-form text explaining the action to take for remediation. For 3rd party dependencies, use the form `upgrade PACKAGE_NAME to X.Y.Z`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `detectedAt`
+      </td>
+
+      <td>
+        Timestamp of when the issue was detected, in milliseconds since epoch. If not provided, we use the moment data is sent to New Relic.  
+
+      </td>
+    </tr>
+  </tbody>
+</table>

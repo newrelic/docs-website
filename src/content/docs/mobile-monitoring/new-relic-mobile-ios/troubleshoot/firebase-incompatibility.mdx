@@ -1,0 +1,30 @@
+---
+title: Third Party Incompatibility (iOS)
+type: troubleshooting
+tags:
+  - Mobile monitoring
+  - New Relic Mobile iOS
+  - Troubleshoot
+metaDescription: 'New Relic iOS agent cannot coexist with Firebase PerfMon SDK'
+freshnessValidatedDate: never
+---
+
+## Problem
+
+Conflicts, crashes, or errors can show when both the New Relic iOS agent and other third party telemetry data tracking agents like Firebase are included within an app.
+
+Known errors:
+
+* Crash in the instrumented functions.
+* Failure to capture crash logs.
+
+## Solution
+
+Our iOS agent and other third party telemetry data tracking agents like Firebase should not be enabled at the same time. We recommend only enabling one or the other to avoid this issue.
+
+If it is not an option to remove the other sdk there are some steps you can use to avoid these conflicts.
+
+* Start our agent before you start any other third party sdk's.
+* Disable some of the functionality of our agent. If this is an option that works for you see our [api guide](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings/) for more info.
+
+If you need additional help, get support at [support.newrelic.com](https://support.newrelic.com).

@@ -14,15 +14,15 @@ This process requires Prometheus version 2.15.0 or higher and Grafana version 6.
 
 You’ll also need to [sign up for New Relic](https://newrelic.com/signup/).
 
-![A screenshot of a Grafana dashboard with Prometheus data](./images/prometheus_grafana_dashboard.png "A screenshot of a Grafana dashboard with Prometheus data")
+![A screenshot of a Grafana dashboard with Prometheus data](/images/prometheus_grafana_dashboard.webp 'A screenshot of a Grafana dashboard with Prometheus data')
 
 Here's an example of how these Grafana dashboards with Prometheus data look in our new dark mode.
 
 ### Step 1: Get data flowing into New Relic with the Prometheus remote write integration
 
-Go to [Instrument Everything – US](http://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9) or [Instrument Everything – EU](http://one.eu.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9), then click the **Prometheus** tile.
+Go to [Instrument Everything – US](https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9) or [Instrument Everything – EU](http://one.eu.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9), then click the **Prometheus** tile.
 
-You can also go to the [Prometheus remote write setup page](https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJwcm9tZXRoZXVzLXJlbW90ZS13cml0ZS1pbnRlZ3JhdGlvbi1uZXJkbGV0cy5zZXR1cC1wcm9tZXRoZXVzIn0=) to get your `remote_write` URL.
+You can also go to the [Prometheus remote write setup page](https://one.newrelic.com/marketplace/install-data-source?state=c8c296ea-4be7-405a-eb38-53215c68d0bb) to get your `remote_write` URL.
 
 For more information on how to set up the Prometheus remote write integration, check out our [docs](/docs/integrations/prometheus-integrations/install-configure-remote-write/set-your-prometheus-remote-write-integration).
 

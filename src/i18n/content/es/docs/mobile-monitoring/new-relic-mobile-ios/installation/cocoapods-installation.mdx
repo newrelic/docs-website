@@ -1,0 +1,241 @@
+---
+title: Manual de instalación de CocoaPods
+tags:
+  - Mobile monitoring
+  - New Relic Mobile iOS
+  - Installation
+metaDescription: How to add New Relic to your iOS applications using Cocoapods.
+freshnessValidatedDate: '2023-08-01T00:00:00.000Z'
+translationType: machine
+---
+
+Le recomendamos que utilice nuestra [instalación guiada](https://onenr.io/0qwLv87gkj5) para configurar el monitoreo de iOS. Sin embargo, si necesita instalar el agente manualmente, siga los pasos a continuación para instalar el agente New Relic iOS con Cocoapods.
+
+## Instala tu aplicación iOS [#installation]
+
+Como parte del proceso de instalación, New Relic genera automáticamente un [token de aplicación](/docs/mobile-apps/viewing-your-application-token). Esta es una cadena hexadecimal de 40 caracteres para autenticar cada aplicación móvil que monitor en New Relic.
+
+Para instalar y configurar su aplicación iOS o tvOS:
+
+1. Vaya a
+
+   <DNT>
+     **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+   </DNT>
+
+   .
+
+2. (Si corresponde) De la lista
+
+   <DNT>
+     **Mobile Apps**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **Add a new app**
+   </DNT>
+
+   .
+
+3. Desde la página
+
+   <DNT>
+     **Get Started**
+   </DNT>
+
+   , seleccione
+
+   <DNT>
+     **iOS**
+   </DNT>
+
+   como plataforma de monitoreo de móviles.
+
+4. Escriba un nombre para su aplicación móvil y luego seleccione
+
+   <DNT>
+     **Continue**
+   </DNT>
+
+   .
+
+Continúe con los pasos para configurar New Relic para monitoreo de móviles.
+
+## Configurar usando Objective-C [#objective-c]
+
+Estos procedimientos para configurar su aplicación iOS/tvOS con CocoaPods y Objective-C también aparecen en la página <DNT>**Get Started**</DNT> en New Relic.
+
+1. En el `Podfile` de su proyecto, agregue esta línea:
+
+   ```ruby
+   pod 'NewRelicAgent'
+   ```
+
+2. Cierre su proyecto en Xcode, luego abra su terminal y ejecute este comando en el directorio de su proyecto:
+
+   ```shell
+   pod install
+   ```
+
+3. Abra su proyecto en Xcode ejecutando este comando en la terminal:
+
+   ```shell
+   open App.xcworkspace
+   ```
+
+4. En su archivo `AppDelegate.m`, agregue este encabezado New Relic :
+
+   ```objectivec
+   #import <NewRelic/NewRelic.h>
+   ```
+
+5. En su archivo `AppDelegate.m` , agregue esta llamada como la primera línea de `application:didFinishLaunchingWithOptions`, reemplazando `APP_TOKEN` con su [token de aplicación](/docs/mobile-apps/viewing-your-application-token):
+
+   ```objectivec
+   [NewRelic startWithApplicationToken:@"APP_TOKEN"];
+   ```
+
+   <Callout variant="important">
+     El agente debe estar en la primera línea de `didFinishLaunchingWithOptions` y ejecutarse en el subproceso principal para garantizar una instrumentación adecuada. Iniciar la llamada más tarde, en un subproceso en segundo plano o de forma asincrónica puede provocar un comportamiento inesperado o inestable.
+   </Callout>
+
+6. Descargue este repositorio: [https://github.com/newrelic/newrelic-ios-agent-spm/archive/refs/heads/main.zip](https://github.com/newrelic/newrelic-ios-agent-spm/archive/refs/heads/main.zip).
+
+7. Desde el repositorio descargado, copie `dsym-upload-tools` en la carpeta que contiene su archivo `xcodeproject` . Ahora debería tener una carpeta que contenga estos archivos:
+
+   * `YOUR_PROJECT.xcodeproj`
+   * `dsym-upload-tools/`
+
+8. Según la versión de su agente de iOS, agregue el siguiente script de compilación al <DNT>**Build Phases**</DNT> de su objetivo. Asegúrese de que el script sea el último script de compilación y reemplace `APP_TOKEN` con [el token de su aplicación](/docs/mobile-apps/viewing-your-application-token).
+
+   * Para agente iOS 7.4.0 o superior:
+
+   ```shell
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+   * Para agente iOS 7.3.8 o bajo:
+
+   ```shell
+   SCRIPT=`/usr/bin/find "${SRCROOT}" -name newrelic_postbuild.sh | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+9. (Opcional) Agregue las siguientes líneas al script de compilación anterior para omitir la carga de símbolos durante la depuración:
+
+   ```shell
+   if [ ${CONFIGURATION} = "Debug" ]; then
+       echo "Skipping DSYM upload CONFIGURATION: ${CONFIGURATION}"
+       exit 0
+   fi
+   ```
+
+10. Limpie y cree su aplicación, luego ejecútela en el simulador o en otro dispositivo.
+
+## Configurar usando Swift [#configuration]
+
+Estos procedimientos para configurar su aplicación iOS/tvOS con CocoaPods y Swift también aparecen en la página <DNT>**Get Started**</DNT> en New Relic.
+
+1. En el <DNT>**Podfile**</DNT> de su proyecto, agregue la siguiente línea:
+
+   ```ruby
+   pod 'NewRelicAgent'
+   ```
+
+2. Cierre su proyecto en Xcode y actualícelo ejecutando este comando desde la terminal en el directorio de su proyecto:
+
+   ```shell
+   pod install
+   ```
+
+3. Abra su proyecto en Xcode ejecutando este comando desde la terminal en el directorio de su proyecto:
+
+   ```shell
+   open App.xcworkspace
+   ```
+
+4. En tu `AppDelegate.swift`, agrega el encabezado New Relic: (si tu aplicación está escrita en SwiftUI, sigue estas [instrucciones](/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/swiftui-appdelegate) para agregar un AppDelegate a tu proyecto).
+
+   ```swift
+   import NewRelic
+   ```
+
+5. En su archivo `AppDelegate.swift` , agregue esta llamada como la primera línea de `application:didFinishLaunchingWithOptions`, reemplazando `APP_TOKEN` con su [token de aplicación](/docs/mobile-apps/viewing-your-application-token):
+
+   ```swift
+   NewRelic.start(withApplicationToken:"APP_TOKEN")
+   ```
+
+   <Callout variant="important">
+     Para garantizar una instrumentación adecuada, debe llamar al agente en la primera línea de `didFinishLaunchingWithOptions()` y ejecutar el agente en el hilo principal. Iniciar la llamada más tarde (en un subproceso en segundo plano o de forma asincrónica) puede provocar un comportamiento inesperado o inestable.
+   </Callout>
+
+6. Descargue este repositorio: [https://github.com/newrelic/newrelic-ios-agent-spm/archive/refs/heads/main.zip](https://github.com/newrelic/newrelic-ios-agent-spm/archive/refs/heads/main.zip).
+
+7. Desde el repositorio descargado, copie `dsym-upload-tools` en la carpeta que contiene su archivo `xcodeproject` . Ahora debería tener una carpeta que contenga estos archivos:
+
+   * `YOUR_PROJECT.xcodeproj`
+   * `dsym-upload-tools/`
+
+8. Según la versión de su agente de iOS, agregue el siguiente script de compilación al <DNT>**Build Phases**</DNT> de su objetivo. Asegúrese de que el script sea el último script de compilación y reemplace `APP_TOKEN` con [el token de su aplicación](/docs/mobile-apps/viewing-your-application-token).
+
+   * Para agente iOS 7.4.0 o superior:
+
+   ```swift
+   ARTIFACT_DIR="${BUILD_DIR%Build/*}"
+   SCRIPT=`/usr/bin/find "${SRCROOT}" "${ARTIFACT_DIR}" -type f -name run-symbol-tool | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+   * Para agente iOS 7.3.8 o bajo:
+
+   ```swift
+   SCRIPT=`/usr/bin/find "${SRCROOT}" -name newrelic_postbuild.sh | head -n 1`
+   /bin/sh "${SCRIPT}" "APP_TOKEN"
+   ```
+
+9. (Opcional) Agregue las siguientes líneas al script de compilación anterior para omitir la carga de símbolos durante la depuración:
+
+   ```swift
+   if [ ${CONFIGURATION} = "Debug" ]; then
+       echo "Skipping DSYM upload CONFIGURATION: ${CONFIGURATION}"
+       exit 0
+   fi
+   ```
+
+10. Limpie y cree su aplicación, luego ejecútela en el simulador o en otro dispositivo.
+
+<InstallFeedback/>
+
+## (Opcional) Cambiar el nivel de logging [#logging]
+
+De forma predeterminada, el agente de iOS inicia sesión en el nivel `info` . Puedes cambiar el nivel de logs para recopilar más o menos datos. Hay seis niveles de logs admitidos:
+
+* `none`
+* `error`
+* `warning`
+* `info`
+* `verbose`
+* `ALL`
+
+<Callout variant="important">
+  Aumente el nivel de logs solo a `verbose` o superior para la depuración, no para las versiones de lanzamiento.
+</Callout>
+
+Para cambiar el nivel de logging en su aplicación, agregue esta llamada a método antes de llamar a `NewRelic.start(withApplicationToken)`:
+
+* C objetivo:
+
+  ```objectivec
+  [NRLogger setLogLevels:NRLogLevelALL];
+  ```
+
+* Swift:
+
+  ```swift
+  NRLogger.setLogLevels(NRLogLevelALL.rawValue)
+  ```

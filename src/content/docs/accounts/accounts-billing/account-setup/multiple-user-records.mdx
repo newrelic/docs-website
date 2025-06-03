@@ -1,0 +1,68 @@
+---
+title: "Users with multiple user records"
+tags:
+  - Accounts
+  - Accounts and billing
+  - Account setup
+metaDescription: "Details on features and messages for New Relic users with multiple user records and logins."
+redirects:
+  - /docs/accounts/accounts-billing/account-setup/multiple-logins-found
+freshnessValidatedDate: never
+---
+
+As a New Relic user, you may have more than one user record using the same email address. This would be the case if you had:
+
+* Access to more than one [New Relic organization](/docs/accounts/accounts-billing/account-structure/new-relic-account-structure)
+* Access to more than one [authentication domain](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more) in a New Relic organization
+
+## How we count and track users [#user-records]
+
+When a user is created in New Relic, that user is given a user ID. To find a user's ID, you can go to the [<DNT>**User management**</DNT> UI](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks) and look for a specific user's information.
+
+<Callout variant="tip">
+  One way to find your own user ID is to inspect the source code for a New Relic UI page load and search that page for `userId`.
+</Callout>
+
+To determine the number of users in a New Relic organization for billing purposes, we count the user IDs and then de-duplicate users that have the same email addresses.
+
+When you update your email address in New Relic, this won't cause double billing. If you're updating your email, and you have multiple user records in an organization, ensure you update it for all user records.
+
+## Switch between user records [#switch]
+
+When you log in to New Relic, you can go to the [user menu](/docs/accounts/accounts-billing/general-account-settings/intro-account-settings) to switch to other user records that have the same email address. When you choose a user record from the menu, you'll be prompted to log in for that user record (either directly to New Relic or via your identity provider).
+
+<img
+  title="User record switcher in user menu"
+  alt="A screenshot of the user record switcher in user menu"
+  src="/images/accounts_screenshot-crop_user-record-switcher.webp"
+/>
+
+To access user records that have a different email address, you must log out and log back in.
+
+## "Multiple logins found" message [#login-message]
+
+If your email is associated with multiple user records, you'll see a `Multiple logins found` message upon logging in, and you'll be asked to verify your email. This might happen if you have access to multiple New Relic organizations, or to multiple [authentication domains](/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more) in an organization.
+
+<img
+  title="Login UI for email addresses with multiple user records"
+  alt="A screenshot of what is shown when you have an email address associated with multiple New Relic logins"
+  src="/images/accounts_screenshot-crop_login-with-multiple-accounts-found.webp"
+/>
+
+<figcaption>
+  When you have two or more user records for the same email address, you'll receive a message about this during login.
+</figcaption>
+
+When a user record is marked as `Original` on the login page, as shown above, that means that user record is on our [original user model](/docs/accounts/original-accounts-billing/original-users-roles/overview-user-models).
+
+Verifying your email address will allow you to choose which user record to access. If you don't verify your email address, New Relic will try to log you in with the most recently created user record associated with your email address.
+
+To avoid having to verify your email for each login, click the <DNT>**Remember me**</DNT> checkbox on the login screen.
+
+For more on login issues, see [Troubleshoot login issues](/docs/accounts/accounts-billing/account-setup/troubleshoot-new-relics-password-email-address-login-problems).
+
+## Delete user records [#delete]
+
+If you've accidentally signed up for New Relic, see [Delete an organization](/docs/accounts/accounts-billing/account-setup/downgradecancel-account/#cancel-unused-org).
+
+If you want to remove a user record, use the [user management UI](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks).

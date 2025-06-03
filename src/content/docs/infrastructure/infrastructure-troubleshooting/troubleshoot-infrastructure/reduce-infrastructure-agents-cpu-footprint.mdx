@@ -1,0 +1,233 @@
+---
+title: Reduce the infrastructure agent's CPU footprint
+type: troubleshooting
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot infrastructure
+metaDescription: Troubleshooting suggestions if the New Relic infrastructure agent is consuming too much CPU.
+redirects:
+  - /docs/infrastructure/new-relic-infrastructure/troubleshooting/reducing-agent-footprint
+  - /docs/infrastructure/new-relic-infrastructure/troubleshooting/reducing-agent-cpu-footprint
+  - /docs/infrastructure/new-relic-infrastructure/troubleshooting/reduce-infrastructure-agents-cpu-footprint
+freshnessValidatedDate: never
+---
+
+## Problem
+
+The New Relic infrastructure agent is consuming too much CPU.
+
+## Solution
+
+The New Relic infrastructure agent is designed to report a broad range of system data with minimal CPU and memory consumption. However, if you have a need to reduce your CPU consumption, you can disable or decrease the sampling frequency of various samplers and plugins.
+
+This topic highlights some `newrelic-infra.yml` configurations that may reduce your CPU usage:
+
+* [Reduce event sampling](#samplers)
+* [Reduce agent plugin reporting](#reduce_plugins)
+* [Review on-host integrations](#on_host_integrations)
+
+### Reduce event sampling [#samplers]
+
+The infrastructure agent reports several [default events](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-events) at specific frequencies. To lower the overhead, you can reduce the sampling frequency in seconds, or you can completely disable the samplers by setting the corresponding property value to `-1`.
+
+<Callout variant="important">
+  We don't recommend a sample rate larger than 60 seconds because you may see gaps in the New Relic user interface charts.
+</Callout>
+
+The table below lists some samplers to configure:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Event
+      </th>
+
+      <th>
+        Sampling frequency
+      </th>
+
+      <th>
+        Allow/deny list
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Network
+      </td>
+
+      <td>
+        [Network sampling rate](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#metrics-network-sample-rate)
+      </td>
+
+      <td>
+        Not available
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Process
+      </td>
+
+      <td>
+        [Process sampling rate](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#metrics-process-sample-rate)
+      </td>
+
+      <td>
+        [Allow list (Windows only)](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#allowed-list-process-sample)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Storage
+      </td>
+
+      <td>
+        [Storage sampling rate](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#metrics-storage-sample-rate)
+      </td>
+
+      <td>
+        [Deny list](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#file-devices-ignored)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        System
+      </td>
+
+      <td>
+        [System sampling rate](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#metrics-system-sample-rate)
+      </td>
+
+      <td>
+        Not available
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Reduce agent plugin reporting [#reduce_plugins]
+
+The infrastructure agent has built-in plugins that collect inventory data (specific system configuration and state information). For some systems, the CPU consumption may be relatively high if the plugins are gathering a lot of data. To reduce the footprint, you can disable or decrease the sampling frequency for specific plugins that report data you don’t want.
+
+<CollapserGroup>
+  <Collapser
+    id="enable_disable"
+    title="How to enable and disable plugins"
+  >
+    * <DNT>**Disable a single plugin:**</DNT> To disable a plugin, set the corresponding property value to `-1`.
+    * <DNT>**Disable all plugins:**</DNT> `disable_all_plugins: true`
+    * <DNT>**Enable selected plugins:**</DNT> To enable certain plugins, insert an exception in `disable_all_plugins`. For example, the following configuration disables all plugins, and reenables the Network Interfaces and SELinus plugins to report every 120 seconds:
+
+      ```yml
+      disable_all_plugins: true
+      network_interface_interval_sec: 120
+      selinux_interval_sec: 120
+      ```
+  </Collapser>
+
+  <Collapser
+    id="selinux"
+    title={<>Disable SELinux <InlineCode>semodule -l</InlineCode> (Linux only)</>}
+  >
+    The SELinux plugin periodically invokes the `semodule -l` system command to get information about the existing SELinux modules. In most CentOS/RedHat distributions, this command will generate CPU consumption peaks.
+
+    To disable this functionality, insert the following configuration option in your `/etc/newrelic-infra.yml` file:
+
+    `selinux_enable_semodule: false`
+  </Collapser>
+
+  <Collapser
+    id="sysctl"
+    title="Reduce or disable Sysctl (Linux only)"
+  >
+    The Sysctl plugin walks the whole `/sys` directory structure and reads values from all the files there. Disabling it or reducing the interval may decrease some CPU System time in the infrastructure agent.
+
+    You can disable inventory frequency by setting it to a negative number or reduce the frequeny by setting the `sysctl_interval_sec` configuration value to the number of seconds between consecutive executions of the plugin.
+
+    For example, to execute the plugin once every 10 minutes:
+
+    ```yml
+    sysctl_interval_sec: 600
+    ```
+
+    To disable the Sysctl plugin:
+
+    ```yml
+    sysctl_interval_sec: -1
+    ```
+
+    The current default value for the `sysctl_interval_sec` property is `60`.
+  </Collapser>
+
+  <Collapser
+    id="additional_plugins"
+    title="Additional plugins to reduce or disable"
+  >
+    The following inventory plugins are not especially CPU consuming, but you can still reduce their frequency or disable them by setting the corresponding configuration options.
+
+    <DNT>
+      **Linux plugins**
+    </DNT>
+
+    For configuration of these Linux plugins, see [Plugin variables](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#plugins-variables):
+
+    * Cloud Security Groups
+
+    * Daemon Tools
+
+    * DPKG
+
+    * Facter
+
+    * Kernel Modules
+
+    * Network interfaces
+
+    * RPM
+
+    * SELinux
+
+    * Supervisord
+
+    * Sysctl
+
+    * Systemd
+
+    * SysV
+
+    * Upstart
+
+    * Users
+
+    * SSHD configuration
+
+      <DNT>
+        **Windows plugins**
+      </DNT>
+
+      For configuration of these Windows plugins, see [Plugin variables](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#plugins-variables):
+
+    * Network interfaces
+
+    * Windows services
+
+    * Windows updates
+  </Collapser>
+</CollapserGroup>
+
+### Review on-host integrations [#on_host_integrations]
+
+If you use infrastructure on-host integrations, this may have additional impacts on CPU usage. The nature of the impact and the methods to adjust the impact depend on the integration you're using.
+
+Here are some ways to adjust on-host integration CPU usage:
+
+* See if your [integration](/docs/integrations/host-integrations/host-integrations-list) has configuration options you can adjust.
+* If possible, spread out the monitoring load by adding additional infrastructure agents. For example, the Kafka integration allows a [multi-agent deployment](/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration#multiple-agents).

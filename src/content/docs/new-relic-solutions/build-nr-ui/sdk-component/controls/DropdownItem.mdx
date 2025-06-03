@@ -1,0 +1,151 @@
+---
+title: 'DropdownItem'
+metaDescription: 'Learn how to work the DropdownItem component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Child element of the `<Dropdown>` component.
+
+Supports click events through the `onClick` prop and the possibility to redirect to other pages through the `to` prop.
+
+Supports subitems through the `items` prop and by passing a render function to the `children` prop.
+
+### Usage
+
+```js
+import { DropdownItem } from 'nr1'
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node | (node|function)\[]</h5>
+      </td>
+
+      <td>
+        Content to display inside the item.It also accepts a render method as a last children when rendering nested lists. It requires to pass an array to the `items` prop.
+
+        ```js
+        import { Dropdown, DropdownItem } from 'nr1';
+
+        const nestedItems = [
+          { id: '3.1', text: 'Item 3.1' },
+          { id: '3.2', text: 'Item 3.2' },
+          { id: '3.3', text: 'Item 3.3' },
+          { id: '3.4', text: 'Item 3.4' },
+        ];
+
+        const nestedDropdown = (
+          <Dropdown title="Nested Dropdown">
+            <DropdownItem>Item 1</DropdownItem>
+            <DropdownItem>Item 2</DropdownItem>
+            <DropdownItem items={nestedItems}>
+              Item 3
+              {({ item }) => <DropdownItem key={item.id}>{item.text}</DropdownItem>}
+            </DropdownItem>
+            <DropdownItem>Item 4</DropdownItem>
+          </Dropdown>
+        );
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the item is not available for interaction and its onClick callback won't fire.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `items` <h5>array</h5>
+      </td>
+
+      <td>
+        Items to renders a sublist of the current item.This prop also requires to pass a function as a last `children` after the item's content to work.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the item.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `selected` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Shows the option as selected.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.
+
+        <h3>
+          shape
+        </h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

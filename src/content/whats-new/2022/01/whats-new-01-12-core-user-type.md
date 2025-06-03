@@ -21,7 +21,7 @@ All existing basic users currently have free access to core user capabilities th
 **To start viewing error tracking and other telemetry data directly within your IDE,** follow the [instructions](https://newrelic.com/codestream) to set up the New Relic CodeStream integration.
 
 **To enable errors inbox** for your account, follow these steps: 
-* From [one.newrelic.com](https://one.newrelic.com), select errors inbox from the top nav.
+* From **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**, select errors inbox from the top nav.
 * If this is your first time accessing [errors inbox](https://one.newrelic.com/launcher/errors-inbox.launcher?platform[accountId]=3386328&platform[timeRange][duration]=86400000&platform[$isFallbackTimeRange]=true&state=49e6d628-79ac-7022-1689-a6a6b7673f54), you will be prompted to select a workload in the top left.
 * If you have no workloads set up, you'll be prompted to create one before you can use errors inbox.
 * Once you select your workload, your inbox should populate with error groups.

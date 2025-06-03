@@ -1,0 +1,127 @@
+---
+title: Mejora tu stack con alerta
+metaDescription: How manage your alert and notification quality and drive positive impact for your organization
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A medida que pase el tiempo, su número de alertas crecerá. Esto puede generar problemas para su organización si no se administran correctamente. Además, su alerta le brindará información crucial que puede utilizar para mejorar su sistema y, si no aprovecha esa información, no utilizará su alerta en su máximo potencial.
+
+Puede descubrir cómo administrar la calidad de su alerta para evitar cosas como el exceso de alertas, así como también cómo puede usar <InlinePopover type="alerts"/>para recopilar datos e impulsar un impacto positivo en su organización siguiendo el proceso a continuación.
+
+<img
+  title="AQM dashboard"
+  alt="A screenshot displaying a view of an AQM dashboard in New Relic"
+  src="/images/alerts_screenshot-crop_AQM-dash.webp"
+/>
+
+## Optimiza tu alerta
+
+Reducir las alertas innecesarias ayuda a garantizar que las alertas que reciba sean las más relevantes. Hemos creado un dashboard de gestión de calidad alerta para hacerlo más fácil. Básicamente, instalará un dashboard, recopilará información y luego realizará cambios según la información que haya recopilado. Hemos descrito cada paso de este proceso para que sea más fácil obtener los resultados que desea de su alerta.
+
+<img
+  title="Alert improvement flow"
+  alt="A diagram displaying how to use alerts to improve your system"
+  src="/images/alerts_diagram_AQM-flow.webp"
+/>
+
+Para comenzar a optimizar su alerta, debe hacer lo siguiente:
+
+<Steps>
+  <Step>
+    ## Instalar el dashboard de AQM
+
+    1. Vaya a la página de observabilidad instantánea
+
+       <DNT>
+         [**Alert Quality Management**](https://newrelic.com/instant-observability/alert-quality-management)
+       </DNT>
+
+       .
+
+    2. Haga clic en
+
+       <DNT>
+         **Install now**
+       </DNT>
+
+       .
+
+    3. Elija una cuenta para instalar el dashboard .
+
+    4. Vea su dashboard.
+  </Step>
+
+  <Step>
+    ## Analiza tus KPI
+
+    El dashboard lo ayudará a comprender cómo le está yendo utilizando cuatro KPI (indicadores de clave de rendimiento):
+
+    * <DNT>
+        **Incident count**
+      </DNT>
+
+      : alerta con un alto número de incidentes
+
+    * <DNT>
+        **Accumulated incident time**
+      </DNT>
+
+      : alerta con duraciones acumuladas altas
+
+    * <DNT>
+        **Mean time to close**
+      </DNT>
+
+      : la cantidad de tiempo que lleva hasta que se cierra el incidente
+
+    * <DNT>
+        **Percent under 5 minutes**
+      </DNT>
+
+      : la cantidad de incidente abierto por menos de 5 minutos
+
+      El panel <DNT>**Alerting Count by Policy**</DNT> en el dashboard le ayuda a identificar estas políticas de alertas y determinar cualquier patrón relevante.
+  </Step>
+
+  <Step>
+    ## Establece tu línea de base
+
+    El dashboard de AQM le brinda una línea de base de KPI que puede utilizar para comenzar el proceso de mejora. Usted (y cualquier miembro de su equipo) pueden revisar las políticas más activas del paso anterior para reducir el ruido de las alertas. Hágase preguntas sobre lo que le dicen los datos y cómo puede solucionarlos, como por ejemplo:
+
+    1. ¿La alerta nos dice algo sobre un recurso que necesita ser reparado? Si es así, solucione el problema y vea si el volumen de alerta disminuye.
+    2. ¿La alerta nos está informando sobre algo que realmente requiere una respuesta inmediata? De lo contrario, ajuste o desactive la política.
+    3. ¿Se han establecido correctamente los umbrales de política? De lo contrario, considere ajustar el umbral.
+
+       Debes abordar la alerta de incidente siguiendo las siguientes pautas después de establecer tu línea de base:
+
+    * Si observa una alerta y decide tomar algún tipo de acción de investigación adicional, reconozca la alerta.
+    * Si normalmente cierra una alerta sin hacer nada más, no reconozca la alerta.
+    * Si la alerta de incidente está siempre activa, no la cierre ni la reconozca.
+  </Step>
+
+  <Step>
+    ## Reúne tus datos
+
+    Se necesita algo de tiempo para acumular los datos de alerta del dashboard. Debe esperar al menos dos semanas para recopilar estos datos, pero verifique periódicamente para asegurarse de que los socorristas de incidentes de su alerta sigan las pautas descritas en el paso anterior.
+  </Step>
+
+  <Step>
+    ## Compara tus datos con tu línea de base
+
+    Después de dos semanas, debería tener suficientes datos para analizar y comenzar su proceso de mejora de alerta. Para mejorar su sistema utilizando los datos de alerta, siga los pasos a continuación:
+
+    1. Analice las tendencias semanales en sus KPI. Encuentre las áreas que quizás necesite arreglar y podrá comenzar a encontrar formas de mejorarlas.
+    2. Utilice los datos para mapear la calidad actual de su alerta. Puede identificar áreas donde la mejora ha tenido un impacto positivo en el negocio y áreas donde los problemas han dado lugar a resultados negativos.
+    3. Utilice el dashboard para identificar las políticas de incidentes más ruidosas.
+    4. Revise las políticas identificadas en el paso anterior. Para cada política, intente determinar si la alerta es relevante, está configurada correctamente y qué le dice la alerta sobre los problemas que puede necesitar abordar.
+    5. Identifique en qué áreas puede trabajar para mejorar las políticas que revisó. Esto debería ser un análisis técnico y debería terminar con recomendaciones sobre cómo solucionar los problemas en su sistema que activan la alerta, cómo ajustar las políticas que necesitan mejoras o cómo solucionar cualquier brecha en su instrumentación.
+  </Step>
+</Steps>
+
+Después de completar el procedimiento anterior, estará en camino de utilizar su alerta para mejorar su sistema y brindar un impacto positivo a su organización. Sin embargo, esto es sólo el comienzo: hay muchas más posibilidades para usar alerta que las que hemos cubierto aquí. Para obtener información más detallada sobre la calidad de alerta y los KPI, consulte nuestros [documentos de gestión de calidad de alerta](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide/#perform-enablement-one).
+
+<UserJourneyControls
+  previousStep={{"path":"/docs/tutorial-create-alerts/create-an-alert/","title":"Paso anterior","body":"Aprenda a crear alertas usando New Relic"}}
+  nextStep={{"path":"/docs/tutorial-create-alerts/manage-alert-quality/","title":"Próximo paso","body":"Aprende a gestionar y mejorar la calidad de tu alerta"}}
+/>

@@ -1,0 +1,136 @@
+---
+title: Utilice el evento NrIntegrationError para comprender los problemas de ingesta de datos
+metaDescription: New Relic uses the NrIntegrationError event to capture problems with data ingest and limits.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Utilice el evento `NrIntegrationError` de New Relic para comprender los problemas relacionados con la ingesta de datos, los límites y la configuración de características.
+
+## Solucionar problemas de ingesta de datos con NrIntegrationError [#overview]
+
+Nuestro evento `NrIntegrationError` se utiliza para capturar problemas relacionados con:
+
+* Superación de nuestros límites de ingesta de datos
+* Superación de nuestros límites de consulta
+* Datos mal formados
+* Problemas de configuración
+
+Puede ejecutar la consulta NRQL para analizar `NrIntegrationError` mensaje de error. También puede configurar una alerta para recibir notificaciones cuando se produzcan tipos específicos de errores o determinadas cantidades de errores.
+
+`NrIntegrationError` Los eventos se clasifican principalmente por la característica que los envía, como lo indica el atributo `newRelicFeature` . Los valores incluyen:
+
+* `Metrics` indica un problema con la ingesta [de API métrica](/docs/telemetry-data-platform/ingest-apis/metric-api/introduction-metric-api) .
+* `Event API` indica un problema con la ingesta [de API de eventos](/docs/telemetry-data-platform/ingest-apis/introduction-event-api) .
+* `Logs` indica un problema con la ingesta de registros.
+* `Distributed Tracing` indica un problema con los datos [de rastreo distribuido](/docs/distributed-tracing/concepts/introduction-distributed-tracing) (`Span`).
+* `Infrastructure` indica un problema con [la integración de la infraestructura](/docs/infrastructure/infrastructure-integrations/get-started/introduction-infrastructure-integrations/)
+
+Para definiciones de atributos, consulte el [diccionario de datos](/attribute-dictionary/?event=NrIntegrationError).
+
+## Consulta y alerta [#query-alert]
+
+Puede consultar `NrIntegrationError` evento usando [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language) y configurar [la condición de alerta NRQL](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) para recibir notificaciones cuando ocurran problemas.
+
+A continuación se muestran algunos ejemplos de consulta:
+
+<CollapserGroup>
+  <Collapser
+    id="simple-query"
+    title="Consulta de problemas de API de evento"
+  >
+    Aquí hay una consulta simple de `NrIntegrationError`. Este muestra los problemas de ingesta de API de eventos de la última semana, con hasta 100 resultados:
+
+    ```
+    SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Event API' SINCE 1 WEEK AGO LIMIT 100
+    ```
+
+    Para una consulta más detallada, consulte [Ejemplo de consulta](#use-cases).
+  </Collapser>
+
+  <Collapser
+    id="simple-query"
+    title="Consulta de temas API métrica"
+  >
+    Aquí hay una consulta simple de problemas con la API métrica:
+
+    ```
+    SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Metrics' SINCE 1 WEEK AGO LIMIT 100
+    ```
+
+    Para una consulta más detallada, consulte [Ejemplo de consulta](#use-cases).
+  </Collapser>
+
+  <Collapser
+    id="limit-query"
+    title="Consulta relacionada con límites"
+  >
+    Consulte [Límites de datos](#limit-related).
+  </Collapser>
+
+  <Collapser
+    id="trace-data"
+    title="Consulta de problemas de rastreo distribuido"
+  >
+    Aquí hay una consulta simple de problemas con los datos distribuidos de rastreo:
+
+    ```
+    SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Distributed Tracing' SINCE 1 WEEK AGO LIMIT 100
+    ```
+
+    Para una consulta más detallada, consulte [Ejemplo de consulta](#use-cases).
+  </Collapser>
+
+  <Collapser
+    id="time-based-query"
+    title="Consulta de problemas a lo largo del tiempo"
+  >
+    A continuación se muestra una consulta que muestra un recuento de `NrIntegrationError` evento a lo largo del tiempo:
+
+    ```
+    SELECT count(*) FROM NrIntegrationError WHERE newRelicFeature = 'Metrics' TIMESERIES
+    ```
+
+    Para una consulta más detallada, consulte [Ejemplo de consulta](#use-cases).
+  </Collapser>
+</CollapserGroup>
+
+Si desea examinar la estructura de este evento y ver qué atributos se adjuntan, puede utilizar una consulta [`keyset()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#keyset) , como esta:
+
+```
+FROM NrIntegrationError SELECT keyset()
+```
+
+## Tutoriales y ejemplos [#use-cases]
+
+Aquí hay enlaces a documentos que detallan más sobre cómo usar `NrIntegrationError`.
+
+### Ingerir API [#ingest-related]
+
+A continuación se muestran `NrIntegrationError`documentos relacionados con nuestras API de ingesta principales. `NrIntegrationError` eventos se generan no solo para el uso directo de estas API, sino también para cualquier herramienta de New Relic que dependa de esos extremos de API para informar datos:
+
+* API métrica: ver [Solución de problemas de ingesta de API métrica](/docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events)
+* API de eventos: consulte [errores de análisis](/docs/telemetry-data-platform/ingest-apis/introduction-event-api/#errors-parsing) y [sugerencias para la resolución de problemas de informes de eventos](/docs/telemetry-data-platform/ingest-apis/introduction-event-api/#nrIntegration).
+* API log : consulte [No aparecen datos de registro](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui).
+* traza API: ver [Validación de respuesta](/docs/distributed-tracing/trace-api/trace-api-general-requirements-limits/#response-validation) y [Solucionar problemas de datos faltantes](/docs/apm/distributed-tracing/trace-api/troubleshooting-missing-trace-api-data).
+
+### Límites de datos [#limit-related]
+
+Documentos relacionados con límites:
+
+* [Ver la UIde límites](/docs/telemetry-data-platform/manage-data/view-system-limits) (`NrIntegrationError` se utiliza para crear estos gráficos)
+* [Ejemplos de consultas relacionadas con límites](/docs/telemetry-data-platform/manage-data/query-limits)
+
+### Agente específico e integración [#agent-related]
+
+* agente APM: [La configuración no coincide](/docs/agents/manage-apm-agents/troubleshooting/agent-nrintegrationerrors-appear-insights)
+* [EstadísticasD](/docs/integrations/host-integrations/host-integrations-list/statsd-monitoring-integration-version-2)
+* Prometeo: [Errores de OpenMetrics](/docs/integrations/prometheus-integrations/troubleshooting/rate-limit-errors-prometheus-integration) \| [Errores de escritura remota](/docs/integrations/prometheus-integrations/install-configure-remote-write/remote-write-errors-error-messages)
+
+## Utilice programáticamente el evento NrIntegrationError [#use-api]
+
+Si está interesado en manipular estos eventos a través de API, consulte [Uso programático de NrIntegrationError](/docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/#programmatically-retrieve-nrintegrationerror-events).
+
+## Comprender los cambios en su cuenta [#audit-events]
+
+Si está tratando de comprender los cambios que se realizaron en su cuenta de New Relic (como cuando un usuario realizó un cambio), consulte [`NrAuditEvent`](/docs/telemetry-data-platform/understand-data/event-data/nrauditevent-event-data-query-examples).

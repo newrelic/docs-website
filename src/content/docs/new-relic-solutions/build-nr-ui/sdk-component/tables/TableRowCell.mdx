@@ -1,0 +1,195 @@
+---
+title: 'TableRowCell'
+metaDescription: 'Learn how to work the TableRowCell component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Wraps the content of a table cell located in the body of the table. This component is only expected to be used as a children of `<TableRow>`. Cells take care automatically of ellipsifying the content that does not fit and vertically centering it.
+
+This component is the base cell. For common cases, the SDK also provides a set of additional cells so that they always painted consistently across the UI (e.g. entity name with a status, or a user).
+
+### Usage
+
+```js
+import { TableRowCell } from 'nr1'
+```
+
+### Examples
+
+#### Row cell with external links and additional info
+
+```js
+function render() {
+  const items = [
+    {
+      dashboardName: 'Staging service - Errors',
+      createdBy: 'john@doe.com',
+      url: '//fake-url.com/dashboard1',
+    },
+    {
+      dashboardName: 'Package Registry - Performance',
+      createdBy: 'jane@doe.com',
+      url: '//fake-url.com/dashboard2',
+    },
+  ];
+  return (
+    <Table items={items} multivalue>
+      <TableHeader>
+        <TableHeaderCell>Name</TableHeaderCell>
+        <TableHeaderCell>Url</TableHeaderCell>
+      </TableHeader>
+      {({ item }) => (
+        <TableRow>
+          <TableRowCell additionalValue={`Created by ${item.createdBy}`}>
+            {item.dashboardName}
+          </TableRowCell>
+          <TableRowCell>
+            <Link to={item.url}>Go to the dashboard</Link>
+          </TableRowCell>
+        </TableRow>
+      )}
+    </Table>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `additionalValue` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information along the main data in the cell.
+
+        **Note:** At the moment this content becomes visible only when the `multivalue` prop is passed to the parent `Table` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `alignmentType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Defines the text alignment inside the cell.
+
+        <OptionReference>
+          TableRowCell.ALIGNMENT_TYPE.CENTER,
+          TableRowCell.ALIGNMENT_TYPE.LEFT,
+          TableRowCell.ALIGNMENT_TYPE.RIGHT,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to describe better the context of the cell's action for users on screen readers.
+
+        ```js
+        <TableRowCell to="/dashboards" ariaLabel="Go to your dashboard">
+           Go 
+        </TableRowCell> 
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>node</h5>
+      </td>
+
+      <td>
+        Contents of the table cell.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ellipsisType` <h5>enum</h5>
+      </td>
+
+      <td>
+        Defines how values are ellipsified within the cells; i.e. where the ellipsis is placed:
+
+        * `RIGHT`: at the end of the text, preserving its beginning.
+        * `LEFT`: at the beginning of the text, preserving its end.
+
+          <OptionReference>
+            TableRowCell.ELLIPSIS_TYPE.LEFT,
+            TableRowCell.ELLIPSIS_TYPE.RIGHT,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the table cell.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.Linked `TableRowCell`s are unstyled and will not show icons for external links. If the same styling as the Link component is what is desired, then use a `Link` instead as a child component within the cell.<h3>shape</h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

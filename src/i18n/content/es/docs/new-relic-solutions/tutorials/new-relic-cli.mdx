@@ -1,0 +1,224 @@
+---
+title: Comience con la CLI de New Relic
+tags:
+  - New Relic solutions
+  - Best practices guides
+metaDescription: 'Learn the essentials of the New Relic CLI, from install and configuration to basic usage.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Accede a la plataforma New Relic desde la comodidad de tu terminal. Puede utilizar la CLI de New Relic para administrar la etiqueta de la entidad, definir la carga de trabajo, el marcador de despliegue de registros y mucho más. En resumen, puede utilizar la CLI para automatizar tareas comunes en su flujo de trabajo de DevOps. Esta guía lo guía a través de los aspectos esenciales de New Relic CLI, desde la instalación y configuración hasta el uso básico.
+
+## Antes de que empieces
+
+Para esta guía solo necesitas:
+
+* Tu [clave de usuario](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#user-api-key) de New Relic.
+* Una [aplicación instrumentada](/docs/agents/manage-apm-agents/installation/install-agent) en tu cuenta New Relic.
+
+<Steps>
+  <Step>
+    ## Instale la CLI New Relic
+
+    Descargue la CLI de New Relic para su sistema operativo, como se describe a continuación. También puede descargar [binarios prediseñados](https://github.com/newrelic/newrelic-cli/releases) para todas las plataformas, incluidos .deb y .rpm. paquetes y nuestro Windows x64 .msi instalador.
+
+    <DNT>
+      **Linux**
+    </DNT>
+
+    Usando [Snapcraft](https://snapcraft.io/), ejecuta:
+
+    ```sh
+    sudo snap install newrelic-cli
+    ```
+
+    <DNT>
+      **macOS**
+    </DNT>
+
+    Usando [Homebrew](https://brew.sh/), ejecute:
+
+    ```sh
+    brew install newrelic-cli
+    ```
+
+    <DNT>
+      **Windows**
+    </DNT>
+
+    Usando [Scoop](https://scoop.sh/), ejecuta:
+
+    ```sh
+    scoop bucket add newrelic-cli https://github.com/newrelic/newrelic-cli.git
+    scoop install newrelic-cli
+    ```
+  </Step>
+
+  <Step>
+    ## Cree su perfil CLI de New Relic
+
+    Después de instalar la CLI de New Relic, es hora de crear su primer perfil. Los perfiles contienen credenciales y configuraciones que puede aplicar a cualquier comando CLI, lo cual resulta útil al cambiar entre cuentas.
+
+    Ejecute el comando [`profiles add`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_profile_add.md) :
+
+    ```sh lineNumbers=false
+    # Create the tutorial account for the US region
+    newrelic profiles add --profile tutorial --apiKey YOUR_NEW_RELIC_USER_KEY -r YOUR_REGION
+    # Set the profile as defaults
+    newrelic profiles default --profile tutorial
+    ```
+
+    <Callout variant="important">
+      Debes configurar la [región](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers) de tu cuenta New Relic. Utilice `-r` para configurar `us` o `eu`.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Obtenga los detalles de su aplicación
+
+    Ahora, agregue la etiqueta a la aplicación que ha instrumentado con New Relic. [etiqueta](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor) son pares de valores principales que pueden ayudarte a organizar y filtrar tu entidad. Una [entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) (por ejemplo, una aplicación) puede tener un máximo de 100 pares de valores principales vinculados.
+
+    Antes de buscar su aplicación usando la CLI de New Relic, escriba o copie su [ID de cuenta](/docs/accounts/install-new-relic/account-setup/account-id) y el [nombre de su aplicación en New Relic](/docs/agents/manage-apm-agents/app-naming/name-your-application) ; necesita ambos para encontrar aplicaciones en la plataforma New Relic.
+  </Step>
+
+  <Step>
+    ## Recupere los detalles de su aplicación como un objeto JSON
+
+    Para buscar su aplicación APM, utilice el comando [`apm application search`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_apm_application_search.md) :
+
+    ```bash lineNumbers=false
+    newrelic apm application search --accountId YOUR_ACCOUNT_ID --name NAME_OF_YOUR_APP
+    ```
+
+    <Callout variant="tip">
+      Si recibe un error, verifique que su ID de cuenta y el nombre de la aplicación sean correctos.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Encuentra el valor `guid`
+
+    Si el ID de la cuenta es válido y el nombre de la aplicación existe en su cuenta, `apm application search` genera datos similares a este ejemplo:
+
+    ```json lineNumbers=false
+    [
+      {
+        "accountId": YOUR_ACCOUNT_ID,
+        "applicationId": YOUR_APP_ID,
+        "domain": "APM",
+        "entityType": "APM_APPLICATION_ENTITY",
+        "guid": "A_LONG_GUID",
+        "name": "NAME_OF_YOUR_APP",
+        "permalink": "https://one.newrelic.com/redirect/entity/A_LONG_GUID",
+        "reporting": true,
+        "type": "APPLICATION"
+      }
+    ]
+    ```
+
+    Cuando haya buscado correctamente su aplicación, busque el valor `guid` . Es un identificador único para su aplicación. Deberías copiarlo o escribirlo.
+  </Step>
+
+  <Step>
+    ## Agregue una etiqueta simple a su aplicación
+
+    Ahora que tiene el GUID, puede apuntar la CLI de New Relic directamente a su aplicación. Agregar una etiqueta es la forma más sencilla de probar las capacidades de la CLI (no se preocupe, las etiquetas se pueden eliminar usando [`entity tags delete`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_entity_tags_delete.md)).
+
+    Aquí, agrega una etiqueta de entorno a su aplicación. Agregue la etiqueta `dev:testing` ⁠ (o cualquier otro par principal de valor) a su aplicación usando el comando [`entities tags create`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_entity_tags_create.md) :
+
+    ```sh lineNumbers=false
+    newrelic entity tags create --guid YOUR_APP_GUID --tag devkit:testing
+    ```
+  </Step>
+
+  <Step>
+    ## Agregar conjuntos de etiquetas
+
+    ¿Qué pasa si quieres agregar varias etiquetas? ¡Juegos de etiquetas al rescate! Mientras que las etiquetas son pares de valores principales separados por dos puntos, los conjuntos de etiquetas son listas de etiquetas separadas por comas. Por ejemplo:
+
+    ```txt copyable=false
+    tag1:value1,tag2:value2
+    ```
+
+    Para agregar varias etiquetas a su aplicación a la vez, modifique y ejecute este fragmento:
+
+    ```sh lineNumbers=false
+    newrelic entity tags create --guid YOUR_APP_GUID --tag tag1:test,tag2:test
+    ```
+
+    <Callout variant="important">
+      Agregar una etiqueta es una operación asincrónica: esto significa que la etiqueta puede tardar un poco en crearse.
+    </Callout>
+  </Step>
+
+  <Step>
+    ## Recupera la etiqueta de tu aplicación
+
+    Ha creado y agregado algunas etiquetas a su aplicación, pero para probar que funcionan, necesita recuperarlas.
+
+    Ejecute el comando [`entity tags get`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_entity_tags_get.md) :
+
+    ```sh
+    newrelic entity tags get --guid YOUR_APP_GUID
+    ```
+
+    Todas las etiquetas asociadas con su aplicación se recuperan como una matriz JSON:
+
+    ```json lineNumbers=false
+    [
+      {
+        "Key": "tag1",
+        "Values": ["true"]
+      },
+      {
+        "Key": "tag2",
+        "Values": ["test"]
+      },
+      {
+        "Key": "tag3",
+        "Values": ["testing"]
+      }
+      // ...
+    ]
+    ```
+  </Step>
+
+  <Step>
+    ## Paso adicional: crea un marcador de despliegue
+
+    El despliegue de la aplicación suele salir mal. [Los marcadores de despliegue](/docs/apm/new-relic-apm/maintenance/record-monitor-deployments) son etiquetas que, cuando se adjuntan a los datos de su aplicación, le ayudan a realizar un seguimiento del despliegue y solucionar problemas de lo sucedido.
+
+    Para crear un marcador de despliegue, ejecute el comando [`apm deployment create`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_apm_deployment_create.md) usando el mismo ID de la aplicación de su búsqueda anterior:
+
+    ```bash lineNumbers=false
+    newrelic apm deployment create --applicationId YOUR_APP_ID --revision $(git describe --tags --always)
+    ```
+  </Step>
+
+  <Step>
+    ## Verifique la respuesta JSON para la revisión y timestamp del despliegue.
+
+    Puede crear este flujo de trabajo en un sistema de integración continua o despliegue continuo (CI/CD) para indicar cambios en el comportamiento de su aplicación después del despliegue.
+
+    He aquí un ejemplo:
+
+    ```json lineNumbers=false
+    {
+      "id": 37075986,
+      "links": {
+        "application": 204261368
+      },
+      "revision": "v1.2.4",
+      "timestamp": "2020-03-04T15:11:44-08:00",
+      "user": "Developer Toolkit Test Account"
+    }
+    ```
+  </Step>
+</Steps>
+
+## Próximos pasos
+
+Eche un vistazo a [todos los comandos disponibles](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic.md) en la CLI de New Relic. Por ejemplo, puedes crear un [flujo de trabajo New Relic](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster) usando [`workload create`](https://github.com/newrelic/newrelic-cli/blob/master/docs/cli/newrelic_workload_create.md)
+
+Si desea interactuar con otros miembros de la comunidad, visite nuestra página [New Relic Explorer Hub](https://discuss.newrelic.com/c/build-on-new-relic/developer-toolkit) . Damos la bienvenida a solicitudes de características o informes de errores en [GitHub](https://github.com/newrelic/newrelic-cli).

@@ -1,0 +1,193 @@
+---
+title: 'Popover'
+metaDescription: 'Learn how to work the Popover component'
+freshnessValidatedDate: 2024-06-03
+---
+
+`<Popover>` are toggleable overlays for displaying small overlays on demand.
+
+The `<Popover>` component requires you to provide a trigger with `<PopoverTrigger>` that will handle the opening/closing of the overlay, as well as the content for the overlay through `<PopoverBody />`.
+
+### Usage
+
+```js
+import { Popover } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Popover>
+  <PopoverTrigger>Trigger</PopoverTrigger>
+  <PopoverBody>
+    <BlockText>Body</BlockText>
+  </PopoverBody>
+</Popover>
+```
+
+#### Button as trigger
+
+```js
+<Popover>
+  <PopoverTrigger>
+    <Button>Trigger</Button>
+  </PopoverTrigger>
+  <PopoverBody>
+    <BlockText>Body</BlockText>
+  </PopoverBody>
+</Popover>
+```
+
+#### TextField as trigger
+
+```js
+<Popover>
+  <PopoverTrigger>
+    <TextField />
+  </PopoverTrigger>
+  <PopoverBody>
+    <BlockText>Body</BlockText>
+  </PopoverBody>
+</Popover>
+```
+
+#### With PopoverFooter
+
+```js
+<Popover>
+  <PopoverTrigger>
+    <Button>Trigger</Button>
+  </PopoverTrigger>
+  <PopoverBody>
+    <Card style={{ width: '250px' }}>
+      <CardBody>
+        <HeadingText>Heading</HeadingText>
+        <BlockText
+          spacingType={[
+            BlockText.SPACING_TYPE.MEDIUM,
+            BlockText.SPACING_TYPE.NONE,
+          ]}
+        >
+          Item content
+        </BlockText>
+        <BlockText>Item content</BlockText>
+      </CardBody>
+    </Card>
+    <PopoverFooter style={{ textAlign: 'right' }}>Info message</PopoverFooter>
+  </PopoverBody>
+</Popover>
+```
+
+#### Controlled Popover
+
+```js
+class ControlledPopover extends React.Component {
+  constructor() {
+    super(...arguments);
+
+
+    this.state = {
+      opened: false,
+    };
+
+
+    this._onChange = this._onChange.bind(this);
+  }
+
+
+  _onChange(evt, opened) {
+    this.setState({ opened }, () =>
+      console.log('controlled state', evt, this.state),
+    );
+  }
+
+
+  render() {
+    const { opened } = this.state;
+
+
+    return (
+      <Popover opened={opened} onChange={this._onChange}>
+        <PopoverTrigger>
+          <Button>Trigger</Button>
+        </PopoverTrigger>
+        <PopoverBody>
+          <Card style={{ width: '250px' }}>
+            <CardBody>
+              <HeadingText>Heading</HeadingText>
+              <BlockText
+                spacingType={[
+                  BlockText.SPACING_TYPE.MEDIUM,
+                  BlockText.SPACING_TYPE.NONE,
+                ]}
+              >
+                Item content
+              </BlockText>
+              <BlockText>Item content</BlockText>
+            </CardBody>
+          </Card>
+          <PopoverFooter style={{ textAlign: 'right' }}>
+            Info message
+          </PopoverFooter>
+        </PopoverBody>
+      </Popover>
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node\[]</h5>
+      </td>
+
+      <td>
+        This component accepts children of two types:
+
+        * `<PopoverTrigger>` to render the element that will open/close the overlay.
+        * `<PopoverBody>` to render content inside the overlay.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback to track when the `Popover` overlay opens or closes while in controlled mode. This method fires when the user actions the `PopoverTrigger`, or clicks outside of the `PopoverBody` when it is open.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.KeyboardEvent|React.MouseEvent","description":""},{"name":"opened","type":"boolean","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `openOnHover` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When true, the popover overlay will open on hover.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `opened` <h5>boolean</h5>
+      </td>
+
+      <td>
+        When provided, `Popover` will be put into controlled mode. The boolean value will either open or close the popover overlay.
+      </td>
+    </tr>
+  </tbody>
+</table>

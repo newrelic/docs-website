@@ -88,7 +88,6 @@ exports.createSchemaCustomization = ({ actions }) => {
     }
     type InstallStep @dontInfer {
       filePath: String
-      skip: Boolean
       mdx: Mdx
       overrides: [StepOverride]
     }
@@ -96,6 +95,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       filePath: String 
       mdx: Mdx
       skip: Boolean
+      isConditionalStep: Boolean
       selectedOptions: [AppInfoSelectedOption]
     }
     type AppInfoSelectedOption @dontInfer {

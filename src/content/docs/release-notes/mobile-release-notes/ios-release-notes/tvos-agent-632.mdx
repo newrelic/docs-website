@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v6.3.2
+releaseDate: '2018-09-12'
+version: 6.3.2
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.3.2.zip'
+---
+
+### Fixes
+
+* Fixed race condition in handled exceptions component, which had the potential of crashing on background inside `std::recursive_mutex::lock()`

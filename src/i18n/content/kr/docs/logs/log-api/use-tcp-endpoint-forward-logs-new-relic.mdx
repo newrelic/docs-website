@@ -5,6 +5,7 @@ tags:
   - Log management
   - Log API
 metaDescription: How to forward your logs to New Relic using syslog clients such as rsyslog and syslog-ng for Debian or RHEL operating systems.
+freshnessValidatedDate: never
 translationType: machine
 ---
 
@@ -14,8 +15,12 @@ translationType: machine
 
 syslog 클라이언트를 사용하여 New Relic에 로그를 전달하려면 다음이 필요합니다.
 
-* 로그를 보내려는 계정의 유효한 [New Relic 라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* 로그를 보내려는 계정에 대한 유효한 뉴렐릭<InlinePopover type="licenseKey" />
 * 이 문서에 설명된 대로 syslog 클라이언트 구성에 대한 몇 가지 사소한 변경
+
+## 제한 사항
+
+압축 크기가 1MB를 초과하는 로그 줄은 삭제됩니다. [분석 API](/docs/logs/log-api/introduction-log-api/#limits) 의 다른 제한 사항도 적용될 수 있습니다. 데이터 손실을 방지하려면 로그 줄이 이 크기 제한 내에 있는지 확인하세요.
 
 ## rsyslog 버전 8 이상 구성(Amazon Linux, Redhat, Centos) [#rsyslog]
 
@@ -43,24 +48,31 @@ Amazon Linux, Redhat 및 Centos 배포용 `rsyslog` 를 사용하여 New Relic�
 
 4. `/etc/rsyslog.conf` 아래의 `$IncludeConfig` 옵션에 `/etc/rsyslog.d` 디렉토리 아래 새로 생성된 `newrelic.conf` 파일을 포함할 일치하는 와일드카드가 이미 있는지 확인하십시오. 그렇지 않으면 다음을 사용하여 `/etc/rsyslog.conf` 에 `/etc/rsyslog.d/newrelic.conf` 를 명시적으로 포함해야 합니다. `$IncludeConfig /etc/rsyslog.d/newrelic.conf`
 
-5. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 바꿉니다. <var>YOUR_LICENSE_KEY</var> 의 경우 [New Relic 라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 사용하세요.
+5. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 바꿉니다. `YOUR_LICENSE_KEY` 의 경우 뉴렐릭 <InlinePopover type="licenseKey" />을(를) 사용하세요.
 
    ```properties
    ## Specify each of the files to be tailed in case step 1 is done
 
-   input(type="imfile" Tag="<var>YOUR_FILE_TAG</var>" File="<var>PATH_TO_FILE</var>" 
+   input(type="imfile" Tag="YOUR_FILE_TAG" File="PATH_TO_FILE")
 
    ## Template expected by the New Relic Syslog endpoint
 
    template(name="newrelic-rfc5424"
             type="string"
-            string="<var>YOUR_LICENSE_KEY</var> <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+            string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
    )
 
    ## Configure TLS and log forwarding
 
    global(DefaultNetstreamDriver="gtls"
-          DefaultNetstreamDriverCAFile="/etc/ssl/certs/ca-certificates.crt"
+          ##Specify the full path to the system's CA certificate:
+          DefaultNetstreamDriverCAFile="<path to certificate>"
+          ## RHEL/CentOS/Amazon Linux:
+          ##/etc/pki/tls/certs/ca-bundle.crt
+          ## Ubuntu:
+          ##/etc/ssl/certs/ca-certificates.crt
+          ##Other systems:
+          ##Specify the full path to the system's generic CA certificate.
    )
 
    action(type="omfwd"
@@ -76,13 +88,41 @@ Amazon Linux, Redhat 및 Centos 배포용 `rsyslog` 를 사용하여 New Relic�
    )
    ```
 
-6. 다음을 실행하여 `rsyslog` 서비스를 다시 시작합니다.
+6. (선택사항): `syslog` 데이터에 맞춤 속성을 추가합니다.
+
+   `syslog` 데이터를 나머지 원격 측정 데이터와 일치시키려면 사용자 정의 속성을 추가할 수 있습니다. 이를 수행하는 두 가지 방법이 있습니다.
+
+   * <DNT>**Add custom attributes directly in the template string.**</DNT> 문자열 값에 대해서는 큰따옴표(`"`)를 이스케이프해야 합니다. 예를 들어:
+
+     `[<STRUCTURED_DATA_ID> <ATTR_NAME_1>="<ATTR_VALUE_1>" <ATTR_NAME_2>="<ATTR_VALUE_2>" ...]`
+
+     ```properties
+     template(name="newrelic-rfc5424"
+              type="string"
+              string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% [someId environment=\"prod\" region=\"US\"] %msg%\n"
+     )
+     ```
+
+   * <DNT>**Add custom attributes using a custom property variable in the template string.**</DNT> 이 방법을 사용하면 문자열 값을 이스케이프할 필요가 없습니다.
+
+     ```properties
+     template(name="newrelic-rfc5424"
+              type="string"
+              string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %!custom-structured-data% %msg%\n"
+     )
+
+     set $!custom-structured-data = '[someId1 environment="prod" region="US"][someId2 team="sre" cost-center="123"]';
+     ```
+
+템플릿 문자열의 `%structured-data%` 섹션을 사용자 정의 태그/속성으로 교체해야 합니다.
+
+7. 다음을 실행하여 `rsyslog` 서비스를 다시 시작합니다.
 
    ```bash
    sudo systemctl restart rsyslog
    ```
 
-7. 로그에 대한 [New Relic 계정을 확인하십시오](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) .
+8. 로그에 대한 [New Relic 계정을 확인하십시오](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) .
 
 ## 압축을 사용하여 rsyslog 버전 8 이상 구성(Amazon Linux, Redhat, Centos) [#rsyslog-compression]
 
@@ -90,28 +130,35 @@ Amazon Linux, Redhat 및 Centos 배포에 대해 `rsyslog` 버전 8 이상을 �
 
 1. [configure rsyslog](#rsyslog) 에 설명된 1-4단계를 따르십시오.
 
-<Callout variant="important">
-  구성된 포트 번호는 &#x7B; `6514` `6516` 입니다.
-</Callout>
+   <Callout variant="important">
+     구성된 포트 번호는 `6514` `6516` 입니다.
+   </Callout>
 
-2. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 모두 바꿉니다. <var>YOUR_LICENSE_KEY</var> 의 경우 [New Relic 라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 사용하세요.
+2. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 모두 바꿉니다. `YOUR_LICENSE_KEY` 의 경우 뉴렐릭 <InlinePopover type="licenseKey" />을(를) 사용하세요.
 
    ```properties
    ## Specify each of the files to be tailed in case step 1 is done
 
-   input(type="imfile" Tag="<var>YOUR_FILE_TAG</var>" File="<var>PATH_TO_FILE</var>"
+   input(type="imfile" Tag="YOUR_FILE_TAG" File="PATH_TO_FILE"
 
    ## Template expected by the New Relic Syslog endpoint
 
    template(name="newrelic-rfc5424"
             type="string"
-            string="<var>YOUR_LICENSE_KEY</var> <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+            string="YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
    )
 
    ## Configure TLS and log forwarding
 
    global(DefaultNetstreamDriver="gtls"
-          DefaultNetstreamDriverCAFile="/etc/ssl/certs/ca-certificates.crt"
+          ##Specify the full path to the system's CA certificate:
+          DefaultNetstreamDriverCAFile="<path to certificate>"
+          ## RHEL/CentOS/Amazon Linux:
+          ##/etc/pki/tls/certs/ca-bundle.crt
+          ## Ubuntu:
+          ##/etc/ssl/certs/ca-certificates.crt
+          ##Other systems:
+          ##Specify the full path to the system's generic CA certificate.
    )
 
    action(type="omfwd"
@@ -130,12 +177,11 @@ Amazon Linux, Redhat 및 Centos 배포에 대해 `rsyslog` 버전 8 이상을 �
 
 3. 다음을 실행하여 `rsyslog` 서비스를 다시 시작합니다.
 
-   ```
-   bash
+   ```bash
    sudo systemctl restart rsyslog
    ```
 
-4. 로그에 대한 [New Relic 계정을 확인하십시오](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) .
+4. 로그인에 대한 [뉴렐릭 계정을 확인하세요.](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) `plugin.type:"syslog-newrelic"` 속성을 검색하여 로그인을 찾을 수도 있습니다.
 
 ## rsyslog 버전 7 이하(Amazon Linux, Redhat, Centos)용 레거시 구성 파일 [#legacy-rsyslog]
 
@@ -143,8 +189,7 @@ rsyslog 버전 7 이하를 사용하는 경우 구성 파일을 더 이상 사�
 
 1. `rsyslog` 에서 TLS 암호화를 사용하여 로그를 전송하는 데 필요한 패키지를 설치합니다.
 
-   ```
-   bash
+   ```bash
    sudo yum install rsyslog-gnutls ca-certificates
    ```
 
@@ -159,25 +204,31 @@ rsyslog 버전 7 이하를 사용하는 경우 구성 파일을 더 이상 사�
 
 3. `/etc/rsyslog.d/` 디렉토리에서 `newrelic.conf` 이라는 텍스트 파일을 만듭니다.
 
-4. `/etc/rsyslog.conf` 아래의 `$IncludeConfig` 옵션에 `/etc/rsyslog.d` 디렉토리 아래 새로 생성된 `newrelic.conf` 파일을 포함할 일치하는 와일드카드가 이미 있는지 확인하십시오. 그렇지 않으면 `$IncludeConfig /etc/rsyslog.d/newrelic.conf` }을 사용하여 `/etc/rsyslog.conf` 에 `/etc/rsyslog.d/newrelic.conf` 를 명시적으로 포함해야 합니다.
+4. `/etc/rsyslog.conf` 아래의 `$IncludeConfig` 옵션에 `/etc/rsyslog.d` 디렉토리 아래 새로 생성된 `newrelic.conf` 파일을 포함할 일치하는 와일드카드가 이미 있는지 확인하십시오. 그렇지 않으면 `$IncludeConfig /etc/rsyslog.d/newrelic.conf` 을 사용하여 `/etc/rsyslog.conf` 에 `/etc/rsyslog.d/newrelic.conf` 를 명시적으로 포함해야 합니다.
 
-5. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 바꿉니다. <var>YOUR_LICENSE_KEY</var> 의 경우 [New Relic 라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 사용하세요.
+5. `newrelic.conf` 에 다음을 추가합니다. 강조 표시된 값을 바꿉니다. `YOUR_LICENSE_KEY` 의 경우 뉴렐릭 <InlinePopover type="licenseKey" />을(를) 사용하세요.
 
    ```properties
    ## Template expected by the New Relic Syslog endpoint
 
-   $template NRLogFormat,"<var>YOUR_LICENSE_KEY</var> <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+   $template NRLogFormat,"YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid%  %structured-data% %msg%\n"
 
    ## Specify each of the files to be tailed in case step 1 is done
 
    $InputFileName /path/to/file
-   $InputFileTag <var>YOUR_FILE_TAG</var>
+   $InputFileTag YOUR_FILE_TAG
    $InputFileSeverity info
    $InputRunFileMonitor
 
    ## Configure TLS and log forwarding
-
-   $DefaultNetstreamDriverCAFile /etc/ssl/certs/ca-certificates.crt
+   ##Specify the full path to the system's CA certificate:
+   $DefaultNetstreamDriverCAFile <path to certificate>
+   ## RHEL/CentOS/Amazon Linux:
+   ##/etc/pki/tls/certs/ca-bundle.crt
+   ## Ubuntu:
+   ##/etc/ssl/certs/ca-certificates.crt
+   ##Other systems:
+   ##Specify the full path to the system's generic CA certificate.
    $ActionSendStreamDriver gtls
    $ActionSendStreamDriverMode 1
    $ActionSendStreamDriverAuthMode x509/name
@@ -200,8 +251,7 @@ rsyslog 버전 7 이하를 사용하는 경우 구성 파일을 더 이상 사�
 
 1. `syslog-ng` 이(가) TLS 암호화를 사용하여 로그를 보내도록 허용하려면 `ca-certificates` 을(를) 설치해야 합니다.
 
-   ```
-   bash
+   ```bash
    sudo yum install ca-certificates
    ```
 
@@ -219,14 +269,14 @@ rsyslog 버전 7 이하를 사용하는 경우 구성 파일을 더 이상 사�
 
    ```properties
    source s_files {
-           file("<var>PATH_TO_FILE</var>");
+           file("PATH_TO_FILE");
    };
    ```
 
-5. New Relic `syslog` 형식을 정의합니다. <var>YOUR_LICENSE_KEY</var> 의 경우 [New Relic 라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 사용합니다.
+5. 뉴렐릭 `syslog` 형식을 정의합니다. `YOUR_LICENSE_KEY` 의 경우 뉴렐릭 <InlinePopover type="licenseKey" />을(를) 사용하세요.
 
    ```properties
-   template NRFormat { template("<var>YOUR_LICENSE_KEY</var> <${PRI}>1 ${ISODATE} ${HOST:--} ${PROGRAM:--} ${PID:--} ${MSGID:--} ${SDATA:--} $MSG\n");
+   template NRFormat { template("YOUR_LICENSE_KEY <${PRI}>1 ${ISODATE} ${HOST:--} ${PROGRAM:--} ${PID:--} ${MSGID:--} ${SDATA:--} $MSG\n");
            template_escape(no);
    };
    ```
@@ -263,4 +313,24 @@ rsyslog 버전 7 이하를 사용하는 경우 구성 파일을 더 이상 사�
 
 <Callout variant="tip">
   Docker 컨테이너에서 syslog-ng를 실행 중이고 문제가 발생하면 [balait/syslog 이미지 설명서](https://hub.docker.com/r/balabit/syslog-ng/) 를 확인하십시오.
+</Callout>
+
+## syslog 형식을 수정할 수 없는 포워더
+
+일부 포워더, CDN 또는 플랫폼(예: AirWatch)은 syslog 형식의 수정을 허용하지 않지만 데이터를 추가 또는 앞에 붙여 메시지 자체를 변경하는 것은 허용합니다.
+
+이러한 경우 로그를 전달하는 데 사용된 라이선스 키를 전달하는 대체 메커니즘을 사용할 수 있습니다. 메시지 내에 `nrLicenseKey=<YOUR_LICENSE_KEY>` 추가하거나, 앞에 붙이거나, 포함하기만 하면 됩니다. 이 방법을 사용하면 syslog 형식을 수정하지 않고도 로그가 인증되고 뉴렐릭으로 전달됩니다.
+
+예를 들어, 포워더가 로그 메시지에 데이터를 추가하는 것을 허용하는 경우 각 로그 메시지의 시작 부분에 `nrLicenseKey=<YOUR_LICENSE_KEY>` 추가하도록 구성할 수 있습니다. 마찬가지로, 데이터 추가가 허용되는 경우 각 로그 메시지의 끝에 라이선스 키를 추가할 수 있습니다.
+
+이러한 접근 방식은 syslog 형식을 수정할 수 없는 CDN, 하드웨어 장치 또는 관리 서비스에 특히 유용합니다. 메시지 내에 라이선스 키를 포함하면, 로그가 적절하게 인증되고 뉴렐릭에서 수신되도록 할 수 있습니다.
+
+문제가 발생하거나 추가 지원이 필요한 경우 포워더나 CDN에서 제공한 설명서를 참조하여 로그 메시지에 데이터를 추가하거나 앞에 붙이는 방법에 대한 구체적인 지침을 확인하세요.
+
+<Callout variant="important">
+  `<YOUR_LICENSE_KEY>` 실제 뉴렐릭 클러스터 키로 바꾸는 것을 잊지 마세요.
+</Callout>
+
+<Callout variant="caution">
+  두 가지 방법(Syslog 형식을 수정하고 메시지에 `nrLicenseKey=<YOUR_LICENSE_KEY>` 포함하는 방법)을 모두 사용하는 경우, 메시지에 포함된 라이선스 키가 우선합니다.
 </Callout>

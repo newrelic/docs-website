@@ -1,12 +1,12 @@
 ---
-title: "We're updating TLS requirement to 1.2 on October 24"
+title: "We're updating TLS requirement to 1.2 on Feb 1, 2023"
 summary: 'Avoid interruptions on your data, upgrade your TLS stack to TLS 1.2 or above'
 releaseDate: '2022-07-28'
 getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#tls'
 learnMoreLink: 'https://discuss.newrelic.com/t/tls-1-0-1-1-to-be-deprecated-for-all-inbound-connections-after-oct-24th-2022/188451'
 ---
 
-At New Relic, security is our priority. This is why, effective October 24, 2022, we'll update our [Transport Layer Security (TLS)](https://en.wikipedia.org/wiki/Transport_Layer_Security) requirements for all inbound connections to a minimum TLS version of 1.2.
+At New Relic, security is our priority. This is why, effective February 1, 2023, at 16:00 UTC, we'll update our [Transport Layer Security (TLS)](https://en.wikipedia.org/wiki/Transport_Layer_Security) requirements for all inbound connections to a minimum TLS version of 1.2.
 
 **If you're already using TLS 1.2 or above, you won't be impacted.**
 

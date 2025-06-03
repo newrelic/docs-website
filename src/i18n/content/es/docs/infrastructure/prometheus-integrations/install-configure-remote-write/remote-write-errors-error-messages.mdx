@@ -1,0 +1,53 @@
+---
+title: Errores de escritura remota y mensaje de error
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure remote write
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este recurso contiene información sobre errores comunes y mensajes de error que pueden alertarlo sobre problemas con la visibilidad y disponibilidad de los datos, así como información sobre cómo responder.
+
+## Errores y problemas comunes [#common-errors]
+
+Si recibe un mensaje de error de integración de New Relic o un mensaje de error en el registro de su servidor Prometheus después de reiniciar su servidor Prometheus, hay varias acciones que puede realizar para solucionar el problema y hacer que los datos fluyan correctamente. A continuación se presentan algunos consejos sobre problemas comunes y mensajes de error. Para obtener información específica sobre cómo consultar el evento `NrIntegrationError` , consulte [Investigar mensaje de error](#investigate-errors) a continuación.
+
+<CollapserGroup>
+  <Collapser
+    id=""
+    title="Errores de configuración"
+  >
+    Los caracteres faltantes o incorrectos en la URL de escritura remota en el archivo de configuración (por ejemplo, el extremo, <InlinePopover type="licenseKey"/>o el nombre `prometheus_server` ) o la ubicación incorrecta de la información en el archivo darán como resultado que el servidor Prometheus no se inicie, la escritura remota no funcionando correctamente o que aparecen errores en el registro del servidor Prometheus.
+  </Collapser>
+
+  <Collapser
+    id=""
+    title="400: error de solicitud incorrecta"
+  >
+    Si no aparecen datos con un error de solicitud incorrecta, verifique su archivo de configuración para confirmar que la ubicación de la información de escritura remota sea correcta y que no falten caracteres o sean incorrectos.
+  </Collapser>
+
+  <Collapser title="413: error de entidad de solicitud demasiado grande">
+    Esto significa que ha enviado una solicitud en la que uno o más campos, o toda la carga útil, ha excedido nuestros límites.
+  </Collapser>
+
+  <Collapser title="429: error de límite de velocidad">
+    Esto significa que ha alcanzado un [límite de velocidad](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes/#rate-limit-incidents) en la cantidad de datos que se envían al mismo tiempo (por ejemplo, cardinalidad o puntos de datos por minuto). Puede solucionar problemas reduciendo la cantidad de Prometheus o datos métricos generales que envía, o solicitando un aumento del límite de tarifa.
+  </Collapser>
+</CollapserGroup>
+
+## Investigar mensaje de error [#investigate-errors]
+
+Puedes investigar el mensaje de error en New Relic realizando una o ambas de las siguientes acciones.
+
+1. Ejecute una consulta NRQL del [evento`NrIntegrationError` ](/docs/telemetry-data-platform/manage-data/nrintegrationerror)y examine el atributo `message` .
+
+2. Investigue los errores individuales a tiempo para ver cuándo y dónde ocurren y cualquier problema que ocurra simultáneamente, y realice la resolución de problemas basada en lo que descubra. Por ejemplo:
+
+   ```
+   SELECT count(*) FROM NrIntegrationError WHERE newRelicFeature = 'Metrics' TIMESERIES
+   ```
+
+Si has validado que puedes enviar datos correctamente pero no puedes consultarlos, es posible que te estés topando con otro tipo de límites. Esto puede manifestarse como un mensaje de error durante el proceso de integración que dice: `Unable to retrieve data for Prometheus data source <name>`.

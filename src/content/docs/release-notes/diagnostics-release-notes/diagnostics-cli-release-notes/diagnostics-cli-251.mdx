@@ -1,0 +1,15 @@
+---
+subject: Diagnostics CLI (nrdiag)
+releaseDate: '2023-05-24'
+version: 2.5.1
+---
+
+## Changes
+
+### Infra agent
+
+* **Infra/Env/ClockSkew**: Resolved type assertion error
+
+### Ruby agent
+
+* **Ruby/Requirements/Version**: Updated Ruby versions supported by the agent

@@ -1,0 +1,245 @@
+---
+title: Agregue sus alertas al inicio rápido
+metaDescription: Add your alerts to New Relic I/O
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Si aún no lo hiciste, consulta la [introducción del curso](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  Como este procedimiento se basa en los últimos del laboratorio, cerciorar de [crear alertas](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) y [comprender la estructura de directorios del inicio rápido](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/understand-quickstart) antes de continuar con este.
+</Callout>
+
+En un procedimiento anterior, [creó alertas](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-alerts/) para notificarle si hay algún problema con FlashDB. Ahora, lo agregas a tu inicio rápido para que tu usuario también pueda usarlo.
+
+<Steps>
+  <Step>
+    Si aún no lo hizo, bifurque el repositorio [de inicios rápidosNew Relic ](https://github.com/newrelic/newrelic-quickstarts)y clónelo en su máquina local.
+  </Step>
+
+  <Step>
+    Abra su proyecto en el IDE de su elección y navegue hasta el directorio `\_template`.
+  </Step>
+
+  <Step>
+    Aquí, copie el directorio `alert-policies/example-alert-policy` y su contenido al directorio `alert-policies` en el nivel raíz. Cambie el nombre del directorio a `flashdb`.
+
+    Este directorio contiene archivos YAML de muestra para alertas estáticas y de línea de base para contribuir con las alertas correspondientes a New Relic I/O. Para ayudarlo a completar sus archivos yaml, puede usar [el explorador API NerdGraph](https://api.newrelic.com/graphiql) de New Relic para obtener una representación JSON de cada condición de alerta.
+
+    <Callout variant="tip">
+      NerdGraph es la API GraphQL de New Relic.
+    </Callout>
+  </Step>
+</Steps>
+
+## Complete su configuración de alerta con NerdGraph [#populate-alerts]
+
+NerdGraph te permite consultar tus alertas existentes y te ayuda a configurarlas en tu inicio rápido. Para completar su configuración de alerta con NerdGraph, primero debe buscar su identificador.
+
+Debajo de su política de alertas, haga clic en la condición para obtener su identificación.
+
+Con este identificador, ahora puede consultar su condición de alerta y emplear la respuesta para crear recursos de alerta en su inicio rápido.
+
+### Consulta condición de alerta en NerdGraph [#query-alert]
+
+<Steps>
+  <Step>
+    Abra el explorador NerdGraph y seleccione su clave en el menú desplegable.
+  </Step>
+
+  <Step>
+    Crear una consulta es simple en el explorador. Marque las casillas correspondientes para crear una consulta GraphQL o copie la siguiente consulta GraphQL y péguela en el panel central del explorador para consultar una condición de alerta estática.
+
+    ```js
+    {
+      actor {
+        account(id: REPLACE_ACCOUNT_ID) {
+          alerts {
+            nrqlCondition(id: REPLACE_CONDITION_ID) {
+              ... on AlertsNrqlStaticCondition {
+                id
+                name
+                nrql {
+                  query
+                }
+              }
+              terms {
+                operator
+                priority
+                threshold
+                thresholdDuration
+                thresholdOccurrences
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Aquí, consulta `AlertsNrqlStaticCondition` para obtener el ID, el nombre, la consulta y más de su condición. Estos son los campos obligatorios que necesita para crear la misma alerta en su inicio rápido.
+
+    <Callout variant="important">
+      Cerciorar de reemplazar su ID de cuenta y su ID de condición en la consulta anterior.
+    </Callout>
+  </Step>
+
+  <Step>
+    Ejecute la consulta para obtener una representación JSON de la condición especificada.
+
+    A continuación, emplee esta respuesta para agregar una alerta estática a su inicio rápido.
+
+    <Callout variant="tip">
+      Observe que las casillas de verificación en el panel izquierdo se marcan cuando pega la consulta en el explorador. Esta consulta devuelve los campos necesarios para agregar una alerta al inicio rápido. Si configuró campos personalizados o desea consultar más información, no dude en editar la consulta en el panel central del explorador o marcar la casilla correspondiente en el panel izquierdo.
+    </Callout>
+  </Step>
+
+  <Step>
+    Desde el directorio `alert-policies/flashdb` , cambie el nombre del archivo `static-alert.yml` a `SlowReadResponse.yml` y rellénelo con los datos devueltos por la consulta anterior.
+
+    ```yml
+    # Name of the alert
+    name: slow read response
+
+    # Description and details
+    details: |+
+      This alert is triggered when read operation takes longer than 0.8.
+
+    # Type of alert
+    type: STATIC
+
+    # NRQL query
+    nrql:
+      query: "SELECT average(fdb_read_responses) FROM Metric"
+
+    # Function used to aggregate the NRQL query value(s) for comparison to the terms.threshold (Default: SINGLE_VALUE)
+    valueFunction: SINGLE_VALUE
+
+    # List of Critical and Warning thresholds for the condition
+    terms:
+    - priority: CRITICAL
+      # Operator used to compare against the threshold.
+      operator: ABOVE
+      # Value that triggers a violation
+      threshold: 0.9
+      # Time in seconds; 120 - 3600
+      thresholdDuration: 300
+      # How many data points must be in violation for the duration
+      thresholdOccurrences: ALL
+
+    # Adding a Warning threshold is optional
+    - priority: WARNING
+      operator: ABOVE
+      threshold: 0.8
+      thresholdDuration: 300
+      thresholdOccurrences: ALL
+
+    # Duration after which a violation automatically closes
+    # Time in seconds; 300 - 2592000 (Default: 86400 [1 day])
+    violationTimeLimitSeconds: 259200
+    ```
+
+    Aquí, agregó una condición de alerta estática al inicio rápido.
+  </Step>
+
+  <Step>
+    Para consultar su condición de línea de base, copie la siguiente consulta GraphQL y péguela en el panel central del explorador.
+
+    ```js
+    {
+      actor {
+        account(id: 3014901) {
+          alerts {
+            nrqlCondition(id: 28068735) {
+              ... on AlertsNrqlBaselineCondition {
+                id
+                name
+                nrql {
+                  query
+                }
+                baselineDirection
+                terms {
+                  priority
+                  threshold
+                  thresholdDuration
+                  thresholdOccurrences
+                  operator
+                }
+                violationTimeLimitSeconds
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Aquí, consulta `AlertsNrqlBaselineCondition` para obtener el nombre de su condición, consulta, `baselineDirection` y otros campos necesarios para agregar la condición a su inicio rápido.
+
+    <Callout variant="important">
+      Cerciorar de reemplazar su ID de cuenta y su ID de condición en la consulta anterior.
+    </Callout>
+  </Step>
+
+  <Step>
+    Ejecute la consulta para obtener los datos de configuración de su alerta. A continuación, emplee esta respuesta para agregar una línea de base alerta a su inicio rápido.
+
+    <Callout variant="tip">
+      Observe que las casillas de verificación en el panel izquierdo se marcan cuando pega la consulta en el explorador. Esta consulta devuelve los campos necesarios para agregar una alerta al inicio rápido. Si configuró campos personalizados o desea consultar más información, no dude en editar la consulta en el panel central del explorador o marcar la casilla correspondiente en el panel izquierdo.
+    </Callout>
+  </Step>
+
+  <Step>
+    Desde el directorio `alert-policies/flashdb` , cambie el nombre del archivo `baseline-alert.yml` a `LowCacheHitRatio.yml` y rellénelo con los datos devueltos por la consulta anterior.
+
+    ```yml
+    # Name of the alert
+    name: low cache hit ratio
+
+    # Description and details
+    details: |+
+      This alert is triggered whenever the cache hit ratio deviates 2 standard deviations from the normal.
+
+    # Type of alert
+    type: BASELINE
+
+    # NRQL query
+    nrql:
+      # Baseline alerts can use an optional FACET
+      query: "SELECT sum(fdb_cache_hits)/sum(fdb_read_responses) FROM Metric"
+
+    # Direction in which baseline is set (Default: LOWER_ONLY)
+    baselineDirection: LOWER_ONLY
+
+    # List of Critical and Warning thresholds for the condition
+    terms:
+    - priority: CRITICAL
+      # Operator used to compare against the threshold.
+      operator: ABOVE
+      # Value that triggers a violation
+      threshold: 3
+      # Time in seconds; 120 - 3600, must be a multiple of 60 for Baseline conditions
+      thresholdDuration: 300
+      # How many data points must be in violation for the duration
+      thresholdOccurrences: ALL
+
+      # Adding a Warning threshold is optional
+    - priority: WARNING
+      operator: ABOVE
+      threshold: 2
+      thresholdDuration: 300
+      thresholdOccurrences: ALL 
+
+    # Duration after which a violation automatically closes
+    # Time in seconds; 300 - 2592000 (Default: 86400 [1 day])
+    violationTimeLimitSeconds: 259200
+    ```
+
+    Aquí, agregaste una condición de línea de base al inicio rápido.
+  </Step>
+</Steps>
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Continúe con la siguiente lección: [agregue una fuente de datos](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-data-source).
+</Callout>

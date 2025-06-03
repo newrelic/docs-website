@@ -1,0 +1,314 @@
+---
+title: 'Monitoreo sintético: página resumen'
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Pages
+metaDescription: 'Use the Overview page to understand your monitor''s overall performance, and to quickly access interesting monitor results.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La página <DNT>**Summary**</DNT> de monitoreo sintético le brinda una idea rápida del rendimiento de su sitio web. Puede buscar tendencias en solicitud/tiempo de respuesta, tiempos de conexión y errores. Utilice el filtro para limitar los datos a atributos o valores de interés, o [vuelva a verificar el monitor fallido](/docs/synthetics/synthetic-monitoring/using-monitors/recheck-failed-monitors).
+
+## Ver la página Resumen [#viewing]
+
+Para acceder a la página <DNT>**Summary**</DNT> de su monitor: Vaya a <DNT>**[one.newrelic.com > Synthetic monitoring](https://one.newrelic.com/synthetics-nerdlets)**</DNT> > (seleccione un monitor).
+
+<img
+  title="screen-synthetics-overview"
+  alt="screen-synthetics-overview"
+  src="/images/synthetic_screenshot-full_summaryPage.webp"
+/>
+
+<figcaption>
+  La página <DNT>**Summary**</DNT> le brinda una vista de alto nivel del rendimiento de su sitio web y tiene accesos directos a verificaciones de ubicación, incidente de alerta y metadatos de su monitor.
+</figcaption>
+
+## Comprender la página Resumen [#understanding]
+
+Utilice la página <DNT>**Summary**</DNT> para comprender el rendimiento de su sitio web:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Cuadros resumen sintéticos
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="success">
+        Tasa de éxito y fracaso
+      </td>
+
+      <td>
+        Esto muestra la tasa de éxito general del monitor y el número total de comprobaciones fallidas durante el período de tiempo determinado, la cantidad de [ubicaciones](/docs/synthetics/new-relic-synthetics/using-monitors/adding-editing-monitors#setting-location) que fallan y el mensaje de error del último error detectado.
+
+        El período de tiempo mostrado variará dependiendo de la frecuencia del monitor:
+
+        * 1 minuto = 30 minutos
+        * 5 minutos = 1,5 horas
+        * 15 minutos = 7,5 horas
+        * 30 minutos = 15 horas
+        * 1 hora = 30 horas
+        * 6 horas = 7,5 días
+        * 12 horas = 15 días
+        * 24 horas = 30 días
+      </td>
+    </tr>
+
+    <tr>
+      <td id="load-time">
+        Tiempo de carga de la página y disponibilidad
+      </td>
+
+      <td>
+        Esto muestra el tiempo de carga de la página y la disponibilidad, el porcentaje de ejecuciones del monitor que tuvieron éxito, para cada [ubicación](/docs/synthetics/new-relic-synthetics/using-monitors/adding-editing-monitors#setting-location) del monitor. El período de tiempo mostrado variará dependiendo de la frecuencia del monitor:
+
+        * 1 minuto = 30 minutos
+        * 5 minutos = 1,5 horas
+        * 15 minutos = 7,5 horas
+        * 30 minutos = 15 horas
+        * 1 hora = 30 horas
+        * 6 horas = 7,5 días
+        * 12 horas = 15 días
+        * 24 horas = 30 días
+      </td>
+    </tr>
+
+    <tr>
+      <td id="request-response-times">
+        Solicitud/tiempo de respuesta
+      </td>
+
+      <td>
+        Esto muestra el tiempo que le tomó al monitor de ping enviar y recibir una respuesta y se desglosa en duración de envío, duración de espera y duración de recepción.
+
+        Las duraciones se pueden mostrar como promedio, mediana o percentil 95. Para obtener más información, consulte [percentil: datos de clasificación](/docs/using-new-relic/user-interface-functions/view-your-data/percentiles-compare-ranked-data#options).
+
+        Esto solo está disponible para <DNT>**ping**</DNT> resultados del monitor.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="connection-times">
+        Tiempos de conexión
+      </td>
+
+      <td>
+        Esto muestra el desglose de las conexiones de red que se establecerán para este monitor y se desglosa en DNS, SSL y duraciones de conexión.
+
+        La duración se puede mostrar como promedio, mediana o percentil 95. Para obtener más información, consulte [percentil: datos de clasificación](/docs/using-new-relic/user-interface-functions/view-your-data/percentiles-compare-ranked-data#options).
+
+        Esto solo está disponible para <DNT>**ping**</DNT> resultados del monitor.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="non-200-response-codes">
+        Códigos de respuesta distintos de 200
+      </td>
+
+      <td>
+        Esto muestra cualquier código de respuesta de error (no 200) que se haya recibido como resultado de la ejecución de este monitor.
+
+        Esto solo está disponible para <DNT>**ping**</DNT> resultados del monitor.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="activity-panel">
+        Panel de actividades
+      </td>
+
+      <td>
+        Muestra cualquier actividad reciente asociada con el monitor, incluyendo:
+
+        * Nombre del monitor
+        * Número de incidentes abiertos
+        * Actividad en el monitor, incluyendo incidentes abiertos y cerrados recientes y eventos de auditoría.
+        * metadatos y [etiqueta](/docs/new-relic-one/use-new-relic-one/core-concepts/tagging-use-tags-organize-group-what-you-monitor).
+        * [Entidades](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic) monitoreadas: esta es cualquier entidad New Relic que se observa cuando se ejecuta este monitor e incluye el estado de alerta de entidad. Al seleccionar el estado de una entidad, se navegará a la página de resumen de la entidad del monitor.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Usar funciones de página [#using]
+
+La página <DNT>**Summary**</DNT> admite las siguientes funciones:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **If you want to...**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Do this...**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="view-result">
+      <td>
+        Ver un resultado en detalle
+      </td>
+
+      <td>
+        Para ver la métrica exacta, pase el mouse sobre el gráfico.
+      </td>
+    </tr>
+
+    <tr id="hide-location">
+      <td>
+        Vuelva a ejecutar una verificación del monitor
+      </td>
+
+      <td>
+        Haga clic en <DNT>**Run check button**</DNT> para volver a verificar cualquier monitor fallido.
+      </td>
+    </tr>
+
+    <tr id="view-alert">
+      <td>
+        Ver detalles sobre un incidente de alerta
+      </td>
+
+      <td>
+        En el [panel Actividad](#activity-panel), haga clic en la alerta mostrada para ir directamente a la página [del incidente de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-incidents/view-event-details-incidents) .
+      </td>
+    </tr>
+
+    <tr id="quickly-switch">
+      <td>
+        Accede rápidamente a otro monitor
+      </td>
+
+      <td>
+        1. En la parte superior de la pantalla, haga clic en el nombre del monitor actual para abrir el menú desplegable.
+
+        2. Seleccione de la lista de monitores recientes o ingrese un nombre en el campo de búsqueda para buscar un monitor específico.
+
+           <img
+             title="Switch synthetic monitor quickly"
+             alt="Switch synthetic monitor quickly"
+             src="/images/synthetic_screenshot-crop_new-monitor-quick.webp"
+           />
+      </td>
+    </tr>
+
+    <tr id="time-frame">
+      <td>
+        Cambiar el marco de tiempo
+      </td>
+
+      <td>
+        Utilice el [selector de tiempo](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker) para ajustar la cantidad de resultados devueltos para los siguientes gráficos:
+
+        * Solicitud/tiempo de respuesta
+
+        * Tiempos de conexión
+
+        * Códigos de respuesta distintos de 200
+
+          Esto solo está disponible para <DNT>**ping**</DNT> resultados del monitor.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gráficos legacy [#more_help]
+
+<Callout variant="important">
+  La siguiente tabla se aplica a la vista anterior de la página de resumen de monitoreo sintético. Haga clic en <DNT>**Show new view**</DNT> para acceder a una nueva experiencia de resumen seleccionada.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Gráfico sintético
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="load-time">
+        Gráfico de tiempo de carga
+      </td>
+
+      <td>
+        Esto muestra los tiempos de carga para cada [ubicación](/docs/synthetics/new-relic-synthetics/using-monitors/adding-editing-monitors#setting-location) del monitor. Cuando [selecciona un período de tiempo corto](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#dash-time-picker) (como 30 minutos), el monitoreo sintético muestra el tiempo de carga exacto para cada ejecución de su monitor desde cada ubicación. Con marcos de tiempo más largos, el monitor Sintético ajusta la resolución para mostrar promedios.
+
+        Para alternar la visibilidad de una ubicación, seleccione su etiqueta.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="availability">
+        Disponibilidad
+      </td>
+
+      <td>
+        Esto muestra el porcentaje de ejecuciones del monitor que tuvieron éxito. Para un monitor con secuencia de comandos, se debe completar toda la script para que la ejecución se considere exitosa.
+
+        Encima del gráfico <DNT>**Availability**</DNT> del monitor seleccionado, aparecen puntos suspensivos <Icon name="fe-more-horizontal"/> Aparece el icono. Utilice [la característica de gráficos comparativos](/docs/synthetics/new-relic-synthetics/administration/compare-page-load-performance-browser-synthetics) de New Relic para una comparación directa del tiempo de carga de la página entre la interacción del usuario real ([<InlinePopover type="browser"/>](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)) y el monitor Sintético.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="average-load-size">
+        Tamaño de carga promedio
+      </td>
+
+      <td>
+        Este gráfico muestra la cantidad de datos (en kilobytes o megabytes) consumidos en cada ejecución del monitor. Para el monitor con secuencia de comandos, la script completa se incluye en el gráfico del tamaño de carga promedio. Por ejemplo, un monitor que carga tres páginas medirá el tamaño de todos los recursos en las tres páginas.
+
+        Si su sitio es estático, el tamaño de carga promedio será muy consistente. Para sitios dinámicos, como un sitio de noticias, el tamaño de carga promedio variará a medida que cambie el contenido de su página.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="slowest-results">
+        Resultados más lentos
+      </td>
+
+      <td>
+        Esto enumera los cinco resultados más lentos para el período de tiempo seleccionado. Para [ver el desglose del rendimiento](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding), seleccione un resultado.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="monitor-downtimes">
+        Monitor el tiempo de inactividad
+      </td>
+
+      <td>
+        Aquí se enumera el incidente de tiempo de inactividad del monitor más reciente. Para [ver detalles adicionales](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding), seleccione un incidente de tiempo de inactividad.
+      </td>
+    </tr>
+  </tbody>
+</table>

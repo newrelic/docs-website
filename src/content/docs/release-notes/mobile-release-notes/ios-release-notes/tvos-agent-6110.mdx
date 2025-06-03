@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent
+releaseDate: '2020-04-20'
+version: 6.11.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.11.0.zip'
+---
+
+### Fixes
+
+* `+[NewRelic recordHandledException:(NSException*)]` will no longer accept exceptions that were not thrown.

@@ -1,0 +1,123 @@
+---
+subject:  Java agent
+releaseDate:  '2023-09-07'
+version:  8.6.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.6.0/'
+features: ["Support latest Wildfly", "Support JBoss EAP 7.4", "Support Spring Cache", "Support Spring Cache", "Kafka client node metrics", "Kafka client config events", "Improved Struts 2 instrumentation", "Improved code-level metrics for Servlets"]
+bugs: ["Fixed a bug in the Spring instrumentation when OpenFeign was used.", "Fixed a bug where utility classes were not weaved.",
+"Fixed a bug where the agent would not properly send its dependencies."]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.6.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Support latest Wildfly [#1373](https://github.com/newrelic/newrelic-java-agent/issues/1373)
+
+* Support latest JBoss EAP [#1336](https://github.com/newrelic/newrelic-java-agent/issues/1336)
+
+* Spring Cache instrumentation [#1458](https://github.com/newrelic/newrelic-java-agent/issues/1458)
+
+This new instrumentation module allows you to see how your caches are performing. It provides hit/miss metrics as well as clear and evict.
+Search "Metrics Explorer" for the new metrics:
+
+```
+Cache/Spring/<cache-provider>/<cache-name>/hits
+Cache/Spring/<cache-provider>/<cache-name>/misses
+Cache/Spring/<cache-provider>/<cache-name>/clear
+Cache/Spring/<cache-provider>/<cache-name>/evict
+```
+
+* Kafka client node metrics [#1338](https://github.com/newrelic/newrelic-java-agent/issues/1338)
+
+This is a new instrumentation for Kafka clients. It provides metrics similar to the existing instrumentation module, but this provides them by node/topic, whereas the existing one only uses topic. This module is disabled by default, check [the documentation](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#kafka-node-metrics) for more information.
+
+* Kafka client config events [#1338](https://github.com/newrelic/newrelic-java-agent/issues/1338)
+
+This new instrumentation module sends the Kafka configuration as events periodically. This module is disabled by default, check [the documentation](/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/#kafka-config) for more information.
+
+* Improved Struts 2 instrumentation [#1457](https://github.com/newrelic/newrelic-java-agent/issues/1457)
+
+The Struts 2 instrumentation has been refactored to use a newer instrumentation technique, which allows it to be disabled.
+
+* Improved code-level metrics for Servlets. [#1394](https://github.com/newrelic/newrelic-java-agent/issues/1394)
+* Security Agent: Support for Apache log4j 3.0.0-alpha1.
+* Security Agent: Support for Commons.jxpath.
+* Security Agent: Add agent monitoring details and matrix to health check.
+* Security Agent: Limiting the supported version range for Jetty.
+
+## Fixes
+
+* Fixed a bug in the Spring instrumentation when OpenFeign was used. [#1197](https://github.com/newrelic/newrelic-java-agent/issues/1197)
+* Fixed a bug where utility classes were not weaved. [#1073](https://github.com/newrelic/newrelic-java-agent/issues/1073)
+* Fixed a bug where the agent would not properly send its dependencies. [#1340](https://github.com/newrelic/newrelic-java-agent/issues/1340)
+* Security Agent: Issue with HealthChecking having empty process stats issue
+
+## Deprecations
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1` (legacy pointcut instrumentation)
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes)
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you are moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

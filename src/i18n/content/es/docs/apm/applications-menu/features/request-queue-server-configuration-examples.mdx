@@ -1,0 +1,138 @@
+---
+title: Solicitar ejemplos de configuración del servidor de colas
+tags:
+  - APM
+  - APM UI pages
+  - Features
+metaDescription: A quick reference for setting up request queue reporting in New Relic for your server.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para informar [la cola de solicitudes](/docs/apm/other-features/request-queueing/request-queuing-tracking-frontend-time), el agente New Relic depende de un encabezado HTTP establecido por el servidor web frontend (como Apache o Nginx) o el equilibrador de carga (como HAProxy o F5). Estos ejemplos utilizan el encabezado `X-Request-Start` , ya que tiene un soporte más amplio en toda la plataforma.
+
+Si esto no funciona con [la configuración de su servidor para la cola de solicitudes](/docs/apm/applications-menu/features/configure-request-queue-reporting), intente usar el encabezado `X-Queue-Start` . Por lo demás, la sintaxis debería ser la misma.
+
+## Apache
+
+El módulo <DNT>**mod_headers**</DNT> de Apache incluye una variable `%t` que tiene el formato correcto. Para habilitar los informes de la cola de solicitudes, agregue este código a su configuración de Apache:
+
+```
+RequestHeader set X-Request-Start "%t"
+```
+
+## Nginx
+
+Si está utilizando la versión 1.2.6 o superior de Nginx y la última versión de Ruby, Python o agente PHP, Nginx se puede configurar fácilmente para informar el tiempo de cola. (Para las versiones 1.2.6 o inferiores de Nginx, debe volver a compilar Nginx con un módulo o parche).
+
+La configuración con Nginx 1.2.6 o superior utiliza la variable `${msec}` , que es un número en segundos con una resolución de milisegundos. Para obtener más información, consulte [http://nginx.org/en/docs/http/ngx_http_core_module.html#variables](http://nginx.org/en/docs/http/ngx_http_core_module.html#variables "El enlace se abre en una ventana nueva.").
+
+Agregue la información adecuada a su configuración de Nginx:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        <DNT>
+          **Nginx configuration**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Values**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Uso general de Nginx
+      </td>
+
+      <td>
+        ```
+        proxy_set_header X-Request-Start "t=${msec}";
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Pasajero
+      </td>
+
+      <td>
+        Versión 5 o superior:
+
+        ```
+        >passenger_set_header X-REQUEST-START "t=${msec}";
+        ```
+
+        Versiones anteriores:
+
+        ```
+        passenger_set_cgi_param X_REQUEST_START "t=${msec}";
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        fastcgi
+      </td>
+
+      <td>
+        ```
+        fastcgi_param HTTP_X_REQUEST_START "t=${msec}";
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        uWSGI
+      </td>
+
+      <td>
+        ```
+        uwsgi_param HTTP_X_REQUEST_START "t=${msec}";
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Equilibradores de carga F5 [#f5]
+
+Para balanceadores de carga F5, use este fragmento de configuración:
+
+```
+when HTTP_REQUEST_SEND {
+    # TCL 8.4 so we have to calculate the time in millisecond resolution
+    # Calculation from: https://groups.google.com/forum/?  fromgroups=#!topic/comp.lang.tcl/tV9H6TDv0t8
+    set secs [clock seconds]
+    set ms [clock clicks -milliseconds]
+    set base [expr { $secs * 1000 }]
+    set fract [expr { $ms - $base }]
+    if { $fract >= 1000 } {
+      set diff [expr { $fract / 1000 }]
+      incr secs $diff
+      incr fract [expr { -1000 * $diff }]
+    }
+    set micros [format "%d%03d000" $secs $fract]
+
+  # Want this header inserted as if coming from the client
+    clientside {
+      HTTP::header insert X-Request-Start "t=${micros}"
+    }
+  }
+```
+
+## Sincronización de la red
+
+Incluso con la cola de solicitudes configurada, la configuración del servidor frontend aún puede afectar el tiempo de red en [sus datos del navegador](/docs/browser/new-relic-browser/page-load-timing-resources/page-load-timing-process). Esto se debe a que el servidor frontend no agrega el encabezado del tiempo de cola hasta que realmente acepta y procesa la solicitud.
+
+Los encabezados de tiempo de cola nunca pueden tener en cuenta el trabajo pendiente en el socket de escucha utilizado para aceptar solicitudes. Por ejemplo, si la configuración del servidor frontend genera una acumulación de solicitudes que se ponen en cola en el socket de escucha, el tiempo de carga de la página mostrará un aumento en el tiempo de red.

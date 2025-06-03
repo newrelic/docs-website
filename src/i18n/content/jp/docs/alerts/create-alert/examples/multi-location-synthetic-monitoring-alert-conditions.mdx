@@ -1,0 +1,122 @@
+---
+title: 複数拠点の外形監視警戒状況
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: Synthetic monitoring multi-location alert conditions allow you to specify how many location checks must fail before generating a notification.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+マルチロケーションのシンセティックモニタリングのアラート条件では、特定の数のロケーションが同時に故障した場合に通知するモニターを作成することができます。
+
+## なぜこれが重要なのか [#feature]
+
+[複数の ](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics)[拠点](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors#setting-location) で実行されている合成監視 の場合、1つの拠点がさまざまな理由で一時的に障害を起こすことがあります。多くの場合、単一の短期間の障害は、通知を必要とするような問題を示すものではありません。
+
+複数の場所の条件を使用すると、インシデントをトリガーして通知を送信するために同時に障害が発生する必要がある場所の数を設定できます。たとえば、モニターが 6 つの場所で実行されている場合、通知を受信する前に 4 つの場所で障害が発生することを要求する条件を設定できます。
+
+<Callout variant="important">
+  マルチロケーションアラートは、合成モニターのアラートポリシーには影響し**ません**。たとえば[、マルチロケーションアラート](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications)をミュートしても、 [合成モニターのアラート](/docs/synthetics/synthetic-monitoring/using-monitors/alerts-synthetic-monitoring#alerts-existing-monitor)はミュートされ**ません**。
+</Callout>
+
+## ルール
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        ルール
+      </th>
+
+      <th>
+        詳細
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        必要なチェック頻度
+      </td>
+
+      <td>
+        15分以内です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        条件ごとの最大モニター数
+      </td>
+
+      <td>
+        50
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アカウントごとの条件
+      </td>
+
+      <td>
+        この機能には、アカウントごとに 1000 件の条件という制限がありますが、一部の種類のインフラストラクチャ アラート条件もこの制限にカウントされます。制限を超えたという通知を受け取った場合は、New Relic の担当者または [サポート](https://support.newrelic.com/) にお問い合わせください。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        チェックの間の状態
+      </td>
+
+      <td>
+        失敗したロケーションチェックは、チェックが成功するまで失敗したとみなされます。例：ロケーションが失敗しても、すぐに利用可能になることがありますが、スケジュールされたチェックが成功したと報告されるまでは失敗したとみなします。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+ここでは、非同時多発的な故障の場合に、4ロケーションの条件がどのように発動されるかを示した図を紹介します。
+
+<img
+  title="synthetics-multi-location-alert-diagram.png"
+  alt="Synthetics multi-location alert condition diagram"
+  src="/images/accounts_screenshot-full_synthetics-multi-location-alert-diagram.webp"
+/>
+
+<figcaption>
+  この図は、4 つの障害箇所の設定によって、次々に発生する障害に対してインシデントがどのようにトリガーされるかを示す例を示しています。失敗した位置チェックは、次に成功するまで失敗として表示されることに注意してください。
+</figcaption>
+
+## Alerts UIから条件を作成 [#create]
+
+条件を作成する前に、 [Rules for Multi-Location Condition](#rules) をお読みください。
+
+<img
+  title="Create a classic alert for synthetics"
+  alt="A screenshot that shows what to select to create a classic alert for synthetics"
+  src="/images/alerts_screenshot-crop_synthetics-Alerts.webp"
+/>
+
+1. <DNT>**one.newrelic.com**</DNT>から、[<DNT>**Alerts**</DNT>](https://one.newrelic.com/alerts-ai)を選択し、次に[<DNT>**Alert policies**</DNT>](https://one.newrelic.com/alerts-ai/condition-builder/policy-list)を選択します。
+2. クラシック アラート条件を作成するポリシーをクリックするか、新しいポリシーを作成します。
+3. <DNT>**New alert condition**</DNT>を選択します。
+4. <DNT>**Build a classic alert**</DNT>を選択します。
+5. <DNT>**Synthetics**</DNT>と<DNT>**Multiple location failures**</DNT>を選択します。
+6. ターゲットとするモニターを選択するには、 <DNT>**Next**</DNT>クリックします。
+7. <DNT>**Next**</DNT>クリックします。 <DNT>**Set thresholds**</DNT>ステップのフィールドに入力します。
+8. <DNT>**Save condition**</DNT>をクリックします。
+
+<Callout variant="important">
+  [Synthetics UI](/docs/synthetics/new-relic-synthetics/pages/view-monitors-alert-information) では、マルチロケーションのSyntheticモニタリングのアラート条件を表示・編集することはできません。
+</Callout>
+
+## APIを使った条件出し [#api]
+
+条件を作成する前に、 [Rules for Multi-Location Condition](#rules) をお読みください。
+
+たとえば、複数の場所の条件の REST API 呼び出しについて [は、アラートの REST API 呼び出しに関する](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/rest-api-alerts/rest-api-calls-alerts/#multilocation-synthetics-conditions) ドキュメントを参照してください。
+
+アラートREST APIを使用してマルチロケーションの条件を管理するには、 [REST APIエクスプローラ](https://rpm.newrelic.com/api/explore/alerts_location_failure_conditions/create) を使用します。

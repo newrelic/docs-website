@@ -1,0 +1,12 @@
+---
+subject: Mobile app for Android
+releaseDate: '2024-01-29'
+version: 5.13.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* Improved Lambda Function detail screen
+* Added time filters for Issues and Incidents
+* Various bug fixes

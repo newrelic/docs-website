@@ -1,0 +1,498 @@
+---
+title: "Reliability engineering diagnostics: A beginner's guide to troubleshooting application performance"
+tags:
+  - Observability maturity
+  - Uptime, performance, and reliability
+  - Site reliability engineering
+  - SRE
+metaDescription: "New Relic observability maturity series: A beginner's guide on identifying common application performance issues."
+freshnessValidatedDate: never
+---
+
+This guide is an introduction to improving your skill at diagnosing customer-impacting issues. You'll be able to recover from application performance issues more quickly by following the procedures in this guide.
+
+This guide is part of our [series on observability maturity](/docs/new-relic-solutions/observability-maturity/introduction).
+
+## Prerequisites
+
+Here are some requirements and some recommendations for using this guide:
+
+* New Relic observability coverage:
+  * <DNT>**Required**</DNT> : [APM with distributed tracing](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data), [APM logs in context](/docs/apm/new-relic-apm/getting-started/get-started-logs-context), and [infrastructure agent](/docs/infrastructure/infrastructure-monitoring/get-started/get-started-infrastructure-monitoring)
+  * Recommended: [Logs](/docs/logs/get-started/get-started-log-management) and [network monitoring](/docs/network-performance-monitoring/get-started/npm-introduction) (NPM)
+* <DNT>**Required**</DNT>: [Service level management](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide)
+* Recommended: Some experience with using New Relic APM, distributed tracing, NRQL querying, and <InlinePopover type="logs"/> UI
+* Recommended: you've read these guides:
+  * [Alert quality management](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide)
+  * [Service level management](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide)
+
+## Overview [#overview]
+
+Before you start using this guide, it will help you to understand what you'll be learning. This guide will help you understand:
+
+* How your business is impacted by improving your diagnstics skills.
+* The operational key performance indicators used to measure success.
+* How your end users perceive different types of reliability issues.
+* The difference between the _direct cause_ and the _underlying root cause_ of a problem.
+* The basic diagnostic steps for finding and solving problems, which includes:
+  * Defining the problem - creating a problem statement
+  * Finding the source of the problem
+  * Finding the direct cause of that problem
+* Some performance problem categories (output performance, input performance, and client performance) and the New Relic features used to diagnose those problems (APM, synthetics, <InlinePopover type="browser"/> and mobile monitoring).
+* How to use a problem matrix, which is a cheat sheet for understanding common problems and their likely sources.
+
+Towards the end, we'll review some example performance problems, which should help you better understand these concepts.
+
+## Desired outcomes [#desired-outcomes]
+
+### Summary
+
+The value to business is:
+
+* Reduce the number of business-disrupting incidents
+* Reduce the time required to resolve issues (MTTR)
+* Reduce the operational cost of incident
+
+The value to IT operations and SRE is:
+
+* Improve time to understand and resolve
+
+### Business outcome [#business-outcome]
+
+In 2014, [Gartner estimated](https://blogs.gartner.com/andrew-lerner/2014/07/16/the-cost-of-downtime) that the average cost of IT downtime was $5,600 per minute. The cumulative cost of business-impacting incidents is determined by factors like time-to-know, frequency, time-to-repair, revenue impact, and the number of engineers triaging and resolving the incidents. Simply put, you want fewer business-impacting incidents, shorter incident duration, and faster diagnostics, with fewer people needed to resolve performance impacts.
+
+Ultimately, the business goal is to maximize uptime and minimize downtime where the cost of downtime is:
+
+**`Downtime minutes x Cost per minute = Downtime cost`**
+
+Downtime is driven by the number of business-disrupting incidents and their duration. Cost-of-downtime includes many factors but the most directly measurable are operational cost and lost revenue.
+
+The business must drive a reduction in the following:
+
+* number of business-disrupting incidents
+* operational cost of incidents
+
+### Operational outcome [#operational-outcome]
+
+The required operational outcome is to maintain product-tier service level objective compliance. You do this by diagnosing degraded service levels, communicating your diagnosis, and performing rapid resolution. But unexpected degradations and incidents always happen and you need to respond quickly and effectively.
+
+In other guides in this series, we focus on improving <DNT>**time to know**</DNT>. In our [Alert quality management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide), we focus on <DNT>**reactive**</DNT> ways to improve time to know, and in our [Service level management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide) we focus on <DNT>**proactive**</DNT> methods.
+
+In the guide you're reading now, we focus on improving <DNT>**time to understand**</DNT> and <DNT>**time to resolve**</DNT>.
+
+## Key performance indicators - operational [#operational-kpis]
+
+There are many metrics discussed and debated in the world of “incident management” and SRE theory; however, most agree that it is important to focus on a small set of key performance indicators.
+
+The KPIs below are the most common indicators used by successful SRE and incident management practices.
+
+<CollapserGroup>
+  <Collapser
+    id="slo-compliance"
+    title="Service level objectives (SLO) compliance"
+  >
+    This is your primary indicator. Service levels measure the start of performance degradation, performance trend, the extent of the impact, and when the problem has been resolved.
+
+    To learn more about this process, see our [Service level management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide).
+  </Collapser>
+
+  <Collapser
+    id="time-to-know"
+    title="Time to know"
+  >
+    This is the time the incident was first recorded by a human. Time-to-know measures between the start of service level degradation and the time a record of the performance issue was created. The [Alert quality management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) demonstrates how to measure and improve this operational metric.
+  </Collapser>
+
+  <Collapser
+    id="time-to-understand"
+    title="Time to understand"
+  >
+    This is the time between the record of the incident (time to know) and the resolution of the impact (time to resolve).
+  </Collapser>
+
+  <Collapser
+    id="time-to-resolve"
+    title="Time to resolve"
+  >
+    Time-to-resolve is often referred to as MTTR (mean-time to restore/repair/resolve). It's measured from the start of the performance degradation (as determined by service levels) to the time the service level returns to the expected level of performance.
+
+    <DNT>**Note**</DNT>: Time-to-resolve does not mean the root cause has been identified and permanently fixed. Permanent fixes are part of the "problem management" process, after the incident has been resolved. Please do your research on root cause versus direct cause and "symptoms of root causes."
+  </Collapser>
+</CollapserGroup>
+
+## End-user's perception of reliability [#end-user-perception]
+
+How the customer perceives performance of your product is critical to understanding how to measure urgency, and priority. Also, understanding the customer's perspective helps to understand how the business views the problem, as well as understanding the required workflows to support the impacted capabilities. Once you understand the perception of the customer and the business, you can better understand what might be impacting the reliability of said capabilities.
+
+Ultimately, observability from the customer perspective is the first step to becoming proactive and proficient in reliability engineering.
+
+There are two primary experiences that impact an end-user's perception of the performance of your digital product and its capabilities. The terms below are from the customer's perspective using common customer language.
+
+<CollapserGroup>
+  <Collapser
+    id="availability"
+    title="Availability, a.k.a., it's not working"
+  >
+    Availability is also known as: connectivity, uptime, reachability. But it's also conflated with success (non-errors).
+
+    An end-user may state that they cannot access a required capability, such as login, browse, search, view inventory. Or they may simply state that the entire service is unavailable. This is a symptom of either the inability to connect to a service or a service returning an error.
+
+    Traditionally "availability" or "uptime" was measured in a binary "UP/DOWN" methodology by measuring the ability to connect to a service. The traditional method has a critical gap in that it only measures when an entire service becomes completely unavailable. This classic measure of reliability results in significant observability gaps, difficult diagnostics, and the end-users being significantly impacted before you can react.
+
+    Availability is measured by both "the ability to reach a service", also known as "uptime", AND "the ability of the service to return the expected response," (in other words, "non-error"). New Relic's observability maturity framework distinguishes the two by <DNT>**input performance**</DNT> (connectivity) and <DNT>**output performance**</DNT> (success and latency of the response).
+  </Collapser>
+
+  <Collapser
+    id="performance"
+    title="Performance, a.k.a., it's too slow"
+  >
+    Performance is also known as: latency, and response time.
+
+    An end user may state that the service is too slow.
+
+    For both the IT and business leaders, the term "performance" can encompass an array of issues. In New Relic's service level management, "slowness" is measured in both the "output" and "client" categories. However, the majority of slowness problems occur due to an output issue, stemming from what are traditionally called the "backend services."
+  </Collapser>
+</CollapserGroup>
+
+## Root cause vs direct cause [#root-cause-vs-direct-cause]
+
+The root cause of a problem is **not** the same as the direct cause of that problem. Likewise, fixing the direct cause (short term) does not usually mean you've fixed the root cause (long term) of the problem. <DNT>**It's very important to make this distinction.**</DNT>
+
+When looking for a performance issue, you should first attempt to find the direct cause of the problem by asking the question, "What changed?". The component or behavior that changed is not usually the root cause but is in fact the direct cause that you need to resolve first. Resolving the root cause is important but usually requires a post-incident retroactive discussion and long-term problem management.
+
+For example: service levels for your login capability suddenly drop. It's immediately found that traffic patterns are much higher than usual. You trace the performance issue to an open TCP connection limit configuration that's causing a much larger TCP connection queue. You immediately resolve the issue by deploying a TCP limit increase and some extra server instances. You solved the direct cause of the problem for the short term but the root cause could be anything from improper capacity planning, missed communication from marketing, or a related deployment with uninteded consequences on upstream loads.
+
+This distinction is also made in ITIL/ITSM <DNT>**Incident management**</DNT> versus <DNT>**Problem management**</DNT>. Root causes are discussed in post-incident talks then resolved in longer-term problem management processes.
+
+## Diagnostic steps (overview) [#diagnostic-steps]
+
+### Step 1: Define the problem [#create-problem-statement]
+
+The first rule is to quickly establish the problem statement. There are plenty of guides on building problem statements but simple and effective is the best. A well formed problem statement will do the following:
+
+1. Describe what the end-user is experiencing. What is the problem that the end-user is experiencing?
+2. Describe the expected behavior of the product capability. What is it that the end-user should be experiencing?
+3. Describe the current behavior of the product capability. What is the technical assessment of what the user is experiencing?
+
+Avoid any assumptions in your problem statement. Stick to the facts.
+
+### Step 2: Find the source [#find-source]
+
+The "source" is the component or code that is closest to the direct cause of the problem.
+
+Think of many water pipes connected through many junctions, splitters, and valves. You're alerted that your water output service level is degraded. You trace the problem from the water output through the pipes until you determine which junction, split, valve, or pipe is causing the problem. You discover one of the electric valves is shorted. That valve is the source of your problem. The short is the direct cause of your problem. You easily resolve the direct cause by replacing the value. Bear in mind the root cause may be something more complex, such as weather conditions, chemicals in the water, or the manufacture.
+
+This is the same concept for diagnosing complex technology stacks. If your login capability is limited (output), you must trace the problem back to the component (source) that's causing that limit and fix it. It could be the API software (service boundary), the middleware services, the database, resource constraints, a third party service, or something else.
+
+In IT there are three primary breakpoint categories to improve your response times:
+
+1. <DNT>
+     **Output**
+   </DNT>
+2. <DNT>
+     **Input**
+   </DNT>
+3. <DNT>
+     **Client**
+   </DNT>
+
+Defining your performance metrics within these categories, a.k.a [service levels](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide), will significant improve your response time in determining where the source of the problem is. Measuring these categories is covered in [our service level management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide). To understand how to use them in diagnostics, keep reading.
+
+### Step 3: Find the direct cause [#find-direct-cause]
+
+Once you're close to the source of the problem, determine what changed. This will help you quickly determine how to immediately resolve the problem in the short term. In the example in [Step 2](#find-source), the change was that the valve was no longer functioning due to degraded hardware causing a short.
+
+Examples of common changes in IT are:
+
+1. Throughput (traffic)
+2. Code (deployments)
+3. Resources (hardware allocation)
+4. Upstream or downstream dependency changes
+5. Data volume
+
+For other common examples of performance-impacting problems, see the [problem matrix](#problem-matrix) below.
+
+## Use health data points [#health-data-points]
+
+As previously mentioned, there are three primary performance categories that jump-start your diagnostic journey. Understanding these health data points will significantly reduce your time to understanding where the source of the problem is.
+
+<CollapserGroup>
+  <Collapser
+    id="output-perf"
+    title="Output performance"
+  >
+    <DNT>**This requires**</DNT>: APM
+
+    Output performance is the ability of your internal technology stack to deliver the expected responses (output) to the end-user. This is traditionally referred to as the "backend" services.
+
+    In the great majority of scenarios, output performance is measured simply by the speed of the response and the quality of the response (in other words, it's error free). Remember the user perspective described above. The end-user will state that the service is either slow, not working, or inaccessible.
+
+    The most common problem is the ability to respond to end-user requests in a timely <DNT>**and**</DNT> successful manner.
+
+    This is easily identified by a latency anomaly or error anomaly on the services that support the troubled product capability.
+  </Collapser>
+
+  <Collapser
+    id="input-perf"
+    title="Input performance"
+  >
+    <DNT>**This requires**</DNT>: Synthetics
+
+    Input performance is simply the ability of your services to receive a request from the client. This is not the same as the client's ability to send a request.
+
+    Your output performance (backend services) could be exceeding expected performance levels. However, something between the client and your services is breaking the request-response lifecycle. This could be anything between the client and your services.
+  </Collapser>
+
+  <Collapser
+    id="client-perf"
+    title="Client performance"
+  >
+    <DNT>**This requires**</DNT>: Browser monitoring and/or mobile monitoring
+
+    Client performance is the ability for a browser and/or mobile application to both make requests and render responses. Browser and/or mobile are easily identified as the source of the problem once both output (backend) and input performance (synthetics) have been ruled out.
+
+    Output and input performance is relatively easy to rule out (or rule in). Due to the depth of diagnostics in input and output diagnostic, browser and mobile will be covered in an advanced diagnostics guide in the future.
+  </Collapser>
+</CollapserGroup>
+
+## Problem matrix [#problem-matrix]
+
+The problem matrix is a cheat-sheet of common problems categorized by the three health data points.
+
+The problem sources are arranged by how common they are, with the most common being in the top row and on the left. A more detailed breakdown is listed below. Service level management done well will help you rule out two out of three of these data points quickly.
+
+This table is a problem matrix sorted by health data point:
+
+<table>
+    <thead>
+        <tr>
+            <th>Data point</th>
+            <th>New Relic capability</th>
+            <th>Common problem sources</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Output</td>
+            <td>APM, infra, logs, NPM</td>
+            <td>Application, data sources, hardware config change, infrastructure, internal networking, third party provider (AWS, GCP)</td>
+        </tr>
+        <tr>
+            <td>Input</td>
+            <td>Synthetic, logs</td>
+            <td>External routing (CDN, gateways, etc), internal routing, things on the internet (ISP, etc.)</td>
+        </tr>
+        <tr>
+            <td>Client</td>
+            <td>Browser, mobile</td>
+            <td>Browser or mobile code</td>
+        </tr>
+    </tbody>
+</table>
+
+Problems tend to be compounded but the goal is to "find the source" and then determine "what changed" in order to quickly restore service levels.
+
+### Example problems [#example-problem]
+
+Let's look at an example problem. Let's say your company deploys a new product, and the significant increase in requests causes unacceptable response times. The source is discovered in the login middleware service. The problem is a jump in TCP queue times.
+
+Here's a breakdown of this situation:
+
+* <DNT>**Category**</DNT>: output performance
+* <DNT>**Source**</DNT>: login middleware
+* <DNT>**Direct cause**</DNT>: TCP queue times from additional request load
+* <DNT>**Solution**</DNT>: increased TCP connection limit and scaled resources
+* <DNT>**Root-cause**</DNT>: insufficient capacity planning and quality assurance testing on downstream service impacting login middleware
+
+### Another example problem [#example-problem-2]
+
+Here's another example problem:
+
+* There was a sudden increase in 500 Gateway errors on login...
+* The login API response times increased to the point where timeouts began...
+* The timeouts were traced to the database connections in the middleware layer...
+* Transaction traces revealed signficant increase in number of database queries per login request...
+* A deployment marker was found for a deployment that happened right before the problem.
+
+Here's a breakdown of this situation:
+
+* <DNT>**Category**</DNT>: output performance degredation leading to input performance failure
+* <DNT>**Source**</DNT>: middleware service calling database
+* <DNT>**Direct cause**</DNT>: 10x increased database queries after code deployment
+* <DNT>**Solution**</DNT>: deployment rollback
+* <DNT>**Root-cause**</DNT>: insufficient quality assurance testing
+
+### Problem matrix by source [#problem-matrix-sources]
+
+Here's a table with the problem matrix sorted by sources.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Source**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Common direct causes**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Application
+      </td>
+
+      <td>
+        1. Recent deployment (code)
+        2. Hardware resource constraints
+        3. Database constraints
+        4. Config change (hardware, routing, or networking)
+        5. 3rd party dependency
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Data source
+      </td>
+
+      <td>
+        1. Database constraints
+        2. Change in query logic (n+1)
+        3. Message queues (usually resulting in poor producer or consumer performance)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Internal networking and routing
+      </td>
+
+      <td>
+        1. Load balancers
+        2. Proxies
+        3. API Gateways
+        4. Routers (rare)
+        5. ISP/CDN (rare)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Identifying performance pattern anomalies [#pattern-anomalies]
+
+<Callout variant="tip">
+  Having well-formed [service levels](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide) on your service boundaries relating to key transactions (capabilities) will help you more quickly identify what end-to-end workflow the problem resides in.
+</Callout>
+
+Identifying pattern anomalies will improve your ability to identify what and where the direct cause of problems may be.
+
+There's plenty of great information and free online classes on identifying patterns, but the general concept is rather simple and can unlock powerful diagnostic abilities.
+
+The key to identifying patterns and anomalies in performance data is that you don't need to know how the service should be performing: You only need to determine if the recent behavior has changed.
+
+The examples provided in this section use response time or latency as the metric but you can apply the same analysis to almost any dataset, such as errors, throughput, hardware resource metrics, queue depths, etc..
+
+### Normal [#normal]
+
+Below is an example of a seemingly volatile response time chart (7 days) in APM. Looking closer, you can see that the behavior of the response time is repetitive. In other words, there's no radical change in the behavior across a 7-day period. The spikes are repetitive and not unusual compared to the rest of the timeline.
+
+<img
+  alt="normal pattern"
+  title="Normal pattern"
+  src="/images/solutions_screenshot-full_oma-upr-pattern-normal.webp"
+/>
+
+In fact, if you change the view of the data from <DNT>**average over time**</DNT> to <DNT>**percentiles over time**</DNT>, it becomes even more clear how "regular" the changes in response time are.
+
+<img
+  alt="normal pattern with percentile"
+  title="Normal pattern with percentile"
+  src="/images/solutions_screenshot-full_normal-percentile-pattern.webp"
+/>
+
+### Abnormal [#abnormal]
+
+This chart shows an application response time that seems to have increased in an unusual way compared to recent behavior.
+
+<img
+  alt="abnormal pattern"
+  title="Abnormal pattern"
+  src="/images/solutions_screenshot-full_pattern-abnormal.webp"
+/>
+
+This can be confirmed by using the week-over-week comparison.
+
+<img
+  alt="abnormal pattern week-over-week"
+  title="Abnormal pattern week-over-week comparison"
+  src="/images/solutions_screenshot-full_pattern-abnormal-compare.webp"
+/>
+
+We see that the pattern has changed and that it appears to be worsening from last week's comparison.
+
+## Finding the source [#finding-source]
+
+Next, we'll walk through how you'd find the source in New Relic. Note that this workflow relies on distributed tracing.
+
+First, you'll find an application related to the latency or errors experienced by the end user. This doesn't mean the application or the code is the problem, but finding any application within the flow (_first_) leads you more quickly close to the source. Once this application is found, you can quickly rule out components like code, host, database, configuration, and network.
+
+Once the application is identified, the question is what transactions within that application are part of the problem. Use the application you identified as experiencing a performance issue and identify which transaction or transactions are impacted. Here you may repeat the performance pattern anomoly skill described above in [Identif performance pattern anomalies](#pattern-anomalies), but this time on the transactions themselves.
+
+The following docs will help you use New Relic to identify problem transactions:
+
+1. [Transactions page: Find specific performance problems](/docs/apm/apm-ui-pages/monitoring/transactions-page-find-specific-performance-problems/)
+2. [Slow transactions on the service summary page](/whats-new/2021/03/slow-transactions)
+
+Once the problematic transactions are identified, you can use distributed tracing to review the end-to-end components supporting that transaction. Distributed tracing helps you quickly identify where the latency is and/or where the errors are occurring across your entire stack, all within one view.
+
+The following resources will help you learn how to use distributed tracing to identify the source problem component:
+
+1. [Intro to distributed tracing](/docs/distributed-tracing/concepts/introduction-distributed-tracing)
+2. [How to use the distributed tracing UI](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/)
+3. [Free online webinars on distributed tracing](https://learn.newrelic.com/new-relic-distributed-tracing-tracking-across-your-application-stacks)
+4. [A video on using distributed tracing for direct cause analysis](https://www.youtube.com/watch?v=r9ImAQ5J5h4)
+
+Here's a brief summary of the finding-the-source steps:
+
+1. Examine an application related to the impacted performance.
+2. Identify which transactions are contributing to the problem.
+3. Use distributed tracing to identify the problem component within the end-to-end flow.
+
+We can now move on to the final step, identifying the direct cause.
+
+## Finding the direct cause [#finding-direct-cause]
+
+Once the source component is found you can begin to determine the direct cause.
+
+Using knowledge from the previous steps you'll know if the problem is latency, success, or both.
+
+Latency issues can be found using transaction traces and/or "in-process spans" within distributed traces.
+
+Success issues error messages can also be seen in traces, but the best details for success problems are usually found in the application logs.
+
+Either way, if you're the first tier incident responder or an SRE, finding the direct cause would fall to the subject matter experts (SMEs), who are typically the developers and engineers responsible for the source component found.
+
+The most effective next step after discovering the source component is to contact the subject matter experts for said component. Show them the data discovered in the triage and diagnostics you've completed for a head start on the troubleshooting.
+
+<Callout variant="tip">
+  Note that both logs-in-context and distributed tracing are enabled by default with our newest <InlinePopover type="apm"/> agents. (If you haven't updated your agents in a while, we recommend regularly [updating your agents](/docs/new-relic-solutions/new-relic-one/install-configure/update-new-relic-agent).)
+
+  Logs-in-context and distributed tracing are critical capabilities required to reduce your time in triage, diagnostics and long-term problem resolution.
+</Callout>
+
+Now, go forth and be an excellent site reliability engineer with New Relic!
+
+## Next steps [#next-steps]
+
+If you haven't already, you might want to read up on some of our related [observability maturity guides](/docs/new-relic-solutions/observability-maturity/introduction), including:
+
+* [Alert quality management](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide)
+* [Service level management](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide)

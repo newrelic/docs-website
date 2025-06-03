@@ -1,0 +1,155 @@
+---
+title: Capture los datos correctos con New Relic
+metaDescription: This guide helps you set up the best telemetry possible to describe the runtime operation of your services.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La observabilidad de los datos le brinda información importante y valiosa sobre los detalles de sus servicios cuando informan los datos correctos. Cosas como el rastreo distribuido y la instrumentación script permiten a los equipos recopilar rápidamente telemetry data detallados. Desafortunadamente, los equipos de operaciones generalmente no están en la mejor posición para evaluar la calidad de la telemetría que obtienen, lo que puede generar demasiados datos y retrasar la capacidad de resolver problemas en su sistema.
+
+Revelar servicios mal instrumentados al usuario pone en riesgo la satisfacción de los clientes a medida que los equipos lanzan nuevas características desde la base de código sin conocer los vínculos entre la entrega de software y los programas de observabilidad. La planificación de la instrumentación del servicio es el enfoque utilizado para describir el tiempo de ejecución de un único servicio a través de la telemetría, y esta guía se centra en la métrica del código de su aplicación, así como en mediciones externas a través de pruebas Sintético.
+
+<img
+  title="Capture the right data"
+  alt="A diagram displaying the path for capturing relevant data with New Relic. The path is 1. Capture your service telemetry, 2. capture your web telemetry, and 3. optimize your reporting"
+  src="/images/capture_diagram_data-reporting-optimization-path.webp"
+/>
+
+Eres un buen candidato para utilizar esta guía si se cumple alguna de las siguientes condiciones:
+
+* Sus equipos de desarrollo están desconectados del diseño de observabilidad de la producción.
+* Tiene nuevos servicios/capacidades que se ejecutan en producción y antes de establecer completamente la telemetría y las alertas.
+* Debe proporcionar contexto empresarial adicional a su instrumentación para mejorar el diagnóstico y la medición de KPI empresariales.
+* Emplea un framework de software altamente personalizado o propietario.
+* Su servicio está en desarrollo activo. Los servicios legacy y los servicios creados a partir de plataformas comerciales listas para usar tienden a funcionar mejor con opciones de instrumentación genéricas.
+
+## Entender los beneficios [#understand-benefits]
+
+Asegurarse de capturar los datos correctos puede ayudar a sus desarrolladores a involucrarse más en el proceso de solucionar problemas cuando surjan, brindándoles datos de servicio relevantes de manera más eficiente. Al hacerlo:
+
+1. Mejorar la resolución de problemas:
+
+* Una buena denominación de telemetría brinda al personal de operaciones un lenguaje común para usar con los desarrolladores durante el incidente, lo que reduce el tiempo para clasificar y solucionar problemas.
+* Una telemetría más precisa y contextualmente relevante de su servicio permite una detección más precisa de fallas sobre las que puede tomar medidas.
+
+2. Tome decisiones de desarrollo mejor informadas al:
+
+* Detectar áreas de volatilidad o comportamiento inesperado y abordarlas.
+* Comprender qué dependencia en su código carece de redundancia y tomar medidas para mejorar el servicio.
+* Apreciando cómo el usuario final está empleando su software. Podrá comprender mejor dónde las mejoras tendrán el mayor impacto.
+
+## Utilice indicadores de rendimiento clave [#key-perf-indicators]
+
+Es importante conocer algunos KPI simples para realizar un seguimiento de las mejoras continuas en sus programas de operaciones y entrega de software. Aquí hay dos tipos principales de KPI a considerar al mejorar la instrumentación:
+
+* <DNT>
+    **Business KPIs**
+  </DNT>
+
+  están alineados con los objetivos generales de su programa y deben medirse consistentemente para demostrar una mejora continua para cada servicio. Los KPI comerciales incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-service-quality"
+    title="Calidad de servicio"
+  >
+    Esta métrica define qué tan bien está funcionando su servicio. Esto dependerá de las necesidades de su organización y de las limitaciones de los servicios que se supervisan.
+
+    <DNT>**Goal:**</DNT> Puntuación de logro de la calidad del servicio mejorada a lo largo del tiempo.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * Crear una representación gráfica como tendencia del logro de la calidad del servicio para períodos definidos (mensual y/o trimestral).
+    * Servicio Apdex puede proporcionar una puntuación de calidad eficaz específica del servicio. (Ver [Apdex: Medir la satisfacción del usuario](/docs/apm/new-relic-apm/apdex/apdex-measure-user-satisfaction/)).
+    * Un enfoque de administración a nivel de servicio (SLM) bien definido que utilice SLI que describan el nivel de operación esperado para los límites del servicio puede ser una forma útil de establecer una medición única de la calidad.
+  </Collapser>
+
+  <Collapser
+    id="kpi-release-frequency"
+    title="Frecuencia de lanzamiento"
+  >
+    La "frecuencia de lanzamiento" se refiere al número de lanzamientos de un servicio determinado. Esto indica la velocidad de lanzamiento de la organización de entrega de software.
+
+    <DNT>**Goal:**</DNT> Coherencia del logro con un indicador de calidad del servicio consistente o en mejora.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * Derivar datos del marcador de despliegue u otro evento enviado a New Relic.
+    * Mida directamente desde código o herramientas de gestión de proyectos como JIRA, BitBucket, GitHub.
+    * Considere implementar un mecanismo de recopilación para capturar eventos de lanzamiento y almacenarlos directamente en New Relic. Consulte [la innovación CICD de New Relic,](https://github.com/newrelic-experimental/nr1-innovation-cicd/tree/main/Webhooks) por ejemplo, configuraciones de JIRA y BitBucket.
+  </Collapser>
+</CollapserGroup>
+
+* <DNT>
+    **Practitioner KPIs**
+  </DNT>
+
+  Se utilizan para medir cambios en la ejecución de funciones laborales para quienes participan en el desarrollo y gestión de servicios. Los KPI del profesional incluyen:
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-feature-release-frequency"
+    title="Frecuencia de liberación característica"
+  >
+    La "frecuencia de lanzamiento de características" trata del porcentaje de lanzamientos que están directamente relacionados con el desarrollo de nuevas características versus correcciones de errores o deuda técnica. La relación entre característica y correcciones variará entre equipos y proyectos según el historial del servicio.
+
+    <DNT>**Goal:**</DNT> Una frecuencia de publicación de características consistente o mejorada consistente con los objetivos de prestación del servicio.
+
+    <DNT>
+      **Best practices:**
+    </DNT>
+
+    * La frecuencia de lanzamiento de la característica del especialista a menudo se adquiere de la misma manera que el KPI comercial de frecuencia de lanzamiento más amplio. Luego, esta métrica se pone a disposición del equipo de desarrollo del servicio.
+  </Collapser>
+
+  <Collapser
+    id="kpi-mean-time-to-close"
+    title="Hora media de cierre"
+  >
+    El "tiempo medio para cerrar" se refiere a la duración promedio del incidente generado por alerta en New Relic.
+
+    <DNT>**Goal:**</DNT> Disminución constante del tiempo de cierre de incidentes para los servicios identificados.
+
+    <DNT>**Best practices:**</DNT>\* siga la [guía de gestión de calidad de alerta](/docs/tutorial-create-alerts/manage-alert-quality/) para ayudarle a comprender el comportamiento de sus servicios mediante el uso <InlinePopover type="alerts"/>para ayudar a mejorar la prestación de sus servicios.
+  </Collapser>
+</CollapserGroup>
+
+## Requisitos previos [#prerequisites]
+
+A medida que avanza en los pasos de la guía, tenga a mano los siguientes recursos de documentación:
+
+* [Instalación](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) y [configuración](/docs/new-relic-one/install-configure/configure-new-relic-agents)del agente APM
+
+* Guías de instrumentación:
+
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [Go](/docs/apm/agents/go-agent/instrumentation)
+  * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [Node.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [SDK de OpenTelemetry](https://opensource.newrelic.com/projects/open-telemetry)
+
+* [Introducción al monitoreo sintético de New Relic](/docs/synthetics/)
+
+## Próximos pasos [#next-steps]
+
+Elija una de las guías a continuación según los datos que desee capturar:
+
+<DocTiles>
+  <DocTile
+    title="Capture service telemetry"
+    path="/docs/tutorial-reporting-data/capture-service-telemetry/"
+  />
+
+  <DocTile
+    title="Capture web telemetry"
+    path="/docs/tutorial-reporting-data/capture-web-telemetry/"
+  />
+</DocTiles>

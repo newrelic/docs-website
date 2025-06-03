@@ -1,0 +1,168 @@
+---
+title: Organice su ingesta log grandes
+metaDescription: Organize your logs into managable partitions and tag their attributes with logs parsing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Una vez que haya decidido qué log ingerir y almacenar, es hora de organizarlo. Es probable que todavía estés ingiriendo cientos de gigabytes o docenas de terabytes de logs. Si bien es mucho menos de lo que tenía originalmente, aún tendrá que esforzarse al intentar usarlos de manera efectiva.
+
+Para resolver esto, agruparemos estos logs restantes en particiones temáticas y analizaremos el log para extraerlo y etiquetarlo como atributo valioso. Al organizar su log de esta manera, puede:
+
+* Consulta por cualquier atributo dentro de tu log
+* Administre particiones específicas a la vez, como el log de frontend versus el log de backend
+* Reducir los tiempos de carga de consultas
+
+## ¿Por qué particionar su log?
+
+Puede obtener mejoras significativas en el rendimiento con el uso adecuado de las particiones de datos. Organizar sus datos en particiones discretas le permite consultar sólo los datos que necesita. Puede consultar una sola partición o una lista de particiones separadas por comas. Los objetivos de particionar sus datos deben ser:
+
+* Cree particiones de datos que se alineen con las categorías de su entorno u organización que son estáticas o cambian con poca frecuencia (por ejemplo, por unidad de negocios, equipo, entorno, servicio, etc.).
+* Crea particiones para optimizar la cantidad de eventos que deben escanear para tu consulta más común. No hay una regla establecido, pero generalmente, a medida que log de eventos escaneado supera los 500 millones (especialmente más de mil millones) para su consulta `common`, puede considerar ajustar su partición.
+
+El namespace de nombres de una partición determina su período de retención. Ofrecemos dos opciones de retención:
+
+* <DNT>**Standard:**</DNT> La retención predeterminada de la cuenta está determinada por su suscripción a New Relic. Este es el período de retención máximo disponible en su cuenta y es el namespace que seleccionará para la mayoría de sus particiones.
+* <DNT>**Secondary:**</DNT> Retención de 30 días. Todos los registros enviados a una partición que sea miembro del namespace secundario se eliminarán de forma continua 30 días luego de ser ingeridos.
+
+## ¿Por qué analizar el log?
+
+Analizar su log durante la ingesta es la mejor manera de hacer que usted y otros usuarios de su organización puedan utilizar mejor sus datos log . Por ejemplo, compare estos dos logs antes y después del análisis utilizando una regla de análisis de Grok:
+
+<SideBySide>
+  <Side>
+    Análisis previo:
+
+    ```
+    {
+        "message": "32 4329 store_Portland"
+    }
+
+
+    ```
+  </Side>
+
+  <Side>
+    Análisis posterior:
+
+    ```
+    {
+        "transaction_total": "32",
+        "purchase_number": "4329",
+        "store_location": "store_Portland",
+    }
+    ```
+  </Side>
+</SideBySide>
+
+Esto le permite consultar fácilmente el atributo recién definido, como `transaction_total` en el panel y alerta.
+
+## Organiza tu log
+
+Digamos que ACME Corp sabe que consumirán alrededor de 2 TB de logs en los próximos meses. Quieren crear particiones para los logs provenientes de su aplicación Java y de su agente de infraestructura. Piensan que es posible que necesiten consultar su log de Java en el futuro, por lo que deciden utilizar una retención estándar. Mientras tanto, solo necesitan un log de infraestructura reciente, por lo que utilizarán la retención secundaria para ellos.
+
+Para hacerlo:
+
+<Steps>
+  <Step>
+    ## Navega a la UI
+
+    Ir a <DNT>**[one.newrelic.com &gt; Logs](https://one.newrelic.com/launcher/logger.log-launcher)**</DNT>
+  </Step>
+
+  <Step>
+    ## Particiona tu log
+
+    <SideBySide>
+      <Side>
+        1. Desde <DNT>**Manage data**</DNT> en el panel de navegación izquierdo, haga clic en <DNT>**Data partitions**</DNT> y luego haga clic en <DNT>**Create partition rule**</DNT>.
+        2. Defina un nombre de partición como una cadena alfanumérica que comience con `Log_`. En este caso `Log_java`.
+        3. Agregue una descripción opcional.
+        4. Seleccione la retención de namespace estándar para la partición.
+        5. Establezca los criterios de coincidencia de su regla: ingrese una cláusula NRQL `WHERE` válida para que coincida con el log que se almacenará en esta partición. En este caso `logtype=java`.
+        6. Haga clic en <DNT>**Create**</DNT> para guardar su nueva partición.
+      </Side>
+
+      <Side>
+        <img title="log-partition" alt="An image displaying New Relic's log partion UI" src="/images/logs_screenshot_full-partition.webp" />
+      </Side>
+    </SideBySide>
+
+    Esto crea una partición de datos con retención de datos estándar para todos los logs de Java. Para organizar su log de infraestructura, debe seguir los mismos pasos anteriores, solo cambiando la retención a secundaria y la consulta a `logtype=infrastructure`.
+  </Step>
+
+  <Step>
+    ## Analiza tu log
+
+    Ahora que su log está particionado, es hora de analizarlo. Analizarlos le permite extraer datos relevantes dentro de su log para facilitar las consultas y la accesibilidad.
+
+    Para analizar su log:
+
+    <SideBySide>
+      <Side>
+        1. Desde <DNT>**Manage Data**</DNT> en el panel de navegación izquierdo de la UI de log, haga clic en <DNT>**Parsing**</DNT> y luego haga clic en <DNT>**Create parsing rule**</DNT>.
+        2. Introduzca un nombre para la nueva regla de análisis.
+        3. Seleccione un campo existente para analizar (el valor predeterminado es `message`) o ingrese un nuevo nombre de campo.
+        4. Introduzca una cláusula NRQL `WHERE` válida que coincida con el log que desea analizar.
+        5. Seleccione un log coincidente, si existe, o haga clic en la pestaña pegar log para pegar un log de muestra.
+        6. Ingrese la regla de análisis y valide que esté funcionando viendo los resultados en la sección <DNT>**Output**</DNT> . (Ver ejemplo a continuación)
+        7. Habilite y guarde la regla de análisis personalizada.
+      </Side>
+
+      <Side>
+        <img title="log-parsing" alt="An image displaying New Relic's log parsing UI" src="/images/logs_screenshot_full-parsing.webp" />
+      </Side>
+    </SideBySide>
+
+    El siguiente ejemplo le guía a través de un ejemplo específico de creación de una regla de análisis:
+
+    <CollapserGroup>
+      <Collapser id="example" title="Ejemplo de log de análisis">
+        Trabajemos con el ejemplo que usamos anteriormente en este documento. Tienes un log que sigue este patrón:
+
+        ```
+        {
+            "message": "32 4329 store_Portland"
+        }
+        ```
+
+        Desea obtener el monto de la transacción, el número de pedido y la ubicación de la tienda. Las reglas de análisis se crean utilizando Grok, que utiliza el siguiente patrón: `%{SYNTAX:SEMANTIC}`. `SYNTAX` es el patrón utilizado para encontrar el texto y `SEMANTIC` es el identificador o atributo asignado al resultado coincidente.
+
+        En este caso, nuestra regla de análisis quedaría así:
+
+        ```
+        %{INT:transaction_total} %{INT:purchase_number} store%{DATA:store_location}
+        ```
+
+        Una vez que se crea la regla de análisis con el patrón anterior, devolverá el log de la siguiente manera:
+
+        ```
+        {
+            "transaction_total": "32",
+            "purchase_number": "4329",
+            "store_location": "store_Portland",
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    Para obtener una visión más profunda de la creación de patrones de Grok para analizar logs, [lea nuestra publicación de blog](https://newrelic.com/blog/how-to-relic/how-to-use-grok-log-parsing).
+  </Step>
+</Steps>
+
+## Que sigue
+
+¡Felicitaciones por descubrir el verdadero valor de su log y ahorrarle a su equipo horas de frustración con su log! A medida que su sistema crece y ingiere, deberá garantizar el mantenimiento de las reglas de análisis y las particiones. Si está interesado en profundizar en lo que New Relic <InlinePopover type="logs" />puede hacer por usted, consulte estos documentos:
+
+* [Análisis de datos log ](/docs/logs/ui-data/parsing): una mirada más profunda al análisis de logs con Grok y aprenda cómo crear, consultar y administrar sus reglas de análisis de logs utilizando NerdGraph, nuestra API GraphQL.
+* [Patrones de logs](/docs/logs/ui-data/find-unusual-logs-log-patterns/): los patrones de logs son la forma más rápida de descubrir valor en los datos de log sin necesidad de buscar.
+* [Ofuscación de logs](/docs/logs/ui-data/obfuscation-ui/): Con log regla de ofuscación, puedes evitar que ciertos tipos de información se guarden en New Relic.
+* [Buscar datos en logs largos (blobs)](/docs/logs/ui-data/long-logs-blobs/): los datos log extensos pueden ayudarle a solucionar problemas. Pero, ¿qué pasa si un atributo de su log contiene miles de caracteres? ¿Cuántos de estos datos puede almacenar New Relic? ¿Y cómo encontrar información útil en todos estos datos?
+
+<DocTiles numbered>
+  <DocTile title="Get started" path="/docs/tutorial-large-logs/get-started-managing-large-logs" />
+
+  <DocTile title="Filter and reduce your log ingest" path="/docs/tutorial-large-logs/filter-large-logs" />
+
+  <DocTile title="Organize your logs" label={{text: 'You are here', color: '#FCD672'}} path="/docs/tutorial-large-logs/organize-large-logs" />
+</DocTiles>

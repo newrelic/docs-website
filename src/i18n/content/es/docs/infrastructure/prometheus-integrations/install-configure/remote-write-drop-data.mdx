@@ -1,0 +1,97 @@
+---
+title: Eliminar datos usando la escritura remota de Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure remote write
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede eliminar datos que no desea conservar cambiando la sección `remote_write` del archivo de configuración YAML.
+
+<Callout variant="tip">
+  También puede eliminar datos de escritura remota utilizando NerdGraph. Para obtener más información, consulte [Eliminar datos mediante NerdGraph](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/).
+</Callout>
+
+## Elimine puntos de datos métricos completos desde la integración de escritura remota [#drop-entire]
+
+Si un objetivo envía una métrica ruidosa que no desea que se envíe a New Relic, puede especificar que New Relic descarte esos datos.
+
+### Ejemplo
+
+Supongamos que no desea recibir datos para la métrica `node_memory_active_bytes` de una instancia que se ejecuta en `localhost:9100`. Usando la entrada `write_relabel_config` que se muestra a continuación, puede apuntar al nombre de la métrica usando la etiqueta `__name__` en combinación con el nombre de la instancia.
+
+```
+remote_write:
+- url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=macbook-server-cluster
+  bearer_token: <redacted>
+  write_relabel_configs:
+    - source_labels: ['__name__', 'instance']
+      regex: 'node_memory_active_bytes;localhost:9100'
+      action: 'drop'
+```
+
+Esto le indica a Prometheus que desea realizar alguna acción contra la métrica con estas etiquetas. Para limitar qué métricas con estas etiquetas se ven afectadas, debes incluir algún valor para regex. De forma predeterminada, este valor está establecido en `.*` e incluirá todas las métricas. En este caso, eliminará todos los puntos de datos métricos que salgan de Prometheus mediante escritura remota.
+
+## Eliminar etiquetas o atributos específicos de puntos de datos [#drop-specific]
+
+Si un objetivo envía etiquetas o atributos específicos que no estás interesado en recibir, puedes eliminarlos de la métrica que recibes.
+
+### Ejemplo
+
+Digamos que uno de tus objetivos es enviar un montón de atributos adicionales que no estás interesado en recibir. Estos pueden incluir cosas como atributos de alta cardinalidad, como identificador único de máquina, ID JVM o similares. En este caso, debe cambiar las secciones `remote_write` y `scrape_configs` del archivo YAML.
+
+El resultado se verá así:
+
+```
+remote_write:
+- url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=macbook-server-cluster
+  bearer_token: <redacted>
+  write_relabel_configs:
+    - regex: 'extraLabelToRemove.*'
+      action: 'labeldrop'
+...
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any time series scraped from this config.
+  - job_name: 'node'
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          group: 'production'
+          keepLabelName1: 'please-keep-me'
+          extraLabelToRemove: 'please-remove-me'
+          extraLabelToRemove1: 'please-remove-me'
+          extraLabelToRemove2: 'please-remove-me'
+          extraLabelToRemove4: 'please-remove-me'
+          extraLabelToRemove3: 'please-remove-me'
+          extraLabelToRemove5: 'please-remove-me'
+```
+
+## ¿Prometheus o NerdGraph? [#prometheus-vs-nerdgraph]
+
+Hay ventajas tanto al eliminar datos usando el método descrito en esta página como al usar NerdGraph. Esta sección está destinada a ayudarle a determinar qué método es mejor para sus necesidades y preferencias específicas.
+
+### Consideraciones para el método del archivo de configuración de Prometheus
+
+Con este método, los datos eliminados nunca abandonan la instancia de Prometheus asociada. Esta es una característica valiosa si los bytes transferidos son una consideración de costo en el lado del alojamiento de la aplicación.
+
+Sin embargo, este método puede resultar menos atractivo que la opción [NerdGraph](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/) debido a las siguientes consideraciones:
+
+* Mantenido a través de archivos de configuración yaml que deben cargarse en cada instancia de Prometheus (o mediante un mecanismo de almacenamiento compartido)
+* Requiere acceso al servidor Prometheus, lo que significa que:
+* * Es necesario reiniciar el servidor.
+* * Se debe acceder a Servido en el puerto con la ruta `/-/reload` (suponiendo que el servidor tenga habilitada la administración del ciclo de vida como se describe aquí en los documentos [de configuración](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#configuration) de Prometheus).
+
+### Consideraciones del método NerdGraph
+
+NerdGraph es una excelente opción si desea administrar todos sus datos en un solo lugar. También se puede actualizar fácilmente a través de la API y no requiere reinicio ni interacción con Prometheus. Sin embargo, este método aplica reglas a todos los puntos de datos entrantes. Esto significa que debe configurar sus reglas cuidadosamente utilizando el filtrado `WHERE` .
+
+Para obtener más información, consulte [Eliminar datos mediante NerdGraph](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/).
+
+## Aprende más [#learn-more]
+
+* [Enviar datos métricos de Prometheus a New Relic](/docs/integrations/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/)
+* [Alta disponibilidad (HA) de Prometheus](/docs/integrations/prometheus-integrations/install-configure/prometheus-high-availability-ha/)

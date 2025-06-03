@@ -1,0 +1,129 @@
+---
+title: addRelease
+type: apiDoc
+shortDescription: Adds a unique name and ID to identify releases with multiple JavaScript bundles on the same page.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: Browser API call to identify releases with multiple components on the same page.
+redirects:
+  - /docs/browser-source-maps-api-release-id
+  - /docs/browser-source-maps-api-newrelicaddrelease
+  - /docs/browser-api-newrelicaddrelease
+  - /docs/browser-api-newrelic-add-release
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/add-release
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```js
+newrelic.addRelease(string $release_name, string $release_id)
+```
+
+Adds a unique name and ID to identify releases with multiple JavaScript bundles on the same page.
+
+## Requirements
+
+* Browser Pro or Pro+SPA agent (v1016 or higher)
+* If you're using npm to install the browser agent, you must enable the `jserrors` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { JSErrors } from '@newrelic/browser-agent/features/jserrors';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      JSErrors
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description
+
+In <InlinePopover type="browser"/>, a release is a way to tag errors with information about what version of your application is currently running. This is useful for sites where shared components are owned by different teams, or multiple applications are deployed independently but run on the same page.
+
+Modern web applications have many interconnecting parts, so an application may have multiple releases (with different names) associated with the same page load. For example, you can use releases to:
+
+* See differences between errors from an old cached version of your app and errors coming from a new version.
+* Identify problems found during A/B testing, slow rollouts, feature flags, and other advanced deployment methods.
+* Determine which version of a [browser source map](/docs/new-relic-browser-source-map-support) to use.
+
+If the URL for your JavaScript is not unique, you must specify a release name and identifier with this API call to the browser agent. This information is also required when publishing source maps to the storage service. This API adds an ID for browser monitoring to identify releases with multiple JavaScript bundles on the same page.
+
+If the URL for your app's JavaScript bundle <DNT>**is unique**</DNT> each time you deploy your code, browser monitoring does not require any additional information to identify your release. For example, some frontend deployment tools use the Jenkins build number or `git commit sha` in the filename of the deployed code. These are enough to uniquely determine the release that caused the error.
+
+As soon as possible after your page loads, call `newrelic.addRelease()`. All errors that the browser agent sees will be associated with that version of the JavaScript code.
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$release_name`
+
+        _string_
+      </td>
+
+      <td>
+        <DNT>**Required.**</DNT> A short description of the component; for example, the name of a project, application, file, or library.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$release_id`
+
+        _string_
+      </td>
+
+      <td>
+        <DNT>**Required.**</DNT> The ID or version of this release; for example, a version number, build number from your CI environment, GitHub SHA, GUID, or a hash of the contents. Since New Relic converts this value into a string, you can also use `null` or `undefined` if necessary.
+
+        The `$release_name` and `$release_id` combination must be unique; for example:
+
+        * `'signup', '2.4.0'`
+
+        * `'signup', '2.4.1'`
+
+          However, you can use the same version for different components; for example:
+
+        * `'signup', '2.4.0'`
+
+        * `'logout', '2.4.0'`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Examples
+
+### Current short SHA [#release-id-example1]
+
+```js
+newrelic.addRelease('checkout page', 'a818994')
+```
+
+### Semantic versioning [#release-id-example2]
+
+```js
+newrelic.addRelease('jquery.min.js', 'v3.1.1')
+```

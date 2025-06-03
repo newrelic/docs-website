@@ -1,0 +1,522 @@
+---
+title: 'NerdGraph チュートリアル: AWS Kinesis Firehose または Azure イベント ハブにデータをストリーミングする'
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: 'With the New Relic streaming export feature, you can send your data as it''s ingested to New Relic to an AWS Kinesis Firehose or Azure Event Hub.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)で利用できるストリーミング エクスポート機能を使用すると、New Relic によって取り込まれたデータを AWS Kinesis Firehose または Azure Event Hub に送信できます。[NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用してストリーミング ルールを作成および更新する方法と、既存のルールを表示する方法について説明します。これらの呼び出しを行うに[は、NerdGraph エクスプローラー](/docs/apis/nerdgraph/get-started/nerdgraph-explorer)を使用できます。
+
+## ストリーミング エクスポートとは [#definition]
+
+New Relic 組織によってデータが取り込まれると、ストリーミング エクスポート機能によってそのデータが AWS Kinesis Firehose または Azure Event Hub に送信されます。[NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を使用して定義されるカスタム ルールを設定して、エクスポートする New Relic データの種類を制御できます。新しい[エクスポート圧縮](#compression)機能を使用して、エクスポート前にこのデータを圧縮することも選択できます。
+
+ストリーミング エクスポートを使用できる例:
+
+* データレイクにデータを入力するには
+* AI/ML トレーニングの強化
+* コンプライアンス、法律、またはセキュリティ上の理由による長期保存
+
+ストリーミング エクスポート ルールはいつでも無効または有効にできます。ただし、ストリーミング エクスポートは現在取り込まれたデータのみを送信することに注意してください。つまり、ストリーミング エクスポートを無効にして再度有効にすると、オフのときに取り込まれたデータはこの機能では送信されません。過去のデータをエクスポートするには、 [Historical data export](/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export)を使用できます。
+
+## 要件と限界 [#requirements]
+
+ストリーミング データの制限: 1 か月にストリーミングできるデータの量は、1 か月に [取り込まれたデータの](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#usage-calculation) 合計によって制限されます。 ストリーミング データ量が取り込みデータ量を超える場合、ストリーミング エクスポートへのアクセスと使用を停止する場合があります。
+
+パーミッション関連の要件。
+
+* [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)オプション付きの Pro または Enterprise エディション
+* ユーザー タイプ:[コア ユーザーまたはフル プラットフォーム ユーザー](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+* [ストリーミングデータの許可](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#data-platform)
+
+New Relic データを受信するには、AWS Kinesis Firehose または Azure Event Hub をセットアップする必要があります。まだこれを行っていない場合は、以下の[AWS](#firehose-setup)または[Azure](#event-hub-setup)の手順に従ってください。
+
+NRQL 要件:
+
+* 集計のないフラットなクエリである必要があります。たとえば、 `SELECT *`または`SELECT column1, column2`フォームがサポートされています。
+* サブクエリを除く、 `WHERE`句のすべてに適用されます。
+* クエリに`FACET`句、 `COMPARE WITH`または`LOOKUP`を含めることはできません。
+* ネストされたクエリはサポートされていません。
+* [メトリック タイムスライス データ](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)ではなく[、NRDB に格納されたデータ型](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)をサポートします。
+
+## AWS Kinesis Firehose をセットアップする [#firehose-setup]
+
+AWS へのストリーミング データ エクスポートを設定するには、最初に Amazon Kinesis Firehose を設定する必要があります。この手順については、次の 3 つのステップで説明します。
+
+<Steps>
+  <Step>
+    ### ストリーミングエクスポート用のFirehoseを作成する [#create-firehose]
+
+    New Relic データをストリーミングする専用の Firehose を作成します。
+
+    1. Amazon Kinesis Data Firehose にアクセスします。
+    2. 配信ストリームを作成します。
+    3. ストリームに名前を付けます (この名前は後でルール登録で使用します)。
+    4. <DNT>**Direct PUT or other sources**</DNT>を使用して、New Relic の JSON イベント形式 (S3、Redshift、OpenSearch など) と互換性のある宛先を指定します。
+  </Step>
+
+  <Step>
+    ### IAM Firehose 書き込みアクセスポリシーを作成する [#create-policy]
+
+    1. IAM コンソールに移動し、ユーザーとしてサインインします。
+    2. 左側のナビゲーションで**Policies** \[ポリシー]をクリックし、 **Create policy** \[ポリシーの作成] をクリックします。
+    3. Firehose サービスを選択し、 `PutRecord`と`PutRecordBatch`を選択します。
+    4. `Resources`では、配信ストリームを選択し、ARN を追加して、ストリームのリージョンを選択します。
+    5. AWS アカウント番号を入力し、名前ボックスに目的の配信ストリーム名を入力します。
+    6. ポリシーを作成します。
+  </Step>
+
+  <Step>
+    ### New Relic の書き込みアクセスを許可するための IAM ロールを作成する [#iam-role]
+
+    IAM ロールを設定するには:
+
+    1. IAM に移動し、 <DNT>**Roles**</DNT>をクリックします。
+    2. AWS アカウントのロールを作成し、 <DNT>**for another AWS account**</DNT>を選択します。
+    3. New Relic エクスポート アカウント ID を入力します: `888632727556` 。
+    4. <DNT>**Require external ID**</DNT>を選択し、エクスポート元の New Relic アカウントの[アカウント ID](/docs/accounts/accounts-billing/account-structure/account-id)を入力します。
+    5. <DNT>**Permissions**</DNT>をクリックし、上で作成したポリシーを選択します。
+    6. ロール名 (これはエクスポート登録で使用されます) と説明を追加します。
+    7. ロールを作成します。
+  </Step>
+</Steps>
+
+これらの手順が完了したら、NerdGraph を使用してエクスポート ルールを設定できます。 詳細については、 [「NerdGraph 呼び出しの重要なフィールド」](#fields)を参照してください。
+
+## Azure イベント ハブをセットアップする [#event-hub-setup]
+
+Azure へのストリーミング データ エクスポートを設定するには、最初にイベント ハブを設定する必要があります。この手順については、次の 3 つのステップで説明します。
+
+または、[こちら](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create)の Azure ガイドに従うこともできます。
+
+<Steps>
+  <Step>
+    ### イベントハブネームスペースを作成する [#create-event-hubs-namespace]
+
+    1. Microsoft Azure アカウント内の Event Hubs に移動します。
+    2. 手順に従って、Event Hubs 名前空間を作成します。すべてのデータを確実に受信できるように、自動インフレを有効にすることをお勧めします。
+    3. パブリック アクセスが有効になっていることを確認します。共有アクセス ポリシーを使用して、イベント ハブで安全に認証します。
+    4. イベント Hubs ネームスペースがデプロイされたら、 <DNT>**Go to resource**</DNT>をクリックします。
+  </Step>
+
+  <Step>
+    ### イベントハブを作成する [#create-event-hub]
+
+    1. 左側の列で<DNT>**Event Hubs**</DNT>をクリックします。
+    2. 次に、 <DNT>**+Event Hub**</DNT>をクリックしてイベント ハブを作成します。
+    3. 目的のイベント ハブ名を入力します。後でストリーミング エクスポート ルールを作成するために必要になるため、これを保存します。
+    4. <DNT>**Retention**</DNT>の場合は、 <DNT>**Delete**</DNT> `Cleanup policy` 、および必要な`Retention time (hrs)`を選択します。
+
+    <Callout variant="important">
+      現在、ストリーミング エクスポートは、 <DNT>**Compact**</DNT>保持ポリシーを持つイベント ハブではサポートされていません。
+    </Callout>
+
+    5. イベント ハブが作成されたら、イベント ハブをクリックします。
+  </Step>
+
+  <Step>
+    ### 共有アクセスポリシーを作成して添付する [#event-hub-policy]
+
+    1. 左側の列で、 <DNT>**Shared access policies**</DNT>に移動します。
+    2. ページの上部近くにある<DNT>**+Add**</DNT>をクリックします。
+    3. 共有アクセス ポリシーの名前を選択します。
+    4. <DNT>**Send**</DNT>にチェックを入れて、 <DNT>**Create**</DNT>をクリックします。
+    5. 作成したポリシーをクリックし、 <DNT>**Connection string–primary key**</DNT>をコピーします。 これを認証してイベント ハブにデータを送信するために使用するため、これを保存します。
+  </Step>
+</Steps>
+
+これらの手順が完了したら、Nerdgraph 呼び出しの重要なフィールドに関する次のセクションを参照してください。
+
+## NerdGraph 呼び出しの重要なフィールド [#fields]
+
+これから説明するストリーミング データ エクスポートの NerdGraph 呼び出しのほとんどは、アカウントに関連するいくつかのフィールドを使用します。
+
+AWS Kinesis Firehose の場合:
+
+* `awsAccountId`: [AWS アカウント ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html) 。例えば： `10000000000`
+* `deliveryStreamName`: [Kinesis ストリーム名](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html)。例: `firehose-test-stream` .
+* `region`:[AWS リージョン](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html)。例: `us-east-1` .
+* `role`: Kinesis Firehose の[AWS IAM ロール](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)。これは常に`firehose-role`です。
+
+Azure イベント ハブの場合:
+
+* `eventHubConnectionString`: [Azure イベント ハブの接続文字列](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string)。次のように見えます: `Endpoint=sb://<NamespaceName>.servicebus.windows.net/;SharedAccessKeyName=<KeyName>;SharedAccessKey=<KeyValue>;EntityPath=<EventHubName>`
+* `eventHubName`: イベント ハブ名。例: `my-event-hub` .
+
+## ストリーミング エクスポート ルールを作成する方法 [#create-stream]
+
+まず、エクスポートするデータを決定します。次に、NerdGraph 呼び出しで、NRQL を使用して必要なストリーミング ルールを作成します。いくつかの例を挙げます。
+
+### ストリームを作成する [#create-stream]
+
+新しいストリーミング ルールを作成するときは、次のすべてのフィールドが必要になります。AWS Kinesis Firehose にエクスポートするストリーミング ルールを作成する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Azure Event Hub にエクスポートするストリーミング ルールを作成する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+ルール ID とステータスを含む結果がすぐに得られます。ステータスは`CREATION_IN_PROGRESS`として表示されます。ルール ID を使用して、ルールが正常に作成されたかどうかを確認できます。
+
+ポリシーの検証に時間がかかるため、ルールの作成が完了するまでに最大 6 分かかる場合があります。
+
+ルールの登録が完了する前に、別のミューテーション アクション ( `Enable` 、 `Disable` 、または`Update`など) を開始することはできません。これは、ルールが作成プロセスに対してロックされているためです。ルールの登録プロセスが完了する前に別のミューテーション アクションを試みると、「エクスポート ルールは現在、別の要求によって更新されています。しばらく待ってからもう一度お試しください。」のようなメッセージが表示されます。
+
+`Delete`はいつでも使用できます。
+
+ルールの作成に必要な約 6 分以内であれば、いつでも作成を終了してステータスを変更できます。ステータスは`ENABLED` 、 `DISABLED` 、または`CREATION_FAILED`に変わります。
+
+値に関する次の詳細を参照してください。
+
+* `ENABLED` ルールが正常に作成され、データのストリーミングが開始されたことを意味します。
+* `CREATION_FAILED` ルールの作成に失敗したことを意味します。これはいくつかの理由で発生する可能性がありますが、多くの場合、AWS ポリシーまたは Azure SAS 検証の失敗が原因です。
+* `DISABLED` は、ルールが作成されたものの、フィルタ ストリームの制限に達した、またはフィルタ ストリーム ルールの作成に失敗したなどの理由により、まだ有効になっていないことを意味します。6 分経ってもステータスが`CREATION_IN_PROGRESS`のままの場合は、サービスのシステム エラーが原因でルールの作成に失敗したことを意味します。ルールを削除して、新しいルールをもう一度作成してみてください。
+
+ストリーミング ルールが作成されると、それを[表示できます](#view-stream)。
+
+## ストリームを更新する [#update-stream]
+
+新しいストリーミング ルールを更新するときは、次のすべてのフィールドが必要になります。ストリーミング ルールを更新する例を次に示します。
+
+AWS Kinesis Firehose:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Azure イベント ハブ:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+更新中は、メッセージ フィールドに次のメッセージが表示されます。後でもう一度確認してください。」完全に更新されるまで最大 6 分かかる場合があります。
+
+`streamingRule`を呼び出してルールを取得することで、ルールが更新されたかどうかを確認できます。ルールが更新されている間、ルールはロックされ、他のミューテーション アクションはルールに対して実行できません。同じルールに対して別のミューテーション アクションを実行しようとすると、「エクスポート ルールは現在別のリクエストによって更新されています。しばらく待ってからもう一度お試しください」というメッセージが表示されます。ユーザーは、削除されたルールを除くすべてのステータスのルールを更新できます。
+
+## ストリームを無効にする [#disable-stream]
+
+ルールを無効にするには、ルール ID を指定するだけです。ストリームを無効にする例を次に示します。
+
+```graphql
+mutation {
+  streamingExportDisableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+ルールのステータスが`ENABLED`の場合にのみ、ルールを無効にできます。別の状態にあるルールを無効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」というエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを無効にすることはできません。
+
+## ストリームを有効にする [#enable-stream]
+
+ルールを有効にする場合は、ルール ID のみを指定する必要があります。ストリームを有効にする例を次に示します。
+
+```graphql
+mutation {
+  streamingExportEnableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+ステータスが`DISABLED`の場合にのみルールを有効にできます。別の状態にあるルールを有効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」のようなエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを有効にすることはできません。
+
+## ストリームを削除する [#delete-stream]
+
+ストリームを削除するには、ルール ID を指定する必要があります。次に例を示します。
+
+```graphql
+mutation {
+  streamingExportDeleteRule(id: RULE_ID) {
+    id
+    ...
+  }
+}
+```
+
+削除は、まだ削除されていない限り、どのステータスのルールでも実行できます。ルールが削除されると、再度有効にすることはできません。削除後 24 時間以内であれば、ルール ID を指定して`steamingRule` API を呼び出すことで、ルールを引き続き表示できます。24 時間後、ルールは NerdGraph で検索できなくなります。
+
+## ストリームを表示 [#view-stream]
+
+アカウント ID とルール ID を照会して、特定のストリーム ルールに関する情報を照会できます。次に例を示します。
+
+AWS Kinesis Firehose:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          aws {
+            awsAccountId
+            deliveryStreamName
+            region
+            role
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+Azure イベント ハブ:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+既存のすべてのストリームを照会することもできます。次に例を示します。
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRules {
+          aws {
+            awsAccountId
+            region
+            deliveryStreamName
+            role
+          }
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+## 輸出圧縮を理解する [#compression]
+
+オプションで、ペイロードをエクスポートする前に圧縮することもできますが、これはデフォルトでは無効になっています。 これにより、取り込まれたデータの制限に達することを回避し、送信コストを節約できます。
+
+`ruleParameters`の`payloadCompression`フィールドを使用して圧縮を有効にできます。このフィールドには、次のいずれかの値を指定できます。
+
+* `DISABLED`: ペイロードはエクスポート前に圧縮されません。指定しない場合、 `payloadCompression`はデフォルトでこの値になります。
+* `GZIP`: エクスポートする前にペイロードを GZIP 形式で圧縮します
+
+現在利用可能な圧縮形式は GZIP のみですが、将来的にはさらに多くの形式を利用できるようになる可能性があります。
+
+既存の AWS エクスポート ルールで圧縮が有効になっている場合、Kinesis Firehose からの次のメッセージには圧縮データと非圧縮データの両方が含まれる可能性があります。これは、Kinesis Firehose 内のバッファリングが原因です。これを回避するには、圧縮を有効にする前にエクスポート ルールを一時的に無効にするか、圧縮データのみが流れる新しい Kinesis Firehose ストリームを作成します。
+
+この問題が発生し、S3 または別のファイル ストレージ システムにエクスポートしている場合は、次の手順に従ってデータの圧縮部分を表示できます。
+
+1. オブジェクトを手動でダウンロードします。
+2. 圧縮データを新しいファイルにコピーして、オブジェクトを 2 つの個別のファイルに分割します。
+3. 新しい圧縮専用データ ファイルを解凍します。
+
+圧縮データを取得したら、それを S3 (または使用している他のサービス) に再アップロードし、古いファイルを削除できます。
+
+S3 または別のファイル ストレージ システムでは、オブジェクトが連続して追加される複数の GZIP エンコードされたペイロードで構成される場合があることに注意してください。 したがって、解凍ライブラリには、このような連結された GZIP ペイロードを処理する機能が必要です。
+
+### AWS での自動解凍
+
+データが AWS に到着したら、自動的に解凍するオプションが必要になる場合があります。データを S3 バケットにストリーミングしている場合、自動解凍を有効にする方法は 2 つあります。
+
+<CollapserGroup>
+  <Collapser id="collapser-1" title="オブジェクト Lambda アクセス ポイント">
+    アクセス ポイントは、S3 バケット内のオブジェクトにアクセスしてダウンロードできる別の方法として機能します。AWS は[、アクセス ポイント経由でアクセスされる各 S3 オブジェクトに対して Lambda 関数を実行する、 オブジェクト](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html)Lambda アクセス ポイント と呼ばれる機能を提供します。このようなアクセス ポイントを有効にするには、次の手順に従います。
+
+    1. [このページ](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-examples.html#olap-examples-3)に移動し、サーバーレス リポジトリへのリンクをクリックします。
+
+    2. ページの下部にある<DNT>**Deploy**</DNT>ボタンをクリックします。
+
+    3. [S3 バケットにアクセス ポイントをセットアップします](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-access-points.html)。
+
+    4. [Object Lambda アクセス ポイントを作成します](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-create.html)。このアクセス ポイントには次の設定が必要です。
+
+       * この Lambda アクセス ポイントの<DNT>**Supporting Access Point**</DNT>は、S3 バケットに設定したアクセス ポイントに設定する必要があります。
+       * <DNT>**Transformation Configuration**</DNT>の下:
+       * <DNT>**GetObject**</DNT>ボックスをオンにする必要があります。
+       * DecompressGZFunction Lambda 関数 (または、別の圧縮形式が使用される場合は、必要な他の関数) を指定する必要があります。
+  </Collapser>
+
+  <Collapser id="collapser-2" title="メタデータ設定 Lambda 関数">
+    オブジェクトに正しいメタデータ セットがある場合、AWS は S3 からダウンロードされたオブジェクトを自動的に解凍します。このメタデータを、セットされた S3 オブジェクトにダウンロードされたすべての新しいオブジェクトに自動的に適用する関数を作成しました。設定方法は次のとおりです。
+
+    1. [ここに](https://github.com/newrelic/metadata-setting-lambda-function)移動し、リポジトリをローカルにクローンし、README ファイルに記載されている手順に従って、ラムダ関数を含む ZIP ファイルを生成します。
+    2. 関数の[IAM ロール](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)を作成します。
+
+    * [ロールを作成する](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-service.html#roles-creatingrole-service-console)ときは、信頼できるエンティティ タイプを必ず「AWS サービス」として設定し、ユースケースとして「Lambda」を設定してください。
+    * このロールには、次の権限を持つポリシーが必要です: `s3:PutObject`および`s3:GetObject` 。
+
+    3. AWS で、 [Lambda 関数のページ](https://console.aws.amazon.com/lambda/home#/functions)に移動します。
+
+    4. <DNT>**Create function**</DNT>をクリックします。
+
+    5. Java 11 ランタイム環境を選択します。
+
+    6. <DNT>**Change default execution role &gt; Use an existing role**</DNT>をクリックします。 ステップ 2 で作成したロールをここに入力します。
+
+    7. 下にスクロールして<DNT>**Create function**</DNT>をクリックします。
+
+    8. 関数が作成されたら、 <DNT>**Upload from**</DNT>をクリックし、ドロップダウンから<DNT>**.zip or .jar file**</DNT>を選択します。
+
+    9. 表示されるボックスから<DNT>**Upload**</DNT>をクリックし、手順 1 で作成した ZIP ファイルを選択します。
+
+    10. アップロードが完了したら、 <DNT>**Save**</DNT>をクリックしてポップアップ ボックスを閉じます。
+
+    11. ハンドラーを追加して、 <DNT>**Runtime settings**</DNT>を編集します。 私たちが提供する関数では、ハンドラーは<DNT>`metadatasetter.App::handleRequest`</DNT>です。
+
+    12. あとは、この Lambda関数が S3 オブジェクトの作成時にトリガーされるようにするだけです。 <DNT>**Add trigger**</DNT>をクリックして設定を開始します。
+
+    13. ドロップダウンから、ソースとして<DNT>**S3**</DNT>を選択します。
+
+    14. メタデータを適用する S3 バケットの名前を<DNT>**Bucket**</DNT>フィールドに入力します。
+
+    15. イベント タイプからデフォルトの<DNT>**All object create events**</DNT>を削除します。 \[イベント タイプ] ドロップダウンから、 <DNT>**PUT**</DNT>を選択します。
+
+    16. <DNT>**Recursive invocation**</DNT>チェックボックスをオンにして、右下の<DNT>**Add**</DNT>をクリックします。
+
+        Lambda 関数は、新しく追加されたすべての S3 オブジェクトに圧縮メタデータを自動的に追加し始めます。
+  </Collapser>
+</CollapserGroup>
+
+### Azure での自動解凍
+
+データを Azure にエクスポートしている場合は、 [Stream Analytics ジョブ](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics)を使用して、イベント ハブに保存されているオブジェクトの解凍されたバージョンを表示できます。これを行うには、次の手順に従います。
+
+1. [このガイドの](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics)ステップ 16 までに従ってください。
+
+* 手順 13 では、何も壊さずに同じイベント ハブを出力として使用することを選択できますが、手順 17 に進んでジョブを開始する場合は、テストされていないため、これはお勧めしません。
+
+2. ストリーミング分析ジョブの左側のペインで、 <DNT>**Inputs**</DNT>をクリックし、設定した入力をクリックします。
+3. 右側に表示されるペインの一番下までスクロールし、次の設定で入力を構成します。
+
+* イベントシリアル化形式：JSON
+* エンコード: UTF-8
+* イベント圧縮タイプ: GZip
+
+4. ペインの下部にある<DNT>**Save**</DNT>をクリックします。
+5. 画面の横にある<DNT>**Query**</DNT>をクリックします。 <DNT>**Input preview**</DNT>タブを使用すると、この画面からイベント ハブにクエリを実行できるようになります。

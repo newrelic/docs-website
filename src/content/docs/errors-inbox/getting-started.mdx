@@ -1,0 +1,94 @@
+---
+title: 'Getting started with errors inbox'
+metaDescription: "Errors inbox is an error tracking solution designed to give you the tools to proactively detect, triage, and resolve errors across your full application stack."
+freshnessValidatedDate: never
+---
+
+With errors inbox, busy DevOps teams can proactively detect, triage, and take action on all errors before they impact customers. Your team can resolve errors from across your stack, including all APM, browser (RUM), mobile, and serverless (AWS Lambda) data, and Otel displayed on one screen. Whenever a critical, customer-impacting error arises your team can be notified through your preferred communication channel, like Slack. Errors are grouped intelligently to cut down on noise and ensure that critical errors are detected quickly and efficiently.
+
+Ready to get started? Make sure you have a [New Relic account](https://newrelic.com/signup). It's free, forever!
+
+## Get started [#get-started]
+
+There are two ways to start using errors inbox:
+
+* <DNT>**Scoped view**</DNT>: Navigate to a supported entity: APM, Browser, Mobile, or Otel and start viewing your errors right away. No setup required!
+* <DNT>**Global view**</DNT>: Select errors inbox from the navigation menu and select the entities that are of interest to you. You will start viewing error groups for those entities right away. You have the option to save this view as a workload.
+
+### Scoped view [#scoped-inbox]
+
+[Entity](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic) scoped views allow you to view errors for a single APM, browser, mobile, or
+[OpenTelemetry application](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/#benefits).
+
+You can access the errors inbox view for a specific entity by navigating to that entity in the APM, browser, mobile, or OpenTelemetry monitoring view and selecting <DNT>**Errors inbox**</DNT> in the left nav.
+
+<img
+  title="Scoped view "
+  alt="A screenshot depicting errors inbox scoped view"
+  src="/images/errors-inbox_screenshot-full_scoped-view.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox**
+  </DNT>
+</figcaption>
+
+### Global view [#global-inbox]
+
+Most DevOps teams oversee a number of services and consolidating this information in one inbox is more effective for their workflow. Using the global view, you can view error groups for multiple entities.
+
+You can group APM, Browser, Mobile, Serverless, and Otel entities together and save your curated view as a workload in two simple steps.
+
+<img
+  title="Global view"
+  alt="A screenshot depicting the global view of errors inbox"
+  src="/images/errors-inbox_screenshot-full_global-view.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox**
+  </DNT>
+</figcaption>
+
+## Create a workload [#global-workload]
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox**</DNT>, click <DNT>**Entities**</DNT> and select the entities that you want to save as a workload. Then, click <DNT>**Save as workload**</DNT>.
+   The entities you've preselected will be automatically added, and you can also add more.
+   <img title="Errors inbox for Entities" alt="A screenshot depicting the first step of creating a workload" src="/images/errors-inbox_screenshot-full_create-a-workload-step-1.webp"/>
+
+   <figcaption>
+     <DNT>
+       **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox**
+     </DNT>
+   </figcaption>
+
+2. Once you have all the entities you need, click the <DNT>**Workloads**</DNT> toggle, and then <DNT>**Create a workload**</DNT>.
+
+3. In the <DNT>**Create a workload window**</DNT>, give the workload a name and select the entities you want to include. Once you're finished, click <DNT>**Create a workload**</DNT>.
+   <img title="Errors inbox for Workloads" alt="A screenshot depicting the second step of creating a workload" src="/images/errors-inbox_screenshot-full_create-a-workload-step-2.webp"/>
+
+   <figcaption>
+     <DNT>
+       **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox, click Workloads**
+     </DNT>
+   </figcaption>
+
+4. You can now view all your entities in a workload.
+
+<img
+  title="Your new workload"
+  alt="A screenshot depicting step 3 of creating a workload"
+  src="/images/errors-inbox_screenshot-full_create-a-workload-step-3.webp"
+/>
+
+<figcaption>
+  <DNT>
+    **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Errors inbox, check out your new Workload**
+  </DNT>
+</figcaption>
+
+### Entity limits for workloads in errors inbox [#entity-limits]
+
+Please note: the errors inbox can only be used with workloads containing 2,000 or fewer entities.

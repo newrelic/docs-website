@@ -1,0 +1,2207 @@
+---
+title: Reglas integradas de análisis de registros.
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: 'A list of all New Relic''s log parsing rules, which you can use to easily parse common log formats.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic puede analizar formatos log comunes de acuerdo con reglas integradas, para que usted no tenga que crear sus propias reglas de análisis. Aquí está el análisis de las reglas de los registros, sus patrones [Grok](https://github.com/thekrakken/java-grok/tree/master/src/main/resources/patterns) y qué campos se analizan.
+
+* Para habilitar el análisis de registros integrado, consulte nuestra documentación para [agregar el atributo `logtype` ](/docs/logs/ui-data/parsing#logtype).
+* Para administrar sus reglas de análisis mediante programación, use NerdGraph, nuestra API de formato GraphQL, en [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). Para obtener más información, consulte el [tutorial de NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial) para crear, consultar y eliminar sus reglas de análisis.
+
+<CollapserGroup>
+  <Collapser
+    id="apache"
+    title="Apache"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'apache'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\] "(?:%{WORD:verb} %{NOTSPACE:request}(?: HTTP/%{NUMBER:httpversion})?|%{DATA:rawrequest})" %{NUMBER:response} (?:%{NUMBER:bytes}|-) %{QS:referrer} %{QS:agent}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `clientip`: La dirección IP del cliente.
+    * `verb`: El verbo HTTP
+    * `ident`: La identidad de usuario del cliente que realiza la solicitud.
+    * `response`: El código de estado HTTP de la respuesta.
+    * `request`: El URI y la solicitud que se está realizando.
+    * `httpversion`: La versión HTTP de la solicitud.
+    * `rawrequest`: La solicitud HTTP sin formato si se publican datos.
+    * `bytes`: El número de bytes enviados
+    * `referrer`: El referente HTTP
+    * `agent`: El agente de usuario del cliente.
+  </Collapser>
+
+  <Collapser
+    id="apache_error"
+    title="Error de apache"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'apache_error'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    \[%{DATA:apache_error.timestamp}\] \[%{WORD:apache_error.source}:%{DATA:level}\] \[pid %{NUMBER:apache_error.pid}(:tid %{NUMBER:apache_error.tid})?\] (%{DATA:apache_error.sourcecode}\(%{NUMBER:apache_error.linenum}\): )?(?:\[client %{IPORHOST:apache_error.clientip}:%{POSINT:apache_error.port}\] ){0,1}%{GREEDYDATA:apache_error.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `apache_error.timestamp`: La timestamp de la declaración log .
+    * `apache_error.source`: El módulo fuente
+    * `level`: El nivel de logs
+    * `apache_error.pid`: El PID de Apache (identificador de proceso)
+    * `apache_error.tid`: El TID de Apache (identificador de hilo)
+    * `apache_error.sourcecode`: El código fuente de Apache
+    * `apache_error.linenum`: El número de línea del código fuente
+    * `apache_error.clientip`: La dirección IP del cliente
+    * `apache_error.port`: El número de puerto IP del cliente
+    * `apache_error.message`: El mensaje de error
+  </Collapser>
+
+  <Collapser
+    id="application-load-balancer"
+    title="Aplicación Equilibrador de carga"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'alb'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    ^%{NOTSPACE:type} %{TIMESTAMP_ISO8601:time} %{NOTSPACE:elb} %{NOTSPACE:client_ip}:%{NOTSPACE:client_port} ((%{NOTSPACE:target_ip}:%{NOTSPACE:target_port})|-) %{NOTSPACE:request_processing_time} %{NOTSPACE:target_processing_time} %{NOTSPACE:response_processing_time} %{NOTSPACE:elb_status_code} %{NOTSPACE:target_status_code} %{NOTSPACE:received_bytes} %{NOTSPACE:sent_bytes} "%{DATA:request}" "%{DATA:user_agent}" %{NOTSPACE:ssl_cipher} %{NOTSPACE:ssl_protocol} %{NOTSPACE:target_group_arn} "%{DATA:trace_id}" "%{NOTSPACE:domain_name}" "%{NOTSPACE:chosen_cert_arn}" %{NOTSPACE:matched_rule_priority} %{TIMESTAMP_ISO8601:request_creation_time} "%{NOTSPACE:actions_executed}" "%{NOTSPACE:redirect_url}" "%{NOTSPACE:error_reason}" (?:"|)%{DATA:target_port_list}(?:"|) (?:"|)%{DATA:target_status_code_list}(?:"|) "%{NOTSPACE:classification}" "%{NOTSPACE:classification_reason}"
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            Campo
+          </th>
+
+          <th>
+            Definición
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `type`
+          </td>
+
+          <td>
+            El tipo de solicitud o conexión. Los valores posibles son:
+
+            * `http`:HTTP
+            * `https`: HTTP sobre SSL/TLS
+            * `h2`: HTTP/2 sobre SSL/TLS
+            * `ws`: WebSockets
+            * `wss`: WebSockets sobre SSL/TLS
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `elb`
+          </td>
+
+          <td>
+            El ID de recurso del equilibrador de carga. Si está analizando entradas log de acceso, tenga en cuenta que los ID de recursos pueden contener barras diagonales (`/`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `client_ip`
+          </td>
+
+          <td>
+            La dirección IP del cliente solicitante.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `client_port`
+          </td>
+
+          <td>
+            El puerto IP del cliente solicitante.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_ip`
+          </td>
+
+          <td>
+            La dirección IP del objetivo que procesó esta solicitud.
+
+            * Si el cliente no envió una solicitud completa, el balanceador de carga no puede enviar la solicitud a un objetivo y este valor se establece en `-`.
+            * Si el objetivo es una función Lambda, este valor se establece en `-`.
+            * Si AWS WAF bloquea la solicitud, este valor se establece en `-` y el valor de `elb_status_code` se establece en `403`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_port`
+          </td>
+
+          <td>
+            El puerto IP del objetivo que procesó esta solicitud.
+
+            * Si el cliente no envió una solicitud completa, el balanceador de carga no puede enviar la solicitud a un objetivo y este valor se establece en `-`.
+            * Si el objetivo es una función Lambda, este valor se establece en `-`.
+            * Si AWS WAF bloquea la solicitud, este valor se establece en `-` y el valor de `elb_status_code` se establece en `403`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_port_list`
+          </td>
+
+          <td>
+            La dirección IP y el puerto del objetivo que procesó esta solicitud.
+
+            * Si el cliente no envió una solicitud completa, el balanceador de carga no puede enviar la solicitud a un objetivo y este valor se establece en `-`.
+            * Si el objetivo es una función Lambda, este valor se establece en `-`.
+            * Si AWS WAF bloquea la solicitud, este valor se establece en `-` y el valor de `elb_status_code` se establece en `403`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `request_processing_time`
+          </td>
+
+          <td>
+            El tiempo total transcurrido (en segundos, con precisión de milisegundos) desde que el balanceador de carga recibió la solicitud hasta que la envió a un objetivo.
+
+            * Este valor se establece en `-1` si el equilibrador de carga no puede enviar la solicitud a un objetivo. Esto puede suceder si el objetivo cierra la conexión antes del tiempo de inactividad o si el cliente envía una solicitud con formato incorrecto.
+            * Este valor también se puede establecer en `-1` si el objetivo registrado no responde antes del tiempo de espera de inactividad.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_processing_time`
+          </td>
+
+          <td>
+            El tiempo total transcurrido (en segundos, con precisión de milisegundos) desde el momento en que el balanceador de carga envió la solicitud a un objetivo hasta que el objetivo comenzó a enviar los encabezados de respuesta.
+
+            * Este valor se establece en `-1` si el equilibrador de carga no puede enviar la solicitud a un objetivo. Esto puede suceder si el objetivo cierra la conexión antes del tiempo de inactividad o si el cliente envía una solicitud con formato incorrecto.
+            * Este valor también se puede establecer en `-1` si el objetivo registrado no responde antes del tiempo de espera de inactividad.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `response_processing_time`
+          </td>
+
+          <td>
+            El tiempo total transcurrido (en segundos, con precisión de milisegundos) desde que el balanceador de carga recibió el encabezado de respuesta del objetivo hasta que comenzó a enviar la respuesta al cliente. Esto incluye tanto el tiempo de cola en el balanceador de carga como el tiempo de adquisición de la conexión desde el balanceador de carga al cliente.
+
+            Este valor se establece en `-1` si el equilibrador de carga no puede enviar la solicitud a un objetivo. Esto puede suceder si el objetivo cierra la conexión antes del tiempo de inactividad o si el cliente envía una solicitud con formato incorrecto.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `elb_status_code`
+          </td>
+
+          <td>
+            El código de estado de la respuesta del balanceador de carga.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_status_code_list`
+          </td>
+
+          <td>
+            El código de estado de la respuesta del objetivo. Este valor se registra solo si se estableció una conexión con el objetivo y el objetivo envió una respuesta. De lo contrario, se establece en `-`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `received_bytes`
+          </td>
+
+          <td>
+            El tamaño de la solicitud, en bytes, recibida del cliente (solicitante). Para solicitudes HTTP, esto incluye los encabezados. Para WebSockets, este es el número total de bytes recibidos del cliente en la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sent_bytes`
+          </td>
+
+          <td>
+            El tamaño de la respuesta, en bytes, enviada al cliente (solicitante). Para solicitudes HTTP, esto incluye los encabezados. Para WebSockets, este es el número total de bytes enviados al cliente en la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `request`
+          </td>
+
+          <td>
+            La solicitud HTTP
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `user_agent`
+          </td>
+
+          <td>
+            Cadena usuario-agente que identifica al cliente que originó la solicitud, entre comillas dobles. La cadena consta de uno o más identificadores de producto, producto/versión. Si la cadena tiene más de 8 KB, se trunca.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_cipher`
+          </td>
+
+          <td>
+            El cifrado SSL. Este valor se establece en `-` si el oyente no es un oyente HTTPS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_protocol`
+          </td>
+
+          <td>
+            El protocolo SSL. Este valor se establece en `-` si el oyente no es un oyente HTTPS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `target_group_arn`
+          </td>
+
+          <td>
+            El nombre de recurso de Amazon (ARN) del grupo objetivo
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `trace_id`
+          </td>
+
+          <td>
+            El contenido de `X-Amzn-Trace-Id header`, entre comillas dobles.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `domain_name`
+          </td>
+
+          <td>
+            El dominio SNI proporcionado por el cliente durante el protocolo de enlace TLS, entre comillas dobles. Este valor se establece en `-` si el cliente no admite SNI o el dominio no coincide con un certificado y el certificado predeterminado se presenta al cliente.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `chosen_cert_arn`
+          </td>
+
+          <td>
+            El ARN del certificado presentado al cliente, entre comillas dobles.
+
+            * Establezca en `session-reused` si se reutiliza la sesión.
+            * Establezca en `-` si el oyente no es un oyente HTTPS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `matched_rule_priority`
+          </td>
+
+          <td>
+            El valor de prioridad de la regla que coincidió con la solicitud.
+
+            * Si una regla coincide, este es un valor de `1` a `50000`.
+            * Si no coincide ninguna regla y se tomó la acción predeterminada, este valor se establece en `0`.
+            * Si se produce un error durante la evaluación de las reglas, se establece en `-1`.
+            * Para cualquier otro error, se establece en `-`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `request_creation_time`
+          </td>
+
+          <td>
+            La hora en que el balanceador de carga recibió la solicitud del cliente, en formato ISO 8601.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `actions_executed`
+          </td>
+
+          <td>
+            Las acciones tomadas al procesar la solicitud, entre comillas dobles. Este valor es una lista separada por comas que puede incluir los valores descritos en `actions_taken`. Si no se realizó ninguna acción, como por ejemplo en el caso de una solicitud con formato incorrecto, este valor se establece en `-`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `redirect_url`
+          </td>
+
+          <td>
+            La URL del objetivo de redireccionamiento para el encabezado de ubicación de la respuesta HTTP, entre comillas dobles. Si no se realizaron acciones de redireccionamiento, este valor se establece en `-`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `error_reason`
+          </td>
+
+          <td>
+            El código del motivo del error, entre comillas dobles.
+
+            * Si la solicitud falló, este es uno de los códigos de error descritos en Códigos de motivo de error.
+            * Si las acciones realizadas no incluyen una acción de autenticación o el objetivo no es una función Lambda, este valor se establece en `-`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `classification`
+          </td>
+
+          <td>
+            Clasificación.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `classification_reason`
+          </td>
+
+          <td>
+            El motivo de clasificación.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cassandra"
+    title="Casandra"
+  >
+    Fuente: `logtype = 'cassandra'`
+
+    Grok
+
+    ```grok
+    %{WORD:level}%{SPACE}\\[%{NOTSPACE:cassandra.thread}\\] %{TIMESTAMP_ISO8601:cassandra.timestamp} %{NOTSPACE:cassandra.source}:%{INT:cassandra.line.number} - %{GREEDYDATA:cassandra.message}
+    ```
+
+    ### Resultados
+
+    * `level`: El nivel de registros del mensaje (all, traza, debug, info, warn, error, off)
+    * `cassandra.thread`: El nombre del hilo que emite la declaración log .
+    * `cassandra.timestamp`: La timestamp de la declaración log .
+    * `cassandra.source`: El nombre del archivo fuente
+    * `cassandra.line.number`: El número de línea del mensaje.
+    * `cassandra.message`: El mensaje crudo de Cassandra.
+  </Collapser>
+
+  <Collapser
+    id="cloudfront"
+    title="CloudFront (registro estándar)"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'cloudfront-web'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```
+    ^%{NOTSPACE:date}%{SPACE}%{NOTSPACE:time}%{SPACE}%{NOTSPACE:x_edge_location}%{SPACE}%{NOTSPACE:sc_bytes}%{SPACE}%{NOTSPACE:c_ip}%{SPACE}%{NOTSPACE:cs_method}%{SPACE}%{NOTSPACE:cs_host}%{SPACE}%{NOTSPACE:cs_uri_stem}%{SPACE}%{NOTSPACE:sc_status}%{SPACE}%{NOTSPACE:cs_referer}%{SPACE}%{NOTSPACE:cs_user_agent}%{SPACE}%{NOTSPACE:cs_uri_query}%{SPACE}%{NOTSPACE:cs_Cookie}%{SPACE}%{NOTSPACE:x_edge_result_type}%{SPACE}%{NOTSPACE:x_edge_request_id}%{SPACE}%{NOTSPACE:x_host_header}%{SPACE}%{NOTSPACE:cs_protocol}%{SPACE}%{NOTSPACE:cs_bytes}%{SPACE}%{NOTSPACE:time_taken}%{SPACE}%{NOTSPACE:x_forwarded_for}%{SPACE}%{NOTSPACE:ssl_protocol}%{SPACE}%{NOTSPACE:ssl_cipher}%{SPACE}%{NOTSPACE:x_edge_response_result_type}%{SPACE}%{NOTSPACE:cs_protocol_version}%{SPACE}%{NOTSPACE:fle_status}%{SPACE}%{NOTSPACE:fle_encrypted_fields}%{SPACE}%{NOTSPACE:c_port}%{SPACE}%{NOTSPACE:time_to_first_byte}%{SPACE}%{NOTSPACE:x_edge_detailed_result_type}%{SPACE}%{NOTSPACE:sc_content_type}%{SPACE}%{NOTSPACE:sc_content_len}%{SPACE}%{NOTSPACE:sc_range_start}%{SPACE}%{NOTSPACE:sc_range_end}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Campo
+          </th>
+
+          <th>
+            Definición
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `x_edge_location`
+          </td>
+
+          <td>
+            La ubicación de borde que atendió la solicitud. Cada ubicación de borde se identifica mediante un código de tres letras y un número asignado arbitrariamente; por ejemplo, `DFW3`.
+
+            El código de tres letras normalmente corresponde con el código de aeropuerto de la Asociación Internacional de Transporte Aéreo para un aeropuerto cerca de la ubicación del borde. (Estas abreviaturas podrían cambiar en el futuro).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_bytes`
+          </td>
+
+          <td>
+            El número total de bytes que CloudFront entregó al espectador en respuesta a la solicitud, incluidos los encabezados; por ejemplo, `1045619`. Para conexiones WebSocket, este es el número total de bytes enviados desde el servidor al cliente a través de la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_ip`
+          </td>
+
+          <td>
+            La dirección IP del espectador que realizó la solicitud, ya sea en formato IPv4 o IPv6. Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor de `c_ip` es la dirección IP del proxy o balanceador de carga. Véase también `X-Forwarded-For`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_method`
+          </td>
+
+          <td>
+            El método de solicitud HTTP&#x3A; `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` o `PUT`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_host`
+          </td>
+
+          <td>
+            El nombre de dominio de la distribución de CloudFront; por ejemplo, `d111111abcdef8.cloudfront.net`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_stem`
+          </td>
+
+          <td>
+            La parte del URI que identifica la ruta y el objeto; por ejemplo, `/images/cat.jpg`. No se incluyen los signos de interrogación en las URL ni en las cadenas de consulta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_status`
+          </td>
+
+          <td>
+            Un código de estado HTTP; por ejemplo, `200`. El código de estado `000` indica que el espectador cerró la conexión (por ejemplo, cerró la pestaña del browser ) antes de que CloudFront pudiera responder a una solicitud. Si el espectador cierra la conexión después de que CloudFront comienza a enviar la respuesta, el log contiene el código de estado HTTP aplicable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_referer`
+          </td>
+
+          <td>
+            El nombre del dominio que originó la solicitud. Los referentes comunes incluyen motores de búsqueda, otros sitios web que enlazan directamente con sus objetos y su propio sitio web.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_user_agent`
+          </td>
+
+          <td>
+            El valor del encabezado usuario-agente en la solicitud. El encabezado usuario-agente identifica el origen de la solicitud, como el tipo de dispositivo y browser que envió la solicitud, y qué motor de búsqueda, si corresponde.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_query`
+          </td>
+
+          <td>
+            La parte de la cadena de consulta del URI, si existe. Cuando un URI no contiene una cadena de consulta, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_cookie`
+          </td>
+
+          <td>
+            El encabezado de la cookie en la solicitud, incluidos los pares de nombre-valor y el atributo asociado.
+
+            * Si habilita el registro de cookies, CloudFront registrará las cookies en todas las solicitudes, independientemente de qué cookies elija reenviar al origen.
+            * Si una solicitud no incluye un encabezado de cookie, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_result_type`
+          </td>
+
+          <td>
+            Cómo clasifica CloudFront la respuesta después de que el último byte salió de la ubicación del borde. En algunos casos, el tipo de resultado puede cambiar entre el momento en que CloudFront está listo para enviar la respuesta y el momento en que CloudFront termina de enviar la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_request_id`
+          </td>
+
+          <td>
+            Una cadena cifrada que identifica de forma única una solicitud. En el encabezado de respuesta, esto es `x-amz-cf-id`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_host_header`
+          </td>
+
+          <td>
+            El valor que el espectador incluyó en el encabezado Host para esta solicitud. Este es el nombre de dominio en la solicitud.
+
+            * Si utiliza el nombre de dominio de CloudFront en las URL de su objeto, este campo contiene ese nombre de dominio.
+            * Si utiliza nombres de dominio alternativos en las URL de su objeto, como `http://example.com/logo.png`, este campo contiene el nombre de dominio alternativo, como `example.com`. Para utilizar nombres de dominio alternativos, debe agregarlos a su distribución.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol`
+          </td>
+
+          <td>
+            El protocolo que el espectador especificó en la solicitud: `http`, `https`, `ws` o `wss`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_bytes`
+          </td>
+
+          <td>
+            La cantidad de bytes de datos que el espectador incluyó en la solicitud, incluidos los encabezados. Para conexiones WebSocket, este es el número total de bytes enviados desde el cliente al servidor en la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_taken`
+          </td>
+
+          <td>
+            La cantidad de segundos (hasta la milésima de segundo; por ejemplo, 0,002) entre el momento en que un servidor perimetral de CloudFront recibe la solicitud de un espectador y el momento en que CloudFront escribe el último byte de la respuesta en la cola de salida del servidor perimetral, según lo medido en el servidor.
+
+            Desde la perspectiva del espectador, el tiempo total para obtener el objeto completo será mayor que este valor debido a la latencia de la red y al almacenamiento en búfer TCP.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_forwarded_for`
+          </td>
+
+          <td>
+            Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor de `c_ip` en el campo 5 es la dirección IP del proxy o balanceador de carga. En ese caso, este campo es la dirección IP del espectador que originó la solicitud.
+
+            Este campo contiene direcciones IPv4 e IPv6 según corresponda. Si el espectador no utilizó un proxy HTTP o un equilibrador de carga, el valor de `x_forwarded_for` es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_protocol`
+          </td>
+
+          <td>
+            Cuando `cs_protocol` en el campo 17 es `https`, este campo contiene el protocolo SSL/TLS que el cliente y CloudFront negociaron para transmitir la solicitud y la respuesta. Los valores posibles incluyen:
+
+            * SSLv3
+
+            * TLSv1
+
+            * TLSv1.1
+
+            * TLSv1.2
+
+              Cuando `cs_protocol` en el campo 17 es `http`, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_cipher`
+          </td>
+
+          <td>
+            Cuando `cs_protocol` en el campo 17 es `https`, este campo contiene el cifrado SSL/TLS que el cliente y CloudFront negociaron para cifrar la solicitud y la respuesta. Los valores posibles incluyen:
+
+            * `ECDHE-RSA-AES128-GCM-SHA256`
+
+            * `ECDHE-RSA-AES128-SHA256`
+
+            * `ECDHE-RSA-AES128-SHA`
+
+            * `ECDHE-RSA-AES256-GCM-SHA384`
+
+            * `ECDHE-RSA-AES256-SHA384`
+
+            * `ECDHE-RSA-AES256-SHA`
+
+            * `AES128-GCM-SHA256`
+
+            * `AES256-GCM-SHA384`
+
+            * `AES128-SHA256`
+
+            * `AES256-SHA`
+
+            * `AES128-SHA`
+
+            * `DES-CBC3-SHA`
+
+            * `RC4-MD5`
+
+              Cuando `cs_protocol` en el campo 17 es `http`, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_response_result_type`
+          </td>
+
+          <td>
+            Cómo clasificó CloudFront la respuesta justo antes de devolverla al espectador. Los valores posibles incluyen:
+
+            * `Hit`: CloudFront entregó el objeto al espectador desde la caché perimetral.
+            * `RefreshHit`: CloudFront encontró el objeto en la caché perimetral pero había caducado, por lo que CloudFront se comunicó con el origen para verificar que la caché tenga la última versión del objeto.
+            * `Miss`: Un objeto en la caché perimetral no pudo satisfacer la solicitud, por lo que CloudFront reenvió la solicitud al servidor de origen y devolvió el resultado al espectador.
+            * `LimitExceeded`: La solicitud fue denegada porque se excedió un límite de CloudFront.
+            * `CapacityExceeded`: CloudFront devolvió un error `503` porque la ubicación del borde no tenía suficiente capacidad en el momento de la solicitud para atender el objeto.
+            * `Error`: Normalmente, esto significa que la solicitud resultó en un error del cliente (`sc_status` es `4xx`) o un error del servidor (`sc_status` es `5xx`). Si el valor de `x_edge_result_type` es `Error` y el valor de este campo **no** es `Error`, el cliente se desconectó antes de finalizar la descarga.
+            * `Redirect`: CloudFront redirecciona de HTTP a HTTPS. Si `sc_status` es `403` y configuró CloudFront para restringir la distribución geográfica de su contenido, es posible que la solicitud provenga de una ubicación restringida.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol_version`
+          </td>
+
+          <td>
+            La versión HTTP que el espectador especificó en la solicitud. Los valores posibles incluyen:
+
+            * `HTTP/0.9`
+            * `HTTP/1.0`
+            * `HTTP/1.1`
+            * `HTTP/2.0`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle_status`
+          </td>
+
+          <td>
+            Cuando se configura el cifrado a nivel de campo para una distribución, este campo contiene un código que indica si el cuerpo de la solicitud se procesó correctamente.
+
+            Si el cifrado a nivel de campo no está configurado para la distribución, el valor es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle-encrypted-fields`
+          </td>
+
+          <td>
+            La cantidad de campos que CloudFront cifró y reenvió al origen. CloudFront transmite la solicitud procesada al origen mientras cifra los datos, por lo que `fle-encrypted-fields` puede tener un valor incluso si el valor de `fle-status` es un error.
+
+            Si el cifrado a nivel de campo no está configurado para la distribución, el valor de `fle-encrypted-fields` es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_port`
+          </td>
+
+          <td>
+            El número de puerto de la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_to_first_byte`
+          </td>
+
+          <td>
+            El número de segundos entre recibir la solicitud y escribir el primer byte de la respuesta, medido en el servidor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_detailed_result_type`
+          </td>
+
+          <td>
+            Cuando `x-edge-result-type` <DNT>**is not**</DNT> `Error`, este campo contiene el mismo valor que `x-edge-result-type`. Cuando `x-edge-result-type` <DNT>**is**</DNT> `Error`, este campo contiene el tipo específico de error.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_type`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Type de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_len`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Length de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_range_start`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor inicial del rango.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc-range-end`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor final del rango.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cloudfront-rtl"
+    title="CloudFront (registro de tiempo real)"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'cloudfront-rtl'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```
+    ^%{NOTSPACE:timestamp}.\d{3}%{SPACE}%{NOTSPACE:c_ip}%{SPACE}%{NOTSPACE:time_to_first_byte}%{SPACE}%{NOTSPACE:sc_status}%{SPACE}%{NOTSPACE:sc_bytes}%{SPACE}%{NOTSPACE:cs_method}%{SPACE}%{NOTSPACE:cs_protocol}%{SPACE}%{NOTSPACE:cs_host}%{SPACE}%{NOTSPACE:cs_uri_stem}%{SPACE}%{NOTSPACE:cs_bytes}%{SPACE}%{NOTSPACE:x_edge_location}%{SPACE}%{NOTSPACE:x_edge_request_id}%{SPACE}%{NOTSPACE:x_host_header}%{SPACE}%{NOTSPACE:time_taken}%{SPACE}%{NOTSPACE:cs_protocol_version}%{SPACE}%{NOTSPACE:cs_ip_version}%{SPACE}%{NOTSPACE:cs_user_agent}%{SPACE}%{NOTSPACE:cs_referer}%{SPACE}%{NOTSPACE:cs_cookie}%{SPACE}%{NOTSPACE:cs_uri_query}%{SPACE}%{NOTSPACE:x_edge_response_result_type}%{SPACE}%{NOTSPACE:x_forwarded_for}%{SPACE}%{NOTSPACE:ssl_protocol}%{SPACE}%{NOTSPACE:ssl_cipher}%{SPACE}%{NOTSPACE:x_edge_result_type}%{SPACE}%{NOTSPACE:fle_encrypted_fields}%{SPACE}%{NOTSPACE:fle_status}%{SPACE}%{NOTSPACE:sc_content_type}%{SPACE}%{NOTSPACE:sc_content_len}%{SPACE}%{NOTSPACE:sc_range_start}%{SPACE}%{NOTSPACE:sc_range_end}%{SPACE}%{NOTSPACE:c_port}%{SPACE}%{NOTSPACE:x_edge_detailed_result_type}%{SPACE}%{NOTSPACE:c_country}%{SPACE}%{NOTSPACE:cs_accept_encoding}%{SPACE}%{NOTSPACE:cs_accept}%{SPACE}%{NOTSPACE:cache_behavior_path_pattern}%{SPACE}%{NOTSPACE:cs_headers}%{SPACE}%{NOTSPACE:cs_header_names}%{SPACE}%{NOTSPACE:cs_headers_count}$
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Campo
+          </th>
+
+          <th>
+            Definición
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            La fecha y hora en que el servidor perimetral terminó de responder a la solicitud.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_ip`
+          </td>
+
+          <td>
+            La dirección IP del espectador que realizó la solicitud, por ejemplo, `192.0.2.183` o `2001:0db8:85a3:0000:0000:8a2e:0370:7334`. Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor de este campo es la dirección IP del proxy o balanceador de carga. Consulte también el campo `x-forwarded-for` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_to_first_byte`
+          </td>
+
+          <td>
+            El número de segundos entre recibir la solicitud y escribir el primer byte de la respuesta, medido en el servidor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_status`
+          </td>
+
+          <td>
+            Un código de estado HTTP; por ejemplo, `200`. El código de estado `000` indica que el espectador cerró la conexión (por ejemplo, cerró la pestaña del browser ) antes de que CloudFront pudiera responder a una solicitud. Si el espectador cierra la conexión después de que CloudFront comienza a enviar la respuesta, el log contiene el código de estado HTTP aplicable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_bytes`
+          </td>
+
+          <td>
+            El número total de bytes que el servidor envió al espectador en respuesta a la solicitud, incluidos los encabezados. Para conexiones WebSocket, este es el número total de bytes enviados desde el servidor al cliente a través de la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_method`
+          </td>
+
+          <td>
+            El método de solicitud HTTP recibido del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol`
+          </td>
+
+          <td>
+            El protocolo de la solicitud del espectador (http, https, ws o wss).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_host`
+          </td>
+
+          <td>
+            El valor que el espectador incluyó en el encabezado Host de la solicitud. Si utiliza el nombre de dominio de CloudFront en las URL de su objeto (como d111111abcdef8.cloudfront.net), este campo contiene ese nombre de dominio. Si utiliza nombres de dominio alternativos (CNAME) en las URL de sus objetos (como [www.example.com](http://www.example.com)), este campo contiene el nombre de dominio alternativo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_stem`
+          </td>
+
+          <td>
+            La URL de solicitud completa, incluida la cadena de consulta (si existe), pero sin el nombre de dominio. Por ejemplo, `/images/cat.webp?mobile=true`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_bytes`
+          </td>
+
+          <td>
+            El número total de bytes de datos que el espectador incluyó en la solicitud, incluidos los encabezados. Para conexiones WebSocket, este es el número total de bytes enviados desde el cliente al servidor en la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_location`
+          </td>
+
+          <td>
+            La ubicación de borde que atendió la solicitud. Cada ubicación de borde se identifica mediante un código de tres letras y un número asignado arbitrariamente (por ejemplo, DFW3). El código de tres letras normalmente corresponde con el código de aeropuerto de la Asociación de Transporte Aéreo Internacional (IATA) para un aeropuerto cerca de la ubicación geográfica de la ubicación del borde. (Estas abreviaturas podrían cambiar en el futuro).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_request_id`
+          </td>
+
+          <td>
+            Cómo clasifica CloudFront la respuesta después de que el último byte salió de la ubicación del borde. En algunos casos, el tipo de resultado puede cambiar entre el momento en que CloudFront está listo para enviar la respuesta y el momento en que CloudFront termina de enviar la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_request_id`
+          </td>
+
+          <td>
+            Una cadena opaca que identifica de forma única una solicitud. CloudFront también envía esta cadena en el encabezado de respuesta x-amz-cf-id.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_host_header`
+          </td>
+
+          <td>
+            El nombre de dominio de la distribución de CloudFront (por ejemplo, `d111111abcdef8.cloudfront.net`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_taken`
+          </td>
+
+          <td>
+            El número de segundos (hasta la milésima de segundo, por ejemplo, 0,082) desde que el servidor recibe la solicitud del espectador hasta que el servidor escribe el último byte de la respuesta en la cola de salida, según lo medido en el servidor. Desde la perspectiva del espectador, el tiempo total para obtener la respuesta completa será mayor que este valor debido a la latencia de la red y al almacenamiento en búfer TCP.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol_version`
+          </td>
+
+          <td>
+            La versión HTTP que el espectador especificó en la solicitud. Los valores posibles incluyen `HTTP/0.9`, `HTTP/1.0`, `HTTP/1.1`, `HTTP/2.0` y `HTTP/3.0`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_ip_version`
+          </td>
+
+          <td>
+            La versión IP de la solicitud (IPv4 o IPv6).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_user_agent`
+          </td>
+
+          <td>
+            El valor del encabezado usuario-agente en la solicitud. El encabezado usuario-agente identifica el origen de la solicitud, como el tipo de dispositivo y browser que envió la solicitud o, si la solicitud provino de un motor de búsqueda, qué motor de búsqueda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_referer`
+          </td>
+
+          <td>
+            El valor del encabezado Referer en la solicitud. Este es el nombre del dominio que originó la solicitud. Los referentes comunes incluyen motores de búsqueda, otros sitios web que enlazan directamente con sus objetos y su propio sitio web.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_cookie`
+          </td>
+
+          <td>
+            El encabezado de la cookie en la solicitud, incluidos los pares de nombre-valor y el atributo asociado.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_query`
+          </td>
+
+          <td>
+            La parte de la cadena de consulta de la URL de solicitud, si corresponde.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_response_result_type`
+          </td>
+
+          <td>
+            Cómo el servidor clasificó la respuesta justo antes de devolverla al espectador. Consulte también el campo tipo de resultado de borde x. Los valores posibles incluyen:
+
+            * `Hit`: El servidor entregó el objeto al espectador desde el caché.
+            * `RefreshHit`: El servidor encontró el objeto en el caché pero el objeto había caducado, por lo que el servidor se comunicó con el origen para verificar que el caché tuviera la última versión del objeto.
+            * `Miss`: La solicitud no pudo ser satisfecha por un objeto en el caché, por lo que el servidor reenvió la solicitud al servidor de origen y devolvió el resultado al espectador.
+            * `LimitExceeded`: La solicitud fue denegada porque se superó una cuota de CloudFront (anteriormente denominada límite)
+            * `CapacityExceeded`: El servidor devolvió un error 503 porque no tenía suficiente capacidad en el momento de la solicitud para servir el objeto.
+            * `Error`: Normalmente, esto significa que la solicitud resultó en un error del cliente (el valor del campo sc-status está en el rango 4xx) o un error del servidor (el valor del campo sc-status está en el rango 5xx). Si el valor del campo x-edge-result-type es Error y el valor de este campo no es Error, el cliente se desconectó antes de finalizar la descarga.
+            * `Redirect`: El servidor redirige al espectador de HTTP a HTTPS según la configuración de distribución.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_forwarded_for`
+          </td>
+
+          <td>
+            Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor del campo c-ip es la dirección IP del proxy o balanceador de carga. En ese caso, este campo es la dirección IP del espectador que originó la solicitud. Este campo contiene una dirección IPv4 (por ejemplo, `192.0.2.183`) o una dirección IPv6 (por ejemplo, `2001:0db8:85a3:0000:0000:8a2e:0370:7334`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_protocol`
+          </td>
+
+          <td>
+            Cuando la solicitud utilizó HTTPS, este campo contiene el protocolo SSL/TLS que el espectador y el servidor negociaron para transmitir la solicitud y la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_cipher`
+          </td>
+
+          <td>
+            Cuando la solicitud utilizó HTTPS, este campo contiene el cifrado SSL/TLS que el espectador y el servidor negociaron para cifrar la solicitud y la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_result_type`
+          </td>
+
+          <td>
+            Cómo el servidor clasificó la respuesta después de que el último byte salió del servidor. En algunos casos, el tipo de resultado puede cambiar entre el momento en que el servidor está listo para enviar la respuesta y el momento en que termina de enviarla. Consulte también el campo `x-edge-response-result-type` . Por ejemplo, en la transmisión HTTP, supongamos que el servidor encuentra un segmento de la transmisión en la memoria caché. En ese escenario, el valor de este campo normalmente sería `Hit`. Sin embargo, si el espectador cierra la conexión antes de que el servidor haya entregado el segmento completo, el tipo de resultado final (y el valor de este campo) es `Error`. Las conexiones WebSocket tendrán un valor de `Miss` para este campo porque el contenido no se puede almacenar en caché y se envía directamente al origen.
+
+            Los valores posibles incluyen:
+
+            * `Hit`: El servidor entregó el objeto al espectador desde el caché.
+            * `RefreshHit`: El servidor encontró el objeto en el caché pero el objeto había caducado, por lo que el servidor se comunicó con el origen para verificar que el caché tuviera la última versión del objeto.
+            * `Miss`: Un objeto en el caché no pudo satisfacer la solicitud, por lo que el servidor reenvió la solicitud al origen y devolvió el resultado al espectador.
+            * `LimitExceeded`: La solicitud se rechazó porque se superó una cuota de CloudFront (anteriormente denominada límite).
+            * `CapacityExceeded`: El servidor devolvió un código de estado HTTP 503 porque no tenía suficiente capacidad en el momento de la solicitud para servir el objeto.
+            * `Error`: Normalmente, esto significa que la solicitud resultó en un error del cliente (el valor del campo sc-status está en el rango 4xx) o un error del servidor (el valor del campo sc-status está en el rango 5xx). Si el valor del campo `sc-status` es `200`, o si el valor de este campo es `Error` y el valor del campo `x-edge-response-result-type` no es `Error`, significa que la solicitud HTTP fue exitosa pero el cliente desconectado antes de recibir todos los bytes.
+            * `Redirect`: El servidor redirige al espectador de HTTP a HTTPS según la configuración de distribución.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle_encrypted_fields`
+          </td>
+
+          <td>
+            El número de campos de cifrado a nivel de campo que el servidor cifró y reenvió al origen. Los servidores de CloudFront transmiten la solicitud procesada al origen a medida que cifran los datos, por lo que este campo puede tener un valor incluso si el valor de `fle-status` es un error.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle_status`
+          </td>
+
+          <td>
+            Cuando se configura el cifrado a nivel de campo para una distribución, este campo contiene un código que indica si el cuerpo de la solicitud se procesó correctamente. Cuando el servidor procesa con éxito el cuerpo de la solicitud, cifra los valores en los campos especificados y reenvía la solicitud al origen, el valor de este campo se procesa. En este caso, el valor de `x-edge-result-type` aún puede indicar un error del lado del cliente o del servidor.
+
+            Los valores posibles para este campo incluyen: \*`ForwardedByContentType`: el servidor reenvió la solicitud al origen sin análisis ni cifrado porque no se configuró ningún tipo de contenido.
+
+            * `ForwardedByQueryArgs`: el servidor reenvió la solicitud al origen sin análisis ni cifrado porque la solicitud contiene un argumento de consulta que no estaba en la configuración para el cifrado a nivel de campo.
+            * `ForwardedDueToNoProfile`: el servidor reenvió la solicitud al origen sin análisis ni cifrado porque no se especificó ningún perfil en la configuración para el cifrado a nivel de campo.
+            * `MalformedContentTypeClientError`: El servidor rechazó la solicitud y devolvió un código de estado HTTP 400 al espectador porque el valor del encabezado Content-Type estaba en un formato no válido.
+            * `MalformedInputClientError`: El servidor rechazó la solicitud y devolvió un código de estado HTTP 400 al espectador porque el cuerpo de la solicitud tenía un formato no válido.
+            * `MalformedQueryArgsClientError`: El servidor rechazó la solicitud y devolvió un código de estado HTTP 400 al espectador porque un argumento de consulta estaba vacío o tenía un formato no válido.
+            * `RejectedByContentType`: El servidor rechazó la solicitud y devolvió un código de estado HTTP 400 al espectador porque no se especificó ningún tipo de contenido en la configuración para el cifrado a nivel de campo.
+            * `RejectedByQueryArgs`: El servidor rechazó la solicitud y devolvió un código de estado HTTP 400 al espectador porque no se especificó ningún argumento de consulta en la configuración para el cifrado a nivel de campo.
+            * `ServerError`: El servidor de origen devolvió un error. Si la solicitud excede una cuota de cifrado a nivel de campo (anteriormente denominada límite), este campo contiene uno de los siguientes códigos de error y el servidor devuelve el código de estado HTTP 400 al espectador.
+            * `FieldLengthLimitClientError`: Un campo configurado para cifrarse excedió la longitud máxima permitida
+            * `FieldNumberLimitClientError`: una solicitud para la que la distribución está configurada para cifrar contiene más campos que los permitidos.
+            * `RequestLengthLimitClientError`: La longitud del cuerpo de la solicitud superó la longitud máxima permitida cuando se configura el cifrado a nivel de campo.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_type`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Type de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_len`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Length de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc-range-start`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor inicial del rango.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc-range-end`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor final del rango.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_port`
+          </td>
+
+          <td>
+            El número de puerto de la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_detailed_result_type`
+          </td>
+
+          <td>
+            Cuando el valor del campo `x-edge-result-type` es `Error`, este campo contiene el tipo específico de error. Cuando el objeto se entregó al espectador desde la caché de Origin Shield, este campo contiene `OriginShieldHit`. En todos los demás casos, este campo contiene el mismo valor que `x-edge-result-type`. Los valores posibles para este campo incluyen:
+
+            * `AbortedOrigin`: El servidor encontró un problema con el origen.
+            * `OriginCommError`: Se agotó el tiempo de espera de la solicitud mientras se conectaba al origen o se leían datos del origen.
+            * `ClientCommError`: La respuesta al espectador se interrumpió debido a un problema de comunicación entre el servidor y el espectador.
+            * `ClientGeoBlocked`: La distribución está configurada para rechazar solicitudes provenientes de la ubicación geográfica del espectador.
+            * `ClientHungUpRequest`: El espectador se detuvo prematuramente mientras enviaba la solicitud.
+            * `Error` – Se produjo un error cuyo tipo de error no se ajusta a ninguna de las otras categorías. Este tipo de error puede ocurrir cuando el servidor entrega una respuesta de error desde el caché.
+            * `InvalidRequest`: El servidor recibió una solicitud no válida del espectador.
+            * `InvalidRequestBlocked`: El acceso al recurso solicitado está bloqueado.
+            * `InvalidRequestCertificate`: La distribución no coincide con el certificado SSL/TLS para el que se estableció la conexión HTTPS.
+            * `InvalidRequestHeader`: La solicitud contenía un encabezado no válido.
+            * `InvalidRequestMethod`: La distribución no está configurada para manejar el método de solicitud HTTP que se utilizó. Esto puede suceder cuando la distribución solo admite solicitudes almacenables en caché.
+            * `OriginConnectError`: El servidor no pudo conectarse al origen.
+            * `OriginContentRangeLengthError`: El encabezado Content-Length en la respuesta del origen no coincide con la longitud del encabezado Content-Range.
+            * `OriginDnsError`: El servidor no pudo resolver el nombre de dominio de origen.
+            * `OriginError`: El origen devolvió una respuesta incorrecta.
+            * `OriginHeaderTooBigError`: Un encabezado devuelto por el origen es demasiado grande para que lo procese el servidor perimetral.
+            * `OriginInvalidResponseError`: El origen devolvió una respuesta no válida.
+            * `OriginReadError`: El servidor no pudo leer desde el origen.
+            * `OriginShieldHit`: El objeto se entregó al espectador desde la caché de Origin Shield.
+            * `OriginWriteError`: El servidor no pudo escribir en el origen.
+            * `OriginZeroSizeObjectError`: Un objeto de tamaño cero enviado desde el origen generó un error.
+            * `SlowReaderOriginError`: El espectador tardó en leer el mensaje que provocó el error de origen.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_country`
+          </td>
+
+          <td>
+            Un código de país que representa la ubicación geográfica del espectador, según lo determinado por la dirección IP del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_accept_encoding`
+          </td>
+
+          <td>
+            El valor del encabezado `Accept-Encoding` en la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_accept`
+          </td>
+
+          <td>
+            El valor del encabezado `Accept` en la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cache_behavior_path_pattern`
+          </td>
+
+          <td>
+            El patrón de ruta que identifica el comportamiento de la caché que coincidió con la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_headers`
+          </td>
+
+          <td>
+            Los encabezados HTTP (nombres y valores) en la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_header_names`
+          </td>
+
+          <td>
+            Los nombres de los encabezados HTTP (no los valores) en la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_headers_count`
+          </td>
+
+          <td>
+            El número de encabezados HTTP en la solicitud del espectador.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="elastic-load-balancer"
+    title="Balanceador de carga elástico"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'elb'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    ^%{TIMESTAMP_ISO8601:time} %{NOTSPACE:elb} %{NOTSPACE:client_ip}:%{NOTSPACE:client_port} ((%{NOTSPACE:backend_ip}:%{NOTSPACE:backend_port})|-) %{NOTSPACE:request_processing_time} %{NOTSPACE:backend_processing_time} %{NOTSPACE:response_processing_time} %{NOTSPACE:elb_status_code} %{NOTSPACE:backend_status_code} %{NOTSPACE:received_bytes} %{NOTSPACE:sent_bytes} "%{DATA:request}" "%{DATA:user_agent}" %{NOTSPACE:ssl_cipher} %{NOTSPACE:ssl_protocol}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Campo
+          </th>
+
+          <th>
+            Definición
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `x_edge_location`
+          </td>
+
+          <td>
+            La ubicación de borde que atendió la solicitud. Cada ubicación de borde se identifica mediante un código de tres letras y un número asignado arbitrariamente; por ejemplo, `DFW3`. El código de tres letras normalmente corresponde con el código de aeropuerto de la Asociación Internacional de Transporte Aéreo para un aeropuerto cerca de la ubicación del borde. (Estas abreviaturas podrían cambiar en el futuro).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_bytes`
+          </td>
+
+          <td>
+            El número total de bytes que CloudFront entregó al espectador en respuesta a la solicitud, incluidos los encabezados; por ejemplo, `1045619`. Para conexiones WebSocket, este es el número total de bytes enviados desde el servidor al cliente a través de la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_ip`
+          </td>
+
+          <td>
+            La dirección IP del espectador que realizó la solicitud. Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor de `c_ip` es la dirección IP del proxy o balanceador de carga.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_method`
+          </td>
+
+          <td>
+            El método de solicitud HTTP&#x3A; `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST` o `PUT`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_host`
+          </td>
+
+          <td>
+            El nombre de dominio de la distribución de CloudFront; por ejemplo, `d111111abcdef8.cloudfront.net`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_stem`
+          </td>
+
+          <td>
+            La parte del URI que identifica la ruta y el objeto; por ejemplo, `/images/cat.jpg`. Los signos de interrogación (`?`) en las URL y las cadenas de consulta no se incluyen en el log.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_status`
+          </td>
+
+          <td>
+            Un código de estado HTTP (por ejemplo, `200`). El código de estado `000` indica que el espectador cerró la conexión (por ejemplo, cerró la pestaña del browser ) antes de que CloudFront pudiera responder a una solicitud.
+
+            Si el espectador cierra la conexión después de que CloudFront comienza a enviar la respuesta, el log contiene el código de estado HTTP aplicable.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_referer`
+          </td>
+
+          <td>
+            El nombre del dominio que originó la solicitud. Los referentes comunes incluyen motores de búsqueda, otros sitios web que enlazan directamente con sus objetos y su propio sitio web.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_user_agent`
+          </td>
+
+          <td>
+            El valor del encabezado usuario-agente en la solicitud. El encabezado usuario-agente identifica el origen de la solicitud, como el tipo de dispositivo y browser que envió la solicitud y qué motor de búsqueda, si corresponde.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_uri_query`
+          </td>
+
+          <td>
+            La parte de la cadena de consulta del URI, si existe. Cuando un URI no contiene una cadena de consulta, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_cookie`
+          </td>
+
+          <td>
+            El encabezado de la cookie en la solicitud, incluidos los pares de nombre-valor y el atributo asociado.
+
+            * Si habilita el registro de cookies, CloudFront registrará las cookies en todas las solicitudes, independientemente de qué cookies elija reenviar al origen.
+            * Si una solicitud no incluye un encabezado de cookie, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_result_type`
+          </td>
+
+          <td>
+            Cómo clasifica CloudFront la respuesta después de que el último byte salió de la ubicación del borde. En algunos casos, el tipo de resultado puede cambiar entre el momento en que CloudFront está listo para enviar la respuesta y el momento en que CloudFront termina de enviar la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_request_id`
+          </td>
+
+          <td>
+            Una cadena cifrada que identifica de forma única una solicitud. En el encabezado de respuesta, esto es `x-amz-cf-id`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_host_header`
+          </td>
+
+          <td>
+            El valor que el espectador incluyó en el encabezado Host para esta solicitud. Este es el nombre de dominio en la solicitud.
+
+            * Si utiliza el nombre de dominio de CloudFront en las URL de su objeto, este campo contiene ese nombre de dominio.
+            * Si utiliza nombres de dominio alternativos en las URL de su objeto, como `[http://example.com/logo.png`, este campo contiene el nombre de dominio alternativo, como `example.com`. Para utilizar nombres de dominio alternativos, debe agregarlos a su distribución.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol`
+          </td>
+
+          <td>
+            El protocolo que el espectador especificó en la solicitud: `http`, `https`, `ws` o `wss`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_bytes`
+          </td>
+
+          <td>
+            La cantidad de bytes de datos que el espectador incluyó en la solicitud, incluidos los encabezados. Para conexiones WebSocket, este es el número total de bytes enviados desde el cliente al servidor en la conexión.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_taken`
+          </td>
+
+          <td>
+            La cantidad de segundos (hasta la milésima de segundo; por ejemplo, 0,002) entre el momento en que un servidor perimetral de CloudFront recibe la solicitud de un espectador y el momento en que CloudFront escribe el último byte de la respuesta en la cola de salida del servidor perimetral, según lo medido en el servidor.
+
+            Desde la perspectiva del espectador, el tiempo total para obtener el objeto completo será mayor que este valor debido a la latencia de la red y al almacenamiento en búfer TCP.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_forwarded_for`
+          </td>
+
+          <td>
+            Si el espectador utilizó un proxy HTTP o un balanceador de carga para enviar la solicitud, el valor de `c_ip` en el campo 5 es la dirección IP del proxy o balanceador de carga. En ese caso, este campo es la dirección IP del espectador que originó la solicitud. Este campo contiene direcciones IPv4 e IPv6 según corresponda.
+
+            Si el espectador no utilizó un proxy HTTP o un equilibrador de carga, el valor de `x_forwarded_for` es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_protocol`
+          </td>
+
+          <td>
+            Cuando `cs_protocol` en el campo 17 es `https`, este campo contiene el protocolo SSL/TLS que el cliente y CloudFront negociaron para transmitir la solicitud y la respuesta. Los valores posibles incluyen:
+
+            * SSLv3
+            * TLSv1
+            * TLSv1.1
+            * TLSv1.2 Cuando `cs_protocol` en el campo 17 es `http`, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ssl_cipher`
+          </td>
+
+          <td>
+            Cuando `cs_protocol` en el campo 17 es `https`, este campo contiene el cifrado SSL/TLS que el cliente y CloudFront negociaron para cifrar la solicitud y la respuesta. Los valores posibles incluyen:
+
+            * `ECDHE-RSA-AES128-GCM-SHA256`
+
+            * `ECDHE-RSA-AES128-SHA256`
+
+            * `ECDHE-RSA-AES128-SHA`
+
+            * `ECDHE-RSA-AES256-GCM-SHA384`
+
+            * `ECDHE-RSA-AES256-SHA384`
+
+            * `ECDHE-RSA-AES256-SHA`
+
+            * `AES128-GCM-SHA256`
+
+            * `AES256-GCM-SHA384`
+
+            * `AES128-SHA256`
+
+            * `AES256-SHA`
+
+            * `AES128-SHA`
+
+            * `DES-CBC3-SHA`
+
+            * `RC4-MD5`
+
+              Cuando `cs_protocol` es `http`, el valor de este campo es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_response_result_type`
+          </td>
+
+          <td>
+            Cómo clasificó CloudFront la respuesta justo antes de devolverla al espectador. Los valores posibles incluyen:
+
+            * `Hit`: CloudFront entregó el objeto al espectador desde la caché perimetral.
+            * `RefreshHit`: CloudFront encontró el objeto en la caché perimetral pero había caducado, por lo que CloudFront se comunicó con el origen para verificar que la caché tenga la última versión del objeto.
+            * `Miss`: Un objeto en la caché perimetral no pudo satisfacer la solicitud, por lo que CloudFront reenvió la solicitud al servidor de origen y devolvió el resultado al espectador.
+            * `LimitExceeded`: La solicitud fue denegada porque se excedió un límite de CloudFront.
+            * `CapacityExceeded`: CloudFront devolvió un error `503` porque la ubicación del borde no tenía suficiente capacidad en el momento de la solicitud para atender el objeto.
+            * `Error`: Normalmente, esto significa que la solicitud resultó en un error del cliente (`sc_status` es `4xx`) o un error del servidor (`sc_status` es `5xx`). Si el valor de `x_edge_result_type` es `Error` y el valor de este campo **no** es `Error`, el cliente se desconectó antes de finalizar la descarga.
+            * `Redirect`: CloudFront redirecciona de HTTP a HTTPS. Si `sc_status` es `403` y configuró CloudFront para restringir la distribución geográfica de su contenido, es posible que la solicitud provenga de una ubicación restringida.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `cs_protocol_version`
+          </td>
+
+          <td>
+            La versión HTTP que el espectador especificó en la solicitud. Los valores posibles incluyen:
+
+            * `HTTP/0.9`
+            * `HTTP/1.0`
+            * `HTTP/1.1`
+            * `HTTP/2.0`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle_status`
+          </td>
+
+          <td>
+            Cuando se configura el cifrado a nivel de campo para una distribución, este campo contiene un código que indica si el cuerpo de la solicitud se procesó correctamente. Si el cifrado a nivel de campo no está configurado para la distribución, el valor de este campo es un guión (`-`).
+
+            Cuando CloudFront procesa correctamente el cuerpo de la solicitud, cifra los valores en los campos especificados y reenvía la solicitud al origen, el valor de este campo es `Processed`. En este caso, el valor de `x_edge_result_type` aún puede indicar un error del lado del cliente o del servidor.
+
+            Si la solicitud excede un límite de cifrado a nivel de campo, `fle-status` contiene uno de los siguientes códigos de error y CloudFront devuelve el código de estado HTTP `400` al espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `fle-encrypted-fields`
+          </td>
+
+          <td>
+            La cantidad de campos que CloudFront cifró y reenvió al origen. CloudFront transmite la solicitud procesada al origen mientras cifra los datos, por lo que `fle_encrypted_fields` puede tener un valor incluso si el valor de `fle_status` es un error.
+
+            Si el cifrado a nivel de campo no está configurado para la distribución, el valor de `fle_encrypted_fields` es un guión (`-`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `c_port`
+          </td>
+
+          <td>
+            El número de puerto de la solicitud del espectador.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `time_to_first_byte`
+          </td>
+
+          <td>
+            El número de segundos entre recibir la solicitud y escribir el primer byte de la respuesta, medido en el servidor.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `x_edge_detailed_result_type`
+          </td>
+
+          <td>
+            Cuando `x_edge_result_type` <DNT>**is not**</DNT> `Error`, este campo contiene el mismo valor que `x_edge_result_type`. Cuando `x_edge_result_type` <DNT>**is**</DNT> `Error`, este campo contiene el tipo específico de error.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_type`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Type de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_content_len`
+          </td>
+
+          <td>
+            El valor del encabezado HTTP Content-Length de la respuesta.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc_range_start`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor inicial del rango.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `sc-range-end`
+          </td>
+
+          <td>
+            Cuando la respuesta contiene el encabezado HTTP Content-Range, este campo contiene el valor final del rango.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="haproxy"
+    title="HAProxy"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'haproxy_http'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{HOSTPORT:client} \\[%{NOTSPACE:haproxy_timestamp}\\] %{NOTSPACE:frontend_name} %{NOTSPACE:backend_name}/%{NOTSPACE:server_name} %{NUMBER:time_queue}/%{NUMBER:time_backend_connect}/%{NUMBER:time_duration} %{NUMBER:bytes_read} %{NOTSPACE:termination_state} %{NUMBER:actconn}/%{NUMBER:feconn}/%{NUMBER:beconn}/%{NUMBER:srvconn}/%{NUMBER:retries} %{NUMBER:srv_queue}/%{NUMBER:backend_queue}
+    ```
+
+    ```
+    %{HOSTPORT:client} \\[%{NOTSPACE:haproxy_timestamp}\\] %{NOTSPACE:frontend_name} %{NOTSPACE:backend_name}/%{NOTSPACE:server_name} %{NUMBER:time_client_req}/%{NUMBER:time_queue}/%{NUMBER:time_backend_connect}/%{NUMBER:time_server_response}/%{NUMBER:time_duration} %{NUMBER:status_code} %{NUMBER:bytes_read} %{NOTSPACE:captured_request_cookie} %{NOTSPACE:captured_response_cookie} %{NOTSPACE:termination_state_with_cookie_status} %{NUMBER:actconn}/%{NUMBER:feconn}/%{NUMBER:beconn}/%{NUMBER:srvconn}/%{NUMBER:retries} %{NUMBER:srv_queue}/%{NUMBER:backend_queue}?( \\\"%{GREEDYDATA:full_http_request}\\\")?( %{NOTSPACE:captured_response_headers})?
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `client`: IP de origen/puerto de esta solicitud
+    * `haproxy_timestamp`: timestamp cuando se aceptó esta solicitud
+    * `frontend_name`: Nombre de la interfaz utilizada en esta solicitud
+    * `backend_name`: Nombre del backend utilizado en esta solicitud
+    * `server_name`: nombre del servidor en el grupo de backend utilizado en esta solicitud
+    * `time_client_req`: Tiempo de espera para la solicitud completa del cliente (ms)
+    * `time_queue`: Tiempo de espera en colas (ms)
+    * `time_backend_connect`: Tiempo para establecer la conexión con el servidor de destino (ms)
+    * `time_server_response`: Tiempo para que el servidor de destino envíe la respuesta (ms)
+    * `time_duration`: Tiempo total de solicitud activa en HAProxy (ms)
+    * `status_code`: código de respuesta HTTP
+    * `bytes_read`: Total de bytes leídos en esta solicitud
+    * `captured_request_cookie`: Cookie capturada de la solicitud
+    * `captured_response_cookie`: Cookie capturada de la respuesta
+    * `termination_state`: Estado de la sesión en el momento de la desconexión
+    * `termination_state_with_cookie_status`: Estado de la sesión, incluido el estado de las cookies, en el momento de la desconexión
+    * `actconn`: Conexiones activas
+    * `feconn`: Conexiones frontales
+    * `beconn`: conexiones backend
+    * `srvconn`: Conexiones del servidor
+    * `retries`: Reintentos
+    * `srv_queue`: Tamaño de la cola del servidor
+    * `backend_queue`: Tamaño de la cola de backend
+    * `full_http_request`: La línea de solicitud HTTP completa
+    * `captured_response_headers`: encabezado capturado de la respuesta
+  </Collapser>
+
+  <Collapser
+    id="ktranslate-health"
+    title="KTranslate Salud"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'ktranslate-health'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{NOTSPACE:timestamp} ktranslate(/)?(%{GREEDYDATA:container_service})? \[%{NOTSPACE:severity}] %{GREEDYDATA:message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `timestamp`: La hora del log
+    * `container_service`: El identificador único utilizado para distinguir el contenedor en ktranslate. Esto se configura durante el tiempo de ejecución docker con el indicador opcional `--service_name`
+    * `severity`: La gravedad de la línea log .
+    * `message`: El campo de mensaje contiene un mensaje de formato libre que proporciona información sobre el evento.
+  </Collapser>
+
+  <Collapser
+    id="linux_cron"
+    title="Cron de Linux (/var/log/cron)"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'linux_cron'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{SYSLOGTIMESTAMP:linux_cron.timestamp} %{NOTSPACE:linux_cron.hostname} %{DATA:linux_cron.process}(\[%{NUMBER:linux_cron.pid:integer}\])?: (\(%{DATA:linux_cron.user}\))?%{GREEDYDATA:linux_cron.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `linux_cron.timestamp`: La hora del log
+    * `linux_cron.hostname`: El nombre de host del servidor Linux
+    * `linux_cron.process`: El nombre del proceso cron de Linux.
+    * `linux_cron.pid`: El PID cron de Linux (identificador de proceso)
+    * `linux_cron.user`: El usuario de Linux que ejecutó el cron.
+    * `linux_cron.message`: El mensaje de registro
+  </Collapser>
+
+  <Collapser
+    id="linux_messages"
+    title="Mensajes de Linux (/var/mensaje de registro)"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'linux_messages'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{SYSLOGTIMESTAMP:linux_messages.timestamp} %{NOTSPACE:linux_messages.hostname} %{DATA:linux_messages.process}(\[%{NUMBER:linux_messages.pid:integer}\])?: %{GREEDYDATA:linux_messages.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `linux_messages.timestamp`: La hora del log
+    * `linux_messages.hostname`: El nombre de host del servidor Linux
+    * `linux_messages.process`: El nombre del proceso de Linux
+    * `linux_messages.pid`: El PID de Linux (identificador de proceso)
+    * `linux_messages.message`: El mensaje de registro
+  </Collapser>
+
+  <Collapser
+    id="iis"
+    title="Microsoft IIS"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'iis_w3c'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{TIMESTAMP_ISO8601:log_timestamp} %{NOTSPACE:server_ip} %{WORD:method} %{NOTSPACE:uri} %{NOTSPACE:uri_query} %{NOTSPACE:server_port} %{NOTSPACE:username} %{NOTSPACE:client_ip} %{NOTSPACE:user_agent} %{NOTSPACE:referer} %{NOTSPACE:status} %{NOTSPACE:substatus} %{NOTSPACE:win32_status} %{NOTSPACE:time_taken}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    IIS permite varias [opciones de configuración](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524877(v=vs.90)). Si ha configurado alguna opción fuera de la predeterminada, nuestro patrón Grok no analizará su registro. En este caso, le recomendamos que utilice [un análisis personalizado](/docs/logs/ui-data/parsing/#custom-parsing).
+  </Collapser>
+
+  <Collapser
+    id="mongodb"
+    title="Mongodb"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'mongodb'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{TIMESTAMP_ISO8601:mongodb.timestamp} %{WORD:mongodb.severity} %{WORD:mongodb.component} *\[%{WORD:mongodb.context}\] %{GREEDYDATA:mongodb.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `mongodb.timestamp`: La timestamp de la declaración log .
+    * `mongodb.severity`: El nivel de gravedad de la declaración log (F=Fatal, E=Error, W=Advertencia, I=Informativo, D1-5=Depuración)
+    * `mongodb.component`: La categoría del hilo que emite la declaración log
+    * `mongodb.context`: El nombre del hilo que emite la declaración log .
+    * `mongodb.message`: El mensaje mongodb sin formato
+  </Collapser>
+
+  <Collapser
+    id="monit"
+    title="Monit"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'monit'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    \\[%{NOTSPACE:tz} %{SYSLOGTIMESTAMP:nr_timestamp}\\] %{WORD:state}%{SPACE}: %{GREEDYDATA:message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `state`: La gravedad de la línea log .
+    * `message`: El mensaje
+  </Collapser>
+
+  <Collapser
+    id="mysql-error"
+    title="Error de MySQL"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'mysql-error'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    \\[%{WORD:log_level}\\]
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `log_level`: La gravedad de la línea log .
+  </Collapser>
+
+  <Collapser
+    id="nginx"
+    title="NGINX"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'nginx'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\] "(?:%{WORD:verb} %{NOTSPACE:request}(?: HTTP/%{NUMBER:httpversion})?|%{DATA:rawrequest})" %{NUMBER:response} (?:%{NUMBER:bytes}|-) %{QS:referrer} %{QS:agent}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `clientip`: La dirección IP del cliente
+    * `verb`: El verbo HTTP
+    * `ident`: La identidad de usuario del cliente que realiza la solicitud.
+    * `response`: El código de estado HTTP de la respuesta.
+    * `request`: El URI y la solicitud que se está realizando.
+    * `httpversion`: La versión HTTP de la solicitud.
+    * `rawrequest`: La solicitud HTTP sin formato si se publican datos.
+    * `bytes`: El número de bytes enviados
+    * `referrer`: El referente HTTP
+    * `agent`: El agente de usuario del cliente.
+  </Collapser>
+
+  <Collapser
+    id="nginx-error"
+    title="Error NGINX"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'nginx-error'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    ^(?<timestamp>%{YEAR:year}[./-]%{MONTHNUM:month}[./-]%{MONTHDAY:day}[- ]%{TIME:time}) \[%{WORD:severity}\] %{POSINT:pid}#%{NUMBER}: \*%{NUMBER} %{GREEDYDATA:errormessage} client: %{IPORHOST:client}, server: %{NOTSPACE:server}, request: (\\)?"%{DATA:request}", (?:, upstream: \"%{URI:upstream}\")?host: (\\)?"%{NOTSPACE:host}(\\)?"(, referrer: (\\)?"%{URI:referrer}(\\)?")?
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `severity`: La gravedad de la línea log .
+    * `pid`: El ID del proceso del servidor
+    * `errormessage`: El mensaje de error
+    * `clientip`: La dirección IP del cliente que llama
+    * `server`: La dirección IP del servidor
+    * `request`: La solicitud completa
+    * `upstream`: El URI ascendente
+    * `host`: El nombre de host del servidor
+    * `referrer`: El referente HTTP
+  </Collapser>
+
+  <Collapser
+    id="postgresql"
+    title="Postgresql"
+  >
+    Fuente: `logtype = 'postgresql'`
+
+    Asimilar:
+
+    ```grok
+    %{DATA:postgresql.timestamp} \[%{NUMBER:postgresql.pid}\] %{WORD:level}:\s+%{GREEDYDATA:postgresql.message}
+    ```
+
+    ### Resultados
+
+    * `postgresql.timestamp`: La timestamp del log
+    * `postgresql.pid`: El ID del proceso del servidor
+    * `level`: El nivel de registros del mensaje.
+    * `postgresql.message`: El mensaje de registro
+  </Collapser>
+
+  <Collapser
+    id="rabbitmq"
+    title="Rabbitmq"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'rabbitmq'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{TIMESTAMP_ISO8601:rabbitmq.timestamp} \[%{LOGLEVEL:level}\] \<%{DATA:rabbitmq.pid}\> %{GREEDYDATA:rabbitmq.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `rabbitmq.timestamp`: La timestamp del log
+    * `level`: El nivel de registros del mensaje (depuración, información, advertencia, error, crítico, ninguno)
+    * `rabbitmq.pid`: La identificación del proceso de la línea log .
+    * `rabbitmq.message`: El mensaje de error de RabbitMQ
+  </Collapser>
+
+  <Collapser
+    id="redis"
+    title="Redis"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'redis'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{POSINT:redis.pid}:%{NOTSPACE:redis.role} (?<redistimestamp>[\d-]+ [a-zA-Z]+ [\d]+ [\d:]+.[\d]{3}) %{NOTSPACE:level} %{GREEDYDATA:redis.message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `redis.pid`: La identificación del proceso de la línea log .
+    * `redis.role`: El rol de la instancia (X centinela, C RDB/AOF escritura secundaria, S esclavo, M maestro)
+    * `redistimestamp`: La timestamp del log
+    * `level`: El nivel de registros del mensaje (. debug, - detallado, \* aviso, # advertencia)
+    * `redis.message`: El mensaje de error de Redis
+  </Collapser>
+
+  <Collapser
+    id="route53"
+    title="Route 53"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'route-53'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    %{NUMBER:log_format_version} %{TIMESTAMP_ISO8601} %{WORD:zone_id} %{IPORHOST:query} %{WORD:query_type} %{WORD:response_code} %{WORD:protocol} %{WORD:edge_location} %{IP:resolver_ip} %{GREEDYDATA:edns_client_subnet}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `log_format_version`: Un formato versionado para el log.
+    * `zone_id`: El ID de la zona alojada que está asociada con todas las consultas DNS en este log.
+    * `query`: el dominio o subdominio que se especificó en la solicitud.
+    * `query_type`: ya sea el tipo de registro DNS que se especificó en la solicitud o `ANY`.
+    * `response_code`: El código de respuesta DNS que Route 53 devolvió en respuesta a la consulta DNS.
+    * `protocol`: El protocolo que se utilizó para enviar la consulta, ya sea TCP o UDP.
+    * `edge_location`: la ubicación del borde de la Ruta 53 que respondió a la consulta. Cada ubicación de borde se identifica mediante un código de tres letras y un número arbitrario; por ejemplo, `DFW3`. El código de tres letras normalmente corresponde con el código de aeropuerto de la Asociación Internacional de Transporte Aéreo para un aeropuerto cerca de la ubicación del borde. (Estas abreviaturas podrían cambiar en el futuro).
+    * `resolver_ip`: La dirección IP del solucionador de DNS que envió la solicitud a la Ruta 53.
+    * `edns_client_subnet`: una dirección IP parcial para el cliente desde el que se originó la solicitud, si está disponible en el solucionador de DNS.
+  </Collapser>
+
+  <Collapser
+    id="syslog-rfc5424"
+    title="Syslog RFC-5424"
+  >
+    <DNT>**Source:**</DNT> `logtype = 'syslog-rfc5424'`
+
+    <DNT>
+      **Grok:**
+    </DNT>
+
+    ```grok
+    <%{NONNEGINT:pri}>%{NONNEGINT:version} +(?:%{TIMESTAMP_ISO8601:log.timestamp}|-) +(?:%{HOSTNAME:hostname}|-) +(?:\\-|%{NOTSPACE:app.name}) +(?:\\-|%{NOTSPACE:procid}) (?:\\-|%{NOTSPACE:msgid}) +(?:\[%{DATA:structured.data}\]|-|) +%{GREEDYDATA:message}
+    ```
+
+    <DNT>
+      **Results:**
+    </DNT>
+
+    * `pri`: La prioridad representa tanto la función del mensaje como la gravedad.
+    * `version`: Versión del protocolo Syslog.
+    * `log.timestamp`: timestamp original .
+    * `hostname`: La máquina que envió originalmente el mensaje Syslog.
+    * `app.name`: El dispositivo o aplicación que originó el mensaje.
+    * `procid`: El nombre del proceso o ID del proceso asociado con un sistema Syslog.
+    * `msgid`: Identifica el tipo de mensaje.
+    * `structured.data`: Valor de cadena de datos estructurados.
+    * `sd.sd-id.sd-param-name`: El contenido `structured.data` también se analiza en atributos separados siguiendo una convención de nomenclatura predefinida: `sd.sd-id.sd-param-name`. Consulte los ejemplos de análisis de datos estructurados que aparecen a continuación.
+    * `message`: Mensaje de formato libre que proporciona información sobre el evento.
+
+    <DNT>
+      **Structured data parsing examples:**
+    </DNT>
+
+    Los datos estructurados `[example one="1" two="2"]` se analizarían en dos atributos diferentes:
+
+    ```
+    sd.example.one: "1"
+    sd.example.two: "2"
+    ```
+
+    Si el mismo bloque de datos estructurados contiene nombres de parámetros duplicados, también agrega un sufijo basado en índice al nombre del atributo. Por ejemplo, los datos estructurados `[example number="1" number="2"]` se analizarían como:
+
+    ```
+    sd.example.number.0: "1"
+    sd.example.number.1: "2"
+    ```
+
+    Para datos estructurados con números de empresa asignados, también se analiza un atributo adicional. Por ejemplo, los datos estructurados `[example@123 number="1"]` se analizarían como:
+
+    ```
+    sd.example.enterprise.number: 123
+    sd.example.number: "1"
+    ```
+  </Collapser>
+</CollapserGroup>

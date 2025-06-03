@@ -1,0 +1,209 @@
+---
+subject:  Java agent
+releaseDate:  '2023-12-21'
+version:  8.8.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.8.0/'
+features: [“Add support for Jetty 12”, “Add support for Vert.x versions 4.0.0 through 4.4.x ”, “Add support for r2dbc-postgresql 0.9.2 till latest”, “Add log4j2 JsonLayout support”, “Add the httpstatus attribute in the external segment for Spring Webclient ”, “Enabled slow transaction detection by default and increased the threshold to 10 minutes ”, “Add support for string formatting with JBoss Logging”, “Add logic to remove specific classes from being excluded from being weaved if the security/CSEC agent is enabled”, “Updated IAST to 1.0.7 public preview”]
+bugs: [“Fix transaction naming in Spring controllers with a CGLIB proxy”, “Fix a `NullPointerException` caused by ServletContext in servlet instrumentation modules”, “Fix a memory leak caused by Lettuce instrumentation”, “Fix a bug where invalidating a license key causes a memory leak”, “Add a workaround for a memory leak that may occur in rare scenarios with instrumentation using the legacy async API in the Java Agent”, “Fix a `NullPointerException` caused by RPMServiceManager” ]
+security: [“Prevent license_key value from being written to the agent logs when using debug and/or audit_mode logging”]
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.8.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+## New features and improvements
+
+* Add support for Jetty 12, including Jetty’s implementation of the Jakarta EE 8, 9, and 10 specs. [1621](https://github.com/newrelic/newrelic-java-agent/pull/1621)
+* Add support for Vert.x versions 4.0.0 through 4.4.x [1588](https://github.com/newrelic/newrelic-java-agent/pull/1588)
+* Add instrumentation for graphql-java 21 [1454](https://github.com/newrelic/newrelic-java-agent/pull/1565)
+* Instrument r2dbc-postgresql 0.9.2 till latest [1413](https://github.com/newrelic/newrelic-java-agent/pull/1556)
+* Reintroduce the legacy HTTP Attributes that were removed in _v8.0.0_ to support customers with alerts and dashboards that require them [1671](https://github.com/newrelic/newrelic-java-agent/pull/1671)
+  The attributes are:
+* `httpResponseCode`
+* `httpResponseMessage`
+* `response.status`
+* `response.statusMessage`
+
+Attribute reporting is configurable via the following means.
+
+YAML:
+
+```
+attributes:
+  http_attribute_mode: both
+```
+
+System property:
+
+```properties
+-Dnewrelic.config.attributes.http_attribute_mode=both
+```
+
+Environment variable:
+
+```properties
+NEW_RELIC_ATTRIBUTES_HTTP_ATTRIBUTE=both
+```
+
+The configuration options are:
+
+* `standard` : The agent will send new standard attributes. This configuration is recommended but requires that any alerts or dashboards using attributes be updated to use these new attributes. This setting will reduce the amount of ingest used for attribute reporting.
+
+* `legacy` : The agent will send the legacy attributes referenced above. Customers with alerts or dashboard requiring these attributes can continue to be used as-is.  This setting will reduce the amount of ingest used for attribute reporting.
+
+* `both` : This is the default configuration, the agent will send BOTH legacy AND standard HTTP attributes. This configuration was intended to support customers that are unable to modify their alerts or dashboards but this configuration will increase data ingest.
+
+* Add an interface for our error API. Our error API can now be called via the code `NewRelic.getAgent().getErrorApi()` [1577](https://github.com/newrelic/newrelic-java-agent/pull/1579)
+
+* Add log4j2 JsonLayout support and support log4j2 till latest. [1545](https://github.com/newrelic/newrelic-java-agent/pull/1559)
+
+* Add httpstatus in the external segment for Spring Webclient [1610](https://github.com/newrelic/newrelic-java-agent/pull/1610)
+
+* Enable slow transaction detection by default and bump the threshold to 10 minutes [1629](https://github.com/newrelic/newrelic-java-agent/pull/1629)
+
+* Add support for string formatting with JBoss Logging. [1650](https://github.com/newrelic/newrelic-java-agent/pull/1650)
+
+* Add logic to remove specific classes from being excluded from being weaved if the IAST security feature is enabled. [1453](https://github.com/newrelic/newrelic-java-agent/pull/1453)
+
+The affected classes belong in the following formats:
+
+* `^java/security/.*`
+* `^javax/crypto/.*` These are crypto classes which can cause class circularity errors if they get too far along in the class transformer.
+* `^net/sf/saxon.*`
+
+If you wish to re-include these excluded rules, you can do so via the following means.
+
+YAML:
+
+```yaml
+  class_transformer:
+    excludes: ^javax/crypto/.*,^java/security/.*,^net/sf/saxon.*
+```
+
+System property:
+
+```properties
+-Dnewrelic.config.class_transformer.excludes=^javax/crypto/.*,^java/security/.*,^net/sf/saxon.*
+```
+
+Environment variable:
+
+```properties
+NEW_RELIC_CLASS_TRANSFORMER_EXCLUDES=^javax/crypto/.*,^java/security/.*,^net/sf/saxon.*
+```
+
+* Prevent license_key value from being written to the agent logs when using debug and/or audit_mode logging [1653](https://github.com/newrelic/newrelic-java-agent/pull/1653)
+
+#### IAST
+
+* The IAST feature now also supports Async HTTP client version 2 and above [142](https://github.com/newrelic/csec-java-agent/pull/142)
+* Added support for Sun Net HTTP Server [142](https://github.com/newrelic/csec-java-agent/pull/142)
+* JSON version bump to 1.1.1 [142](https://github.com/newrelic/csec-java-agent/pull/142)
+* Add critical error logging via LogMessage event [142](https://github.com/newrelic/csec-java-agent/pull/142)
+
+## Fixes
+
+* Fix transaction naming in Spring controllers with a CGLIB proxy. Transactions now use the actual class name as opposed to the proxied class name.  [1574](https://github.com/newrelic/newrelic-java-agent/pull/1575)
+* Fix a `NullPointerException` caused by ServletContext in servlet instrumentation modules. [1636](https://github.com/newrelic/newrelic-java-agent/pull/1636)
+* Fix a memory leak caused by Lettuce instrumentation. Duplicate code for  transaction linking has been removed from the Lettuce instrumentation and is handled by netty-reactor instead. [1608](https://github.com/newrelic/newrelic-java-agent/pull/1608)
+* Fix a bug where invalidating a license key causes a memory leak. Reconnection tasks are now capped in the event of a `LicenseException`.   [1606](https://github.com/newrelic/newrelic-java-agent/pull/1606)
+* Fix a `NullPointerException` caused by RPMServiceManager [1604](https://github.com/newrelic/newrelic-java-agent/pull/1604)
+* Add a workaround for a memory leak that may occur in rare scenarios with instrumentation using the legacy async API in the Java Agent (which async servlets and Jetty Continuations use). [1555](https://github.com/newrelic/newrelic-java-agent/pull/1555)
+
+You can configure the option via the following means:
+
+Agent config file (this will update dynamically if the config file is changed)
+
+```yaml
+common: &default_settings
+  legacy_async_api_skip_suspend: true
+```
+
+System Property
+
+```properties
+-Dnewrelic.config.legacy_async_api_skip_suspend=true
+```
+
+Environment Variable
+
+```properties
+NEW_RELIC_LEGACY_ASYNC_API_SKIP_SUSPEND=true
+```
+
+#### IAST
+
+* DynamoDB v2 issue: missing attribute values for conditionCheck method in case of transactWriteItems operation on DynamoDB [142](https://github.com/newrelic/csec-java-agent/pull/142)
+
+* Fixed an Insecure cookie attack vulnerability.  [142](https://github.com/newrelic/csec-java-agent/pull/142)
+
+* Never print LicenseKey [142](https://github.com/newrelic/csec-java-agent/pull/142)
+
+## Deprecations
+
+The following instrumentation modules are deprecated and will be removed in the next major release:
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1`
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent.](/docs/release-notes/agent-release-notes/java-release-notes)
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will display:
+
+```
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you are moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

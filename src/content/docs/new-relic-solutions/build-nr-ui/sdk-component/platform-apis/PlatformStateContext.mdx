@@ -1,0 +1,32 @@
+---
+title: 'PlatformStateContext'
+metaDescription: 'Learn how to work the PlatformStateContext component'
+freshnessValidatedDate: 2024-06-03
+---
+
+[React context](https://reactjs.org/docs/context.html#when-to-use-context) to access the platform URL state.
+
+### Usage
+
+```js
+import { PlatformStateContext } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<PlatformStateContext.Consumer>
+  {(platformState) => <pre>{JSON.stringify(platformState, null, 4)}</pre>}
+</PlatformStateContext.Consumer>
+```
+
+### Methods
+
+### `PlatformStateContext.subscribe`
+
+<FunctionDefinition
+  arguments={[{"description":"Function that will be called.","name":"subscriber","type":"function"}]}
+  returnValue={{"description":null,"type":"undefined"}}
+/>

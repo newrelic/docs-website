@@ -1,0 +1,125 @@
+---
+title: Instale el agente PHP New Relic en el entorno flexible GAE
+metaDescription: How to install your APM's PHP app in the Google App Engine (GAE) flexible environment.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con [el agente PHP](/docs/agents/php-agent/getting-started/introduction-new-relic-php) de APM, puede monitor aplicaciones que residen en el [entorno flexible de Google App Engine (GAE)](https://cloud.google.com/appengine/docs/flexible/php/). Agregar New Relic a su aplicación GAE flex le brinda información valiosa sobre el estado y el rendimiento de su aplicación y amplía GAE con métricas que puede ver en [<InlinePopover type="apm"/>](/docs/apm/new-relic-apm/getting-started/introduction-new-relic-apm), [<InlinePopover type="browser"/>](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)y el panel.
+
+Este documento explica cómo agregar New Relic a su aplicación GAE flex configurando un [tiempo de ejecución personalizado](https://cloud.google.com/appengine/docs/flexible/custom-runtimes/about-custom-runtimes) y brinda un ejemplo de cómo implementar una aplicación PHP con Docker.
+
+<Callout variant="important">
+  El agente PHP de New Relic puede ejecutarse en un entorno flexible GAE utilizando un tiempo de ejecución personalizado. Debido a las limitaciones de otros entornos, no utilice el entorno estándar GAE ni la instalación [en "modo nativo"](/docs/accounts-partnerships/partnerships/google-cloud-platform-gcp/google-app-engine-environment#native-mode) de Google App Engine.
+</Callout>
+
+## Cree un tiempo de ejecución personalizado usando Docker [#build-runtime]
+
+Consulte [la documentación de Google para crear tiempos de ejecución personalizados](https://cloud.google.com/appengine/docs/flexible/custom-runtimes/build). Este ejemplo describe cómo agregar New Relic a su aplicación GAE flex instalando el agente PHP New Relic, creando un tiempo de ejecución personalizado y implementando una única aplicación PHP a través de Debian. Para obtener mejores resultados con el entorno flexible GAE, utilice siempre Debian.
+
+Para obtener más información sobre cómo implementar y configurar su aplicación PHP en el entorno flexible GAE, consulte:
+
+* [Documentación de Google App Engine](https://cloud.google.com/appengine/docs/flexible/php/) para PHP
+* [Tutoriales de Google App Engine](https://cloud.google.com/appengine/docs/flexible/php/tutorials) para desplegar una aplicación PHP
+
+<CollapserGroup>
+  <Collapser
+    id="setup-gae"
+    title="1. Configure el proyecto GAE e instale dependencia"
+  >
+    1. Siga los procedimientos estándar para [instalar el agente PHP de New Relic](/docs/agents/php-agent/installation/php-agent-installation-overview) para su servidor de aplicaciones específico y obtenga su <InlinePopover type="licenseKey"/>.
+
+    2. Siga [los procedimientos de Google App Engine para PHP](https://cloud.google.com/appengine/docs/flexible/php/quickstart) para crear un nuevo proyecto de plataforma Cloud, crear una aplicación App Engine y completar otros requisitos previos para [Google Cloud SDK](https://cloud.google.com/sdk/docs/).
+
+       El SDK de Google Cloud proporciona la herramienta `gcloud` línea de comando para administrar e implementar aplicaciones GAE.
+  </Collapser>
+
+  <Collapser
+    id="custom"
+    title="2. Ampliar la imagen GAE para PHP"
+  >
+    En este ejemplo, Dockerfile extiende la imagen PHP genérica con archivos de aplicación para una sola aplicación en Debian. Puede agregar su <InlinePopover type="licenseKey"/>directamente a su Dockerfile o usar una variable de entorno en su comando `docker run` .
+
+    ```
+    FROM gcr.io/google-appengine/php:latest
+    ENV DOCUMENT_ROOT /app
+
+    RUN DEBIAN_FRONTEND=noninteractive apt-get update; DEBIAN_FRONTEND=noninteractive apt-get -y install wget sudo
+    RUN wget -O - https://download.newrelic.com/548C16BF.gpg | sudo apt-key add -
+    RUN echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list
+    RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install newrelic-php5
+    RUN NR_INSTALL_KEY="new-relic-license-key" NR_INSTALL_SILENT=true newrelic-install install
+    ```
+  </Collapser>
+
+  <Collapser
+    id="configure-app-yaml"
+    title="3. Configura tu app.yaml"
+  >
+    El archivo de configuración `app.yaml` es necesario para una aplicación de entorno flexible GAE con un tiempo de ejecución personalizado. Como mínimo, asegúrese de que contenga:
+
+    ```
+    env: flex
+    runtime: custom
+    runtime_config:
+      document_root: .
+    ```
+  </Collapser>
+
+  <Collapser
+    id="build-docker-image"
+    title="4. Cree una imagen Docker"
+  >
+    El [Dockerfile](http://docs.docker.com/engine/reference/builder/) define la imagen de Docker que se creará y es necesario para una aplicación de entorno flexible GAE. Al crear la imagen Docker , utilice la imagen PHP de Google App Engine. Las imágenes Docker estándar de otros proveedores pueden causar problemas con GAE.
+
+    Para crear la imagen Docker , ejecute el siguiente comando. Asegúrese de incluir el punto al final del código, para indicar que el directorio actual contiene los archivos de compilación.
+
+    ```
+    docker build --rm -t Docker-image-name .
+    ```
+  </Collapser>
+
+  <Collapser
+    id="deploy-docker-image-to-gae"
+    title="5. desplegar la imagen Docker en el entorno flexible GAE inicializado"
+  >
+    1. Para desplegar la imagen de su Docker en su [entorno flexible GAE inicializado](https://cloud.google.com/sdk/docs/initializing), ejecute el siguiente comando:
+
+       ```
+       gcloud app deploy --project php-app-name
+       ```
+
+    2. Espere hasta que se complete el despliegue.
+
+    3. Para ver los datos de su aplicación GAE flex en New Relic, vaya a la [página APM <DNT>**Overview**</DNT> ](/docs/apm/applications-menu/monitoring/apm-overview-page).
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## Opcional: deshabilite los controles de estado [#health-checks]
+
+Google App Engine envía [solicitudes periódicas de verificación de estado](https://cloud.google.com/appengine/docs/flexible/go/configuring-your-app-with-app-yaml#health_checks) para confirmar que una instancia se ha implementado correctamente y para comprobar que una instancia en ejecución mantiene un estado saludable. Una verificación de estado es una solicitud HTTP a la URL `/_ah/health`.
+
+Si crea un tiempo de ejecución personalizado, su aplicación debe poder manejar una gran cantidad de solicitudes de verificación de estado. De lo contrario, es posible que los datos de su aplicación no se muestren correctamente en APM.
+
+Si nota problemas de rendimiento, desactive las comprobaciones de estado de GAE. En tu `app.yaml`, agrega:
+
+```
+health_check:
+  enable_health_check: False
+```
+
+## Obtenga el registro de resolución de problemas del agente New Relic de GAE [#agent-logs]
+
+Utilice estos recursos para solucionar problemas de su aplicación de entorno flexible GAE:
+
+* Para conectarse a la instancia GAE e iniciar un shell en el contenedor Docker que ejecuta su código, consulte [Depurar una instancia](https://cloud.google.com/appengine/docs/flexible/php/debugging-an-instance).
+
+* Para redirigir el registro del agente PHP de New Relic al [Stackdriver](http://cloud.google.com/logging/docs/view/logs_viewer_v2) en la [consola de la plataforma Cloud](https://cloud.google.com/compute/docs/console), cambie el archivo `newrelic.yml` a:
+
+  ```
+  log_file_name: STDOUT
+  ```
+
+* Para ver el registro, utilice el [Visor de log de la Consola de Cloud plataforma](https://cloud.google.com/appengine/docs/flexible/php/writing-application-logs).

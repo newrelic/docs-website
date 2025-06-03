@@ -1,0 +1,40 @@
+---
+title: Synthetics usage limits and usage tracking
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Using monitors
+metaDescription: 'The number of New Relic synthetic monitor checks that are included per month with each pricing edition.'
+redirects:
+  - /docs/synthetics/synthetic-monitoring/using-monitors/monitor-limits
+freshnessValidatedDate: never
+---
+
+Your organization's [pricing edition](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) (Standard, Pro, or Enterprise) determines how many synthetic monitor checks are included for free per month.
+
+A synthetic monitoring check is an individual execution of a synthetic monitor. When a monitor runs from one location, it counts as one check, so you can also think of synthetics check as a synthetics job, or a job execution.
+
+For example, if a monitor is configured to run once per hour from 5 locations, then that comes out to `24 * 5` checks per day, totaling 120 checks. Your organization's pricing edition determines your check limits and you can view and facet the number of checks that have been executed.
+
+## Included check counts per edition [#edition-limits]
+
+Your [pricing edition](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) determines how many synthetic monitor checks are included for free per month. These limits apply to all [monitor types](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors) except the simple ping monitor.
+
+The following are the synthetic checks included for free on each pricing edition:
+
+* Free: 500 per month
+* Standard: 10K per month
+* Pro: 1M per month
+* Enterprise: 10M per month
+
+## Exceeding free amount [#exceeding-free]
+
+For information on the cost of exceeding the free number of monitor checks, see the [list price table](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#list-price). Scroll down to view add-on pricing, which includes synthetic checks.
+
+## Usage timestamps [#usage-timestamps]
+
+Our [usage-related data](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts) has timestamps that use the time a synthetic check result is received and processed. This may cause a slight difference between the time a synthetic check was executed and that time in our usage data.
+
+## View historical synthetics usage [#usage]
+
+For how to query your synthetics usage, see [Query and alert on usage](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts/#synthetics-usage).

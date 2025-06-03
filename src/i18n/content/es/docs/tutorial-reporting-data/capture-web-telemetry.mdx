@@ -1,0 +1,333 @@
+---
+title: Capture la telemetría web adecuada
+metaDescription: This guide helps you set up the best telemetry possible to describe the runtime operation of your web services.
+freshnessValidatedDate: '2023-07-25T00:00:00.000Z'
+translationType: machine
+---
+
+Una de las cosas más importantes que puede hacer para mantener un entorno de producción de alta calidad es asegurarse de tener la telemetría web que necesita para detectar y resolver la mala experiencia del usuario. Esta guía repasa cómo asegurarse de obtener los datos que necesita para optimizar su <InlinePopover type="browser" />. Le ayudaremos a asegurarse de que:
+
+1. Obtener el máximo valor de los datos que recopila
+2. Ver oportunidades para optimizar su servicio utilizando los datos reportados
+3. Capaz de clasificar y solucionar problemas rápidamente
+4. Obtenga los datos que necesita para crear un panel de KPI empresarial en tiempo real
+
+<Steps>
+  <Step>
+    ## Ajuste el nombre de la aplicación de su browser y la ubicación de las subcuentas [#browser-app-naming]
+
+    Primero, deberá asegurarse de que el nombre de su browser y la organización de los datos estén en su lugar. Si es necesario, puede cambiar el nombre de la aplicación de su navegador siguiendo la [guía de cambio de nombre](/docs/browser/new-relic-browser/configuration/rename-browser-apps/). Si tiene datos de múltiples entornos reportados en una aplicación de navegador, puede [crear nuevas aplicaciones browser ](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/)y actualizar el fragmento de JavaScript en sus páginas para informar la aplicación correcta.
+
+    Recuerde tener en cuenta lo siguiente al comprobar la organización del monitoreo de su navegador:
+
+    1. La instrumentación de aplicaciones web de diferentes entornos (dev/qa/producción) debe informar en diferentes aplicaciones browser .
+    2. Qué entorno admite una aplicación browser (como Dev, QA y entorno de producción).
+    3. El propósito de una aplicación browser (cara al cliente, cara interna, sitio web, componente del sitio web, región o regiones, etc.).
+  </Step>
+
+  <Step>
+    ## Ajustar errores de JavaScript [#js-errors]
+
+    A continuación, deberá trabajar con sus errores de JavaScript, que afectan negativamente la experiencia del usuario y el SEO al interrumpir el proceso de carga de la página, mostrar errores e impedir que el usuario complete una acción. Primero, asegúrese de que los errores de JavaScript se capturen mediante la UI o NRQL.
+
+    <CollapserGroup>
+      <Collapser id="js-error-ui" title="A través de la UI">
+        Abra su aplicación sitio web en <DNT>**Browser**</DNT>. Abra la vista <DNT>**Errors**</DNT> en el menú de la izquierda y verifique que puede ver los errores de JavaScript. Si su aplicación no recibe mucho tráfico, es posible que tenga que retroceder 24 horas o más para ver los errores.
+
+        <img src="/images/oma-oe-sc_screenshot-browser-errors.webp" alt="Browser JavaScript Errors" title="Browser JavaScript Errors" />
+      </Collapser>
+
+      <Collapser id="js-error-nrql" title="Vía NRQL">
+        Ejecute la siguiente consulta:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = 'MyApp' SINCE 1 WEEK AGO 
+        ```
+
+        Un recuento de 0 significa que no se han capturado errores de JavaScript.
+
+        Puede verificar todas sus aplicaciones web en una subcuenta ejecutando lo siguiente:
+
+        ```
+        SELECT count(*) FROM JavaScriptError FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        La aplicación web no presente en los resultados no ha informado errores de JavaScript.
+      </Collapser>
+    </CollapserGroup>
+
+    <CollapserGroup>
+      <Collapser id="missing-js-errors" title="Puede resolver los errores de JavaScript que faltan de la siguiente manera:">
+        * Asegúrate de que tu agente del navegador esté actualizado. Las versiones más recientes browser pueden capturar errores de JavaScript que antes se pasaban por alto por una razón u otra.
+        * Asegurándose de que el agente del navegador esté colocado en la etiqueta `<HEAD/>` de sus páginas. Puede utilizar las herramientas de desarrolladores de Chrome para verificar esto.
+        * Siga [estas instrucciones](/docs/browser/new-relic-browser/troubleshooting/angularjs-errors-do-not-appear/) para detectar errores faltantes de AngularJS.
+        * Verificar si su sitio utiliza un controlador de errores que maneje los errores antes de que el agente del navegador tenga la oportunidad de verlos.
+        * Revisar [lo que se admite](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#js-unavailable-errors) para errores de JavaScript.
+        * Uso de la [API NoticeError](/docs/browser/new-relic-browser/browser-apis/noticeerror/) para capturar errores faltantes.
+      </Collapser>
+    </CollapserGroup>
+
+    Una vez que se haya asegurado de que se informen los errores de JS, verifique que también tengan un log de eventos. El log de eventos muestra la interacción browser , las llamadas AJAX y la traza que condujo a un error de JS. Esto puede ayudarle a solucionar la causa raíz de los errores.
+
+    <CollapserGroup>
+      <Collapser id="js-errorlog-ui" title="A través de la UI">
+        Para comprobar que está capturando los logs de eventos, vaya a la pestaña <DNT>**JS Errors**</DNT> . Verifique varios errores diferentes para verificar que aparezca los logs de eventos.
+
+        <img src="/images/oma-oe-sc_screenshot-browser-errorlog.webp" alt="Browser JavaScript Error Logs" title="Browser JavaScript Error Logs" />
+      </Collapser>
+    </CollapserGroup>
+
+    Siga [estas instrucciones](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#troubleshoot-event-log) para solucionar problemas de logs de eventos faltantes.
+
+    Finalmente, asegúrese de que sus errores de JavaScript tengan el rastreo de la pila.
+
+    <CollapserGroup>
+      <Collapser id="js-stack-trace-ui" title="A través de la UI">
+        Verifique varios errores a través de la pestaña <DNT>**JS Errors**</DNT> . El rastreo del stack aparecerá debajo del log de eventos de error.
+      </Collapser>
+
+      <Collapser id="js-stack-trace-nrql" title="Vía NRQL">
+        Ejecute la siguiente consulta:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = 'MyApp' AND stackTrace IS NOT NULL AND stackTrace NOT LIKE '' SINCE 1 WEEK AGO 
+        ```
+
+        Un recuento de 0 significa que no se han capturado errores de JavaScript.
+
+        Puede verificar todas sus aplicaciones web en una subcuenta ejecutando lo siguiente:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE stackTrace IS NOT NULL AND stackTrace NOT LIKE '' FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        La aplicación web no presente en los resultados no tiene errores de JavaScript con el rastreo del stack.
+      </Collapser>
+    </CollapserGroup>
+
+    Siga [estas instrucciones](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#stack-trace) para solucionar problemas de rastreo del stack faltante. O siga [estas instrucciones](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api/) si puede ver las pistas stack pero no puede expandirlas.
+  </Step>
+
+  <Step>
+    ## Verificar agrupación de vistas de página [#page-views]
+
+    A continuación, verifique la agrupación de vistas de página. Las URL de página en la UI <DNT>**Page views**</DNT> se agrupan automáticamente para ayudarle a administrar mejor el rendimiento de la página. El algoritmo que determina la agrupación automática se ejecuta cuando tu aplicación web se instrumenta por primera vez. Si su tráfico web actual es muy diferente al de cuando se implementó la aplicación por primera vez, es posible que esté viendo muy pocos grupos.
+
+    <CollapserGroup>
+      <Collapser id="js-stack-trace-ui" title="A través de la UI">
+        Verifique la UI <DNT>**Page views**</DNT> de su aplicación seleccionándola en el menú de la izquierda. Si lo que ve se parece mucho a la captura de pantalla a continuación, tome nota y siga las instrucciones de esta guía sobre cómo solucionarlo.
+
+        <img src="/images/oma-oe-sc_screenshot-poor-pageview-grouping.webp" alt="Browser Page URL Grouping" title="Browser Page URL Grouping" />
+      </Collapser>
+
+      <Collapser id="js-stack-trace-nrql" title="Vía NRQL">
+        Ejecute la siguiente consulta:
+
+        ```
+        SELECT count(*) from PageView WHERE appName = 'MyApp' AND browserTransactionName LIKE '*.*.*%/%' or browserTransactionName LIKE '%.%.%/*/*/*/%' or browserTransactionName LIKE '%.%.%/*/*/*' or browserTransactionName LIKE '%.%.%/*/*/%' FACET pageUrl limit 100 SINCE 1 WEEK AGO
+        ```
+
+        Los resultados le muestran qué URL de página pueden estar sobreagrupadas para su aplicación.
+
+        Puede verificar todas sus aplicaciones web en una subcuenta ejecutando lo siguiente:
+
+        ```
+        SELECT count(*) from PageView WHERE browserTransactionName LIKE '*.*.*%/%' or browserTransactionName LIKE '%.%.%/*/*/*/%' or browserTransactionName LIKE '%.%.%/*/*/*' or browserTransactionName LIKE '%.%.%/*/*/%' FACET browserTransactionName, pageUrl limit 100 SINCE 1 WEEK AGO
+        ```
+
+        Los resultados le darán los mismos datos para múltiples aplicaciones.
+      </Collapser>
+    </CollapserGroup>
+
+    Utilice [Segment lista de &apos;permitidos&apos;](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls/) para ajustar cómo se agrupan las URL de visualización de su página.
+  </Step>
+
+  <Step>
+    ## Verifique la agrupación de llamadas AJAX [#ajax-grouping]
+
+    Después de verificar las vistas de su página, debe hacer lo mismo con su agrupación de llamadas AJAX. Las llamadas AJAX están agrupadas para que sea más fácil navegarlas a escala. A veces hay tantas llamadas AJAX que resulta difícil navegarlas por URL de solicitud individual. Utilice la UI o una consulta NRQL para comprobar si necesita ajustar la agrupación AJAX.
+
+    <CollapserGroup>
+      <Collapser id="js-stack-trace-ui" title="A través de la UI">
+        Verifique la agrupación AJAX de su aplicación seleccionándola en el menú de la izquierda y agrupándola por <DNT>**groupedRequestUrl**</DNT>. Si lo que ve se parece mucho a la captura de pantalla a continuación, tome nota y siga las instrucciones de esta guía sobre cómo solucionarlo.
+
+        <img src="/images/oma-oe-sc_screenshot-poor-ajax-grouping.webp" alt="AJAX Grouping" title="AJAX Grouping" />
+      </Collapser>
+
+      <Collapser id="js-stack-trace-nrql" title="Vía NRQL">
+        Ejecute la siguiente consulta:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = _your app name_ AND stackTrace IS NOT NULL AND stackTrace NOT LIKE '' SINCE 1 WEEK AGO 
+        ```
+
+        Un recuento de 0 significa que no se han capturado errores de JavaScript.
+
+        Puede verificar todas sus aplicaciones web en una subcuenta ejecutando lo siguiente:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE stackTrace IS NOT NULL AND stackTrace NOT LIKE '' FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        La aplicación web no presente en los resultados no tiene errores de JavaScript con el rastreo del stack.
+      </Collapser>
+    </CollapserGroup>
+
+    Utilice [Segment lista de &apos;permitidos&apos;](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls/) para ajustar cómo se agrupan sus solicitudes AJAX.
+  </Step>
+
+  <Step>
+    ## Habilitar rastreo distribuido [#distributed-tracing]
+
+    A continuación, habilite [el rastreo distribuido en el navegador](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing/) para ayudarlo a mejorar el rendimiento de AJAX al rastrear las solicitudes hasta el backend hasta el extremo final. La información de seguimiento es útil para comprender qué aplicaciones están impactando la experiencia del usuario. Puede emplear esta información para solucionar problemas de servicios usted mismo o delegarlo en el equipo responsable.
+  </Step>
+
+  <Step>
+    ## Configurar despliegue [#deployments]
+
+    A continuación, emplea NerdGraph para [realizar un seguimiento de los cambios en tu aplicación sitio web](/docs/change-tracking/change-tracking-graphql/) para que puedas ver el impacto de los cambios que realizas en los KPI de rendimiento, las conversiones y la participación del usuario.
+  </Step>
+
+  <Step>
+    ## Añadir atributo personalizado [#custom]
+
+    Utilice [el atributo personalizado](/docs/data-apis/custom-data/custom-events/report-custom-event-data/#ways) para filtrar y agrupar datos. Aunque los atributos personalizados son opcionales, puedes obtener mucho valor al usarlos. A continuación se muestran los atributos más recomendados, aunque es posible que desee agregar más:
+
+    <CollapserGroup>
+      <Collapser id="user-attribute" title="usuario">
+        Recomendado para todos los sitios que tengan usuario identificable. Siga la convención descrita en la documentación de la [Errors Inbox](/docs/errors-inbox/error-users-impacted/#attributes) para poder identificar la cantidad de usuarios afectados por errores y saber cuáles.
+      </Collapser>
+
+      <Collapser id="customer-attribute" title="clientes">
+        Mida la experiencia de un cliente específico para cumplir con los SLA o profundizar en las solicitudes de soporte.
+      </Collapser>
+    </CollapserGroup>
+
+    ### Atributo adicional personalizado para minoristas
+
+    <CollapserGroup>
+      <Collapser id="cart-value" title="valor del carrito">
+        Realice un seguimiento de los ingresos por conversión en tiempo real. Mida el impacto del abandono del carrito o problemas durante el pago.
+      </Collapser>
+
+      <Collapser id="item-count" title="recuento de elementos">
+        Realice un seguimiento de los artículos comprados en tiempo real. Mida el impacto del abandono del carrito o problemas durante el pago.
+      </Collapser>
+
+      <Collapser id="promo-id" title="promoción">
+        Capture cuántos usuarios llegan a su sitio como resultado de una campaña publicitaria o una promoción. Mida el impacto de una promoción en las conversiones.
+      </Collapser>
+
+      <Collapser id="store-id" title="almacenar">
+        Capture la tienda para recopilar información sobre el rendimiento de hacer clic para recopilar. Mida el rendimiento de la aplicación web de compras en tienda.
+      </Collapser>
+
+      <Collapser id="product-id" title="producto">
+        Útil si el ID del producto aún no está capturado en la URL de la página. Emplee esta información para saber qué páginas de productos no funcionan bien. Sepa qué páginas de productos reciben más tráfico y cuáles reciben menos.
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+</Steps>
+
+## Darse cuenta del valor [#value-realization]
+
+Al igual que el proceso de monitoreo de servicios, su programa de observabilidad se beneficiará a través de una función de equipo dedicada que piensa críticamente sobre sus expectativas de retorno de su inversión en esfuerzo. La siguiente sección describe un enfoque para estimar los costos y beneficios que debe esperar al incorporar instrumentación web en su práctica de observabilidad.
+
+### Inversiones [#investments]
+
+<CollapserGroup>
+  <Collapser id="inv-training" title="Capacitación">
+    Asegúrese de que todos los desarrolladores estén familiarizados con los SDK del agente New Relic y las capacidades de la plataforma.
+
+    <DNT>**Cost model:**</DNT> Depende del modelo FTE de desarrolladores de su empresa y de la estimación del proyecto.
+
+    <DNT>**Estimation:**</DNT> Por lo general, un desarrollador tarda varias horas en utilizar la característica de instrumentación New Relic.
+
+    * Inicial: 16 horas de formación y exploración.
+    * Recurrente: 4 horas/revisión Q
+    * Por desarrollador, una inversión anual de 16 a 40 horas de capacitación para desarrollar habilidades básicas y mantener las habilidades actualizadas para la plataforma New Relic.
+  </Collapser>
+
+  <Collapser id="inv-maintain" title="Desarrollo y mantenimiento">
+    El esfuerzo de desarrollo requerido para implementar y mantener la instrumentación dentro de un proyecto.
+
+    <DNT>**Cost model:**</DNT> Depende del modelo FTE de desarrolladores de su empresa y de la estimación del proyecto.
+
+    <DNT>**Estimation:**</DNT> Esto tiende a depender del alcance del proyecto y de la cantidad de trabajo de instrumentación requerido.
+
+    * Inicial: 8 horas por desarrollador por servicio
+    * Recurrente: 4 horas/Q mantenimiento
+    * Por desarrollador, una estimación de proyecto de 16 a 32 horas desarrollando y manteniendo instrumentación web.
+  </Collapser>
+</CollapserGroup>
+
+### Beneficios [#benefits]
+
+<CollapserGroup>
+  <Collapser id="returns-aqm-impact" title="Alerta impacto calidad">
+    Nuestro documento sobre [la calidad de las alertas](/docs/tutorial-create-alerts/manage-alert-quality/) ofrece un beneficio significativo al equipo de operaciones al garantizar que las notificaciones de alertas derivadas del rendimiento del sistema variante se traten rápidamente. Esto mejora la entrega y la asignación de recursos durante la resolución de incidentes.
+
+    Una práctica de instrumentación efectiva federada en su programa de observabilidad mejorará en gran medida la capacidad de su equipo para crear alertas significativas.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Volumen: recuento de incidentes
+    * Volumen: duración acumulada del incidente
+    * Volumen: tiempo medio de cierre (MTTC)
+    * Participación del usuario: tiempo medio para investigar
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Menos ruido de alerta
+    * Mayor capacidad de alerta y capacidad de respuesta ante incidentes.
+    * Causa raíz menos desconocida
+    * Mayor productividad de las operaciones
+    * Prestación de servicios mejorada
+  </Collapser>
+
+  <Collapser id="returns-web-quality-improvement" title="Mejora de la calidad web">
+    Mejorar la calidad de tu web tendrá un impacto directo en la métrica financiera clave para tu servicio. Esto requerirá que tenga un modelo financiero bien racionalizado para su aplicación. Normalmente, este rendimiento se puede proyectar asociando un valor de moneda por cada porcentaje de mejora en una medida central de calidad web, como errores o logro de apdex.
+
+    A medida que aumenta su inversión en instrumentación de servicio, debería ver mejores logros en sus medidas de calidad de servicio.
+
+    <DNT>**KPI:**</DNT> Calidad del servicio (KPI empresarial)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Disminución del número de errores que afectan al usuario
+    * Componentes de servicio más eficaces y resistentes
+  </Collapser>
+
+  <Collapser id="returns-web-delivery-improvement" title="Mejora de la entrega web">
+    Al proporcionar una mejor telemetría desde su instancia de servicio web, su organización de entrega debería poder detectar más rápidamente la volatilidad o el tiempo de inactividad y remediarlo más rápidamente. Esto conducirá a mejores KPI generales de prestación de servicios y disminuirá los episodios de interrupciones o degradación.
+
+    El costo puede asociarse con la cantidad de tiempo que lleva detectar, investigar y remediar un incidente. Esto podría estar relacionado con el valor que el servicio web proporciona a su organización y que se perderá durante un evento, o puede estar relacionado con el costo general de lidiar con el mal comportamiento.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Tiempo medio de detección (tiempo medio de detección (MTTD))
+    * Tiempo medio de identificación (MTTI)
+    * Tiempo medio de resolución (MTTR)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Disminución del tiempo para detectar incidentes.
+    * Disminución del tiempo para resolver el incidente.
+  </Collapser>
+</CollapserGroup>
+
+<DocTiles>
+  <DocTile title="Capture the right data" path="/docs/tutorial-reporting-data/capture-the-right-data/" />
+
+  <DocTile title="Capture service telemetry" path="/docs/tutorial-reporting-data/capture-service-telemetry/" />
+</DocTiles>

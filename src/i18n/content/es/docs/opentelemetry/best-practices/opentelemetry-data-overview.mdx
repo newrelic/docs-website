@@ -1,0 +1,45 @@
+---
+title: Datos de OpenTelemetry en New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - OTLP
+metaDescription: Overview of OpenTelemetry data in New RElic
+freshnessValidatedDate: '2024-05-31T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetry ofrece un ecosistema versátil para instrumentación y telemetría, que puede integrar perfectamente con New Relic a través del [Protocolo OpenTelemetry (OTLP)](https://opentelemetry.io/docs/specs/otlp/). Esta guía proporciona una descripción general de cómo New Relic procesa e ingiere datos OTLP para ayudarlo a monitor y observar sus sistemas de manera eficiente.
+
+## Empezar [#get-started]
+
+Para obtener más información sobre la integración de OpenTelemetry con New Relic, consulte [Introducción a OpenTelemetry y New Relic](/docs/opentelemetry/get-started/opentelemetry-get-started-intro/). Esta página cubre patrones de integración comunes y mejores prácticas.
+
+## Configurar OTLP para New Relic [#configure]
+
+Para conocer los requisitos de configuración OTLP detallados y obtener orientación para la resolución de problemas, visite las siguientes páginas:
+
+* [New Relic OTLP extremo](/docs/opentelemetry/best-practices/opentelemetry-otlp/) lo guía a través de los pasos de configuración esenciales para integrar datos OpenTelemetry en New Relic.
+* [La resolución de problemas OTLP New Relic ](/docs/opentelemetry/best-practices/opentelemetry-otlp-troubleshooting/)lo ayuda a solucionar problemas comunes con la ingesta de datos, como la verificación de logs, la clave de API y los problemas de conexión.
+
+### Tipos de señales en OpenTelemetry [#signals]
+
+OTLP se divide en señales traza, métricas y log , todas las cuales incluyen el concepto de recursos. Las siguientes páginas brindan detalles sobre cómo se procesa e incorpora cada métrica en New Relic:
+
+* [Trazas de OpenTelemetry en New Relic](/docs/opentelemetry/best-practices/opentelemetry-best-practices-traces/)
+* [Métricas de OpenTelemetry en New Relic](/docs/opentelemetry/best-practices/opentelemetry-best-practices-metrics/)
+* [Registro OpenTelemetry en New Relic](/docs/opentelemetry/best-practices/opentelemetry-best-practices-logs/)
+* [Recursos de OpenTelemetry en New Relic](/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/)
+
+## Gestionar el volumen de datos [#manage-volume]
+
+Para gestionar el volumen de datos de OpenTelemetry y controlar los costos de ingesta, consulte [Gestionar el volumen de ingesta de datos de OpenTelemetry](/docs/opentelemetry/best-practices/opentelemetry-manage-data-ingest-volume/). Esta página cubre estrategias para optimizar el volumen de datos para garantizar un uso eficiente de los recursos.
+
+## Emplee la plataforma de New Relic [#platform]
+
+Una vez que los datos OpenTelemetry se incorporan a la [plataformaNew Relic ](/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/), puedes aprovechar algunas de estas herramientas de observabilidad:
+
+* [alertas](/docs/alerts/overview/): Recibe información cuando una señal excede un umbral.
+* [Consulta personalizada](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/): escriba una consulta NRQL personalizada para análisis y exploración de datos ad hoc.
+* [Panel de control](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/): cree visualizaciones de datos personalizadas que reflejen los requisitos únicos de su aplicación.

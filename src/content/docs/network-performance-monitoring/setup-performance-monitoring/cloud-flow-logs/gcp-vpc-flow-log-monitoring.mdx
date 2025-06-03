@@ -1,0 +1,93 @@
+---
+title: Set up Google VPC Flow Logs monitoring
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+  - AWS
+metaDescription: Set up Amazon VPC Flow Logs monitoring.
+freshnessValidatedDate: never
+---
+
+Google Cloud's Virtual Private Cloud Flow (VPC) Logs supports the frictionless transmission of logs to New Relic. With VPC flow logs from across your GCP estates, you can quickly understand key insights for performance analytics and troubleshooting network connectivity.
+
+<img
+  title="Google VPC Flow Logs overview"
+  alt="Google VPC Flow Logs overview"
+  src="/images/network_screenshot-crop_cloud-flow-logs-overview.webp"
+/>
+
+<figcaption>
+  <DNT>**Add [Google's VPC Flow Logs to your New Relic account](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9)**</DNT>.
+</figcaption>
+
+Google Virtual Private Cloud (VPC) enables you to launch GCP resources into an isolated and secure virtual network with the benefits of using scalable GCP infrastructure.
+
+<ButtonLink
+  role="button"
+  to="https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9"
+  variant="primary"
+>
+  Add Google VPC flow logs
+</ButtonLink>
+
+## Prerequisites [#prerequisites]
+
+### New Relic prerequisites [#prerequisites-NR]
+
+* A New Relic account. Don't have one? [Sign up for free!](https://newrelic.com/signup) No credit card required.
+
+### GCP prerequisites [#prerequisites-gcp]
+
+<Callout variant="important">
+  Google VPC Flow Logs isn't supported for FedRAMP customers yet. In the meantime, you can use [our FedRAMP ingest APIs](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints#data-ingest-apis).
+</Callout>
+
+* Environment:
+  * You should have access to either the [GCloud CLI](https://cloud.google.com/sdk/docs/install) or the ability to deploy terraform templates in your environment.
+  * Enable the subnets, whose traffic you want to send to New Relic, to collect flow logs. See how to do so, in [Google's official documentation](https://cloud.google.com/vpc/docs/using-flow-logs#enable-logging-existing).
+* Permissions:
+  * The ability to create a Pub/Sub topic and set its permissions.
+  * The ability to create and update a Log Router.
+  * The ability to create a Dataflow job.
+
+## Send additional Google VPC Flow Logs [#additional-gcp-vpc-flow-logs]
+
+To send Google VPC flow logs to New Relic, follow these steps:
+
+1. Start the <DNT>**[guided install process](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9)**</DNT>.
+2. From the <DNT>**Select an account**</DNT> dropdown, choose the New Relic account you want to send Google VPC Flow Logs to, and click <DNT>**Continue**</DNT>.
+3. In the <DNT>**Choose Setup Options**</DNT> section:
+   * In the <DNT>**Setup Method**</DNT>, you can choose to use the GCloud CLI or Terraform to create resources in your account. Terraform may be easier if you already use it in your Google environment.
+   * Enter the <DNT>**GCP project ID**</DNT> that you want to ingest flow logs from.
+   * In the <DNT>**Region**</DNT> dropdown, choose a GCP region. This region will be used when setting up regional resources.
+4. <DNT>**Enable Flow Logging**</DNT> - Turn on flow logging for a subnet. You have to turn on flow logging for each subnet that you want to collect flow logs from. You can change this setting via the CLI, the Cloud Console, or any other cloud configuration tool your team uses.
+
+   <Callout variant="tip">
+     When setting up flow logging, you may want to adjust sampling rate and aggregation interval. A higher sampling rate or a lower aggregation interval will produce more granular data but will have a higher data ingestion cost.
+   </Callout>
+5. Define Logging Sink - Set up a log router in Google Cloud Platform (GCP). The log router allows you to choose which flow logs get sent to New Relic. You can send flow logs for a single subnet, multiple subnets, an entire VPC, and more.
+6. If you chose <DNT>**GCloud CLI**</DNT> as a setup method:
+
+   * <DNT>**Create Pub/Sub resources**</DNT> - Run the generated commands in the GCloud CLI to create a Pub/Sub topic and subscription.
+   * <DNT>**Create Logging Sink**</DNT> - Run the generated command in the GCloud CLI to create your Log Router.
+   * <DNT>**Setup up Pub/Sub permissions**</DNT> - Run the generated command to get the writer identity associated with your Log Router. Copy the result of the command and paste it into the next textbox. Then, run the next two commands to modify your Pub/Sub topic's permissions to allow access from the Log Router.
+   * <DNT>**Create Dataflow job**</DNT> - Run the generated command to create a Dataflow job, which gathers multiple flows together and sends them to New Relic in large batches. This helps save you money and avoid rate limits.
+
+   <Callout variant="tip">
+     We automatically generate a new <InlinePopover type="licenseKey"/> to be used for this data ingest. To regenerate a key, click <DNT>**Generate and use a new key**</DNT>.
+   </Callout>
+7. If you chose <DNT>**Terraform**</DNT> as a setup method:
+   * <DNT>**Run Terraform template**</DNT> - Deploy the provided Terraform template in your GCP project to create all of the resources necessary for sending VPC Flow Logs to New Relic.
+8. [Visualize your network performance data in New Relic](/docs/network-performance-monitoring/monitoring-network-data/visualize-network-data).
+
+## Update an existing integration [#]
+
+If you've already started sending some Google VPC flow logs to New Relic from some of your subnets, but you want to send more or less VPC flow logs:
+
+1. Make sure any new subnets have flow logging enabled in Google Cloud Platform (GCP).
+2. Update the <DNT>**Log Router**</DNT> you created when you defined <DNT>**Logging Sink**</DNT>, so that its [filter condition](https://cloud.google.com/logging/docs/view/logging-query-language) captures the new set of VPC Flow Logs that you want to send to New Relic.
+   <Callout variant="tip">In the [guided install process](https://one.newrelic.com/marketplace?duration=1800000&state=00731ead-620f-4a71-b1fa-b4fc6af24fca), ypu can find some examples of what filter conditions might look like. If your environment is complex, you might need to adjust these conditions as necessary.</Callout>
+
+<InstallFeedback/>

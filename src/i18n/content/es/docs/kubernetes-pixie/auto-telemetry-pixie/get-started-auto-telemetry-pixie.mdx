@@ -1,0 +1,119 @@
+---
+title: Autotelemetría con Pixie para observabilidad instantánea Kubernetes
+tags:
+  - Pixie Auto-telemetry
+  - Service monitoring
+  - Kubernetes
+  - eBPF
+metaDescription: null
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La integración New Relic con [Pixie](https://px.dev/) le ofrece lo mejor de ambos mundos: la observabilidad avanzada Kubernetes basada en eBPF de Pixie junto con la correlación de incidentes, las alertas inteligentes y la retención a largo plazo de New Relic .
+
+<img
+  title="service graph in live debugger"
+  alt="service-graph"
+  src="/images/pixie_screenshot-full_service-graph.webp"
+/>
+
+## ¿Qué es Pixie? [#pixie]
+
+Pixie es una herramienta de observabilidad de código abierto para la aplicación Kubernetes que está diseñada para aliviar los puntos débiles que enfrentan los desarrolladores con la observabilidad tradicional.
+
+[Pixie utiliza eBPF](https://docs.px.dev/about-pixie/pixie-ebpf) para recopilar automáticamente telemetry data detallados: métrica de nivel de servicio, solicitudes sin muestrear y más. Con un comando de instalación, obtienes información más profunda y valiosa sobre tu clúster de Kubernetes y carga de trabajo. ¡No se requiere agente de idiomas!
+
+## Ventajas de la integración de New Relic Pixie [#nr-integration]
+
+New Relic ofrece la mejor integración comercial de Pixie. Con la integración New Relic , obtienes todas las características estándar de Pixie más:
+
+* Almacenamiento a largo plazo de telemetry datade Pixie
+* Alertas utilizando telemetry datade Pixie
+* Capacidad de ver telemetry data de Pixie en contexto con registros y otros datos
+* Soporte comercial
+
+¿Listo para comenzar? Podrás configurar Pixie para adaptarlo a tu entorno después de [crear una cuenta New Relic](https://newrelic.com/signup) (¡es gratis, para siempre!) e [instalar nuestra integración Pixie](/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie/).
+
+<Callout variant="important">
+  La telemetría automática con Pixie aprovecha [Community Cloud con Pixie](http://pixielabs.ai/), una plataforma independiente de New Relic. El uso de Community Cloud con Pixie está sujeto a [términos de servicio](https://pixielabs.ai/terms) separados.
+</Callout>
+
+## Comience rápidamente a observar y depurar el clúster de Kubernetes [#pixie-overview]
+
+Una vez que instales la integración New Relic Pixie, Pixie comenzará a recopilar automáticamente una [variedad de métricas y trazas](https://docs.px.dev/about-pixie/data-sources/).
+
+Obtendrá [visibilidad de los servicios HTTP](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data#service-health) utilizando señales doradas, mapas de servicios, transacciones HTTP y base de datos de transacciones. Puede operar, depurar y escalar su clúster de Kubernetes en función de la información que obtenga sobre cómo se están ejecutando su clúster y sus servicios.
+
+<img
+  title="The OpenTelemetry <DNT>**Service map**</DNT> view shows helps visualize your application's dependencies."
+  alt="The OpenTelemetry <DNT>**Service map**</DNT> view shows helps visualize your application's dependencies."
+  src="/images/pixie_screenshot-full_service-otel-map.webp"
+/>
+
+<figcaption>
+  Visualiza la dependencia de tu aplicación utilizando el <DNT>**Service map**</DNT> creado a partir de la traza HTTP de Pixie.
+</figcaption>
+
+Con el explorador del clúster de Kubernetes, puede ver las claves métricas y de eventos en cada nivel, comenzando con el clúster y profundizando en el espacio de nombres, el despliegue y el pod. Puede detectar rápidamente comportamientos anómalos y dónde está sucediendo.
+
+<img
+  title="The pod details page in the Kubernetes cluster explorer shows application metrics collected by Pixie."
+  alt="The pod details page in the Kubernetes cluster explorer shows application metrics collected by Pixie."
+  src="/images/pixie_screenshot-full_kce-pod-details.webp"
+/>
+
+<figcaption>
+  La página de detalles pod en el explorador del clúster de Kubernetes muestra la aplicación métrica recopilada por Pixie.
+</figcaption>
+
+[Inspeccione las solicitudes y respuestas de cuerpo completo](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/pixie-entities) realizadas por su aplicación. Disponible para protocolos seleccionados, incluidos DNS, Cassandra, MySQL, PostgreSQL, Redis, Kafka y AMQP.
+
+<img
+  title="The Pixie DNS entity shows full body DNS request and response pairs traced by Pixie"
+  alt="The Pixie DNS  entity shows full body DNS request and response pairs traced by Pixie"
+  src="/images/pixie_screenshot-full_dns_entity.webp"
+/>
+
+<figcaption>
+  La entidad DNS Pixie muestra pares de solicitud y respuesta DNS de cuerpo completo trazados por Pixie.
+</figcaption>
+
+Identifique rápidamente los puntos calientes con [los gráficos de llama de la CPU de la aplicación](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data#cpu-profiles). La depuración es muchísimo más fácil cuando puedes ver rápidamente lo que está haciendo tu aplicación. La visualización del gráfico de llamas de Pixie no requiere instrumentación, redistribución ni recompilación. Funciona para lenguajes compilados como Go, C+, Rust, por nombrar algunos. Y de un vistazo, el gráfico de llama le indica en qué funciones dedica tiempo su aplicación y dónde tiene puntos calientes.
+
+<img
+  title="Pixie flame graph"
+  alt="Pixie flame graph"
+  src="/images/pixie_screenshot-crop_flamegraph.webp"
+/>
+
+<figcaption>
+  Utilice Pixie para ver gráficos de llamas de CPU para su módulo Kubernetes .
+</figcaption>
+
+En la pestaña [Depuración en vivo con Pixie](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/live-debugging-with-pixie) , responda preguntas como qué solicitudes SQL realiza su aplicación o qué servicios se comunican entre sí.
+
+<img
+  title="service graph in live debugger"
+  alt="service-graph"
+  src="/images/pixie_screenshot-full_live-debugging.webp"
+/>
+
+<figcaption>
+  Ejecute el script en la pestaña <DNT>**Live debugging with Pixie**</DNT> para depurar su aplicación Kubernetes .
+</figcaption>
+
+Este breve vídeo (aprox. 6:20 minutos) muestra cómo Pixie y Kubernetes trabajan juntos para que puedas depurar más rápido con información valiosa al nivel de código:
+
+<Video
+  id="QO7vz0jQEUI"
+  type="youtube"
+/>
+
+Para obtener más información sobre la depuración con Pixie, consulte la sección [Comprender y utilizar datos de Pixie](/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/overview) .
+
+## Nuestro compromiso con el código abierto [#pixie-oss]
+
+New Relic está comprometida con los estándares abiertos, la instrumentación de código abierto y las comunidades abiertas que los respaldan.
+
+Como un paso para hacer que la observabilidad esté abierta para todos, New Relic contribuyó con Pixie a la [Fundación nativa de la nube Computing](https://www.cncf.io/) como un [proyecto Sandbox](https://www.cncf.io/sandbox-projects/) en junio de 2021. [Conoce](https://opensource.newrelic.com/projects/pixie) al empleado New Relic que contribuye al proyecto Pixie.

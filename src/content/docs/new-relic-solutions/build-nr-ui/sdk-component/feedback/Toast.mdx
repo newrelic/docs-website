@@ -1,0 +1,259 @@
+---
+title: 'Toast'
+metaDescription: 'Learn how to work the Toast component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Toast notifications give users immediate confirmation of the successful completion of a task or critical failure in trying to complete a task.
+
+You can customize the toast by passing custom actions which will show as clickable buttons next to the text.
+
+### Usage
+
+```js
+import { Toast } from 'nr1'
+```
+
+### Examples
+
+#### Basic toast notification
+
+```js
+function render() {
+  const onClick = () =>
+    Toast.showToast({
+      title: 'Feedback received',
+      description: 'We will contact you soon.',
+      actions: [
+        {
+          label: 'Go back',
+          onClick: () => console.log('Go back'),
+        },
+      ],
+      type: Toast.TYPE.NORMAL,
+    });
+
+
+  return <Button onClick={onClick}>Show toast</Button>;
+}
+```
+
+#### With additional info link
+
+```js
+function render() {
+  const onClick = () =>
+    Toast.showToast({
+      title: 'TV Mode activated',
+      description: 'Press ESC to exit',
+      additionalInfoLink: {
+        label: 'Learn more about TV Mode',
+        to: 'https://discuss.newrelic.com/t/tv-mode-in-new-relic-one/92963',
+      },
+      type: Toast.TYPE.NORMAL,
+    });
+
+
+  return <Button onClick={onClick}>Show toast</Button>;
+}
+```
+
+#### Critical toast notification
+
+```js
+function render() {
+  const onClick = () =>
+    Toast.showToast({
+      title: 'Service unavailable',
+      description: 'Your data could not be retrieved',
+      actions: [
+        {
+          label: 'Retry',
+          onClick: () => console.log('Retry'),
+        },
+      ],
+      type: Toast.TYPE.CRITICAL,
+    });
+
+
+  return <Button onClick={onClick}>Update</Button>;
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `actions` <h5>shape\[]</h5>
+      </td>
+
+      <td>
+        If you have a specific action you need the user to choose from, then use the custom action component. We recommend limiting the use of multiple actions as this notification is meant to indicate to the user the success or failure of a task and not supposed to be used for leading the user to another task.
+
+        <h3>
+          shape
+        </h3>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        `onClick` <h5>REQUIRED</h5><h5>function</h5>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `additionalInfoLink` <h5>shape</h5>
+      </td>
+
+      <td>
+        The information shown in the title and description can be complemented/extended with a link to documentation. This link should only be used to provide contextual information and not as an Action.
+
+        <h3>
+          shape
+        </h3>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        <SideBySide>
+          <Side>
+            `onClick` <h5>function</h5>
+          </Side>
+
+          <Side>
+            Callback fired any time the user clicks on the button.
+
+            <FunctionDefinition
+              returnValue={[]}
+              arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+            />
+          </Side>
+        </SideBySide>
+
+        <SideBySide>
+          <Side>
+            `to` <h5>shape|string</h5>
+          </Side>
+
+          <Side>
+            Location object or url string to link to.
+            <h4>shape</h4>
+            `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+            `search` <h5>string</h5>
+
+            `hash` <h5>string</h5>
+          </Side>
+        </SideBySide>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        We recommend providing a title and message to give context for the success or failure for the previous action taken. You may even use the message area to provide the user a link to access the object they just created in the system.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHideEnd` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback executed after the toast is hidden.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onHideStart` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback executed when the hide animation starts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `sticky` <h5>boolean</h5>
+      </td>
+
+      <td>
+        For tasks not requiring the explicit dismissal or viewing by a user, we recommend using a time-out toast notification so the message automatically disappears from the screen after a short period of time.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `title` <h5>REQUIRED</h5><h5>string</h5>
+      </td>
+
+      <td>
+        We don’t recommend using the title only option as this does NOT provide a context for the user as to the task they just completed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        * Normal — when the system successfully completes the user’s task
+        * Critical — when the system fails to complete the user’s task
+
+          <OptionReference>
+            Toast.TYPE.CRITICAL,
+            Toast.TYPE.NORMAL,
+          </OptionReference>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Methods
+
+### `Toast.showToast`
+
+<FunctionDefinition
+  arguments={[{"description":"Object containing the Toast options. Any `Toast` prop is valid as an option.","name":"props","type":"Object"}]}
+  returnValue={{"description":null,"type":"undefined"}}
+/>

@@ -1,0 +1,48 @@
+---
+title: Install the Node.js agent with our Azure site extension
+tags:
+  - Agents
+  - Nodejs agent
+  - Installation and configuration
+  - Azure Site Extension
+translate:
+  - jp
+  - kr
+metaDescription: Procedures and resources to install New Relic's Node.js agent for Azure web apps using the New Relic Azure Site Extension for Node.
+freshnessValidatedDate: never
+---
+
+You can install the Node.js agent onto your Azure-managed web apps with the New Relic Azure Site Extension for Node. This doc walks you through compatibility, installation, and configuration to get your Azure web app data into New Relic.
+
+## Compatibility and requirements [#compatibility-requirements]
+
+Azure Site Extensions are only available for Windows-based App Service apps that are deployed as code. For applications running on Windows 32, full Code Level Metrics support (file path, line, column) is not available. Profiling falls back to function name only.
+
+## Install the Node.js agent with Azure Site Extension [#install-azure-site-extension]
+
+To install the New Relic Azure Site Extension, add the `NewRelic.Azure.WebSites.Extension.NodeAgent` site extension from the Azure home page. Follow these steps:
+
+1. From the Azure Home page, click the App Services tile, then select the target application in the displayed list.
+2. Scroll down to <DNT>**Extensions**</DNT> in the options listed on the left under the <DNT>**Development Tools**</DNT> category.
+3. Click on <DNT>**+ Add**</DNT> at the top of the page to toggle the extension drop down, then select <DNT>**New Relic Node Agent**</DNT>. Check the box for accepting the legal terms
+4. Click <DNT>**Add**</DNT> on the bottom of the page to start installing the extension.
+
+Once installed, the extension creates the following artifacts:
+
+* Folder: `C:\home\SiteExtensions\NewRelic.Azure.Websites.Extension.NodeAgent`
+* XML Document Transform (XDT): `applicationHost.xdt` that will add the necessary `NODE_OPTIONS` environment variable on application startup
+* The New Relic Node agent and dependencies will be installed into `C:\home\site\wwwroot\node_modules`
+
+After a successful installation of the agent with logging enabled, the agent will append its logs to a file at `C:\home\site\wwwroot\newrelic_agent.log`. If the extension fails to install, a log file is created at `C:\home\SiteExtensions\NewRelic.Azure.Websites.Extension.NodeAgent\install.log`.
+
+## Configure the Node.js agent [#configure-agent]
+
+The Node.js agent is configured with the `newrelic.js` file, or via environment variables. [See our documentation for more detailed configuration](https://docs.newrelic.com/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/).
+
+Once the site extension is installed, you'll need to manually enter one configuration item before restarting your application. On the options listed on the left, find **Settings** and scroll down to **Environment variables**. Add the `NEW_RELIC_LICENSE_KEY` variable with your license key value.
+
+Our Site Extension automatically adds the `NODE_OPTIONS` environment variable with a value of `-r newrelic`. This injects the agent when Node is started. Any previously defined `NODE_OPTIONS` will be removed and reset with `-r newrelic`.
+
+  <Callout variant="important">
+    We recommend installing or removing this Azure site extension while your web application is stopped.
+  </Callout>

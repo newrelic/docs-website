@@ -1,0 +1,126 @@
+---
+subject:  Java agent
+releaseDate:  '2024-03-28'
+version:  8.10.0
+downloadLink: 'https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.10.0/'
+features: ["Support for Spring Webflux 6.1.x", "Support for Spring Batch v4.0+", "Scala 3 API", "Zio 1 instrumentation improvements", "Support for Zio 2", "Enhanced clustered Solr JMX metrics", "Add transaction GUID to Errors"]
+bugs: ["Prevent NullPointerException when setting the user id outside of a transaction", "Disallow Real Time Profiling when High Security Mode is enabled", "Prevent ClassCircularityErrors in some specific circumstances", "Properly removing files when log_daily is enabled", "Decreased memory held by the agent when HTTP calls are made", "Prevent duplicate DT headers for gRPC", "Properly updating how many log messages are sent after configuration change", "Prevent exceptions when reading lambda bytecode", "Reduce interval for JDBC caches"]
+security: []
+---
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://download.newrelic.com/newrelic/java-agent/newrelic-agent/8.10.0/"
+    variant="primary"
+  >
+    Download this agent version
+  </ButtonLink>
+</ButtonGroup>
+
+<Callout variant="caution">
+  This version of the agent introduced a bug that can cause significant CPU and memory usage increases and potential deadlocks if your application uses `HttpUrlConnection` or any libraries that use it under the hood. Agent version 8.11.0 fixes this problem. Alternatively, disabling the `HttpUrlConnection` instrumentation would prevent the issue. For example, `-Dnewrelic.config.class_transformer.com.newrelic.instrumentation.httpurlconnection.enabled=false`.
+
+  Disabling this instrumentation will have the effect that the client's external calls will not be recorded. We strongly recommend that you use the latest agent versions. They include all the latest code fixes and provide access to the latest platform features.
+</Callout>
+
+## New features and improvements
+
+* Support for Spring Webflux 6.1.x [1761](https://github.com/newrelic/newrelic-java-agent/pull/1761)
+* Support for Spring Batch v4.0+ [1792](https://github.com/newrelic/newrelic-java-agent/pull/1792)
+* Scala 3 API [1772](https://github.com/newrelic/newrelic-java-agent/pull/1772)
+* ZIO 1 instrumentation improvements [1739](https://github.com/newrelic/newrelic-java-agent/pull/1739)
+* Support for ZIO 2 [1778](https://github.com/newrelic/newrelic-java-agent/pull/1778)
+* Enhanced clustered Solr JMX metrics [1812](https://github.com/newrelic/newrelic-java-agent/pull/1812)
+* Add transaction GUID to Errors [1813](https://github.com/newrelic/newrelic-java-agent/pull/1813)
+
+## Fixes
+
+* Prevent NullPointerException when setting the user id outside of a transaction [1762](https://github.com/newrelic/newrelic-java-agent/pull/1762)
+* Disallow Real Time Profiling when High Security Mode is enabled [1764](https://github.com/newrelic/newrelic-java-agent/pull/1764)
+* Prevent `ClassCircularityErrors` in some specific circumstances [1763](https://github.com/newrelic/newrelic-java-agent/pull/1763)
+* Properly removing files when `log_daily` is enabled [1754](https://github.com/newrelic/newrelic-java-agent/pull/1754)
+* Decreased memory held by the agent when HTTP calls are made [1775](https://github.com/newrelic/newrelic-java-agent/pull/1775)
+* Prevent duplicate DT headers for gRPC [1783](https://github.com/newrelic/newrelic-java-agent/pull/1783)
+* Properly updating how many log messages are sent after configuration change [1784](https://github.com/newrelic/newrelic-java-agent/pull/1784)
+* Prevent exceptions when reading lambda bytecode [1794](https://github.com/newrelic/newrelic-java-agent/pull/1794)
+* Reduce interval for JDBC caches [1809](https://github.com/newrelic/newrelic-java-agent/pull/1809)
+
+## Deprecations
+
+* The browser footer injection APIs have been deprecated and will be removed in a future agent release. The header injection API now adds both the header and footer scripts. [1679](https://github.com/newrelic/newrelic-java-agent/pull/1679)
+
+The following instrumentation modules are deprecated and will be removed in the next major release:
+
+* `aws-wrap-0.7.0`
+* `java.completable-future-jdk8`
+* `play-2.3`
+* `spring-3.0.0`
+* `netty-3.4`
+* `Struts v1`
+
+## IAST
+
+### Changes
+
+* Ning Async HTTP client Support: The security agent now also supports `com.ning:async-http-client` 1.0.0 and higher [152](https://github.com/newrelic/csec-java-agent/pull/152), [118](https://github.com/newrelic/csec-java-agent/pull/118), [116](https://github.com/newrelic/csec-java-agent/pull/116)
+* Jersey Support: The security agent now also supports Jersey 2.0 and higher [150](https://github.com/newrelic/csec-java-agent/pull/150), [149](https://github.com/newrelic/csec-java-agent/pull/149)
+* Mule Support: The security agent now also supports Mule server version 3.6 to 3.9.x [144](https://github.com/newrelic/csec-java-agent/pull/144), [143](https://github.com/newrelic/csec-java-agent/pull/143)
+* Jetty v12 Support: The security agent now also support Jetty version 12 and higher [106](https://github.com/newrelic/csec-java-agent/pull/106)
+* Lettuce Support: The security agent now also supports Lettuce 4.4.0.Final and higher [125](https://github.com/newrelic/csec-java-agent/pull/125)
+
+### Fixes
+
+* Extract Server Configuration to resolve IAST localhost connection with application for Wildfly server [192](https://github.com/newrelic/csec-java-agent/pull/192)
+* Trustboundary events now will have list of string as parameter schema
+
+## Update to latest version [#procedures]
+
+To identify which version of the Java agent you're currently using, run `java -jar newrelic.jar -v`. Your Java agent version will be printed to your console.
+
+Then, to update to the latest Java agent version:
+
+1. Back up the **entire** [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent) to another location. Rename that directory to `NewRelic_Agent#.#.#`, where `#.#.#` is the agent version number.
+2. [Download the agent](/docs/release-notes/agent-release-notes/java-release-notes).
+3. Unzip the new agent download file, then copy `newrelic-api.jar` and `newrelic.jar` into the original [Java agent root directory](/docs/agents/manage-apm-agents/troubleshooting/find-agent-root-directory#java-agent).
+4. Compare your old `newrelic.yml` with the newly downloaded `newrelic.yml` from the zip, and [update the file if needed](#diff).
+5. Restart your Java dispatcher.
+
+If you experience issues after the Java agent update, restore from the backed-up New Relic agent directory.
+
+## Update agent config differences [#diff]
+
+We add new settings to `newrelic.yml` as we release new versions of the agent. You can use `diff` or another diffing utility to see what's changed, and add the new config settings to your old file. Make sure not to overwrite any customizations you've made to the file, such as your license key, app name, or changes to default settings.
+
+For example, if you `diff` the default `newrelic.yml` files for Java agent versions 7.10.0 and 7.11.0, the results printed to the console will be like:
+
+```yaml
+➜ diff newrelic_7.10.0.yml newrelic_7.11.0.yml
+...
+107a108,119
+>       # Whether the log events should include context from loggers with support for that.
+>       include_context_data:
+>
+>         # When true, application logs will contain context data.
+>         enabled: false
+>
+>         # A comma separated list of attribute keys whose values should be sent to New Relic.
+>         #include:
+>
+>         # A comma separated list of attribute keys whose values should not be sent to New Relic.
+>         #exclude:
+>
+125a138
+>
+128c141
+<     enabled: false
+---
+>     enabled: true
+...
+```
+
+In this example, these lines were added to the default `newrelic.yml` in Java agent version 7.11.0. If you're moving to 7.11.0 or higher, you should add these new lines to your original `newrelic.yml`.
+
+## Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software/).

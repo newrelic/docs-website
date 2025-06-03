@@ -1,0 +1,53 @@
+---
+title: 'API Gateway: importar datos desde otra plataforma de observabilidad'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra API Gateway permite a los usuarios de servicios de observabilidad de terceros, como Datadog, enviar esos datos a New Relic.
+
+<Callout variant="important">
+  Esta característica se encuentra actualmente en versión preliminar y en este momento solo es compatible con DataDog. Si tiene preguntas, comuníquese con [tsakashita@newrelic.com](mailto:tsakashita@newrelic.com).
+</Callout>
+
+## Descripción general de cómo funciona la API de Gateway [#overview]
+
+Con la API de Gateway habilitada, cuando llegan los datos, se copian y envían tanto al extremo original como al servicio de transformación de datos de New Relic. El servicio de transformación convierte los datos a un formato compatible con New Relic y luego envía los datos a nuestras [API de ingesta](/docs/telemetry-data-platform/get-data-new-relic/getting-started/introduction-new-relic-data-ingest-apis-sdks), haciéndolos disponibles para consultas y creación de gráficos y paneles.
+
+## Requisitos
+
+Requisitos para la API de puerta de enlace:
+
+* Esta característica se encuentra actualmente en versión preliminar: para obtener más detalles, consulte nuestra [política de versión preliminar](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+* Solo es compatible con DataDog:agente 6.x o superior.
+
+## Cómo habilitar para DataDog [#enable]
+
+A continuación se ofrece una descripción general de los pasos para habilitar la API de Gateway para DataDog:
+
+1. Para DataDog: nuestro representante de cuenta trabajará con usted para asignar su clave de API de Datadog a las claves de New Relic.
+
+2. Para cada archivo de configuración de agente, apunte los datos a `https://gateway.service.newrelic.com`. Un ejemplo para DataDog: en el archivo `datadog.yaml` del agente, cambiaría esta configuración:
+
+   ```yml
+   dd_url: https://gateway.service.newrelic.com
+   logs_config:
+       logs_dd_url:  https://gateway.service.newrelic.com
+       use_compression: true
+       use_http: true
+   apm_config:
+       apm_dd_url: https://gateway.service.newrelic.com
+   ```
+
+3. Reinicie el agente para cada host.
+
+## Usar datos en New Relic [#use-data]
+
+Telemetry data traídos desde una plataforma de terceros no se corresponden perfectamente con nuestra estructura de datos. Continuaremos alineando el mapeo de la estructura de datos, pero actualmente existen algunas limitaciones para ello. A continuación se muestran algunos aspectos importantes de la transformación de datos:
+
+* Cada tipo de datos (métrica, log, traza, evento) pasa por su [API de ingesta](/docs/telemetry-data-platform/get-data-new-relic/getting-started/introduction-new-relic-data-ingest-apis-sdks) relevante. Para conocer las restricciones y límites, consulte esos documentos de API.
+* No hay experiencias UI predeterminadas (por ejemplo, gráficos o paneles) creadas con estos datos, pero estos datos se pueden [consultar con NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language) y usarse para crear gráficos y paneles personalizados.
+
+<Callout variant="tip">
+  ¿Está interesado en unificar la observabilidad de sus datos en una única plataforma? Consulte nuestra [guía sobre cómo migrar desde Datadog](/docs/journey-migration/migrating-from-dd/) para probarlo gratis.
+</Callout>

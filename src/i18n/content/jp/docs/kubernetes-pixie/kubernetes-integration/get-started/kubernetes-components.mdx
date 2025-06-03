@@ -1,0 +1,249 @@
+---
+title: Kubernetes統合コンポーネント
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Kubernetes components
+metaDescription: Learn what components are deployed after installing the Kubernetes integration.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic Kubernetes の統合により、Kubernetes をオンプレミスで実行しているかクラウドで実行しているかにかかわらず、クラスターの正常性とパフォーマンスを完全に監視できます。これにより、Kubernetes の名前空間、デプロイ、レプリカセット、ノード、ポッド、コンテナーを可視化できます。
+
+[`newrelic-infrastructure` グラフは](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure) 統合の主要コンポーネントです。そのアーキテクチャについては [、こちらを](#architecture)ご覧ください。
+
+[`nri-bundle` チャートは、](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) `newrelic-infrastructure`を含む統合用の個々のチャートをグループ化します。これにより、1 つのチャートだけを使用して統合を簡単にインストールおよびアップグレードできます。この表でインストールできるデフォルトおよびオプションのコンポーネントについては [、こちらを](#components)ご覧ください。
+
+## アーキテクチャー [#architecture]
+
+`newrelic-infrastructure`チャートには、 `nrk8s-ksm` 、 `nrk8s-kubelet` 、 `nrk8s-controlplane`の 3 つのコンポーネントがあります。 最初のものはデプロイメントであり、次の 2 つは DaemonSet です。
+
+各コンポーネントには 2 つのコンテナーがあります。
+
+1. インテグレーションのコンテナで、メトリクスの収集を担当します。
+2. メトリクスを New Relic に送信するために使用される、New Relic インフラストラクチャ エージェントを含むコンテナー。
+
+### Kub-State-Metricsコンポーネント [#nrk8s-ksm]
+
+Kubernetes 組織自体の下に格納されている OSS プロジェクト[`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics)の上にクラスター状態メトリックを構築します。
+
+特定のデプロイメント`nrk8s-ksm`が KSM の検出とスクレイピングを処理します。このポッドは存続期間が長く単一であるため、エンドポイント インフォーマーを安全に使用して KSM ポッドの IP を特定し、スクレイピングできます。インフォーマーは、クラスター内のインフォーマーのリストを自動的にローカルにキャッシュし、新しいものを監視して、ポッドの場所を特定するためのリクエストで API サーバーを攻撃することを回避します。
+
+ターゲット メトリックがデフォルトで有効になっていない場合、顧客は KSM でモニターできるようにターゲット メトリックを有効にする必要があります。 たとえば、KSM v2+ では、ラベルと注釈メトリクスがデフォルトで無効になっています。 顧客は、`metric-labels-allowlist` `metric-annotations-allowlist`[](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/developer/cli-arguments.md)Kubernetesクラスタで、 ここで 説明する または オプションを使用して、ターゲット ラベルとアノテーション メトリックをモニターできるようにすることができます。
+
+KSM がサポートするバージョンの詳細については[、Bring your own KSM](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/README.md#bring-your-own-ksm)を参照してください。
+
+<Callout variant="important">
+  `customAttributes` を使用して、特定のノードに厳密に関連付けられていないエンティティに関連するサンプルに属性を追加します: `K8sNamespaceSample`、 `K8sDeploymentSample`、 `K8sReplicasetSample`、 `K8sDaemonsetSample`、 `K8sStatefulsetSample`、 `K8sServiceSample`、および `K8sHpaSample`.
+</Callout>
+
+### Kubeletコンポーネント [#nrk8s-kubelet]
+
+Kubelet は「Kubernetes エージェント」であり、すべての Kubernetes ノードで実行され、コントロール プレーンの指示に従ってコンテナーを作成する役割を担うサービスです。コンテナ ランタイムと密接に連携しているのは Kubelet であるため、CPU、メモリ、ディスク、ネットワークなどの使用など、統合のためのインフラストラクチャ メトリックの主なソースです。完全に文書化されていませんが、Kubelet API はほとんどの Kubernetes メトリクスの事実上のソースです。
+
+Kubeletのスクレイピングは、通常、リソースの少ない操作です。これと、可能な限りノード間のトラフィックを最小限に抑えるという意図を踏まえて、 `nrk8s-kubelet`はDaemonSetとして実行され、各インスタンスは、同じノードで実行されているKubeletからメトリックを収集します。
+
+`nrk8s-kubelet` ノード IP を使用して Kubelet に接続します。このプロセスが失敗した場合、 `nrk8s-kubelet`はフォールバックして API サーバー プロキシ経由でノードに到達します。多数の kubelet をプロキシすると API サーバーの負荷が増加する可能性があるため、このフォールバック メカニズムは非常に大規模なクラスターの場合に役立ちます。ログで次のようなメッセージを探すことで、API サーバーがプロキシとして使用されているかどうかを確認できます。
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### コントロールプレーンコンポーネント [#nrk8s-controlplane]
+
+主要な Kubernetes ディストリビューションとして、 `nrk8s-controlplane`を`hostNetwork: true`で DaemonSet としてデプロイします。構成は、自動検出と静的エンドポイントをサポートするように構成されています。すぐに使用できる幅広いディストリビューションとの互換性を保つために、構成エントリとして幅広い既知のデフォルトを提供しています。コードではなく構成でこれを行うと、必要に応じて自動検出を微調整できます。
+
+セレクタごとに複数のエンドポイントを持ち、正しいエンドポイントを自動的に検出するプローブ メカニズムを追加する可能性があります。これにより、同じセレクターを使用して、ポートやプロトコルなどのさまざまな構成を試すことができます。
+
+etcd CPコンポーネントのスクレイピング構成は以下のようになっており、すべてのコンポーネントに同じ構造と機能が適用されています。
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+`staticEndpoint`が設定されている場合、コンポーネントはそれを取得しようとします。エンドポイントに到達できない場合、統合は失敗するため、手動エンドポイントが構成されている場合にサイレント エラーは発生しません。
+
+`staticEndpoint`が設定されていない場合、コンポーネントは自動検出エントリを反復処理して、指定された`namespace`の`selector`に一致する最初のポッドを探し、オプションでDaemonSetの同じノードで実行されます（ `matchNode`の場合） `true`に設定されます）。ポッドが検出された後、コンポーネントはプローブし、http `HEAD`リクエストを発行し、リストされたエンドポイントを順番に、選択した認証タイプを使用して最初に成功したプローブされたエンドポイントをスクレイプします。
+
+上記では、 `etcd`コンポーネントの構成の抜粋を示していますが、スクレイピングロジックは他のコンポーネントでも同じです。
+
+コントロールプレーンモニタリングの設定方法の詳細については、 [コントロールプレーンモニタリング](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) のページをご確認ください。
+
+### ヘルムチャート [#helm-charts]
+
+Helm は、ソリューションをクラスターにデプロイするために提供する主要な手段です。Helm チャートは、1 つのデプロイメントと、それぞれがわずかに異なる構成を持つ 2 つの DaemonSet を管理します。これにより、チャートや生成されたマニフェストに手動でパッチを適用する必要なく、ニーズに合わせてソリューションを柔軟に適応させることができます。
+
+新しい Helm チャートが公開する新機能の一部は次のとおりです。
+
+* すべてのポッドの`securityContext`を完全に制御
+* すべてのポッドのポッド`labels`および`annotations`のフルコントロール
+* 追加の環境変数、 `volumes` 、およびを追加する機能 `volumeMounts`
+* どのエンドポイントに到達するか、オートディスカバリーの動作、スクレイピングの間隔など、統合の設定を完全にコントロールすることが可能
+* Helmのイディオムやスタンダードとの連携強化
+
+切り替え可能なすべてのスイッチの詳細は、 [`README.md`チャート](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md)で確認できます。
+
+## コンポーネント [#components]
+
+`nri-bundle` を使用してKubernetesインテグレーションをインストールすると、次の 2 つのコンポーネントがデフォルトでインストールされます。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        コンポーネント
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [newrelic-infrastructure](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)
+      </td>
+
+      <td>
+        ノード、クラスターオブジェクト (デプロイメント、ポッドなど)、およびコントロールプレーンに関するメトリクスを New Relic に送信します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-metadata-injection](https://github.com/newrelic/k8s-metadata-injection/tree/main/charts/nri-metadata-injection)
+      </td>
+
+      <td>
+        New Relic で計測されたアプリケーション (APM) を Kubernetes 情報で強化します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+これらは、 `nri-bundle` を使用して、または個別にインストールできるオプションのコンポーネントです。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        コンポーネント
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [kube-state-metrics](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-state-metrics)
+      </td>
+
+      <td>
+        newrelic-infrastructural がクラスターレベルのメトリクスを収集するために必要です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-kube-events](https://github.com/newrelic/nri-kube-events/tree/main/charts/nri-kube-events)
+      </td>
+
+      <td>
+        Kubernetes イベントを New Relic にレポートします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-インフラオペレーター](https://github.com/newrelic/newrelic-infra-operator/tree/main/charts/newrelic-infra-operator)
+      </td>
+
+      <td>
+        (ベータ) Fargate またはサーバーレス環境で使用され、通常の DaemonSet の代わりにサイドカーとして newrelic-infrastructor を挿入します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-k8s-metrics-adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter/tree/main/charts/newrelic-k8s-metrics-adapter)
+      </td>
+
+      <td>
+        (ベータ) New Relic の NRQL クエリに基づいて、水平ポッド オートスケーラー (HPA) のデータ ソースを提供します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-logging](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging)
+      </td>
+
+      <td>
+        クラスター上で実行されている Kubernetes コンポーネントとワークロードのログを New Relic に送信します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nri-prometheus](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
+      </td>
+
+      <td>
+        Prometheus メトリクスを公開するアプリケーションから New Relic にメトリクスを送信します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [newrelic-プロメテウス-コンフィギュレーター](https://github.com/newrelic/newrelic-prometheus-configurator/tree/master/charts/newrelic-prometheus-agent)
+      </td>
+
+      <td>
+        New Relic Prometheus エンドポイントにメトリクスを送信するようにエージェント モードで Prometheus のインスタンスを設定します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [ニューレリックピクシー](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-pixie)
+      </td>
+
+      <td>
+        Pixie API に接続し、Pixie で New Relic プラグインを有効にします。このプラグインを使用すると、Pixie から New Relic にデータをエクスポートして、長期データを保存できます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [ピクシー](https://docs.pixielabs.ai/installing-pixie/install-schemes/helm/#3.-deploy)
+      </td>
+
+      <td>
+        Kubernetes アプリケーション用のオープンソースの可観測性ツール。eBPF を使用して、手動のインストルメンテーションを必要とせずにテレメトリ データを自動的にキャプチャします。
+      </td>
+    </tr>
+  </tbody>
+</table>

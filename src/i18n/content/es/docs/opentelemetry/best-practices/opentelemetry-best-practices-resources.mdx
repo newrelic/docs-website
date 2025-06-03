@@ -1,0 +1,274 @@
+---
+title: Recursos de OpenTelemetry en New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Details on how New Relic works with OpenTelemetry resources
+freshnessValidatedDate: '2024-05-08T00:00:00.000Z'
+translationType: machine
+---
+
+Todos los datos de OpenTelemetry están asociados con un [recurso](https://opentelemetry.io/docs/concepts/resources). Un recurso es una representación de la entidad que produce telemetría como atributo de recurso. Los atributos de recurso se emplean para adaptar un recurso a New Relic la noción de [entidad](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic).
+
+Los datos recibidos se asocian con una entidad a través de un proceso llamado [síntesis de entidades](/docs/entities/synthesis/) mediante el cual el atributo de recurso presente se compara con reglas que determinan el tipo de entidad a la que se asociarán los datos. Para los datos obtenidos de OpenTelemetry, las reglas de síntesis de entidades están diseñadas para respetar las OpenTelemetry [convenciones semánticas de recursos](https://opentelemetry.io/docs/specs/semconv/resource) de .
+
+Las convenciones semánticas de recursos definen diferentes cuerpos de convenciones para describir diferentes tipos de entidad. Por ejemplo, las convenciones [de servicio](https://opentelemetry.io/docs/specs/semconv/resource/#service) y [host](https://opentelemetry.io/docs/specs/semconv/resource/host/) definen el atributo de recurso que describe una instancia de servicio u host, respectivamente.
+
+## Tipos de entidad admitidos [#supported-entity-types]
+
+Aquí se describen los tipos de entidad New Relic que son compatibles cuando se emplea la instrumentación OpenTelemetry . Para cada tipo de entidad admitida se incluyen:
+
+* El atributo de recurso requerido para la síntesis de entidades.
+* Atributo recomendado que impulsa ciertos aspectos de la New Relic UI.
+* Atributo que se convierte en [entidad etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/), cuando está presente.
+
+### Servicios [#services]
+
+Una entidad de servicio se sintetiza siguiendo las convenciones semánticas de recursos de OpenTelemetry que describen una [instancia de servicio](https://opentelemetry.io/docs/specs/semconv/resource/#service).
+
+Consulte nuestra [documentación y ejemplos](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro) para monitorear entidades de servicio usando OpenTelemetry.
+
+#### Atributo requerido [#service-required-attributes]
+
+* [`service.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/service): el nombre del servicio que ves en la UI proviene de este valor.
+
+#### Atributo recomendado [#service-recommended-attributes]
+
+* [`service.instance.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/service): habilita el facetado entre varias instancias del mismo servicio.
+* [`telemetry.sdk.language`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/telemetry): cuando está presente, este valor controla la visualización de cualquier UI específica del tiempo de ejecución, como la página de tiempo de ejecución JVM para la aplicación Java.
+
+#### Entidad etiqueta [#service-entity-tags]
+
+* [`service.namespace`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/service)
+* [`telemetry.sdk.language`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/telemetry) (agregado como etiqueta de idioma)
+* [`telemetry.sdk.version`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/telemetry)
+* [`k8s.cluster.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/k8s)
+* [`k8s.namespace.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/k8s)
+* [`k8s.deployment.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/k8s)
+
+### Hospedadores [#hosts]
+
+Una entidad de host se sintetiza siguiendo las convenciones semánticas de recursos de OpenTelemetry que describen un [host](https://opentelemetry.io/docs/specs/semconv/resource/host).
+
+Consulte el ejemplo de monitoreo de host en [recolector de monitoreo de infraestructura](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro/) para obtener más detalles.
+
+#### Atributo requerido [#host-required-attributes]
+
+* [`host.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host): el nombre de host que ves en la UI proviene de este valor.
+* [`host.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+
+#### Entidad etiqueta [#host-entity-tags]
+
+* [`cloud.provider`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.account.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.region`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.availability_zone`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.platform`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`host.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.type`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.arch`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.image.name`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.image.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`host.image.version`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+
+### Instancia Redis [#redis]
+
+Una instancia de Redis se sintetiza empleando datos emitidos desde el recolector [receptorRedis ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/redisreceiver). Lamentablemente, actualmente no existen convenciones semánticas para la instancia Redis ni para identificar atributos en la métrica que emite el receptor Redis . Por lo tanto, los usuarios deberán incluir manualmente el atributo que se describe a continuación.
+
+Consulte el ejemplo Redis en [el recolector de monitoreo de infraestructura](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro/) para obtener más detalles.
+
+#### Atributo requerido [#redis-required-attributes]
+
+* [`server.address`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/server/): el nombre de la instancia Redis que ves en la UI proviene de este valor.
+* [`server.port`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/server/)
+
+#### Entidad etiqueta [#redis-entity-tags]
+
+* `redis.version`
+* `redis.role`
+* [`host.type`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/host)
+* [`cloud.provider`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.account.id`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* [`cloud.region`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/cloud)
+* `instrumenation.name`
+* [`server.address`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/server/)
+* [`server.port`](https://opentelemetry.io/docs/specs/semconv/attributes-registry/server/)
+
+## Relaciones entre entidades soportadas [#supported-entity-relationships]
+
+New Relic soporta relaciones entre entidades provenientes de la instrumentación OpenTelemetry . Estas relaciones se sintetizan automáticamente cuando se cumplen los criterios de relación adecuados. A continuación se detallan las relaciones que se admiten actualmente y sus criterios requeridos.
+
+### Servicio para la infraestructura de relaciones mediante el uso del OpenTelemetry Collector [#service-to-infra-otel-collector]
+
+El se OpenTelemetry Collector puede emplear para [monitorizar su infraestructura](/docs/opentelemetry/get-started/collector-infra-monitoring/opentelemetry-collector-infra-intro). Se admiten relaciones de entidades entre los servicios instrumentados de OpenTelemetry y la entidad de infraestructura creada a partir del OpenTelemetry Collector.
+
+Se admiten las siguientes relaciones con sus servicios:
+
+* [Hospedadores](#service-to-host)
+* [Contenedor](#service-to-container)
+
+#### Hospedadores [#service-to-host]
+
+Las relaciones entre un servicio y una entidad host requieren que el servicio incluya el atributo de recurso `host.id` y que coincida con el `host.id` del host en el que se ejecuta.
+
+#### Contenedor [#service-to-container]
+
+Las relaciones entre un servicio y una entidad contenedora requieren que el servicio incluya el atributo de recurso `container.id` y que coincida con el `container.id` del contenedor en el que se ejecuta.
+
+### Servicio de infraestructura de relaciones mediante el agente de infraestructura New Relic [#service-to-infra-nr-infra-agent]
+
+El [agente de infraestructuraNew Relic ](/docs/infrastructure/choose-infra-install-method)se puede emplear para monitorear su infraestructura. Se admiten relaciones de entidades entre los servicios instrumentados de OpenTelemetry y las entidades de infraestructura creadas desde el agente de New Relic Infrastructure.
+
+Para que estas relaciones funcionen, la telemetría emitida desde su servicio debe configurar para que pueda correlacionar con la telemetría emitida por el agente de infraestructura. Esto requiere que la telemetría de su servicio incluya atributos de recurso que identifiquen el host, contenedor, etc. en el que se ejecuta el servicio. Por lo general, esto es tan fácil como configurar [los detectores de recursos](https://opentelemetry.io/docs/concepts/resources/#resource-detectors) proporcionados por el SDK de OpenTelemetry para su idioma o usar el [procesador de detección de recursos](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md) de OpenTelemetry Collector.
+
+Se admiten las siguientes relaciones con sus servicios:
+
+* [Hospedadores](#service-to-infra-nr-infra-agent-hosts)
+* [Contenedor](#service-to-infra-nr-infra-agent-containers)
+
+#### Hosts monitoreados con el agente de infraestructura New Relic [#service-to-infra-nr-infra-agent-hosts]
+
+Las relaciones de host entre los servicios instrumentados de OpenTelemetry y la entidad host generada desde el agente de New Relic Infrastructure requieren dos cosas:
+
+* El atributo de recurso `host.id` debe estar presente en la telemetría del servicio.
+* El `host.id` debe correlacionar con la [identidad del host](#service-to-infra-nr-infra-derive-host-identity) derivada por el agente de infraestructura.
+
+##### Derivación de la identidad del host [#service-to-infra-nr-infra-derive-host-identity]
+
+<Callout variant="important">
+  La identidad del host derivada por el agente de New Relic Infrastructure no coincide exactamente con la semántica del atributo de recurso `host.id` de OpenTelemetry en todas las circunstancias. Esto puede causar dificultades a la hora de correlacionar los servicios con los hosts monitoreados con el agente de infraestructura. Lea esta sección con atención para comprender los posibles desafíos.
+</Callout>
+
+La identidad del host derivada por el agente New Relic Infrastructure depende del entorno de hospedaje y de la configuración del agente.
+
+Para que los servicios se correlacionen correctamente con los hosts monitoreados por el agente de New Relic Infrastructure, el atributo de recurso `host.id` emitido por el servicio debe coincidir con la identidad del host calculada por el agente. Las siguientes secciones describen, en orden de prioridad, cómo el agente de infraestructura calcula la identidad de un host para que pueda comprender cómo configurar correctamente el `host.id` del servicio.
+
+###### agente de infraestructura configurado con un `display_name` [#service-to-infra-nr-infra-display-name]
+
+Si el agente de infraestructura está configurado para emplear un [`display_name`](/docs/infrastructure/infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#display-name) , lo empleará como la identidad del host. Su servicio instrumentado OpenTelemetry debe estar configurado para emitir un `host.id` que sea igual a `display_name`.
+
+###### Host ejecutar en un entorno cloud [#service-to-infra-nr-infra-cloud-environment]
+
+Si el host se ejecuta en un entorno cloud (por ejemplo, AWS o Azure), el agente empleará el ID de la instancia asignado por el proveedor cloud . Su servicio instrumentado OpenTelemetry debe configurar para emplear un detector de recursos apropiado para su entorno cloud .
+
+###### Host que se ejecuta en un entorno que no es de nube [#service-to-infra-nr-infra-non-cloud]
+
+En entornos no contenerizados, el agente de infraestructura calculará un nombre de dominio completo (FQDN) del host. La forma en que el agente determina el FQDN varía según diversos factores, como el sistema operativo. No se puede confiar en que los detectores de recursos calculen el mismo valor que el FQDN resuelto por el agente de infraestructura. Se recomienda que configure explícitamente un `display_name` para el agente de infraestructura y el `host.id` de su servicio para que coincidan.
+
+#### Servicio a contenedor monitoreado con el agente de Infraestructura New Relic [#service-to-infra-nr-infra-agent-containers]
+
+Las relaciones entre un servicio y una entidad contenedora requieren que el servicio esté configurado con un detector de recursos apropiado que incluya el atributo de recurso `container.id` .
+
+### Amazon CloudWatch Metric Streams
+
+Su infraestructura alojada en AWS se puede monitorear con la integración de New Relic con [Amazon CloudWatch Metric Streams](/install/aws-cloudwatch/). Esta no es una solución OpenTelemetry para monitorear su infraestructura. Sin embargo, New Relic admite un serial de relaciones entre los servicios instrumentados de OpenTelemetry y la infraestructura monitoreada mediante Amazon CloudWatch Metric Streams. Las relaciones admitidas se enumeran a continuación.
+
+<Callout variant="important">
+  Algunas relaciones son compatibles automáticamente con la instrumentación. Estas relaciones emplean convenciones semánticas OpenTelemetry para correlacionar la telemetría de los servicios instrumentados con OpenTelemetry con los recursos de AWS monitoreados por CloudWatch Metric Streams. Sin embargo, tenga en cuenta que muchas de estas convenciones aún no son estables y todavía están evolucionando. La instrumentación que produce telemetría para el marco siguiente varía en su nivel de madurez y conformidad con las convenciones semánticas. Como tal, la instrumentación que emplee puede no emitir el atributo necesario para que estas relaciones funcionen. Comunicar con los encargados del mantenimiento de la instrumentación que está empleando si tiene alguna pregunta sobre la madurez de la instrumentación con respecto a las convenciones semánticas de OpenTelemetry.
+
+  Si una relación no es compatible automáticamente con la instrumentación, o si la instrumentación existente no sigue las convenciones estándar, debe transmitir manualmente la telemetría a New Relic para establecer la relación. Haga esto transmitiendo un log o intervalo con el atributo `newrelic.aws_metric_streams.arn` que incluya el [ARN](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) del recurso. Se recomienda transmitir logs en lugar de tramos porque estos pueden ser muestreados. Tenga en cuenta que estas relaciones tienen un tiempo de vida útil (TTL) de 75 minutos, por lo que debe emitir telemetría periódicamente para mantener la relación.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Con el apoyo de la instrumentación
+      </th>
+
+      <th>
+        Producto de AWS
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td />
+
+      <td>
+        [DinamoDB](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-dynamodb-monitoring-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ✅
+      </td>
+
+      <td>
+        [ElastiCache](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-elasticache-monitoring-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ✅
+      </td>
+
+      <td>
+        [Búsqueda elástica](/docs/infrastructure/host-integrations/host-integrations-list/elasticsearch/elasticsearch-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        [Manguera de datos de Kinesis](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-kinesis-data-firehose-monitoring-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        [Flujos de datos de Kinesis](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-kinesis-data-streams-monitoring-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        [Lambda](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-lambda-monitoring-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ✅
+      </td>
+
+      <td>
+        [MQ](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-mq-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ✅
+      </td>
+
+      <td>
+        [MSC](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-managed-kafka-msk-integration)
+      </td>
+    </tr>
+
+    <tr>
+      <td />
+
+      <td>
+        [SQS](/docs/infrastructure/amazon-integrations/aws-integrations-list/amazon-sqs-monitoring-integration)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Agregar una etiqueta personalizada a una entidad [#tags]
+
+Puedes usar etiqueta para organizar y filtrar tu entidad en la UI. [etiqueta](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/) son pares de valores principales, por ejemplo `team: operations`, agregados a varios conjuntos de datos, como aplicaciones de monitoreo y hosts. Ciertos atributos importantes están disponibles automáticamente como etiqueta, como el ID de cuenta; También puedes agregar tu propia etiqueta personalizada [directamente en la UI](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags) o con uno de los métodos siguientes.
+
+Agregar un atributo de recurso con el prefijo `tags` dará como resultado una etiqueta en su entidad en New Relic. Por ejemplo, agregar el atributo `tags.mytag=myvalue` dará como resultado la etiqueta de entidad `mytag=myvalue`.

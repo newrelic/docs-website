@@ -1,0 +1,144 @@
+---
+title: Instale y comience con el monitoreo de iOS
+tags:
+  - Mobile monitoring
+  - New Relic Mobile iOS
+  - Get started
+metaDescription: 'Get an overview of mobile monitoring for iOS, including installation, compatibility, and troubleshooting information.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro agente iOS le brinda una vista completa del rendimiento de su aplicación. El agente monitorea las aplicaciones de iOS escritas en Objective-C, Swift o ambos. Para obtener una descripción general de la funcionalidad de monitoreo de móviles, consulte [Introducción al monitoreo de móviles](/docs/mobile-monitoring/new-relic-mobile/getting-started/introduction-new-relic-mobile).
+
+## Compatibilidad y requisitos [#requirements]
+
+Antes de instalar el agente de iOS, revise la [compatibilidad y los requisitos](/docs/mobile-monitoring/new-relic-mobile-ios/get-started/new-relic-ios-compatibility-requirements/).
+
+## Instalar el agente [#installation]
+
+Para instalar el agente de iOS, siga nuestra [instalación guiada](https://onenr.io/0qwLv87gkj5), ubicada directamente en la UI. Con este método, puede instalar y configurar el agente de iOS con Swift administrador de paquetes (SPM) o CocoaPods.
+
+## Amplíe su instrumentación [#extend]
+
+Después de instalar el agente de iOS, puede ampliar su instrumentación predeterminada con varios tipos de datos personalizados:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "125px" }}>
+        Acceder:
+      </th>
+
+      <th>
+        En la UI móvil:
+      </th>
+
+      <th>
+        En el panel de New Relic:
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        <DNT>
+          **Custom data**
+        </DNT>
+      </td>
+
+      <td>
+        Cree y registre [eventos personalizados, trazas de interacción y atributos](/docs/mobile-monitoring/new-relic-mobile/maintenance/add-custom-data-new-relic-mobile) para agregar detalles a sus datos y trazas existentes.
+      </td>
+
+      <td>
+        Consulta el [evento personalizado que creaste](/docs/insights/insights-data-sources/custom-events/insert-custom-events-attributes-mobile-data) en el panel de New Relic y NRQL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Network requests**
+        </DNT>
+      </td>
+
+      <td>
+        Habilite la característica [de evento MobileRequest](/docs/mobile-monitoring/mobile-monitoring-ui/network-pages/analyze-network-requests-using-mobilerequest-event-data) para que pueda realizar un análisis completo de la red.
+      </td>
+
+      <td>
+        Para investigar más a fondo la tasa de errores y el tiempo de respuesta de las solicitudes de red, consulte [el evento MobileRequest y MobileRequestError](/docs/insights/nrql-new-relic-query-language/nrql-query-examples/insights-query-examples-new-relic-mobile#mobilerequest-examples).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Crash analysis**
+        </DNT>
+      </td>
+
+      <td>
+        Revise información detallada [utilizando grupos y filtros](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes) para analizar tendencias que conducen a fallas.
+      </td>
+
+      <td>
+        Para ver más información sobre fallas, [cree una consulta NRQL](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/crash-analysis-group-filter-your-crashes#insights) relacionada con los datos de fallas.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Mobile SDK**
+        </DNT>
+      </td>
+
+      <td>
+        Utilice la [API del SDK móvil](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/mobile-sdk-api-guide) para personalizar la instrumentación del agente predeterminada.
+      </td>
+
+      <td>
+        Luego, vea esos [eventos personalizados y atributos](/docs/insights/insights-data-sources/custom-events/insert-custom-events-attributes-mobile-data).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Handled exceptions**
+        </DNT>
+      </td>
+
+      <td>
+        Informe [las excepciones](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/introduction-mobile-handled-exceptions) para que pueda identificar los factores que crean una mala experiencia en la aplicación móvil.
+      </td>
+
+      <td>
+        Para mejorar aún más el rendimiento, revise los registros de eventos [MobileHandledException](/docs/insights/insights-data-sources/default-data/mobile-events-attributes#mobilehandledexception-attributes) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        <DNT>
+          **Breadcrumbs**
+        </DNT>
+      </td>
+
+      <td>
+        Aumente el nivel de detalle en [crash traza de evento](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/mobile-crash-event-trail) agregando [ruta de navegación](/docs/mobile-monitoring/new-relic-mobile/maintenance/add-custom-data-new-relic-mobile#custom-breadcrumbs).
+      </td>
+
+      <td>
+        Luego, consulte el evento [MobileBreadcrumbs](/docs/insights/insights-data-sources/default-data/mobile-events-attributes#event-types) para ver todas las rutas de navegación o solo las rutas de navegación relacionadas con fallas.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Solucionar problemas de su instalación [#troubleshooting]
+
+Si tiene problemas con la instalación de iOS o si no ve datos en la UI de monitoreo de móviles de su aplicación iOS, pruebe estas [soluciones de resolución de problemas](/docs/mobile-monitoring/new-relic-mobile-ios/troubleshoot/no-data-appears-ios).

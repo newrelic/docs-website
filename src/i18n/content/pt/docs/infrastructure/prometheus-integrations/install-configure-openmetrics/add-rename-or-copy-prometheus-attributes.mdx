@@ -1,0 +1,191 @@
+---
+title: 'Adicionar, renomear ou copiar o atributo do Prometheus'
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: How to rename or copy Prometheus metrics for your Docker integration before sending them to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+A integração New Relic Prometheus OpenMetrics fornece controles para transformar as métricas do Prometheus para Docker antes de enviá-las para o New Relic. Após definir as transformações no arquivo de configuração de integração, elas serão executadas para todos os endpoints.
+
+## Hierarquia
+
+O arquivo de manifesto [`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) inclui o mapa de configuração `nri-prometheus-cfg` mostrando um exemplo de configuração. As transformações são executadas na seguinte ordem:
+
+1. Ignore a métrica.
+2. Adicione ou inclua atributo.
+3. Renomear atributo.
+4. Copiar atributo.
+
+<Callout variant="important">
+  Evite enviar dados de integração do Prometheus OpenMetrics que não sejam relevantes para suas necessidades de monitoramento. Em vez disso, use filtros para ignorar ou incluir métricas específicas. Isso o ajudará a controlar a quantidade e os tipos de dados enviados para a New Relic. Isso também o ajudará a evitar cobranças adicionais. Para obter mais informações, consulte [Ignorar ou incluir métrica do Prometheus](/docs/integrations/prometheus-integrations/install-configure/ignore-or-include-prometheus-metrics).
+</Callout>
+
+## Exemplo de configuração [#transformation-configuration]
+
+Para usar essas opções, configure o arquivo de configuração do contêiner do raspador (`config.yaml` no diretório atual):
+
+```
+docker run -d --restart unless-stopped \
+    --name nri-prometheus \
+    -e CLUSTER_NAME="YOUR_CLUSTER_NAME"
+    -e LICENSE_KEY="YOUR_LICENSE_KEY" \
+    -v "$(pwd)/config.yaml:/config.yaml" \
+    newrelic/nri-prometheus:latest --configfile=/config.yaml
+```
+
+Aqui está um exemplo de arquivo de configuração contendo todos esses exemplos:
+
+```
+transformations:
+ - description: "Transformation for MySQL exporter"
+   add_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         owningTeam: "database-team"
+   rename_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         table: "tableName"
+         under_score: "CamelCase"
+   copy_attributes:
+     - from_metric: "mysql_version_info"
+       to_metrics:
+         - "mysql_"
+       attributes:
+         - "innodb_version"
+         - "version"
+   ignore_metrics:
+     - prefixes:
+       - "go_"
+       - "process_"
+```
+
+## Adicionar atributo
+
+Esta transformação permite incluir um conjunto de atributos definidos estaticamente num conjunto de destino métrico.
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="Adicionar atributo"
+  >
+    Configuração:
+
+    Para incluir o atributo `owningTeam` em todas as métricas começando com `mysql_`:
+
+    ```
+    add_attributes:
+      - prefix: "mysql_"
+        attributes: 
+          owningTeam: "database-team"
+    ```
+
+    Para incluir o atributo `datacenter` em todas as métricas:
+
+    ```
+    add_attributes:
+      - prefix: ""
+        attributes: 
+          datacenter: "europe"
+    ```
+
+    Entrada:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    Saída:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary","owningTeam":"database-team","datacenter":"europe"} 123 another_metric{table="first","datacenter":"europe"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Renomear atributo
+
+Nem todos os endpoints do Prometheus têm nomenclatura consistente. Você pode renomear o atributo conforme necessário.
+
+<CollapserGroup>
+  <Collapser
+    id="example-rename"
+    title="Renomear atributo"
+  >
+    Configuração:
+
+    Para renomear o atributo `table` para `tableName` para métricas que começam com `mysql_`:
+
+    ```
+    rename_attributes:
+      - metric_prefix: "mysql_" 
+        attributes:
+          table: "tableName"
+    ```
+
+    Entrada:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    Saída:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",tableName="host_summary"} 123 another_metric{table="first"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Copiar atributo
+
+Alguns endpoints do Prometheus fornecem uma métrica `_info` ou `_static` contendo metadados sobre o serviço, como a versão. Pode ser útil ter este atributo em todas as métricas desse serviço. Esta transformação permite copiar um atributo de uma métrica de origem para um conjunto de métrica de destino.
+
+<Callout variant="important">
+  Você só pode copiar atributo entre métricas no mesmo endpoint.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="Copiar atributo"
+  >
+    <DNT>
+      **Configuration:**
+    </DNT>
+
+    Para copiar o atributo `innodb_version` e `version` da métrica `mysql_version_info` para todas as métricas começando com `mysql_`:
+
+    ```
+    copy_attributes:
+      - from_metric: "mysql_version_info"
+        to_metrics:
+          - "mysql_" 
+        attributes: 
+          - "innodb_version"
+          - "version"
+    ```
+
+    <DNT>
+      **Input:**
+    </DNT>
+
+    ```
+    # HELP mysql_version_info MySQL version and distribution. mysql_version_info{innodb_version="5.7.14",version="5.7.14",version_comment="MySQL Community Server (GPL)"} 1
+
+    # HELP mysql_global_variables_slave_transaction_retries Generic gauge metric from SHOW GLOBAL VARIABLES. mysql_global_variables_slave_transaction_retries 10
+    ```
+
+    <DNT>
+      **Output:**
+    </DNT>
+
+    ```
+    mysql_global_variables_slave_transaction_retries{innodb_version="5.7.14",version="5.7.14"} 10
+    ```
+  </Collapser>
+</CollapserGroup>

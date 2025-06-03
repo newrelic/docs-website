@@ -1,0 +1,362 @@
+---
+title: 'List'
+metaDescription: 'Learn how to work the List component'
+freshnessValidatedDate: 2024-06-03
+---
+
+`<List>` allows you to efficiently render a large list of items.
+
+The `<List>` can render the items in two ways: as an array of `<ListItem>` elements or as a render callback (Function as Children). It is recommended to use the render callback since it will virtualize all the items, making it very fast when a large numer of items is provided.
+
+If the width and height are not specified through the `style` or `className` props, it will fill the height and the width of the container, unless `width="fit-content"` is provided as a prop. Then it will size the `<List>` container to be as wide as the widest measured `<ListItem>` component.
+
+### Usage
+
+```js
+import { List } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+function render() {
+  return (
+    <List rowHeight={20}>
+      <ListItem>Item 1</ListItem>
+      <ListItem>Item 2</ListItem>
+      <ListItem>Item 3</ListItem>
+      <ListItem>Item 4</ListItem>
+    </List>
+  );
+}
+```
+
+#### Render callback
+
+```js
+function render() {
+  const items = new Array(10000).fill().map((_, i) => {
+    return { key: `foo-${i}`, name: `Item ${i}` };
+  });
+
+
+  const style = { width: 200, height: 300 };
+
+
+  return (
+    <List style={style} rowHeight={20} items={items}>
+      {({ item }) => <ListItem key={item.key}>{item.name}</ListItem>}
+    </List>
+  );
+}
+```
+
+#### Lazy loading
+
+```js
+function render() {
+  // This example assumes you have a way to know/load this information.
+  const remoteTotalNumberOfItems = 9000;
+
+
+  const items = [
+    { id: 1, text: 'Item 1' },
+    { id: 2, text: 'Item 2' },
+    { id: 3, text: 'Item 3' },
+    { id: 4, text: 'Item 4' },
+  ];
+
+
+  function loadMoreItems({ startIndex, stopIndex }) {
+    return fetch(`path/to/api?start=${startIndex}&stop=${stopIndex}`).then(
+      () => {
+        // Store items in list...
+      },
+    );
+  }
+
+
+  const style = { width: 200, height: 300 };
+
+
+  return (
+    <div style={style}>
+      <List
+        items={items}
+        rowCount={remoteTotalNumberOfItems}
+        onLoadMore={loadMoreItems}
+      >
+        {({ item }) => <ListItem key={item.id}>{item.text}</ListItem>}
+      </List>
+    </div>
+  );
+}
+```
+
+#### Auto-sizing to content width
+
+```js
+class AutoSizingList extends React.Component {
+  constructor() {
+    super(...arguments);
+    this.state = {
+      items: this._generateItems(0),
+    };
+    this._maxItems = 1000;
+    this._onLoadMore = this._onLoadMore.bind(this);
+  }
+
+
+  _onLoadMore(cursor) {
+    return (
+      Promise.resolve()
+        // Fetch more items to load into <List>
+        .then(() => this._generateItems(this.state.items.length))
+        .then((moreItems) =>
+          // Add retrieved items to the stored list
+          this.setState(({ items }) => ({ items: items.concat(moreItems) })),
+        )
+    );
+  }
+
+
+  _generateString(num, extra = 0) {
+    return `Entity ${num.toString(10)}: 1${'00'.repeat(
+      Math.floor(Math.random() * 10) + 1 + extra,
+    )} bytes`;
+  }
+
+
+  _generateItems(start) {
+    return new Array(200).fill().map((_, i) => ({
+      key: `foo-${start + i}`,
+      name: this._generateString(start + i, start / 100),
+    }));
+  }
+
+
+  render() {
+    const style = { 'height': 300, 'background-color': 'white' };
+    const parentStyle = { width: 260 };
+
+
+    return (
+      <div style={parentStyle}>
+        <List
+          rowCount={this._maxItems}
+          onLoadMore={this._onLoadMore}
+          style={{ ...style }}
+          rowHeight={20}
+          items={this.state.items}
+          width="fit-content"
+        >
+          {({ item }) => <ListItem key={item.key}>{item.name}</ListItem>}
+        </List>
+      </div>
+    );
+  }
+}
+```
+
+#### Integration with query components
+
+```js
+function render() {
+  const style = { width: 200, height: 300 };
+
+
+  const list = (
+    <div style={style}>
+      <EntitiesByDomainTypeQuery entityDomain="APM" entityType="APPLICATION">
+        {({ fetchMore, loading, data }) => {
+          const { results, count } = data.actor.entitySearch;
+
+
+          return (
+            <List
+              rowHeight={40}
+              items={results.entities}
+              onLoadMore={fetchMore}
+              rowCount={count}
+            >
+              {({ item }) => <ListItem key={item.id}>{item.text}</ListItem>}
+            </List>
+          );
+        }}
+      </EntitiesByDomainTypeQuery>
+    </div>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node|function</h5>
+      </td>
+
+      <td>
+        It can be either an array of `<ListItem>` elements or a render callback (Function as Children). The recommendation is to use the render callback since it will virtualize all the items, making it very fast when a large numer of items is provided.When using the render callback items need to be provided through the `items` prop.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Classname for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullHeight` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the stack to occupy all available height.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `fullWidth` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Expands the stack to occupy all available width.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `items` <h5>any\[]</h5>
+      </td>
+
+      <td>
+        The items to be used when rendering.They are required when rendering items with a render callback.Each item can have any structure and type possible, and will the corresponding one will be provided when rendering each element list.
+
+        ```js
+        function render() {
+          const style = { width: 200, height: 300 };
+
+          const items = [
+            { foo: 'a', bar: 'x' },
+            { foo: 'b', bar: 'y' },
+          ];
+
+          return (
+            <div style={style}>
+              <List items={items}>
+                {({ item, index }) => (
+                  <ListItem key={index}>{`${item.foo} - ${item.bar}`}</ListItem>
+                )}
+              </List>
+            </div>
+          );
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onLoadMore` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired when more items must be loaded. This happens when you're lazy loading the items and the items that are about to render cannot be found in the `items` array.This callback should be used to fetch/load the missing items from the backend or other sources.The returned Promise should be resolved once item data has finished loading. It will be used to determine when to refresh the list with the newly-loaded data. This callback may be called multiple times in reaction to a single scroll event.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"cursor","type":"Cursor","description":"Items to load."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rowCount` <h5>number</h5>
+      </td>
+
+      <td>
+        Number of rows.By default it's equal to length of array passed in the items prop.You should specify the `rowCount` when you know the total number of items but you want to lazy load them while scrolling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rowHeight` <h5>REQUIRED</h5> <h5>number</h5>
+      </td>
+
+      <td>
+        Height of the list row.Required when rendering items with the render callback (Function as Children). This is a provisional height until the cell content is measured by temporarily rendering it in a way that is not visible to the user.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          List.SPACING_TYPE.EXTRA_LARGE,
+          List.SPACING_TYPE.LARGE,
+          List.SPACING_TYPE.MEDIUM,
+          List.SPACING_TYPE.NONE,
+          List.SPACING_TYPE.OMIT,
+          List.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `width` <h5>string</h5>
+      </td>
+
+      <td>
+        Represents the width of the list. It is always a string, and it can be of one of the following types:
+
+        * `'fit-content'`: Enables auto-sizing of the `<List>` container. Intended for use with virtualised `<List>`s to ensure the container fits the width of the widest `<ListItem>`. Resizes as more items are loaded by the `<List>` component. Does not affect the height of the `<List>` component, which will continue to fit the height of the container the `<List>` component is in.
+        * `'auto'`: The default value for `<List>`. This prompts the `<List>` component to size according to its default styling, allowing it to expand to fill the width and height of its container. Content is then sized to fit the resulting width of the `<List>` component.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"RenderCallbackArguments","properties":[{"description":"Item to render.","name":"item","type":"any"},{"description":"Index of the item in the items array.","name":"index","type":"number"},{"description":"Array of items which we're iterating on.","name":"items","type":"any[]"}]}}/><TypeDefReference typeDef={{"name":"Cursor","properties":[{"description":"First index of the range of items to load.","name":"startIndex","type":"number"},{"description":"Last index of the range of items to load.","name":"stopIndex","type":"number"}]}}/>

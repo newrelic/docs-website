@@ -1,0 +1,19 @@
+---
+subject: Diagnostics CLI (nrdiag)
+releaseDate: '2023-07-11'
+version: 2.6.1
+---
+
+## Changes
+
+### New feature
+
+`-region` command line flag
+
+* The region your New Relic account is hosted in. Accepted values: EU or US. Case insensitive. Default: US
+* Example usage: `./nrdiag -region eu ...`
+* [Read more here](/docs/new-relic-solutions/solve-common-issues/diagnostics-cli-nrdiag/run-diagnostics-cli-nrdiag/#region)
+
+### Fixed
+
+Resolved an issue that was preventing the CLI from uploading results

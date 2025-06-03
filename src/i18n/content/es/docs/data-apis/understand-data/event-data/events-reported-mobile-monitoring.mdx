@@ -1,0 +1,132 @@
+---
+title: Evento reportado por monitoreo de móviles
+metaDescription: The events and attributes reported by mobile monitoring in New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro [<InlinePopover type="mobile"/>](/docs/mobile-monitoring/new-relic-mobile/getting-started/introduction-new-relic-mobile)informa [datos de eventos](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) que se muestran en algunas pantallas UI y también están disponibles para [consultas y gráficos](/docs/using-new-relic/data/understand-data/query-new-relic-data). Seleccione un nombre de evento en la siguiente tabla para ver su atributo.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        evento
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`Mobile`](/attribute-dictionary/?event=Mobile)
+      </td>
+
+      <td>
+        Se crea un evento `Mobile` cuando se produce un bloqueo, cuando una interacción finaliza o se ejecuta durante 1 segundo, o si una sesión se completa después de que la aplicación se cierra, se pone en segundo plano o se ejecuta durante 10 minutos. `Mobile` eventos alguna vez fueron el único tipo de evento y se generaban para cada evento, pero ahora hay varios tipos de eventos especializados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MobileBreadcrumb`
+      </td>
+
+      <td>
+        No hay ningún atributo listado para este evento; El atributo incluirá el [atributo de sesión](#session-list) y cualquier [atributo personalizado agregado](/docs/mobile-monitoring/new-relic-mobile/maintenance/add-custom-data-new-relic-mobile).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`MobileCrash`](/attribute-dictionary/?event=MobileCrash)
+      </td>
+
+      <td>
+        El evento `MobileCrash` se crea cuando una aplicación falla. `MobileCrash` incluye atributos como número de línea de fallo, clase y mensaje de fallo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`MobileHandledException`](/attribute-dictionary/?event=MobileHandledException)
+      </td>
+
+      <td>
+        `MobileHandledException` se envía cuando se detecta una excepción y se usa para excepciones no fatales reportadas a New Relic mediante la [llamada API`recordHandledException` ](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-handled-exceptions/).
+
+        Las excepciones serán visibles en la consulta de este evento y en la [página<DNT>**Handled exceptions**</DNT> UI ](/docs/mobile-monitoring/mobile-monitoring-ui/crashes/handled-exceptions-analyze-trends-prevent-crashes), incluido el rastreo del stack.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`MobileRequest`](/attribute-dictionary/?event=MobileRequest)
+      </td>
+
+      <td>
+        Se crea un evento `MobileRequest` cuando una solicitud HTTP se completa correctamente, lo que genera un código de respuesta inferior a 400.
+
+        Los datos de New Relic `MobileRequest` están habilitados de forma predeterminada para:
+
+        * [Versión de Android 5.15.2](/docs/release-notes/mobile-release-notes/android-release-notes/android-5152) o superior
+
+        * [iOS versión 6.0.0](/docs/release-notes/mobile-release-notes/ios-release-notes/ios-agent-600) o superior
+
+          Para versiones anteriores, a partir de la versión 5.14.0 de Android o la versión 5.14.0 de iOS, debes habilitar la característica. Actualice a la última versión [de Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/upgrade-android-agent) o [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/installation/upgrade-ios-agent) , o habilite el indicador de característica `NetworkRequests` mediante los ajustes de configuración [de Android](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/android-agent-configuration-feature-flags) o [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/install-configure/ios-agent-configuration-feature-flags#networkRequest) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`MobileRequestError`](/attribute-dictionary/?event=MobileRequestError)
+      </td>
+
+      <td>
+        Un `MobileRequestError` se utiliza para errores HTTP o fallas de red. Los errores HTTP son solicitudes HTTP que tienen un código de estado superior a 400. Una falla de red es una solicitud HTTP que no genera respuesta. El evento se envía cuando se completa la solicitud HTTP.
+      </td>
+    </tr>
+
+    <tr id="session-list">
+      <td>
+        [`MobileSession`](/attribute-dictionary/?event=MobileSession)
+      </td>
+
+      <td>
+        Se envía un evento `MobileSession` cuando una aplicación está cerrada, en segundo plano o cuando han transcurrido 10 minutos de uso activo. Esta es la fuente de los datos generales de sesión utilizados por el otro evento de monitoreo de móviles. `MobileSession` captura atributos como el tipo de dispositivo, el sistema operativo del dispositivo y la información geográfica.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `MobileUserAction`
+      </td>
+
+      <td>
+        No hay ningún atributo listado para este evento; El atributo incluirá el [atributo de sesión](#session-list) y cualquier [atributo personalizado agregado](/docs/mobile-monitoring/new-relic-mobile/maintenance/add-custom-data-new-relic-mobile).
+
+        Este evento se registra cuando se asume que alguna acción del usuario provocó que el agente se iniciara/regresara al primer plano o se detuviera/regresara al fondo cuando el rastreo distribuido característico está habilitado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento personalizado
+      </td>
+
+      <td>
+        No existe una lista de atributos para este tipo de evento porque es un evento personalizado; El atributo incluirá el [atributo de sesión](#session-list) y cualquier [atributo personalizado que agregue](/docs/mobile-monitoring/new-relic-mobile/maintenance/add-custom-data-new-relic-mobile).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Documentación relacionada:
+
+* [Reportar evento personalizado](/docs/insights/insights-data-sources/custom-data/report-custom-event-data)
+* [Ampliar la retención de datos](/docs/insights/use-insights-ui/manage-account-data/extend-event-data-retention)
+* [Ver ejemplo de consulta NRQL](/docs/query-data/nrql-new-relic-query-language/nrql-query-tutorials)

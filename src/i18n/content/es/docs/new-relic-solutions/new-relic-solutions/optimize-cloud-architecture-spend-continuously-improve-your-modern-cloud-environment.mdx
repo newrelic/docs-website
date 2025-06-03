@@ -1,0 +1,171 @@
+---
+title: 'Adopción de la nube: Optimice la arquitectura y el gasto para mejorar continuamente su entorno de nube moderno'
+tags:
+  - New Relic solutions
+  - New Relic solutions
+  - Optimize your cloud native environment
+metaDescription: Capture all the data you should leverage to optimize your cloud architecture and spend.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En la nube, es importante observar de cerca y con regularidad cómo se diseñan y utilizan sus aplicaciones y servicios. Es la mejor manera de identificar oportunidades que le permitirán ajustar el tamaño de su instancia, ajustar su base de datos, modificar su uso de almacenamiento, configurar mejor sus balanceadores de carga o incluso rediseñar su aplicación.
+
+Por ejemplo, si tiene un conjunto de 20 instancias, todas ejecutándose con un uso de CPU del 10 %, podría considerar usar instancias más pequeñas o consolidar más trabajo en esas instancias. Este tipo de pensamiento sobre la utilización y el gasto de la nube le ayudará a optimizar su entorno y ahorrar dinero rápidamente.
+
+La optimización de su arquitectura en la nube tiene tres objetivos principales:
+
+1. Mejore el rendimiento, la disponibilidad y la experiencia del usuario final aprovechando mejor los servicios en la nube
+2. Optimice su gasto en la nube, logrando el delicado equilibrio entre costo y rendimiento
+3. Capture métricas comerciales y técnicas que ayuden a justificar su gasto actual en la nube y que puedan utilizarse como justificación para un mayor presupuesto en la nube según lo requiera el crecimiento.
+
+En este tutorial, le mostraremos cómo utilizar la [plataforma New Relic](https://one.newrelic.com) para capturar todos los datos que debe aprovechar para optimizar su arquitectura y gasto en la nube.
+
+## 1. instrumente su aplicación y entorno de nube [#instrument]
+
+Asegúrese de que los siguientes productos e integración estén instrumentados:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Instrumentado
+      </th>
+
+      <th>
+        Detalles
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [Instalar infraestructura](/docs/infrastructure/new-relic-infrastructure/installation)
+      </td>
+
+      <td>
+        Instrumentado infraestructura: Si aún no lo has hecho, revisa los requisitos para el [agente de infraestructura](/docs/infrastructure). La infraestructura viene con varios tipos de integración, incluidos [Amazon Web Services (AWS)](/docs/infrastructure/amazon-integrations/aws-integrations-list), [Microsoft Azure](/docs/integrations/microsoft-azure-integrations/azure-integrations-list) e [integración en el host](/docs/infrastructure/host-integrations/host-integrations-list). Después de haber instalado el agente de infraestructura en su(s) host(s), inmediatamente tendrá acceso al amplio espectro de métricas que el agente recopila de forma inmediata.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Instalar el agente APM](/docs/agents/manage-apm-agents/installation/install-agent)
+      </td>
+
+      <td>
+        Instrumenta tu aplicación con [APM](/docs/apm). Hacerlo le permitirá monitor el rendimiento de su aplicación mientras optimiza los servicios en la nube subyacentes. De esa manera, puede confirmar que sus cambios en la infraestructura de hecho están mejorando el rendimiento de la aplicación.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Configurar la integración de AWS](/docs/integrations/amazon-integrations/get-started/connect-aws-infrastructure)
+      </td>
+
+      <td>
+        La integración de Amazon de infraestructura le permite monitor sus datos de AWS en todas partes de nuestra plataforma, incluida la infraestructura, el panel y alerta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Conecte la facturación de AWS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-billing-monitoring-integration)
+      </td>
+
+      <td>
+        Si está alojado en un entorno de AWS, New Relic puede ayudarlo monitor su gasto en la nube con nuestra integración [de facturación de AWS](https://docs.aws.amazon.com/account-billing/index.html#lang/en_us) . Para aprovechar la integración de facturación de AWS de New Relic, siga los procedimientos en la [documentación de Connect AWS Billing](/docs/integrations/amazon-integrations/aws-integrations-list/aws-billing-monitoring-integration)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 2. Crear un tablero para mostrar anomalías en la infraestructura métrica; incluir presupuestos de AWS si están disponibles [#create]
+
+[El panel](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards) le permite escribir potentes consultas personalizadas sobre sus datos y visualizar los resultados en un widget que se muestra en un dashboard común. También puede enviar los resultados de su consulta directamente a [alerta](https://newrelic.com/alerts), donde puede recibir una notificación inmediata sobre cualquier desviación identificada.
+
+Para este paso, debe mostrar una anomalía métrica de la infraestructura relacionada con el rendimiento y el uso (CPU, memoria, disco, base de datos, etc.). Incluya los presupuestos de AWS si están disponibles.
+
+Cree <InlinePopover type="dashboards"/>individual para cada aplicación y luego recopile esos paneles en una única [aplicación de datos](/docs/insights/use-insights-ui/manage-dashboards/data-apps-build-collections-linked-dashboards), como se muestra aquí. Esta aplicación de datos de descripción general de la producción de AWS muestra un conjunto de widgets relevantes para un presupuesto de producción de AWS. Las aplicaciones de datos son excelentes para presentaciones en las que desea analizar una serie de temas y también brindar una descripción general clara de un entorno o servicio completo.
+
+<CollapserGroup>
+  <Collapser
+    id="org-dashboards"
+    title="Cree un panel para cada nivel de su organización"
+  >
+    Ya sea desarrollador, operador o ejecutivo, tener información sobre su utilización de la nube puede ayudarlo a optimizar su entorno de nube:
+
+    * Desarrolladores: comprender el costo actual de la aplicación puede ayudar a los desarrolladores a configurar la aplicación para utilizar más servicios de manera más eficiente. Por ejemplo, ¿podrían los desarrolladores reducir los costos de la nube utilizando [AWS Lambda](https://aws.amazon.com/lambda/) o una instancia del tamaño adecuado?
+
+    * Operadores: el monitoreo de la utilización de la aplicación permite a los operadores detectar posibles excesos debido a servicios mal configurados. Por ejemplo, ¿la configuración de escalado automático del equipo de operaciones se está reduciendo correctamente?
+
+    * Ejecutivos: una visión general del gasto en la nube tanto previsto como real, para aplicaciones individuales, por región y totales generales, puede ayudar a los ejecutivos a tomar mejores decisiones comerciales.
+
+      Utilice New Relic para realizar un seguimiento de su gasto en la nube y asegúrese de que sus equipos reciban una alerta inmediatamente cuando supere el umbral.
+  </Collapser>
+</CollapserGroup>
+
+## 3. Identificar recursos para la optimización
+
+Este paso le muestra cómo utilizar la métrica que New Relic ha capturado para determinar qué recursos optimizar.
+
+<img
+  title="Create an alert condition"
+  alt="Create an alert condition"
+  src="/images/alert-policy_screenshot-full_new-alert-conditions.webp"
+/>
+
+En el dashboard de muestra anterior, el widget de uso de CPU a la izquierda revela que esta aplicación usa muchos tamaños de instancia. Tenga en cuenta que la instancia "c4.xlarge" (en coral) consume constantemente sólo alrededor del 20% de la capacidad de la CPU. Sin embargo, cuando analiza el uso de la memoria c4.xlarge en el widget central (verde claro), verá que el uso de la memoria para esta instancia oscila entre el 20% y el 80%. Esto sugiere que la aplicación consume más memoria que CPU. En este caso, el tipo de instancia se debe cambiar de una instancia optimizada para calcular a una optimizada para memoria. Tenga en cuenta que el gráfico a la derecha del dashboard se puede utilizar para monitor el tiempo de respuesta promedio de la aplicación a medida que realiza estas optimizaciones.
+
+Este es sólo un ejemplo de cómo identificar recursos basados en la nube que podrían ser candidatos para la optimización.
+
+Ahora que ha identificado la arquitectura para la optimización, continúe y hágalo. Ya sea que ajuste el tamaño correcto de su instancia, ajuste su base de datos, modifique su uso de almacenamiento, configure mejor sus balanceadores de carga o incluso rediseñe su aplicación, al final su objetivo es poder comparar su arquitectura nueva y optimizada. contra la anomalía que capturó en el Paso 2. Para obtener más información sobre las anomalías, consulte el [tutorial Establecer objetivos y anomalías](/docs/1-adopt-easily-establish-objectives-baselines-define-team-slos).
+
+## 4. Opcional: configurar alerta [#alerts]
+
+Puede crear una condición de alerta para la consulta NRQL. Asegúrese de consultar la [documentación completa](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) según sea necesario.
+
+Utilice esta consulta para configurar alerta:
+
+```
+SELECT latest(`provider.actualAmount`) as '$ Actual', 
+latest(`provider.forecastedAmount`) as '$ Forecast', 
+max(`provider.limitAmount`) as '$ Limit' 
+FROM FinanceSample WHERE provider = 'BillingBudget' 
+AND `provider.budgetName` = '[Your Cloud Budget]'
+```
+
+Si puede escribir una consulta sobre sus datos y mostrarlos en el panel, podrá usarlos fácilmente para generar [una condición de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+
+### Consulta de anomalía [#anomaly-queries]
+
+New Relic también te permite escribir “anomalía consulta” en tus datos. Estas son consultas que usted escribe sin establecer límites estrictos a los resultados. Más bien, permite que la máquina de alertas New Relic aprenda sus datos de rendimiento y luego le avise cuando sus datos se desvíen demasiado de sus números de anomalía.
+
+Para crear una consulta de anomalía, diríjase a la [consola de Alertas](/docs/alerts/new-relic-alerts/configuring-alert-policies/create-or-rename-alert-policy#alert-policy-name), vaya a política de alertas y agregue una Nueva política de alertas. Luego sigue estos pasos:
+
+1. Crear política de alertas. Asigne a su póliza un nombre conciso y descriptivo y seleccione una Preferencia de incidente. Luego seleccione Crear política de alertas.
+
+2. Crea una condición. Seleccionar <DNT>**NRQL**</DNT>
+
+   <img
+     title="Enter a NQRL query"
+     alt="Enter a NQRL query"
+     src="/images/alert-policy_screenshot-full_enter-nrql.webp"
+   />
+
+3. Defina su consulta y decida cuán restrictivamente las alertas New Relic deben analizar sus datos empleando un control deslizante simple y una visualización basada en su rendimiento reciente.
+
+   <img
+     title="Enter a threshold"
+     alt="Enter a threshold"
+     src="/images/alert-policy_screenshot-full_enter-threshold.webp"
+   />
+
+   El control deslizante en la parte inferior del gráfico aumenta o disminuye la banda gris alrededor del umbral de su presupuesto (la línea azul). La configuración mostrada habría resultado en cero incidentes según datos recientes, y eso es lo que está buscando. Sin embargo, si esa línea azul sube o baja fuera de la banda gris, se lo notificaremos de inmediato.
+
+   Las alertas proporcionan una excelente manera de ayudarlo a conocer de forma proactiva sus gastos en la nube o cualquiera de sus datos de rendimiento.
+
+## Aprende más [#learn-more]
+
+* Revise el tutorial [sobre alertas proactivas y orquestación de incidentes](/docs/4-fail-fast-set-proactive-alerts-align-teams-tools-processes-incident-response) para profundizar en algunas de las mejores prácticas descritas anteriormente.

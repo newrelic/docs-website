@@ -1,0 +1,803 @@
+---
+title: "Subscription usage (original pricing model)"
+tags:
+  - Accounts
+  - Original accounts and billing
+  - Original pricing model usage
+metaDescription: "For New Relic customers on our original pricing plan: about the end-of-life of the original pricing usage UI and how to query your usage."  
+redirects:
+  - /docs/accounts/original-accounts-billing/original-product-based-pricing/introduction-new-relic-subscription-usage-data
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/introduction-new-relic-subscription-usage-data
+  - /docs/apis/rest-api-v2/account-examples-v2/retrieving-account-usage-metrics-rest-api
+  - /docs/introduction-new-relic-subscription-usage-data
+  - /docs/new-relic-subscription-usage-documentation-beta
+  - /docs/accounts-partnerships/accounts/account-billing-usage/account-usage-page-explore-host-pageview-trends-over-time
+  - /docs/accounts-partnerships/accounts/account-billing-usage/account-usage-page-explore-usage-trends-over-time
+  - /docs/accounts/new-relic-account-usage/browser-usage/browser-mobile-account-usage-ui-page
+  - /docs/apis/rest-api-v2/account-examples-v2/get-account-usage-data-rest-api
+  - /docs/accounts/new-relic-account-usage/deprecated-usage-apis/account-apis-apm-browser-mobile-deprecated
+  - /docs/accounts/new-relic-account-usage/getting-started/introduction-subscription-usage-data
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/transition-new-relic-usage-ui-apis
+  - /docs/transition-new-relic-subscription-usage-system
+  - /docs/accounts/new-relic-account-usage/getting-started/transition-new-relic-subscription-usage-system
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/transition-new-relic-subscription-usage-system
+  - /docs/apis/rest-api-v2/account-examples-v2/subscription-usage-apis
+  - /docs/accounts-partnerships/accounts/account-maintenance/account-usage-explore-usage-trends-over-time
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/introduction-new-relic-subscription-usage-data
+  - /docs/accounts/new-relic-account-usage/apm-usage-cu-based/usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/apm-usage/get-compute-unit-cu-based-apm-account-usage-rest-api
+  - /docs/accounts/new-relic-account-usage/deprecated-usage-apis/cu-based-apm-usage-api-deprecated
+  - /docs/accounts/new-relic-account-usage/apm-usage-cu-based/usage-ui-calculation
+  - /docs/accounts/new-relic-account-usage/apm-usage-cu-based/apm-cu-based-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/apm-usage-cu-based/apm-cu-based-subscription-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/apm-cu-based-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/apm-cu-based-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/apm-host-based-subscription-usage
+  - /docs/apm-usage-ui-page-host-based
+  - /docs/apm-host-based-usage-ui-page-beta
+  - /docs/accounts-partnerships/accounts/account-billing-usage/apm-host-based-usage-ui-page
+  - /docs/accounts-partnerships/new-relic-account-usage/apm-usage/apm-host-based-usage-ui-page
+  - /docs/apm/reports/other-performance-analysis/host-usage-report
+  - /docs/accounts/new-relic-account-usage/apm-usage-host-based/usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/apm-usage/host-based-apm-account-usage-rest-api
+  - /docs/accounts/new-relic-account-usage/apm-usage-host-based/apm-host-based-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/apm-usage-host-based/apm-host-based-usage
+  - /docs/accounts/new-relic-account-usage/apm-usage-host-based/usage-ui-calculation
+  - /docs/accounts/new-relic-account-usage/apm-usage-host-based/apm-host-based-subscription-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/apm-host-based-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/browser-subscription-usage  
+  - /docs/browser-subscription-usage-api-attributes-queries
+  - /docs/browser-subscription-usage-ui
+  - /docs/browser-subscription-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/browser-usage/browser-usage-ui
+  - /docs/accounts/new-relic-account-usage/browser-usage/browser-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/browser-usage/browser-subscription-usage-ui
+  - /docs/accounts/new-relic-account-usage/browser-usage/browser-subscription-usage
+  - /docs/browser/single-page-app-monitoring/get-started/spa-monitoring-new-relic-data-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/browser-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/mobile-subscription-usage
+  - /docs/mobile-subscription-usage-api-attributes-queries
+  - /docs/mobile-subscription-usage-attributes-queries
+  - /docs/mobile-subscription-usage-ui
+  - /docs/accounts/new-relic-account-usage/mobile-usage/mobile-subscription-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/mobile-usage/mobile-subscription-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/mobile-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/infrastructure-subscription-usage
+  - /docs/infrastructure-subscription-usage-api-attributes-queries
+  - /docs/infrastructure-subscription-usage-ui
+  - /docs/infrastructure-subscription-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/infrastructure-usage/infrastructure-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/infrastructure-usage/infrastructure-usage-ui
+  - /docs/accounts/new-relic-account-usage/infrastructure-usage/infrastructure-subscription-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/infrastructure-usage/infrastructure-subscription-usage
+  - /docs/accounts/new-relic-account-usage/infrastructure-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/infrastructure-subscription-usage  
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/insights-subscription-usage
+  - /docs/insights-subscription-usage-ui
+  - /docs/insights-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/insights-usage/insights-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/insights-usage/insights-usage-ui
+  - /docs/accounts/new-relic-account-usage/insights-usage/insights-usage-event-queries
+  - /docs/accounts/new-relic-account-usage/insights-usage/insights-subscription-usage
+  - /docs/accounts/new-relic-account-usage/insights-usage/insights-subscription-usage-ui
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/insights-subscription-usage
+  - /docs/accounts/original-accounts-billing/original-pricing-plan-usage/synthetics-subscription-usage
+  - /docs/synthetics-subscription-usage-api-attributes-queries
+  - /docs/synthetics-subscription-usage-ui
+  - /docs/synthetics-subscription-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/synthetics-usage/synthetics-usage-attributes-queries
+  - /docs/accounts/new-relic-account-usage/synthetics-usage/synthetics-subscription-usage
+  - /docs/accounts/new-relic-account-usage/getting-started-usage/synthetics-subscription-usage    
+  - /docs/accounts/original-accounts-billing/product-pricing/product-based-pricing
+  - /docs/subscriptions/subscription-pricing
+  - /docs/accounts-partnerships/accounts/account-setup/subscription-pricing
+  - /docs/accounts-partnerships/accounts/account-setup/subscription-information
+  - /docs/accounts-partnerships/accounts/account-billing-usage/subscription-information
+  - /docs/accounts-partnerships/accounts/account-billing-usage/account-pricing-billing-options
+  - /docs/accounts-partnerships/accounts/subscription-pricing/account-pricing-billing-options
+  - /docs/accounts-partnerships/accounts/account-billing-usage/cu-based-host-based-pricing
+  - /docs/accounts/accounts/subscription-pricing/compute-unit-cu-pricing-vs-host-based-pricing-apm-infrastructure
+  - /docs/accounts-partnerships/accounts/account-billing-usage/compute-unit-pricing-host-pricing
+  - /docs/accounts-partnerships/accounts/subscription-pricing/compute-unit-cu-pricing-vs-host-based-pricing
+  - /docs/accounts-partnerships/accounts/account-billing-usage/upgrade-or-downgrade-your-new-relic-subscriptions
+  - /docs/accounts-partnerships/accounts/subscription-pricing/upgrade-or-downgrade-your-new-relic-subscriptions
+  - /docs/accounts/accounts/subscription-pricing/upgrade-or-downgrade-your-new-relic-subscriptions
+  - /docs/accounts/accounts/subscription-pricing/account-pricing-billing-options
+  - /docs/accounts/accounts/billing/invoices-receipts
+  - /docs/accounts-partnerships/accounts/account-billing-usage/invoices-receipts
+  - /docs/accounts-partnerships/accounts/billing/invoices-receipts
+  - /docs/accounts/original-accounts-billing/product-based-pricing/original-product-based-pricing
+  - /docs/accounts-partnerships/accounts/account-billing-usage/change-credit-card-or-payment-method
+  - /docs/accounts/accounts/billing/change-credit-card-or-payment-method  
+freshnessValidatedDate: never
+---
+
+<Callout variant="important">
+  This doc references our original product-based pricing model. For more about pricing changes, see [Overview of our pricing models](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models/).
+</Callout>
+
+On May 31, 2023, the usage UI for our original pricing model reaches end-of-life (EoL). In this doc are NRQL queries that customers on the original pricing model can use to understand their usage.
+
+## What customers are affected? [#who-is-affected]
+
+This affects New Relic organizations on our [original pricing model](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models/), which is a pricing model where we billed by various products (like <InlinePopover type="apm"/>, <InlinePopover type="browser"/>, Infrastructure monitoring, and more).
+
+## What can you do? [#actions]
+
+If your organization is affected by this end-of-life and you'll be staying on our original pricing plan, options include:
+
+* Create [custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) that include the usage queries below
+* Run one-off queries when you need to understand usage
+
+## Details about querying [#querying]
+
+Some details about querying usage data:
+
+* Usage data is stored on the [`NrDailyUsage` event type](/attribute-dictionary/?event=NrDailyUsage) and the [`NrUsage` event type](/attribute-dictionary/?event=NrUsage)
+* If you're querying the `consumingAccount`, ensure you input the [account ID](/docs/accounts/accounts-billing/account-structure/account-id).
+* Querying with the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) in the UI will query a specific account, and any child accounts. You can also [use NerdGraph for cross-account querying](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/#cross-account-query).
+
+We'll give you some example usage queries below for different product categories.
+
+<CollapserGroup>
+  <Collapser
+    id="apm-cu"
+    title="CU-based APM usage queries"
+  >
+    For details about how CU-based pricing works, see [Host- and CU-based pricing](#cu-vs-host).
+
+    ### Overview queries
+
+    Billboard with comparison to prior time period:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by host:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET hostId,agentHostname,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by host:
+
+    ```sql
+    SELECT rate(SUM(apmComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET hostId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="apm-host"
+    title="Host-based APM usage queries"
+  >
+    For details about how host-based pricing works, see [Host- and CU-based pricing](#cu-vs-host).
+
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed) / 24, 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by host:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET hostId,agentHostname,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by host:
+
+    ```sql
+    SELECT rate(SUM(apmHoursUsed), 1 hour) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'APM' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET hostId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="browser"
+    title="Browser monitoring usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(browserPageViewCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT SUM(browserPageViewCount) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(browserPageViewCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by consuming account:
+
+    ```sql
+    SELECT SUM(browserPageViewCount) as usage 
+    FROM NrDailyUsage, NrUsage WHERE `productLine` = 'Browser' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `isPrimaryApp` != 'false' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="mobile"
+    title="Mobile monitoring usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period, monthly users:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, monthly users:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by mobile app name:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET mobileAppName,mobileAppId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by mobile app name:
+
+    ```sql
+    SELECT SUM(mobileUniqueUsersPerMonth) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Mobile' AND `usageType` = 'Application' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET mobileAppName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="infra"
+    title="Infrastructure monitoring usage queries"
+  >
+    For details about how infrastructure CU-based pricing works, see [Host- and CU-based pricing](#cu-vs-host).
+
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(infrastructureComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT SUM(infrastructureComputeUnits) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by agent hostname:
+
+    ```sql
+    SELECT rate(SUM(infrastructureComputeUnits), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a>  
+    FACET agentHostname 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by host:
+
+    ```sql
+    SELECT SUM(infrastructureComputeUnits) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Infrastructure' AND `usageType` = 'Host' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> 
+    TIMESERIES 1 day 
+    FACET agentHostname 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="logs"
+    title="Logs usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Logs' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'BytesSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics"
+    title="Metrics monitoring usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 minute) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Metrics' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'DataPointsSent' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="serverless"
+    title="Serverless monitoring usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Serverless' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'LambdaEventsSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="synthetics"
+    title="Synthetics usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by monitor name:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsMonitorName,syntheticsMonitorId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by monitor name:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    FACET syntheticsMonitorName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+
+    Usage over time period, by type label:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsTypeLabel 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by type label:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' TIMESERIES 1 day 
+    FACET syntheticsTypeLabel 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+
+    Usage over time period, by location:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    FACET syntheticsLocation 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by location:
+
+    ```sql
+    SELECT rate(SUM(syntheticsSuccessCheckCount + syntheticsFailedCheckCount), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Synthetics' AND `usageType` = 'Check' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `syntheticsTypeLabel` != 'Ping' 
+    TIMESERIES 1 day 
+    FACET syntheticsLocation 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+
+  <Collapser
+    id="traces"
+    title="Traces usage queries"
+  >
+    ### Overview queries
+
+    Billboard with comparison to prior period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    COMPARE WITH 1 month ago 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    TIMESERIES 1 day 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 5
+    ```
+
+    ### Detailed queries
+
+    Usage over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved'  
+    FACET consumingAccountName,consumingAccountId 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 500
+    ```
+
+    Trend chart over time period, by consuming account:
+
+    ```sql
+    SELECT rate(SUM(usage), 1 day) as usage 
+    FROM NrDailyUsage, NrUsage 
+    WHERE `productLine` = 'Traces' AND `consumingAccountId` = <a href='/docs/accounts/accounts-billing/account-structure/account-id'>YOUR_ACCOUNT_ID</a> AND `metric` = 'SpansSaved' 
+    TIMESERIES 1 day 
+    FACET consumingAccountName 
+    SINCE '2023-02-01 00:00:00' UNTIL '2023-03-01 00:00:00' 
+    LIMIT 15
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## APM and infrastructure: Compute-unit vs host-based pricing [#cu-vs-host]
+
+APM offers a choice between two pricing models: [compute unit (CU) based pricing](#compute-unit) and [host-based](#host-based) pricing. New Relic Infrastructure offers only [CU-based pricing](#compute-unit). This section shows how both options are calculated, and explains what "host" means in these pricing contexts:
+
+<CollapserGroup>
+  <Collapser
+    id="compute-unit"
+    title="Compute unit pricing"
+  >
+    On our original pricing model, CU-based pricing is available for these New Relic products:
+
+    * APM (choice of either CU-based pricing or [host-based pricing](#host-based))
+    * Infrastructure: only CU-based pricing
+
+    With CU-based pricing, your monthly price is determined by the size of the [host](#understand) (computing power and memory) running New Relic and the number of hours it connects to New Relic during the month. If a host is connected to New Relic at any time during an hour, that hour counts towards the CU calculation.
+
+    Each host is counted separately for each New Relic account the host reports data to. For example, if you have a parent account with two children accounts, each running applications on the same host for 3,000 CUs in a given month, the usage for the parent account will be 6,000 CUs.
+
+    For APM, CU-based pricing is the best choice if you have many cloud-based dynamic computing resources. For this reason, CU-based pricing is sometimes referred to as <DNT>**cloud pricing**</DNT>.
+
+    CUs are calculated as follows:
+
+    `CUs = (# of CPUs + GBs of RAM) x hours used`
+
+    The maximum size of a given host (CPUs + GB RAM) is capped at 16.
+
+    Examples:
+
+    * If a host has 2 CPU cores, 2GB RAM, and connects to New Relic for one hour (or less than one hour), it consumes 4 CUs.
+    * If a host has 2 CPU cores, 2GB RAM, and connects to New Relic for an entire month (750 hours used as standard month size), it consumes 3,000 CUs.
+
+    You can purchase blocks of CUs to be consumed on a monthly basis. The total number of CUs purchased monthly is calculated by adding up the estimated CU consumption for all hosts for the month. There is no month-to-month rollover of unused CUs. Also, New Relic does not charge by JVMs, containers (such as Docker or Cloud Foundry), or application instances--it charges by the hosts running those containers or application instances.
+
+    Price points vary, depending on the New Relic product and subscription level.
+  </Collapser>
+
+  <Collapser
+    id="host-based"
+    title="Host-based pricing"
+  >
+    <Callout variant="tip">
+      For our original pricing model, APM pricing can be either CU-based or host-based, while New Relic Infrastructure uses only [CU-based pricing](#compute-unit).
+    </Callout>
+
+    With host-based pricing, New Relic charges based on the number of <DNT>**equivalent hosts**</DNT> used in a month. One <DNT>**equivalent host**</DNT> is defined as: a [host](#understand) connected to New Relic for 750 hours (750 hours used as standard month size). If a host is connected to New Relic at any time during an hour, that hour counts towards the host calculation.
+
+    These hours can be divided across multiple hosts. For example, you might have three hosts that are each connected to New Relic for 250 hours during one month: these hours would add up to equal one <DNT>**equivalent host**</DNT>.
+
+    Each host is counted separately for each New Relic account the host reports data to. For example, if you have a parent account with two child accounts, each running applications on the same single host for 750 hours in a given month, the usage for the parent account will be 2 equivalent hosts.
+
+    Once connected to New Relic, hosts are distinguished by their unique hostnames. A host is connected to New Relic when the language agent is active and is deployed on the host. New Relic does not charge by containers (such as Docker or Cloud Foundry), JVMs, or application instances; it charges by the hosts running those containers or application instances.
+
+    New Relic APM gives you a choice between host-based pricing and [CU-based pricing](#compute-unit). Host-based pricing is ideal if you have mainly static environments, consisting of hosts you manage in your own data center.
+  </Collapser>
+
+  <Collapser
+    id="understand"
+    title="How is a &quot;host&quot; defined?"
+  >
+    To understand how New Relic computes both [host-based pricing](#host-based) and [CU-based pricing](#compute-unit), it's important to understand how the word <DNT>**host**</DNT> is used. A host can be one of the following:
+
+    * A <DNT>**physical machine**</DNT> is a hardware-based device with dedicated physical resources, including memory, processing, and storage. Each machine has its own OS which applications run on.
+    * A <DNT>**virtual machine**</DNT> (VM) is the software implementation of a physical machine that executes programs like a physical machine. One or more virtual machines can run on a physical machine. Each virtual machine has its own OS and allocated virtual machine resources such as RAM and CPU.
+    * A <DNT>**cloud instance**</DNT> is a type of virtual machine that is run in the public cloud. In this context, virtual machines and cloud instances are different from Java Virtual Machines (JVMs) and containers.
+
+      For New Relic pricing calculation purposes, a <DNT>**month**</DNT> is defined as 750 hours.
+  </Collapser>
+</CollapserGroup>

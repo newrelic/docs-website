@@ -1,0 +1,46 @@
+---
+title: 'Uninstall Kubernetes integration'
+tags:
+    - Integrations
+    - Kubernetes integration
+    - Uninstall
+metaDescription: "Learn how to uninstall the Kubernetes integration."
+redirects:
+    - /install/kubernetes#uninstall
+    - /docs/kubernetes-pixie/kubernetes-integration/uninstall-kubernetes
+freshnessValidatedDate: never
+---
+
+The New Relic Kubernetes integration can be easily uninstalled from your platform.
+
+Ensure you are operating in the appropriate context on the machine where you are running Helm and `kubectl`. You can check the available contexts with this command:
+
+```bash
+kubectl config get-contexts
+```
+
+Switch to the desired context using:
+
+```bash
+kubectl config use-context CONTEXT_NAME
+```
+
+## Uninstall Kubernetes using Helm [#uninstall-helm]
+
+If you used Helm to install the Kubernetes integration, run:
+
+```bash
+helm uninstall newrelic-bundle -n newrelic
+```
+
+<Callout variant="important">
+  The guided install uses `newrelic-bundle` as the default release name and `newrelic` as the default namespace. If you install our bundle under a different release name or namespace, you'll have to substitute the arguments in the command above: `helm uninstall <RELEASE-NAME> -n <RELEASE-NAMESPACE>`. You can use `helm list --all-namespaces` and look for the bundle `nri-bundle` to find the release name and the release namespace.
+</Callout>
+
+## Uninstall Kubernetes using manifest [#uninstall-manifest]
+
+If you installed Kubernetes integration using a manifest, use the same manifest to uninstall it:
+
+```bash
+kubectl delete -f newrelic.yaml
+```

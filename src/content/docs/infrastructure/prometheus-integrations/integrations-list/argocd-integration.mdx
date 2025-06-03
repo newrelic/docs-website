@@ -1,0 +1,90 @@
+---
+title: 'Argo CD integration'
+tags:
+  - Integrations
+  - ArgoCD
+  - continuous delivery
+  - Prometheus
+  - Kubernetes
+freshnessValidatedDate: never
+---
+
+[Argo CD](https://argoproj.github.io/) is a Kubernetes controller, responsible for continuously monitoring all running applications and comparing their live state to the desired state specified in the Git repository.
+
+Use New Relic to view a dashboard based on Prometheus metrics to better understand the Argo CD infrastructure of your k8s cluster. With New Relic you can monitor:
+
+* Application health status
+* Application sync status
+* Argo CD Controller stats
+* Argo CD Server stats
+* Repository stats
+
+<img
+  title="Argo CD Dashboard"
+  alt="Argo CD Dashboard"
+  src="/images/kubernetes_screenshot-argocd-dashboard.webp"
+/>
+
+## Enable the integration
+
+Follow these steps to enable the integration.
+
+1. Follow the [Argo CD documentation](https://argo-cd.readthedocs.io/en/stable/operator-manual/metrics/) to learn more about the metrics exposed by Argo CD.
+
+2. Set up Prometheus monitoring. Prometheus metrics need to be integrated with New Relic. You can use the Prometheus Agent for Kubernetes or the Prometheus Remote Write integration. See [how to send Prometheus metrics](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) for more details.
+
+   <Callout variant="important">
+     The [Prometheus Agent](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/setup-prometheus-agent#scrape-metrics-only-from-prometheus-integrations-scrape-prometheus-integrations) only scrapes metrics by default from a [set of integrations](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro).
+
+     In this case, you must identify your pod or endpoint with one of the these labels `app.kubernetes.io/name`, `app.newrelic.io/name`, `k8s-app` containing the string `argocd`.
+   </Callout>
+
+3. Use the following query to confirm metrics are being ingested as expected:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE instrumentation.name = 'remote-write' AND metricName LIKE 'argocd_%' FACET metricName LIMIT MAX
+   ```
+
+4. Install the [Argo CD quickstart](https://newrelic.com/instant-observability/argocd-quickstart) to access built-in <InlinePopover type="dashboards"/> and [alerts](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts/).
+
+   Once you imported, you can edit or clone the assets to adapt them to your specific requirements.
+
+   <Callout variant="important">
+     Some charts of the dashboard include queries with conditions that require the identification of your pod or endpoint with one of the these labels `app.kubernetes.io/name`, `app.newrelic.io/name`, `k8s-app` containing the string `argocd`.
+   </Callout>
+
+## Find and use metrics
+
+Prometheus metrics are stored as dimensional metrics. You can [query using NRQL](/docs/telemetry-data-platform/get-data/apis/query-metric-data-type/) or use the [Data Explorer](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) to browse the available metrics, facet, and filter by the associated dimensions.
+
+The different sets of metrics exposed by this integration are defined in the [Argo CD documentation](https://argo-cd.readthedocs.io/en/stable/operator-manual/metrics/).
+
+Use the following NRQL queries to understand the metrics being ingested in New Relic:
+
+* List unique metric names:
+
+  ```sql
+  FROM Metric SELECT uniques(metricName) WHERE instrumentation.name = 'remote-write' AND metricName LIKE 'argocd_%' LIMIT MAX
+  ```
+
+* Data points per minute:
+
+  ```sql
+  FROM Metric SELECT rate(datapointcount(), 1 minute) WHERE instrumentation.name = 'remote-write' AND metricName LIKE 'argocd_%' LIMIT MAX
+  ```
+
+* Estimate data ingestion (daily ingest, in bytes):
+
+  ```sql
+  FROM Metric SELECT bytecountestimate() WHERE instrumentation.name = 'remote-write' AND metricName LIKE 'argocd_%' SINCE 1 day ago
+  ```
+
+## Troubleshooting
+
+* Use this command to verify that the Argo CD Prometheus endpoint is emitting metrics on any K8s node configured with Argo CD:
+
+  ```sh
+  curl <Argo CD-Pod-IP>:8082/metrics
+  ```
+
+* You can also check the specific [troubleshooting guidelines](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/troubleshooting-guide/) for Prometheus integrations.

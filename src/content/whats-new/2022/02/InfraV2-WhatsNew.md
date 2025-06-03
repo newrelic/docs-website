@@ -7,21 +7,23 @@ getStartedLink: 'https://onenr.io/08dQepE9Wje'
 ---
 
 ## New infrastructure monitoring is generally available today
+
 Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure.
 
 <iframe width="560" height="315" src="https://youtube.com/embed/Ro0DCRHxyU8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 New infrastructure monitoring interface makes it easy to find and compare possible infrastructure components.
 
-![New infrastructure monitoring user interface](./images/RelatedEntitiesGA.png  "New infrastructure monitoring user interface")
+![New infrastructure monitoring user interface](/images/RelatedEntitiesGA.webp 'New infrastructure monitoring user interface')
 
 **Highlights**
+
 1. Pinpoint bottlenecks instantly using New Relic Lookout to know where to focus your attention.
 2. Be proactive and find potential infrastructure issues before they affect your customers.
 3. Quantify impact radius and determine by visualizing a timeline of dependencies using automap. Use timewarp to find what and when the issue occurred.
 4. Investigate root cause by analyzing related entities, logs, alerts, events, golden signals, network metrics, processes, storage and more all in context a unified experience to identify the root cause and resolve issues faster.
 
-![Automap with timewarp](./images/RootCauseGA.png "Automap with timewarp")
+![Automap with timewarp](/images/RootCauseGA.webp 'Automap with timewarp')
 
 [Automap](https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/ui-data/automaps/) shows topology and the impact radius. [Timewarp](https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/ui-data/automaps/#timewarp-cursor) helps to find what and when an issue happened.
 

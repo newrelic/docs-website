@@ -1,0 +1,51 @@
+---
+title: New Relic administración de registros seguridad y privacidad
+tags:
+  - Logs
+  - Log management
+  - Get started
+metaDescription: 'What New Relic does to ensure that the log data you send is secure, and what you can do as additional data privacy measures.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con nuestra solución <InlinePopover type="logs"/>, tienes control directo sobre qué datos se reportan a New Relic. Para garantizar la privacidad de los datos y limitar los tipos de información que recibe New Relic , no se capturan datos de los clientes excepto los que usted proporciona en la llamada API o en el reenviador de configuración de registros. Luego, todos los datos del servicio de registro se informan a New Relic a través de HTTPS.
+
+Este documento describe consideraciones de seguridad adicionales para sus datos de registro. Para más información sobre las medidas de seguridad de New Relic:
+
+* Consulte nuestra [documentación de seguridad y privacidad](/docs/security/security-privacy/data-privacy/data-privacy-new-relic).
+* Visite el [sitio web de seguridad de New Relic](https://newrelic.com/security).
+* Lea esta [publicación de blog](https://blog.newrelic.com/product-news/security-use-cases-for-logs/) que explica cómo puede utilizar nuestras herramientas de administración de registros para obtener visibilidad de algunas de las amenazas más graves al negocio digital moderno.
+
+<Callout variant="tip">
+  ¿Tienes muchos logs? Consulte nuestro [tutorial sobre cómo optimizarlos y administrarlos](/docs/tutorial-large-logs/get-started-managing-large-logs/).
+</Callout>
+
+## Ofuscación de logs [#log-obfuscation]
+
+Los datos que envía a New Relic, incluido cualquier filtrado adicional, están controlados por la configuración del [reenviador de registros](/docs/logs/forward-logs/enable-log-management-new-relic) que utiliza. Usted controla qué datos de los clientes se registran, así que asegúrese de seguir las pautas de seguridad de su organización para ocultar, ofuscar o evitar el envío de datos confidenciales.
+
+Además, brindamos ofuscación de logs característicos:
+
+* Nuestra ofuscación de registros automática, que se proporciona de forma predeterminada para todos sus datos New Relic Logs .
+* Nuestra característica de ofuscación de registros, que le permite configurar una regla de ofuscación personalizada.
+
+A continuación, explicaremos ambos con más detalle.
+
+### Ofuscación automática de logs [#auto-obfuscation]
+
+La característica de ofuscación automática de registros está habilitada para todas las cuentas New Relic , de forma predeterminada. Esta característica enmascara automáticamente los patrones numéricos que parecen ser para elementos como tarjetas de crédito o números de Seguro Social. Todos los números enteros, incluidos los espacios y guiones que pueden usarse como delimitadores, se reemplazan por una cadena de `X`es. Esta ofuscación automática solo se aplica al campo `message` .
+
+Los números que parecen ser una tarjeta de crédito (de trece a dieciséis dígitos) se confunden como `XXXXXXXXXXXXXXXX`. Por ejemplo:
+
+* Números con guiones, como `4111-1111-1111-1111`
+* Números con espacios, como `4111 1111 1111 1111`
+* Números de trece (Visa), catorce (Diner's Club), quince (American Express, JCB) o dieciséis dígitos (Visa, Mastercard, Discover, JCB), como `4111111111111111`
+
+Los números de nueve dígitos con guiones que parecen ser números de Seguro Social, como `123-45-6789`, se confunden como `XXXXXXXXX`. Los números de nueve dígitos con espacios, como `123 45 6789` o guiones con un patrón diferente, como `12-345-67-89`, no se ofuscan automáticamente.
+
+Si necesita optar por no participar en la ofuscación automática, [comuníquese con el soporte técnico](https://support.newrelic.com).
+
+### Ofuscación de logs a medida [#custom-obfuscation]
+
+Con nuestra característica de ofuscación de registros, disponible con [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus), le permitimos configurar reglas para ofuscar partes de sus datos cuando llegan a New Relic. Esto lo hace más fácil y seguro para usted, en lugar de tener que rastrear datos confidenciales en todas sus aplicaciones e intentar corregirlos en la fuente. Para obtener más información, consulte [ofuscación de registros](/docs/logs/ui-data/obfuscation-ui).

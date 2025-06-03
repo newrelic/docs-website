@@ -1,0 +1,42 @@
+---
+title: Overview of app launch times
+tags:
+  - Mobile monitoring
+  - New Relic Mobile
+  - Get started
+metaDescription: "Use New Relic mobile monitoring to track the launch time for Android apps"
+freshnessValidatedDate: never
+---
+
+To help gain deeper visibility into your [Android](/docs/mobile-monitoring/new-relic-mobile-android/get-started/introduction-new-relic-mobile-android) and [iOS](/docs/mobile-monitoring/new-relic-mobile-ios/get-started/introduction-new-relic-mobile-ios) application performance and crash troubleshooting, you can also monitor the time it takes for your app to launch. With the abundance of high-quality apps in the marketplace, users have become very sensitive to app launch time and have very high expectations.
+
+## Why would you track app launch time? [#features]
+
+Speed is an essential part of your app's performance, and if it starts slowly, your users are going to notice. Launch speed is indicative of the overall quality of your app, and tracking it will help you assess the responsiveness of your app. New Relic gives you the ability to track key metrics to improve your app's performance, including cold time, hot time, and more.
+
+### Cold start [#cold-start]
+
+A cold start refers to an app's start from scratch. This means that the app's process has not been created by the system until that starting point. Cold starts occur when you are launching the app for the first time since booting or if the app was killed. Since there is no existing process up and running, this is the slowest type of launch. Cold starts are usually the main focus when it comes to minimizing app launch time because these starts take the longest.
+
+### Hot start [#hot-start]
+
+A hot start refers to when your app's process is already running in the background. In a hot start, all the system has to do is bring your app to the foreground. This makes it a lot faster than a cold start because the app is already present in memory. The system doesn't have to repeat the initialization, so it has much less overhead.
+
+To the user, there is very little difference between a cold start scenario and a hot start, which is why it's important to minimize the time taken in both scenarios.
+
+## Mobile app launch time benchmarks [#benchmarks]
+
+According to Google, your app's startup time is not considered excessive if it falls within these thresholds:
+
+* Cold startup should take less than 5 seconds
+* Hot startup should take less than 1.5 seconds
+
+According to Apple, your app's startup time is not considered excessive if it falls within 400ms. The app must launch in less than 20 seconds or the system will kill the app.
+
+## Configuration [#configuration]
+
+To start monitoring launch times, see these docs:
+
+* [(Android) Configure app launch times](/docs/mobile-monitoring/new-relic-mobile-android/install-configure/configure-app-launch-time-android-apps).
+* [(iOS) Configure app launch times](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/app-launch-times-ios-apps).
+  * Note: With iOS agent version 7.4.0 and higher, New Relic automatically reports cold startup time and hot startup time. Warm and prewarmed times are not reported.

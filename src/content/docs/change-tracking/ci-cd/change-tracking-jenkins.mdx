@@ -1,0 +1,231 @@
+---
+title: Track changes using Jenkins
+tags:
+  - APM
+  - APM UI pages
+  - Events
+  - Browser
+  - Mobile
+  - NerdGraph
+metaDescription: "Here's how to use Jenkins to designate what you want to capture with change tracking."
+translate:
+  - kr
+freshnessValidatedDate: never
+---
+
+The change tracking feature allows you to designate changes you want to monitor to see how they affect your customers and systems. While you can designate which changes you want to monitor by using GraphQL or our CLI, you can also record changes using pipelines in Jenkins.
+
+A pipeline will call whatever build you specify and also pass additional environment variables to the build process. This populates the data that is needed for your deployment to show up in charts across New Relic. You'll see the results in the change tracking UIs, and you can use this information to understand the impact of changes on entity health.
+
+## Prerequisites [#prereq]
+
+To install the Jenkins plugin, you'll need:
+
+* Jenkins 1.580.1 or newer
+* Jenkins administrator privileges
+
+## Install the Jenkins plugin [#install]
+
+1. When you open Jenkins, go to <DNT>**Manage Jenkins**</DNT>, then <DNT>**Plugins**</DNT>.
+
+   <img
+     title="Screenshot showing where to find Manage Jenkins"
+     alt="Screenshot showing where to find Manage Jenkins"
+     src="/images/tracking_screenshot-crop_jenkins-home-page.webp"
+   />
+
+2. Click <DNT>**Available plugins**</DNT>, then search `newrelic-deployment-notifier`. Click <DNT>**Install**</DNT>.
+
+   <img
+     title="Screenshot showing how to install the plugin"
+     alt="Screenshot showing how to install the plugins"
+     src="/images/tracking_screenshot-crop_jenkins-install-notifier.webp"
+   />
+
+3. A new page appears with  your installation's progress. No restart is needed for the plugin.
+
+## Create Post-build Action [#create-post--build-action]
+
+To add the New Relic Deployment Notifier as a Post-build Action in your Jenkins build job configuration:
+
+1. In your Jenkins job configuration go to the <DNT>**Post-build Actions section**</DNT>, click on <DNT>**Add post-build action**</DNT>, then select <DNT>**New Relic Deployment Notifications**</DNT>.
+
+<img
+  style={{ align: "left" }}
+  title="Screenshot showing the Add post-build action button, with the dropdown menu showing New Relic Deployment Notifications"
+  alt="Screenshot showing the Add post-build action button, with the dropdown menu showing New Relic Deployment Notifications"
+  src="/images/tracking_screenshot-crop_jenkins--postbuild.webp"
+/>
+
+2. Create a username/password credential for the User [API key](/docs/apis/intro-apis/new-relic-api-keys/). Enter the key as the password.
+
+   <img
+     style={{ align: "left" }}
+     title="Screenshot showing credential creation dialog"
+     alt="Screenshot showing credential creation dialog"
+     src="/images/tracking_screenshot-crop_jenkins--credential.webp"
+   />
+
+3. Select an entity in the dropdown list.
+
+   <img
+     style={{align: "left"}}
+     title="Screenshot showing how to find Deployment Notifications"
+     alt="Screenshot showing how to find Deployment Notifications"
+     src="/images/tracking_screenshot-crop_jenkins--validcredential.webp"
+   />
+
+4. Add the required `Version` or `Revision` value, and any of the optional values. You can [use environment variables](https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#using-environment-variables) in these fields, like `${BUILD_NUMBER}`.
+
+   <img
+     style={{ align: "left" }}
+     title="Screenshot showing optional fields"
+     alt="Screenshot showing optional fields"
+     src="/images/tracking_screenshot-crop_jenkins--optional.webp"
+   />
+
+   <table>
+     <thead>
+       <tr>
+         <th style={{ width: "200px" }}>
+           Field
+         </th>
+
+         <th>
+           Description
+         </th>
+       </tr>
+     </thead>
+
+     <tbody>
+       <tr>
+         <td>
+           Description
+         </td>
+
+         <td>
+           Insert a description of what you are tracking.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Revision
+         </td>
+
+         <td>
+           Revision for the deployment. `${BUILD_NUMBER}` could be a good value here.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Changelog
+         </td>
+
+         <td>
+           Reference to the list of changes incurred in the deployment.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Commit
+         </td>
+
+         <td>
+           A hash to reference the commit ID.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Deeplink
+         </td>
+
+         <td>
+           A deep link to either the Jenkins job or any other reference to the deployment.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           EntityGuid
+         </td>
+
+         <td>
+           The application entity in reference to the deployment (see [More about the application GUID](#guid)).
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           DeploymentType
+         </td>
+
+         <td>
+           The type of deployment that is being conducted.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           GroupId
+         </td>
+
+         <td>
+           An identifier to reference a cluster of changes.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Timestamp
+         </td>
+
+         <td>
+           Optional timestamp in Unix Epoch long format. If not provided, then we will set it to the time we received the request, which will be the number of milliseconds since the Unix Epoch.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Version
+         </td>
+
+         <td>
+           Version of what's being deployed. `${BUILD_NUMBER}` could be a good value here.
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           User
+         </td>
+
+         <td>
+           The user conducting the deployment. <DNT>**Tip:**</DNT> You can install [Build User Vars Plugin](https://wiki.jenkins.io/display/JENKINS/Build+User+Vars+Plugin) to have environment variables regarding the Jenkins user, and can use them in this field, like `${BUILD_USER}`.
+
+           <img
+             style={{ align: "left" }}
+             title="Screenshot showing User field set to ${BUILD_USER}"
+             alt="Screenshot showing User field set to ${BUILD_USER}"
+             src="/images/tracking_screenshot-crop_jenkins--user.webp"
+           />
+         </td>
+       </tr>
+     </tbody>
+   </table>
+
+5. (Optional) If this Jenkins job affects multiple entities, they can be added to receive notifications as well. Click the <DNT>**Add another notification**</DNT> button to add more apps.
+
+## What's next? [#whats-next]
+
+After you've designated the changes you want to track, you can analyze the effect of those changes in the New Relic UI. For details, see [How to view and analyze your changes in New Relic](/docs/change-tracking/change-tracking-view-analyze).
+
+## Remove the plugin [#remove-plugin]
+
+1. From the <DNT>**Plugins**</DNT> page, click <DNT>**Installed plugins**</DNT>.
+2. Search for `newrelic-deployment-notifier`.
+3. Click the red `X`.
+   <img title="Screenshot to remove the plugin" alt="Screenshot to remove the plugin" src="/images/tracking_screenshot-crop_jenkins-rollback.webp"/>

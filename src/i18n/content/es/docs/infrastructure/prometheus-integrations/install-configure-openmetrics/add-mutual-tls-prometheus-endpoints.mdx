@@ -1,0 +1,30 @@
+---
+title: Agregue TLS mutuo a Prometheus extremo
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: 'To include an additional level of security, add mutual TLS to your Docker or Kubernetes config file for the Prometheus OpenMetrics integration with New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede configurar la autenticación TLS mutua cuando sea necesario para el extremo en su integración Prometheus OpenMetrics con New Relic. Agregue `tls_config` a su archivo de configuración para docker, como se explica en este ejemplo.
+
+## Agregar secreto al archivo de configuración [#mutual-tls-authentication]
+
+Recomendación: coloque los archivos de certificado, clave y paquete de CA en un secreto e inclúyalos en el contenedor de integración de Prometheus OpenMetrics.
+
+La autenticación TLS mutua se limita a una lista estática de URL. Para configurar extremos que requieren autenticación MTLS, siga este ejemplo:
+
+```
+targets:
+- description: "Secure etcd example"
+  urls: ["https://123.456.7.1:2379", "https://123.456.7.2:2379"]
+  tls_config:
+    ca_file_path: "/etc/etcd/etcd-client-ca.crt"
+    cert_file_path: "/etc/etcd/etcd-client.crt"
+    key_file_path: "/etc/etcd/etcd-client.key"
+transformations:
+  ...
+```

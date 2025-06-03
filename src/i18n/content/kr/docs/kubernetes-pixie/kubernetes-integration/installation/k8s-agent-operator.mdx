@@ -1,0 +1,571 @@
+---
+title: Kubernetes APM 자동 연결
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+  - APM auto-attach
+metaDescription: Learn how to use the Kubernetes APM auto-attach to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+Kubernetes APM Kubernetes 이전에 에이전트 Kubernetes APM 연산자로 알려진 자동 Kubernetes 연결은 에이전트 배포와 함께 배포를 자동화하여 환경에 대한 풀스택 옵저버빌리티를 간소화합니다. <InlinePopover type="APM" />자동 측정을 활성화하면 개발자는 더 이상 [APM 에이전트를](/docs/apm/new-relic-apm/getting-started/introduction-apm/) 수동으로 관리할 필요가 없습니다. Kubernetes APM 자동 연결은 APM 에이전트를 자동으로 설치, 업그레이드 및 제거합니다.
+
+현재 Java, .NET, Node.js를 [지원합니다](#k8s-supported-versions) . 파이썬, 루비, PHP.
+
+## 작동 원리 [#how-it-works]
+
+* 설치 시 `MutatingWebHook`는 노드에 구현하다, 배포하다 파드에 대한 API 요청을 가로채는 데 관여하게 됩니다.
+
+* 지정된 설정을 반영하여 파드 사양을 변경하여 NR init컨텍스트 및 환경 변수를 추가합니다.
+
+* 파드 설립 이후, 뉴렐릭 APM 에이전트는 그 안에 수용된 기능에 원활하게 통합됩니다.
+
+<img title="Diagram showing how APM agents are auto injected" alt="Diagram showing how APM agents are auto injected" src="/images/K8s-APM-auto-attach-diagram.webp" />
+
+## 시작하기 전에 [#before-begin]
+
+오퍼레이터를 설치하기 전에 다음 사항을 확인하십시오.
+
+* [Helm](https://helm.sh/): 차트를 사용하기 위해서는 반드시 설치해야 합니다. 시작하는 데 도움이 필요하면 [Helm 문서를](https://helm.sh/docs/) 참조하세요.
+
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/): 클러스터와 통신하도록 구성해야 합니다.
+
+## 설치 [#install-k8s-operator]
+
+요구 사항에 따라 Kubernetes APM 자동 연결을 Kubernetes 통합과 함께 또는 독립적으로 설치할 수 있습니다.
+
+[전체 풀스택 옵저버빌리티](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 경험을 활용하려면 통합과 함께 설치하는 것이 좋습니다.Kubernetes
+
+### Kubernetes 통합에 추가로 번들 설치(권장) [#bundle-installation]
+
+Kubernetes APM 자동 연결 차트는 [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 차트의 일부로, 전체 Kubernetes 옵저버빌리티를 활성화하는 데 필요한 모든 구성 요소의 설치를 관리합니다.
+
+`k8s-agents-operator.enabled=true` 파라미터를 helm 명령에 추가하거나 [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) 파일에 포함하세요. Helm 사용에 대한 자세한 내용은 [Kubernetes 통합 설치](/install/kubernetes/?dropdown1=helm) 페이지를 참조하거나 [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 차트를 확인하세요.
+
+시위를 사용하여 Helm 명령 샘플을 확인하세요.
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY \
+    --set global.cluster=CLUSTER_NAME \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### 독립형 설치 [#standalone-installation]
+
+기본 설정으로 Kubernetes APM 자동 연결을 설치하려면 다음 명령을 실행하세요.
+
+```shell
+helm repo add k8s-agents-operator https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+```
+
+설정 옵션의 전체 목록을 보려면 [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) 차트를 참조하세요.
+
+## 자동 계측 구성 [#configure-auto-instrumentation]
+
+클러스터에 APM 자동 연결이 모두 설정되면 다음 단계는 이를 작동시키는 데 필요한 구성을 롤아웃하는 것입니다. 여기에는 클러스터에서 최소한 하나의 계측 사용자 정의 리소스(CR)가 활성화되어 있어야 합니다.
+
+계측 CR을 사용하면 다음을 매핑할 수 있습니다.
+
+* 계측기 이름 CR
+* 계측 CR을 적용할 위치( `podLabelSelector` 및 `namespaceLabelSelector` 덕분에)
+* APM 에이전트(CR당 하나)
+* APM 에이전트 버전
+* APM config 수행, (env vars)
+* 라이선스 키 (선택 사항)
+
+매니페스트 파일은 APM 자동 연결을 설치한 것과 동일한 네임스페이스(기본적으로 `newrelic` )에 삽입되어야 합니다.
+
+```bash
+kubectl apply -f ./values.yaml -n newrelic
+```
+
+### 선택기를 사용하는 방법 [#selectors]
+
+측정, 로그 CR이 APM 에이전트를 주입할 시기를 알려면 선택기를 사용해야 합니다. 사용자의 요구 사항에 따라 함께 사용할 수 있는 2개의 레이블 선택기가 있습니다(논리적 AND(`&&`) 연산자로 작동) 또는 별도로 사용할 수 있습니다.
+
+* `PodLabelSelector` APM 자동 연결에 어떤 파드를 데이터베이스화해야 하는지 알려줍니다.
+
+  `matchLabel` 사용한 예(특정 태그와 값이 포함된 파드 선택):
+
+  ```yaml
+  ...
+  podLabelSelector:
+    matchLabels:
+      app.kubernetes.io/name: flask-hello-world
+  ...
+  ```
+
+* `NameSpaceLabelSelector` 지우스페이스 수준에서 자동 계측된 패드를 정의합니다.
+
+  `matchExpressions` 사용한 예(특정 태그와 값을 포함하는 네임스페이스 선택):
+
+  ```yaml
+  ...
+  namespaceLabelSelector:
+    matchExpressions:
+      - key: "kubernetes.io/metadata.name"
+        operator: "In"
+        values: ["backend"]
+  ...
+  ```
+
+  <Callout title="팁">
+    `kubernetes.io/metadata.name` 라벨을 적용하는 것은 네임스페이스 이름을 기준으로 선택하는 것과 동일하다는 점에 유의하세요.
+  </Callout>
+
+두 선택기 모두 `matchLabel` 및 `matchExpressions` 지원합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="label-selectors"
+    title={<><InlineCode>
+      matchLabel
+    </InlineCode> 사용 방법 및 <InlineCode>
+      matchExpressions
+    </InlineCode></>
+    }
+  >
+    `matchExpressions` Kubernetes의 보다 표현력이 뛰어난 레이블 선택기이며 정확한 일치에만 사용할 수 있는 `matchLabels` 과 달리 집합 기반 일치를 지원합니다. `matchLabels` 선택기를 사용하거나 사용하지 않고도 사용할 수 있습니다.
+
+    ```yaml
+    ...
+    selector:
+      matchLabels:
+        tier: frontend
+      matchExpressions:
+        - {key: name, operator: In, values: [payroll, web]}
+        - {key: environment, operator: NotIn, values: [dev]}
+    ...
+    ```
+
+    선택기에 더 많은 표현식을 추가할 수 있습니다. 예시에서처럼 각 표현식에는 키, 연산자, 그리고 (연산자에 따라) 값 목록이 포함되어야 합니다. 유효한 연산자는 4개입니다.
+
+    * `In`: 라벨의 값은 지정된 값 중 하나와 일치해야 합니다.
+    * `NotIn`: 라벨의 값은 지정된 값과 일치해서는 안 됩니다.
+    * `Exists`: 파드에는 지정된 키가 포함된 라벨이 포함되어야 합니다(값은 중요하지 않습니다). 이 연산자를 사용할 때는 값 필드를 지정하면 안 됩니다.
+    * `DoesNotExist`: 파드에는 지정된 키가 포함된 라벨이 포함되어서는 안 됩니다. 값 속성을 지정할 수 없습니다.
+
+    여러 표현식을 지정하는 경우 선택자가 파드와 일치하려면 모든 표현식이 true로 평가되어야 합니다. `matchLabels` 및 `matchExpressions` 모두 지정하는 경우 모든 레이블이 일치해야 하며 모든 표현식이 참으로 평가되어야 파드가 선택기와 일치합니다.
+  </Collapser>
+</CollapserGroup>
+
+### APM 에이전트 [#apm-agent]
+
+계측 CR 내에서 APM 에이전트와 해당 버전을 지정해야 합니다. 사용 가능한 최신 기능을 최대한 활용하려면 최신 버전을 사용하는 것이 좋습니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        언어
+      </th>
+
+      <th>
+        영상
+      </th>
+
+      <th>
+        사용 가능한 버전
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        닷넷
+      </td>
+
+      <td>
+        `newrelic-dotnet-init:latest`
+      </td>
+
+      <td>
+        [.그물](https://hub.docker.com/repository/docker/newrelic/newrelic-dotnet-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        자바
+      </td>
+
+      <td>
+        `newrelic-java-init:latest`
+      </td>
+
+      <td>
+        [자바](https://hub.docker.com/repository/docker/newrelic/newrelic-java-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        노드제이에스
+      </td>
+
+      <td>
+        `newrelic-node-init:latest`
+      </td>
+
+      <td>
+        [마디](https://hub.docker.com/repository/docker/newrelic/newrelic-node-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        파이썬
+      </td>
+
+      <td>
+        `newrelic-python-init:latest`
+      </td>
+
+      <td>
+        [파이썬](https://hub.docker.com/repository/docker/newrelic/newrelic-python-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        루비
+      </td>
+
+      <td>
+        `newrelic-ruby-init:latest`
+      </td>
+
+      <td>
+        [루비](https://hub.docker.com/repository/docker/newrelic/newrelic-ruby-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        페프
+      </td>
+
+      <td>
+        `newrelic-php-init:latest`
+      </td>
+
+      <td>
+        [PHP](https://hub.docker.com/repository/docker/newrelic/newrelic-php-init/general)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+이 예를 보세요:
+
+```yaml
+...
+spec:
+  agent:
+    language: dotnet
+    image: newrelic/newrelic-dotnet-init:latest
+...
+```
+
+### APM 설정 방법, [#apm-config-parameters]
+
+로그 CR은 APM 에이전트의 설정을 간소화하기 위해 패드에 환경 변수를 주입하는 기능을 제공합니다. 이 예를 보세요:
+
+```yaml
+...
+spec:
+  env:
+    # Example overriding the appName configuration by using a label of the pod
+    - name: NEW_RELIC_APP_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/name']
+...
+```
+
+위의 예에서는 환경 변수를 사용하여 에이전트 설정을 전역적으로 구성하는 방법을 보여드립니다. 사용 가능한 설정 옵션은 각 에이전트의 설정 문서를 참조하세요.
+
+* [자바](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [마디](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+* [파이썬](/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
+* [.그물](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
+* [루비](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
+* [PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
+
+<Callout variant="important">
+  이러한 환경 변수는 앱 배포 매니페스트에 삽입할 수 있습니다.
+</Callout>
+
+### 라이선스 키 (선택 사항) [#license-keys]
+
+설치하면 <InlinePopover type="licenseKey" />이 생성되고 이것이 기본 라이센스입니다. APM 텔레메트리를 다른 계정으로 보내야 하는 경우 다음 단계를 따르세요.
+
+* 새 라이선스 키가 포함된 비밀을 생성하려면 다음 명령을 실행하세요.
+
+  ```bash
+  kubectl create secret generic newrelic-key-secret \
+      --namespace my-monitored-namespace \
+      --from-literal=new_relic_license_key=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+  ```
+
+* 계측 CR에서 비밀을 참조하려면 다음 명령을 실행하세요.
+
+  ```yaml
+  ...
+  spec:
+    licenseKeySecret: the-name-of-the-custom-secret
+  ...
+  ```
+
+## 계측 CR 예제 [#cr-examples]
+
+<CollapserGroup>
+  <Collapser id="label-selector-dotnet" title="Python 에이전트: 특정 레이블과 값이 있고 앱 이름을 재정의하는 파드">
+    ```yaml
+    apiVersion: newrelic.com/v1alpha2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+        env:
+          - name: NEW_RELIC_APP_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-java" title="이동 에이전트: 특정 지우스페이스의 패드">
+    ```yaml
+    apiVersion: newrelic.com/v1alpha2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-ruby" title="루비 에이전트: 루비 라벨이 포함되어 있고 다른 계정으로 데이터를 보내는 모든 라벨스페이스">
+    ```yaml
+    apiVersion: newrelic.com/v1alpha2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-ruby
+      namespace: newrelic
+    spec:
+      agent:
+        language: ruby
+        image: newrelic/newrelic-ruby-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "Ruby"
+            operator: "Exists"
+      licenseKeySecret: the-name-of-the-custom-secret
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 애플리케이션에서 APM 계측 업데이트 [#upgrade-apm-instrumention]
+
+기본적으로 Kubernetes APM 자동 연결은 해당 [APM 에이전트](/docs/apm/new-relic-apm/getting-started/introduction-apm/) 의 최신 사용 가능한 버전을 자동으로 설치합니다.
+
+애플리케이션 모니터링이 시작되면 사용자가 업데이트를 선택하지 않는 한 자동으로 새로운 버전으로 업데이트되지 않습니다. 파드를 재배포하거나 배포를 다시 시작하여 기능을 업데이트할 수 있습니다.
+
+## 애플리케이션에서 APM 계측 제거 [#remove-apm-instrumentation]
+
+애플리케이션에서 APM 계측을 제거하려면 사용된 `podLabelSelector` 또는 `namespaceLabelSelector` 내부의 일치하는 레이블 선택기를 변경하거나 계측 CR을 삭제해야 합니다. 그런 다음 배포를 다시 시작합니다. 제거 과정은 몇 초 밖에 걸리지 않습니다.
+
+## Kubernetes APM 자동 연결 업데이트 [#update-k8s-auto-attach]
+
+### 번들 설치 [#upgrading-bundle-installation]
+
+다음 모범 사례를 사용하여 `nri-bundle` 차트 업데이트를 실행합니다.
+
+```shell
+k8s-agents-operator.enabled=true
+```
+
+### 독립형 설치 [#standalone-installation]
+
+Kubernetes APM 자동 연결의 최신 버전으로 업데이트하려면 `helm upgrade` 명령을 실행하세요.
+
+```shell
+helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Kubernetes APM 자동 연결 제거 [#uninstall-k8s-auto-attach]
+
+### 번들 설치 [#uninstall-bundle-installation]
+
+`nri-bundle` 차트를 제거하거나 Kubernetes APM 자동 연결만 제거하려면 다음 명령어를 사용하여 helm 업그레이드를 실행합니다.
+
+```shell
+k8s-agents-operator.enabled=false
+```
+
+### 독립형 설치 [#uninstall-standalone-installation]
+
+Kubernetes APM 자동 연결을 제거하고 삭제하려면 다음 명령을 실행하세요.
+
+```shell
+helm uninstall k8s-agents-operator -n newrelic
+```
+
+## 데이터 찾기 및 사용 [#find-data]
+
+* [APM 요약](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/) 페이지를 사용하여 인사이트를 얻고 인시던트를 해결하세요.
+
+* [Kubernetes 요약](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 페이지를 확인하세요. 이는 모니터의 맥락에서 Kubernetes 인사이트를 제공합니다.
+
+## 인증서 [#certificates]
+
+Kubernetes APM 자동 연결은 원하는 경우 [`cert-manager`](https://github.com/cert-manager/cert-manager) 지원할 수 있습니다.
+
+* [`cert-manager`](https://github.com/cert-manager/cert-manager) Helm 차트를 설치하려면 다음 명령을 실행하세요.
+
+  ```shell
+  helm install cert-manager jetstack/cert-manager \
+      --namespace cert-manager \
+      --create-namespace \
+      --set crds.enabled=true
+  ```
+
+* `values.yaml` 파일에서 `admissionWebhooks.autoGenerateCert.enabled: false` 및 `admissionWebhooks.certManager.enabled: true` 설정합니다. 그런 다음 평소처럼 차트를 설치합니다.
+
+## 사용 가능한 차트 릴리스 [#available-chart-releases]
+
+사용 가능한 차트를 보려면 다음 명령을 실행하세요.
+
+```shell
+helm search repo k8s-agents-operator
+```
+
+## 자주 묻는 질문 [#faq]
+
+<CollapserGroup>
+  <Collapser id="route-apps-telemetry" title="내 기능 프레임워크를 다른 계정으로 라우팅할 수 있나요?">
+    네, 클러스터에 더 많은 비밀을 추가하기만 하면 됩니다. [라이선스 키(선택 사항)](#license-keys%5D) 섹션에서 필요한 단계를 확인하세요.
+
+    <Callout variant="important">
+      [K8s APM 체험은](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 로그 및 쿠버네티스 클러스터의 데이터가 제공되는 계정에서만 이용 가능합니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="modify-conf-apm" title="내 소스가 이미 업로드된 경우 Kubernetes APM 자동 연결을 설치할 수 있나요?">
+    동일한 애플리케이션에 두 개의 APM 에이전트를 설치하면 예상치 못한 문제가 발생할 수 있습니다. 따라서 설치하기 전에 기존 계측기를 제거하는 것을 적극 권장합니다.
+  </Collapser>
+
+  <Collapser id="custom-apm" title="Kubernetes APM 자동 연결과 함께 사용자 정의를 사용할 수 있나요?">
+    예, 사용자 정의는 APM 자동 연결이 없는 경우와 동일하게 작동합니다. 주요 차이점은 이제 에이전트가 나머지 독립성/종속성과 함께 컨테이너에 설치되는 대신 APM 자동 연결에 의해 주입된다는 것입니다.
+
+    에이전트 API 가져오고 호출하여 사용자 정의를 추가할 수 있습니다. 또한 사용 중인 특정 에이전트가 지원하는 경우 설정 파일이나 환경 변수를 활용하여 사용자 로그를 추가할 수도 있습니다. 에이전트는 환경 변수를 통한 설정과 설정 파일을 통한 설정 사이에 우선 순위가 있으므로 연산자를 통한 환경 변수 설정이 설정 파일을 통한 설정과 충돌하지 않는지 확인해야 합니다. 자세한 내용은 각 에이전트 권한 문서를 참조하세요.
+
+    * [자바](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation/)
+    * [마디](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation/)
+    * [파이썬](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+    * [.그물](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/)
+    * [루비](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+    * [PHP](/docs/apm/agents/php-agent/features/php-custom-instrumentation/)
+  </Collapser>
+
+  <Collapser id="read-only-file-system" title="애플리케이션이 읽기 전용 파일 시스템에서 실행되는 경우 Kubernetes APM 자동 연결을 설치할 수 있습니까?">
+    아니, 그럴 수 없어요. APM 에이전트는 애플리케이션 런타임에 주입되며 애플리케이션 컨테이너의 파일 시스템에 쓰기 위해 액세스해야 합니다.
+  </Collapser>
+
+  <Collapser id="setup-operator" title="Windows 노드에서 Kubernetes APM 자동 연결을 설정할 수 있나요?">
+    Linux 노드만 지원합니다.
+
+    가까운 미래에 Windows 노드 지원이 제공될 것으로 예상됩니다.
+  </Collapser>
+
+  <Collapser id="setup-operator" title="Fargate 노드에서 Kubernetes APM 자동 연결을 설정할 수 있나요?">
+    EKS가 있는 [AWS Fargate](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-eks-fargate/) 노드에서는 테스트되지 않았습니다.
+  </Collapser>
+</CollapserGroup>
+
+## 문제점 해결 [#troubleshooting]
+
+로그가 포함되지 않은 경우 다음을 확인해야 합니다.
+
+* Kubernetes APM 자동 연결을 설치한 후에는 반드시 재배포하거나 구현하고, 새로운 기능을 구현하세요. 클러스터에서는 자동 계측된 새로운 기능만 구현하다, 배포하다라는 점에 유의하세요.
+
+* 앱의 네임스페이스에 비밀이 설치되었는지 확인하려면 다음 명령을 실행하세요.
+
+  ```bash
+  kubectl get secrets -n NAMESPACE
+  ```
+
+* `podLabelSelector` 사용할 때 CR을 통한 자동 시스템을 활성화하는 데 필요한 레이블이 파드에 있는지 확인하세요. 마찬가지로 CR 내부에서 `namespaceLabelSelector` 사용할 때 네임스페이스에 필요한 레이블이 있는지 확인하세요.
+
+  ```bash
+  kubectl get pod POD_NAME -n NAMESPACE -o jsonpath='{.metadata.annotations}'
+  ```
+
+* APM 자동 연결 패드에서 로그를 가져오려면 다음 명령을 실행하세요.
+
+  ```bash
+  kubectl logs AGENT_OPERATOR_POD -n newrelic
+  ```
+
+* 이 명령을 실행하여 `init` 컨테이너가 삽입되고 특수 파드 내부에서 성공적으로 실행되었는지 확인하세요.
+
+  ```bash
+  kubectl describe pod POD_NAME -n NAMESPACE
+  ```
+
+## 주석이 필요한 이전 버전에서 마이그레이션하는 방법 [#migrate]
+
+버전 0.14부터, 작곡을 자동 계측하기 위해 더 이상 작곡 배포 매니페스트 내의 주석이 필요하지 않습니다.
+
+0.14 이전 버전을 모두 제거하고 최신 릴리스 버전을 설치하는 것이 좋습니다. 계측 CR 내의 레이블 선택기를 활용하면 APM 에이전트를 정확하게 배포할 수 있으므로 주석이 필요하지 않습니다.
+
+## 지원하다 [#support]
+
+Kubernetes APM 자동 연결은 표준 APM 에이전트 지원 정책에 따라 다음 언어와 해당 언어의 최소 지원 버전을 지원합니다.
+
+* **자바 에이전트:** 8.12
+* **.NET 에이전트:** 10.25
+* **루비 에이전트:** 9.10
+* **Node.js 에이전트:** 11.9
+* **파이썬:** 9.10
+* **PHP:** 11.12
+
+문제가 있는 경우:
+
+* 비슷한 문제가 있는지 [GitHub의 문제 섹션을](https://github.com/newrelic/k8s-agents-operator/issues) 검토하거나 새 문제를 여는 것을 고려해 보세요.
+
+* [뉴렐릭 지원팀](https://support.newrelic.com/) 에 연락하여 도움을 받으실 수 있습니다.

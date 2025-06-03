@@ -1,0 +1,187 @@
+---
+title: 'Problemas de agrupación métrica (APM, browser, móvil)'
+type: troubleshooting
+tags:
+  - Using New Relic
+  - Cross-product functions
+  - Troubleshooting
+metaDescription: 'Understanding metric grouping issues if your app sends too many metrics to New Relic, preventing MGI from occurring, and troubleshooting steps.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Para nuestras características <InlinePopover type="apm"/>, <InlinePopover type="browser"/>y <InlinePopover type="mobile"/>, puede haber casos en los que una cuenta o aplicación envía muchos [puntos de datos de intervalo de tiempo de métrica](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data) individuales que podrían administrarse mejor agrupándolos. Usamos el término <DNT>**metric grouping issue**</DNT> o <DNT>**MGI**</DNT> para describir esta situación. Cuando esto ocurre, el agente envía cantidades innecesariamente grandes de datos a New Relic, lo que reduce la eficacia de los gráficos, tablas e informes de New Relic.
+
+Los problemas de agrupación métrica ocurren más comúnmente con transacciones web, especialmente si el nombre se basa en URL. También pueden ocurrir con otras métricas reportadas por tu aplicación. Por ejemplo:
+
+* Si su aplicación rastrea Internet y cada llamada externa va a un dominio diferente
+* Si su software genera dinámicamente tablas de base de datos temporales cada vez que recibe una solicitud
+* Si está utilizando [instrumentación personalizada](/docs/agents/manage-apm-agents/agent-metrics/custom-instrumentation) que incluye UUID, nombres de artículos o componentes únicos similares
+
+Cualquier situación en la que se pueda crear una lista potencialmente infinita de métricas, en lugar de agruparlas de manera efectiva (como ocurre con los controladores, las tablas de base de datos permanentes o servicios externos específicos), puede convertirse en un problema de agrupación de métricas.
+
+## Solución
+
+Al comprender qué es la agrupación métrica y cómo pueden surgir problemas, podrá comprender mejor cómo funciona New Relic con su aplicación para agrupar métricamente de manera efectiva y ayudar a prevenir que ocurran problemas de agrupación métrica.
+
+<img
+  title=" Before and after"
+  alt=" Before and after"
+  src="/images/solutions_screenshot-crop_metric-grouping.webp"
+/>
+
+<figcaption>
+  Aquí hay un ejemplo de "antes" y "después" de cómo la agrupación métrica puede ayudar a organizar las transacciones, para ayudarle a identificar más fácilmente patrones con problemas de desempeño.
+</figcaption>
+
+Para ayudar a evitar que ocurran problemas de agrupación métrica en su aplicación:
+
+1. Consulte las [notas de la versión de New Relic](/docs/release-notes) para verificar que esté ejecutando la última versión del agente New Relic.
+2. Si es necesario, [actualice su APM/móvil/agente del navegador](/docs/agents/manage-apm-agents/installation/update-new-relic-agent) a la última versión.
+3. Espere unos minutos y luego mire los nuevos datos en la UI de New Relic.
+4. Verifique/consulte [`NrIntegrationError`](/docs/data-apis/manage-data/nrintegrationerror/) para el evento con nombre `MetricCardinalityNearLimit`. La creación de estos eventos ocurre cuando su aplicación se acerca al límite de cardinalidad.
+
+Si el problema persiste, siga los procedimientos indicados por su agente:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Agente
+      </th>
+
+      <th>
+        Prevención de MGI
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Todo agente
+      </td>
+
+      <td>
+        Revise la información sobre [las causas de los problemas de agrupación métrica](#what).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Browser
+      </td>
+
+      <td>
+        [Agregar agrupaciones de URL](/docs/browser/new-relic-browser/configuration/url-whitelists-grouping-browser-metrics#adding).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Go
+      </td>
+
+      <td>
+        Cambie el nombre de su [transacción Go](/docs/agents/go-agent/instrumentation/instrument-go-transactions).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Java
+      </td>
+
+      <td>
+        Ver [Problemas de agrupación métrica de Java](/docs/agents/java-agent/troubleshooting/resolve-metric-grouping-issues-java).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        .NET
+      </td>
+
+      <td>
+        Cambie el nombre de métrica con [`SetTransactionName`](/docs/agents/net-agent/net-agent-api/set-transaction-name). Para obtener más información sobre el uso de XML para agregar detalles, consulte [Nombre de transacción](/docs/agents/net-agent/custom-instrumentation/add-detail-transactions-xml-net#name-transactions).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Node.js
+      </td>
+
+      <td>
+        Cambiar el nombre de la transacción con [Solicitar llamada API](/docs/agents/nodejs-agent/api-guides/nodejs-agent-api#request-api).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        PHP
+      </td>
+
+      <td>
+        [Cambie el nombre de su transacción PHP](/docs/agents/php-agent/frameworks-libraries/php-frameworks-integrating-support-new-relic#dev).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Python
+      </td>
+
+      <td>
+        Cambie el nombre de su transacción Python con [`set_transaction_name`](/docs/agents/python-agent/python-agent-api/set_transaction_name).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ruby
+      </td>
+
+      <td>
+        [Cambie el nombre de su transacción Ruby](/docs/agents/ruby-agent/api-guides/ruby-custom-instrumentation#naming-transactions).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+También puedes editar y crear reglas de normalización métrica en la UI. Para más detalles, ver [normalización métrica](/docs/new-relic-solutions/new-relic-one/ui-data/metric-normalization-rules).
+
+## Causa
+
+Los problemas de agrupación métrica ocurren cuando la granularidad de los nombres métricos (la mayoría de las veces, nombres web de transacciones) es demasiado fina, lo que da como resultado cientos o miles de nombres web de transacciones diferentes para solo una pequeña cantidad de rutas de código. Algunas rutas de código importantes pueden generar muchas rutas URL completas diferentes a documentos, artículos o páginas únicos, etc., y si el elemento único de la ruta URL se incluye en el nombre de la transacción, cada una de estas rutas comunes tendrá su propia ruta única. nombre.
+
+<CollapserGroup>
+  <Collapser
+    id="example"
+    title="Ejemplo de MGI"
+  >
+    En este ejemplo, tiene una aplicación que permite al usuario escribir artículos sobre cualquier tema y publicarlos para que otros usuarios los vean. Su aplicación tiene tres funciones principales: agregar un artículo, buscar un artículo y mostrar un artículo.
+
+    Para mejorar la optimización de los motores de búsqueda (SEO), el código "ver artículo" genera una URL única para hacer referencia a cada artículo. Por ejemplo, las siguientes URL hacen referencia a diferentes artículos del sitio web de ejemplo:
+
+    ```
+    http://example.com/article/view/How_to_Install_New_Relic
+    http://example.com/article/view/How_New_Relic_Saved_the_Day
+    http://example.com/article/view/Where_do_I_get_New_Relic
+    ```
+
+    Los tres artículos son diferentes; contienen contenido diferente y sus URL son diferentes. Sin embargo, la ruta del código que genera cada artículo es la misma: todos utilizan la función "ver artículo".
+
+    Muchos frameworks web utilizan esta técnica. Tienen un controlador o ruta (en este caso llamado `article/view`) como parte de la URL. New Relic trabaja para identificar automáticamente estos patrones y agrupar rutas similares, para evitar que ocurran problemas de agrupación métrica.
+
+    Sin mecanismos para detectar controladores, la aplicación de ejemplo enviaría métricas para cada URL individual solicitada por los visitantes de su sitio. Si tiene un millón de artículos y su sitio es popular, en cada minuto podrían visitarse varios miles de URL únicas. Esto produce una cantidad significativa de datos adicionales que se envían a New Relic para cada [ciclo de recolección](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle), y la [página APM <DNT>**Transactions**</DNT> ](/docs/apm/applications-menu/monitoring/transactions-page)intentaría enumerar miles de URL únicas, lo que resultaría en problemas de agrupación métrica.
+  </Collapser>
+</CollapserGroup>
+
+Para monitor y mejorar el rendimiento de la aplicación, es mucho más útil conocer el rendimiento promedio de una función (por ejemplo, ver artículos en su sitio) que la rapidez con la que se muestra cada artículo individual. Para evitar problemas de agrupación métrica, New Relic normalmente mostrará una única entrada para esa función (por ejemplo, `/article/view/*`) en la [página APM <DNT>**Transactions**</DNT> ](/docs/apm/applications-menu/monitoring/transactions-page).
+
+Esta agrupación le brinda una idea mucho mejor de cuánto tiempo se dedicó a ver artículos y le permite detectar fácilmente cualquier problema de rendimiento relacionado con la visualización de artículos. Si estas estadísticas se distribuyeran en cientos o miles de transacciones, detectar tendencias, regresiones o mejoras en el desempeño sería extremadamente difícil.
+
+Cada agente APM tiene distintas formas de detectar controladores y marcos. La mayoría son automáticas, pero algunas requieren que habilites o deshabilites opciones en un [archivo de configuración](/docs/agents/manage-apm-agents/configuration/configure-agent). También puedes seguir nuestras recomendaciones para ayudar [a prevenir que ocurran problemas de agrupación métrica](#prevent) .

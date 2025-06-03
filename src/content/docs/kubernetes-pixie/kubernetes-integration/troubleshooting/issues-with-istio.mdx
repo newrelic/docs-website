@@ -1,0 +1,52 @@
+---
+title: Issues with Istio
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Istio
+  - Troubleshooting
+metaDescription: 'How to troubleshoot Istio issues when the New Relic integration is also installed.'
+freshnessValidatedDate: never
+---
+
+If you have both Istio and the New Relic Kubernetes integration installed and enabled in your environment, issues may arise. This page describes these issues with Istio when the New Relic Kubernetes integration is installed.
+
+
+## Istio cluster's xds_grpc metric [#istio-cluster-grpc-metric]
+
+### Problem
+
+When Istio is enabled in your clusters, the Istio-deployed Envoy proxies have a Prometheus metric endpoint that exposes Prometheus metrics.
+
+These metrics are associated with a dedicated `cluster_name` as `xds-grpc`. If you also enable the Prometheus agent in New Relic Kubernetes integration, the agent will collect these Envoy-related metrics with `cluster_name` as `xds_grpc` in addition to the metrics with `cluster_name` defined through `global.cluster`.
+
+
+### Solution
+
+Run the following query to get a full list of Envoy proxy metrics:
+
+  ```sql
+  FROM `Metric`
+  SELECT uniques(metricName)
+  WHERE cluster_name = 'xds-grpc' SINCE 1 week ago
+  ```
+
+## Disable Istio for the metadata injection pod [#disable-istio]
+
+### Problem 
+
+When Istio is activated in the `newrelic` namespace, it could potentially cause complications for the New Relic Kubernetes integration pods situated within that namespace. These problems could be severe enough to prevent the pods from being created at all.
+
+An example of such an issue might occur during the installation of the Kubernetes integration. If you see this error message:
+
+    ```bash
+    W0518 02:00:14.984463       1 client_config.go:615] Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+    {"err":"secrets \"newrelic-bundle-nri-metadata-injection-admission\" not found","level":"info","msg":"no secret found","source":"k8s/k8s.go:229","time":"2023-05-18T02:00:15Z"} {"level":"info","msg":"creating new secret","source":"cmd/create.go:28","time":"2023-05-18T02:00:15Z"} ...
+    ```
+
+This indicates that Istio may be active in the `newrelic` namespace. In this case, the envoy proxy does not exit after the `newrelic-bundle-nri-metadata-injection-admission-create` job has successfully created the secret. As a result, the Kubernetes job becomes stuck in progress and fails to finish.
+
+### Solution
+
+We recommend you deactivate the Istio sidecar injection for the `nri-metadata-injection` pod within the newrelic namespace. To accomplish this, include `--set-string nri-metadata-injection.labels."sidecar\.istio\.io/inject"=false` in your `helm` command when installing the `nri-bundle`.
+

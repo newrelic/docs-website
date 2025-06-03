@@ -1,0 +1,252 @@
+---
+title: Monitor your Cordova mobile app
+tags:
+  - Mobile monitoring
+  - New Relic Mobile Cordova
+  - Get started
+metaDescription: "New Relic's Cordova agent for Android and iOS: Features, compatibility, requirements, installation, and upgrade procedures."
+redirects:
+  - /docs/mobile-monitoring/new-relic-mobile-cordova-phonegap/get-started/new-relic-cordova-overview
+  - /docs/mobile-monitoring/new-relic-mobile-cordova-phonegap/get-started/introduction-new-relic-cordova
+freshnessValidatedDate: never
+---
+
+Our New Relic Cordova agent monitors your Cordova mobile app and provides deep insights into your app's performance, errors, and user experience. The agent includes all New Relic mobile monitoring features we offer for native mobile apps. Once you install and configure the Cordova agent, you'll be able to:
+
+* <DNT>**Capture JavaScript errors**</DNT> Identify and fix problems quickly.
+* <DNT>**Track network requests:**</DNT> See how your app interacts with the backend.
+* <DNT>**Use distributed tracing:**</DNT> Drill down into handled exceptions and find the root cause.
+* <DNT>**Create custom events and metrics:**</DNT> Understand how your users interact with your app.
+
+## Compatibility requirements [#requirements]
+
+Before you install the Cordova agent, ensure your app meets these requirements:
+
+* Cordova 7.x or higher
+* Node.js 6.0 or higher
+* Cordova CLI tools
+* An [Android](https://cordova.apache.org/docs/en/latest/guide/platforms/android) or [iOS](https://cordova.apache.org/docs/en/latest/guide/platforms/ios/index.html) Cordova platform for your project
+* Mobile [application tokens](/docs/mobile-monitoring/new-relic-mobile/maintenance/viewing-your-application-token)
+
+## (Recommended) Guided installation [#guided-install]
+
+To install the Cordova agent, follow our [guided install](https://onenr.io/08jqaJD9pjl), located directly in the UI.
+
+## Manual installation [#manual-install]
+
+If you need to install the agent manually, follow these steps:
+
+<Steps>
+  <Step>
+    ### Create an application token(s) [#app-token]
+
+    1. Go to <DNT>**[one.newrelic.com](https://onenr.io/02wdd6ngXwE) > Browser & Mobile > (choose Android or iOS)**</DNT>, then complete the instrumentation steps in the UI.
+    2. From <DNT>**Step 4**</DNT> in the UI, copy the application token(s) (one for iOS and Android if applicable).
+  </Step>
+
+  <Step>
+    ### Add the Cordova agent [#install]
+
+    In your Cordova project directory, add the Cordova agent to your project using your command line tool, and paste the application token(s) in the `--variable` argument:
+
+    ```shell
+    # Install from github repository
+    cordova plugin add https://github.com/newrelic/newrelic-cordova-plugin.git --variable IOS_APP_TOKEN="YOUR_IOS_APP_TOKEN" --variable ANDROID_APP_TOKEN="YOUR_ANDROID_APP_TOKEN"
+    ```
+  </Step>
+
+  <Step>
+    ### (Optional) Configure the agent [#configure-agent]
+
+    Add the following optional configurations to the `--variable` argument, which will call them upon agent start:
+
+    * `CRASH_REPORTING_ENABLED`: Enable or disable crash reporting.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `DISTRIBUTED_TRACING_ENABLED`: Enable or disable the adding of distributed tracing headers to network requests.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `INTERACTION_TRACING_ENABLED`: Enable or disable interaction tracing. Trace instrumentation still occurs, but no traces are harvested. This will disable default and custom interactions.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `DEFAULT_INTERACTIONS_ENABLED`: Enable or disable default interactions. Trace instrumentation still occurs, but no traces are harvested. This will enable or disable default interactions only while custom interactions remain enabled.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `LOGGING_ENABLED`: Enable or disable agent logging.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `LOG_LEVEL`: Specifies the log level.
+      * Possible values are `ERROR` (least verbose), `WARNING` `INFO`, `VERBOSE`, `DEBUG`, `AUDIT` (most verbose).
+      * Defaults to `INFO` on Android and `WARNING` on iOS.
+    * `WEB_VIEW_INSTRUMENTATION` (iOS ONLY): Enable (default) or disable automatic WKWebView instrumentation.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `COLLECTOR_ADDRESS`: Specifies the URI authority component of the harvest data upload endpoint.
+    * `CRASH_COLLECTOR_ADDRESS`: Specifies the authority component of the crash data upload URI.
+    * `FEDRAMP_ENABLED`: Enable or disable reporting data using different endpoints for US government clients.
+      * Possible values are `true` and `false`. Defaults to `false`.
+    * `OFFLINE_STORAGE_ENABLED`: Enable or disable offline data storage when no internet connection is available.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `NEW_EVENT_SYSTEM_ENABLED`: Enable or disable to use our new, more stable, event system for iOS agent.
+      * Possible values are `true` and `false`. Defaults to `true`.
+    * `BACKGROUND_REPORTING_ENABLED`: Enable or disable Background Events Reporting when the app is in the background.
+      * Possible values are `true` and `false`. Defaults to `false`.
+
+    These options are only available on Cordova agent v6.2.1 and higher.
+
+    For example, if you wanted to disable crash reporting, call the following:
+
+    ```sh
+    cordova plugin add https://github.com/newrelic/newrelic-cordova-plugin.git --variable IOS_APP_TOKEN="YOUR_IOS_APP_TOKEN" --variable ANDROID_APP_TOKEN="YOUR_ANDROID_APP_TOKEN" --variable CRASH_REPORTING_ENABLED="false"
+    ```
+  </Step>
+
+  <Step>
+    ### (Ionic Cordova only) Configure your Ionic framework [#ionic]
+
+    If you're using an [ionic framework](https://ionicframework.com/docs/v1/guide/preface.html), add this to your Cordova project directory:
+
+    ```shell
+    ionic cordova plugin add https://github.com/newrelic/newrelic-cordova-plugin.git --variable IOS_APP_TOKEN="YOUR_IOS_APP_TOKEN" --variable ANDROID_APP_TOKEN="YOUR_ANDROID_APP_TOKEN"
+    npm install @awesome-cordova-plugins/newrelic
+    ```
+
+    Make sure you paste your application token(s) into `appToken = ""` in the code above. If you deployed your hybrid app to both iOS and Android platforms, you'll need to add two separate tokens: one for iOS and one for Android.
+  </Step>
+
+  <Step>
+    ### Deploy your app [#deploy]
+
+    Then, deploy your app. After some app activity, you should see data in New Relic (it may take a few minutes after deploying your app).
+  </Step>
+</Steps>
+
+## Customize the agent instrumentation [#mobile-sdk]
+
+Need to customize your agent instrumentation? Our public mobile SDK API methods let you collect custom data, configure default settings, and more.
+
+The following customizations are available for the Cordova agent.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        If you want to...
+      </th>
+
+      <th>
+        Use this method
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="crash-analysis">
+        Record breadcrumbs to track app activity that may be helpful for troubleshooting crashes.
+      </td>
+
+      <td>
+        [Record breadcrumbs](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="creating">
+        Track a method as an interaction.
+      </td>
+
+      <td>
+        [Start interactions](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/start-interaction)
+
+        [Stop interactions](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/stop-interaction)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="create-custom">
+        Record errors
+      </td>
+
+      <td>
+        [Record errors](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-errors)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="create-custom">
+        Record custom metrics.
+      </td>
+
+      <td>
+        [Record custom metrics](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-custom-metrics/)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="attributes-events-insights">
+        Record custom attributes and events.
+      </td>
+
+      <td>
+        There are several ways to report custom attributes and events:
+
+        * [Record custom attributes](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/create-attribute)
+        * [Increment session attribute count](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/increment-session-attribute-count)
+        * [Remove an attribute](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/remove-attribute)
+        * [Remove all attributes](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/remove-all-attributes)
+        * [Record custom events](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-custom-events)
+        * [Set the maximum size of an event pool](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-event-pool-size)
+        * [Set maximum time the agent stores events in memory](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-event-buffer-time)
+        * [Get a current session's ID](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/current-session-id)
+        * [Set a custom user ID to associate with events and attributes](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-custom-user-id)
+
+          For more about which would be the best method to use and why, see [Report mobile monitoring custom events and attributes](/docs/data-apis/custom-data/custom-events/report-mobile-monitoring-custom-events-attributes/).
+      </td>
+    </tr>
+
+    <tr>
+      <td id="track-custom">
+        Track custom network requests and failures.
+      </td>
+
+      <td>
+        [Track HTTP requests](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-success)
+
+        [Track failing HTTP requests](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-failures)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Shut down the agent.
+      </td>
+
+      <td>
+        [Shut down the agent](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/shut-down-agent)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Enable/disable default mobile monitoring settings.
+      </td>
+
+      <td>
+        [Enable/disable monitoring features](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Run a test crash report.
+      </td>
+
+      <td>
+        [Test crash reporting](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/test-crash-reporting)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Update the agent [#update]
+
+To update your Cordova agent version, run this simple command:
+
+```shell
+cordova plugin update
+```

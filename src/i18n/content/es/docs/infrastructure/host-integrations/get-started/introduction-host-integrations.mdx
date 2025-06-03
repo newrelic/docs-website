@@ -1,0 +1,47 @@
+---
+title: Introducción a la integración en el host
+tags:
+  - Integrations
+  - On-host integrations
+  - Get started
+metaDescription: 'An introduction to New Relic on-host infrastructure integrations, which instrument and report data from various third-party services.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestra integración en el host le permite monitor una variedad de servicios de terceros.
+
+## ¿Qué es la integración en el host? [#overview]
+
+En New Relic, <DNT>**on-host integrations**</DNT> es lo que llamamos nuestra integración que trabaja en conjunto con nuestro agente de infraestructura. Estas integraciones recopilan datos de los servicios admitidos y utilizan el agente de infraestructura para enviar esos datos a New Relic.
+
+Algunas de nuestras integraciones en el host se crean utilizando [nuestra integración Flex](/docs/infrastructure/host-integrations/host-integrations-list/flex-integration-tool-build-your-own-integration), que también puede utilizar para crear su propia integración liviana personalizada.
+
+## Datos reportados [#data]
+
+Integración en el host report métrica y datos de inventario. Algunas integraciones tienen la opción de habilitar informes log . Los detalles sobre los datos reportados se encuentran en los documentos específicos de cada integración.
+
+## Empezar [#get-started]
+
+Para comenzar con la integración en el host: Si ya tienes New Relic, ve a la [página<DNT>**Add data**</DNT> ](https://one.newrelic.com/marketplace)y busca el servicio que deseas monitor.
+
+O tu puedes:
+
+1. Explore la lista de integración en esta sección.
+2. Revise los requisitos de una integración y siga los procedimientos para instalarla y configurarla.
+
+Para explorar todas las integraciones, consulte nuestra [página de observabilidad instantánea](https://newrelic.com/instant-observability).
+
+## Característica [#features]
+
+Después de instalar y activar una integración, podrá:
+
+* [Filtrar y analizar](/docs/infrastructure/integrations/find-use-infrastructure-integration-data) los datos métricos y de configuración en [infraestructura UI](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure).
+* Cree [consultas y gráficos personalizados](/docs/using-new-relic/data/understand-data/query-new-relic-data) de sus datos de integración.
+* Crea [condición de alerta](/docs/alerts/new-relic-alerts/getting-started/alerts-glossary#alert-condition) para monitor problemas con el rendimiento de tu servicio
+
+## Monitor la configuración remota y multiinquilino [#multiple-instances]
+
+Algunas configuraciones pueden utilizar elementos de terceros, como bases de datos, que residen en hosts remotos no accesibles. Nuestra integración puede recuperar datos de hosts o servidores locales y remotos, asegurando un monitoreo continuo de su servicio. También admiten la configuración agrupada de múltiples inquilinos. Al abstraer el servicio del host, se pueden monitorear múltiples entidades como instancia remota.
+
+Para activar el monitoreo remoto y multi-tenencia en la integración Apache, Cassandra, MySQL, NGINX y Redis, use el [parámetro`remote_monitoring` ](/docs/infrastructure/host-integrations/understand-use-data/remote-monitoring-host-integrations).

@@ -1,0 +1,234 @@
+---
+title: 'Gestione errores en APM: recopile, ignore o marque como se esperaba'
+tags:
+  - Agents
+  - Manage APM agents
+  - Agent data
+metaDescription: 'We provide a variety of configuration tools and API calls to create, ignore, or mark errors as expected.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente APM informa automáticamente los datos de error para [el marco compatible](/docs/agents/manage-apm-agents/installation/compatibility-requirements). Para optimizar los informes y alertas de errores, puede gestionar aún más los errores para:
+
+* Detectar errores que no detectamos de forma predeterminada.
+* Error omitido que no desea informar en absoluto.
+* Filtre el ruido del error esperado para que pueda concentrarse en los errores que afectan el rendimiento. (Solo agente Java, Ruby, Node, Python y .NET)
+
+<Callout variant="tip">
+  Consulte nuestro [tutorial de rastreo de errores](/docs/tutorial-error-tracking/respond-outages) de tres partes. El tutorial utiliza un escenario de ejemplo para una interrupción de la aplicación para guiarlo en cómo responder y resolver errores críticos.
+</Callout>
+
+## Recopilar errores no instrumentados por defecto [#error-collection]
+
+El agente APM incluye llamada API para informar (o "avisar") errores. Estos son útiles cuando APM no implementa su framework automáticamente o cuando hay errores particulares que no se detectan para su framework compatible.
+
+Para saber cómo hacer que un APM de agente informe un error, consulte la documentación de API específica del agente:
+
+* <DNT>
+    **Go**
+  </DNT>
+
+  : [`NoticeError()`](https://github.com/newrelic/go-agent/blob/master/transaction.go)
+
+* <DNT>
+    **Java**
+  </DNT>
+
+  : [`NoticeError()`](http://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/NewRelic.html)
+
+* <DNT>
+    **.NET**
+  </DNT>
+
+  : [`NoticeError()`](/docs/agents/net-agent/net-agent-api/notice-error)
+
+* <DNT>
+    **Node.js**
+  </DNT>
+
+  : [`noticeError()`](/docs/apm/agents/nodejs-agent/api-guides/nodejs-agent-api/#noticeError)
+
+* <DNT>
+    **PHP**
+  </DNT>
+
+  : [`newrelic_notice_error()`](/docs/agents/php-agent/php-agent-api/newrelic_notice_error)
+
+* <DNT>
+    **Python**
+  </DNT>
+
+  : [`notice_error()`](/docs/agents/python-agent/python-agent-api/noticeerror-python-agent-api/)
+
+* <DNT>
+    **Ruby**
+  </DNT>
+
+  : [`notice_error()`](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent#notice_error-instance_method)
+
+## Error omitido [#ignore]
+
+A veces, el agente APM instrumentó un error que no desea que se informe, como errores que contienen información confidencial, como errores de inicio de sesión del usuario. Si no desea que se informe un error a nuestro [recolector](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector), puede ignorarlo y el agente APM lo descarta por completo.
+
+<Callout variant="tip">
+  Para Java, .NET, Ruby, Node.js, Go y Python: si desea informar errores a APM pero no desea que esos errores afecten su Apdex o tasa de errores, [márquelos como se esperaba](#expected) .
+</Callout>
+
+Hay dos formas de omitir un error: mediante la configuración del agente o mediante la configuración del lado del servidor en la UI:
+
+<CollapserGroup>
+  <Collapser
+    id="ignore-server-side"
+    title="Error omitido al usar la configuración del lado del servidor en la UI"
+  >
+    Esta opción depende de si el agente admite [la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration).
+
+    1. Si aún no está habilitado, [habilite la configuración del lado del servidor](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration#enable-ssc).
+
+    2. [Vaya al menú](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration#customize-ssc)
+
+       <DNT>
+         [**Server-side configuration**](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration#customize-ssc)
+       </DNT>
+
+       [](/docs/agents/manage-apm-agents/configuration/server-side-agent-configuration#customize-ssc)de la aplicación que tiene errores que desea ignorar.
+
+    3. En
+
+       <DNT>
+         **Error collection**
+       </DNT>
+
+       , busque
+
+       <DNT>
+         **Ignore from error collection**
+       </DNT>
+
+       . Agregue el
+
+       <DNT>
+         **HTTP code**
+       </DNT>
+
+       o el
+
+       <DNT>
+         **Error class**
+       </DNT>
+
+       para los errores que desea ignorar.
+
+    4. Seleccione
+
+       <DNT>
+         **Save server-side configuration**
+       </DNT>
+
+       .
+  </Collapser>
+
+  <Collapser
+    id="ignore-agent-config"
+    title="Error omitido al usar la configuración del agente"
+  >
+    Para ignorar un error al utilizar la configuración del agente, consulte la documentación de configuración de su agente:
+
+    * <DNT>
+        **Go**
+      </DNT>
+
+      : [`ErrorCollector.IgnoreStatusCodes`](/docs/agents/go-agent/instrumentation/go-agent-configuration#error-ignore-status).
+
+    * <DNT>
+        **Java**
+      </DNT>
+
+      : `error_collector.ignore_classes`, `error_collector.ignore_classes.message` o `error_collector.ignore_status_codes`. Para obtener información adicional, consulte [Configuración de error del agente de Java](/docs/agents/java-agent/configuration/java-agent-error-configuration).
+
+    * <DNT>
+        **.NET**
+      </DNT>
+
+      : [`ignoreErrors`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#error-ignoreErrors) o [`ignoreStatusCodes`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#error-ignoreStatusCodes).
+
+    * <DNT>
+        **Node.js**
+      </DNT>
+
+      : `ignore_status_codes`, [`ignore_classes`](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#error_ignore) o [`ignore_messages`](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#error_ignore).
+
+    * <DNT>
+        **PHP**
+      </DNT>
+
+      : [`error_collector.ignore_exceptions`](/docs/apm/agents/php-agent/configuration/php-agent-configuration/#inivar-err-ignore-exceptions) o [`error_collector.ignore_errors`](/docs/apm/agents/php-agent/configuration/php-agent-configuration/#inivar-err-ignore-errors).
+
+    * <DNT>
+        **Python**
+      </DNT>
+
+      : [`error_collector.ignore_classes`](/docs/agents/python-agent/configuration/python-agent-configuration/#error-ignore) o [`error_collector.ignore_status_codes`](/docs/agents/python-agent/configuration/python-agent-configuration/#error-ignore-status-codes).
+
+    * <DNT>
+        **Ruby**
+      </DNT>
+
+      : [`error_collector.ignore_errors`](/docs/agents/ruby-agent/configuration/ruby-agent-configuration#error_collector-ignore_errors).
+  </Collapser>
+</CollapserGroup>
+
+## Error esperado (Java, Node.js, Python, Ruby, Go y .NET únicamente) [#expected]
+
+Para el siguiente agente APM, puede marcar los errores como se esperaba. Estos errores se informarán a APM y estarán disponibles para su visualización, pero no afectarán el [Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction) ni [la tasa de errores](/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors) (o [la condición de alerta](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions) basada en la tasa de errores).
+
+Para configurar los errores como se esperaba, consulte la documentación específica del agente:
+
+* [Java](/docs/agents/java-agent/configuration/java-agent-error-configuration)
+* [Ruby](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#error-collector)
+* [Node.js](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration)
+* [.NET](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#error_collector)
+* [Go](/docs/apm/agents/go-agent/configuration/go-agent-configuration/#error-collector)
+* [Python](/docs/agents/python-agent/configuration/python-agent-configuration/#error-collector-settings)
+
+Si el error esperado está habilitado, la página [<DNT>**Error analytics**</DNT>](/docs/apm/applications-menu/error-analytics/error-analytics-explore-events-behind-errors) de APM tendrá, de forma predeterminada, un filtro aplicado con el atributo `error.expected` establecido en `false`, lo que significa que no se mostrará el error esperado. Para ver el error esperado, desactive el filtro `error.expected` .
+
+Para ver el error esperado, [consulta tus datos](/docs/using-new-relic/data/understand-data/query-new-relic-data):
+
+* Para ver gráficos de error esperado, cree una consulta para el atributo [`error.expected`](/docs/insights/insights-data-sources/default-events-attributes/apm-default-event-attributes#transerror-expected) .
+* Para crear [condición de alerta para consulta NRQL](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries), utilice el atributo `error.expected` .
+
+## Error huellas dactilares con Errors Inbox [#error-fingerprinting]
+
+Errors Inbox agrupa de forma inteligente los errores que se producen para reducir el ruido y resaltar los errores importantes.
+
+Los eventos de error se agrupan en un grupo de errores cuando comparten la [misma huella digital](/docs/errors-inbox/errors-inbox/#how-groups-work). Si bien nuestras reglas administradas pueden proporcionar agrupación automática de errores basada en un conjunto predefinido de patrones, es imposible reconocer todas las combinaciones posibles. Por este motivo, los clientes también pueden establecer su propia huella digital a través de una función de devolución de llamada si descubren que nuestras reglas administradas no agrupan las ocurrencias con precisión.
+
+Para configurar la lógica de huellas dactilares personalizada, consulte la documentación específica del agente:
+
+* [Go](/docs/apm/agents/go-agent/api-guides/guide-using-go-agent-api/#error-fingerprinting)
+* [Java](/docs/apm/agents/java-agent/api-guides/java-agent-api-register-error-group-callback-to-set-fingerprint)
+* [Node.js](/docs/apm/agents/nodejs-agent/api-guides/guide-using-nodejs-agent-api/#errors)
+* [.Net](/docs/apm/agents/net-agent/net-agent-api/seterrorgroupcallback-net-agent-api)
+* [PHP](/docs/apm/agents/php-agent/php-agent-api/newrelic_set_error_group_callback)
+* [Python](/docs/apm/agents/python-agent/python-agent-api/seterrrorgroupcallback-python-agent-api)
+* [Ruby](/docs/apm/agents/ruby-agent/api-guides/sending-handled-errors-new-relic/#error-fingerprinting)
+
+## Ver errores en la UI [#view-errors]
+
+Entre otros lugares, los datos de error aparecen en estas partes de la UI:
+
+* [Página de análisis de errores](/docs/apm/applications-menu/error-analytics/introduction-error-analytics): muestra gráficos detallados y análisis visual de errores.
+
+* [Página APM](/docs/apm/applications-menu/monitoring/apm-overview-page)
+
+  <DNT>
+    [**Overview**](/docs/apm/applications-menu/monitoring/apm-overview-page)
+  </DNT>
+
+  [](/docs/apm/applications-menu/monitoring/apm-overview-page): muestra una vista de alto nivel de su aplicación, que incluye errores.
+
+* [condición de alerta](/docs/alerts/new-relic-alerts/defining-conditions/define-alert-conditions): puede basarse en tasa de errores.
+
+* El evento [`transactionError`](/docs/insights/insights-data-sources/default-events-attributes/apm-default-event-attributes#transactionerror-event) : contiene datos de error subyacentes, que se pueden utilizar en [la consulta NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql).

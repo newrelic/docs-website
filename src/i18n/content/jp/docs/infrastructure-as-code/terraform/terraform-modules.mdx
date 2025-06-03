@@ -1,0 +1,412 @@
+---
+title: Terraform モジュールとリモート ストレージの使用
+template: GuideTemplate
+metaDescription: 'Learn how to use [Terraform](https://www.terraform.io/) modules in your configurations and store them remotely.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[Terraform](https://www.terraform.io/)は、HashiCorp によって構築された、人気のあるコードとしてのインフラストラクチャ ソフトウェア ツールです。これを使用して、New Relic ダッシュボードやアラートなど、あらゆる種類のインフラストラクチャとサービスをプロビジョニングします。
+
+このガイドでは、New Relic 構成で Terraform モジュールを使用する方法を学びます。具体的には、モジュールの作成、データのインポート、Github へのモジュールの保存、リモートでの Amazon S3 の状態の管理を行います。
+
+ビデオでは、Terraform をインストールする追加の手順と New Relic アラートの設定を確認します。Terraform の使用を開始する際にサポートが必要な場合は、 [「New Relic と Terraform の使用開始」で、](/docs/more-integrations/terraform/terraform-intro/) Terraform のインストール、New Relic アラートの設定、通知チャネルの指定の方法を説明します。
+
+<Video
+  id="2gl4kt4j14"
+  type="wistia"
+/>
+
+## あなたが始める前に
+
+このガイドを使用するには、New Relic と Terraform の両方についての基本的な知識が必要です。New Relic オープンソース エージェントをまだデプロイしていない場合は、アプリケーションに[New Relic をインストールします](/docs/agents/manage-apm-agents/installation/install-agent)。また、 [Terraform CLI もインストールします](https://www.terraform.io/intro/getting-started/install.html)。
+
+作業ディレクトリを初期化することから始めます。
+
+```bash
+mkdir terraform-config && cd terraform-config
+```
+
+このガイドの例に従うために、付属のサンプル コードは[GitHub](https://github.com/jsbnr/nr-terraform-intro-example)で入手できます。
+
+```bash
+git clone https://github.com/jsbnr/nr-terraform-intro-example.git
+```
+
+<Steps>
+  <Step>
+    ## Terraform モジュールの作成
+
+    Terraform モジュールを使用すると、Github などのバージョン管理を使用して、Terraform 構成を再利用、共有、保存できます。次のステップでは、New Relic 構成を再利用可能なモジュールに移動します。
+
+    まず、プロジェクト ルートに、 `modules`という名前のモジュールを保存するための新しいディレクトリを作成します。
+
+    ```bash
+    mkdir modules && cd modules
+    ```
+
+    モジュール ディレクトリに、HostConditions という新しいモジュール用の新しいディレクトリを作成し、 `main.tf`という名前の新しいファイルを作成します。
+
+    ```bash
+    mkdir HostConditions && cd HostConditions
+    touch main.tf
+    ```
+
+    ルート プロジェクトの`main.tf`ファイルから 2 つのアラート条件を削除し、 `HostConditions`ディレクトリ内の新しい`main.tf`ファイルにコピーします。
+
+    ルートディレクトリの`main.tf`ファイルで、モジュール ブロックを使用して新しいモジュールを呼び出します。
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+    }
+    ```
+
+    構成をテストして、 `terraform plan`と`terraform init`を実行してください:
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output] 
+    [output] Initializing modules...
+    [output] - HostConditions in
+    [output] 
+    [output] Error: Unreadable module directory
+    [output] 
+    [output] Unable to evaluate directory symlink: lstat modules/HostConditions: no such
+    [output] file or directory
+    [output] 
+    [output] 
+    [output] Error: Failed to read module directory
+    [output] 
+    [output] Module directory  does not exist or cannot be read.
+    [output] 
+    [output] 
+    [output] Error: Unreadable module directory
+    [output] 
+    [output] Unable to evaluate directory symlink: lstat modules/HostConditions: no such
+    [output] file or directory
+    [output] 
+    [output] 
+    [output] Error: Failed to read module directory
+    [output] 
+    [output] Module directory  does not exist or cannot be read.
+    ```
+
+    モジュール ディレクトリにプロバイダーの詳細がないため、コンソールにエラーが表示されます。 エラーを修正するには、 `HostConditions`ディレクトリにルート provider.tf のコピーを作成します。
+
+    ```hcl
+    provider "newrelic" {
+     account_id = 12345 # Your New Relic account ID
+     api_key = "NRAK-zzzzzz" # Your New Relic user key
+     region = "US" # US or EU (defaults to US)
+    }
+    ```
+
+    構成をテストして、 `terraform plan`と`terraform init`を実行してください:
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output] 
+    [output] Error: Reference to undeclared resource
+    [output] 
+    [output]   on modules/HostConditions/main.tf line 2, in resource "newrelic_infra_alert_condition"
+    [output] "cpuhot":
+    [output]    2:   policy_id = newrelic_alert_policy.DemoPolicy.id
+    [output] 
+    [output] A managed resource "newrelic_alert_policy" "DemoPolicy" has not been declared
+    [output] in module.HostConditions.
+    [output] 
+    [output] 
+    [output] Error: Reference to undeclared resource
+    [output] 
+    [output]   on modules/HostConditions/main.tf line 24, in resource "newrelic_infra_alert_condition"
+    [output] "highDiskUsage":
+    [output]   24:   policy_id = newrelic_alert_policy.DemoPolicy.id
+    [output] 
+    [output] A managed resource "newrelic_alert_policy" "DemoPolicy" has not been declared
+    [output] in module.HostConditions.
+    ```
+
+    Terraform init はエラーを表示しなくなりましたが、terraform plan を実行するとエラーが発生します。
+
+    このエラーは、 `./modules/HostConditions/provider.tf`で使用されているポリシー ID が存在しないために発生します。 モジュールに渡す変数が必要です。
+  </Step>
+
+  <Step>
+    ## 変数を作成する
+
+    変数は詳細をモジュールに渡し、デフォルト値を設定します。
+
+    まず、 `HostConditions/provider.tf`の先頭に新しい変数を作成します。
+
+    ```hcl
+    variable "providerId" {}
+    ```
+
+    次に、リソース ブロックで、既存の`policyId`を新しい変数に置き換えます。
+
+    ```hcl
+    var.policy
+    ```
+
+    ### モジュールに変数を渡す
+
+    モジュールを動的にするには、モジュール リソース ブロックを使用して変数をモジュールに渡します。
+
+    ルートディレクトリ`main.tf`で、モジュール ブロックを更新して`policyId`変数を追加します。
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+      policyId = newrelic_alert_policy.DemoPolicy.id
+    }
+    ```
+
+    モジュールに変数を追加した後、 `terraform plan`を実行します。
+
+    ```bash
+    terraform plan
+    ```
+
+    ここで、さらに変数を追加し、CPU クリティカル、CPU 警告、およびディスク パーセントの値を置き換えます。次に、新しい変数をモジュールに渡します。
+
+    新しい変数を`HostConditions/main.tf`に追加します:
+
+    ```hcl
+    variable cpu_warning {}
+    variable cpu_critical {}
+    variable diskPercent {}
+    ```
+
+    `HostConditons/main.tf`に追加された新しい変数を使用するようにアラート条件を更新します。
+
+    ```hcl
+    resource "newrelic_infra_alert_condition" "cpuhot" {
+      policy_id = var.policyId
+
+      name       = "CPU hot!"
+      type       = "infra_metric"
+      event      = "SystemSample"
+      select     = "cpuPercent"
+      comparison = "above"
+      where      = "(hostname LIKE '%myhost%')"
+
+      critical {
+        duration      = 5
+        value         = var.cpu_critical
+        time_function = "all"
+      }
+      warning {
+        duration      = 5
+        value         = var.cpu_warning
+        time_function = "all"
+      }
+    }
+
+    resource "newrelic_infra_alert_condition" "highDiskUsage" {
+      policy_id = var.policyId
+
+      name       = "high disk usage"
+      type       = "infra_metric"
+      event      = "SystemSample"
+      select     = "diskUsedPercent"
+      comparison = "above"
+      where      = "(hostname LIKE '%myhost%')"
+
+      critical {
+        duration      = 5
+        value         = var.diskPercent
+        time_function = "all"
+      }
+    }
+    ```
+
+    モジュールに変数を追加した後、 `terraform plan`を実行します。変数値が欠落しているため、エラー メッセージが表示されます。値は、モジュール ブロックに追加するか、デフォルト値として追加できます。
+
+    ```bash
+    terraform plan
+    ```
+
+    ### デフォルト値の追加
+
+    `HostConditions/main.tf`にデフォルトの変数値を追加します:
+
+    ```hcl
+    variable cpu_warning { default=80}
+    variable cpu_critical { default=90}
+    variable diskPercent { default=60 }
+    ```
+
+    ### モジュール ブロックを使用して変数値を渡す
+
+    ルートディレクトリ`main.tf`で、モジュール ブロックを更新して、 `cpu_critical` 、 `cpu_warning` 、および`diskPercentage`変数を追加します。
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+      policyId = newrelic_alert_policy.DemoPolicy.id
+      cpu_critical = 88
+      cpu_warning = 78
+      diskPercentage = 66
+    }
+    ```
+
+    モジュールに変数を追加した後、 `terraform plan`を実行します。
+
+    ```bash
+    terraform plan
+    ```
+  </Step>
+
+  <Step>
+    ## モジュールの再利用
+
+    既存の New Relic ポリシーに接続するモジュールを再利用できます。 開始する前に、 New Relicアカウントで、 **Preexisting Policy**という名前の新しいアラートポリシー を作成します。
+
+    ### 既存のアラート ポリシーの接続
+
+    まず、ルート`main.tf`ファイルにデータ ブロックを追加して、既存のポリシーをインポートします。
+
+    ```hcl
+    data "newrelic_alert_policy" "ExistingPolicy" {
+    	name = "Preexisting Policy"
+    }
+    ```
+
+    次に、2 番目のモジュール ブロック名`HostConditions2`を作成します。 既存のポリシーにアラート条件を追加します。
+
+    ```hcl
+    module "HostConditions2" {
+      source = "./modules/HostConditions"
+      policyId = data.newrelic_alert_policy.ExistingPolicy.id
+      cpu_critical = 87
+      cpu_warning = 77
+      diskPercentage = 67
+    }
+    ```
+
+    `terraform init`を実行して新しいモジュールを初期化し、 `terraform apply`を実行して New Relic アカウントに変更を適用します。
+
+    Terraform スクリプトは、新しいアラート ポリシーと 2 つの条件を作成しますが、アラート条件を既存のポリシーにも適用します。
+
+    New Relic アカウントの Preexisting Policy を調べて、CPU ホットおよび高ディスク使用率について追加されたアラート条件を確認してください。
+  </Step>
+
+  <Step>
+    ## モジュールを Github に保存する
+
+    モジュールを作成した後、他の人が使用できる場所にモジュールを保存したい場合は、Github を使用できます。
+
+    ### 新しい Github リポジトリを作成する
+
+    まず、HostModules ディレクトリ内で、新しい Github リポジトリを初期化します。 コミットのステージに`main.tf`と`provider.tf`追加します。
+
+    ```bash
+    git add main.tf provider.tf
+    git commit -m "init"
+    ```
+
+    次に、新しいリポジトリで提供されているコマンドを使用して、コミットを Github にプッシュします。
+
+    ```bash
+    git remote add origin <repo_url>
+    git branch -M main
+    git push -u origin main
+    ```
+
+    ### Github に保存されているモジュールを使用する
+
+    Github リポジトリをチェックして、 `main.tf`と`provider.tf`がリポジトリに含まれていることを確認します。 GitHub リポジトリの Web URL をコピーして、リポジトリを複製します。
+
+    GitHub を`HostConditions`のソースとして使用してルート`main.tf`ファイルを更新します。
+
+    ```hcl
+    module "HostConditions" {
+      source = "git::https://github.com/<your_username>/<your_repo_name>" # Add your repo URL
+      policyId = newrelic_alert_policy.DemoPolicy.id
+      cpu_critical = 88
+      cpu_warning = 78
+      diskPercentage = 66
+    }
+
+    module "HostConditions2" {
+      source = "git::https://github.com/<your_username>/<your_repo_name>" # Add your repo URL
+      policyId = data.newrelic_alert_policy.ExistingPolicy.id
+      cpu_critical = 87
+      cpu_warning = 77
+      diskPercentage = 67
+    }
+    ```
+
+    `terraform init`を実行して、新しいモジュールを初期化します。`terraform init`を実行すると、Terraform はリポジトリをローカルに複製します。走る `terraform plan`
+
+    git リポジトリに加えられた更新でローカル モジュールを更新する必要がある場合は、次を実行します。 `terraform get -update`
+  </Step>
+
+  <Step>
+    ## Amazon S3 で状態をリモートで管理する
+
+    状態ファイルは、作成されたリソースに関して terraform が保持する表現です。状態ファイルはルート ディレクトリにありますが、削除または破損すると問題が発生します。状態ファイルをリモートに保存すると、セキュリティが確保され、共有とリモート アクセスが可能になります。
+
+    ルートディレクトリの`provider.tf`に、Amazon S3 の terraform バックエンド ブロックを追加します。
+
+    ```hcl
+    terraform {
+    	backend "s3" {
+    		bucket = "<s3_bucket_name>"
+    		key = "<s3_bucket_key>"
+    		region = "<s3_bucket_region>"
+    	}
+    }
+    ```
+
+    正しい S3 バケットの詳細を提供するには変数が必要であり、アクセスが必要です。
+
+    Amazon アカウントで S3 バケットへのアクセスを許可するには、IAM ユーザーを作成します。Terraform 状態を保存する S3 バケットへのアクセス権を IAM ユーザーに付与します。
+
+    プロファイルを Terraform バックエンド ブロックに追加します。
+
+    ```hcl
+    terraform {
+    	backend "s3" {
+    		bucket = "<s3_bucket_name>"
+    		key = "<s3_bucket_key>"
+    		region = "<s3_bucket_region>"
+    		profile = "<iam_user_profile_name>"
+    	}
+    }
+    ```
+
+    状態を Amazon S3 に保存する前に、現在の設定を破棄して白紙の状態から開始します。
+
+    ```bash
+    terraform destroy
+    ```
+
+    Terraform を初期化し、Terraform init を実行します。
+
+    ```bash
+    terraform init
+    ```
+
+    ターミナルの出力には、S3 として初期化されたバックエンドが表示されます。ローカル状態は不要なので削除します
+
+    ```bash
+    rm terraform.*
+    ```
+
+    `terraform apply`を実行して、Terraform 構成の変更を適用します。
+
+    ```bash
+    terraform apply
+    ```
+
+    状態ファイルは、ローカルではなく S3 に保存されるようになりました。S3 バケットを調べて、テラフォームの状態が存在することを確認します。
+  </Step>
+</Steps>
+
+## 結論
+
+おめでとう！モジュールを使用して、テラフォーム構成をより柔軟にしています。[ New Relic Terraform プロバイダーのドキュメントを](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs) 確認して、構成を次のレベルに引き上げる方法を確認してください。

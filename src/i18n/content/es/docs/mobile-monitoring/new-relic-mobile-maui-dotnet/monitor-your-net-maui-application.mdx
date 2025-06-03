@@ -1,0 +1,378 @@
+---
+title: Monitor su aplicación móvil .NET MAUI
+tags:
+  - .NET MAUI
+  - Mobile monitoring
+  - Hybrid framework
+  - Get started
+metaDescription: 'New Relic''s .NET MAUI agent for Android and iOS: Features, compatibility, requirements, and installation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro agente New Relic .NET MAUI monitorea su aplicación móvil .NET MAUI y proporciona información profunda y valiosa sobre el rendimiento, los errores y la experiencia del usuario de su aplicación. Una vez que instale y configure el agente .NET MAUI, podrá:
+
+* <DNT>
+    **Capture C# errors:**
+  </DNT>
+
+  Identifique y solucione problemas rápidamente.
+
+* <DNT>
+    **Track network requests:**
+  </DNT>
+
+  Vea cómo interactúa su aplicación con el backend.
+
+* <DNT>
+    **Use distributed tracing:**
+  </DNT>
+
+  Profundice en las excepciones manejadas y encuentre la causa raíz.
+
+* <DNT>
+    **Create custom events and metrics:**
+  </DNT>
+
+  Comprenda cómo interactúa su usuario con su aplicación.
+
+<img
+  title="Mobile summary view in the UI"
+  alt="Summary view of a .NET MAUI mobile app in New Relic"
+  src="/images/mobile_screenshot-full_hybrid-summary.webp"
+  style={{ maxWidth: '70%' }}
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Mobile > (select your .NET MAUI app) > Summary**</DNT>: vea datos de .NET MAUI, realice un seguimiento de las solicitudes y errores HTTP y monitor el rendimiento de su aplicación a lo largo del tiempo.
+</figcaption>
+
+## (Recomendado) Instalación guiada [#guided-install]
+
+Para instalar el agente .NET MAUI, siga nuestra [instalación guiada](https://onenr.io/0BR664ABdRO), ubicada directamente en la UI.
+
+## Instalación manual [#manual-install]
+
+Si necesita instalar el agente manualmente, siga estos pasos:
+
+<Steps>
+  <Step>
+    ### Revisa los requisitos [#requirements]
+
+    Antes de instalar nuestro agente .NET MAUI, asegúrese de que su aplicación cumpla con estos requisitos de versión:
+
+    * .NET versión 7.0 o superior
+
+    * Para aplicaciones nativas de Android: Android 7 (API 24) o superior
+
+    * Para aplicaciones nativas de iOS:
+
+      * iOS 11 o superior
+      * Última versión de Xcode
+  </Step>
+
+  <Step>
+    ### Agregue el agente .NET MAUI a su proyecto [#add-project]
+
+    Primero, deberá agregar nuestro agente, un paquete NuGet, a su proyecto MAUI:
+
+    1. Abra su solución .NET MAUI, seleccione el proyecto al que desea agregar el agente y abra su menú contextual.
+
+    2. Haga clic en
+
+       <DNT>
+         **Add > Add NuGet packages**
+       </DNT>
+
+       y luego seleccione `NewRelic.MAUI.Plugin`.
+  </Step>
+
+  <Step>
+    ### Copie el token de su aplicación desde la UI [#app-token]
+
+    El token de la aplicación se utiliza para que New Relic autentique los datos de su aplicación .NET MAUI. Para ver y copiar el token de su aplicación en la UI de New Relic:
+
+    1. Vaya a
+
+       <DNT>
+         **[one.newrelic.com](https://one.newrelic.com/all-capabilities)**
+       </DNT>
+
+       , haga clic en
+
+       <DNT>
+         **Integrations & Agents**
+       </DNT>
+
+       y luego haga clic en
+
+       <DNT>
+         **Mobile**
+       </DNT>
+
+       .
+
+    2. Seleccione su aplicación .NET MAUI.
+
+    3. Vaya a
+
+       <DNT>
+         **Settings > Application**
+       </DNT>
+
+       y copie el
+
+       <DNT>
+         **Application token**
+       </DNT>
+
+       mostrado.
+
+       Agregará este token de aplicación en el siguiente paso.
+  </Step>
+
+  <Step>
+    ### Agregue nuestro archivo de configuración del agente a su proyecto .NET MAUI [#add-configuration]
+
+    En su proyecto, abra `MauiProgram.cs` y agregue el siguiente código:
+
+    ```csharp
+    using NewRelic.MAUI.Plugin;
+    ...
+
+        public static MauiApp CreateMauiApp()
+    	{
+    		var builder = MauiApp.CreateBuilder();
+    		builder
+    			.UseMauiApp<App>()
+    			.ConfigureFonts(fonts =>
+    			{
+    				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+    				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+    			});
+
+            builder.ConfigureLifecycleEvents(AppLifecycle => {
+            #if ANDROID
+                AppLifecycle.AddAndroid(android => android
+                   .OnCreate((activity, savedInstanceState) => StartNewRelic()));
+            #endif
+            #if IOS
+
+                 AppLifecycle.AddiOS(iOS => iOS.WillFinishLaunching((_,__) => {
+                    StartNewRelic();
+                    return false;
+                }));
+            #endif
+            });
+    		return builder.Build();
+    	}
+
+        private static void StartNewRelic()
+        {
+
+          CrossNewRelic.Current.HandleUncaughtException();
+
+          // Set optional agent configuration
+          // Options are: crashReportingEnabled, loggingEnabled, logLevel, collectorAddress, crashCollectorAddress, analyticsEventEnabled, networkErrorRequestEnabled, networkRequestEnabled, interactionTracingEnabled, webViewInstrumentation, fedRampEnabled, offlineStorageEnabled, newEventSystemEnabled, backgroundReportingEnabled
+          // AgentStartConfiguration agentConfig = new AgentStartConfiguration(crashReportingEnabled:false);
+
+
+          if (DeviceInfo.Current.Platform == DevicePlatform.Android)
+          {
+            CrossNewRelic.Current.Start("<APP-TOKEN-HERE>");
+            // Start with optional agent configuration
+            // CrossNewRelic.Current.Start("<APP-TOKEN-HERE>", agentConfig);
+          } else if (DeviceInfo.Current.Platform == DevicePlatform.iOS)
+          {
+            CrossNewRelic.Current.Start("<APP-TOKEN-HERE>");
+            // Start with optional agent configuration
+            // CrossNewRelic.Current.Start("<APP-TOKEN-HERE>", agentConfig);
+          }
+        }
+    ```
+
+    Asegúrese de pegar token de su aplicación en `appToken = "<APP-TOKEN-HERE>"` en el código anterior. Si implementa su aplicación híbrida en la plataforma iOS y Android, deberá agregar dos tokens separados: uno para iOS y otro para Android.
+  </Step>
+
+  <Step>
+    ### Evento de seguimiento de pantalla [#screen-tracking-events]
+
+    El complemento móvil .NET MAUI le permite realizar un seguimiento de los eventos de navegación dentro del [Shell .NET MAUI](https://learn.microsoft.com/en-us/dotnet/maui/fundamentals/shell/navigation). Para hacerlo, solo necesita llamar a lo siguiente en `App.xaml.cs`:
+
+    ```C#
+    public App()
+    	{
+    		InitializeComponent();
+
+    		MainPage = new AppShell();
+    		CrossNewRelic.Current.TrackShellNavigatedEvents();
+
+        }
+    ```
+
+    Se recomienda llamar a este método al iniciar el agente. Estos eventos sólo se registrarán una vez completada la navegación. Puede encontrar estos datos a través del explorador de datos en `MobileBreadcrumb` (bajo el nombre `ShellNavigated`) o mediante una consulta NRQL:
+
+    ```sql
+        SELECT * FROM MobileBreadcrumb WHERE name = 'ShellNavigated' SINCE 24 HOURS AGO
+    ```
+
+    La ruta de navegación contendrá tres atributos:
+
+    * `Current`: El URI de la página actual.
+    * `Source`: El tipo de navegación que ocurrió.
+    * `Previous`: El URI de la página anterior. Esto no existirá si la página anterior era nula.
+  </Step>
+
+  <Step>
+    ### (Solo Android) Agregar permisos [#android-add-permissions]
+
+    Si tiene una aplicación nativa de Android, deberá agregar los permisos `INTERNET` y `ACCESS_NETWORK_STATE` en su archivo `Platforms/Android/AndroidManifest.xml` :
+
+    ```xml
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    	<uses-permission android:name="android.permission.INTERNET" />
+    ```
+  </Step>
+</Steps>
+
+## Personalizar la instrumentación del agente. [#mobile-sdk]
+
+¿Necesitas personalizar tu instrumentación del agente? Nuestros métodos públicos de API de SDK móvil le permiten recopilar datos personalizados, configurar ajustes predeterminados y más.
+
+Las siguientes personalizaciones están disponibles para el agente .NET MAUI.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Utilice este método
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="crash-analysis">
+        Registre la ruta de navegación para rastrear la actividad de la aplicación que puede ser útil para resolver problemas.
+      </td>
+
+      <td>
+        [Registro de ruta de navegación](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-breadcrumb)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="creating">
+        Seguimiento de un método como una interacción.
+      </td>
+
+      <td>
+        [Iniciar interacción](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/start-interaction)
+
+        [Detener la interacción](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/stop-interaction)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="create-custom">
+        Registro métrico personalizado.
+      </td>
+
+      <td>
+        [Registro métrico personalizado](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-custom-metrics/)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="create-custom">
+        Registro de excepciones manejadas.
+      </td>
+
+      <td>
+        [Registro de excepciones manejadas](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-handled-exceptions)
+      </td>
+    </tr>
+
+    <tr>
+      <td id="attributes-events-insights">
+        Grabar atributo personalizado y evento.
+      </td>
+
+      <td>
+        Hay varias formas de reportar atributo personalizado y evento:
+
+        * [Grabar atributo personalizado](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/create-attribute)
+
+        * [Incrementar el recuento de atributos de sesión](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/increment-session-attribute-count)
+
+        * [Eliminar un atributo](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/remove-attribute)
+
+        * [Eliminar todos los atributos](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/remove-all-attributes)
+
+        * [Grabar evento personalizado](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/record-custom-events)
+
+        * [Establecer el tamaño máximo de un grupo de eventos](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-event-pool-size)
+
+        * [Establecer el tiempo máximo que el agente almacena el evento en la memoria](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-max-event-buffer-time)
+
+        * [Obtener el ID de una sesión actual](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/current-session-id)
+
+        * [Establezca una ID de usuario personalizada para asociar con evento y atributo](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/set-custom-user-id)
+
+          Para obtener más información sobre cuál sería el mejor método a utilizar y por qué, consulte [Informe monitoreo de móviles evento personalizado y atributo](/docs/data-apis/custom-data/custom-events/report-mobile-monitoring-custom-events-attributes/).
+      </td>
+    </tr>
+
+    <tr>
+      <td id="track-custom">
+        Realice un seguimiento de las solicitudes y fallas de la red personalizada.
+      </td>
+
+      <td>
+        [Seguimiento de solicitudes HTTP](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-success)
+
+        [Seguimiento de solicitudes HTTP fallidas](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/network-request-failures)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Apague el agente.
+      </td>
+
+      <td>
+        [Cerrar el agente](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/shut-down-agent)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Activa/desactiva la configuración predeterminada de monitoreo de móviles.
+      </td>
+
+      <td>
+        [Activar/desactivar la característica de monitoreo](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/configure-settings)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ejecute un informe de fallo de prueba.
+      </td>
+
+      <td>
+        [Informe de fallos de prueba](/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/test-crash-reporting)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Solucionar errores HTTP [#http-errors]
+
+¿Faltan datos HTTP en la UI?
+
+Después de instalar el agente .NET MAUI, espere al menos 5 minutos. Si no aparecen datos HTTP en las páginas UI de errores HTTP y solicitudes HTTP, asegúrese de haber utilizado `HttpMessageHandler` en `HttpClient`.

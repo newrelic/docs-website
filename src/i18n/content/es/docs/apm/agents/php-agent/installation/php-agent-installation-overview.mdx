@@ -1,0 +1,128 @@
+---
+title: Descripción general de la instalación del agente PHP
+tags:
+  - Agents
+  - PHP agent
+  - Installation
+metaDescription: 'Overview of installing the New Relic PHP agent for RedHat, CentOS, Ubuntu, or Debian, or for the tar archive.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Nuestro agente PHP auto-instrumentado su código para que pueda iniciar la aplicación de monitoreo. Puede utilizar nuestra instalación guiada para una instalación automatizada o seguir las instrucciones de este documento para completar una instalación básica del agente PHP. De cualquier manera, necesitas una cuenta New Relic. [¡Es gratis, para siempre](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#how-pricing-works)!
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://newrelic.com/signup"
+    variant="primary"
+  >
+    Obtener una cuenta
+  </ButtonLink>
+
+  <ButtonLink
+    role="button"
+    to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9&cards[0]=eyJuZXJkbGV0SWQiOiJzZXR1cC1uZXJkbGV0cy5zZXR1cC1waHAtaW50ZWdyYXRpb24iLCJhY2NvdW50SWQiOjI2NDA0MDl9&platform[accountId]=1"
+    variant="primary"
+  >
+    Iniciar instalación guiada
+  </ButtonLink>
+
+  <ButtonLink
+    role="button"
+    to="https://one.eu.newrelic.com/launcher/nr1-core.explorer?platform[accountId]=1&platform[$isFallbackTimeRange]=true&platform[timeRange][duration]=1800000&pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9&cards[0]=eyJuZXJkbGV0SWQiOiJzZXR1cC1uZXJkbGV0cy5zZXR1cC1waHAtaW50ZWdyYXRpb24iLCJhY2NvdW50SWQiOjI2NDA0MDl9&state=f79eeff7-ccd0-d779-67a7-62bbac6fc692"
+    variant="primary"
+  >
+    Instalación de la UE
+  </ButtonLink>
+</ButtonGroup>
+
+## Componentes PHP [#components]
+
+Nuestro [agente PHP](/docs/agents/php-agent/getting-started/new-relic-php) consta de dos componentes básicos:
+
+* Una extensión PHP, que recopila datos de su aplicación.
+* Un daemon proxy local, que transmite los datos a New Relic
+
+Los componentes de configuración de su sistema, incluido el servidor web, el sistema operativo, los permisos del sistema, la instalación de PHP en sí, el administrador de paquetes, etc., son factores importantes durante la instalación y configuración, porque el agente es parte de eso.
+
+Para obtener más información sobre las versiones de PHP compatibles, el marco y otros requisitos del sistema, consulte [Compatibilidad y requisitos de PHP](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements).
+
+## Instalar el agente [#install-overview]
+
+Siga este proceso general para instalar el agente en su sistema. El paquete de instalación del agente o archivo tar incluye el [script interactivo<DNT>**`newrelic-install`**</DNT> ](/docs/agents/php-agent/installation/newrelic-install-script), que automatiza algunas tareas de instalación.
+
+<Callout variant="tip">
+  Si su aplicación está frecuentemente inactiva, le recomendamos que genere algunos datos interactuando con la aplicación o el sitio. Esto ayudará a garantizar que el agente se conecte inicialmente.
+</Callout>
+
+1. Si aún no lo ha hecho, [cree una cuenta New Relic](https://newrelic.com/signup). Es gratis, para siempre.
+
+2. Asegúrese de que su sistema cumpla con los [requisitos del agente](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements), incluidos [los permisos adecuados del sistema](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements#permissions).
+
+3. Desde tu <DNT>**Account settings**</DNT>, copia tu información <InlinePopover type="licenseKey"/>.
+
+4. Instale el paquete del agente o el archivo tar en su sistema.
+
+   <CollapserGroup>
+     <Collapser
+       id="install-redhat-centos"
+       title="RedHat o CentOS"
+     >
+       La forma más común de instalar el agente en RedHat o CentOS es con el paquete de instalación (<DNT>**.rpm**</DNT>) y el administrador de paquetes. Puede [decirle al administrador de paquetes](/docs/agents/php-agent/installation/php-agent-installation-redhat-centos#tell-rpm) que lo obtenga del repositorio de New Relic, o puede [descargar el archivo <DNT>**.rpm**</DNT> ](/docs/agents/php-agent/installation/php-agent-installation-redhat-centos#download-rpm)directamente desde el sitio web de New Relic.
+
+       [Instale el paquete](/docs/agents/php-agent/installation/php-agent-installation-redhat-centos) con su administrador de paquetes preferido (`yum` o `rpm`) y luego ejecute el script <DNT>**newrelic-install**</DNT> .
+     </Collapser>
+
+     <Collapser
+       id="intall-ubuntu-debian"
+       title="Ubuntu o Debian"
+     >
+       [Instale el paquete](/docs/agents/php-agent/installation/php-agent-installation-ubuntu-debian) con los comandos `apt-get` o `dpkg` . Normalmente, no es necesario ejecutar el script <DNT>**newrelic-install**</DNT> .
+     </Collapser>
+
+     <Collapser
+       id="install-tar"
+       title="Archivo de alquitrán"
+     >
+       El método de archivo <DNT>**.tar**</DNT> es el método más genérico que puede utilizar en todos [los sistemas operativos compatibles](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements#operating-systems). [Descargue el archivo tar comprimido](/docs/agents/php-agent/installation/php-agent-installation-tar-file#download) para su sistema si alguna de estas situaciones se aplica a usted:
+
+       * Su sistema operativo no aparece aquí.
+
+       * No estás utilizando un administrador de paquetes.
+
+       * Otros métodos no tienen éxito.
+
+         [Instale el archivo tar](/docs/agents/php-agent/installation/php-agent-installation-tar-file#install) del agente en cualquier [plataforma compatible](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements).
+     </Collapser>
+   </CollapserGroup>
+
+5. Cambie el [nombre de la aplicación](/docs/site/naming-your-application) predeterminada por un nombre significativo.
+
+6. Opcional: cambie otras opciones [de configuración](/docs/agents/php-agent/configuration/php-agent-configuration) del agente para personalizar aún más su instalación.
+
+7. Reinicie su servidor web (Apache, Nginx, PHP-FPM, etc.).
+
+8. <DNT>**Recommendation:**</DNT> Para ayudar a garantizar que se inicie el agente PHP, especialmente si su aplicación tiene actividad poco frecuente, genere algunos datos usando la aplicación durante unos segundos.
+
+9. Espere unos minutos hasta que su aplicación envíe datos a New Relic.
+
+Luego, [verifique el rendimiento de su aplicación en la UIde New Relic](/docs/apm/applications-menu/monitoring/apm-overview-page).
+
+<InstallFeedback/>
+
+## Ver el registro de sus datos de infraestructura y APM [#logs-context]
+
+También puede reunir los datos de su registro y de la aplicación para que la resolución de problemas sea más fácil y rápida. Con [el contexto de inicio de sesión](/docs/logs/logs-context/configure-logs-context-php/), puede ver el mensaje de registro relacionado con sus errores y la traza directamente en UI de su aplicación. También puede ver el inicio de sesión en el contexto de [los datos de su infraestructura](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/), como el clúster de Kubernetes. No es necesario cambiar a otra página de UI.
+
+## Instalar PHP con cuentas asociadas [#partnership-accounts]
+
+Los procedimientos de instalación pueden ser diferentes para los administradores que instalan el agente PHP a través de una asociación de New Relic. Para más información, ver:
+
+* [AWS](/docs/accounts-partnerships/partnerships/partner-based-installation/amazon-web-services-aws-users)
+* [Heroku](/docs/agents/php-agent/installation/php-agent-heroku)
+* [Magento](/docs/accounts-partnerships/partnerships/partner-based-installation/log-install-new-relic-partners#magento)
+* [Proveedores de hosting compartido](/docs/agents/php-agent/installation/install-php-agent-shared-hosting-service)
+* [Otros procedimientos de instalación de asociaciones](/docs/accounts-partnerships/partnerships/partner-based-installation/log-install-new-relic-partners)
+
+No todos los socios admiten agente PHP.

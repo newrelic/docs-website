@@ -1,0 +1,84 @@
+---
+title: Alert coverage gaps and condition recommendations
+tags:
+  - Alerts
+  - Proactive detection
+  - Alert coverage gaps
+metaDescription: Learn how alert coverage gaps in New Relic help you identify gaps in your alert system. 
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/get-started/condition-recommendations
+  - /docs/alerts-applied-intelligence/applied-intelligence/alert-coverage-gaps
+freshnessValidatedDate: never
+---
+
+Alert coverage gaps highlight areas in your stack where you're missing alert coverage. In our <InlinePopover type="alerts"/> section, [we've created a homepage](https://one.newrelic.com/nrai/detection-gaps/home) that includes uncovered APM, Browser, and Mobile entities, so you can assess what information your team is lacking and address the coverage gap.
+
+In an increasingly dynamic landscape, we know how important it's to stay on top of your stack and be proactively notified if anything goes wrong. But, as your team grows or changes, it can be hard to know if you're getting the alerts you need, when you need them. Alert coverage gaps gives your team a comprehensive list of all entities that your team _is not currently covering_.
+
+What does covering an entity mean? A covered entity means that you've set up an [alert](/docs/alerts-applied-intelligence/overview/#concepts-terms) to notify you of how a particular entity is performing. For example, you might have created an alert condition that opens an incident if the throughput of an APM entity exceeds 100 requests per minute. An uncovered entity is part of your system that is unmonitored which means there could be unhealthy behavior that goes unchecked. We created [alert coverage gaps](https://one.newrelic.com/nrai/detection-gaps/home) to highlight uncovered entities so your team doesn't miss valuable data and you can prevent incidents before they happen.
+
+## Find your coverage gaps [#find-your-coverage-gaps]
+
+To open the alert coverage gaps page, go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts**</DNT> and select <DNT>**Alert coverage gaps**</DNT> in the left navigation pane. There, you will see a list of all your entitites that are not currently covered.
+
+Depending on the covered entities, this page can include these tabs:
+
+* <DNT>**APM**</DNT>.
+* <DNT>**Browser**</DNT>.
+* <DNT>**Mobile**</DNT>.
+
+If there are no uncovered entities for <DNT>**Browser**</DNT> or <DNT>**Mobile**</DNT>, you won't see that specific tab.
+
+<img
+  title="Alert coverage gaps page"
+  alt="A screenshot of the alert coverage gaps page"
+  src="/images/accounts_screenshot-full_alert-coverage-gaps-homepage.webp"
+/>
+
+<figcaption>
+  Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts**</DNT> and select <DNT>**Alert coverage gaps**</DNT> in the left navigation pane. When you select this option you'll see a list of all your unmonitored entities.
+</figcaption>
+
+## Create an alert from your alert coverage gaps [#create-an-alert]
+
+Once you've selected an entity you'd like to monitor, then you can create an alert condition to notify your team of any abnormal behavior.
+
+New Relic will dynamically suggest the conditions we believe should be monitored based on the selected entity and your specific system. Some of the recommended alerts we might suggest are error percentage, apdex, or response time.
+
+You'll get recommended alert conditions based on the entity type's defined [Golden Metrics](https://github.com/newrelic/entity-definitions). If you don't get recommended alert conditions, once you select an alert condition you'd like to monitor, then your team will be alerted when this signal deviates from its normal baseline, upper and lower, for at least 5 minutes by 3.00 standard deviations.
+
+To create an alert from your alert coverage gaps:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts**</DNT> and select <DNT>**Alert coverage gaps**</DNT> in the left navigation pane.
+
+2. Click <DNT>**Add alert**</DNT> on the entity you want to create the alert.
+
+3. Add the recommended conditions you want.
+
+   <img
+     width="80%;"
+     title="Create an alert"
+     alt="A screenshot of creating an alert from the alert coverage gap page"
+     src="/images/accounts_screenshot-crop_add-an-alert.webp"
+   />
+
+   <figcaption>
+     To create an alert for an unmonitored entity, go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts**</DNT>, select <DNT>**Alert coverage gaps**</DNT> in the left navigation pane, and click <DNT>**Add alert**</DNT>.
+   </figcaption>
+
+4. Click <DNT>**Next**</DNT>.
+
+5. Select a policy to get notified. Every alert condition needs to be routed through a [policy](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy/) so you have to either select an existing policy or create a new one. Once you've selected or created a policy attached to the alert condition, then you might need to add a [destination](/docs/alerts-applied-intelligence/notifications/destinations). Destinations are where we send notifications about your New Relic data. You can link your notifications to third-party tools like Slack, Atlassian Jira, email, and more.
+
+   <img
+     width="80%;"
+     title="Create a policy for alert coverage gaps."
+     alt="A screenshot of the alert coverage gap policy selection"
+     src="/images/accounts_screenshot-crop_create-a-policy-alert-coverage-gaps.webp"
+   />
+
+   <figcaption>
+     When you create an alert you will select which policy the alert will be grouped with.
+   </figcaption>
+
+6. Click <DNT>**Activate conditions**</DNT> to save the conditions. If the policy is new, you'll see the <DNT>**Save & set up notifications**</DNT> button. Use this button if you want to save the conditions and the notifications.

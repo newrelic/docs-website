@@ -1,0 +1,357 @@
+---
+title: Introduction to synthetic monitors
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Getting started
+translate:
+  - jp
+metaDescription: "New Relic synthetic monitoring capabilities give you automated, scriptable tools to monitor your websites, critical business transactions, and API endpoints."
+redirects:
+- /docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors
+freshnessValidatedDate: never
+---
+
+You can think of our synthetic monitors as crash test dummies for your websites, applications, and API endpoints. When you deploy a synthetic monitor, an API check or virtual browser instance runs through your most important workflows, testing your critical endpoints and reporting the results to New Relic. If there's an error, failure, or anomaly affecting your customer-facing apps, then your synthetic monitor will catch it and alert you, all before anyone has any time to notice.
+
+Our synthetic monitoring capabilities work on your internal apps and behind firewalls, too. Set up a private location, then send containerized applications to manage the jobs (that is, to deploy the kind of synthetic monitor you'd like to deploy) in a secured context.
+
+## Synthetic monitors for proactive monitoring [#proactive]
+
+Our synthetic monitors are more than just ping monitors. Synthetics can perform scriptable checks on your customer-facing or internal apps, down to the HTTP headers.
+
+Setting up synthetic monitors with New Relic lets you:
+
+* Expand your browser monitoring with real, Selenium-powered [scripted browsers](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts), which test login procedures, searches, and other critical business transactions.
+* Run an [API test](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-api-tests) to check certificates or make sure any kind of HTTP requests are completed.
+* Get extended use case coverage with [additional Node modules](/docs/synthetics/synthetic-monitoring/scripting-monitors/import-nodejs-modules) for your scripted API monitors.
+* Easily diagnose whether an issue stems from the network or AWS location, a slow third party resource, or the health of your backend services or infrastructure.
+
+You can view community-sourced examples of some synthetic monitors in our [synthetics quickstarts](https://newrelic.github.io/quickstarts-synthetics-library/#/). These examples are open source and not supported by New Relic, but contain valuable scripts and snippets that may help you cover common use cases in scripted API and scripted browser monitors.
+
+## Before you create your first synthetic monitor...
+
+Below, you can get a high-level overview of system requirements, how we protect data, and how you can control permissions.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="compatibility"
+    title="Are there any system requirements with synthetic monitoring?"
+  >
+    Synthetic monitoring does not require any software except a [supported browser](/docs/apm/new-relic-apm/getting-started/supported-browsers).
+
+    <Callout variant="important">
+      To monitor a site behind your firewall, add the [synthetic monitoring public
+      minion IP addresses](/docs/synthetics/new-relic-synthetics/using-monitors/synthetics-public-minion-ips) to your allow list or [create a private location](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations/).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="privacy"
+    title="What kind of data do synthetic monitors create?"
+  >
+    The data from synthetic monitoring is test data, representing common interactions with your webpage or application. It's never actual data from real humans, and thus contains no personal data. For more information, see the [Synthetic monitoring security documentation](/docs/synthetics/new-relic-synthetics/getting-started/security-new-relic-synthetics).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="perms"
+    title="How do New Relic permissions work?"
+  >
+    For details, see [Permissions](/docs/synthetics/synthetic-monitoring/administration/user-roles-synthetic-monitoring).
+  </Collapser>
+</CollapserGroup>
+
+## Types of synthetic monitors
+
+Depending on the type of synthetic monitor you choose, you can:
+
+* [Add and edit monitors](/docs/synthetics/new-relic-synthetics/using-monitors/add-edit-monitors).
+* Use [an API](/docs/synthetics/synthetic-monitoring/administration/synthetics-api) to manage your monitors.
+* Set up monitors from [specific locations or for private servers](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations).
+
+You can also use the [host not reporting](/docs/infrastructure/new-relic-infrastructure/configuration/create-infrastructure-host-not-reporting-condition) feature in [infrastructure monitoring](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure). This allows you to take advantage of enhanced monitoring options and be notified when we've stopped receiving data from your hosts.
+
+These are the seven types of synthetic monitors:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Type of synthetic monitor
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Broken links monitor
+
+        API name: `BROKEN_LINKS`
+      </td>
+
+      <td>
+        Provide a url and this monitor will test all the links on the page for success. If a failure is detected you can view the individual non-successful links that caused the failure.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Certificate check monitor
+
+        API name: `CERT_CHECK`
+      </td>
+
+      <td>
+        Proactively ping your domain certificates based on a configurable threshold. Pair with an alert to ensure you are notified when your certificates need to be renewed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ping monitor
+
+        API name: `SIMPLE`
+      </td>
+
+      <td>
+        Ping monitors are the simplest type of monitor. They simply check to see if an application is online. The synthetic ping monitor uses a simple Java HTTP client to make requests to your site.
+
+        For consistency with other synthetic monitor types, the user agent is identified as `Google Chrome`. However, the HTTP client is not a full browser, and it does not execute JavaScript. If you need JavaScript functionality, use a simple browser monitor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Step monitor
+
+        API name: `STEP_MONITOR`
+      </td>
+
+      <td>
+        Step monitors are advanced, browser based monitors which require no code to set up.
+
+        The monitor can be configured to:
+
+        * Assert modal
+        * Assert text
+        * Assert title
+        * Assert an element
+        * Click an element
+        * Dismiss a modal
+        * Double click an element
+        * Enter a secure credential
+        * Hover over an element
+        * Locate an element by CSS class, HTML ID, link text, Xpath, or value
+        * Navigate to a URL
+        * Select from a dropdown
+        * Type text
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Simple browser monitors
+
+        API name: `BROWSER`
+      </td>
+
+      <td>
+        Simple browser monitors are simple, pre-built scripted browser monitors. They make a request to your site using an instance of Chrome or Firefox.
+
+        Compared to a simple ping monitor, this is a more accurate emulation of an actual customer visit.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Scripted browser monitors
+
+        API name: `SCRIPT_BROWSER`
+      </td>
+
+      <td>
+        Scripted browser monitors are used for more sophisticated, customized monitoring. You can create a custom script that navigates your website, takes specific actions, and ensures specific resources are present.
+
+        The monitor supports multiple browser types, including Chrome and Firefox. You can also use a variety of [third-party modules](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment#runtime-table) to build your custom monitor.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        API tests
+
+        API name: `SCRIPT_API`
+      </td>
+
+      <td>
+        API tests are used to monitor your API endpoints. This can ensure that your app server works in addition to your website. New Relic uses the [`http-request` module](https://github.com/request/request) internally to make HTTP calls to your endpoint and validate the results.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+You can [add and edit synthetic monitors](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors) directly in our UI.
+
+## Advanced testing with scripted browsers [#advanced]
+
+Synthetic monitoring allows you to proactively monitor your website or API endpoint to ensure your content is not only available, but fully functional. [Scripted browsers](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts) send real, Selenium-powered Chrome or Firefox instances to your site from locations around the world so you're confident that your content is always up, everywhere.
+
+Scripted browsers expand your testing capabilities, so you can test uncommon user flows or beta-test complex procedures. For example, you can ensure your users are able to sign up for your newsletter, add an item to their cart, or search for and find a piece of critical content with a simple JavaScript-like language. Test your backend with API monitors, which allow you to run scripted tests against any API endpoint.
+
+## Additional features [#feature-overview]
+
+Synthetic monitoring includes the following features:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Feature
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Real browsers
+      </td>
+
+      <td>
+        For simple browser and scripted browser monitors, they don't simply check that your host is up. It loads the actual page content in a real, fully virtualized Chrome or Firefox browsers (powered by Selenium) to provide testing that mirrors your users' actions.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Detailed results view
+      </td>
+
+      <td>
+        Synthetic monitoring stores every single run of your monitor for 13 months, so you can [view a detailed breakdown of each and every check](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding). You can get a snapshot of your website's performance and availability, or hunt down specific problems.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Comparative charts with browser monitoring
+      </td>
+
+      <td>
+        Use New Relic's [comparative charting feature](/docs/synthetics/new-relic-synthetics/administration/compare-page-load-performance-browser-synthetics) for a direct page load time comparison between real user ([<InlinePopover type="browser"/>](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)) interactions and the synthetic monitors. For example, during a page outage, you can compare trends to see if an issue is also visible in synthetic monitoring, or if it is caused by other variables.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Device emulation
+      </td>
+
+      <td>
+        Use [device emulation](/docs/synthetics/synthetic-monitoring/using-monitors/device-emulation) to simulate mobile or tablet devices in simple, scripted browser, and step monitors.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        "Three strikes" before failure
+      </td>
+
+      <td>
+        Our monitors run three checks before entering a failed state. This multiple strike system helps reduce noise. For more on this, see [this forum post on the three-strike behavior](https://forum.newrelic.com/s/hubtopic/aAX8W0000008b18WAA/relic-solution-understanding-the-three-strikes-behavior-in-synthetics).  
+
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Advanced scripted monitoring
+      </td>
+
+      <td>
+        Use [scripted browsers](/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-synthetic-scripts) to run complex test cases against your website. Ensure critical processes like checkout and login are always running smoothly, and build a baseline to compare against when things go wrong. With a built-in scripting IDE based on Node.js, create scripts quickly without leaving your browser.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Global test coverage
+      </td>
+
+      <td>
+        Check coverage from locations around the world to ensure your users can access your website from anywhere, anytime. Monitor sites behind your firewall by adding the [synthetic monitoring static IP addresses](/docs/apm/new-relic-apm/getting-started/networks#synthetics-public) to your allow list. Use [private locations](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) to monitor internal sites or to expand your coverage to new locations.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Compatibility with popular analytics platforms
+      </td>
+
+      <td>
+        Synthetic monitoring specifically excludes scripts for [popular analytics services](https://s3.amazonaws.com/nr-synthetics-assets/default-hostnames-blacklist/production/default-hostnames-blacklist.txt), like Google Analytics. This ensures your analytics tools continue to receive the exact same data, even with thousands of monitors checking your website each month.
+
+        You can [unblock](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers#unblock-service) any of the services blocked by default, or [block](/docs/synthetics/new-relic-synthetics/scripting-monitors/synthetics-scripted-browser-reference#browser-addHostnameToBlacklist) additional services.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        NerdGraph API functions
+      </td>
+
+      <td>
+        We include synthetic monitoring in NerdGraph, our GraphQL API. NerdGraph contains a number of query functions for synthetics, which you can review in our [synthetics Nerdgraph documentation](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#query).
+
+        * NerdGraph mutations for synthetics let you create, update and delete your monitors. You can also manage your secure credentials, private locations and monitor downtimes. View examples of [these mutations](/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#create-monitors) in our documentation.
+        * You can create synthetics from [NerdGraph explorer](/docs/apis/nerdgraph/get-started/nerdgraph-explorer/), which lets you generate queries and mutations in your IaC, OaC, CI/CD pipelines and other applications.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        REST API functions (Deprecated)
+      </td>
+
+      <td>
+        REST APIs are deprecated. We recommend that you use NerdGraph instead, as the new runtimes can only be managed by NerdGraph. To use REST API, see our docs:
+
+        * [Simple monitors](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitors-via-rest-api) and [scripted monitors](/docs/apis/synthetics-rest-api/monitor-examples/manage-synthetics-monitor-scripts-rest-api)
+        * [Categories and labels for monitors](/docs/apis/synthetics-rest-api/monitor-examples/use-synthetics-label-apis)
+        * [Alert notifications](/docs/apis/synthetics-rest-api/alert-examples/manage-synthetics-alert-notifications-rest-api)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Terraform
+      </td>
+
+      <td>
+        Terraform provides resources for each monitor type, and secure credentials and private locations.  For more information, see our [Introduction to Terraform](/docs/more-integrations/terraform/terraform-intro/), or review [Terraform's docs on the Terraform registry](registry.terraform.io/providers/newrelic/newrelic/latest/docs) .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## What's next? [#enhanced-monitoring]
+
+After you've set up some synthetic monitors, we recommend these next steps:
+
+* Check how your synthetics data turns your aggregated results into [metrics](/docs/synthetics/new-relic-synthetics/dashboards/synthetics-overview-dashboard), allowing you to see patterns and identify causes of poor performance.
+* See how [each and every monitor result](/docs/synthetics/new-relic-synthetics/using-monitors/viewing-monitor-results#understanding) is broken down.
+* Want to supplement your synthetics data with real-user data? Check out our [Improve your website's performance](/docs/journey-performance/improve-website-performance) tutorial.
+* Create [alerts that notify you](/docs/synthetics/new-relic-synthetics/using-monitors/alerting-synthetics) if your website or API endpoint is inaccessible. You can even expand your geographical coverage or monitor internal websites by creating [private locations](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations).
+* You can also [query your monitor results](/docs/using-new-relic/data/understand-data/query-new-relic-data) for a closer look. New Relic retains monitor results for thirteen months, ensuring you can compare usage year over year.

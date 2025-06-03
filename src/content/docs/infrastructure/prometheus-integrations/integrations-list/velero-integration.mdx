@@ -1,0 +1,84 @@
+---
+title: 'Velero integration'
+tags:
+  - Integrations
+  - Velero
+  - Backup
+  - Prometheus
+  - Kubernetes
+freshnessValidatedDate: never
+---
+
+[Velero](https://velero.io/) is an open-source tool for safely backing up and restoring resources in a Kubernetes cluster, performing disaster recovery, and migrating resources and persistent volumes to another Kubernetes cluster.
+
+Use New Relic to understand the success and performance of your Velero backup jobs for your k8s cluster. With New Relic you can monitor:
+
+* Backup status by instance
+* Backup durations and size by instance
+* Restore status by instance
+
+<img
+  title="Velero Dashboard"
+  alt="Velero Dashboard"
+  src="/images/kubernetes_screenshot-crop_velero-dashboard.webp"
+/>
+
+## Enable the integration
+
+Follow these steps to enable the integration.
+
+1. Follow the [Velero documentation](https://velero.io/docs/main/run-locally/#3-start-the-velero-server-locally) for Prometheus to discover the Velero metrics endpoints.
+
+2. Set up Prometheus monitoring. Prometheus metrics needs to be integrated with New Relic, you can use the Prometheus Agent or the Remote Write integration. See [how to send Prometheus metrics](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) for more details.
+
+   <Callout variant="important">
+     The [Prometheus Agent](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/setup-prometheus-agent#scrape-metrics-only-from-prometheus-integrations-scrape-prometheus-integrations) only scrapes metrics by default from a [set of integrations](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro).
+
+     In this case, you must identify your pod or endpoint with one of the these labels `app.kubernetes.io/name`, `app.newrelic.io/name`, `k8s-app` containing the string `velero`.
+   </Callout>
+
+3. Use the following query to confirm metrics are being ingested as expected:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE metricName LIKE 'velero_%' FACET metricName LIMIT MAX
+   ```
+
+4. Install the [Velero quickstart](https://newrelic.com/instant-observability/velero-prometheus) to access built-in <InlinePopover type="dashboards"/> and [alerts](/docs/alerts-applied-intelligence/new-relic-alerts/learn-alerts/introduction-alerts/).
+
+   Once you imported, you can edit or clone the assets to adapt them to your specific requirements.
+
+## Find and use metrics
+
+Prometheus metrics are stored as dimensional metrics. You can [query using NRQL](/docs/telemetry-data-platform/get-data/apis/query-metric-data-type/) or use the [Data Explorer](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/) to browse the available metrics, facet, and filter by the associated dimensions.
+
+Use the following NRQL queries to understand the metrics being ingested in New Relic:
+
+* List unique metric names:
+
+  ```sql
+  FROM Metric SELECT uniques(metricName) WHERE metricName LIKE 'velero_%' LIMIT MAX
+  ```
+
+* Count number of metric updates:
+
+  ```sql
+  FROM Metric SELECT datapointcount() WHERE metricName LIKE 'velero_%' LIMIT MAX
+  ```
+
+* Estimate data ingestion (daily ingest, in bytes):
+
+  ```sql
+  FROM Metric SELECT bytecountestimate() WHERE metricName LIKE 'velero_%' SINCE 1 day ago
+  ```
+
+## Troubleshooting
+
+* Use this command to verify that the Velero Prometheus endpoint is emitting metrics on any k8s node configured with Velero:
+
+  ```sh
+  curl <Velero-Pod-IP>:8085/metrics
+  ```
+
+* Follow the troubleshooting tips from [Velero documentation](https://velero.io/docs/main/troubleshooting/#velero-is-not-publishing-prometheus-metrics) to make sure that metrics are configured as expected on your cluster.
+
+* You can also check the specific [troubleshooting guidelines](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/troubleshooting-guide/) for Prometheus integrations.

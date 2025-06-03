@@ -1,0 +1,80 @@
+---
+title: Monitor su aplicación PHP
+tags:
+  - Agents
+  - PHP agent
+  - Getting started
+metaDescription: Get an overview of your installation options for New Relic's PHP agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+¿Quiere comenzar a monitorear su aplicación PHP con New Relic de inmediato? Utilice esta guía para encontrar la mejor ruta para comenzar a enviar los datos de su aplicación a New Relic.
+
+¿Quiere obtener más información antes de comenzar? [Introducción a APM](/docs/apm/new-relic-apm/getting-started/introduction-apm) e [Introducción a New Relic para PHP](/docs/apm/agents/php-agent/getting-started/introduction-new-relic-php) son un buen punto de partida.
+
+## ¿Qué quieres monitor? [#what]
+
+Tenemos algunas rutas para instalar el agente PHP, dependiendo de lo que estés monitoreando.
+
+<CollapserGroup>
+  <Collapser
+    id="docker"
+    title="Aplicación desplegar en un contenedor Docker"
+  >
+    Tiene algunas opciones para instrumentar su aplicación Docker con el agente PHP.
+
+    * Instálelo a través de nuestra [instalación guiada](https://one.newrelic.com/marketplace?state=38549f24-54f0-9e80-e910-0c42a9b493b1) si desea que su daemon y agente PHP estén en un contenedor diferente. Si aún necesita crear su daemon, siga los pasos adicionales en [Docker y otros entornos de contenedor](/docs/apm/agents/php-agent/advanced-installation/docker-other-container-environments-install-php-agent#daemon-container)
+    * Para configurar el agente y daemon en el mismo contenedor, siga [estos pasos](/docs/apm/agents/php-agent/advanced-installation/docker-other-container-environments-install-php-agent#install-same-container). Esto implica descargar el [archivo tar](/docs/apm/agents/php-agent/installation/php-agent-installation-tar-file/) para el agente PHP.
+  </Collapser>
+
+  <Collapser
+    id="redhat-centos"
+    title="Implementación de aplicaciones con RedHat, CentOS o AWS Linux"
+  >
+    * Nuestra [instalación guiada](https://one.newrelic.com/marketplace?state=38549f24-54f0-9e80-e910-0c42a9b493b1) utiliza `yum` para instalar el agente, al igual que nuestra instalación manual. La instalación guiada es una excelente opción si desea tener más visibilidad y certeza sobre dónde se encuentra en el proceso de instalación.
+    * Nuestra [instalación manual](/docs/apm/agents/php-agent/installation/php-agent-installation-aws-linux-redhat-centos#manager-tarball) lo guía a través del mismo proceso, pero le permite administrar cada paso desde su línea de comando.
+  </Collapser>
+
+  <Collapser
+    id="debian-ubuntu"
+    title="Aplicación desplegar con Debian o Ubuntu"
+  >
+    * Nuestra [instalación guiada](https://one.newrelic.com/marketplace?state=38549f24-54f0-9e80-e910-0c42a9b493b1) utiliza `apt` para instalar el agente, al igual que nuestra instalación manual. La instalación guiada es una excelente opción si desea tener más visibilidad y certeza sobre dónde se encuentra en el proceso de instalación.
+    * Nuestra [instalación manual](/docs/apm/agents/php-agent/installation/php-agent-installation-ubuntu-debian) lo guía a través del mismo proceso, pero le permite administrar cada paso desde su línea de comando.
+  </Collapser>
+
+  <Collapser
+    id="tar"
+    title="Aplicación implementada con otras versiones de Unix (usando el archivo tar)"
+  >
+    Si utiliza una versión diferente de Unix, instale el agente utilizando nuestro [archivo tar PHP](/docs/apm/agents/php-agent/installation/php-agent-installation-tar-file).
+  </Collapser>
+
+  <Collapser
+    id="lambda"
+    title="Implementación de aplicaciones con AWS Lambda"
+  >
+    Si su aplicación se implementa con AWS Lambda, siga nuestros [pasos autoguiados](https://one.newrelic.com/marketplace?state=3daeff79-c8e3-4375-f0e0-57d417ec07ab) para instrumentar su aplicación con el agente PHP.
+  </Collapser>
+
+  <Collapser
+    id="hosting-providers"
+    title="Aplicación alojada en AWS, Heroku, Magento u otros proveedores de hosting"
+  >
+    A través de asociaciones con New Relic, puede ejecutar el agente PHP si su aplicación web está alojada en un proveedor externo.
+
+    * Para aplicaciones alojadas en AWS, instale la [integración de Amazon CloudWatch Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream-setup). Para obtener más información sobre New Relic y la integración de AWS, lea [Introducción a la integración de AWS](/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations/).
+    * Para una aplicación PHP alojada en Heroku, instale el [complemento New Relic](/docs/apm/agents/php-agent/advanced-installation/php-agent-heroku/#installing)
+    * Si es un comerciante de Magento, [siga estos pasos](/docs/accounts/install-new-relic/partner-based-installation/log-install-new-relic-partners/#magento) para implementar el agente PHP en su instalación de Magento.
+  </Collapser>
+</CollapserGroup>
+
+## ¿Que sigue? [#next]
+
+Ya has instrumentado tu aplicación y deseas seguir los siguientes pasos. Podrías considerar:
+
+* [Configurando el agente PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
+* [Configurar el daemonproxy del agente PHP](/docs/apm/agents/php-agent/configuration/proxy-daemon-newreliccfg-settings/)
+* Obtener información sobre la puntuación Apdex de su aplicación para obtener [un resumen de alto nivel de su aplicación](/docs/apm/apm-ui-pages/monitoring/apm-summary-page-view-transaction-apdex-usage-data/)
+* Conectando su registro y datos APM con [el registro PHP en contexto](/docs/logs/logs-context/configure-logs-context-php/)

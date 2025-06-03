@@ -1,0 +1,19 @@
+---
+subject: iOS agent
+title: tvOS agent v6.2.0
+releaseDate: '2018-03-01'
+version: 6.2.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.2.0.zip'
+---
+
+### Improvements
+
+* Improved performance of symbol map upload script.
+* Improved performance of recordHandledException API.
+* Removed deprecated APIs.
+
+### Fixes
+
+* Prevents possible corrupted event data.
+* Event/Attribute APIs now accept NSNumbers containing BOOL values
+* `+[NewRelic setApplicationVersion:]` and `+[NewRelic setApplicationBuild:]` will now throw an exception if called after the agent is started.

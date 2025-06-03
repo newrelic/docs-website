@@ -1,0 +1,110 @@
+---
+title: Métrica a nivel de código
+tags:
+  - Agents
+  - PHP agent
+  - Features
+metaDescription: Code-level metrics for PHP can be displayed in your IDE using the New Relic CodeStream extension.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Las métricas a nivel de código permiten a los desarrolladores que utilizan la [extensión New Relic CodeStream](/docs/codestream/observability/code-level-metrics) ver los datos de APM mostrados contextualmente en su IDE, junto con los métodos individuales en el código. Esto permite a los desarrolladores ser más proactivos a la hora de abordar los problemas de rendimiento mientras escriben y revisan el código.
+
+## Empezando
+
+Primero, [instale](/docs/codestream/start-here/install-codestream) la extensión New Relic CodeStream en el IDE compatible de su elección e log sesión.
+
+<Callout variant="important">
+  Las métricas a nivel de código están disponibles en la versión 10.4.0 o superior del agente PHP y habilitadas de forma predeterminada para las versiones 10.6.0 y superiores. Para cambiar esta configuración, consulte nuestra [documentación](/docs/apm/agents/php-agent/configuration/php-agent-configuration/#inivar-code-level-metrics).
+</Callout>
+
+## Agente Atributo
+
+El agente PHP informa y adjunta el siguiente atributo a los intervalos producidos por su aplicación:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Description**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Example**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `code.function`
+      </td>
+
+      <td>
+        El nombre de la función instrumentada.
+      </td>
+
+      <td>
+        createProduct
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `code.filepath`
+      </td>
+
+      <td>
+        La ruta absoluta al archivo de código fuente en el que se define `code.function`
+      </td>
+
+      <td>
+        /symfony/symfony_app/src/Controller/ProductController.php
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `code.lineno`
+      </td>
+
+      <td>
+        El número de línea donde `code.function` está definido en code.filepath
+      </td>
+
+      <td>
+        16
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `code.namespace`
+      </td>
+
+      <td>
+        El namespace (nombre de clase/módulo) en el que se define `code.function`
+      </td>
+
+      <td>
+        App\\Controller\\ProductController
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Las métricas a nivel de código solo son compatibles con PHP versión 7.0 o superior.
+</Callout>

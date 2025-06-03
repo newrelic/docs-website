@@ -12,4 +12,4 @@ Suggested decisions use machine learning to tailor correlations based on your da
 
 You won’t need to perform any additional configuration—choose the alert policies you want to feed in for correlation as usual, and we’ll take care of the rest. The more policies you add, and the more data we have access to, the better suggestions you’ll receive. Be sure to set up your [alerts source](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#configure-source-nr-alerts) to take advantage of this new capability.
 
-![Screenshot showing suggested decisions.](./images/whats_up_accelerated_decisions.png "whats_up_accelerated_decisions.png")
+![Screenshot showing suggested decisions.](/images/whats_up_accelerated_decisions.webp 'whats_up_accelerated_decisions.webp')

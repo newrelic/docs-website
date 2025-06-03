@@ -1,0 +1,400 @@
+---
+title: Guía para usar la API del agente PHP
+tags:
+  - Agents
+  - PHP agent
+  - API guides
+metaDescription: 'A task-focused guide to APM''s PHP agent API, with links to relevant sections of the complete API documentation.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente PHP de New Relic proporciona una [API](/docs/agents/php-agent/php-agent-api) para personalizar el comportamiento del agente. El agente instrumentó automáticamente muchos [marcos PHP populares](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements#frameworks), pero puede usar la API de PHP para instrumentar actividades que el agente aún no instrumenta de forma predeterminada.
+
+Esta guía describe la API de llamada PHP para varias tareas comunes; Por ejemplo:
+
+* Observe o ignore [errores](#errors) específicos.
+* Nombra una [transacción](#metadata).
+* Cambie el nombre de la [aplicación](#name-app) que informa los datos.
+
+<Callout variant="tip">
+  También puede configurar muchas de estas opciones [por directorio](/docs/agents/php-agent/configuration/php-directory-ini-settings) o en [`newrelic.ini`](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-background). Si se configura a través de API, la [API tiene prioridad sobre los otros métodos](/docs/agents/php-agent/configuration/php-agent-configuration#config-options-precedence).
+</Callout>
+
+## Aviso o error omitido [#errors]
+
+Normalmente, el agente detecta errores automáticamente. Sin embargo, puede [marcar manualmente un error](/docs/apm/applications-menu/error-analytics/ignoring-errors-new-relic-apm) con el agente.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Informar un error que el agente no informa automáticamente
+      </td>
+
+      <td>
+        Ver [`newrelic_notice_error()`](/docs/agents/php-agent/php-agent-api/newrelic_notice_error).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Ignorar un error
+      </td>
+
+      <td>
+        Edite [`error_collector.ignore_exceptions`](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-err-ignore-exceptions) o [`error_collector.ignore_errors`](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-err-ignore-errors) en el archivo`newrelic.ini` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Mejorar los metadatos de una transacción [#metadata]
+
+A veces, el código al que apuntas es visible en New Relic, pero algunos detalles del método no son útiles. Por ejemplo:
+
+* El nombre predeterminado no es útil o está provocando un [problema de agrupación métrica](/docs/agents/manage-apm-agents/troubleshooting/metric-grouping-issues).
+* Desea agregar [un atributo personalizado](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes) a su transacción o tramos para poder filtrarlos con NRQL consulta.
+
+Utilice estos métodos cuando desee cambiar la forma en que New Relic instrumentó una transacción que ya está visible en New Relic:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cambiar el nombre de una transacción
+      </td>
+
+      <td>
+        Ver [`newrelic_name_transaction()`](/docs/agents/php-agent/php-agent-api/newrelic_name_transaction).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agregue metadatos (como el nombre de la cuenta de sus clientes o el nivel de suscripción) a sus transacciones o tramos
+      </td>
+
+      <td>
+        Utilice [un atributo personalizado](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes).
+
+        Para conocer el atributo personalizado que se agregará a la transacción y a los intervalos (si está habilitado), consulte [`newrelic_add_custom_parameter()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_parameter).
+
+        Para conocer el atributo personalizado que se agregará solo a los tramos, consulte [`newrelic_add_custom_span_parameter()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_span_parameter).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Marcar una transacción como trabajo en segundo plano
+      </td>
+
+      <td>
+        Ver [`newrelic_background_job()`](/docs/agents/php-agent/php-agent-api/newrelic_background_job).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evite que una transacción afecte su [puntuación Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction)
+      </td>
+
+      <td>
+        Ver [`newrelic_ignore_apdex()`](/docs/agents/php-agent/php-agent-api/newrelic_ignore_apdex).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Ver registro relacionado [#logs]
+
+Para ver el registro directamente dentro del contexto de los errores y la traza de su aplicación, use estas llamadas API para anotar su registro:
+
+* [`newrelic_get_trace_metadata`](/docs/apm/agents/php-agent/php-agent-api/newrelicgettracemetadata/)
+* [`newrelic_get_linking_metadata`](/docs/apm/agents/php-agent/php-agent-api/newrelicgetlinkingmetadata/)
+
+Para obtener más información sobre cómo correlacionar los datos log con otros telemetry data, consulte nuestra documentación [de contexto de registro](/docs/logs/logs-context/configure-logs-context-php/) .
+
+## Aplicación de informes de nombres [#name-app]
+
+La UI de New Relic organiza los datos según el [nombre que le dé a su aplicación](/docs/agents/manage-apm-agents/app-naming/name-your-application). Cada nombre aparece como una aplicación diferente. Puedes cambiar el nombre de la aplicación de informes para cualquier parte de tu código para ayudarte mejor:
+
+* Organice y analice sus datos en las páginas UI de New Relic (por ejemplo, la [página](/docs/apm/applications-menu/monitoring/view-your-applications-index)
+
+  <DNT>
+    [**Applications index**](/docs/apm/applications-menu/monitoring/view-your-applications-index)
+  </DNT>
+
+  [](/docs/apm/applications-menu/monitoring/view-your-applications-index)de APM, la [página](/docs/apm/applications-menu/monitoring/apm-overview-page)
+
+  <DNT>
+    [**Summary**](/docs/apm/applications-menu/monitoring/apm-overview-page)
+  </DNT>
+
+  [](/docs/apm/applications-menu/monitoring/apm-overview-page), la [página](/docs/apm/applications-menu/monitoring/transactions-page)
+
+  <DNT>
+    [**Transactions**](/docs/apm/applications-menu/monitoring/transactions-page)
+  </DNT>
+
+  [](/docs/apm/applications-menu/monitoring/transactions-page), etc.).
+
+* [consulta](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) tus datos.
+
+* Crear [política de alertas](/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts).
+
+Esto es especialmente útil si tiene una aplicación de múltiples sitios o conjuntos distintos de código de aplicación que utilizan la misma instalación de PHP.
+
+Alternativamente, puede configurar el nombre de la aplicación en un nivel superior a través del valor de configuración [`newrelic.appname`](/docs/agents/php-agent/configuration/php-agent-configuration#inivar-appname) , a través de [Apache](/docs/agents/php-agent/configuration/php-directory-ini-settings#perdir-apache) o a través de [PHP-FPM](/docs/agents/php-agent/configuration/php-directory-ini-settings#php-fpm_per-dir).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cambie el nombre de la aplicación de informes para una parte específica de su código
+      </td>
+
+      <td>
+        Establece el nombre de la aplicación. Ver [`newrelic_set_appname()`](/docs/agents/php-agent/php-agent-api/newrelic_set_appname).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Instrumento faltan secciones de tu código con transacción. [#creating-transactions]
+
+Para instrumentar su aplicación, New Relic separa cada ruta a través de su código en su propia transacción. New Relic mide (o "instrumentado") el método principal en estas transacciones para medir el rendimiento general de su aplicación y recopila la traza de la transacción de transacciones de larga duración para obtener detalles adicionales. Para obtener más información sobre transacción, consulte [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction) y [traza de la transacción](/docs/apm/transactions/transaction-traces/introduction-transaction-traces).
+
+Utilice estos métodos cuando New Relic no esté instrumentada en absoluto en una parte particular de su código:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Comenzar a cronometrar un método New Relic no se instrumenta automáticamente
+      </td>
+
+      <td>
+        Iniciar una transacción. Ver [`newrelic_start_transaction()`](/docs/agents/php-agent/php-agent-api/newrelic_start_transaction).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Dejar de cronometrar un método una vez completado su trabajo
+      </td>
+
+      <td>
+        Detener una transacción. Ver [`newrelic_end_transaction()`](/docs/agents/php-agent/php-agent-api/newrelic_end_transaction).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evitar que una transacción se informe a New Relic
+      </td>
+
+      <td>
+        Ignora la transacción. Ver [`newrelic_ignore_transaction()`](/docs/agents/php-agent/php-agent-api/newrelic_ignore_transaction).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Métodos específicos de tiempo que utilizan segmentos [#segments]
+
+Si una transacción ya es visible en la UI de New Relic, pero no tiene suficientes datos sobre un método en particular que se llamó durante esa transacción, puede crear segmentos para cronometrar esos métodos individuales con mayor detalle. Por ejemplo, es posible que desee cronometrar un método particularmente crítico con lógica compleja.
+
+Utilice estos métodos cuando desee instrumentar un método dentro de una transacción existente:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cronometrar un método particular
+      </td>
+
+      <td>
+        Ver [`newrelic_add_custom_tracer()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_tracer).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Trabajo asincrónico del instrumento. [#async]
+
+El único trabajo asíncrono instrumentado por el agente PHP es Guzzle, que está [instrumentado de forma predeterminada](/docs/agents/php-agent/frameworks-libraries/guzzle).
+
+## Envía datos de eventos personalizados y métricos desde tu app [#custom-data]
+
+New Relic incluye varias formas de registrar datos personalizados arbitrarios. Para obtener una explicación de los tipos de datos de New Relic, consulte [Recopilación de datos](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Envía datos sobre un evento para que puedas analizarlo en New Relic
+      </td>
+
+      <td>
+        Crea un [evento personalizado](/docs/insights/insights-data-sources/custom-events). Ver [Insertar evento personalizado vía agente APM (PHP)](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents#php-att).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Etiqueta tu evento con metadatos para filtrarlos y facetarlos
+      </td>
+
+      <td>
+        Agregue [un atributo personalizado](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes). Ver [`newrelic_add_custom_parameter()`](/docs/agents/php-agent/php-agent-api/newrelic_add_custom_parameter).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Informar datos de rendimiento personalizados
+      </td>
+
+      <td>
+        Cree una [métrica personalizada](/docs/agents/manage-apm-agents/agent-data/custom-metrics). Ver [`newrelic_custom_metric()`](/docs/agents/php-agent/php-agent-api/newreliccustommetric-php-agent-api).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Llamadas de instrumentos a servicios externos. [#datastore]
+
+Utilice estos métodos para recopilar datos sobre las conexiones de su aplicación a otras aplicaciones o almacenes de datos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Si quieres...
+      </th>
+
+      <th>
+        Hacer esto...
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Cronometrar una llamada a un almacenamiento de datos no instrumentado por defecto
+      </td>
+
+      <td>
+        Ver [`newrelic_record_datastore_segment()`](/docs/agents/php-agent/php-agent-api/newrelic_record_datastore_segment).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Vea el camino que sigue una solicitud a medida que viaja a través de un sistema distribuido
+      </td>
+
+      <td>
+        Para versiones del agente PHP inferiores a 9.8, consulte estas API de llamada:
+
+        * [`newrelic_create_distributed_trace_payload()`](/docs/agents/php-agent/php-agent-api/newreliccreatedistributedtracepayload-php-agent-api)
+
+        * [`newrelic_accept_distributed_trace_payload()`](/docs/agents/php-agent/php-agent-api/newrelicacceptdistributedtracepayload-php-agent-api)
+
+        * [`newrelic_accept_distributed_trace_payload_httpsafe()`](/docs/agents/php-agent/php-agent-api/newrelicacceptdistributedtracepayloadhttpsafe-php-agent-api)
+
+          Para las versiones del agente PHP 9.8 o superior, consulte estas API de llamada:
+
+        * `newrelic_insert_distributed_trace_headers()`
+
+        * `newrelic_accept_distributed_trace_headers()`
+
+          Para ver ejemplos, consulte la documentación para [distribuir manualmente el instrumento rastreo](/docs/agents/php-agent/features/distributed-tracing#manual).
+      </td>
+    </tr>
+
+    <tr>
+      <td/>
+
+      <td/>
+    </tr>
+  </tbody>
+</table>
+
+## Monitor páginas específicas browser [#browser]
+
+Puede [instalar el agente del navegador](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent) agregándolo automáticamente a sus páginas o implementándolo en páginas específicas copiando y pegando nuestro fragmento de JavaScript. También puede controlar el agente <InlinePopover type="browser"/>mediante llamadas a la API del agente <InlinePopover type="apm"/>. Para obtener más información, consulte [monitoreo del navegador y el agente PHP](/docs/agents/php-agent/features/new-relic-browser-php-agent).

@@ -1,0 +1,22 @@
+---
+subject: iOS agent
+title: XCFramework agent v7.3.7
+releaseDate: '2022-07-13'
+version: 7.3.7
+downloadLink: 'https://download.newrelic.com/ios_agent/NewRelic_XCFramework_Agent_7.3.7.zip'
+---
+
+## Fixed in this release
+
+* Updates to support Hybrid Frameworks
+* Fix for custom event memory leak
+* Fix for custom traces when disabling default traces
+
+### Other notes
+
+* This artifact was built using Xcode 13.3 with a minimum deployment target of iOS version 9.0. Compatible with CocoaPods 1.10 or higher and Swift Package Manager
+* For Mac Catalyst, the zip file installation may integrate more easily than using CocoaPods.
+
+### Support statement
+
+* New Relic recommends that you upgrade the agent regularly and at a minimum every 3 months. The iOS and tvOS agents were deprecated with the release of version 7.2.1 of the [XCFramework](/docs/release-notes/mobile-release-notes/ios-release-notes/xcframework-agent-700) agent. As of this release, the oldest supported version is 7.0.0 of the [XCFramework](/docs/release-notes/mobile-release-notes/ios-release-notes/ios-agent-700)

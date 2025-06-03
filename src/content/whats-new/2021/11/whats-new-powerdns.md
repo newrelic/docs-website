@@ -1,6 +1,6 @@
 ---
-title: "PowerDNS integration is now available"
-summary: "Pull data from PowerDNS servers directly into New Relic without installing any third-party software."
+title: 'PowerDNS integration is now available'
+summary: 'Pull data from PowerDNS servers directly into New Relic without installing any third-party software.'
 releaseDate: '2021-11-02'
 learnMoreLink: 'https://discuss.newrelic.com/t/the-new-relic-infrastructure-powerdns-integration-is-now-available/165797'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/powerdns-monitoring-integration/'
@@ -25,7 +25,7 @@ You will easily identify the actual status by reviewing the most important metri
 
 Check the health of your authoritative servers by looking at the information provided by the dashboard.
 
-![A screenshot of the PowerDNS dashboard.](./images/PowerDNS-NR.png "The PowerDNS New Relic Dashboard")
+![A screenshot of the PowerDNS dashboard.](/images/PowerDNS-NR.webp 'The PowerDNS New Relic Dashboard')
 
 ## Get started with the PowerDNS integration.
 

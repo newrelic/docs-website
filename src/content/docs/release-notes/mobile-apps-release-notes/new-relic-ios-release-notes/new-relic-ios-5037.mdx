@@ -1,0 +1,10 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2023-07-31'
+version: 5.3.7
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Fixes
+
+* Fixes crash on iPad launch that was recently introduced

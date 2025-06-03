@@ -3,7 +3,13 @@ import PropTypes from 'prop-types';
 import MDXContainer from './MDXContainer';
 import TileSelect from './TileSelect';
 
-const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
+const AppInfoConfigOption = ({
+  optionType,
+  selectOptions,
+  mdx,
+  onChange,
+  showGuided,
+}) => {
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
@@ -20,7 +26,7 @@ const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
         defaultOpen={!select.value}
       />
 
-      {body && <MDXContainer body={body} />}
+      {showGuided && body && <MDXContainer body={body} />}
     </div>
   );
 };
@@ -40,6 +46,7 @@ AppInfoConfigOption.propTypes = {
   mdx: PropTypes.object,
   optionType: PropTypes.string.isRequired,
   onChange: PropTypes.func.isRequired,
+  showGuided: PropTypes.bool,
 };
 
 export default AppInfoConfigOption;

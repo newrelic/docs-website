@@ -1,0 +1,101 @@
+---
+title: Monitoreo del navegador y el agente Python
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: Instrumentation for your Python agent to set up monitoring with browser instrumentation.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Con el agente Python, puede agregar [monitoreo de navegador](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser) a sus páginas web de forma automática o manual. Para habilitar <InlinePopover type="browser"/>en la interfaz de usuario, siga los procedimientos para [instalar el agente del navegador](/docs/browser/new-relic-browser/installation/install-new-relic-browser-agent). Luego siga los procedimientos de esta sección para configurar el agente Python.
+
+Para utilizar el agente del navegador con su agente Python, asegúrese de tener la última versión. Para obtener más información, consulte las [instrucciones de instalación del agente](/docs/agents/python-agent/installation-and-configuration/python-agent-installation).
+
+## Soporte para instrumentación automática. [#restrictions_on_instrumentation]
+
+El agente Python solo admite instrumentación automática para aplicaciones WSGI que están alojadas directamente en un servidor WSGI dedicado con una interfaz WSGI nativa, y donde la aplicación WSGI devuelve la respuesta de la página HTML a través de un iterable/generador.
+
+La instrumentación automática requiere un servidor WSGI dedicado.
+
+* Se admiten servidores WSGI como Apache/mod_wsgi, gunicorn y uWSGI.
+* No se admite el uso de adaptadores WSGI sobre el marco Tornado o Twisted.
+
+El agente Python no admite la inserción de instrumentación cuando se utiliza la devolución de llamada `write()` devuelta por la función WSGI `start_response()` para escribir la respuesta de la página HTML. Para obtener más información sobre los requisitos para la instrumentación automática, consulte [resolución de problemas de instrumentación browser en Python](/docs/agents/python-agent/troubleshooting/troubleshooting-page-load-timing-python).
+
+## Utilice instrumentación automática. [#automatic_instrumentation]
+
+El agente Python puede agregar automáticamente el agente JavaScript browser a cualquier respuesta de página HTML. Para la aplicación WSGI, el agente utiliza un middleware WSGI instalado en la canalización de solicitudes. Dado que el middleware está en el nivel WSGI, la instrumentación automática debería funcionar para cualquier aplicación WSGI independientemente del framework web que esté utilizando, incluido el marco web Python popular como Django, Flask y Pyramid.
+
+## Deshabilitar instrumentación para páginas específicas [#disabling_instrumentation]
+
+Si desea utilizar instrumentación automática, pero tiene una respuesta de página HTML que no desea instrumentar, puede desactivar la instrumentación para esa solicitud. Agregue esta [llamada API del agente Python](/docs/agents/python-agent/installation-configuration/python-agent-configuration#disable_browser_autorum) al código de ese controlador de solicitudes:
+
+```
+newrelic.agent.disable_browser_autorum()
+```
+
+Si está utilizando un servidor WSGI que permite [la configuración por solicitud](/docs/agents/python-agent/installation-configuration/python-agent-configuration#per-request-configuration), como Apache/mod_wsgi, también puede deshabilitar la instrumentación automática configurando la clave [`newrelic.disable_browser_autorum`](/docs/agents/python-agent/installation-configuration/python-agent-configuration#disable_browser_autorum) para esa solicitud en el diccionario de entorno WSGI pasado a su aplicación de monitor.
+
+Por ejemplo, si usa Apache/mod_wsgi, puede desactivar la instrumentación automática filtrando por la URL:
+
+```
+<Location /login>
+SetEnv newrelic.disable_browser_autorum true
+</Location>
+```
+
+## Habilitar manualmente el monitoreo del navegador para páginas específicas [#manual_instrumentation]
+
+Puede agregar manualmente instrumentación browser a páginas específicas. Esto es útil, por ejemplo, si la instrumentación automática no es posible para su aplicación, si utiliza una política de seguridad de contenido no especificada o si desea recopilar datos del navegador solo para páginas específicas.
+
+Las llamadas en este procedimiento deben realizarse en <DNT>**every**</DNT> solicitud que desea monitor. Usted <DNT>**cannot**</DNT> llama a estas funciones una vez en el ámbito global y almacena en caché el resultado para su uso posterior.
+
+<Callout variant="important">
+  A partir de la versión 9.4.0+ de Python agente, la API get_browser_timing_footer está obsoleta y siempre devuelve una cadena vacía. La funcionalidad anterior de `get_browser_timing_footer()` ahora está incluida en `get_browser_timing_header()`.
+
+  En versiones anteriores del agente, se requiere el pie de página para cargar el agente del navegador.
+</Callout>
+
+1. Deshabilitar la instrumentación automática: en el archivo <DNT>**newrelic.ini**</DNT> , establezca [`browser_monitoring.auto_instrument`](/docs/agents/python-agent/installation-configuration/python-agent-configuration#browser-auto) en `false`.
+
+2. Reinicie su aplicación.
+
+3. Realice estas llamadas en el controlador de solicitudes de <DNT>**every**</DNT> página que desea monitor:
+
+   ```
+   import newrelic.agent
+   header = <a href="/docs/agents/python-agent/python-agent-api/get_browser_timing_header">newrelic.agent.get_browser_timing_header()</a>
+   # The footer is required on Python Agent versions 9.3.0 and below.
+   footer = <a href="/docs/agents/python-agent/python-agent-api/get_browser_timing_footer">newrelic.agent.get_browser_timing_footer()</a>
+   ```
+
+4. Pase las variables `header` y posiblemente `footer` a la respuesta HTML.
+
+5. En la página correspondiente, inserte la variable `header` en el elemento `<head>` . Coloque la variable `header` después de cualquier propiedad `charset` o cualquier metaetiqueta para `http-equiv` con un valor de `X-UA-Compatible`.
+
+6. Si es necesario, inserte la variable `footer` antes del final del elemento `<body>` .
+
+Espere unos minutos y luego [verifique los datos de monitoreo de su navegador](/docs/browser/new-relic-browser/getting-started/browser-overview-website-performance-glance). Si no aparecen datos después de esperar unos minutos, consulte [la instrumentación browser de resolución de problemas en Python](/docs/agents/python-agent/troubleshooting/troubleshooting-page-load-timing-python).
+
+## Soporte de CSP Nonce [#csp-nonce-support]
+
+El uso de CSP Nonce en la instrumentación de nuestro browser es compatible con la versión 9.4.0+ del agente Python. Para utilizar un nonce con la instrumentación browser , debe desactivar el monitoreo de instrumentación automática del navegador y utilizar la instrumentación manual a través de la API del agente.
+
+Ahora puede pasar un nonce como argumento al método API para permitir que el agente inserte el nonce en la instrumentación del browser .
+
+1. Deshabilitar la instrumentación automática: en el archivo <DNT>**newrelic.ini**</DNT> , establezca [`browser_monitoring.auto_instrument`](/docs/agents/python-agent/installation-configuration/python-agent-configuration#browser-auto) en `false`.
+
+2. Reinicie su aplicación.
+
+3. Realice estas llamadas en el controlador de solicitudes de <DNT>**every**</DNT> página que desea monitor, reemplazando "NONCE" con su CSP nonce:
+
+   ```
+   import newrelic.agent
+   header = <a href="/docs/agents/python-agent/python-agent-api/get_browser_timing_header">newrelic.agent.get_browser_timing_header("NONCE")</a>
+   ```
+
+4. Pase la variable `header` a la respuesta HTML.
+
+5. En la página correspondiente, inserte la variable `header` en el elemento `<head>` . Coloque la variable `header` después de cualquier propiedad `charset` o cualquier metaetiqueta para `http-equiv` con un valor de `X-UA-Compatible`.

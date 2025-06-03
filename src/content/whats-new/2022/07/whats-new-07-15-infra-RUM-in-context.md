@@ -13,4 +13,4 @@ New Relic now displays information about your hosts directly on the APM **Summar
 
 ## Real user monitoring data in context
 
-New Relic gives you front end page view information in associated transaction traces so you can quickly identify how severely issues are impacting your users. In addition to quick metrics like total page views and average response time, you can jump to **Page views** in New Relic for deeper analysis. Check out the [browser monitoring docs](https://docs.newrelic.com/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring).
+New Relic gives you frontend page view information in associated transaction traces so you can quickly identify how severely issues are impacting your users. In addition to quick metrics like total page views and average response time, you can jump to **Page views** in New Relic for deeper analysis. Check out the [browser monitoring docs](https://docs.newrelic.com/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring).

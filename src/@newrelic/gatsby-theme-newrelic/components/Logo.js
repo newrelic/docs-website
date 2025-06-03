@@ -10,13 +10,7 @@ const Logo = ({ className, width }) => (
       width: ${width || '118px'};
 
       .text-color {
-        fill: #1d252c;
-        .dark-mode & {
-          fill: #dddedf;
-        }
-      }
-      .hexagon-color {
-        fill: var(--system-text-primary-light);
+        fill: var(--primary-text-color);
       }
       .brand-color {
         fill: #1ce783;
@@ -43,10 +37,6 @@ const Logo = ({ className, width }) => (
       className="text-color"
       d="M489.06,112.81a11.7,11.7,0,0,0,10.72,6.57c4.08,0,7.7-1.75,7.7-5.56s-3.35-4.36-9.11-5.56-11.79-2.55-11.79-9.72C486.58,92.31,492,88,499.44,88c6.3,0,11.46,3.08,13.53,7.23l-4.28,3.42a10.27,10.27,0,0,0-9.52-5.69c-4,0-6.69,2-6.69,5.15,0,3.29,3.08,3.89,8,5,6,1.41,12.93,2.61,12.93,10.25,0,6.7-6.1,11.12-13.6,11.12-6.37,0-12.73-2.75-15.41-8.17Z"
       transform="translate(-251.43 -50.58)"
-    />
-    <polygon
-      className="hexagon-color"
-      points="0 25.33 44.19 0 88.38 25.33 88.38 73.18 44.19 98.52 0 73.18 0 25.33"
     />
     <path
       className="brand-color"

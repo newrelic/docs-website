@@ -1,0 +1,170 @@
+---
+title: Establecer versión de la aplicación
+type: apiDoc
+shortDescription: Establezca una versión de la aplicación para asociarla con una interacción.
+tags:
+  - Mobile monitoring
+  - Mobile SDK API
+  - Custom instrumentation
+metaDescription: Mobile app monitoring API used to set an application version to be associated with an interaction.
+freshnessValidatedDate: '2023-07-21T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout variant="important">
+  Si está utilizando un agente móvil híbrido (React Native, .NET Maui, etc.), consulte los métodos específicos de la plataforma a continuación.
+</Callout>
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="android">
+      Android
+    </TabsBarItem>
+
+    <TabsBarItem id="ios">
+      iOS
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="android">
+      ## Sintaxis [#syntax]
+
+      ### Java [#java]
+
+      ```java
+      NewRelic.withApplicationVersion(string $appVersion)
+      ```
+
+      ### Kotlin [#kotlin]
+
+      ```kotlin
+      NewRelic.withApplicationVersion(appVersion: String?)
+      ```
+
+      ## Descripción [#description]
+
+      De forma predeterminada, el agente de New Relic para Android obtiene la versión de la aplicación de `AndroidManifest.xml` o `build.gradle`. Este método le permite anular ese valor y establecer una versión de la aplicación pasando la versión de la aplicación. La versión de la aplicación se muestra como un menú desplegable en la UI de New Relic y puede usarla para ordenar la interacción.
+
+      ## Parámetros [#parameters]
+
+      <table>
+        <thead>
+          <tr>
+            <th width={200}>
+              Parámetro
+            </th>
+
+            <th width={200}>
+              Tipo
+            </th>
+
+            <th>
+              Descripción
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `$appVersion`
+            </td>
+
+            <td>
+              `string`
+            </td>
+
+            <td>
+              Requerido. Cadena que indica la versión de la aplicación.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      ## Ejemplo [#example]
+
+      ### Java [#java]
+
+      ```java
+      NewRelic.withApplicationToken("").withApplicationVersion("1.23.4").start(this.getApplication());
+      ```
+
+      ### Kotlin [#kotlin]
+
+      ```kotlin
+      NewRelic.withApplicationToken("").withApplicationVersion("1.23.4").start(applicationContext)
+      ```
+    </TabsPageItem>
+
+    <TabsPageItem id="ios">
+      ## Sintaxis [#syntax]
+
+      ### C objetivo [#objc]
+
+      ```objectivec
+      setApplicationVersion:(NSString *_Nonnull)versionString;
+      ```
+
+      ### Swift [#swift]
+
+      ```swift
+      NewRelic.setApplicationVersion:(NSString*)versionString;
+      ```
+
+      ## Descripción [#description]
+
+      De forma predeterminada, New Relic utiliza el `CFBundleShortVersionString` al informar el número de compilación. Pero puedes anular el número de compilación informado llamando a este método (antes de llamar a `startWithApplicationToken`).
+
+      ## Parámetros [#parameters]
+
+      <table>
+        <thead>
+          <tr>
+            <th width={200}>
+              Parámetro
+            </th>
+
+            <th width={200}>
+              Tipo
+            </th>
+
+            <th>
+              Descripción
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `versionString`
+            </td>
+
+            <td>
+              `NSString`
+            </td>
+
+            <td>
+              Requerido. La cadena que se mostrará como la versión de esta aplicación.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      ## Ejemplo [#example]
+
+      ### Objective-C [#obj-c]
+
+      ```objectivec
+      [NewRelic setApplicationVersion:@"1.2.3"];
+      ```
+
+      ### Swift [#swift]
+
+      ```swift
+      NewRelic.setApplicationVersion("1.2.3")
+      ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>

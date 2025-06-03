@@ -1,0 +1,408 @@
+---
+title: "Capture the right web telemetry" 
+metaDescription: "This guide helps you set up the best telemetry possible to describe the runtime operation of your web services."
+redirects:
+  - /docs/new-relic-solutions/observability-maturity/operational-efficiency/service-characterization-optimize-web-telemetry-guide/
+freshnessValidatedDate: 2023-07-25
+---
+
+One of the most important things you can do to maintain a high quality production environment is to make sure you have the web telemetry you need to detect and resolve poor user experience. This guide goes over making sure you're getting the data you need to optimize your <InlinePopover type="browser"/>. We'll help you ensure that you're:
+
+1. Getting the most value from the data you're collecting
+2. Seeing opportunities to optimize your service using your reported data
+3. Able to quickly triage and troubleshoot issues
+4. Getting the data you need to create real-time business KPI dashboards
+
+<Steps>
+  <Step>
+    ## Tune your browser application naming and sub-account placement [#browser-app-naming]
+
+    First, you'll need to ensure your browser naming and data organization are in place. If needed, you can change the name of your browser application following the [renaming guide](/docs/browser/new-relic-browser/configuration/rename-browser-apps/). If you have data from multiple environments reporting into one browser application, you can [create new Browser apps](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/) and update the JavaScript snippet in your pages to report the right app.
+
+    Remember to keep the following in mind as you check your browser monitoring organization:
+
+    1. Web application instrumentation from different environments (dev/qa/production) should report into different browser applications.
+    2. Which environment a browser application supports (Such as Dev, QA, and production environments).
+    3. The purpose of a browser application (customer facing, internal facing, website, website component, region or regions, etc).
+  </Step>
+
+  <Step>
+    ## Tune JavaScript errors [#js-errors]
+
+    Next, you'll need to work with your JavaScript errors, which negatively impact user experience and SEO by disrupting the page load process, displaying errors, and preventing the user from completing an action. First, make sure JavaScript errors are being captured using the UI or NRQL.
+
+    <CollapserGroup>
+      <Collapser
+        id="js-error-ui"
+        title="Via the UI"
+      >
+        Open your web application in <DNT>**Browser**</DNT>. Open the <DNT>**Errors**</DNT> view under the left hand menu and verify that you can see JavaScript errors. If your application doesn't get a lot of traffic you may need to go back 24 hours or longer to see errors.
+        <img src="/images/oma-oe-sc_screenshot-browser-errors.webp" alt="Browser JavaScript Errors" title="Browser JavaScript Errors"/>
+      </Collapser>
+
+      <Collapser
+        id="js-error-nrql"
+        title="Via NRQL"
+      >
+        Run the following query:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = 'MyApp' SINCE 1 WEEK AGO 
+        ```
+
+        A 0 count means that no JavaScript errors have been captured.
+
+        You can check all your web applications in a sub account by running the following:
+
+        ```
+        SELECT count(*) FROM JavaScriptError FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        Web applications not present in the results have not reported JavaScript errors.
+      </Collapser>
+    </CollapserGroup>
+
+    <CollapserGroup>
+      <Collapser
+        id="missing-js-errors"
+        title="You can resolve missing JavaScript errors by:"
+      >
+        * Making sure your browser agent is up to date. Newer browser versions may capture JavaScript errors previously overlooked for one reason or another.
+        * Making sure the browser agent is places in the `<HEAD/>` tag of your pages. You can use Chrome developer tools to verify this.
+        * Following [these instructions](/docs/browser/new-relic-browser/troubleshooting/angularjs-errors-do-not-appear/) for missing AngularJS errors.
+        * Checking to see if your site uses an error handler that’s handling errors before the Browser agent gets the chance to see them.
+        * Reviewing [what's supported](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#js-unavailable-errors) for JavaScript errors.
+        * Using the [noticeError API](/docs/browser/new-relic-browser/browser-apis/noticeerror/) to capture missing errors.
+      </Collapser>
+    </CollapserGroup>
+
+    Once you've ensured your JS errors are reporting, check that they also have event logs. The event log shows the browser interactions, AJAX calls, and traces that led up to a JS error. This can help you troubleshoot the root cause of errors.
+
+    <CollapserGroup>
+      <Collapser
+        id="js-errorlog-ui"
+        title="Via the UI"
+      >
+        To check you are capturing event logs, go to the <DNT>**JS Errors**</DNT> tab. Check several different errors to verify event logs appear.
+        <img src="/images/oma-oe-sc_screenshot-browser-errorlog.webp" alt="Browser JavaScript Error Logs" title="Browser JavaScript Error Logs"/>
+      </Collapser>
+    </CollapserGroup>
+
+    Follow [these instructions](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#troubleshoot-event-log) to troubleshoot missing event logs.
+
+    Finally, make sure your JavaScript errors have stack traces.
+
+    <CollapserGroup>
+      <Collapser
+        id="js-stack-trace-ui"
+        title="Via the UI"
+      >
+        Check several errors via the <DNT>**JS Errors**</DNT> tab. Stack traces will appear under the error event log.
+      </Collapser>
+
+      <Collapser
+        id="js-stack-trace-nrql"
+        title="Via NRQL"
+      >
+        Run the following query:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = 'MyApp' AND stackTrace IS NOT NULL AND stackTrace NOT LIKE '' SINCE 1 WEEK AGO 
+        ```
+
+        A 0 count means that no JavaScript errors have been captured.
+
+        You can check all your web applications in a sub account by running the following:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE stackTrace IS NOT NULL AND stackTrace NOT LIKE '' FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        Web applications not present in the results don't have JavaScript errors with stack traces.
+      </Collapser>
+    </CollapserGroup>
+
+    Follow [these instructions](/docs/browser/new-relic-browser/browser-pro-features/javascript-errors-page-detect-analyze-errors/#stack-trace) to troubleshoot missing stack traces. Or, follow [these instructions](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api/) if you can see stack tracks but can't expand them.  
+
+  </Step>
+
+  <Step>
+    ## Check page view grouping [#page-views]
+
+    Next, check the page view grouping. Page URLs in the <DNT>**Page views**</DNT> UI are automatically grouped to help you manage page performance better. The algorithm that determines the automatic grouping runs when your web app is instrumented for the first time. If your web traffic today is much different from when the app was first instrumented, you may be seeing too few groups.
+
+    <CollapserGroup>
+      <Collapser
+        id="js-stack-trace-ui"
+        title="Via the UI"
+      >
+        Check the <DNT>**Page views**</DNT> UI for your app by selecting it from the left hand menu. If what you see looks a lot the screen shot below, make a note and follow the instructions in this guide on how to address it.
+        <img src="/images/oma-oe-sc_screenshot-poor-pageview-grouping.webp" alt="Browser Page URL Grouping" title="Browser Page URL Grouping"/>
+      </Collapser>
+
+      <Collapser
+        id="js-stack-trace-nrql"
+        title="Via NRQL"
+      >
+        Run the following query:
+
+        ```
+        SELECT count(*) from PageView WHERE appName = 'MyApp' AND browserTransactionName LIKE '*.*.*%/%' or browserTransactionName LIKE '%.%.%/*/*/*/%' or browserTransactionName LIKE '%.%.%/*/*/*' or browserTransactionName LIKE '%.%.%/*/*/%' FACET pageUrl limit 100 SINCE 1 WEEK AGO
+        ```
+
+        The results show you which page URLs may be over grouped for your app.
+
+        You can check all your web applications in a sub account by running the following:
+
+        ```
+        SELECT count(*) from PageView WHERE browserTransactionName LIKE '*.*.*%/%' or browserTransactionName LIKE '%.%.%/*/*/*/%' or browserTransactionName LIKE '%.%.%/*/*/*' or browserTransactionName LIKE '%.%.%/*/*/%' FACET browserTransactionName, pageUrl limit 100 SINCE 1 WEEK AGO
+        ```
+
+        The results will give you the same data for multiple apps.
+      </Collapser>
+    </CollapserGroup>
+
+    Use [Segment allow lists](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls/) to tune how your page view URLs are being grouped.  
+
+  </Step>
+
+  <Step>
+    ## Check AJAX call grouping [#ajax-grouping]
+
+    After you check your page views, you should do the same for your AJAX call grouping. AJAX calls are grouped to make it is easier to navigate them at scale. Sometimes there are so many AJAX calls that navigating them by individual request URL becomes difficult. Use the UI or a NRQL query to check if you need to adjust AJAX grouping.
+
+    <CollapserGroup>
+      <Collapser
+        id="js-stack-trace-ui"
+        title="Via the UI"
+      >
+        Check AJAX grouping for your app by selecting it from the left hand menu and grouping by <DNT>**groupedRequestUrl**</DNT>. If what you see looks a lot the screen shot below, make a note and follow the instructions in this guide on how to address it.
+        <img src="/images/oma-oe-sc_screenshot-poor-ajax-grouping.webp" alt="AJAX Grouping" title="AJAX Grouping"/>
+      </Collapser>
+
+      <Collapser
+        id="js-stack-trace-nrql"
+        title="Via NRQL"
+      >
+        Run the following query:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE appName = _your app name_ AND stackTrace IS NOT NULL AND stackTrace NOT LIKE '' SINCE 1 WEEK AGO 
+        ```
+
+        A 0 count means that no JavaScript errors have been captured.
+
+        You can check all your web applications in a sub account by running the following:
+
+        ```
+        SELECT count(*) FROM JavaScriptError WHERE stackTrace IS NOT NULL AND stackTrace NOT LIKE '' FACET appName LIMIT MAX SINCE 1 WEEK AGO
+        ```
+
+        Web applications not present in the results don't have JavaScript errors with stack traces.
+      </Collapser>
+    </CollapserGroup>
+
+    Use [Segment allow lists](/docs/browser/new-relic-browser/configuration/group-browser-metrics-urls/) to tune how your AJAX Requests are being grouped.  
+
+  </Step>
+
+  <Step>
+    ## Enable distributed tracing [#distributed-tracing]
+
+    Next, enable [distributed tracing in Browser](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing/) to help you improve AJAX performance by tracing requests to the backend all the way to the final endpoint. Tracing information is useful for understanding which applications are impacting user experience. You can use this information to address services issues yourself or delegate to the team responsible.  
+
+  </Step>
+
+  <Step>
+    ## Set up deployments [#deployments]
+
+    Next, use NerdGraph to [track changes in your web application](/docs/change-tracking/change-tracking-graphql/) so you can see the impact of changes you make against performance KPIs, conversions, and user engagement.  
+
+  </Step>
+
+  <Step>
+    ## Add custom attributes [#custom]
+
+    Use [custom attributes](/docs/data-apis/custom-data/custom-events/report-custom-event-data/#ways) to filter and group data. Though custom attributes are optional, you can get a lot of value from using them. Below are the most commonly recommended attributes, though you may find you want to add more:
+
+    <CollapserGroup>
+      <Collapser
+        id="user-attribute"
+        title="user"
+      >
+        Recommended for all sites that have identifiable users. Follow the convention described in the [errors inbox](/docs/errors-inbox/error-users-impacted/#attributes) documentation to be able to identify the number of users impacted by errors and know which ones.
+      </Collapser>
+
+      <Collapser
+        id="customer-attribute"
+        title="customer"
+      >
+        Measure the experience of a specific customer to meet SLAs or dig into support requests.
+      </Collapser>
+    </CollapserGroup>
+
+    ### Additional custom attributes for retailers
+
+    <CollapserGroup>
+      <Collapser
+        id="cart-value"
+        title="cart value"
+      >
+        Track conversion revenue real time. Measure the impact of cart abandonment or issues during checkout.
+      </Collapser>
+
+      <Collapser
+        id="item-count"
+        title="item count"
+      >
+        Track items purchased real time. Measure the impact of cart abandonment or issues during checkout.
+      </Collapser>
+
+      <Collapser
+        id="promo-id"
+        title="promotion"
+      >
+        Capture how many users come to your site as the result of an ad campaign or a promotion. Measure the impact of a promotion on conversions.
+      </Collapser>
+
+      <Collapser
+        id="store-id"
+        title="store"
+      >
+        Capture store to gather information about click-to-collect performance. Measure the performance of in-store shopping web applications.
+      </Collapser>
+
+      <Collapser
+        id="product-id"
+        title="product"
+      >
+        Useful if the product ID isn;t already captured in the page URL. Use this information to know which product pages aren't performing well. Know which product pages receive the most traffic and which receive the least.  
+
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+</Steps>
+
+## Realizing the value [#value-realization]
+
+Like the process of monitoring services, your observability program will benefit through a dedicated team function that thinks critically about its expectations of return for its investment in effort. The following section outlines an approach for estimating the costs and benefits you should expect by incorporating web instrumentation into your observability practice.
+
+### Investments [#investments]
+
+<CollapserGroup>
+  <Collapser
+    id="inv-training"
+    title="Training"
+  >
+    Ensure all developers are familiar with New Relic agent SDKs and platform capabilities.
+
+    <DNT>**Cost model:**</DNT> Dependent on your company's developer FTE model and project estimation.
+
+    <DNT>**Estimation:**</DNT> Typically a number of hours for a developer to become effective using New Relic instrumentation features.
+
+    * Initial: 16 hours training and exploration
+    * Recurring: 4 hours/Q review
+    * Per developer a yearly investment of 16-40 hours training to develop core skills and maintain skills currency for New Relic platform
+  </Collapser>
+
+  <Collapser
+    id="inv-maintain"
+    title="Development and maintenance"
+  >
+    The development effort required to implement and maintain instrumentation within a project.
+
+    <DNT>**Cost model:**</DNT> Dependent on your company's developer FTE model and project estimation.
+
+    <DNT>**Estimation:**</DNT> This tends to be dependent on the scope of the project and the amount of instrumentation work required.
+
+    * Initial: 8 hours per developer per service
+    * Recurring: 4 hours/Q maintenance
+    * Per developer a project estimation of 16-32 hours developing and maintaining web instrumentation
+  </Collapser>
+</CollapserGroup>
+
+### Benefits [#benefits]
+
+<CollapserGroup>
+  <Collapser
+    id="returns-aqm-impact"
+    title="Alert quality impact"
+  >
+    Our doc on [alert quality](/docs/tutorial-create-alerts/manage-alert-quality/) delivers significant benefit to the operations team by ensuring the alert notifications from variant system performance are dealt with swiftly. This improves delivery and resource allocation during incident remediation.
+
+    An effective instrumentation practice federated into your observability program will greatly improve your team's ability to create meaningful alerts.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Volume: incident count
+    * Volume: accumulated incident duration
+    * Volume: mean-time-to-close (MTTC)
+    * User engagement: mean time to investigate
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Less alert noise
+    * Greater alert and incident responsiveness
+    * Less unknown root cause
+    * Increased operations productivity
+    * Improved service delivery
+  </Collapser>
+
+  <Collapser
+    id="returns-web-quality-improvement"
+    title="Web quality improvement"
+  >
+    Improving your web quality will have a direct impact on the key financial metrics for your service. This will require that you have a well rationalized financial model for your application. Typically this return can be projected by associating a currency value for each percent improvement on a core web quality measure like errors or apdex attainment.
+
+    As your investment in service instrumentation increases, you should see improved attainment on your service quality measures.
+
+    <DNT>**KPI:**</DNT> Service quality (business KPI)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Decreased number of user impacting errors
+    * More performant and resilient service components
+  </Collapser>
+
+  <Collapser
+    id="returns-web-delivery-improvement"
+    title="Web delivery improvement"
+  >
+    By providing better telemetry from your web service instances, your delivery organization should be able to more quickly detect volatility or downtime and remediate faster. This will lead to better overall service delivery KPIs and decrease episodes of outage or degradation.
+
+    Cost can be associated with the amount of time it takes to detect, investigate and remediate an incident. This might be related to the value the web service provides your organization that will be lost during an event, or may be related to the general cost to deal with the poor behavior.
+
+    <DNT>
+      **KPIs:**
+    </DNT>
+
+    * Mean time to detect (MTTD)
+    * Mean time to identify (MTTI)
+    * Mean time to resolution (MTTR)
+
+    <DNT>
+      **Outcomes:**
+    </DNT>
+
+    * Decreased time to detect incidents
+    * Decreased time to resolve incidents
+  </Collapser>
+</CollapserGroup>
+
+<DocTiles>
+  <DocTile
+    title="Capture the right data"
+    path="/docs/tutorial-reporting-data/capture-the-right-data/"
+  />
+
+  <DocTile
+    title="Capture service telemetry"
+    path="/docs/tutorial-reporting-data/capture-service-telemetry/"
+  />
+</DocTiles>

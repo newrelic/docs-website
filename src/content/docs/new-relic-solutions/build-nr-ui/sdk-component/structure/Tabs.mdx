@@ -1,0 +1,214 @@
+---
+title: 'Tabs'
+metaDescription: 'Learn how to work the Tabs component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Tabs are used to help group various related content into separate sections. Those sections can be all or contained in a portion of the screen. We recommend using one set of tabs per screen and also only using it for different related content types. For example, when you have different data about a single entity, you might bucket the data into different sections.
+
+Do NOT separate an action, like create, from other content sections in tabs. The action should be triggered by an icon or button and open either a modal or stacked page.
+
+### Usage
+
+```js
+import { Tabs } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Tabs defaultValue="tab-3">
+  <TabsItem value="tab-1" label="Tab 1">
+    Tab 1 content
+  </TabsItem>
+  <TabsItem value="tab-2" label="Another tab with a longer name">
+    Tab 2 content
+  </TabsItem>
+  <TabsItem value="tab-3" label="A tab open by default">
+    Tab 3 content
+  </TabsItem>
+</Tabs>
+```
+
+#### Render Callback
+
+```js
+function render() {
+  const items = new Array(10000).fill().map((_, i) => ({
+    value: i,
+    content: `Tab ${i} content...`,
+    label: `Item ${i}`,
+  }));
+
+
+  return (
+    <div className="nr1-Example--tabs">
+      <Tabs items={items}>
+        {({ item }) => (
+          <TabsItem value={item.value} label={item.label}>
+            {item.content}
+          </TabsItem>
+        )}
+      </Tabs>
+    </div>
+  );
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide an accessibility label that describes the purpose of the set of tabs, e.g. `"Settings categories"`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node|function</h5>
+      </td>
+
+      <td>
+        It can be either an array of `<TabsItem>` elements or a render callback (Function as Children).When using the render callback items need to be provided through the `items` prop.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>any</h5>
+      </td>
+
+      <td>
+        `value` of the `<TabsItem>` which you want to be selected by default when the component mounts.If not defined, the first tab item will be selected by default.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `items` <h5>shape\[]</h5>
+      </td>
+
+      <td>
+        The items to render, which required when rendering items with the render callback (Function as Children).The item must contain `value` and `label` properties, and optionally a `disabled` boolean property. This item will be provided as an argument to the render callback.
+
+        <h3>
+          shape
+        </h3>
+
+        `value` <h5>REQUIRED</h5> <h5>any</h5>
+
+        `label` <h5>REQUIRED</h5><h5>string</h5>
+
+        `disabled` <h5>boolean</h5>
+
+        ```js
+        function render() {
+          const items = [
+            { label: 'a', value: 'x', foo: 'bar' },
+            { label: 'b', value: 'y', disabled: false, foo: 'baz' },
+            { label: 'c', value: 'z', disabled: true, foo: 'foobar' },
+          ];
+
+          return (
+            <Tabs items={items}>
+              {({ item }) => (
+                <TabsItem value={item.value} label={item.label}>
+                  {item.foo}
+                </TabsItem>
+              )}
+            </Tabs>
+          );
+        }
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the selected tab changes.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"value","type":"any","description":"The value of the selected tab item."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Tabs.SPACING_TYPE.EXTRA_LARGE,
+          Tabs.SPACING_TYPE.LARGE,
+          Tabs.SPACING_TYPE.MEDIUM,
+          Tabs.SPACING_TYPE.NONE,
+          Tabs.SPACING_TYPE.OMIT,
+          Tabs.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>any</h5>
+      </td>
+
+      <td>
+        When you need to have a tab other than the first open by default, use the pre-selected tab. Before using this option, we recommend considering if you have the right tab order for your experience.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Type definitions
+
+<TypeDefReference typeDef={{"name":"RenderCallbackArguments","properties":[{"description":"Item to render.","name":"item","type":"any"},{"description":"Index of the item in the items array.","name":"index","type":"number"},{"description":"Array of items which we're iterating on.","name":"items","type":"any[]"}]}}/>

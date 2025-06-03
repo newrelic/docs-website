@@ -1,0 +1,592 @@
+---
+title: Códigos de respuesta de monitoreo sintético
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Using monitors
+metaDescription: Synthetic monitors add detail to your monitor behavior with custom response codes beyond standard HTTP codes.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El monitor Sintético devuelve una serie de códigos de respuesta adicionales además de los códigos de respuesta HTTP estándar, visibles en la [página<DNT>**Resources**</DNT> ](/docs/synthetics/new-relic-synthetics/pages/synthetics-resources-understand-load-times). Estos códigos de respuesta se basan en [los códigos de respuesta de Chromium](https://code.google.com/p/chromium/codesearch#chromium/src/net/base/net_error_list.h&sq=package:chromium) y le brindan más detalles sobre el comportamiento de su monitor.
+
+## Códigos de respuesta
+
+Monitoreo sintético devuelve los siguientes códigos de respuesta adicionales:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        Código de respuesta
+      </th>
+
+      <th>
+        Definición
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `-2`
+      </td>
+
+      <td>
+        `net::ERR_FAILED, "Generic network error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-3`
+      </td>
+
+      <td>
+        `net::ERR_ABORTED, "An operation was aborted (due to user action)"` Un código de respuesta específico de Chrome cuando el script alcanza un tiempo de espera y el ejecutor se cierra. Para ello, el corredor finaliza todas las solicitudes pendientes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-7`
+      </td>
+
+      <td>
+        `net::ERR_TIMED_OUT, "Timed out"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-10`
+      </td>
+
+      <td>
+        `net::ERR_ACCESS_DENIED, "Access denied"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-20`
+      </td>
+
+      <td>
+        `net::ERR_BLOCKED_BY_CLIENT, "Blocked"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-100`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_CLOSED, "Connection was closed (TCP FIN)"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-101`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_RESET, "Connection was reset (TCP RST)"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-102`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_REFUSED, "Connection was refused"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-103`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_ABORTED, "Connection was aborted (no ACK received)"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-104`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_FAILED, "Connection attempt failed"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-105`
+      </td>
+
+      <td>
+        `net::ERR_NAME_NOT_RESOLVED, "Host name could not be resolved"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-106`
+      </td>
+
+      <td>
+        `net::ERR_INTERNET_DISCONNECTED, "Internet connection lost"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-107`
+      </td>
+
+      <td>
+        `net::ERR_SSL_PROTOCOL_ERROR, "SSL protocol error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-108`
+      </td>
+
+      <td>
+        `net::ERR_ADDRESS_INVALID, "Invalid IP address and/or port number"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-109`
+      </td>
+
+      <td>
+        `net::ERR_ADDRESS_UNREACHABLE, "Unreachable IP address"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-110`
+      </td>
+
+      <td>
+        `net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED, "Server requested a client certificate for SSL client authentication"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-112`
+      </td>
+
+      <td>
+        `net::ERR_NO_SSL_VERSIONS_ENABLED, "No SSL protocol versions are enabled"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-113`
+      </td>
+
+      <td>
+        `net::ERR_SSL_VERSION_OR_CIPHER_MISMATCH, "Client and server don't support a common SSL protocol version or cipher suite"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-114`
+      </td>
+
+      <td>
+        `net::ERR_SSL_RENEGOTIATION_REQUESTED, "Server requested a renegotiation (re-handshake)"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-116`
+      </td>
+
+      <td>
+        `net::ERR_CERT_ERROR_IN_SSL_RENEGOTIATION, "During SSL renegotiation (re-handshake), the server sent a certificate with an error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-117`
+      </td>
+
+      <td>
+        `net::ERR_BAD_SSL_CLIENT_AUTH_CERT, "SSL handshake failed because of a bad or missing client certificate"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-118`
+      </td>
+
+      <td>
+        `net::ERR_CONNECTION_TIMED_OUT, "Timed out"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-123`
+      </td>
+
+      <td>
+        `net::ERR_SSL_NO_RENEGOTIATION, "Peer sent an SSL no_renegotiation alert message"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-138`
+      </td>
+
+      <td>
+        `net::ERR_ACCESS_DENIED, "Access denied"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-141`
+      </td>
+
+      <td>
+        `net::ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED, "Unable to sign the CertificateVerify data of an SSL client auth handshake with the client certificate's private key"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-145`
+      </td>
+
+      <td>
+        `net::ERR_WS_PROTOCOL_ERROR, "WebSocket protocol error - connection terminated due to a malformed frame or other protocol violation"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-147`
+      </td>
+
+      <td>
+        `net::ERR_ADDRESS_IN_USE, "Failed to bind to an address because already in use"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-148`
+      </td>
+
+      <td>
+        `net::ERR_SSL_HANDSHAKE_NOT_COMPLETED, "SSL handshake has not completed"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-149`
+      </td>
+
+      <td>
+        `net::ERR_SSL_BAD_PEER_PUBLIC_KEY, "SSL peer's public key is invalid"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-150`
+      </td>
+
+      <td>
+        `net::ERR_SSL_PINNED_KEY_NOT_IN_CERT_CHAIN, "Certificate didn't match built-in public key pins for the host name"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-151`
+      </td>
+
+      <td>
+        `net::ERR_CLIENT_AUTH_CERT_TYPE_UNSUPPORTED, "Server request for client certificate did not contain any types we support"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-152`
+      </td>
+
+      <td>
+        `net::ERR_ORIGIN_BOUND_CERT_GENERATION_TYPE_MISMATCH, "Server requested one type of cert, then requested a different type while the first was still being generated"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-153`
+      </td>
+
+      <td>
+        `net::ERR_SSL_DECRYPT_ERROR_ALERT, "SSL peer sent us a fatal decrypt_error alert"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-156`
+      </td>
+
+      <td>
+        `net::ERR_SSL_SERVER_CERT_CHANGED, "SSL server certificate changed in a renegotiation"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-157`
+      </td>
+
+      <td>
+        `net::ERR_SSL_INAPPROPRIATE_FALLBACK, "SSL server indicated that an unnecessary TLS version fallback was performed"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-158`
+      </td>
+
+      <td>
+        `net::ERR_CT_NO_SCTS_VERIFIED_OK, "All Signed Certificate Timestamps failed to verify"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-159`
+      </td>
+
+      <td>
+        `net::ERR_SSL_UNRECOGNIZED_NAME_ALERT, "SSL server sent us a fatal unrecognized_name alert"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-164`
+      </td>
+
+      <td>
+        `net::ERR_SSL_CLIENT_AUTH_CERT_BAD_FORMAT, "Failed to import a client certificate from the platform store into the SSL library"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-165`
+      </td>
+
+      <td>
+        `net::ERR_SSL_FALLBACK_BEYOND_MINIMUM_VERSION", "SSL server requires falling back to a version older than the configured minimum fallback version"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-166`
+      </td>
+
+      <td>
+        `net::ERR_ICANN_NAME_COLLISION", "Resolving a hostname to an IP address list included the IPv4 address \"127.0.53.53\". This is a special IP address which ICANN has recommended to indicate there was a name collision, and alert admins to a potential problem"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-200`
+      </td>
+
+      <td>
+        `net::ERR_CERT_COMMON_NAME_INVALID, "Server responded with a certificate whose common name did not match the host name"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-201`
+      </td>
+
+      <td>
+        `net::ERR_CERT_DATE_INVALID", "Server responded with a certificate that is either expired or not valid yet"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-202`
+      </td>
+
+      <td>
+        `net::ERR_CERT_AUTHORITY_INVALID, "Server responsde with a certificate signed by an untrusted authority"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-203`
+      </td>
+
+      <td>
+        `net::ERR_CERT_CONTAINS_ERRORS", "Server responded with a certificate that contains errors"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-204`
+      </td>
+
+      <td>
+        `net::ERR_CERT_NO_REVOCATION_MECHANISM, "Certificate has no mechanism for determining if it is revoked"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-205`
+      </td>
+
+      <td>
+        `net::ERR_CERT_UNABLE_TO_CHECK_REVOCATION", "Revocation information for the security certificate for this site is not available"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-206`
+      </td>
+
+      <td>
+        `net::ERR_CERT_REVOKED, "Server responded with a certificate that has been revoked"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-207`
+      </td>
+
+      <td>
+        `net::ERR_CERT_INVALID, "Server responded with a certificate that is invalid"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-208`
+      </td>
+
+      <td>
+        `net::ERR_CERT_WEAK_SIGNATURE_ALGORITHM, "server responded with a certificate that is signed using a weak signature algorithm"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-210`
+      </td>
+
+      <td>
+        `net::ERR_CERT_NON_UNIQUE_NAME, "Host name specified in the certificate is not unique"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-211`
+      </td>
+
+      <td>
+        `net::ERR_CERT_WEAK_KEY, "Server responded with a certificate that contains a weak key"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-212`
+      </td>
+
+      <td>
+        `net::ERR_CERT_NAME_CONSTRAINT_VIOLATION, "Certificate claimed DNS names that are in violation of name constraints"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-213`
+      </td>
+
+      <td>
+        `net::ERR_CERT_VALIDITY_TOO_LONG, "Certificate's validity period is too long"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-324`
+      </td>
+
+      <td>
+        `net::ERR_EMPTY_RESPONSE, "Server closed the connection without sending any data"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-803`
+      </td>
+
+      <td>
+        `net::ERR_DNS_TIMED_OUT, "DNS lookup timed out"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-9999`
+      </td>
+
+      <td>
+        `"unknown error, error not mapped"`
+      </td>
+    </tr>
+  </tbody>
+</table>

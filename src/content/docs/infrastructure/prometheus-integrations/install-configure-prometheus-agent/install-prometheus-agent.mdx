@@ -1,0 +1,81 @@
+---
+title: Install and configure the Prometheus agent on Kubernetes clusters
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: 'How to install, update, or uninstall your New Relic Prometheus agent alongside the Kubernetes integration.'
+freshnessValidatedDate: never
+---
+
+New Relic's Prometheus agent is a thin wrapper on top of Prometheus server to run it in agent mode. With this integration, you can create a YAML configuration file used by Prometheus that's ready to send metrics to New Relic.
+
+Learn more about the solution from [its repository](https://github.com/newrelic/newrelic-prometheus-configurator).
+
+## Install the Prometheus agent [#install-agent]
+
+You can install the Prometheus agent either as part of the Kubernetes integration or on its own.
+
+### Alongside the Kubernetes integration [#kubernetes-install]
+
+You can install our [Kubernetes integration](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration) to get a full observability of your Kubernetes clusters, which includes the Prometheus agent.
+
+1. Install our Kubernetes integration. See how to install it [here](/install/kubernetes).
+
+   <Callout variant="tip">
+     We also offer manual instructions for [deploying our integration using Helm](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm).
+
+     You need to enable the Prometheus agent by setting the `newrelic-prometheus-agent.enabled=true` option.
+   </Callout>
+
+2. To ensure the integration has been configured correctly, go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Query your data**</DNT>, and run this NRQL query to see if data has been reported:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE collector.name = 'prometheus-agent' AND cluster_name = 'YOUR_CLUSTER_NAME' since 1 hour ago
+   ```
+
+<Callout variant="tip">
+  If you don't see your data right away, wait for a few seconds. Data may take some time to make it to New Relic.
+</Callout>
+
+### Standalone installation [#prometheus-install]
+
+If you don't need the Kubernetes integration, you can install the Prometheus agent on its own.
+
+1. Install the [Prometheus Agent](https://github.com/newrelic/newrelic-prometheus-configurator#readme) by running:
+   ```shell
+   helm repo add newrelic-prometheus https://newrelic.github.io/newrelic-prometheus-configurator
+   helm upgrade --install newrelic newrelic-prometheus/newrelic-prometheus-agent -f YOUR_CUSTOM_VALUES.yaml
+   ```
+
+2. To ensure the integration has been configured correctly, go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > All capabilities > Query your data**</DNT>, and run this NRQL query to see if data has been reported:
+
+   ```sql
+   FROM Metric SELECT count(*) WHERE collector.name = 'prometheus-agent' since 1 hour ago
+   ```
+
+## Install the Prometheus agent dashboard [#io-dashboard]
+
+Regardless of whether you installed the Kubernetes integration or only the Prometheus agent, we also give you a curated dashboard for self-metrics with performance and health information, and also metrics volume sent.
+
+With this dashboard, you get meaningful insights about your Prometheus metrics and your Prometheus agent, such as:
+
+* Samples sent by Source
+* Unique metrics by Source
+* Time series by Source
+* Time series by Metric (Cardinality)
+* Memory and CPU consumption
+* Targets Failed to scrape
+* Total Instances by cluster
+
+Install the [dashboard for the Prometheus agent](https://newrelic.com/instant-observability/prometheus-agent) in your New Relic account.
+
+<img
+  title="Quickstart dashboard for the Prometheus agent"
+  alt="Quickstart dashboard for the Prometheus agent"
+  src="/images/infrastructure_screenshot-crop_prometheus-io-dashboard.webp"
+/>
+
+<figcaption>
+  Install the quickstart containing the [dashboard for the Prometheus agent](https://newrelic.com/instant-observability/prometheus-agent).
+</figcaption>

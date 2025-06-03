@@ -1,0 +1,711 @@
+---
+title: 'Archivo ejecutable de integración en el host: especificaciones JSON'
+tags:
+  - Create integrations
+  - Infrastructure Integrations SDK
+  - Specifications
+metaDescription: JSON specifications for New Relic's on-host integrations SDK.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[La integración en el host del agente de infraestructura](/docs/infrastructure/host-integrations/installation/install-infrastructure-host-integrations) de New Relic constará de al menos dos archivos: un archivo ejecutable y al menos un archivo de configuración. El archivo ejecutable genera datos JSON que el agente de monitoreo de infraestructura consume y envía a New Relic. Nos referimos al objeto JSON como el protocolo de integración SDK.
+
+## Requisitos del archivo ejecutable [#what-is]
+
+El ejecutable puede ser cualquier archivo que se ejecute desde una interfaz de línea de comando; Por ejemplo:
+
+* Un script de shell
+* Una scripten lenguaje de escritura
+* Un binario compilado
+
+El único requisito de su archivo ejecutable es que exporte datos JSON, en formato de una sola línea, que cumpla con las [especificaciones](#general-specs) de este documento.
+
+<DNT>**Recommendation:**</DNT> Utilice Ir para crear integración; es el lenguaje que utilizamos para crear integración en el host y las [herramientas de creación de integración](/docs/integrations/integrations-sdk/getting-started/integrations-tutorials-build-resources). Sin embargo, puedes crear una integración en cualquier idioma.
+
+## Colocación de archivos
+
+El archivo ejecutable va en este directorio:
+
+* <DNT>
+    **Linux:**
+  </DNT>
+
+  ```
+  /var/db/newrelic-infra/custom-integrations
+  ```
+
+* <DNT>
+    **Windows:**
+  </DNT>
+
+  ```
+  C:\Program Files\New Relic\newrelic-infra\newrelic-integrations
+  ```
+
+## Protocolo de integración v4: ejemplo de salida JSON [#example-json]
+
+La siguiente sección explica el nuevo esquema JSON (protocolo de integración v4). El SDK v4 solo admite esta nueva versión del protocolo. Estos son los cambios más importantes:
+
+* Un nuevo objeto `integration` en el nivel superior.
+* Los objetos `entity` y `metrics` han sido modificados.
+
+Consulte la [guía de migración de v3 a v4](https://github.com/newrelic/infra-integrations-sdk/blob/master/docs/v3tov4.md) para obtener más información.
+
+```
+{
+  "protocol_version":"4",                      # protocol version number
+  "integration":{                              # this data will be added to all metrics and events as attributes,
+                                               # and also sent as inventory
+    "name":"integration name",
+    "version":"integration version"
+  },
+  "data":[                                    # List of objects containing entities, metrics, events and inventory
+    {
+      "entity":{                              # this object is optional. If it's not provided, then the Entity will get 
+                                              # the same entity ID as the agent that executes the integration. 
+        "name":"redis:192.168.100.200:1234",  # unique entity name per customer account
+        "type":"RedisInstance",               # entity's category
+        "displayName":"my redis instance",    # human readable name
+        "metadata":{}                         # can hold general metadata or tags. Both are key-value pairs that will 
+                                              # be also added as attributes to all metrics and events
+      },
+      "metrics":[                             # list of metrics using the dimensional metric format
+        {
+          "name":"redis.metric1",
+          "type":"count",                     # gauge, count, summary, cumulative-count, rate or cumulative-rate
+          "value":93, 
+          "attributes":{}                     # set of key-value pairs that define the dimensions of the metric
+        }
+      ],
+      "inventory":{...},                      # Inventory remains the same
+      "events":[...]                          # Events remain the same
+    }
+  ]
+}
+```
+
+## Protocolo de integración v3: ejemplo de salida JSON [#example-json]
+
+El JSON incluye:
+
+* Un encabezado, con datos básicos de integración (nombre, versión)
+* Una lista de datos, que incluye uno o más datos de reporte [de entidad](/docs/integrations/integrations-sdk/getting-started/introduction-infrastructure-integrations-sdk#data-types) (datos métricos, de inventario y/o de eventos)
+
+Este diagrama muestra esta estructura:
+
+<img
+  title="new-relic-integrations-sdk-data-structure.png"
+  alt="New Relic Integrations SDK data structure diagram"
+  src="/images/infrastructure_diagram_sdk-data-structure.webp"
+/>
+
+A continuación se muestra un ejemplo de salida JSON (formateada con saltos de línea para facilitar la lectura). Las definiciones y especificaciones siguen este ejemplo:
+
+```
+{
+  "name": "my.company.integration",
+  "protocol_version": "3",
+  "integration_version": "x.y.z",  
+  "data": [
+    {
+      "entity": {
+        "name": "my_garage",
+        "type": "building",
+        "id_attributes": [
+          {
+            "key": "environment",
+            "value": "production"
+          }, 
+          { 
+             "key": "node",
+             "value": "master"
+          }
+        ]
+      },
+      "metrics": [
+        {
+          "temperature": 25.3,
+          "humidity": 0.45,
+          "displayName": "my_garage",
+          "entityName": "building:my_garage",
+          "event_type": "BuildingStatus"
+        }
+      ],
+      "inventory": {
+        "out_door": {
+          "status": "open"
+        }
+      },
+      "events": []
+    },
+    {
+      "entity": {
+        "name": "my_family_car",
+        "type": "car",
+        "id_attributes": [ 
+          {
+            "key": "environment",
+            "value": "production"
+          },
+          {
+            "key": "node",
+            "value": "master"
+          } 
+        ]
+      },
+      "metrics": [
+        {
+          "speed": 95,
+          "fuel": 768,
+          "displayName": "my_family_car",
+          "entityName": "car:my_family_car",
+          "event_type": "VehicleStatus"
+        }
+      ],
+      "inventory": {
+        "motor": {
+          "brand": "renault",
+          "cc": 1800
+        }
+      },
+      "events": [
+        {
+          "category": "gear",
+          "summary": "gear has been changed"
+        }
+      ],
+      "add_hostname": true
+    }
+  ]
+}
+```
+
+## JSON: Especificaciones generales [#general-specs]
+
+A continuación se muestran las especificaciones generales para la salida JSON:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="data-output-spec"
+    title="Salida general y formato JSON"
+  >
+    Los datos se emiten a `stdout` (salida estándar) en formato JSON. El agente tratará los descriptores de archivos `stdout` y `stderr` como búferes de línea.
+
+    Utilice JSON estándar, no JSON "bastante impreso", para la salida. <DNT>**Recommendation:**</DNT> Incluya un modificador de línea de comando opcional (por ejemplo, `--pretty`) para que JSON esté "bastante impreso" con fines de depuración.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="errors-spec"
+    title="Errores y registro"
+  >
+    La información de error y depuración se debe emitir a `stderr` (error estándar). Siga [las recomendaciones y mejores prácticas de New Relic para el registro de integración](/docs/infrastructure/integrations-sdk/file-specifications/integration-logging-recommendations).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="errors-spec"
+    title="Salir/cerrar del ejecutable"
+  >
+    El código de salida debe salir con un código de estado `0` y seguir las convenciones específicas de la plataforma. Por ejemplo:
+
+    * <DNT>**Linux:**</DNT> `0 == EX_OK`
+
+    * <DNT>**Windows:**</DNT> `0 == ERROR_SUCCESS`
+
+      Si el ejecutable sale con un estado distinto de cero, el agente descartará cualquier dato de `stdout` y escribirá un mensaje en su archivo de registro con el nombre de la integración, el código de salida y cualquier información de diagnóstico que pueda recopilar.
+  </Collapser>
+</CollapserGroup>
+
+## JSON: encabezado [#exec-header]
+
+A continuación se muestra un ejemplo de la primera parte de la [salida JSON](#example-json) de una integración en el host:
+
+```
+"name":"com.myorg.nginx",
+"protocol_version":"3",
+"integration_version":"1.0.0",
+"data": [ <a href="#entity-json">{entities}</a>...]
+```
+
+Una carga útil mínima sería un objeto JSON con solo los campos de encabezado. <DNT>**Recommendation:**</DNT> Si no hay datos que recopilar, utilice el código de retorno del programa y el mensaje de registro escrito en `stderr`.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "220px" }}>
+        Campos de encabezado JSON
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+      </td>
+
+      <td>
+        Requerido. Debe ser idéntico al campo `name` en el archivo de configuración.
+
+        <DNT>**Recommendation:**</DNT> Utilice nombres de dominio inversos para generar nombres de integración únicos.
+      </td>
+    </tr>
+
+    <tr id="protocol">
+      <td>
+        `protocol_version`
+      </td>
+
+      <td>
+        Requerido. El número de versión del protocolo de intercambio entre la integración y el agente que utiliza el ejecutable de integración.
+
+        * La versión actual es la 3. Este protocolo requiere el agente de infraestructura 1.2.25 o superior.
+
+        * El protocolo 2 requiere el agente de infraestructura 1.0.859 o superior.
+
+        * El protocolo 1 es compatible con todos los agentes.
+
+          Para obtener más información, consulte [Cambios en el SDK](/docs/integrations/integrations-sdk/getting-started/compatibility-requirements-infrastructure-integrations-sdk#change-log).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `integration_version`
+      </td>
+
+      <td>
+        Opcional. La versión de integración. Se utiliza para realizar un seguimiento de la versión de integración que se ejecuta en cada host.
+
+        Una integración puede tener más de un ejecutable. Por lo tanto, esta no es simplemente la versión del ejecutable.
+      </td>
+    </tr>
+
+    <tr id="data">
+      <td>
+        `data`
+      </td>
+
+      <td>
+        Requerido para reportar datos. Una lista que contiene los [datos reportados por una o más entidades](#exec-data).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## JSON: entidad [#entity-json]
+
+Dentro de la [lista`data` ](#data)de la [salida JSON](#example-json) hay una o más entidades. Los campos de entrada de la entidad incluyen:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Campos JSON de entidad
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `entity`
+      </td>
+
+      <td>
+        Requerido. Datos o propiedades de la entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metrics`
+      </td>
+
+      <td>
+        Opcional. Lista métrica relacionada con entidades.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `inventory`
+      </td>
+
+      <td>
+        Opcional. Artículos de inventario relacionados con la entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `events`
+      </td>
+
+      <td>
+        Opcional. Lista de eventos relacionados con la entidad.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `add_hostname`
+      </td>
+
+      <td>
+        Opcional. Booleano. Si es `true`, la entidad métrica se decorará con el `hostname`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Dentro de la [lista`data` ](#data)de la [salida JSON](#example-json) hay una o más entidades y sus datos. La entrada `entity` tiene dos campos:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Campos JSON de datos de entidad
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+      </td>
+
+      <td>
+        Requerido. El identificador/nombre de la entidad.
+
+        <DNT>**Recommendation:**</DNT> Utilice nombres de dominio inversos para generar nombres de integración únicos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type`
+      </td>
+
+      <td>
+        Requerido. El tipo de entidad. Será utilizado por el agente de infraestructura como namespace para componer un <DNT>**unique identifier**</DNT> junto con el `name`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `id_attributes`
+      </td>
+
+      <td>
+        Opcional. Una lista de atributos de valor principal que brindan unicidad a una entidad. Se adjuntan al nombre en forma de `key=value` para facilitar la lectura, proporcionar información adicional y mejorar la unicidad del nombre de la entidad.
+
+        El atributo identificador es útil cuando el nombre de la entidad no es suficiente para funcionar como identificador único, o cuando no proporciona suficiente información significativa. Por ejemplo:
+
+        ```
+        [
+          {
+            "key": "service", 
+            "value": "mysql"
+          },
+          { 
+            "key": "role", 
+            "value": "master" 
+          }, ...
+        ]
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Reemplazo de dirección de loopback en nombres de entidades [#loopback]
+
+A partir de [la versión 1.2.25 o superior](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) del agente de infraestructura, el protocolo v3 mejora la unicidad de la entidad remota agregando reemplazo de direcciones locales en los nombres de las entidades a nivel de agente.
+
+Cuando varias entidades remotas tienen su nombre basado en un extremo (ya sea `ip` o `hostname`), y este nombre contiene [direcciones loopback](https://en.wikipedia.org/wiki/Localhost#Name_resolution), hay dos problemas:
+
+* Este valor de localhost no proporciona información valiosa sin más contexto.
+* El `name` podría colisionar con otro servicio cuyo nombre tenga una dirección local.
+
+Esto sucede cuando:
+
+* Los nombres de los extremos son como `localhost:port`.
+* Los puertos tienden a ser los mismos para un servicio determinado; por ejemplo, 3306 para MySQL.
+
+En los datos entrantes del protocolo v3, el agente de infraestructura reemplaza las direcciones de bucle invertido en el nombre de la entidad (y la clave) con el primer elemento disponible de la siguiente lista:
+
+1. ID del proveedor de la nube de la instancia, recuperado por el agente si corresponde
+2. Nombre para mostrar, configurado a través de la [opción de configuración del agente display_name](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent#general)
+3. Nombre de host, recuperado por el agente
+
+Por ejemplo, si una integración que utiliza el protocolo v3 devuelve una entidad con el nombre `localhost:3306` y el agente se ejecuta en bare metal (no tiene el ID de proveedor de la nube de la instancia), display_name no se ha configurado y el nombre El host es `prod-mysql-01`, entonces el agente reemplazará el `localhost` y producirá el nombre de la entidad `prod-mysql-01:3306`.
+
+El agente de infraestructura permite el reemplazo automático de direcciones de bucle invertido para el protocolo de integración v3. También puede habilitar esto para v2 a través del [indicador de configuración del agente](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent#general) `replace_v2_loopback_entity_names`. En este caso, todas las integraciones ejecutadas por el agente usando v2 tendrán sus nombres reemplazados siempre que tengan una dirección local.
+
+## JSON: datos métricos, de inventario y de eventos [#metric-data]
+
+Los valores de los datos siguen el encabezado del archivo ejecutable. Puede registrar tres [tipos de datos](/docs/infrastructure/integrations-sdk/get-started/intro-infrastructure-integrations-sdk#data-types):
+
+* [Métrica](#metric-data)
+* [Evento](#event-data)
+* [Inventario](#inventory)
+
+<Callout variant="important">
+  Desde la perspectiva del tablero de New Relic, la infraestructura métrica y el evento se clasifican como [datos de eventos](/docs/data-apis/understand-data/new-relic-data-types/#event-data).
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="metric-data"
+    title="Datos métricos"
+  >
+    Los datos de infraestructura métrica normalmente se utilizan para datos numéricos simples; Por ejemplo:
+
+    * Recuento de solicitudes de MySQL en una cola por segundo
+
+    * Recuento de conexiones activas a un sistema específico por minuto
+
+      Además de los metadatos asociados, una métrica es esencialmente solo un nombre de métrica y un valor numérico. Para obtener más información sobre estos datos, consulte [datos del evento](/docs/data-apis/understand-data/new-relic-data-types/#event-data).
+
+      A continuación se muestra un ejemplo de datos métricos JSON de una entidad:
+
+      ```
+      [ 
+          {
+               "event_type":"MyorgNginxSample",
+               "net.connectionsActive": 54,  # metric data (a key/value pair)
+               "net.requestsPerSecond": 21,  # metric data (a key/value pair)
+               "net.reading": 23,   # metric data (a key/value pair)
+          }
+      ]
+      ```
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              Campo de datos de métrica JSON
+            </th>
+
+            <th>
+              Descripción
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `event_type`
+            </td>
+
+            <td>
+              Requerido. `event_type` define dónde se almacenará la métrica. Cada conjunto de métricas se almacena como una muestra dentro del tipo de evento especificado. Cada integración debe almacenar sus datos en su propio tipo de evento. Si está generando varios tipos de muestras a partir de la misma integración, utilice diferentes tipos de eventos para cada uno.
+
+              <DNT>**Recommendation:**</DNT> Para garantizar que los tipos de eventos utilizados por su integración sean únicos, anteponga el tipo de evento con el nombre o acrónimo de su empresa. Por ejemplo, si su integración personalizada captura el nodo métrico de Cassandra y la familia de columnas métrica de Cassandra como muestras diferentes, guárdelos en diferentes tipos de eventos, como `MyOrgCassandraSample` y `MyOrgCassandraColumnFamilySample`.
+
+              Si el tipo de evento no existe, se creará automáticamente cuando New Relic reciba datos de su integración y los haga disponibles en la UI.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Uno o más pares principales de valores de datos métricos
+            </td>
+
+            <td>
+              Requerido (al menos uno). Una medida métrica que contiene un nombre (clave) y su valor. Asegúrese de que generalmente cumplan con la especificación del tipo de entidad para una máxima compatibilidad con la infraestructura característica.
+
+              <DNT>**Recommendation:**</DNT> Prefiera su métrica con una categoría para ayudar al navegar a través de métrica en la New Relic UI. La integración New Relic utiliza actualmente:
+
+              * `net`: Número de conexiones, solicitudes del servidor web, bytes transmitidos a través de la red, etc.; por ejemplo, `net.connectionsActive`.
+
+              * `query`: métrica directamente relacionada con la consulta de la base de datos; por ejemplo, `query.comInsertPerSecond`.
+
+              * `db`: Base interna de datos métrica; por ejemplo, `db.openTables`.
+
+                Utilice prefijos multinivel para agrupaciones adicionales cuando tenga sentido; por ejemplo, `db.innodb.bufferPoolPagesFree`.
+
+                Utilice el formato de nombre `innerCamelCase` ; por ejemplo: `net.requestsPerSecond`.
+
+                Utilice un nombre de métrica lo más parecido posible al original respetando las demás especificaciones. Por ejemplo:
+
+              * Nombre original: `Qcache_hits`
+
+              * Nombre de la métrica: `db.qCacheHits`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Unidad de medida
+            </td>
+
+            <td>
+              <DNT>**Recommendation:**</DNT> Especifique la unidad de medida utilizando un sufijo de unidad si aún no está incluido en el nombre de la métrica original, como en los siguientes ejemplos:
+
+              * Porcentajes: utilice `Percent`; por ejemplo: `cpuUtilPercent`.
+
+              * Tarifas: utilice un formato como `PerSecond`. Los segundos son la medida de velocidad estándar, pero también puedes usar otras unidades, como `PerMinute` o `PerDay`.
+
+              * Mediciones de bytes: utilice `Bytes`.
+
+                <DNT>
+                  **Recommendation:**
+                </DNT>
+
+                Si una métrica se captura en una unidad diferente, como `Megabytes`, conviértala a `Bytes`. Por ejemplo: `db.allMemtablesOffHeapSizeBytes`.
+
+              * Mediciones de tiempo: utilice `Milliseconds`.
+
+                <DNT>
+                  **Recommendation:**
+                </DNT>
+
+                Si una métrica se captura en una unidad diferente, como `Seconds`, conviértala a `Milliseconds`. Por ejemplo: `query.readLatency50thPercentileMilliseconds`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              Valor
+            </td>
+
+            <td>
+              Utilice una cadena o un número (entero o flotante). Las cadenas se pueden utilizar como metadatos asociados, lo que permite filtrar los datos en la New Relic UI. Un valor booleano debería expresarse como una cadena ("verdadero", "falso") o un número entero (1, 0). No utilice tipos complejos de valores, como matriz o hash.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="event-data"
+    title="Datos del evento"
+  >
+    Infraestructura evento data representa mensajes arbitrarios y únicos para actividades clave en un sistema; Por ejemplo:
+
+    * Poner en marcha un servicio específico
+
+    * Creando una nueva tabla
+
+      Puedes consultar estos datos en la [página de infraestructura <DNT>**Events**</DNT> ](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-events-page-live-feed-every-config-change)y [en infraestructura evento mapa de calor](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/events-heatmap-examine-patterns-time-range). También puedes consultar el tipo de evento `InfrastructureEvent` en New Relic.
+
+      A continuación se muestra un ejemplo de carga JSON de datos de eventos de una integración, que sigue al [encabezado JSON](#exec-header) y las definiciones de campo.
+
+      ```
+      [
+         {
+            "summary":"More than 10 request errors logged in the last 5 minutes",
+            "category": "notifications"
+         }
+      ]
+      ```
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              Campo de evento JSON
+            </th>
+
+            <th>
+              Descripción
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `summary`
+            </td>
+
+            <td>
+              Requerido. El mensaje a enviar. Utilice una cadena simple.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `category`
+            </td>
+
+            <td>
+              Opcional. Valor de cadena de una de las categorías existentes utilizadas en el monitoreo de infraestructura o una nueva categoría. El valor predeterminado es `notifications`. Ejemplos de categorías:
+
+              * `applications`
+              * `automation`
+              * `configuration`
+              * `metadata`
+              * `notifications`
+              * `os`
+              * `packages`
+              * `services`
+              * `sessions`
+              * `system`
+              * `users`
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="inventory"
+    title="Datos de inventario"
+  >
+    Infraestructura datos de inventario captura información del sistema del estado en vivo; Por ejemplo:
+
+    * Datos de configuración
+
+    * Versiones del sistema instaladas
+
+    * Otros metadatos del sistema
+
+      Puedes consultar estos datos en la [página<DNT>**Inventory**</DNT> ](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure)e [infraestructura evento mapa de calor](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/events-heatmap-examine-patterns-time-range). También podrás consultar datos relacionados con cambios de inventario.
+
+      El tipo de datos `inventory` es un hash de uno o más subobjetos JSON que contienen:
+
+    * Una clave de identificación de inventario única (obligatoria): el identificador del artículo del inventario. Esto se usa en combinación con el prefijo de la integración para crear una ruta a los datos del artículo del inventario. Los caminos similares se combinan a través de entidades y muestran posibles variaciones. Esta identificación apunta a un hash.
+
+    * Un hash de pares principales de valor, uno por atributo de inventario. Se requiere al menos uno.
+
+    * Las claves deben ser cadenas.
+
+    * Los valores pueden ser un tipo escalar (cadena o número) <DNT>**or**</DNT> otro objeto hash de valor principal. New Relic admite la jerarquía, pero los nodos de valor final deben ser escalares.
+
+      A continuación se muestra un ejemplo del JSON de datos de inventario de una integración:
+
+      ```
+      {
+          "events/worker_connections": {
+              "value": 1024
+                      },
+          "http/gzip" : {
+              "value": "on"
+                      }
+      }
+      ```
+  </Collapser>
+</CollapserGroup>

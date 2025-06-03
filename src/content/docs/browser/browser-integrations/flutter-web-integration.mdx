@@ -1,0 +1,73 @@
+---
+title: Monitor your Flutter web application
+tags:
+    - New Relic integrations
+metaDescription: Use New Relic browser monitoring to get a dashboard with metrics from your Flutter web application.
+redirects: 
+  - /docs/infrastructure/host-integrations/host-integrations-list/browser-monitoring-integrations/flutter-web-integration
+freshnessValidatedDate: never
+---
+
+Our Flutter integration monitors the performance of your Flutter web application, helping you diagnose issues in your application and optimize your code. Our Flutter integration makes use of our <InlinePopover type="browser"/> agent, and gives you a pre-built dashboard with your most important Flutter app metrics (like errors, application crashes, app launches, app installations, HTTP errors, and network failures).
+
+<img
+  title="New Relic Flutter web app dashboard"
+  alt="New Relic Flutter web app dashboard"
+  src="/images/browser_screenshot-full_flutter-web-dashboard.webp"
+/>
+
+<figcaption>
+  After setting up our Flutter integration, we give you a dashboard for your Flutter web app metrics.
+</figcaption>
+
+## Install [#install]
+
+### Step 1 (optional): Install the infrastructure agent [#infra-install]
+
+Installing the infrastructure agent is optional, but doing this will get you important metrics about the host where your app is running.
+
+To do this, follow [the infrastructure agent install steps](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent) for the host containing your Flutter app.
+
+### Step 2: Install the browser agent [#browser-install]
+
+Our Flutter integration relies on our browser agent to work. To install our browser agent:
+
+1. From [one.newrelic.com](https://one.newrelic.com), go to the [<DNT>**Integrations & Agents**</DNT> page](https://one.newrelic.com/marketplace).
+2. Click <DNT>**Browser and mobile**</DNT>, then click <DNT>**Browser monitoring**</DNT>.
+3. Select the <DNT>**Select copy/paste JavaScript code**</DNT> option (for more about this code, see [our browser install docs](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent)).
+4. Complete the rest of the steps and click <DNT>**Enable.**</DNT>
+5. Go to the `www/root` directory of your Flutter web application.
+6. Open the `index.html` file.
+7. Paste our browser code snippet right before the head tag ends (`</head>`).
+8. Restart your application.
+
+Wait five minutes and then proceed to finding your data in New Relic.
+
+## Find your data [#find-data]
+
+To get your Flutter dashboard:
+
+1. From [one.newrelic.com](https://one.newrelic.com), go to the [<DNT>**Integrations & Agents**</DNT> page](https://one.newrelic.com/marketplace).
+2. Click on <DNT>**Dashboards**</DNT>.
+3. In the search bar, type `flutter web`.
+4. The Flutter dashboard should appear. Click on it to install it.
+
+Your Flutter dashboard is considered a custom dashboard and can be found in the <DNT>**Dashboards**</DNT> UI. For docs on using and editing dashboards, see [our dashboard docs](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+This integration reports data in the form of our [browser monitoring events](/docs/data-apis/understand-data/event-data/events-reported-browser-monitoring). If you installed the infrastructure agent, you'll also receive [infrastructure data](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data/#infrastructure-events).
+
+Here's an example NRQL query checking the average window load time for the various browsers used by users on desktop computers:
+
+```sql
+SELECT average(windowLoad) FROM PageViewTiming 
+WHERE (deviceType = 'Desktop') FACET `userAgentName` 
+SINCE 604800 seconds AGO TIMESERIES
+```
+
+## What's next? [#whats-next]
+
+To learn more about querying your data and creating custom dashboards, check out these docs:
+
+* [Introduction to the query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)
+* [Introduction to custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+* [Manage your dashboard](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard)

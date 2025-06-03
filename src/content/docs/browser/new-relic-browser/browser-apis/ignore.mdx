@@ -1,0 +1,63 @@
+---
+title: ignore (SPA API)
+type: apiDoc
+shortDescription: Overrides other SPA save() calls; ignores an interaction so it is not saved or sent to New Relic.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser monitoring to override other save calls; ignores an interaction so it is not be saved or sent to New Relic.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicinteractionignore
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/browser-spa-api-newrelicinteractionignore
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/newrelicinteractionignore-browser-spa-agent-api
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/spa-ignore-browser
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/ignore-browser-spa-api
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```js
+newrelic.interaction().ignore()
+```
+
+Overrides other SPA `save()` calls; ignores an interaction so it is not saved or sent to New Relic.
+
+## Requirements
+
+* Browser Pro+SPA agent (v963 or higher)
+* If you're using npm to install the browser agent, you must enable the `spa` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description
+
+This SPA method will cause an interaction to be ignored. It will not be saved or sent to New Relic. This method overrides any previous or subsequent calls to [`save()`](/docs/browser/new-relic-browser/browser-agent-apis/browser-spa-api-newrelicinteractionsave).
+
+## Return values
+
+This method returns the same API object created by `interaction()`.
+
+## Examples
+
+```js
+router.addRoute('/uninteresting-route', () => {
+  newrelic.interaction() // Get handle to current interaction.
+    .ignore(); // Ignore this interaction to ensure it will not be saved.
+  renderUninterestingRoute(); // Render route.
+});
+```

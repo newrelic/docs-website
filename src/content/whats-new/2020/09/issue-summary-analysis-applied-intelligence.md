@@ -10,13 +10,13 @@ When trying to find the root cause of an issue, access to contextual information
 
 The issue summary provides bottom-line insights to get you information faster. Depending on the issue, it can contain up to four sections:
 
-* **Analysis summary:** Surfaces related components and SRE [golden signals](https://landing.google.com/sre/sre-book/chapters/monitoring-distributed-systems/#xref_monitoring_golden-signals) (for example, error rate, throughput, saturation, and latency)
-* **Suggested responder:** Suggests the most relevant responders who can help to resolve the issue
-* **Impacted entities:** Shows a summary of any entities we monitor with one-click access to anomaly analysis if you’ve configured Proactive Detection
-* **Labels sets:** Shows incidents from third-party sources (for example, PagerDuty, AWS CloudWatch, etc.)
+- **Analysis summary:** Surfaces related components and SRE [golden signals](https://landing.google.com/sre/sre-book/chapters/monitoring-distributed-systems/#xref_monitoring_golden-signals) (for example, error rate, throughput, saturation, and latency)
+- **Suggested responder:** Suggests the most relevant responders who can help to resolve the issue
+- **Impacted entities:** Shows a summary of any entities we monitor with one-click access to anomaly analysis if you’ve configured Proactive Detection
+- **Labels sets:** Shows incidents from third-party sources (for example, PagerDuty, AWS CloudWatch, etc.)
 
-![Screenshot showing the analysis summary.](./images/whats_up_ai_summary.png "whats_up_ai_summary.png")
+![Screenshot showing the analysis summary.](/images/whats_up_ai_summary.webp 'whats_up_ai_summary.webp')
 
 With these updates to the issue summary and analysis, more information is always a click away.
 
-![Animated gif showing the summary page to find anomalies.](./images/whats_up_anomaly_analysis_demo.gif "whats_up_anomaly_analysis_demo.gif")
+![Animated gif showing the summary page to find anomalies.](/images/whats_up_anomaly_analysis_demo.gif 'whats_up_anomaly_analysis_demo.gif')

@@ -1,0 +1,156 @@
+---
+title: 'Link'
+metaDescription: 'Learn how to work the Link component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Provides declarative, accessible navigation around the application and external links.
+
+### Usage
+
+```js
+import { Link } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<Link to="https://www.google.com">Click me</Link>
+```
+
+#### With location object
+
+```js
+function render() {
+  const launcher = { id: 'nr1-core.explorer' };
+  const location = navigation.getOpenLauncherLocation(launcher);
+
+
+  return <Link to={location}>Click me</Link>;
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Use it to describe better the context of the component's action for users on screen readers.
+
+        ```js
+        <Link to="/dashboards" ariaLabel="Go to your dashboard">Go</Link> 
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `children` <h5>REQUIRED</h5> <h5>node</h5>
+      </td>
+
+      <td>
+        Content of the link.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onClick` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the user clicks on the link.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.MouseEvent","description":""}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `role` <h5>string</h5>
+      </td>
+
+      <td>
+        ARIA attribute use to describe the `Link`'s role for accessibility, like `role="menuitem"`. By default, `Link`'s role is "link", so an explicit role is for use within other accessible elements, such as `role="menu"` elements and others.Consult [ARIA best practices](https://www.w3.org/TR/wai-aria-practices/) to see what `role`s can be applied to `Link` and in which contexts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          Link.SPACING_TYPE.EXTRA_LARGE,
+          Link.SPACING_TYPE.LARGE,
+          Link.SPACING_TYPE.MEDIUM,
+          Link.SPACING_TYPE.NONE,
+          Link.SPACING_TYPE.OMIT,
+          Link.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `to` <h5>shape|string</h5>
+      </td>
+
+      <td>
+        Location object or url string to link to.
+        <h3>shape</h3>
+
+        `pathname` <h5>REQUIRED</h5><h5>string</h5>
+
+        `search` <h5>string</h5>
+
+        `hash` <h5>string</h5>
+      </td>
+    </tr>
+  </tbody>
+</table>

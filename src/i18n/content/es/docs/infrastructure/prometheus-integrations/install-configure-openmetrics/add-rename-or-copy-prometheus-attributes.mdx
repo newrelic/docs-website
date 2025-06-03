@@ -1,0 +1,191 @@
+---
+title: 'Agregar, cambiar el nombre o copiar el atributo Prometheus'
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: How to rename or copy Prometheus metrics for your Docker integration before sending them to New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+La integración New Relic Prometheus OpenMetrics proporciona controles para transformar la métrica de Prometheus para docker antes de enviarlos a New Relic. Después de definir las transformaciones en el archivo de configuración de integración, se realizan para todos los extremos.
+
+## Jerarquía
+
+El archivo de manifiesto [`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) incluye el mapa de configuración `nri-prometheus-cfg` que muestra una configuración de ejemplo. Las transformaciones se ejecutan en el siguiente orden:
+
+1. Ignorar métrica.
+2. Agregue o incluya atributo.
+3. Cambiar el nombre del atributo.
+4. Copiar atributo.
+
+<Callout variant="important">
+  Evite enviar datos de integración de Prometheus OpenMetrics que no sean relevantes para sus necesidades de monitoreo. En su lugar, utilice filtros para ignorar o incluir métricas específicas. Esto le ayudará a controlar la cantidad y los tipos de datos que envía a New Relic. Esto también le ayudará a evitar cargos de facturación adicionales. Para obtener más información, consulte [Ignorar o incluir Prometheus métrica](/docs/integrations/prometheus-integrations/install-configure/ignore-or-include-prometheus-metrics).
+</Callout>
+
+## Configuración de ejemplo [#transformation-configuration]
+
+Para utilizar estas opciones, configure el archivo de configuración del contenedor scraper (`config.yaml` en el directorio actual):
+
+```
+docker run -d --restart unless-stopped \
+    --name nri-prometheus \
+    -e CLUSTER_NAME="YOUR_CLUSTER_NAME"
+    -e LICENSE_KEY="YOUR_LICENSE_KEY" \
+    -v "$(pwd)/config.yaml:/config.yaml" \
+    newrelic/nri-prometheus:latest --configfile=/config.yaml
+```
+
+Aquí hay un archivo de configuración de ejemplo que contiene todos estos ejemplos:
+
+```
+transformations:
+ - description: "Transformation for MySQL exporter"
+   add_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         owningTeam: "database-team"
+   rename_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         table: "tableName"
+         under_score: "CamelCase"
+   copy_attributes:
+     - from_metric: "mysql_version_info"
+       to_metrics:
+         - "mysql_"
+       attributes:
+         - "innodb_version"
+         - "version"
+   ignore_metrics:
+     - prefixes:
+       - "go_"
+       - "process_"
+```
+
+## Agregar atributo
+
+Esta transformación permite incluir un conjunto de atributos definidos estáticamente a un conjunto de objetivo métrico.
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="Agregar atributo"
+  >
+    Configuración:
+
+    Para incluir el atributo `owningTeam` a todas las métricas que comienzan con `mysql_`:
+
+    ```
+    add_attributes:
+      - prefix: "mysql_"
+        attributes: 
+          owningTeam: "database-team"
+    ```
+
+    Para incluir el atributo `datacenter` a toda la métrica:
+
+    ```
+    add_attributes:
+      - prefix: ""
+        attributes: 
+          datacenter: "europe"
+    ```
+
+    Aporte:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    Producción:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary","owningTeam":"database-team","datacenter":"europe"} 123 another_metric{table="first","datacenter":"europe"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Cambiar nombre de atributo
+
+No todos los Prometheus extremo tienen nombres consistentes. Puede cambiar el nombre del atributo según sea necesario.
+
+<CollapserGroup>
+  <Collapser
+    id="example-rename"
+    title="Cambiar nombre de atributo"
+  >
+    Configuración:
+
+    Para cambiar el nombre del atributo `table` a `tableName` para métricas que comienzan con `mysql_`:
+
+    ```
+    rename_attributes:
+      - metric_prefix: "mysql_" 
+        attributes:
+          table: "tableName"
+    ```
+
+    Aporte:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    Producción:
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",tableName="host_summary"} 123 another_metric{table="first"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Copiar atributo
+
+Algunos extremos de Prometheus proporcionan una métrica `_info` o `_static` que contiene metadatos sobre el servicio, como la versión. Puede resultar útil tener este atributo en todas las métricas para ese servicio. Esta transformación le permite copiar un atributo de una fuente métrica a un conjunto de objetivo métrico.
+
+<Callout variant="important">
+  Sólo puedes copiar atributo entre métricas en el mismo extremo.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="Copiar atributo"
+  >
+    <DNT>
+      **Configuration:**
+    </DNT>
+
+    Para copiar el atributo `innodb_version` y `version` de la métrica `mysql_version_info` a todas las métricas que comienzan con `mysql_`:
+
+    ```
+    copy_attributes:
+      - from_metric: "mysql_version_info"
+        to_metrics:
+          - "mysql_" 
+        attributes: 
+          - "innodb_version"
+          - "version"
+    ```
+
+    <DNT>
+      **Input:**
+    </DNT>
+
+    ```
+    # HELP mysql_version_info MySQL version and distribution. mysql_version_info{innodb_version="5.7.14",version="5.7.14",version_comment="MySQL Community Server (GPL)"} 1
+
+    # HELP mysql_global_variables_slave_transaction_retries Generic gauge metric from SHOW GLOBAL VARIABLES. mysql_global_variables_slave_transaction_retries 10
+    ```
+
+    <DNT>
+      **Output:**
+    </DNT>
+
+    ```
+    mysql_global_variables_slave_transaction_retries{innodb_version="5.7.14",version="5.7.14"} 10
+    ```
+  </Collapser>
+</CollapserGroup>

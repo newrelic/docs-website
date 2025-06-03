@@ -1,0 +1,509 @@
+---
+title: "NerdGraph tutorial: Stream your data to an AWS Kinesis Firehose or Azure Event Hub"
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: "With the New Relic streaming export feature, you can send your data as it's ingested to New Relic to an AWS Kinesis Firehose or Azure Event Hub."
+redirects:
+freshnessValidatedDate: never
+---
+
+With our streaming export feature, available with [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus), you can send your data to an AWS Kinesis Firehose or Azure Event Hub as it's ingested by New Relic. We'll explain how to create and update a streaming rule using [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) and how to view existing rules. You can use [the NerdGraph explorer](/docs/apis/nerdgraph/get-started/nerdgraph-explorer) to make these calls.
+
+## What is streaming export? [#definition]
+
+As data is ingested by your New Relic organization, our streaming export feature sends that data to an AWS Kinesis Firehose or Azure Event Hub. You can set up custom rules, which are defined using [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language), to govern what kinds of New Relic data you'll export. You can also elect to have this data compressed before it's exported, using our new [Export Compression](#compression) feature.
+
+Some examples of things you can use streaming export for:
+
+* To populate a data lake
+* Enhance AI/ML training
+* Long-term retention for compliance, legal, or security reasons
+
+You can disable or enable streaming export rules whenever you want. But note that streaming export only sends currently ingested data, which means that if you disable it and re-enable it, the data ingested when it was off won't be sent with this feature. For exporting past data, you can use [Historical data export](/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export).
+
+## Requirements and limits [#requirements]
+
+Limits on streamed data: The amount of data you can stream per month is limited by your total [ingested data](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#usage-calculation) per month. If your streaming data amount exceeds your ingested data amount, we may suspend your access to and use of streaming export.
+
+Permissions-related requirements:
+
+* Pro or Enterprise edition with [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus) option
+* User type: [core user or full platform user](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+* The [streaming data permission](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#data-platform)
+
+You must have an AWS Kinesis Firehose or Azure Event Hub set up to receive New Relic data. If you haven't already done this, you can follow our steps below for [AWS](#firehose-setup) or [Azure](#event-hub-setup).
+
+NRQL requirements:
+
+* Must be flat queries, with no aggregation. For example, `SELECT *` or `SELECT column1, column2` forms are supported.
+* Applicable for anything in the `WHERE` clause, except subqueries.
+* Query cannot have a `FACET` clause, `COMPARE WITH`, or `LOOKUP`.
+* Nested queries are not supported.
+* Supports [data types stored in NRDB](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data), and not [metric timeslice data](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data).
+
+## Set up an AWS Kinesis Firehose [#firehose-setup]
+
+To set up streaming data export to AWS, you must first set up an Amazon Kinesis Firehose. We'll walk you through that procedure in the next three steps.
+
+<Steps>
+  <Step>
+### Create a Firehose for streaming export [#create-firehose]
+
+Create a dedicated Firehose to stream your New Relic data to:
+
+1. Go to Amazon Kinesis Data Firehose.
+2. Create a delivery stream.
+3. Name the stream (you will use this name later in the rule registration).
+4. Use <DNT>**Direct PUT or other sources**</DNT> and specify a destination compatible with New Relic's JSON event format (for example, S3, Redshift, or OpenSearch).
+  </Step>
+  <Step>
+### Create IAM Firehose write access policy [#create-policy]
+
+1. Go to the IAM console and sign in with your user.
+2. Click **Policies** in the left navigation, and then click **Create policy**.
+3. Select the Firehose service, and then select `PutRecord` and `PutRecordBatch`.
+4. For `Resources`, select the delivery stream, add ARN, and select the region of your stream.
+5. Enter your AWS account number, and then enter your desired delivery stream name in the name box.
+6. Create the policy.
+  </Step>
+  <Step>
+### Create IAM role for granting New Relic write access [#iam-role]
+               
+To set up the IAM role:
+      
+1. Navigate to the IAM and click on <DNT>**Roles**</DNT>.
+2. Create a role for an AWS account, and then select <DNT>**for another AWS account**</DNT>.
+3. Enter the New Relic export account ID: `888632727556`.
+4. Select <DNT>**Require external ID**</DNT> and enter the [account ID](/docs/accounts/accounts-billing/account-structure/account-id) of the New Relic account you want to export from.
+5. Click <DNT>**Permissions**</DNT>, and then select the policy you created above.
+6. Add a role name (this will be used in the export registration) and description.
+7. Create the role.
+  </Step>
+</Steps>
+                     
+When you're done with these steps, you can set up your export rules using NerdGraph. For more on that, jump to [Important fields for NerdGraph calls](#fields).
+   
+
+## Set up an Azure Event Hub [#event-hub-setup]
+
+To set up streaming data export to Azure, you must first set up an Event Hub. We'll walk you through that procedure in the next three steps.
+
+Alternatively, you can follow the Azure guide [here](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create).
+
+<Steps>
+  <Step>
+### Create an Event Hubs namespace [#create-event-hubs-namespace]
+
+1. Navigate to Event Hubs within your Microsoft Azure account.
+2. Follow the steps to create an Event Hubs namespace. We recommend enabling auto-inflate to ensure you receive all of your data.
+3. Ensure public access is enabled, we will be using a Shared Access Policy to authenticate securely with your Event Hub.
+4. Once your Event Hubs namespace is deployed, click <DNT>**Go to resource**</DNT>.
+  </Step>
+  <Step>
+### Create an Event Hub[#create-event-hub]
+
+    1. In the left column, click <DNT>**Event Hubs**</DNT>.
+    2. Then click <DNT>**+Event Hub**</DNT> to create an Event Hub.
+    3. Enter the desired Event Hub Name. Save this, as you'll need it later to create the streaming export rule.
+    4. For <DNT>**Retention**</DNT>, select the <DNT>**Delete**</DNT> `Cleanup policy` and desired `Retention time (hrs)`.
+
+    <Callout variant="important">
+      Streaming export is currently not supported for Event Hubs with <DNT>**Compact**</DNT> retention policy.
+    </Callout>
+
+    5. Once the Event Hub is created, click on the Event Hub.
+  </Step>
+  <Step>
+### Create and attach a shared access policy [#event-hub-policy]
+
+1. In the left column, go to <DNT>**Shared access policies**</DNT>.
+2. Click <DNT>**+Add**</DNT> near the top of the page.
+3. Choose a name for your shared access policy.
+4. Check <DNT>**Send**</DNT>, and click <DNT>**Create**</DNT>.
+5. Click the created policy, and copy the <DNT>**Connection string–primary key**</DNT>. Save this, as we'll use this to authenticate and send data to your Event Hub.
+  </Step>
+</Steps>
+
+When you're done with these steps, see the next section about important fields for your Nerdgraph calls. 
+
+## Important fields for NerdGraph calls [#fields]
+
+Most of the streaming data export NerdGraph calls we'll be covering use a few fields that are related to your account:
+
+For AWS Kinesis Firehose:
+
+* `awsAccountId`: The [AWS account ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html). For example: `10000000000`
+* `deliveryStreamName`: The [Kinesis stream name](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html). For example: `firehose-test-stream`.
+* `region`: The [AWS region](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html). For example: `us-east-1`.
+* `role`: The [AWS IAM role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for Kinesis Firehose. This will always be `firehose-role`.
+
+For Azure Event Hubs:
+
+* `eventHubConnectionString`: The [Azure Event Hub Connection String](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string). Looks similar to: `Endpoint=sb://<NamespaceName>.servicebus.windows.net/;SharedAccessKeyName=<KeyName>;SharedAccessKey=<KeyValue>;EntityPath=<EventHubName>`
+* `eventHubName`: The Event Hub name. For example: `my-event-hub`.
+
+## How to create a streaming export rule [#create-stream]
+
+First, decide which data you want to export. Then, with a NerdGraph call, you'll create the streaming rules you want using NRQL. We'll give some examples.
+
+### Create a stream [#create-stream]
+
+When you create a new streaming rule, you'll need all of the following fields. Here's an example of creating a streaming rule exporting to an AWS Kinesis Firehose:
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Here's an example of creating a streaming rule exporting to an Azure Event Hub:
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+You'll get a result immediately with a rule ID and status. The status will be shown as `CREATION_IN_PROGRESS`. You can use the rule id to check if the rule is created successfully.
+
+It can take up to six minutes for the rule to complete creation due to the policy validation taking some time.
+
+Before the rule finishes registering, you can't initiate another mutation action (like `Enable`, `Disable`, or `Update`) because the rule is locked for the creation process. If you try another mutation action before the rule completes the registration process, you'll get a message like, "The export rule is currently being updated by another request, please wait and try again later."
+
+You can use `Delete` at any time.
+
+The creation can finish and change the status at any time within the roughly six minutes required for rule creation. The status will change to `ENABLED`, `DISABLED`, or `CREATION_FAILED`.
+
+See these details on the values:
+
+* `ENABLED` means the rule is created successfully and data has started to be streamed.
+* `CREATION_FAILED` means the rule failed on creation. This can happen for several reasons, but is often due to AWS policy or Azure SAS validation failing.
+* `DISABLED` means the rule is created but is not enabled yet due to reasons such as filter stream limit being reached, or failing on filter stream rule creation. If the status still remains as `CREATION_IN_PROGRESS` after six minutes, that means the rule creation failed due to a system error on our service. You can delete the rule and try to create a new one again.
+
+Once a streaming rule is created, you can [view it](#view-stream).
+
+## Update a stream [#update-stream]
+
+When you update a new streaming rule, you'll need all of the following fields. Here's an example of updating a streaming rule:
+
+AWS Kinesis Firehose:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Azure Event Hub:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+When updating, you'll get a message in the message field: “The export rule is being updated and the process may take a few minutes to complete. Please check again later.” It can take up to six minutes to be fully updated.
+
+You can check if the rule is updated by calling `streamingRule` to retrieve the rule. During the period that the rule is under updating, the rule is locked, and no other mutation action can act on the rule. If you are trying to perform another mutation action on the same rule, you will get a message saying, “The export rule is currently being updated by another request, please wait and try again later.” A user can update a rule of any status except a deleted rule.
+
+## Disable a stream [#disable-stream]
+
+To disable a rule, you only need to provide the rule ID. Here's an example of disabling a stream:
+
+```graphql
+mutation {
+  streamingExportDisableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+You can only disable the rule when the rule has a status of `ENABLED`. If you're trying to disable a rule that's in another state, it returns the error message, "The export rule can't be enabled or disabled due to status not being allowed." You can't disable the rule if the rule is locked due to another mutation being done.
+
+## Enable a stream [#enable-stream]
+
+If you want to enable a rule, you only need to provide the rule ID. Here's an example of enabling a stream:
+
+```graphql
+mutation {
+  streamingExportEnableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+You can only enable the rule when it has a status of `DISABLED`. If you're trying to enable a rule that's in another state, it returns the error message like, "The export rule can't be enabled or disabled due to status not being allowed." You can't enable the rule if the rule is locked due to another mutation being done.
+
+## Delete a stream [#delete-stream]
+
+You'll need to provide a rule ID to delete a stream. Here's an example:
+
+```graphql
+mutation {
+  streamingExportDeleteRule(id: RULE_ID) {
+    id
+    ...
+  }
+}
+```
+
+Deleting can be performed on a rule of any status unless it's already deleted. Once a rule is deleted, it can't be reactivated again. The rule can be still viewed within the first 24 hours after deletion by calling the `steamingRule` API with the rule ID. After 24 hours, the rule won't be searchable anymore through NerdGraph.
+
+## View streams [#view-stream]
+
+You can query information about a specific stream rule by querying for the account ID and rule ID. Here's an example:
+
+AWS Kinesis Firehose:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          aws {
+            awsAccountId
+            deliveryStreamName
+            region
+            role
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+Azure Event Hub:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+You can also query for all existing streams. Here's an example:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRules {
+          aws {
+            awsAccountId
+            region
+            deliveryStreamName
+            role
+          }
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+          payloadCompression
+        }
+      }
+    }
+  }
+}
+```
+
+## Understand export compression [#compression]
+
+Optionally, we can compress payloads before they are exported, though this is disabled by default. This can help avoid hitting your ingested data limit and save money on egress costs.
+
+You can enable compression using the `payloadCompression` field under `ruleParameters`. This field can be any of the following values:
+
+* `DISABLED`: Payloads will not be compressed before being exported. If unspecified, `payloadCompression` will default to this value.
+* `GZIP`: Compress payloads with the GZIP format before exporting
+
+GZIP is the only compression format currently available, though we may choose to make more formats available in the future.
+
+When compression is enabled on an existing AWS export rule, the next message from Kinesis Firehose may contain both compressed and uncompressed data. This is due to buffering within Kinesis Firehose. To avoid this, you can temporarily disable the export rule before enabling compression, or create a new Kinesis Firehose stream for the compressed data alone to flow through.
+
+If you do encounter this issue and you're exporting to S3 or another file storage system, you can view the compressed part of the data by following these steps:
+
+1. Manually download the object.
+2. Separate the object into two separate files by copying the compressed data into a new file.
+3. Decompress the new, compressed-only data file.
+
+Once you have the compressed data, you can re-upload it to S3 (or whatever other service you're using) and delete the old file.
+
+Please be aware that in S3 or another file storage system, objects may consist of multiple GZIP-encoded payloads that are appended consecutively. Therefore, your decompression library should have the capability to handle such concatenated GZIP payloads.
+
+### Automatic Decompression in AWS
+
+Once your data has arrived in AWS, you may want options to automatically decompress it. If you're streaming that data to an S3 bucket, there are two ways to enable automatic decompression:
+
+<CollapserGroup>
+  <Collapser
+    id="collapser-1"
+    title="Object Lambda access point"
+  >
+    Access points function as separate methods by which objects in S3 buckets can be accessed and downloaded. AWS supplies a feature called [Object Lambda access points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html), which perform a Lambda function on each S3 object accessed via the access point. Follow these steps to enable such an access point:
+
+    1. Navigate to [this page](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-examples.html#olap-examples-3), click the link to the serverless repo.
+    2. Click the <DNT>**Deploy**</DNT> button at the bottom of the page.
+    3. [Set up an access point on your S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-access-points.html).
+    4. [Create an Object Lambda access point](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-create.html). This access point must have these settings:
+       * The <DNT>**Supporting Access Point**</DNT> on this Lambda access point will need to be set to the access point you set up on the S3 bucket.
+       * Under <DNT>**Transformation Configuration**</DNT>:
+       * The <DNT>**GetObject**</DNT> box must be checked.
+       * The DecompressGZFunction Lambda function (or whichever other function is necessary, if a different compression format is used) must be specified.
+  </Collapser>
+
+  <Collapser
+    id="collapser-2"
+    title="Metadata-setting Lambda function"
+  >
+    AWS will automatically decompress objects downloaded from S3, if those objects have the correct metadata set. We have written a function that automatically applies this metadata to every new object downloaded to a set S3 object. Here's how to set it up:
+
+    1. Navigate [here](https://github.com/newrelic/metadata-setting-lambda-function), clone the repository locally, and follow the provided steps in the README file to generate a ZIP file containing the lambda function.
+    2. Create an [IAM role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for the function.
+
+    * When [creating the role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-service.html#roles-creatingrole-service-console), be sure to set the trusted entity type as "AWS Service", with "Lambda" as your use case.
+    * This role must have a policy with these permissions: `s3:PutObject` and `s3:GetObject`.
+
+    3. In AWS, navigate to the [Lambda functions page](https://console.aws.amazon.com/lambda/home#/functions).
+    4. Click <DNT>**Create function**</DNT>.
+    5. Select the Java 11 runtime environment.
+    6. Click <DNT>**Change default execution role > Use an existing role**</DNT>. Enter the role you created in step 2 here.
+    7. Scroll down and click <DNT>**Create function**</DNT>.
+    8. Once the function has been created, click <DNT>**Upload from**</DNT> and select <DNT>**.zip or .jar file**</DNT> from the dropdown.
+    9. Click <DNT>**Upload**</DNT> from the box that pops up, and select the ZIP file created in step 1.
+    10. Once the upload has finished, click <DNT>**Save**</DNT> to exit the pop-up box.
+    11. Edit <DNT>**Runtime settings**</DNT> by adding the handler. In our provided function the handler is <DNT>`metadatasetter.App::handleRequest`</DNT>.
+    12. All that's left to do now is enable this Lambda function to trigger on S3 object creation. Click <DNT>**Add trigger**</DNT> to start setting that up.
+    13. From the dropdown, select <DNT>**S3**</DNT> as your source.
+    14. Enter the name of the S3 bucket you'd like to apply the metadata to in the <DNT>**Bucket**</DNT> field.
+    15. Remove the default <DNT>**All object create events**</DNT> from the event types. From the Event types dropdown, select <DNT>**PUT**</DNT>.
+    16. Check the <DNT>**Recursive invocation**</DNT> box, then click <DNT>**Add**</DNT> in the bottom right.
+
+        The Lambda function will now start automatically adding the compression metadata to all newly added S3 objects.
+  </Collapser>
+</CollapserGroup>
+
+### Automatic Decompression in Azure
+
+If you're exporting data to Azure, it's possible to view decompressed versions of the objects stored in your event hub using a [Stream Analytics Job](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics). To do so, follow these steps:
+
+1. Follow [this guide](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics) up to step 16.
+
+* On step 13, you may choose to use the same event hub as the output without breaking anything, though we do not recommend this if you intend to proceed to step 17 and start the job, as doing so as not been tested.
+
+2. In the left pane of your streaming analytics job, click <DNT>**Inputs**</DNT>, then click on the input you set up.
+3. Scroll down to the bottom of the pane that appears on the right, and configure the input with these settings:
+
+* Event serialization format: JSON
+* Encoding: UTF-8
+* Event compression type: GZip
+
+4. Click <DNT>**Save**</DNT> at the bottom of the pane.
+5. Click <DNT>**Query**</DNT> on the side of the screen.
+   Using the <DNT>**Input preview**</DNT> tab, you should now be able to query the event hub from this screen.

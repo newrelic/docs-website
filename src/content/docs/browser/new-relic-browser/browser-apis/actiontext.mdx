@@ -1,0 +1,95 @@
+---
+title: actionText (SPA API)
+type: apiDoc
+shortDescription: Sets the text value of the HTML element that was clicked to start a browser interaction.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser to set the name and trigger of a browser interaction that is not a route change or URL change.
+redirects:
+  - /docs/browser/new-relic-browser/browser-agent-spa-api
+  - /docs/browser/new-relic-browser/browser-agent-spa-api/actiontext-browser-spa-api
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```js
+newrelic.interaction().actionText(string $value)
+```
+
+Sets the text value of the HTML element that was clicked to start a browser interaction.
+
+## Requirements
+
+* Browser Pro+SPA agent (v1099 or higher)
+* If you're using npm to install the browser agent, you must enable the `spa` feature when instantiating the `BrowserAgent` class. In the `features` array, add the following:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  For more information, see the [npm browser installation documentation](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Description
+
+This SPA monitoring method sets the text value of the HTML element that was clicked to start a browser interaction. The value will be exposed as the [`actionText`](/docs/insights/explore-data/attributes/browser-default-attributes-insights#interaction-actionText) attribute in the `BrowserInteraction` event.
+
+NOTE: The agent automatically attempts to determine the text value of the HTML element that was clicked. This applies only to `<a>`, `<button>`, and `<input>` elements. The `actionText` API can be used in cases where this is not sufficient or accurate.
+
+<Callout variant="tip">
+  This API call applies to data in [SPA page views](/docs/browser/single-page-app-monitoring/get-started/introduction-single-page-app-monitoring) in browser and the [`BrowserInteraction`](/docs/insights/insights-data-sources/default-data/browser-default-events-attributes-insights#browserinteraction-attributes) event type. To set a custom name for standard page views and the <DNT>**`PageView`**</DNT> event type, see [`setPageViewName`](/docs/browser/new-relic-browser/browser-agent-spa-api/set-pageview-name). Using both calls together is recommended.
+</Callout>
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$value`
+
+        _string_
+      </td>
+
+      <td>
+        The text value of the HTML element that represents the action that started the interaction.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Return values
+
+This method returns the same API object created by `interaction()`.
+
+## Examples
+
+```js
+document.getElementById('subscribe').addEventListener('submit', () => {
+    newrelic.interaction().actionText('Create Subscription');
+    createSubscription();
+});
+```

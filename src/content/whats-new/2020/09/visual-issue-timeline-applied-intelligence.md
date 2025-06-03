@@ -10,4 +10,4 @@ We’ve created a Gantt-style chart that shows a timeline of related events on t
 
 The timeline is available to all accounts that have configured Incident Intelligence. Click **View Visual Timeline** and scroll over individual incidents for more information.
 
-![Animated gif showing the issue timeline.](./images/whats_up_visual_timeline.gif "whats_up_visual_timeline.gif")
+![Animated gif showing the issue timeline.](/images/whats_up_visual_timeline.gif 'whats_up_visual_timeline.gif')

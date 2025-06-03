@@ -1,0 +1,688 @@
+---
+title: Integración y políticas gestionadas
+tags:
+  - Integrations
+  - Amazon integrations
+  - Get started
+metaDescription: How to use AWS managed policies to grant New Relic permission to monitor your AWS services with infrastructure integrations.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para utilizar [infraestructura integración](/docs/infrastructure/integrations), debe otorgar permiso New Relic para leer los datos relevantes de su cuenta. Amazon Web Services (AWS) utiliza políticas administradas para otorgar estos permisos.
+
+## Política recomendada [#recommended]
+
+<Callout variant="important">
+  <DNT>**Recommendation:**</DNT> Conceda una [política administrada](http://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html#aws-managed-policies) `ReadOnlyAccess` para toda la cuenta desde AWS. AWS actualiza automáticamente esta política cuando se agregan nuevos servicios o se modifican servicios existentes. La integración New Relic Infrastructure se ha diseñado para funcionar con políticas `ReadOnlyAccess`. Para obtener instrucciones, consulte [Conectar la integración AWS a la infraestructura](/docs/infrastructure/infrastructure-integrations/getting-started/connect-aws-integrations-infrastructure).
+</Callout>
+
+<DNT>**Exception:**</DNT> La integración [de Trusted Advisor](/docs/integrations/amazon-integrations/aws-integrations-list/aws-trusted-advisor-integration) no está cubierta por la política `ReadOnlyAccess` . Requiere la política administrada `AWSSupportAccess` adicional. Esta es también la única integración que requiere permisos de acceso completo (`support:*`) para funcionar correctamente. Notificamos a Amazon sobre esta limitación. Una vez que se resuelva, actualizaremos la documentación con permisos más específicos necesarios para esta integración.
+
+## Política opcional [#optional]
+
+Si no puede utilizar la [política administrada](http://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html#aws-managed-policies) `ReadOnlyAccess` de AWS, puede crear su propia política personalizada según la [lista de permisos](/docs/integrations/amazon-integrations/getting-started/integrations-managed-policies#list-permissions). Esto le permite especificar los permisos óptimos necesarios para recuperar datos de AWS para cada integración. Si bien esta opción está disponible, no se recomienda porque debe actualizarse manualmente cuando agrega o modifica su integración.
+
+<Callout variant="important">
+  New Relic no tiene forma de identificar problemas relacionados con los permisos personalizados. Si elige crear una política personalizada, es su responsabilidad mantenerla y garantizar que se recopilen los datos adecuados.
+</Callout>
+
+Hay dos formas de configurar su política personalizada: puede usar [nuestra plantilla de CloudFormation](#cf-template) o crear la suya propia [agregando los permisos que necesita](#list-permissions).
+
+### Opción 1: utilice nuestra plantilla CloudFormation [#cf-template]
+
+Nuestra plantilla CloudFormation contiene todos los permisos para toda nuestra integración AWS .
+
+Se puede utilizar un usuario distinto de `root` en la política administrada.
+
+<CollapserGroup>
+  <Collapser
+    id="cloud-formation-template"
+    title="Plantilla de formación de nube"
+  >
+    ```
+    AWSTemplateFormatVersion: 2010-09-09
+    Outputs:
+      NewRelicRoleArn:
+        Description: NewRelicRole to monitor AWS Lambda
+        Value: !GetAtt 
+          - NewRelicIntegrationsTemplate
+          - Arn
+    Parameters:
+      NewRelicAccountNumber:
+        Type: String
+        Description: The Newrelic account number to send data
+        AllowedPattern: '[0-9]+'
+    Resources:
+      NewRelicIntegrationsTemplate:
+        Type: 'AWS::IAM::Role'
+        Properties:
+          RoleName: !Sub NewRelicTemplateTest
+          AssumeRolePolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                  AWS: !Sub 'arn:aws:iam::754728514883:root'
+                Action: 'sts:AssumeRole'
+                Condition:
+                  StringEquals:
+                    'sts:ExternalId': !Ref NewRelicAccountNumber
+          Policies:
+            - PolicyName: NewRelicIntegrations
+              PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - 'elasticloadbalancing:DescribeLoadBalancers'
+                      - 'elasticloadbalancing:DescribeTargetGroups'
+                      - 'elasticloadbalancing:DescribeTags'
+                      - 'elasticloadbalancing:DescribeLoadBalancerAttributes'
+                      - 'elasticloadbalancing:DescribeListeners'
+                      - 'elasticloadbalancing:DescribeRules'
+                      - 'elasticloadbalancing:DescribeTargetGroupAttributes'
+                      - 'elasticloadbalancing:DescribeInstanceHealth'
+                      - 'elasticloadbalancing:DescribeLoadBalancerPolicies'
+                      - 'elasticloadbalancing:DescribeLoadBalancerPolicyTypes'
+                      - 'apigateway:GET'
+                      - 'autoscaling:DescribeLaunchConfigurations'
+                      - 'autoscaling:DescribeAutoScalingGroups'
+                      - 'autoscaling:DescribePolicies'
+                      - 'autoscaling:DescribeTags'
+                      - 'autoscaling:DescribeAccountLimits'
+                      - 'budgets:ViewBudget'
+                      - 'cloudfront:ListDistributions'
+                      - 'cloudfront:ListStreamingDistributions'
+                      - 'cloudfront:ListTagsForResource'
+                      - 'cloudtrail:LookupEvents'
+                      - 'config:BatchGetResourceConfig'
+                      - 'config:ListDiscoveredResources'
+                      - 'dynamodb:DescribeLimits'
+                      - 'dynamodb:ListTables'
+                      - 'dynamodb:DescribeTable'
+                      - 'dynamodb:ListGlobalTables'
+                      - 'dynamodb:DescribeGlobalTable'
+                      - 'dynamodb:ListTagsOfResource'
+                      - 'ec2:DescribeVolumeStatus'
+                      - 'ec2:DescribeVolumes'
+                      - 'ec2:DescribeVolumeAttribute'
+                      - 'ec2:DescribeInstanceStatus'
+                      - 'ec2:DescribeInstances'
+                      - 'ec2:DescribeVpnConnections'
+                      - 'ecs:ListServices'
+                      - 'ecs:DescribeServices'
+                      - 'ecs:DescribeClusters'
+                      - 'ecs:ListClusters'
+                      - 'ecs:ListTagsForResource'
+                      - 'ecs:ListContainerInstances'
+                      - 'ecs:DescribeContainerInstances'
+                      - 'elasticfilesystem:DescribeMountTargets'
+                      - 'elasticfilesystem:DescribeFileSystems'
+                      - 'elasticache:DescribeCacheClusters'
+                      - 'elasticache:ListTagsForResource'
+                      - 'es:ListDomainNames'
+                      - 'es:DescribeElasticsearchDomain'
+                      - 'es:DescribeElasticsearchDomains'
+                      - 'es:ListTags'
+                      - 'elasticbeanstalk:DescribeEnvironments'
+                      - 'elasticbeanstalk:DescribeInstancesHealth'
+                      - 'elasticbeanstalk:DescribeConfigurationSettings'
+                      - 'elasticloadbalancing:DescribeLoadBalancers'
+                      - 'elasticmapreduce:ListInstances'
+                      - 'elasticmapreduce:ListClusters'
+                      - 'elasticmapreduce:DescribeCluster'
+                      - 'elasticmapreduce:ListInstanceGroups'
+                      - 'health:DescribeAffectedEntities'
+                      - 'health:DescribeEventDetails'
+                      - 'health:DescribeEvents'
+                      - 'iam:ListSAMLProviders'
+                      - 'iam:ListOpenIDConnectProviders'
+                      - 'iam:ListServerCertificates'
+                      - 'iam:GetAccountAuthorizationDetails'
+                      - 'iam:ListVirtualMFADevices'
+                      - 'iam:GetAccountSummary'
+                      - 'iot:ListTopicRules'
+                      - 'iot:GetTopicRule'
+                      - 'iot:ListThings'
+                      - 'firehose:DescribeDeliveryStream'
+                      - 'firehose:ListDeliveryStreams'
+                      - 'kinesis:ListStreams'
+                      - 'kinesis:DescribeStream'
+                      - 'kinesis:ListTagsForStream'
+                      - 'rds:ListTagsForResource'
+                      - 'rds:DescribeDBInstances' 
+                      - 'rds:DescribeDBClusters' 
+                      - 'redshift:DescribeClusters' 
+                      - 'redshift:DescribeClusterParameters'
+                      - 'route53:ListHealthChecks'
+                      - 'route53:GetHostedZone'
+                      - 'route53:ListHostedZones'
+                      - 'route53:ListResourceRecordSets'
+                      - 'route53:ListTagsForResources'
+                      - 's3:GetLifecycleConfiguration'
+                      - 's3:GetBucketTagging'
+                      - 's3:ListAllMyBuckets'
+                      - 's3:GetBucketWebsite'
+                      - 's3:GetBucketLogging'
+                      - 's3:GetBucketCORS'
+                      - 's3:GetBucketVersioning'
+                      - 's3:GetBucketAcl'
+                      - 's3:GetBucketNotification'
+                      - 's3:GetBucketPolicy'
+                      - 's3:GetReplicationConfiguration'
+                      - 's3:GetMetricsConfiguration'
+                      - 's3:GetAccelerateConfiguration'
+                      - 's3:GetAnalyticsConfiguration'
+                      - 's3:GetBucketLocation'
+                      - 's3:GetBucketRequestPayment'
+                      - 's3:GetEncryptionConfiguration'
+                      - 's3:GetInventoryConfiguration'
+                      - 'ses:ListConfigurationSets'
+                      - 'ses:GetSendQuota'
+                      - 'ses:DescribeConfigurationSet'
+                      - 'ses:ListReceiptFilters'
+                      - 'ses:ListReceiptRuleSets'
+                      - 'ses:DescribeReceiptRule'
+                      - 'ses:DescribeReceiptRuleSet'
+                      - 'sns:GetTopicAttributes'
+                      - 'sns:ListTopics'
+                      - 'sqs:ListQueues'
+                      - 'sqs:ListQueueTags'
+                      - 'sqs:GetQueueAttributes'
+                      - 'tag:GetResources'
+                      - 'ec2:DescribeInternetGateways'
+                      - 'ec2:DescribeVpcs'
+                      - 'ec2:DescribeNatGateways'
+                      - 'ec2:DescribeVpcEndpoints'
+                      - 'ec2:DescribeSubnets'
+                      - 'ec2:DescribeNetworkAcls'
+                      - 'ec2:DescribeVpcAttribute'
+                      - 'ec2:DescribeRouteTables'
+                      - 'ec2:DescribeSecurityGroups'
+                      - 'ec2:DescribeVpcPeeringConnections'
+                      - 'ec2:DescribeNetworkInterfaces'
+                      - 'lambda:GetAccountSettings'
+                      - 'lambda:ListFunctions'
+                      - 'lambda:ListAliases'
+                      - 'lambda:ListTags'
+                      - 'lambda:ListEventSourceMappings'
+                      - 'cloudwatch:GetMetricStatistics'
+                      - 'cloudwatch:ListMetrics'
+                      - 'cloudwatch:GetMetricData'
+                      - 'support:*'
+                    Resource: '*'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Opción 2: agregar permisos manualmente [#list-permissions]
+
+Para crear su propia política utilizando los permisos disponibles:
+
+1. [Agregue los permisos para](#all-permissions)
+
+   <DNT>
+     [**all**](#all-permissions)
+   </DNT>
+
+   [integración](#all-permissions).
+
+2. Agregue permisos que sean específicos de la integración que necesita
+
+New Relic utiliza los siguientes permisos para recuperar datos para una integración AWS específica:
+
+<CollapserGroup>
+  <Collapser
+    id="all-permissions"
+    style={{ color: "red" }}
+    title="Requerido por CloudWatch Metric Streams y toda la integración de sondeo API"
+  >
+    <Callout variant="important">
+      Si una integración no aparece en esta página, estos permisos son todo lo que necesita.
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            Toda la integración
+          </th>
+
+          <th>
+            Permisos
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Vigilancia de la nube
+          </td>
+
+          <td>
+            `cloudwatch:GetMetricStatistics`
+
+            `cloudwatch:ListMetrics`
+
+            `cloudwatch:GetMetricData`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            API de configuración
+          </td>
+
+          <td>
+            `config:BatchGetResourceConfig`
+
+            `config:ListDiscoveredResources`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            APIde etiquetas de recursos
+          </td>
+
+          <td>
+            `tag:GetResources`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="alb-permissions"
+    title="Permisos ALB"
+  >
+    Permisos [ALB](/docs/aws-alb-integration) adicionales:
+
+    * `elasticloadbalancing:DescribeLoadBalancers`
+    * `elasticloadbalancing:DescribeTargetGroups`
+    * `elasticloadbalancing:DescribeTags`
+    * `elasticloadbalancing:DescribeLoadBalancerAttributes`
+    * `elasticloadbalancing:DescribeListeners`
+    * `elasticloadbalancing:DescribeRules`
+    * `elasticloadbalancing:DescribeTargetGroupAttributes`
+    * `elasticloadbalancing:DescribeInstanceHealth`
+    * `elasticloadbalancing:DescribeLoadBalancerPolicies`
+    * `elasticloadbalancing:DescribeLoadBalancerPolicyTypes`
+  </Collapser>
+
+  <Collapser
+    id="api-gateway-permissions"
+    title="Permisos de puerta de enlace API"
+  >
+    Permisos adicionales [de API Gateway](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-api-gateway-monitoring-integration) :
+
+    * `apigateway:GET`
+  </Collapser>
+
+  <Collapser
+    id="auto-scaling-permissions"
+    title="Permisos de escala automática"
+  >
+    [Permisos adicionales de Auto Scaling:](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-auto-scaling-monitoring-integration)
+
+    * `autoscaling:DescribeLaunchConfigurations`
+    * `autoscaling:DescribeAutoScalingGroups`
+    * `autoscaling:DescribePolicies`
+    * `autoscaling:DescribeTags`
+    * `autoscaling:DescribeAccountLimits`
+  </Collapser>
+
+  <Collapser
+    id="billing-permissions"
+    title="Permiso de facturación"
+  >
+    [Permiso de facturación adicional:](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-billing-integration)
+
+    * `budgets:ViewBudget`
+  </Collapser>
+
+  <Collapser
+    id="cloudfront-permissions"
+    title="Permisos de CloudFront"
+  >
+    Permisos adicionales [de CloudFront](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-cloudfront-integration) :
+
+    * `cloudfront:ListDistributions`
+    * `cloudfront:ListStreamingDistributions`
+    * `cloudfront:ListTagsForResource`
+  </Collapser>
+
+  <Collapser
+    id="cloudtrail-permissions"
+    title="Permisos de CloudTrail"
+  >
+    Permisos adicionales [de CloudTrail](/docs/integrations/amazon-integrations/aws-integrations-list/aws-cloudtrail-monitoring-integration) :
+
+    * `cloudtrail:LookupEvents`
+  </Collapser>
+
+  <Collapser
+    id="dynamodb-permissions"
+    title="Permisos de DynamoDB"
+  >
+    Permisos adicionales [de DynamoDB](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-dynamodb-integration) :
+
+    * `dynamodb:DescribeLimits`
+    * `dynamodb:ListTables`
+    * `dynamodb:DescribeTable`
+    * `dynamodb:ListGlobalTables`
+    * `dynamodb:DescribeGlobalTable`
+    * `dynamodb:ListTagsOfResource`
+  </Collapser>
+
+  <Collapser
+    id="ebs-permissions"
+    title="Permisos de EBS"
+  >
+    Permisos adicionales [de EBS](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-ebs-integration) :
+
+    * `ec2:DescribeVolumeStatus`
+    * `ec2:DescribeVolumes`
+    * `ec2:DescribeVolumeAttribute`
+  </Collapser>
+
+  <Collapser
+    id="ec2-permissions"
+    title="Permisos EC2"
+  >
+    Permisos [EC2](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-ec2-integration) adicionales:
+
+    * `ec2:DescribeInstanceStatus`
+    * `ec2:DescribeInstances`
+  </Collapser>
+
+  <Collapser
+    id="ecs-ecr-permissions"
+    title="Permisos ECS/ECR"
+  >
+    Permisos [ECS/ECR](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-ecsecr-integration) adicionales:
+
+    * `ecs:ListServices`
+    * `ecs:DescribeServices`
+    * `ecs:DescribeClusters`
+    * `ecs:ListClusters`
+    * `ecs:ListTagsForResource`
+    * `ecs:ListContainerInstances`
+    * `ecs:DescribeContainerInstances`
+  </Collapser>
+
+  <Collapser
+    id="efs-permissions"
+    title="Permisos EFS"
+  >
+    Permisos [EFS](/docs/integrations/amazon-integrations/aws-integrations-list/aws-efs-monitoring-integration) adicionales:
+
+    * `elasticfilesystem:DescribeMountTargets`
+    * `elasticfilesystem:DescribeFileSystems`
+  </Collapser>
+
+  <Collapser
+    id="elasticache-permissions"
+    title="Permisos de ElastiCache"
+  >
+    Permisos adicionales [de ElastiCache](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-elasticache-integration) :
+
+    * `elasticache:DescribeCacheClusters`
+    * `elasticache:ListTagsForResource`
+  </Collapser>
+
+  <Collapser
+    id="elasticsearch-permissions"
+    title="Permisos de ElasticSearch"
+  >
+    Permisos adicionales [de ElasticSearch](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-elasticsearch-integration) :
+
+    * `es:ListDomainNames`
+    * `es:DescribeElasticsearchDomain`
+    * `es:DescribeElasticsearchDomains`
+    * `es:ListTags`
+  </Collapser>
+
+  <Collapser
+    id="elastic-beanstalk-permissions"
+    title="Permisos de Elastic Beanstalk"
+  >
+    Permisos adicionales [de Elastic Beanstalk](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-elastic-beanstalk-monitoring-integration) :
+
+    * `elasticbeanstalk:DescribeEnvironments`
+    * `elasticbeanstalk:DescribeInstancesHealth`
+    * `elasticbeanstalk:DescribeConfigurationSettings`
+  </Collapser>
+
+  <Collapser
+    id="elb-permissions"
+    title="Permisos ELB"
+  >
+    Permisos [ELB](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-elb-integration) adicionales:
+
+    * `elasticloadbalancing:DescribeLoadBalancers`
+  </Collapser>
+
+  <Collapser
+    id="emr-permissions"
+    title="Permisos REM"
+  >
+    Permisos [EMR](/docs/aws-emr-monitoring-integration) adicionales:
+
+    * `elasticmapreduce:ListInstances`
+    * `elasticmapreduce:ListClusters`
+    * `elasticmapreduce:DescribeCluster`
+    * `elasticmapreduce:ListInstanceGroups`
+    * `elasticmapreduce:ListInstanceFleets`
+  </Collapser>
+
+  <Collapser
+    id="health-permissions"
+    title="Permisos de salud"
+  >
+    Permisos [de salud](/docs/aws-health-integration) adicionales:
+
+    * `health:DescribeAffectedEntities`
+    * `health:DescribeEventDetails`
+    * `health:DescribeEvents`
+  </Collapser>
+
+  <Collapser
+    id="iam-permissions"
+    title="Permisos de IAM"
+  >
+    Permisos [IAM](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-iam-integration) adicionales:
+
+    * `iam:ListSAMLProviders`
+    * `iam:ListOpenIDConnectProviders`
+    * `iam:ListServerCertificates`
+    * `iam:GetAccountAuthorizationDetails`
+    * `iam:ListVirtualMFADevices`
+    * `iam:GetAccountSummary`
+  </Collapser>
+
+  <Collapser
+    id="iot-permissions"
+    title="Permisos de IO"
+  >
+    Permisos adicionales [de IoT](/docs/aws-iot-monitoring-integration) :
+
+    * `iot:ListTopicRules`
+    * `iot:GetTopicRule`
+    * `iot:ListThings`
+  </Collapser>
+
+  <Collapser
+    id="kinesis-firehose-permissions"
+    title="Permisos de Kinesis Firehose"
+  >
+    Permisos adicionales [de Kinesis Firehose](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-kinesis-firehose-integration) :
+
+    * `firehose:DescribeDeliveryStream`
+    * `firehose:ListDeliveryStreams`
+  </Collapser>
+
+  <Collapser
+    id="kinesis-streams-permissions"
+    title="Permisos de Kinesis Streams"
+  >
+    Permisos adicionales [de Kinesis Streams](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-kinesis-integration) :
+
+    * `kinesis:ListStreams`
+    * `kinesis:DescribeStream`
+    * `kinesis:ListTagsForStream`
+  </Collapser>
+
+  <Collapser
+    id="lambda-permissions"
+    title="Permisos lambda"
+  >
+    Permisos [Lambda](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-lambda-integration) adicionales:
+
+    * `lambda:GetAccountSettings`
+    * `lambda:ListFunctions`
+    * `lambda:ListAliases`
+    * `lambda:ListTags`
+    * `lambda:ListEventSourceMappings`
+  </Collapser>
+
+  <Collapser
+    id="rds-permissions"
+    title="RDS, permisos de monitoreo mejorado de RDS"
+  >
+    Permisos de monitoreo adicionales [de RDS](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-rds-integration) y [RDS mejorado](/docs/aws-rds-enhanced-monitoring-integration) :
+
+    * `rds:ListTagsForResource`
+    * `rds:DescribeDBInstances`
+    * `rds:DescribeDBClusters`
+  </Collapser>
+
+  <Collapser
+    id="redshift-permissions"
+    title="Permisos de desplazamiento al rojo"
+  >
+    Permisos adicionales [de desplazamiento al rojo](/docs/aws-redshift-integration) :
+
+    * `redshift:DescribeClusters`
+    * `redshift:DescribeClusterParameters`
+  </Collapser>
+
+  <Collapser
+    id="route53-permissions"
+    title="Permisos de la ruta 53"
+  >
+    Permisos adicionales [de la Ruta 53](/docs/infrastructure/amazon-integrations/amazon-integrations/aws-route-53-integration) :
+
+    * `route53:ListHealthChecks`
+    * `route53:GetHostedZone`
+    * `route53:ListHostedZones`
+    * `route53:ListResourceRecordSets`
+    * `route53:ListTagsForResources`
+  </Collapser>
+
+  <Collapser
+    id="s3-permissions"
+    title="Permisos S3"
+  >
+    Permisos [S3](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-s3-integration) adicionales:
+
+    * `s3:GetLifecycleConfiguration`
+    * `s3:GetBucketTagging`
+    * `s3:ListAllMyBuckets`
+    * `s3:GetBucketWebsite`
+    * `s3:GetBucketLogging`
+    * `s3:GetBucketCORS`
+    * `s3:GetBucketVersioning`
+    * `s3:GetBucketAcl`
+    * `s3:GetBucketNotification`
+    * `s3:GetBucketPolicy`
+    * `s3:GetReplicationConfiguration`
+    * `s3:GetMetricsConfiguration`
+    * `s3:GetAccelerateConfiguration`
+    * `s3:GetAnalyticsConfiguration`
+    * `s3:GetBucketLocation`
+    * `s3:GetBucketRequestPayment`
+    * `s3:GetEncryptionConfiguration`
+    * `s3:GetInventoryConfiguration`
+  </Collapser>
+
+  <Collapser
+    id="ses-permissions"
+    title="Permisos del Servicio de correo electrónico simple (SES)"
+  >
+    Permisos [SES](/docs/integrations/amazon-integrations/aws-integrations-list/aws-simple-email-service-ses-monitoring-integration) adicionales:
+
+    * `ses:ListConfigurationSets`
+    * `ses:GetSendQuota`
+    * `ses:DescribeConfigurationSet`
+    * `ses:ListReceiptFilters`
+    * `ses:ListReceiptRuleSets`
+    * `ses:DescribeReceiptRule`
+    * `ses:DescribeReceiptRuleSet`
+  </Collapser>
+
+  <Collapser
+    id="sns-permissions"
+    title="Permisos de SNS"
+  >
+    Permisos [SNS](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-sns-integration) adicionales:
+
+    * `sns:GetTopicAttributes`
+    * `sns:ListTopics`
+  </Collapser>
+
+  <Collapser
+    id="sqs-permissions"
+    title="Permisos SQS"
+  >
+    Permisos [SQS](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-sqs-integration) adicionales:
+
+    * `sqs:ListQueues`
+    * `sqs:GetQueueAttributes`
+    * `sqs:ListQueueTags`
+  </Collapser>
+
+  <Collapser
+    id="trusted-advisor-permissions"
+    title="Permisos de asesor de confianza"
+  >
+    Permisos adicionales [de Trusted Advisor](/docs/integrations/amazon-integrations/aws-integrations-list/aws-trusted-advisor-integration) :
+
+    * `support:*`
+
+      Consulte también la nota sobre la integración de Trusted Advisor y [las políticas recomendadas](#recommended).
+  </Collapser>
+
+  <Collapser
+    id="vpc-permissions"
+    title="Permisos de VPC"
+  >
+    Permisos [de VPC](/docs/infrastructure/infrastructure-integrations/amazon-integrations/aws-vpc-integration) adicionales:
+
+    * `ec2:DescribeInternetGateways`
+    * `ec2:DescribeVpcs`
+    * `ec2:DescribeNatGateways`
+    * `ec2:DescribeVpcEndpoints`
+    * `ec2:DescribeSubnets`
+    * `ec2:DescribeNetworkAcls`
+    * `ec2:DescribeVpcAttribute`
+    * `ec2:DescribeRouteTables`
+    * `ec2:DescribeSecurityGroups`
+    * `ec2:DescribeVpcPeeringConnections`
+    * `ec2:DescribeNetworkInterfaces`
+    * `ec2:DescribeVpnConnections`
+  </Collapser>
+
+  <Collapser
+    id="xray-permissions"
+    title="Permisos de monitoreo de rayos X"
+  >
+    Permisos adicionales [de monitoreo de rayos X](/docs/integrations/amazon-integrations/aws-integrations-list/aws-x-ray-monitoring-integration) :
+
+    * `xray:BatchGet*`
+    * `xray:Get*`
+  </Collapser>
+</CollapserGroup>

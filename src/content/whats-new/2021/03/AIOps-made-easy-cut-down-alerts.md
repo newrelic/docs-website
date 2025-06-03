@@ -5,7 +5,7 @@ releaseDate: '2021-03-15'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/'
 ---
 
-Enhanced correlation abilities in Applied Intelligence make it easier than ever to reduce alert fatigue so you can find and fix the real issue.  
+Enhanced correlation abilities in Applied Intelligence make it easier than ever to reduce alert fatigue so you can find and fix the real issue.
 
 ## Relationship-based correlation
 
@@ -13,16 +13,16 @@ You can now correlate related alerts and events [using relationship data](https:
 
 In addition to correlating alerts using time-based clustering and context from alert messages, you can now ingest topology data from your relationship datastores (CMDBs) to enable more accurate correlation of alerts that are firing from connected services or other monitored entities. Stop reacting to individual symptoms and start responding to the actual issue at hand with more context about how they impact your broader environment, so you can prioritize problems accurately and efficiently.
 
-![decisions-topology-correlation.png](./images/decisions-topology-correlation.png "The decisions topology correlation UI.")
+![decisions-topology-correlation.png](/images/decisions-topology-correlation.webp 'The decisions topology correlation UI.')
 
 ## Anomalies correlated within issues
 
 Applied Intelligence [automatically detects anomalies](https://one.nr/01qwL999rR5) based on golden signals like throughput, errors, and latency across all applications and services. And now you can correlate proactively detected anomalies along with alerts and events from any source together, to paint the most complete picture of the issue at hand, reducing time to understand and act.
 
-![issues-timeline.png](./images/issues-timeline.png "The issues timeline UI.")
+![issues-timeline.png](/images/issues-timeline.webp 'The issues timeline UI.')
 
 ## Create correlation decisions faster with correlation assistant
 
 The correlation assistant feature gives you even more control over how you reduce alert noise. Select incidents that should be correlated and New Relic analyzes them to show commonalities that you can use to create a decision. Additionally, Applied Intelligence is smart enough to simulate your configuration and show, in real-time, the decision could reduce alert noise and increase context in the future.
 
-![correlation-assistant.png](./images/correlation-assistant.gif "The correlation assistant UI.")
+![correlation-assistant.png](/images/correlation-assistant.gif 'The correlation assistant UI.')

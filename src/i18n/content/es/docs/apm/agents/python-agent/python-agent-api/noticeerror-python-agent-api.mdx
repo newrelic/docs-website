@@ -1,0 +1,173 @@
+---
+title: notice_error (API del agente Python)
+type: apiDoc
+shortDescription: Registra los detalles de una excepción de Python como un error.
+tags:
+  - Agents
+  - Python agent
+  - Python agent API
+metaDescription: 'Python API: This call records the details of a Python exception as an error.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```py
+newrelic.agent.notice_error(error=None, attributes={}, expected=None, ignore=None, status_code=None, application=None)
+```
+
+Registra los detalles de una excepción de Python como un error.
+
+## Descripción
+
+De forma predeterminada, el agente Python solo informa excepciones no controladas. Utilice `notice_error` para registrar cualquier excepción de Python como un error, que luego se puede encontrar en la UI. Si no se proporciona ningún parámetro, se utilizarán los detalles de la excepción manejada actualmente.
+
+Puede registrar hasta cinco excepciones distintas por [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction) y hasta 20 excepciones en total en todas las transacciones por [ciclo de recolección](/docs/apm/new-relic-apm/getting-started/glossary#harvest-cycle).
+
+Cuando se llama a `notice_error()` en el contexto de una solicitud web de supervisión o una tarea en segundo plano, los detalles de la excepción se informarán en la aplicación a la que se informa la solicitud o tarea.
+
+Si se llama fuera del contexto de una solicitud web de monitor o de una tarea en segundo plano, la llamada se ignorará a menos que se proporcione el argumento de palabra clave [`application`](/docs/agents/python-agent/python-agent-api/application) y se proporcione un objeto de aplicación correspondiente a la aplicación en la que se debe registrar la excepción. Se puede obtener un objeto de aplicación adecuado utilizando la función `newrelic.agent.application()` .
+
+## Parámetros
+
+<Callout variant="tip">
+  En casi todos los casos, `notice_error` no requerirá ningún parámetro.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `error`
+
+        _tupla_
+      </td>
+
+      <td>
+        Opcional y poco usado. Una tupla que contiene información de excepción `(exception_class, exception_instance, traceback)` devuelta por [`sys.exc_info()`](https://docs.python.org/2/library/sys.html#sys.exc_info).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `attributes`
+
+        _dict_
+      </td>
+
+      <td>
+        Opcional. Atributos personalizados para agregar al evento de error (además de cualquier atributo personalizado ya agregado a la transacción). Si [el modo de alta seguridad](/docs/agents/manage-apm-agents/configuration/high-security-mode) está habilitado, esto no funcionará.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `expected`
+
+        _boolean_, _iterable\[String]_, _callable(exception_class, exception_instance, traceback)->boolean_
+      </td>
+
+      <td>
+        Opcional. Los errores para marcar como esperado se pueden pasar como un iterable de cadenas en el formato `module:class`. Este valor también puede ser invocable o booleano que indica si se espera el error. Estos errores se informarán a la UI , pero no afectarán la puntuación Apdex ni la tasa de errores.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ignore`
+
+        _boolean_, _iterable\[String]_, _callable(exception_class_, _exception_instance, traceback)->boolean_
+      </td>
+
+      <td>
+        Opcional. Los errores a ignorar se pueden pasar como un iterable de cadenas en el formato `module:class`. Este valor también puede ser invocable o booleano que indica si se debe ignorar el error. Útil cuando ciertos tipos de excepciones siempre deben ignorarse y nunca registrarse.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `status_code`
+
+        _cadena_, _entero_, _invocable (exception_class, exception_instance, traceback)_
+      </td>
+
+      <td>
+        Opcional. El código de estado de excepción. Este valor puede ser una cadena, un número entero o un elemento invocable que toma la información de excepción `(exception_class, exception_instance, traceback)` devuelta por [`sys.exc_info()`](https://docs.python.org/2/library/sys.html#sys.exc_info) y devuelve el código de estado como un número entero.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `application`
+
+        _objeto de aplicación_
+      </td>
+
+      <td>
+        Opcional. Si se llama fuera del contexto de una solicitud web de supervisión o una tarea en segundo plano, la llamada se ignorará a menos que se proporcione el [objeto`application` ](/docs/agents/python-agent/python-agent-api/application).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Valores de retorno
+
+Ninguno.
+
+## Ejemplos
+
+### Ejemplo sencillo de notificación de excepciones [#simple-example]
+
+En la gran mayoría de los casos, no será necesario pasar ningún parámetro. Simplemente llamaría a lo siguiente cuando desee informar una excepción:
+
+```py
+newrelic.agent.notice_error()
+```
+
+### Ejemplo usando booleano [#boolean-example]
+
+Un ejemplo de `notice_error` usando un valor booleano. Esto indica que se debe esperar un error.
+
+```py
+newrelic.agent.notice_error(expected=True)
+```
+
+### Llamada con sys.exc_info() tuple y parámetro adicional [#complex-example]
+
+Un ejemplo de `notice_error` usando datos `sys.exc_info()` :
+
+```py
+def complex_ignore_errors(exc, val, tb):
+   # do some logic here
+   return False
+
+newrelic.agent.notice_error(attributes={'my_special_exception': True}, ignore=complex_ignore_errors)
+```
+
+### Ejemplo de devolución de llamada [#callback-example]
+
+Si necesita filtrar excepciones dinámicamente según el atributo de un tipo de excepción específico, puede proporcionar una función de devolución de llamada:
+
+```py
+def _ignore_errors(exc, value, tb):
+    if instance(value, HTTPError):
+        if value.status == 404:
+            return True
+
+newrelic.agent.notice_error(ignore=_ignore_errors)
+```
+
+Si se va a ignorar/esperar la excepción, establezca el valor de retorno para el invocable en `True`. Devuelve `False` si la excepción nunca debe ignorarse/esperarse independientemente de otras comprobaciones, y `None` si las comprobaciones posteriores y las reglas incorporadas deben determinar si la excepción debe ignorarse/esperarse. Una devolución de llamada normalmente devolvería `True` o `None`.

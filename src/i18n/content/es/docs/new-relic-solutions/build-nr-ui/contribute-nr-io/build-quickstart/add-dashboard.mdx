@@ -1,0 +1,475 @@
+---
+title: Agrega tu dashboard al inicio rápido
+metaDescription: Add a dashboard to New Relic I/O
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Si aún no lo hiciste, consulta la [introducción del curso](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+
+  Como este procedimiento se basa en los últimos del laboratorio, cerciorar de [crear un dashboard](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-a-dashboard) y [comprender la estructura del directorio de inicio rápido](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/understand-quickstart) antes de continuar con este.
+</Callout>
+
+En un procedimiento anterior, [crea un dashboard](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/create-a-dashboard) para monitor FlashDB. Ahora vas a agregarlo a tu inicio rápido para que tu usuario también pueda usarlo.
+
+<Steps>
+  <Step>
+    Si aún no lo hizo, bifurque el repositorio [de inicios rápidosNew Relic ](https://github.com/newrelic/newrelic-quickstarts)y clónelo en su máquina local.
+  </Step>
+
+  <Step>
+    Abra su proyecto en el IDE de su elección y navegue hasta el directorio `\_template`.
+  </Step>
+
+  <Step>
+    Aquí, copie el directorio `dashboards/example-dashboard` y su contenido en el directorio `dashboards` en el nivel raíz. Cambie el nombre del directorio a `flashdb`.
+
+    Este directorio contiene un archivo JSON de muestra y su imagen correspondiente para contribuir con su dashboard a New Relic I/O.
+  </Step>
+
+  <Step>
+    A continuación, navegue hasta [New Relic](https://one.newrelic.com/) y busque su dashboard. Desde aquí, copie su JSON.
+  </Step>
+
+  <Step>
+    Almacénelo como un archivo JSON en el directorio `dashboards/flashdb` y cambie el nombre del archivo a `flashdb.json`.
+
+    Aquí, copió el JSON de su dashboard al portapapeles. Reemplace el contenido del archivo JSON existente en el directorio `dashboards/flashDB` y cámbiele el nombre a `flashdb.json`. Su archivo `flashdb.json` debe contener el siguiente contenido:
+
+    ```json
+    {
+        "name": "flashdb",
+        "description": null,
+        "permissions": "PUBLIC_READ_WRITE",
+        "pages": [
+          {
+            "name": "flashdb",
+            "description": null,
+            "widgets": [
+              {
+                "title": "Database methods",
+                "layout": {
+                  "column": 1,
+                  "row": 1,
+                  "width": 8,
+                  "height": 6
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.pie"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": true
+                  },
+                  "legend": {
+                    "enabled": true
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT count(*) FROM fdb_method FACET method "
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  }
+                }
+              },
+              {
+                "title": "Database size",
+                "layout": {
+                  "column": 9,
+                  "row": 1,
+                  "width": 4,
+                  "height": 3
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.billboard"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": false
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT latest(fdb_size) FROM Metric"
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  }
+                }
+              },
+              {
+                "title": "Average response time",
+                "layout": {
+                  "column": 9,
+                  "row": 4,
+                  "width": 4,
+                  "height": 3
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.line"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": false
+                  },
+                  "legend": {
+                    "enabled": true
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT average(fdb_create_responses), average(fdb_read_responses), average(fdb_update_responses), average(fdb_delete_responses) FROM Metric TIMESERIES"
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  },
+                  "yAxisLeft": {
+                    "zero": true
+                  }
+                }
+              },
+              {
+                "title": "Cache hits",
+                "layout": {
+                  "column": 1,
+                  "row": 7,
+                  "width": 4,
+                  "height": 3
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.line"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": false
+                  },
+                  "legend": {
+                    "enabled": true
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT sum(fdb_cache_hits) FROM Metric TIMESERIES"
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  },
+                  "yAxisLeft": {
+                    "zero": true
+                  }
+                }
+              },
+              {
+                "title": "Errors",
+                "layout": {
+                  "column": 5,
+                  "row": 7,
+                  "width": 4,
+                  "height": 3
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.line"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": false
+                  },
+                  "legend": {
+                    "enabled": true
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT sum(fdb_create_errors), sum(fdb_read_errors), sum(fdb_update_errors), sum(fdb_delete_errors) FROM Metric TIMESERIES"
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  },
+                  "yAxisLeft": {
+                    "zero": true
+                  }
+                }
+              },
+              {
+                "title": "FlashDB keys",
+                "layout": {
+                  "column": 9,
+                  "row": 7,
+                  "width": 4,
+                  "height": 3
+                },
+                "linkedEntityGuids": null,
+                "visualization": {
+                  "id": "viz.line"
+                },
+                "rawConfiguration": {
+                  "facet": {
+                    "showOtherSeries": false
+                  },
+                  "legend": {
+                    "enabled": true
+                  },
+                  "nrqlQueries": [
+                    {
+                      "accountId": 1234567,
+                      "query": "SELECT count(fdb_keys) FROM Metric TIMESERIES"
+                    }
+                  ],
+                  "platformOptions": {
+                    "ignoreTimeRange": false
+                  },
+                  "yAxisLeft": {
+                    "zero": true
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ```
+  </Step>
+
+  <Step>
+    A continuación, cree una captura de pantalla de su dashboard y agréguela al directorio `dashboards/flashdb`. Dale el mismo nombre que tu archivo JSON. Su directorio `dashboards/flashDB` debería ser similar al siguiente:
+  </Step>
+</Steps>
+
+## Desinfecta tu dashboard [#sanitize-dashboard]
+
+Cuando agrega su dashboard al inicio rápido, necesita eliminar datos confidenciales. Por ejemplo:
+
+* No incluye `permissions: PUBLIC_READ_WRITE`
+* Establecer todo `linkedEntityGuids` en `null`
+* Establece tu `accountId` en `0`
+
+Creamos un script para automatizar este proceso. Para eliminar datos confidenciales e innecesarios de su dashboard, navegue hasta `newrelic-quickstarts/utils` y ejecute el script [sanitize-dashboard](https://github.com/newrelic/newrelic-quickstarts/blob/main/CONTRIBUTING.md#dashboard-json).
+
+```shell
+cd newrelic-quickstarts/utils
+yarn install
+yarn sanitize-dashboard flashdb
+```
+
+Su archivo `flashdb.json` ahora debería tener el siguiente aspecto.
+
+```json
+{
+    "name": "flashDB",
+    "description": null,
+    "pages": [
+      {
+        "name": "flashDB",
+        "description": null,
+        "widgets": [
+          {
+            "title": "Database methods",
+            "layout": {
+              "column": 1,
+              "row": 1,
+              "width": 8,
+              "height": 6
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.pie"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": true
+              },
+              "legend": {
+                "enabled": true
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT count(*) FROM fdb_method FACET method "
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              }
+            }
+          },
+          {
+            "title": "Database size",
+            "layout": {
+              "column": 9,
+              "row": 1,
+              "width": 4,
+              "height": 3
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.billboard"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": false
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT latest(fdb_size) FROM Metric"
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              }
+            }
+          },
+          {
+            "title": "Average response time",
+            "layout": {
+              "column": 9,
+              "row": 4,
+              "width": 4,
+              "height": 3
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.line"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": false
+              },
+              "legend": {
+                "enabled": true
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT average(fdb_create_responses), average(fdb_read_responses), average(fdb_update_responses), average(fdb_delete_responses) FROM Metric TIMESERIES"
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              },
+              "yAxisLeft": {
+                "zero": true
+              }
+            }
+          },
+          {
+            "title": "Cache hits",
+            "layout": {
+              "column": 1,
+              "row": 7,
+              "width": 4,
+              "height": 3
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.line"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": false
+              },
+              "legend": {
+                "enabled": true
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT sum(fdb_cache_hits) FROM Metric TIMESERIES"
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              },
+              "yAxisLeft": {
+                "zero": true
+              }
+            }
+          },
+          {
+            "title": "Errors",
+            "layout": {
+              "column": 5,
+              "row": 7,
+              "width": 4,
+              "height": 3
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.line"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": false
+              },
+              "legend": {
+                "enabled": true
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT sum(fdb_create_errors), sum(fdb_read_errors), sum(fdb_update_errors), sum(fdb_delete_errors) FROM Metric TIMESERIES"
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              },
+              "yAxisLeft": {
+                "zero": true
+              }
+            }
+          },
+          {
+            "title": "FlashDB keys",
+            "layout": {
+              "column": 9,
+              "row": 7,
+              "width": 4,
+              "height": 3
+            },
+            "linkedEntityGuids": null,
+            "visualization": {
+              "id": "viz.line"
+            },
+            "rawConfiguration": {
+              "facet": {
+                "showOtherSeries": false
+              },
+              "legend": {
+                "enabled": true
+              },
+              "nrqlQueries": [
+                {
+                  "accountId": 0,
+                  "query": "SELECT count(fdb_keys) FROM Metric TIMESERIES"
+                }
+              ],
+              "platformOptions": {
+                "ignoreTimeRange": false
+              },
+              "yAxisLeft": {
+                "zero": true
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+```
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Continúe con la siguiente lección: [agregue sus alertas al inicio rápido](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/build-quickstart/add-alerts).
+</Callout>

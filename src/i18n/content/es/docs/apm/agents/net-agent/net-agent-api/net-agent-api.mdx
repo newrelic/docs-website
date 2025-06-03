@@ -1,0 +1,2550 @@
+---
+title: API del agente .NET
+tags:
+  - Agents
+  - NET agent
+  - API guides
+metaDescription: A descriptive list of API calls that you can make using the New Relic .NET agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente .NET de New Relic incluye una API que le permite ampliar la funcionalidad estándar del agente. Por ejemplo, puede emplear la API del agente .NET para:
+
+* Personaliza el nombre de tu aplicación
+* Crear parámetro de transacción personalizado
+* Reportar errores personalizados y métricos
+
+También puede personalizar parte del comportamiento predeterminado del agente .NET ajustando [la configuración](/docs/agents/net-agent/configuration/net-agent-configuration) o utilizando [instrumentación personalizada](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation).
+
+## Requisitos
+
+Para emplear la API del agente .NET, cerciorar de tener la [última versión del agente .NET](/docs/release-notes/agent-release-notes/net-release-notes). Luego, agregue una referencia al agente en su proyecto usando una de las dos opciones siguientes:
+
+* Añade una referencia a `NewRelic.Api.Agent.dll` a tu proyecto.
+
+  O
+
+* Vea y descargue el paquete API desde la [biblioteca de paquetes NuGet](https://www.nuget.org/packages/NewRelic.Agent.Api/).
+
+## Lista de llamadas de API
+
+La siguiente lista contiene las diferentes llamadas que puede realizar con la API, incluida la sintaxis, los requisitos, la funcionalidad y los ejemplos:
+
+<CollapserGroup>
+  <Collapser id="DisableBrowserMonitoring" title="DisableBrowserMonitoring">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.DisableBrowserMonitoring([boolean $override])
+    ```
+
+    Deshabilite la inyección automática de monitoreo de fragmentos del navegador en páginas específicas.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Debe llamarse dentro de una [transacción](/docs/glossary/glossary/#transaction).
+
+    ### Descripción
+
+    Agregue esta llamada para deshabilitar la inyección **automática** del script [<InlinePopover type="browser" />](/docs/browser/new-relic-browser/getting-started/new-relic-browser)en páginas específicas. También puede agregar una anulación opcional para desactivar **la** inyección manual y automática. En cualquier caso, coloque esta API de llamada lo más cerca posible de la parte superior de la vista en la que desea desactivar browser .
+
+    <Callout variant="tip">
+      Compare [`GetBrowserTimingHeader()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetBrowserTimingHeader), que **agrega** el browser script a la página.
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$override`
+
+            *booleano*
+          </td>
+
+          <td>
+            Opcional. Cuando `true`, desactiva toda inserción de secuencias de comandos browser . Este indicador afecta tanto a la inyección manual como a la automática. Esto también anula la llamada [`GetBrowserTimingHeader()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetBrowserTimingHeader) .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    #### Desactivar la inyección automática
+
+    Este ejemplo deshabilita solo la inyección **automática** del fragmento:
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.DisableBrowserMonitoring();
+    ```
+
+    #### Desactivar la inyección automática y manual.
+
+    Este ejemplo **desactiva** la inyección automática y manual del fragmento:
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.DisableBrowserMonitoring(true);
+    ```
+  </Collapser>
+
+  <Collapser id="GetAgent" title="ObtenerAgente">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.GetAgent()
+    ```
+
+    Obtenga acceso al agente a través de la interfaz `IAgent` .
+
+    ### Requisitos
+
+    * Versión del agente 8.9 o superior.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Obtenga acceso a los métodos API del agente a través de la interfaz [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) .
+
+    ### Valores de retorno
+
+    Una implementación de [IAgent](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) que proporciona acceso a la API de IAgent.
+
+    ### Ejemplos
+
+    ```cs
+    IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+    ```
+  </Collapser>
+
+  <Collapser id="GetBrowserTimingHeader" title="GetBrowserTimingHeader">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader();
+    NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader(string nonce);
+    ```
+
+    Generar un fragmento HTML de monitoreo del navegador para instrumento usuario final del navegador.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Debe llamarse dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+
+    ### Descripción
+
+    Devuelve un fragmento de HTML empleado para habilitar <InlinePopover type="browser" />. El fragmento indica al browser que busque un pequeño archivo JavaScript e inicie el temporizador de la página. Luego puede insertar el fragmento devuelto en el encabezado de sus sitios web HTML. Para obtener más información, consulte [Agregar aplicaciones al monitoreo del browser](/docs/browser/new-relic-browser/installation-configuration/adding-apps-new-relic-browser).
+
+    <Callout variant="tip">
+      Compare [`DisableBrowserMonitoring()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#DisableBrowserMonitoring), que **deshabilita** la browser script en una página.
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `nonce`
+
+            *cadena*
+          </td>
+
+          <td>
+            El nonce criptográfico por solicitud empleado por las políticas de política de seguridad de contenido.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="tip">
+      Esta llamada API requiere actualizaciones de la lista de seguridad de &apos;permitidos&apos;. Para obtener más información sobre las consideraciones de la Política de seguridad de contenido (CSP), visite la página [de monitoreo de compatibilidad y requisitos del navegador](/docs/browser/new-relic-browser/getting-started/compatibility-requirements-browser-monitoring) .
+    </Callout>
+
+    ### Valores de retorno
+
+    Una cadena HTML que se incrustará en el encabezado de una página.
+
+    ### Ejemplos
+
+    <CollapserGroup>
+      <Collapser id="" title="Con ASPX">
+        ```aspnet
+        <html>
+        <head>
+            <%= NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader()%>
+            ...
+        </head>
+        <body>
+        ...
+        ```
+
+        ```aspnet
+        <html>
+        <head>
+            <%= NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader("YOUR_NONCE_VALUE")%>
+            ...
+        </head>
+        <body>
+        ...
+        ```
+      </Collapser>
+
+      <Collapser id="" title="Con navaja">
+        ```cshtml
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            @Html.Raw(NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader())
+            ...
+        </head>
+        <body>
+        ...
+        ```
+
+        ```cshtml
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            @Html.Raw(NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader("YOUR_NONCE_VALUE"))
+            ...
+        </head>
+        <body>
+        ...
+        ```
+      </Collapser>
+
+      <Collapser id="" title="Con Blazor">
+        <Callout variant="important">
+          Esta API no es compatible con Blazor Webassembly porque el agente no puede interpretar el código de Webassembly. Los siguientes ejemplos son solo para la aplicación Blazor Server. Utilice el [método de copiar y pegar](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/#copy-paste) para agregar el agente del navegador a las páginas de Blazor Webassembly.
+        </Callout>
+
+        <Callout variant="important">
+          Esta API no se puede colocar en un elemento `<HeadContent>` de una página `.razor` . En su lugar, debería llamarse desde `_Layout.cshtml` o un archivo de diseño equivalente.
+
+          ```cshtml
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              @Html.Raw(NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader())
+              ...
+          </head>
+          <body>
+          ...
+          ```
+
+          ```cshtml
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              @Html.Raw(NewRelic.Api.Agent.NewRelic.GetBrowserTimingHeader("YOUR_NONCE_VALUE"))
+              ...
+          </head>
+          <body>
+          ...
+          ```
+        </Callout>
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser id="GetLinkingMetadata" title="Obtener metadatos de enlace">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.GetLinkingMetadata();
+    ```
+
+    Devuelve pares de valores principales que se pueden utilizar para vincular traza o entidad.
+
+    ### Requisitos
+
+    * Versión del agente 8.19 o superior.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    El diccionario de pares principales de valor devuelto incluye elementos empleados para vincular traza y entidad en el producto APM . Sólo contendrá elementos con valores significativos. Para instancia, si rastreo distribuido está deshabilitado, `trace.id` no se incluirá.
+
+    ### Valores de retorno
+
+    `Dictionary <string, string>()` La devolución incluye elementos utilizados para vincular traza y entidad en el producto APM.
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.IAgent Agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+    var linkingMetadata = Agent.GetLinkingMetadata();
+    foreach (KeyValuePair<string, string> kvp in linkingMetadata)
+    {
+        Console.WriteLine("Key = {0}, Value = {1}", kvp.Key, kvp.Value);
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="IAgent" title="Agente">
+    ### Sintaxis
+
+    ```cs
+    public interface IAgent
+    ```
+
+    Proporciona acceso a los artefactos y métodos del agente, como la transacción que se está ejecutando actualmente.
+
+    ### Requisitos
+
+    * Versión del agente 8.9 o superior.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Proporciona acceso a los artefactos y métodos del agente, como la transacción que se está ejecutando actualmente. Para obtener una referencia a `IAgent`, emplee [`GetAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#GetAgent).
+
+    ### Propiedades
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Nombre
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Transacción actual
+          </td>
+
+          <td>
+            Propiedad que proporciona acceso a la transacción que se está ejecutando actualmente a través de la interfaz [ITransaction](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction) . Debe llamar dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Intervalo actual
+          </td>
+
+          <td>
+            Propiedad que proporciona acceso al tramo que se está ejecutando actualmente a través de la interfaz [ISpan](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    ```cs
+    IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+    ITransaction transaction = agent.CurrentTransaction;
+    ```
+  </Collapser>
+
+  <Collapser id="ITransaction" title="ITransacción">
+    ### Sintaxis
+
+    ```cs
+    public interface ITransaction
+    ```
+
+    Proporciona acceso a métodos específicos de transacciones en la API New Relic.
+
+    ### Descripción
+
+    Proporciona acceso a métodos específicos de transacciones en la New Relic .NET API del agente . Para obtener una referencia a `ITransaction`, emplee el método de transacción actual disponible en [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent).
+
+    Los siguientes métodos están disponibles en `ITransaction`:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Nombre
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td class="children-nowrap">
+            `InsertDistributedTraceHeaders`
+          </td>
+
+          <td>
+            Agrega datos de rastreo distribuido a una solicitud saliente (ver a continuación para obtener más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td class="children-nowrap">
+            `AcceptDistributedTraceHeaders`
+          </td>
+
+          <td>
+            Acepta datos entrantes de rastreo distribuido de otro servicio (ver más abajo para más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td class="children-nowrap">
+            `AddCustomAttribute`
+          </td>
+
+          <td>
+            Agregue información contextual de su aplicación a la transacción actual en forma de atributo (ver a continuación para más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td class="children-nowrap">
+            `CurrentSpan`
+          </td>
+
+          <td>
+            Proporciona acceso al [intervalo](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) que se está ejecutando actualmente, lo que proporciona acceso a métodos específicos del intervalo en la API de New Relic (consulte a continuación para obtener más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td class="children-nowrap">
+            `SetUserId`
+          </td>
+
+          <td>
+            Asocia un ID de usuario a la transacción actual (ver a continuación para más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td class="children-nowrap">
+            `RecordDatastoreSegment`
+          </td>
+
+          <td>
+            Permite instrumentar un almacenamiento de datos no compatible (consulte a continuación para obtener más detalles).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <CollapserGroup>
+      <Collapser id="InsertDistributedTraceHeaders" title="Insertar encabezados de seguimiento distribuido">
+        ### Sintaxis
+
+        ```cs
+        void InsertDistributedTraceHeaders(carrier, setter)
+        ```
+
+        Agrega datos [de rastreo distribuido](/docs/apm/agents/net-agent/configuration/distributed-tracing-net-agent/#manual-instrumentation) a un mensaje saliente a otro servicio instrumentado.
+
+        ### Descripción
+
+        `ITransaction.InsertDistributedTraceHeaders` modifica el objeto portador que se pasa agregando encabezados de W3C Trace Context y encabezados de rastreo distribuido New Relic . Los encabezados de New Relic se pueden deshabilitar con `<distributedTracing excludeNewrelicHeader="true" />` en la configuración.
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Nombre
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `carrier`
+
+                *&lt;T&gt;*
+              </td>
+
+              <td>
+                Requerido. Un almacén de par principal de valor donde se insertan los datos distribuidos del rastreo. Esto debe existir en cualquier objeto de mensaje que se pase del servicio que llama al servicio llamado, a través de cualquier transporte que se emplee. Por ejemplo, para los mensajes de Azure Service Bus, el tipo `ServiceBusMessage` tiene una [propiedad`ApplicationProperties` ](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusmessage.applicationproperties?view=azure-dotnet#azure-messaging-servicebus-servicebusmessage-applicationproperties)que es un `IDictionary<string,object>`. Cuando desea implementar un rastreo distribuido personalizado para un canal de comunicaciones no instrumentado (por ejemplo, una cola de mensajes), debe averiguar qué opción de almacenamiento de par principal de valores (transportista) existe para ese canal.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `setter`
+
+                *Action&lt;T, string, string&gt;*
+              </td>
+
+              <td>
+                Requerido. Una acción definida por el usuario para insertar datos de seguimiento en el portador. Vea el ejemplo a continuación.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Consideraciones de uso
+
+        * [Rastreo distribuido debe estar habilitado](/docs/agents/net-agent/configuration/net-agent-configuration#distributed_tracing).
+        * Esta API solo se puede emplear dentro del contexto de una [transacción](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/#new-existing) existente.
+
+        ### Ejemplo
+
+        Puede encontrar un ejemplo completo que puede crear y ejecutar para demostrar el uso de esta API [aquí](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/custom-distributed-tracing).
+
+        ```cs
+        // Get a reference to the agent, which lets you get a reference to the current transaction
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+        ITransaction currentTransaction = agent.CurrentTransaction;
+
+        // In this example, we are using Azure Service Bus.  The `ServiceBusMessage` type has an `ApplicationProperties` property for custom key/value pairs.
+
+        // Create the outbound message
+        ServiceBusMessage message = new ("Hello, world!");
+
+        // Define the setter Action.  The `ApplicationProperties` dictionary is the trace data carrier.
+        var setter = new Action<ServiceBusMessage, string, string>((carrier, key, value) => { carrier.ApplicationProperties?.Set(key, value); });
+
+        // Call the API to add the distributed tracing data to the message
+        currentTransaction.InsertDistributedTraceHeaders(message, setter);
+
+        // Send the message
+        ```
+      </Collapser>
+
+      <Collapser id="AcceptDistributedTraceHeaders" title="AceptarDistributedTraceHeaders">
+        ### Sintaxis
+
+        ```cs
+        void AcceptDistributedTraceHeaders(carrier, getter, transportType)
+        ```
+
+        Acepta datos [rastreo distribuidos](/docs/apm/agents/net-agent/configuration/distributed-tracing-net-agent/#manual-instrumentation) de un mensaje entrante de otro servicio instrumentado.
+
+        ### Descripción
+
+        `ITransaction.AcceptDistributedTraceHeaders` se emplea para vincular los tramos en una traza aceptando una carga generada por [`InsertDistributedTraceHeaders`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#InsertDistributedTraceHeaders) o generada por algún otro rastreador compatible con W3C Trace Context . Este método acepta el valor principal almacenado de una solicitud entrante, busca datos W3C Trace Context y, si no los encuentra, recurre a los datos de seguimiento distribuido New Relic .
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Nombre
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `carrier`
+
+                *&lt;T&gt;*
+              </td>
+
+              <td>
+                Requerido. Un almacén de pares de valores principales donde el servicio que realiza la llamada insertó los datos de rastreo distribuido. Esto debe existir en cualquier objeto de mensaje que se pase del servicio que llama al servicio llamado, a través de cualquier transporte que se emplee. Por ejemplo, para los mensajes de Azure Service Bus, el tipo `ServiceBusReceivedMessage` tiene una [propiedad`ApplicationProperties` ](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusmessage.applicationproperties?view=azure-dotnet#azure-messaging-servicebus-servicebusmessage-applicationproperties)que es un `IDictionary<string,object>`. Cuando desea implementar un rastreo distribuido personalizado para un canal de comunicaciones no instrumentado (por ejemplo, una cola de mensajes), debe averiguar qué opción de almacenamiento de par principal de valores (transportista) existe para ese canal.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `getter`
+
+                *Func&lt;T, string, IEnumerable&lt;string&gt;&gt;*
+              </td>
+
+              <td>
+                Requerido. Una función definida por el usuario para extraer datos de seguimiento del transportista. Vea el ejemplo a continuación.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `transportType`
+
+                *Enumeración tipo de transporte*
+              </td>
+
+              <td>
+                Requerido. Describe el transporte de la carga útil entrante (por ejemplo, `TransportType.Queue`). La lista completa se define [aquí](https://github.com/newrelic/newrelic-dotnet-agent/blob/main/src/Agent/NewRelic.Api.Agent/Constants.cs).
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Consideraciones de uso
+
+        * [Rastreo distribuido debe estar habilitado](/docs/agents/net-agent/configuration/net-agent-configuration#distributed_tracing).
+        * Esta API solo se puede emplear dentro del contexto de una [transacción](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/#new-existing) existente.
+        * `AcceptDistributedTraceHeaders` se ignorará si ya se ha llamado `InsertDistributedTraceHeaders` o `AcceptDistributedTraceHeaders` para esta transacción.
+
+        ### Ejemplo
+
+        Puede encontrar un ejemplo completo que puede crear y ejecutar para demostrar el uso de esta API [aquí](https://github.com/newrelic/newrelic-dotnet-examples/tree/main/custom-distributed-tracing)
+
+        ```cs
+        // Get a reference to the agent, which lets you get a reference to the current transaction
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+        ITransaction currentTransaction = agent.CurrentTransaction;
+
+        // In this example, we are using Azure Service Bus.  The `ServiceBusMessage` type has an `ApplicationProperties` property for custom key/value pairs.
+
+        // Recieve an incoming message.  Assume that `receiver` is a previously-configured `ServiceBusReceiver`
+        ServiceBusReceivedMessage message = await receiver.ReceiveMessageAsync();
+
+        // Define the getter Func.  The `ApplicationProperties` dictionary is the trace data carrier.
+        IEnumerable<string> Getter(IDictionary<string, object> carrier, string key)
+        {
+          var data = new List<string>();
+          if (carrier == null)
+          {
+            return data;
+          }
+          object value;
+          if (applicationProperties.TryGetValue(key, out value))
+          {
+            if (value != null)
+            {
+              data.Add(value.ToString());
+            }
+          }
+          return data;
+        }
+
+        // Call the API to accept the distributed tracing data from the message
+        currentTransaction.AcceptDistributedTraceHeaders(message.ApplicationProperties, Getter, TransportType.Queue);
+
+        ```
+      </Collapser>
+
+      <Collapser id="ITransaction.AddCustomAttribute" title="Agregar atributo personalizado">
+        ### Sintaxis
+
+        ```cs
+        ITransaction AddCustomAttribute(string key, object value)
+        ```
+
+        Agrega información contextual sobre su aplicación a la transacción actual en forma de [atributo](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute).
+
+        Este método requiere la versión del agente .NET y [la versión de API del agente .NET 8.24.244.0](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-8242440) o superior. Reemplazó al `AddCustomParameter` obsoleto.
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `key`
+
+                *cadena*
+              </td>
+
+              <td>
+                Identifica la información que se reporta. También conocido como el nombre.
+
+                * No se admiten claves vacías.
+                * Las claves están limitadas a 255 bytes. Se ignorarán los atributos con claves mayores a 255 bytes.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `value`
+
+                *objeto*
+              </td>
+
+              <td>
+                El valor que se informa.
+
+                **Nota**: `null` valores no se registrarán.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Tipo .NET
+              </th>
+
+              <th>
+                Cómo se representará el valor
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `byte`, `Int16`, `Int32`, `Int64`
+
+                `sbyte`, `UInt16`, `UInt32`, `UInt64`
+              </td>
+
+              <td>
+                Como valor integral.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `float`, `double`, `decimal`
+              </td>
+
+              <td>
+                Un número basado en decimales.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `string`
+              </td>
+
+              <td>
+                Una cadena truncada después de 255 bytes.
+
+                Se admiten cadenas vacías.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `bool`
+              </td>
+
+              <td>
+                Verdadero o falso.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `DateTime`
+              </td>
+
+              <td>
+                Una representación de cadena que sigue el formato ISO-8601, incluida información de zona horaria:
+
+                Ejemplo: `2020-02-13T11:31:19.5767650-08:00`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `TimeSpan`
+              </td>
+
+              <td>
+                Un número decimal que representa el número de segundos.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                todo lo demas
+              </td>
+
+              <td>
+                Se aplicará el método `ToString()` . Los tipos personalizados deben tener una implementación de `Object.ToString()` o generarán una excepción.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Devoluciones
+
+        Una referencia a la transacción actual.
+
+        ### Consideraciones de uso
+
+        Para obtener detalles sobre los tipos de datos admitidos, consulte [atributo personalizado](/docs/agents/net-agent/attributes/custom-attributes).
+
+        ### Ejemplo
+
+        ```cs
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+        ITransaction transaction = agent.CurrentTransaction;
+        transaction.AddCustomAttribute("customerName","Bob Smith")
+            .AddCustomAttribute("currentAge",31)
+            .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+        ```
+      </Collapser>
+
+      <Collapser id="CurrentSpan" title="Intervalo actual">
+        Proporciona acceso al [span](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ISpan) que se está ejecutando actualmente, lo que hace que los métodos específicos del span estén disponibles dentro de la API de New Relic.
+
+        ### Ejemplo
+
+        ```cs
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
+        ITransaction transaction = agent.CurrentTransaction; 
+        ISpan currentSpan = transaction.CurrentSpan;
+        ```
+      </Collapser>
+
+      <Collapser id="SetUserId" title="Establecer ID de usuario">
+        ### Sintaxis
+
+        ```cs
+        ITransaction SetUserId(string userId)
+        ```
+
+        Asocia una ID de usuario con la transacción actual.
+
+        Este método requiere el agente .NET y la API del agente .NET [versión 10.9.0](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-1090) o superior.
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `userId`
+
+                *cadena*
+              </td>
+
+              <td>
+                El ID de usuario que se asociará con esta transacción.
+
+                * `null`, los valores vacíos y de espacios en blanco se ignorarán.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Ejemplo
+
+        ```cs
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
+        ITransaction transaction = agent.CurrentTransaction; 
+        transaction.SetUserId("BobSmith123");
+        ```
+      </Collapser>
+
+      <Collapser id="RecordDatastoreSegment" title="Segmento de almacén de datos de registro">
+        ### Sintaxis
+
+        ```cs
+        SegmentWrapper? RecordDatastoreSegment(string vendor, string model, string operation, string? commandText = null, string? host = null, string? portPathOrID = null, string? databaseName = null)
+        ```
+
+        Permite instrumentar un almacenamiento de datos no compatible de la misma manera que el agente .NET instrumenta automáticamente sus almacenes de datos compatibles.
+
+        Este método requiere el agente .NET y la API del agente .NET [versión 10.22.0](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-10-22-0/) o superior.
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `vendor`
+
+                *cadena*
+              </td>
+
+              <td>
+                Nombre del proveedor de almacenamiento de datos, como MySQL, MSSQL o MongoDB.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `model`
+
+                *cadena*
+              </td>
+
+              <td>
+                Nombre de la tabla, o identificador similar en un almacenamiento de datos no relacional.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `operation`
+
+                *cadena*
+              </td>
+
+              <td>
+                Operación que se está realizando, como “SELECT” o “UPDATE” para base de datos SQL.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `commandText`
+
+                *¿cadena?*
+              </td>
+
+              <td>
+                Opcional. Consulta, o descriptor similar en un almacenamiento de datos no relacional.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `host`
+
+                *¿cadena?*
+              </td>
+
+              <td>
+                Opcional. Servidor que aloja el almacenamiento de datos.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `portPathOrID`
+
+                *¿cadena?*
+              </td>
+
+              <td>
+                Opcional. Puerto, ruta u otro identificador, emparejado con el host para ayudar a identificar el almacenamiento de datos.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `databaseName`
+
+                *¿cadena?*
+              </td>
+
+              <td>
+                Opcional. Nombre del almacenamiento de datos o identificador similar.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Devoluciones
+
+        Contenedor de segmento desechable que crea y finaliza el segmento automáticamente.
+
+        ### Ejemplo
+
+        ```cs
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        using (transaction.RecordDatastoreSegment(vendor, model, operation,
+             commandText, host, portPathOrID, databaseName))
+        {
+             DatastoreWorker();
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser id="ISpan" title="España">
+    ### Sintaxis
+
+    ```cs
+    Public interface ISpan
+    ```
+
+    Proporciona acceso a métodos específicos de tramo en la API New Relic.
+
+    ### Descripción
+
+    Proporciona acceso a métodos específicos de tramo en la API del agente New Relic .NET. Para obtener una referencia a `ISpan`, utilice:
+
+    * La propiedad `CurrentSpan` en [`IAgent`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IAgent) (recomendado).
+    * La propiedad `CurrentSpan` en [`ITransaction`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#ITransaction).
+
+    Esta sección contiene descripciones y parámetros de `ISpan` métodos:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Nombre
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td class="children-nowrap">
+            `AddCustomAttribute`
+          </td>
+
+          <td>
+            Agregue información contextual de su aplicación al lapso actual en forma de atributo (vea a continuación para obtener más detalles).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SetName`
+          </td>
+
+          <td>
+            Cambia el nombre del segmento/lapso/métrica actual que se informará a New Relic (consulte a continuación para obtener más detalles).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <CollapserGroup>
+      <Collapser id="ISpan.AddCustomAttribute" title="Agregar atributo personalizado">
+        Agrega información contextual sobre su aplicación al intervalo actual en forma de [atributo](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute).
+
+        Este método requiere la versión del agente .NET y [la versión API del agente .NET 8.25](/docs/release-notes/agent-release-notes/net-release-notes/net-agent-8242440) o superior.
+
+        ### Sintaxis
+
+        ```cs
+        ISpan AddCustomAttribute(string key, object value)
+        ```
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `key`
+
+                *cadena*
+              </td>
+
+              <td>
+                Identifica la información que se reporta. También conocido como el nombre.
+
+                * No se admiten claves vacías.
+                * Las claves están limitadas a 255 bytes. Se ignorarán los atributos con claves mayores a 255 bytes.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `value`
+
+                *objeto*
+              </td>
+
+              <td>
+                El valor que se informa.
+
+                **Nota**: `null` valores no se registrarán.
+
+                <table>
+                  <thead>
+                    <tr>
+                      <th>
+                        Tipo .NET
+                      </th>
+
+                      <th>
+                        Cómo se representará el valor
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr>
+                      <td>
+                        `byte`, `Int16`, `Int32`, `Int64`
+
+                        `sbyte`, `UInt16`, `UInt32`, `UInt64`
+                      </td>
+
+                      <td>
+                        Como valor integral.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        `float`, `double`, `decimal`
+                      </td>
+
+                      <td>
+                        Un número basado en decimales.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        `string`
+                      </td>
+
+                      <td>
+                        Una cadena truncada después de 255 bytes.
+
+                        Se admiten cadenas vacías.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        `bool`
+                      </td>
+
+                      <td>
+                        Verdadero o falso.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        `DateTime`
+                      </td>
+
+                      <td>
+                        Una representación de cadena que sigue el formato ISO-8601, incluida información de zona horaria:
+
+                        Ejemplo: `2020-02-13T11:31:19.5767650-08:00`
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        `TimeSpan`
+                      </td>
+
+                      <td>
+                        Un número decimal que representa el número de segundos.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td>
+                        todo lo demas
+                      </td>
+
+                      <td>
+                        Se aplicará el método `ToString()` . Los tipos personalizados deben tener una implementación de `Object.ToString()` o generarán una excepción.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Devoluciones
+
+        Una referencia al lapso actual.
+
+        ### Consideraciones de uso
+
+        Para obtener detalles sobre los tipos de datos admitidos, consulte la [guía de atributos personalizados](/docs/agents/net-agent/attributes/custom-attributes).
+
+        ### Ejemplos
+
+        ```cs
+        IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
+        ISpan currentSpan = agent.CurrentSpan; 
+
+        currentSpan
+            .AddCustomAttribute("customerName","Bob Smith")
+            .AddCustomAttribute("currentAge",31)
+            .AddCustomAttribute("birthday", new DateTime(2000, 02, 14))
+            .AddCustomAttribute("waitTime", TimeSpan.FromMilliseconds(93842));
+        ```
+      </Collapser>
+
+      <Collapser id="SetName" title="Escoger un nombre">
+        Cambia el nombre del segmento/tramo actual que se informará a New Relic. Para segmentos/tramos resultantes de instrumentación personalizada, el nombre de la métrica reportada a New Relic también se modificará.
+
+        Este método requiere la versión del agente .NET y la versión 10.1.0 de la API del agente .NET o mas alto.
+
+        ### Sintaxis
+
+        ```cs
+        ISpan SetName(string name)
+        ```
+
+        ### Parámetros
+
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `name`
+
+                *cadena*
+              </td>
+
+              <td>
+                El nuevo nombre del tramo/segmento.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        ### Devoluciones
+
+        Una referencia al lapso actual.
+
+        ### Ejemplos
+
+        ```cs
+        [Trace]
+        public void MyTracedMethod()
+        {
+            IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent(); 
+            ISpan currentSpan = agent.CurrentSpan; 
+
+            currentSpan.SetName("MyCustomName");
+        }
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser id="IgnoreApdex" title="IgnoreApdex">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IgnoreApdex()
+    ```
+
+    Ignore la transacción actual al calcular Apdex.
+
+    ### Requisitos
+
+    Compatible con todas las versiones de agente.
+
+    ### Descripción
+
+    Ignora la transacción actual al calcular su [puntuación Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction). Esto es útil cuando tiene transacciones muy cortas o muy largas (como descargas de archivos) que pueden sesgar su puntuación Apdex.
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IgnoreApdex();
+    ```
+  </Collapser>
+
+  <Collapser id="IgnoreTransaction" title="IgnoreTransaction">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IgnoreTransaction()
+    ```
+
+    No instrumente la transacción actual.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Debe llamarse dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+
+    ### Descripción
+
+    Ignora la transacción actual.
+
+    <Callout variant="tip">
+      También puede ignorar la transacción [a través de un archivo XML de instrumentación personalizada](/docs/agents/net-agent/custom-instrumentation/add-detail-transactions-xml-net#blocking-instrumentation).
+    </Callout>
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IgnoreTransaction();
+    ```
+  </Collapser>
+
+  <Collapser id="IncrementCounter" title="IncrementCounter">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IncrementCounter(string $metric_name)
+    ```
+
+    Incrementa el contador de una métrica personalizada en 1.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Incrementa el contador de una [métrica personalizada](/docs/agents/manage-apm-agents/agent-metrics/custom-metrics) en 1. Para ver estas métricas personalizadas, emplee el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data) para buscar métricas y crear gráficos personalizables. Consulte también [`RecordMetric()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#RecordMetric) y [`RecordResponseTimeMetric()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#RecordResponseTimeMetric).
+
+    <Callout variant="important">
+      Al crear una métrica personalizada, comience el nombre con `Custom/` (por ejemplo, `Custom/MyMetric`). Para obtener más información sobre la denominación, consulte [Recopilar métrica personalizada](/docs/apm/agents/manage-apm-agents/agent-data/collect-custom-metrics/).
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$metric_name`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre de la métrica que se va a incrementar.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.IncrementCounter("Custom/ExampleMetric");
+    ```
+  </Collapser>
+
+  <Collapser id="NoticeError" title="NoticeError">
+    ### Sobrecargas [#overloads]
+
+    Observe un error e informe a New Relic, junto con el atributo personalizado opcional.
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.NoticeError(Exception $exception);
+    NewRelic.Api.Agent.NewRelic.NoticeError(Exception $exception, IDictionary<TKey, TValue> $attributes);
+    NewRelic.Api.Agent.NewRelic.NoticeError(string $error_message, IDictionary<TKey, TValue> $attributes);
+    NewRelic.Api.Agent.NewRelic.NoticeError(string $error_message, IDictionary<TKey, TValue> $attributes, bool $is_expected);
+    ```
+
+    ### Requisitos
+
+    Esta llamada API es compatible con:
+
+    * Todas las versiones del agente
+    * Todos los tipos de aplicaciones
+
+    ### Descripción
+
+    Observe un error e infórmelo a New Relic junto con el atributo personalizado opcional. Para cada transacción, el agente solo conserva la excepción y el atributo de la primera llamada a `NoticeError()`. Puede pasar una excepción real o pasar una cadena para capturar un mensaje de error arbitrario.
+
+    Si este método se invoca dentro de una [transacción](/docs/glossary/glossary/#transaction), el agente informa la excepción dentro de la transacción principal. Si se invoca fuera de una transacción, el agente crea una [traza](/docs/errors-inbox/apm-tab//#trace-details) de error y categoriza el error en la New Relic UI como una de `NewRelic.Api.Agent.NoticeError` llamada API. Si se invoca fuera de una transacción, la llamada `NoticeError()` no contribuirá a la tasa de errores de una aplicación.
+
+    El agente agrega el atributo sólo al error de traza; no los envía a New Relic. Para obtener más información, consulte [`AddCustomAttribute()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute).
+
+    Los errores informados con esta API aún se envían a New Relic cuando se informan dentro de una transacción que genera un código de estado HTTP, como `404`, que está configurado para ser ignorado por la configuración del agente. Para obtener más información, consulte nuestra documentación sobre [la gestión de errores en APM](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected).
+
+    Revise las secciones siguientes para ver ejemplos de cómo utilizar esta llamada.
+
+    <CollapserGroup>
+      <Collapser id="" title="AvisoError(Excepción)">
+        ```cs
+        NewRelic.Api.Agent.NewRelic.NoticeError(Exception $exception)
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th width="25%">
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `$exception`
+
+                *Excepción*
+              </td>
+
+              <td>
+                Requerido. El `Exception` que quieres instrumento. Sólo se conservan los primeros 10.000 caracteres del rastreo del stack.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="" title="NoticeError(Exception, IDictionary)">
+        ```cs
+        NewRelic.Api.Agent.NewRelic.NoticeError(Exception $exception, IDictionary<TKey, TValue> $attributes)
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th width="25%">
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `$exception`
+
+                *Excepción*
+              </td>
+
+              <td>
+                Requerido. El `Exception` que quieres instrumento. Sólo se conservan los primeros 10.000 caracteres del rastreo del stack.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `$attributes`
+
+                *IDictionary&lt;TKey, TValue&gt;*
+              </td>
+
+              <td>
+                Especifique los pares principales de valor del atributo para anotar el mensaje de error. El `TKey` debe ser una cadena, el `TValue` puede ser una cadena u un objeto.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="string-idictionary-overload" title="NoticeError(String, IDictionary)">
+        ```cs
+        NewRelic.Api.Agent.NewRelic.NoticeError(string $error_message, IDictionary<TKey, TValue> $attributes)
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th width="25%">
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `$error_message`
+
+                *cadena*
+              </td>
+
+              <td>
+                Requerido. Especifique una cadena para informar a New Relic como si fuera una excepción. Este método crea tanto [error evento como error traza](/docs/errors-inbox/apm-tab/#events). En error evento solo se retienen los primeros 1023 caracteres, mientras que error traza retiene el mensaje completo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `$attributes`
+
+                *IDictionary&lt;TKey, TValue&gt;*
+              </td>
+
+              <td>
+                Requerido (puede ser nulo). Especifique los pares principales de valor del atributo para anotar el mensaje de error. El `TKey` debe ser una cadena, el `TValue` puede ser una cadena u objeto, para enviar ningún atributo pasa `null`.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser id="" title="NoticeError(String, IDictionary, bool)">
+        ```cs
+        NewRelic.Api.Agent.NewRelic.NoticeError(string $error_message, IDictionary<TKey, TValue> $attributes, bool $is_expected)
+        ```
+
+        <table>
+          <thead>
+            <tr>
+              <th width="25%">
+                Parámetro
+              </th>
+
+              <th>
+                Descripción
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `$error_message`
+
+                *cadena*
+              </td>
+
+              <td>
+                Requerido. Especifique una cadena para informar a New Relic como si fuera una excepción. Este método crea tanto [error evento como error traza](/docs/tutorial-error-tracking/respond-outages/). En error evento solo se retienen los primeros 1023 caracteres, mientras que error traza retiene el mensaje completo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `$attributes`
+
+                *IDictionary&lt;TKey, TValue&gt;*
+              </td>
+
+              <td>
+                Requerido (puede ser nulo). Especifique los pares principales de valor del atributo para anotar el mensaje de error. El `TKey` debe ser una cadena, el `TValue` puede ser una cadena u objeto, para enviar ningún atributo pasa `null`.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `$is_expected`
+
+                *bool*
+              </td>
+
+              <td>
+                Marque el error como se esperaba para que no afecte la puntuación Apdex ni la tasa de errores.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+    </CollapserGroup>
+
+    ### Ejemplos
+
+    #### Pasar una excepción sin atributo personalizado
+
+    ```cs
+    try
+    {
+        string ImNotABool = "43";
+        bool.Parse(ImNotABool);
+    }
+    catch (Exception ex)
+    {
+        NewRelic.Api.Agent.NewRelic.NoticeError(ex);
+    }
+    ```
+
+    #### Pasar una excepción con atributo personalizado
+
+    ```cs
+    try
+    {
+        string ImNotABool = "43";
+        bool.Parse(ImNotABool);
+    }
+    catch (Exception ex)
+    {
+        var errorAttributes = new Dictionary<string, string>() {{"foo", "bar"},{"baz", "luhr"}};
+        NewRelic.Api.Agent.NewRelic.NoticeError(ex, errorAttributes);
+    }
+    ```
+
+    #### Pasar una cadena de mensaje de error con atributo personalizado
+
+    ```cs
+    try
+    {
+        string ImNotABool = "43";
+        bool.Parse(ImNotABool);
+    }
+    catch (Exception ex)
+    {
+        var errorAttributes = new Dictionary<string, string>{{"foo", "bar"},{"baz", "luhr"}};
+        NewRelic.Api.Agent.NewRelic.NoticeError("String error message", errorAttributes);
+    }
+    ```
+
+    #### Pasar una cadena de mensaje de error sin atributo personalizado
+
+    ```cs
+    try
+    {
+        string ImNotABool = "43";
+        bool.Parse(ImNotABool);
+    }
+    catch (Exception ex)
+    {
+        NewRelic.Api.Agent.NewRelic.NoticeError("String error message", null);
+    }
+    ```
+
+    #### Pase una cadena de mensaje de error y márquela como se esperaba
+
+    ```cs
+    try
+    {
+        string ImNotABool = "43";
+        bool.Parse(ImNotABool);
+    }
+    catch (Exception ex)
+    {
+        NewRelic.Api.Agent.NewRelic.NoticeError("String error message", null, true);
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="RecordCustomEvent" title="RecordCustomEvent">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.RecordCustomEvent(string eventType, IEnumerable<string, object> attributeValues)
+    ```
+
+    Graba un evento personalizado con el nombre de pila y atributo.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Registra un [evento personalizado](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#event-data) con el nombre de pila y atributo, que puedes consultar en el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder). Para verificar si un evento se está registrando correctamente, busque los datos en [el tablero](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards).
+
+    <Callout variant="important">
+      * Enviar muchos eventos puede aumentar la sobrecarga de memoria del agente.
+      * Además, las publicaciones con un tamaño superior a 1 MB (10^6 bytes) no se registrarán independientemente del número máximo de eventos.
+      * evento personalizado están limitados a 64 atributos.
+      * Para obtener más información sobre cómo se procesan los valores de atributo personalizado, consulte la guía [de atributo personalizado](/docs/agents/net-agent/attributes/custom-attributes) .
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `eventType`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre del tipo de evento a registrar. Las cadenas de más de 255 caracteres darán como resultado que la llamada API no se envíe a New Relic. El nombre solo puede contener caracteres alfanuméricos, guiones bajos `_` y dos puntos `:`. Para conocer restricciones adicionales sobre nombres de tipos de eventos, consulte [Palabras reservadas](/docs/data-apis/custom-data/custom-events/data-requirements-limits-custom-event-data/#reserved-words).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `attributeValues`
+
+            *IEnumerable&lt;string, object&gt;*
+          </td>
+
+          <td>
+            Requerido. Especifique el valor principal de los pares de atributos para anotar el evento.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    #### Valores de registro [#record-strings]
+
+    ```cs
+    var eventAttributes = new Dictionary<string, object>() 
+    {
+        {"foo", "bar"},
+        {"alice", "bob"}, 
+        {"age", 32}, 
+        {"height", 21.3f}
+    };
+
+    NewRelic.Api.Agent.NewRelic.RecordCustomEvent("MyCustomEvent", eventAttributes);
+    ```
+  </Collapser>
+
+  <Collapser id="RecordMetric" title="RecordMetric">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.RecordMetric(string $metric_name, single $metric_value)
+    ```
+
+    Registra una métrica personalizada con el nombre de pila.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Registra una [métrica personalizada](/docs/agents/manage-apm-agents/agent-metrics/custom-metrics) con el nombre de pila. Para ver estas métricas personalizadas, emplee el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data) para buscar métricas y crear gráficos personalizables. Consulte también [`IncrementCounter()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IncrementCounter) y [`RecordResponseTimeMetric()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#RecordResponseTimeMetric).
+
+    <Callout variant="important">
+      Al crear una métrica personalizada, comience el nombre con `Custom/` (por ejemplo, `Custom/MyMetric`).
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$metric_name`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre de la métrica a registrar. Sólo se conservan los primeros 255 caracteres.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$metric_value`
+
+            *soltero*
+          </td>
+
+          <td>
+            Requerido. La cantidad que se registrará para la métrica.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    #### Registrar el tiempo de respuesta de un proceso de sueño. [#record-stopwatch]
+
+    ```cs
+    Stopwatch stopWatch = Stopwatch.StartNew();
+    System.Threading.Thread.Sleep(5000);
+    stopWatch.Stop();
+    NewRelic.Api.Agent.NewRelic.RecordMetric("Custom/DEMO_Record_Metric", stopWatch.ElapsedMilliseconds);
+    ```
+  </Collapser>
+
+  <Collapser id="RecordResponseTimeMetric" title="RecordResponseTimeMetric">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric(string $metric_name, Int64 $metric_value)
+    ```
+
+    Registra una métrica personalizada con el nombre de pila y el tiempo de respuesta en milisegundos.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Registra el tiempo de respuesta en milisegundos para una [métrica personalizada](/docs/agents/manage-apm-agents/agent-metrics/custom-metrics). Para ver estas métricas personalizadas, emplee el [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data) para buscar métricas y crear gráficos personalizables. Consulte también [`IncrementCounter()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#IncrementCounter) y [`RecordMetric()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#RecordMetric).
+
+    <Callout variant="important">
+      Al crear una métrica personalizada, comience el nombre con `Custom/` (por ejemplo, `Custom/MyMetric`).
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$metric_name`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre de la métrica de tiempo de respuesta que se va a registrar. Sólo se conservan los primeros 255 caracteres.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$metric_value`
+
+            *Int64*
+          </td>
+
+          <td>
+            Requerido. El tiempo de respuesta para grabar en milisegundos.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    #### Registrar el tiempo de respuesta de un proceso de sueño. [#record-stopwatch]
+
+    ```cs
+    Stopwatch stopWatch = Stopwatch.StartNew();
+    System.Threading.Thread.Sleep(5000);
+    stopWatch.Stop();
+    NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/DEMO_Record_Response_Time_Metric", stopWatch.ElapsedMilliseconds);
+    ```
+  </Collapser>
+
+  <Collapser id="SetApplicationName" title="SetApplicationName">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetApplicationName(string $name[, string $name_2, string $name_3])
+    ```
+
+    Establezca el nombre de la aplicación para la acumulación de datos.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Establezca los nombres de las aplicaciones reportadas a New Relic. Para obtener más información sobre la denominación de aplicaciones, consulte [Asigne un nombre a su aplicación .NET](/docs/agents/net-agent/installation-configuration/name-your-net-application). Este método está pensado para llamarse una vez, durante el inicio de una aplicación.
+
+    <Callout variant="important">
+      La actualización del nombre de la aplicación obliga al agente a reiniciarse. El agente descarta cualquier dato no informado asociado con nombres de aplicaciones anteriores. No se recomienda cambiar el nombre de la aplicación varias veces durante el ciclo de vida de una aplicación debido a la pérdida de datos asociada.
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$name`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre de la aplicación principal.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$name_2`
+
+            `$name_3`
+
+            *cadena*
+          </td>
+
+          <td>
+            Opcional. Segundo y tercer nombre para la acumulación de aplicaciones. Para obtener más información, consulte [Usar varios nombres para una aplicación](/docs/agents/manage-apm-agents/app-naming/use-multiple-names-app).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetApplicationName("AppName1", "AppName2");
+    ```
+  </Collapser>
+
+  <Collapser id="SetErrorGroupCallback" title="SetErrorGroupCallback">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetErrorGroupCallback(Func<IReadOnlyDictionary<string,object>, string> errorGroupCallback);
+    ```
+
+    Proporcione un método de devolución de llamada que tome un `IReadOnlyDictionary<string,object>` de datos de atributo y devuelva un nombre de grupo de error.
+
+    ### Requisitos
+
+    Esta llamada API es compatible con:
+
+    * Versión del agente 10.9.0 o superior.
+    * Todos los tipos de aplicaciones
+
+    ### Descripción
+
+    Establezca un método de devolución de llamada que el agente utilizará para determinar el nombre del grupo de errores para el evento de error y la traza. Este nombre se utiliza en la Errors Inbox para agrupar errores en grupos lógicos.
+
+    El método de devolución de llamada debe aceptar un único argumento de tipo `IReadOnlyDictionary<string,object>` y devolver una cadena (el nombre del grupo de errores). El `IReadOnlyDictionary` es una colección de [datos de atributos](/docs/apm/agents/manage-apm-agents/agent-data/agent-attributes/) asociados con cada evento de error, incluido el atributo personalizado.
+
+    La lista exacta de atributos disponibles para cada error variará dependiendo de:
+
+    * ¿Qué código de aplicación generó el error?
+    * Ajustes de configuración del agente
+    * Si se agregó algún atributo personalizado
+
+    Sin embargo, siempre debe existir el siguiente atributo:
+
+    * `error.class`
+    * `error.message`
+    * `stack_trace`
+    * `transactionName`
+    * `request.uri`
+    * `error.expected`
+
+    Se puede devolver una cadena vacía para el nombre del grupo de errores cuando el error no se puede asignar a un grupo de errores lógicos.
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$callback`
+
+            *&apos;Func&lt;IReadOnlyDictionary&lt;string,object&gt;,string&gt;&apos;*
+          </td>
+
+          <td>
+            La devolución de llamada para determinar el nombre del grupo de errores en función de los datos del atributo.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    Errores de grupo por nombre de clase de error:
+
+    ```cs
+    Func<IReadOnlyDictionary<string, object>, string> errorGroupCallback = (attributes) => {
+        string errorGroupName = string.Empty;
+        if (attributes.TryGetValue("error.class", out var errorClass))
+        {
+            if (errorClass.ToString() == "System.ArgumentOutOfRangeException" || errorClass.ToString() == "System.ArgumentNullException")
+            {
+                errorGroupName = "ArgumentErrors";
+            }
+            else
+            {
+                errorGroupName = "OtherErrors";
+            }
+        }
+        return errorGroupName;
+    };
+
+    NewRelic.Api.Agent.NewRelic.SetErrorGroupCallback(errorGroupCallback);
+    ```
+
+    Errores de grupo por nombre de transacción:
+
+    ```cs
+    Func<IReadOnlyDictionary<string, object>, string> errorGroupCallback = (attributes) => {
+        string errorGroupName = string.Empty;
+        if (attributes.TryGetValue("transactionName", out var transactionName))
+        {
+        if (transactionName.ToString().IndexOf("WebTransaction/MVC/Home") != -1)
+        {
+        errorGroupName = "HomeControllerErrors";
+        }
+            else
+            {
+                errorGroupName = "OtherControllerErrors";
+            }
+        }
+        return errorGroupName;
+    };
+
+    NewRelic.Api.Agent.NewRelic.SetErrorGroupCallback(errorGroupCallback);
+    ```
+  </Collapser>
+
+  <Collapser id="SetTransactionName" title="SetTransactionName">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetTransactionName(string $category, string $name)
+    ```
+
+    Establece el nombre de la transacción actual.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Debe llamarse dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+
+    ### Descripción
+
+    Establezca un nombre de transacción personalizado, que se agregará luego de un prefijo inicial (`WebTransaction` o `OtherTransaction`) según el tipo de transacción actual. Antes de emplear esta llamada, cerciorar de comprender las participaciones de [los problemas de agrupación métrica](/docs/agents/manage-apm-agents/troubleshooting/metric-grouping-issues).
+
+    Si utiliza esta llamada varias veces dentro de la misma transacción, cada llamada sobrescribe la llamada anterior y la última llamada establece el nombre.
+
+    <Callout variant="important">
+      No utilice corchetes `[suffix]` al final del nombre de su transacción. New Relic elimina automáticamente los corchetes del nombre. En su lugar, utilice paréntesis `(suffix)` u otros símbolos si es necesario.
+    </Callout>
+
+    Valor único como URL, títulos de páginas, valores hexadecimales, ID de sesión y valores identificables de forma única no deben usar para nombrar su transacción. En su lugar, agregue esos datos a la transacción como un parámetro personalizado con la llamada [`AddCustomAttribute()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute) .
+
+    <Callout variant="important">
+      No cree más de 1000 nombres de transacciones únicos (por ejemplo, evite nombrar por URL si es posible). Esto hará que sus gráficos sean menos útiles y es posible que se encuentre con los límites que New Relic establece en la cantidad de nombres de transacciones únicos por cuenta. También puede ralentizar el rendimiento de su aplicación.
+    </Callout>
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$category`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. La categoría de esta transacción, que puede utilizar para distinguir diferentes tipos de transacciones. El valor predeterminado es <DNT>**`Custom`**</DNT>. Sólo se conservan los primeros 255 caracteres.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$name`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido. El nombre de la transacción. Sólo se conservan los primeros 255 caracteres.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    Este ejemplo muestra el uso de esta API en un controlador ASP..NET Core MVC. Una transacción es creada automáticamente por la instrumentación del agente para ASP..NET Core. La primera parte del nombre de la transacción seguirá siendo `WebTransaction`.
+
+    ```cs
+    public class HomeController : Controller
+    {
+
+      public IActionResult Order(string product)
+      { 
+
+        // The commented-out API call below is probably a bad idea and will lead to a metric grouping issue (MGI)
+        // because too many transaction names will be created. Don't do this.
+        //NewRelic.Api.Agent.NewRelic.SetTransactionName("Other", $"ProductOrder-{product}");
+
+        // Do this instead if you want to record request-specific data about this MVC endpoint
+        var tx = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        tx.AddCustomAttribute("productName", product);
+
+        // The default transaction name at this point will be: WebTransaction/MVC/Home/Order
+
+        // Set custom transaction name
+        NewRelic.Api.Agent.NewRelic.SetTransactionName("Other", "OrderProduct");
+
+        // Transaction name is now: WebTransaction/Other/OrderProduct
+
+        return View();
+      }
+    }  
+    ```
+
+    Este ejemplo muestra el uso de esta API en una aplicación de consola. Tenga en cuenta el `[Transaction]` atributo de instrumentación personalizada, que es necesario para crear una transacción para el método de ejemplo. La primera parte del nombre de la transacción seguirá siendo `OtherTransaction`.
+
+    ```cs
+    using NewRelic.Api.Agent;
+
+    namespace SetApplicationNameConsoleExample
+    {
+      internal class Program
+      {
+        static void Main(string[] args)
+        {
+          Console.WriteLine("Hello, World!");
+
+            var start = DateTime.Now;
+            while (DateTime.Now - start < TimeSpan.FromMinutes(2))
+            {
+                DoSomething();
+                Thread.Sleep(TimeSpan.FromSeconds(5));
+            }
+        }
+
+        [Transaction]  // Attribute-based custom instrumentation to create a transaction for this method
+        static void DoSomething()
+        {
+            Console.WriteLine("Doing something: " + Guid.NewGuid().ToString());
+
+            // Transaction name from default naming at this point is: OtherTransaction/Custom/SetApplicationNameConsoleExample.Program/DoSomething
+
+            NewRelic.Api.Agent.NewRelic.SetTransactionName("Console", "MyCustomTransactionName");
+
+            // Transaction name at this point is: OtherTransaction/Console/MyCustomTransactionName
+
+            // Note, however, that this transaction will still have a child segment (span) named "SetApplicationNameConsoleExample.Program.DoSomething"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="SetTransactionUri" title="SetTransactionUri">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetTransactionUri(Uri $uri)
+    ```
+
+    Establece el URI de la transacción actual.
+
+    ### Requisitos
+
+    * Debe llamarse dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+    * Versión del agente 6.16 o superior.
+
+    <Callout variant="important">
+      Este método solo funciona cuando se usa dentro de una transacción creada usando el atributo `Transaction` con la propiedad `Web` establecido en `true`. (Ver [instrumentación personalizada vía atributo](/docs/agents/net-agent/api-guides/net-agent-api-instrument-using-attributes).) Proporciona soporte para marcos sitio web personalizados que el agente no admite automáticamente.
+    </Callout>
+
+    ### Descripción
+
+    Establezca la URI de la transacción actual. El URI aparece en el atributo `request.uri` de [la traza de la transacción](/docs/apm/transactions/transaction-traces/transaction-traces) y [del evento de transacción](/docs/using-new-relic/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data), y también puede afectar el nombre de la transacción.
+
+    Si utiliza esta llamada varias veces dentro de la misma transacción, cada llamada sobrescribe la llamada anterior. La última llamada establece el URI.
+
+    **Nota**: a partir de la versión 8.18 del agente, el valor del atributo `request.uri` se establece en el valor de la propiedad `Uri.AbsolutePath` del objeto `System.Uri` pasado a la API.
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$uri`
+
+            *Uri*
+          </td>
+
+          <td>
+            El URI de esta transacción.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    ```cs
+    var uri = new System.Uri("https://www.mydomain.com/path");
+    NewRelic.Api.Agent.NewRelic.SetTransactionUri(uri);
+    ```
+  </Collapser>
+
+  <Collapser id="SetUserParameters" title="SetUserParameters">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetUserParameters(string $user_value, string $account_value, string $product_value)
+    ```
+
+    Crear atributo personalizado relacionado con el usuario. [`AddCustomAttribute`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute) es más flexible.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Debe llamarse dentro de una [transacción](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction).
+
+    ### Descripción
+
+    <Callout variant="tip">
+      Esta llamada solo le permite asignar valores a claves preexistentes. Para obtener un método más flexible para crear pares de valores principales, emplee [`AddCustomAttribute()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute).
+    </Callout>
+
+    Defina [un atributo personalizado](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#AddCustomAttribute)relacionado con el usuario para asociarlo con una vista de página browser (nombre del usuario, nombre de cuenta y nombre del producto). Los valores se asocian automáticamente con claves preexistentes (`user`, `account` y `product`) y luego se anexan a la transacción APM principal. También puede [anexar (o &quot;reenviar&quot;) estos atributos](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes#forwarding-attributes) al browser evento [PageView .](/docs/agents/manage-apm-agents/agent-metrics/agent-attributes#destinations)
+
+    ### Parámetros
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Parámetro
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `$user_value`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido (puede ser nulo). Especifique un nombre o nombre de usuario para asociarlo con esta vista de página. Este valor se asigna a la clave `user` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$account_value`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido (puede ser nulo). Especifique el nombre de una cuenta de usuario para asociarla con esta vista de página. Este valor se asigna a la clave `account` .
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `$product_value`
+
+            *cadena*
+          </td>
+
+          <td>
+            Requerido (puede ser nulo). Especifique el nombre de un producto para asociarlo con esta vista de página. Este valor se asigna a la clave `product` .
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    #### Grabar tres atributos de usuario.
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetUserParameters("MyUserName", "MyAccountName", "MyProductName");
+    ```
+
+    #### Registre dos atributos de usuario y un atributo vacío
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.SetUserParameters("MyUserName", "", "MyProductName");
+    ```
+  </Collapser>
+
+  <Collapser id="StartAgent" title="StartAgent">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.StartAgent()
+    ```
+
+    Inicie el agente si aún no lo ha hecho. Generalmente innecesario.
+
+    ### Requisitos
+
+    * Compatible con todas las versiones de agente.
+    * Compatible con todo tipo de aplicaciones.
+
+    ### Descripción
+
+    Inicia el agente si aún no se inició. Esta llamada suele ser innecesaria, ya que el agente se inicia automáticamente cuando llega a un método instrumentado a menos que deshabilite [`autoStart`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#service-autoStart). Si usa [`SetApplicationName()`](/docs/apm/agents/net-agent/net-agent-api/net-agent-api/#SetApplicationName), cerciorar de configurar el nombre de la aplicación **antes de** iniciar el agente.
+
+    <Callout variant="tip">
+      Este método inicia el agente de forma asincrónica (lo que significa que no bloqueará el inicio de la aplicación) a menos que habilite [`syncStartup`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#service-syncStartup) o [`sendDataOnExit`](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#service-sendDataOnExit).
+    </Callout>
+
+    ### Ejemplos
+
+    ```cs
+    NewRelic.Api.Agent.NewRelic.StartAgent();
+    ```
+  </Collapser>
+
+  <Collapser id="TraceMetadata" title="TraceMetadata">
+    ### Sintaxis
+
+    ```cs
+    NewRelic.Api.Agent.TraceMetadata;
+    ```
+
+    Devuelve propiedades en el entorno de ejecución actual utilizado para admitir el seguimiento.
+
+    ### Requisitos
+
+    * Versión del agente 8.19 o superior.
+    * Compatible con todo tipo de aplicaciones.
+    * [Rastreo distribuido debe estar habilitado](/docs/agents/net-agent/configuration/net-agent-configuration#distributed_tracing) para obtener valores significativos.
+
+    ### Descripción
+
+    Proporciona acceso a las siguientes propiedades:
+
+    ### Propiedades
+
+    <table>
+      <thead>
+        <tr>
+          <th width="25%">
+            Nombre
+          </th>
+
+          <th>
+            Descripción
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `TraceId`
+          </td>
+
+          <td>
+            Devuelve una cadena que representa la traza que se está ejecutando actualmente. Si la traza ID no está disponible, o el rastreo distribuido está deshabilitado, el valor será `string.Empty`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `SpanId`
+          </td>
+
+          <td>
+            Devuelve una cadena que representa el intervalo de ejecución actual. Si el span ID no está disponible o el rastreo distribuido está deshabilitado, el valor será `string.Empty`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `IsSampled`
+          </td>
+
+          <td>
+            Devuelve `true` si se toma una muestra de la traza actual para su inclusión, `false` si se toma una muestra.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Ejemplos
+
+    ```cs
+    IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+    ITraceMetadata traceMetadata = agent.TraceMetadata;
+    string traceId = traceMetadata.TraceId;
+    string spanId = traceMetadata.SpanId;
+    bool isSampled = traceMetadata.IsSampled;
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,71 @@
+---
+title: Prometheus エージェントのインスタンスのスケーリング
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: Scaling Prometheus agent instances
+freshnessValidatedDate: never
+translationType: machine
+---
+
+クラスターのサイズが大きくなると、Prometheus によって収集されるデータが増え、ある時点で、Prometheus エージェントが処理できるデータ量の限界に達します。最も一般的な障害モードは、時系列のカーディナリティの増加によるメモリ不足です。これが発生すると、より多くのメモリが必要になるため、Prometheus インスタンスが停止し始めます。つまり、スケーリングを開始する必要があります。
+
+ソリューションを詳細に分析するために、Prometheus ソリューションをいつスケーリングする必要があるかを知るのに役立つさまざまなグラフを含むダッシュボードを提供します。
+
+New Relic の Prometheus エージェントには、垂直または水平という 2 つの異なるスケーリング アプローチがあります。
+
+## 垂直スケーリング [#vertical]
+
+この種のスケーリングは複雑ではありません。これは、クラスター ノードが稼働している対応するマシンのメモリまたは CPU を更新するのと同じくらい簡単です。
+
+ただし、このアプローチは大規模なクラスターにはスケーラブルではない可能性があります。または、ノードで非常に多くの GB のメモリを消費する単一のポッドを持ちたくないだけです。その場合は、水平スケーリングを使用する必要がある場合があります。
+
+## 水平スケーリング [#horizontal]
+
+シャーディングとも呼ばれる水平スケーリングは、複数のプロメテウス サーバーをエージェント モードで実行してデータを収集できる構成パラメーターを設定することでサポートされます。
+
+`sharding.total_shards_count`値を定義すると、デプロイされた`StatefulSet`には、定義した数のレプリカが含まれます。これを使用すると、 _configurator_コンポーネントにはいくつかの追加のラベル変更ルールが自動的に含まれるため、各ターゲットは 1 つの Prometheus サーバーによってのみスクレイピングされます。これらのルールは、ターゲットのアドレス[hash-mod](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config)に依存しています。
+
+各ターゲットのラベル変更ルールを設定するために、エージェントは指定されたターゲット`__address__`のハッシュを計算し、ハッシュに`modulus`を適用します。モジュラスはシャードの総数です。次に、スクレイピングされたターゲットを含める必要があるシャードを認識します。
+
+たとえば、 `custom-values.yaml`ファイルに以下を含めるとします。
+
+```yaml
+# (...)
+sharding:
+  total_shards_count: 2
+# (...)
+```
+
+次に、次を実行してリリースをアップグレードします。
+
+```shell
+helm upgrade my-prometheus-release newrelic-prometheus-configurator/newrelic-prometheus-agent -f custom-values.yaml
+```
+
+次に、2 つのプロメテウス サーバーが実行され、各ターゲットはそのうちの 1 つによってのみスクレイピングされます。
+
+例の図は次のようになります。
+
+<img
+  src="/images/infrastructure_diagram_prometheus-sharding.webp"
+  alt="Prometheus sharding"
+  title="Prometheus sharding"
+/>
+
+### ターゲットスクレーパーの識別 [#target-scraper-id]
+
+シャード ID ( `StatefulSet Pod`の名前) が`prometheus_server`ラベルとしてすべての指標に追加され、これを使用して、どの Prometheus インスタンスが各ターゲットをスクレイピングしているかを理解できます。
+
+アカウント内で Prometheus サーバー インスタンスを一意に識別するには、 `cluster_name`と`prometheus_server`のラベルを組み合わせて使用する必要があります。
+
+### 自己指標 [#self-metrics]
+
+Prometheus サーバーの自己メトリックは、すべての Prometheus サーバーから収集する必要があるため、シャーディングが構成されている場合の追加のルールは、prometheus 自己メトリックを収集するジョブには適用されません。これが可能なのは、エージェントが`static_target`ジョブで`skip_sharding`フラグを受け入れるためです。このパラメータは、デフォルトのセルフ メトリクス ジョブですでに設定されています。
+
+### 制限 [#limitations]
+
+`extra_scrape_configs`として構成に追加のスクレイプ ジョブを含める場合、そのフィールドにはプロメテウス ジョブの生の定義が保持されるため、エージェントはシャーディング構成に対応するルールを含めず、その結果、対応するターゲットはすべてのプロメテウス サーバー。
+
+現在、自動スケーリングはサポートされていません。シャードの数を増減するには、チャート設定を更新する必要があります。これにより、prometheus ポッドが再起動されます。
