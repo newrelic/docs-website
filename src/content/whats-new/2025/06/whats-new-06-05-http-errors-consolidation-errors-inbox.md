@@ -7,7 +7,7 @@ releaseDate: "2025-06-05"
 ## Changes:
 
 - **Enhanced URL Grouping:** Errors will now be grouped by requestDomain + requestPath instead of only requestDomain
-- * **Intelligent Resource URL Handling:** Special handling for resource URLs is now available (images, videos, static content, etc.,)
+- **Intelligent Resource URL Handling:** Special handling for resource URLs is now available (images, videos, static content, etc.,)
     *   File names in URLs will be replaced with <FILE_NAME> placeholder
     *   Image size directories in URLs will be replaced with <FILE_SIZE_DIRECTORY> placeholder
     *   Numbers in between forward slashes will be replaced with <NUMBER_IN_URL> placeholder
@@ -20,9 +20,9 @@ releaseDate: "2025-06-05"
 
 ## Examples
 
-- * **Before:**
+- **Before:**
     *   cdn.example.com/101010/image/300/300/user-images/example.png
-- * **After:** Special handling for resource URLs is now available (images, videos, static content, etc.,)
+- **After:** Special handling for resource URLs is now available (images, videos, static content, etc.,)
     *   cdn.example.com/<NUMBER_IN_URL>/image/<FILE_SIZE_DIRECTORY>/user-images/<FILE_NAME>
 
 ![triage tab](/images/errors-inbox-http-errors-triage.webp "triage tab")
