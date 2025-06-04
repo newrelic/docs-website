@@ -1,10 +1,12 @@
-**Title: New Relic AI access and billing update beginning June 4th, 2025**
-
-**Summary: New Relic AI usage is now billable under New Relic Compute pricing plans**
+---
+title: 'New Relic AI access and billing update beginning June 4th, 2025'
+summary: 'New Relic AI usage is now billable under New Relic Compute pricing plans'
+releaseDate: '2025-06-04'
+---
 
 **New Relic AI** (NRAI) is your observability and problem-solving assistant, allowing you to discover problems, troubleshoot issues, and explore your telemetry data using plain language—all directly inside the New Relic platform or via natural language interfaces on other platforms, such as GitHub Copilot and ServiceNow NOW Assist. Powered by advanced AI models and New Relic’s tried-and-true observability features, NRAI brings speed, clarity, and automation to everyday engineering and reliability tasks.
 
-**Key things to know about today’s news:**
+## Key things to know about today’s news
 
 * NRAI experiences on the New Relic platform are **generally available (GA) as of June 4, 2025**. Agentic Integrations, which connect users to New Relic AI capabilities from other platforms like GitHub Copilot and ServiceNow, will remain in preview until July 15, 2025.  
 * Some AI capabilities now **consume Advanced Compute Units (aCCUs)**, which means you will need to have New Relic’s Advanced Compute SKU to continue using NRAI beyond GA.  
@@ -13,7 +15,7 @@
 
 During the preview period, all AI usage was free. Starting at GA, specific NRAI capabilities will begin consuming aCCUs.
 
-**Learn More**
+## Learn More
 
 * [New Relic AI](https://docs.newrelic.com/docs/agentic-ai/new-relic-ai/)  
 * [Agentic Integrations](https://newrelic.com/platform/agentic-integrations)  
