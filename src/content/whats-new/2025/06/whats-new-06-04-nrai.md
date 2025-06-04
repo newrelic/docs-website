@@ -5,14 +5,18 @@ releaseDate: '2025-06-04'
 learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/new-relic-ai'
 ---
 
-The power of intelligent observability is now easier to access than ever before through New Relic AI, leveraging leading large language models (LLMs) within our New Relic AI assistant to help you understand both your system and the New Relic platform itself. Using natural language processing (NLP), you can ask New Relic AI questions to gain deeper insights and faster resolution throughout your digital estate. You can leverage New Relic AI to help you demystify the complexity of your stack, ensure uptime, and turn your business-critical data into actionable insight so you can maximize decision-making and improve your bottom line.
+New Relic AI is your observability and problem-solving assistant, allowing you to discover problems, troubleshoot issues, and explore your telemetry data using plain language—all directly inside the New Relic platform or via natural language interfaces on other platforms, such as GitHub Copilot and ServiceNow NOW Assist. Powered by advanced AI models and New Relic’s tried-and-true observability features, New Relic AI brings speed, clarity, and automation to everyday engineering and reliability tasks.
 
-You can chat with our AI, interact with it in the NRQL console, or work with our AI tools directly in the UI, or use our integrations with other AI assistants like GitHub CoPilot.
+## Key things to know about today’s news:
+- New Relic AI experiences on the New Relic platform are **generally available (GA) as of June 4, 2025**. Agentic Integrations, which connect users to New Relic AI capabilities from other platforms like GitHub Copilot and ServiceNow, will remain in preview until July 15, 2025.
+- Some AI capabilities now **consume Advanced Compute Units (aCCUs)**, which means you will need to have New Relic’s Advanced Compute SKU to continue using New Relic AI beyond GA.
+- **Unlike many copilots, New Relic AI is not shelfware**. You only pay for what you use — most New Relic AI features are triggered manually.
+- You can track all AI usage transparently through your Compute Usage dashboard.
 
-We're providing you with increased control over New Relic AI and associated costs starting May 6th: Monitor consumption: Track your consumption using our Usage UI to understand your data usage related to New Relic AI features. Modify access to New Relic AI capabilities: If you need to modify access to New Relic AI for your organization, refer to our user management docs for how to configure role-based access using New Relic groups and roles.
+During the preview period, all AI usage was free. Starting at GA, specific New Relic AI capabilities will begin consuming aCCUs.
 
-If you make no changes and your organization has the Advanced Compute add-on provisioned for your account, New Relic AI feature usage will contribute to your overall monthly product usage. If you make no changes and your organization does not have the Advanced Compute add-on, New Relic AI features will be unavailable. Please reach out to your New Relic representative for help with upgrading your account.
 
 Learn more
 - [New Relic AI](/docs/agentic-ai/new-relic-ai/)
+- [Agentic integrations](https://newrelic.com/platform/agentic-integrations)
 - [New Relic Advanced Compute add-on](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/add-on-billing/)
