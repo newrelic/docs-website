@@ -1,0 +1,1015 @@
+---
+title: "NerdGraph tutorial: Record Deployment Markers to Enable Change Tracking Capabilities"
+tags:
+    - NerdGraph
+    - Deployments
+    - Change Tracking
+metaDescription: Use NerdGraph to record deployment events enriched with contextual data like type, subtype, deep links, commit SHA and more.
+freshnessValidatedDate: never
+---
+
+Our [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) allows you to record deployment markers that will enable New Relic Change Tracking features that help you understand how changes affect the performance and quality of your system. 
+
+## Requirements [#requirements]
+
+Requirements include: 
+* [General NerdGraph requirements](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#authentication)
+* Relevant user permissions: the same [synthetic monitoring permissions](/docs/synthetics/synthetic-monitoring/administration/user-roles-synthetic-monitoring) that apply for using the synthetics UI apply for using NerdGraph
+
+## Deployment Event Basics [#deployment-event-basics]
+* Change Tracking Deployment Events are anchor points within the greater context of your application telemetry, logs, errors, incidents, and other health and performance indicators. Once you start recording deployments, you will see them drawn on charts in APM, Mobile, Browser, Dashboards, and elsewhere. You can also access them via the Deployments option on an Entity’s sidebar. This unlocks Change Tracking impact analysis interfaces. See [Change Tracking experience](/docs/change-tracking/change-tracking-introduction).
+* Every deployment event recorded by New Relic is stored in NRDB and will be queryable via NRQL and NerdGraph. Example queries and information on where to look for deployments data are included in this guide.
+* Every deployment event must be directly associated with one New Relic Entity, and for now this relationship must be established when the deployment event is created.
+* Multiple deployment events can be related to one another using the `GROUPID` attribute (described in detail below). This may be useful in scenarios where a single “release” or action deploys updates to multiple parts of a system represented by New Relic Entities.
+* Deployments can also be indirectly related to one another via Entity Relationships. Deployment events on different Entities can be automatically visualized and seen together on charts and in lists across New Relic if their Entities are related. For more on Entity Relationships, see this [NerdGraph tutorial](/docs/apis/nerdgraph/examples/nerdgraph-relationships-api-tutorial/). 
+
+## Understand fields in NerdGraph explorer [#fields]
+
+You can find field definitions in [NerdGraph GraphiQL explorer](docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#explorer), but it may help to better understand the `deploymentId`, `COMMIT`, `VERSION`, `GROUPID`, and `DEEPLINK` and other Change Tracking fields that will help you get the most out of recorded changes and New Relic’s impact analysis features.
+
+<CollapserGroup>
+  <Collapser
+    id="location-field"
+    title="Define location fields"
+  >
+To identify a [private location](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) in your scripts, use the private location's entity GUID. To verify that a script executes successfully, also include the `vsePassword` attribute. For example: 
+
+```
+locations: {
+  private: {
+    guid: `LOCATION_ENTITY_GUID`, 
+    vsePassword: `YOUR_VSE_PASSWORD`
+  }
+}
+```
+
+Public locations use the location identifier without AWS_, for example: 
+
+```
+locations: {
+  public: ["US_EAST_2", "US_WEST_1"]
+}
+``` 
+
+  </Collapser>
+
+  <Collapser
+    id="period-attribute"
+    title="Define period fields"
+  >
+The `PERIOD` attribute defines a time interval for your monitors to execute. To define the interval, use these forms:
+
+* `EVERY_MINUTE` for every minute. 
+* `EVERY_N_MINUTES`, where 'N' is minutes. Supported values include `EVERY_5_MINUTES`, `EVERY_10_MINUTES`, `EVERY_15_MINUTES`, and `EVERY_30_MINUTES`.
+* `EVERY_HOUR` for every hour.
+* `EVERY_N_HOURS`, where 'N' is hours. Supported values include `EVERY_6_HOURS` and `EVERY_12_HOURS`. 
+* `EVERY_DAY` for once a day. 
+
+</Collapser>
+
+  <Collapser
+    id="tags-attribute"
+    title="Define tags fields"
+  >
+Tags are optional. You can add tags during monitor creation, or later using tagging calls in NerdGraph or the UI. Multiple tags can be added in a single mutation call using an array that contains keys and values.
+
+  </Collapser>
+
+  <Collapser
+    id="optional-fields"
+    title="Define optional fields"
+  >
+Some fields are for more advanced configurations. These are optional. 
+
+For [ping monitors](#create-ping), these include:
+
+* `HEADER_NAME`: Your custom header names that appear on the request.
+* `HEADER_VALUE`: The custom header value on the request. 
+* `REDIRECT_IS_FAILURE`: Your monitor reports a failure if it's redirected. 
+* `VALIDATION_TEXT`: If this text is not included in your monitor's response, it returns a failure. 
+* `TLS_VALIDATION`: Verifies the [validity](/docs/synthetics/synthetic-monitoring/using-monitors/add-edit-monitors/#simple) of the SSL certificate chain. 
+
+For [simple browser monitors](#create-simple-browser):
+
+* `RUNTIME_TYPE`: The runtime type used by your monitor. "CHROME_BROWSER" is the only accepted value.
+* `RUNTIME_TYPE_VERSION`: The runtime type version used by your monitor. "100" is the only accepted value. 
+* `SCRIPT_LANGUAGE`: The language used in your monitor. "JAVASCRIPT" is the only accepted value. 
+
+For [scripted API monitors](#create-scripted-API):
+
+* `SCRIPT_CONTENT`: The actual contents of the script. This should **not** be based64 encoded. 
+* `RUNTIME_TYPE`: The runtime type used by your monitor. "NODE_API" is the only accepted value.
+* `RUNTIME_TYPE_VERSION`: The runtime type version used by your monitor. The only accepted value is `16.10`. 
+* `SCRIPT_LANGUAGE`: The language used in your monitor. "JAVASCRIPT" is the only accepted value. 
+
+For [scripted browser monitors](#create-scripted-browser):
+
+* `SCRIPT_CONTENT`: The actual contents of the script. This should **not** be based64 encoded. 
+* `RUNTIME_TYPE`: The runtime type used by your monitor. "CHROME_BROWSER" is the only accepted value.
+* `RUNTIME_TYPE_VERSION`: The runtime type version used by your monitor. "100" is the only accepted value. 
+* `SCRIPT_LANGUAGE`: The language used in your monitor. "JAVASCRIPT" is the only accepted value. 
+
+For [certificate check monitors](#create-certificate-check):
+
+* `DAYS_UNTIL_EXPIRATION`: Notifies you when you need to update your certificate. For example, if you wanted a notification 30 days before the certificate expires, you would input 30. 
+
+</Collapser>
+
+</CollapserGroup>
+
+## Use queries to retrieve data [#query]
+
+Queries make requests to fetch data. To learn additional query capabilities available to your synthetic entities, check out [NerdGraph entities API tutorial](/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/).
+
+<CollapserGroup>
+
+  <Collapser
+    id="query-examples"
+    title="Query monitors"
+  >
+
+  You can query your synthetic monitors to get current status information about your data or details about the monitor configuration. Some query examples include: 
+
+```
+{
+  actor {
+    entitySearch(query: "domain = 'SYNTH' AND type = 'MONITOR'") {
+      results {
+        entities {
+          ... on SyntheticMonitorEntityOutline {
+            guid
+            name
+            accountId
+            monitorType
+            tags {
+              key
+              values
+            }
+          }
+        }
+      }
+    }
+  }
+}
+``` 
+  </Collapser>
+
+  <Collapser
+    id="private-examples"
+    title="Query private locations"
+  >
+
+  You're able to query your private locations:
+
+```
+{
+  actor {
+    entitySearch(query: "domain = 'SYNTH' AND type = 'PRIVATE_LOCATION'") {
+      results {
+        entities {
+          accountId
+          guid
+          name
+          tags {
+            key
+            values
+          }
+        }
+      }
+    }
+  }
+}
+``` 
+
+  </Collapser>
+
+  <Collapser
+    id="credentials-example"
+    title="Query secure credentials"
+  >
+
+  Querying secure credentials lets you retrieve metadata only, but not the credential values themselves:
+
+```
+{
+  actor {
+    entitySearch(query: "domain = 'SYNTH' AND type = 'SECURE_CRED'") {
+      results {
+        entities {
+          ... on SecureCredentialEntityOutline {
+            accountId
+            guid
+            name
+            tags {
+              key
+              values
+            }
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+}
+```
+  </Collapser>
+
+  <Collapser
+    id="query-script-example"
+    title="Query monitor script"
+  >
+  Retrieve the script used in a scripted API or scripted browser monitor. Other monitor types will return an error. 
+```
+{
+  actor {
+    account(id: `YOUR_ACCOUNT_ID`) {
+      synthetics {
+        script(monitorGuid: "`ENTITY_GUID`") {
+          text
+        }
+      }
+    }
+  }
+}
+```
+    </Collapser>
+
+    <Collapser
+    id="query-steps-example"
+    title="Query monitor steps"
+    >
+    Retrieve the steps configured for a step monitor. Other monitor types will return an error.
+```
+{
+  actor {
+    account(id: `YOUR_ACCOUNT_ID`) {
+      synthetics {
+        steps(monitorGuid: "`ENTITY_GUID`") {
+          ordinal
+          type
+          values
+        }
+      }
+    }
+  }
+}
+```
+    </Collapser>
+
+</CollapserGroup>
+
+## Create your synthetic monitors [#create-monitors]
+
+Below are some sample requests to automate the creation of your synthetic monitors. 
+
+<Callout variant="tip">
+  Include the runtime object that includes `runtimeType`, `runtimeTypeVersion`, and `scriptLanguage` to use a newer runtime. Do not include the runtime object and these attributes to continue using a legacy runtime.
+</Callout>
+
+<CollapserGroup>
+
+  <Collapser
+    id="create-ping"
+    title="Create a ping monitor"
+  >
+  Ping monitors check that your application is running. Here's an example for creating one in NerdGraph: 
+
+```
+  mutation {
+    syntheticsCreateSimpleMonitor (
+      accountId: `YOUR_ACCOUNT_ID` 
+      monitor: {
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`YOUR_MONITOR_NAME`", 
+        period: `PERIOD`, 
+        status: `STATUS`, 
+        uri: "`MONITORED_URI`", 
+        advancedOptions: {
+          customHeaders: {
+            name: "`HEADER_NAME`", 
+            value: "`HEADER_VALUE`"
+          }, 
+          redirectIsFailure: `REDIRECT_IS_FAILURE`, 
+          responseValidationText: "`VALIDATION_TEXT`", 
+          shouldBypassHeadRequest: `BYPASS_HEAD_REQUEST`, 
+          useTlsValidation: `TLS_VALIDATION`
+        }
+      }
+  ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+</Collapser>
+<Collapser
+    id="create-simple-browser"
+    title="Create a simple browser monitor"
+  >
+Simple browser monitors use Chrome instances to mimic customer visits. Here's an example for creating one in NerdGraph: 
+
+```
+  mutation {
+    syntheticsCreateSimpleBrowserMonitor (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      monitor: {
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`YOUR_MONITOR_NAME`", 
+        period: `PERIOD`, 
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        status: `STATUS`, 
+        uri: "`MONITORED_URI`", 
+        advancedOptions: {
+          customHeaders: {
+            name: "`HEADER_NAME`", 
+            value: "`HEADER_VALUE`"
+          }, 
+          enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`, 
+          responseValidationText: "`VALIDATION_TEXT`", 
+          useTlsValidation: `TLS_VALIDATION`
+        }
+      ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+</Collapser>
+
+<Collapser
+    id="create-scripted-browser"
+    title="Create a scripted browser"
+  >
+
+  [Scripted browser monitors](/docs/synthetics/synthetic-monitoring/scripting-monitors/introduction-scripted-browser-monitors) are more complex interactions with your pages and applications. Here's an example for creating one in NerdGraph: 
+  
+```
+  mutation {
+    syntheticsCreateScriptBrowserMonitor (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      monitor: { 
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`MONITOR_NAME`", 
+        period: `PERIOD`,
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        script: "`SCRIPT_CONTENT`", 
+        status: `STATUS`, 
+        advancedOptions: {
+          enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`
+        }
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+</Collapser>
+
+<Collapser
+    id="create-scripted-API"
+    title="Create a scripted API monitor"
+  >
+
+[Scripted API monitors](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests) check your API endpoints. Here's an example for creating one in NerdGraph: 
+
+```
+  mutation {
+    syntheticsCreateScriptApiMonitor (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      monitor: {
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`YOUR_MONITOR_NAME`", 
+        period: `PERIOD`,
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        script: "`SCRIPT_CONTENT`", 
+        status: `STATUS`
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+
+  </Collapser>
+
+  <Collapser
+    id="create-step"
+    title="Create a step monitor"
+  >
+  Step monitors provide codeless multi-step browser based monitors. Here's an example for creating one in NerdGraph: 
+
+  ```
+mutation {
+  syntheticsCreateStepMonitor (
+    accountId: `NR_ACCOUNT_ID`, 
+    monitor: {
+      locations: {
+        public: ["`LOCATION_1`", "`LOCATION_2`"]
+        },  
+      name: "`MONITOR_NAME`", 
+      period: `PERIOD`, 
+      status: `STATUS`, 
+      steps: [{
+        ordinal: 0, 
+        type: NAVIGATE, 
+        values: ["`MONITORED_URI`"],["`USER_AGENT`"]
+        },{
+        ordinal: `STEP_NUMBER`,
+        type: `STEP_TYPE`,
+        values: ["`CONDITIONAL_TYPE`","`VALUE`"]
+      }]
+      advancedOptions: {
+        enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`
+      }
+    }
+  ) {
+      errors {
+        description
+        type
+      }
+  }
+}
+  ```
+
+  </Collapser>
+
+  <Collapser
+    id="create-certificate-check"
+    title="Create a certificate check monitor"
+  >
+
+Set up monitors to notify you when your SSL certificates are about to expire. Here's an example for creating one in NerdGraph:  
+
+```
+  mutation {
+    syntheticsCreateCertCheckMonitor (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      monitor: {
+        domain: "`DOMAIN`", 
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          },
+        name: "`YOUR_MONITOR_NAME`", 
+        numberDaysToFailBeforeCertExpires: `DAYS_UNTIL_EXPIRATION`, 
+        period: `PERIOD`, 
+        status: `STATUS`
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+
+  </Collapser>
+
+  <Collapser
+    id="create-broken-links"
+    title="Create a broken links monitor"
+  >
+
+Broken links monitors check the links on a webpage for failure. Here's an example for creating one in NerdGraph: 
+
+```
+mutation {
+  syntheticsCreateBrokenLinksMonitor (
+    accountId: `YOUR_ACCOUNT_ID`, 
+    monitor: {
+      locations: {
+        public: ["`LOCATION_1`", "`LOCATION_2`"]
+        }, 
+      name: "`YOUR_MONITOR_NAME`", 
+      period: `PERIOD`, 
+      status: `STATUS`, 
+      uri: "`MONITOR_URI`", 
+      tags: {
+        key: "`YOUR_TAG_NAME`", 
+        values: "`TAG_VALUE`"
+        }
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+  }
+}
+
+```
+
+  </Collapser>
+</CollapserGroup> 
+
+## Update your synthetic monitors [#update-monitors]
+
+While you can't change the monitor type after creating it, you can update its settings. Only the guid and the settings that need updated are required as part of the request.
+
+<Callout variant="tip">
+  Include the runtime object that includes runtimeType, runtimeTypeVersion, and scriptLanguage to [upgrade a monitor](#upgrade-monitor-runtime) to use a newer runtime. Do not include this object and these attributes to continue using a legacy runtime.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="update-ping"
+    title="Update a ping monitor"
+  >
+
+Use this to update your ping monitors: 
+
+```
+mutation {
+  syntheticsUpdateSimpleMonitor (
+    guid: "`ENTITY_GUID`", 
+    monitor: {
+      locations: {
+        public: ["`LOCATION_1`", "`LOCATION_2`"]
+      },  
+      name: "`YOUR_MONITOR_NAME`", 
+      period: `PERIOD`, 
+      status: `STATUS`, 
+      uri: "`MONITORED_URI`", 
+      advancedOptions: {
+        customHeaders: {
+          name: "`HEADER_NAME`", 
+          value: "`HEADER_VALUE`"
+        }, 
+        redirectIsFailure: `REDIRECT_IS_FAILURE`, 
+        responseValidationText: "`VALIDATION_TEXT`", 
+        shouldBypassHeadRequest: `BYPASS_HEAD_REQUEST`, 
+        useTlsValidation: `TLS_VALIDATION`
+      }
+    }
+  ) {
+    errors {
+      description
+      type
+    }
+  }
+}
+```
+
+  </Collapser>
+
+  <Collapser
+    id="update-simple-browser"
+    title="Update a simple browser monitor"
+  >
+To update a simple browser monitor (including the ability to upgrade the runtime version), use this:
+```
+  mutation {
+    syntheticsUpdateSimpleBrowserMonitor (
+      guid: `ENTITY_GUID`, 
+      monitor: {
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`YOUR_MONITOR_NAME`", 
+        period: `PERIOD`, 
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        status: `STATUS`, 
+        uri: "`MONITORED_URI`", 
+        advancedOptions: {
+          customHeaders: {
+            name: "`HEADER_NAME`", 
+            value: "`HEADER_VALUE`"
+          }, 
+          enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`, 
+          responseValidationText: "`VALIDATION_TEXT`", 
+          useTlsValidation: `TLS_VALIDATION`
+        }
+      ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+  </Collapser>
+
+  <Collapser
+    id="update-scripted-browser"
+    title="Update a scripted browser monitor"
+  >
+To update a scripted browser monitor (including the ability to upgrade the runtime version), use this:
+```
+  mutation {
+    syntheticsUpdateScriptBrowserMonitor (
+      guid: `ENTITY_GUID`, 
+      monitor: { 
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`MONITOR_NAME`", 
+        period: `PERIOD`,
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        script: "`SCRIPT_CONTENT`", 
+        status: `STATUS`, 
+        advancedOptions: {
+          enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`
+        }
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+  </Collapser>
+
+  <Collapser
+    id="update-API-test"
+    title="Update an API test monitor"
+  >
+To update a scripted API monitor (including the ability to upgrade the runtime version), use this:
+
+```
+  mutation {
+    syntheticsUpdateScriptApiMonitor (
+      guid: `ENTITY_GUID`, 
+      monitor: {
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          }, 
+        name: "`YOUR_MONITOR_NAME`", 
+        period: `PERIOD`,
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`",
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`",
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+        }
+        script: "`SCRIPT_CONTENT`", 
+        status: `STATUS`
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+
+```
+  </Collapser>
+
+  <Collapser
+    id="update-step"
+    title="Update a step monitor"
+  >
+
+  Use this to update a step monitor:
+```
+mutation {
+  syntheticsCreateStepMonitor (
+    accountId: `NR_ACCOUNT_ID`, 
+    monitor: {
+      locations: {
+        public: ["`LOCATION_1`", "`LOCATION_2`"]
+        },  
+      name: "`MONITOR_NAME`", 
+      period: `PERIOD`, 
+      status: `STATUS`, 
+      steps: [{
+        ordinal: 0, 
+        type: NAVIGATE, 
+        values: ["`MONITORED_URI`"],["`USER_AGENT`"]
+        },{
+        ordinal: `STEP_NUMBER`,
+        type: `STEP_TYPE`,
+        values: ["`VALUE_1`","`VALUE_2`"]
+      }]
+      advancedOptions: {
+        enableScreenshotOnFailureAndScript: `ENABLE_SCREENSHOT`
+      }
+    }
+  ) {
+      errors {
+        description
+        type
+      }
+  }
+}
+```
+  </Collapser>
+
+  <Collapser
+    id="update-certificate-check"
+    title="Update a certificate check monitor"
+  >
+Use this to update a certificate check monitor:
+```
+  mutation {
+    syntheticsUpdateCertCheckMonitor (
+      guid: `ENTITY_GUID`, 
+      monitor: {
+        domain: "`DOMAIN`", 
+        locations: {
+          public: ["`LOCATION_1`", "`LOCATION_2`"]
+          },
+        name: "`YOUR_MONITOR_NAME`", 
+        numberDaysToFailBeforeCertExpires: `DAYS_UNTIL_EXPIRATION`, 
+        period: `PERIOD`, 
+        status: `STATUS`
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+```
+  </Collapser>
+
+  <Collapser
+    id="update-broken-links"
+    title="Update a broken links monitor"
+  >
+Use this to update a broken links monitor:
+    
+```
+mutation {
+  syntheticsUpdateBrokenLinksMonitor (
+    guid: `ENTITY_GUID`, 
+    monitor: {
+      locations: {
+        public: ["`LOCATION_1`", "`LOCATION_2`"]
+        }, 
+      name: "`YOUR_MONITOR_NAME`", 
+      period: `PERIOD`, 
+      status: `STATUS`, 
+      uri: "`MONITOR_URI`", 
+      tags: {
+        key: "`YOUR_TAG_NAME`", 
+        values: "`TAG_VALUE`"
+        }
+      }
+    ) {
+      errors {
+        description
+        type
+      }
+  }
+}
+```
+  </Collapser>
+
+  <Collapser
+    id="upgrade-monitor-runtime"
+    title="Upgrade a monitor's runtime"
+    >
+You can use the below example to update a simple browser, scripted API, or scripted browser monitor to the new Chrome 100 or Node 16.10 runtimes. The following example upgrades a scripted browser monitor to the new runtime from the legacy runtime. 
+
+* To update a simple browser monitor using the below example, change the mutation to `syntheticsUpdateSimpleBrowserMonitor` instead of `syntheticsUpdateScriptBrowserMonitor`. 
+* To update a scripted API monitor using the below example, change the mutation to `syntheticsUpdateScriptApiMonitor` instead of `syntheticsUpdateScriptBrowserMonitor`.
+
+Check out [optional-fields](#optional-fields) for additional details on runtime settings. 
+  ```
+  mutation {
+    syntheticsUpdateScriptBrowserMonitor ( 
+      guid: "<ENTITY_GUID>", 
+      monitor: {
+        runtime: {
+          runtimeType: "`RUNTIME_TYPE`", 
+          runtimeTypeVersion: "`RUNTIME_TYPE_VERSION`", 
+          scriptLanguage: "`SCRIPT_LANGUAGE`"
+          }
+        }
+      ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+  ```
+  </Collapser>
+
+
+</CollapserGroup>
+
+## Delete a synthetic monitor [#delete-monitor]
+
+Use these scripts to delete your monitors: 
+
+<CollapserGroup>
+  <Collapser
+    id="delete-monitor"
+    title="Delete monitor"
+  >
+  Delete a monitor using the monitor entity GUID.
+  ```
+  mutation {
+    syntheticsDeleteMonitor (
+      guid: "`ENTITY_GUID`"
+      ) {
+      errors {
+        description
+      }
+    }
+  }
+  ```
+  </Collapser>
+  
+</CollapserGroup>
+
+## Manage your private locations [#private-locations]
+
+A [private location](/docs/synthetics/synthetic-monitoring/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) allows you to monitor applications behind your firewall. When you create a private location, you install and configure private minions to execute the monitors assigned to that private location. 
+
+<CollapserGroup>
+  <Collapser
+    id="private-location"
+    title="Create a private location"
+  >
+
+  ```
+  mutation{
+    syntheticsCreatePrivateLocation (
+      accountId: `NR_ACCOUNT_ID`,
+      name: "PrivateLocationName",
+      description: "Optional description",
+      verifiedScriptExecution: false
+    ) {
+      guid
+      errors {
+        description
+        type
+      }
+    }
+  }
+  ```
+
+  </Collapser>
+  <Collapser
+    id="private-location"
+    title="Update a private location"
+  >
+  
+  ```
+  mutation {
+    syntheticsUpdatePrivateLocation (
+      guid: `YOUR_ENTITY_GUID`,     
+      description: "EnterYourDescription", 
+      verifiedScriptExecution: true
+    ) {
+    description
+    verifiedScriptExecution
+    errors {
+      description
+      type
+      }
+    }
+  }
+  ```
+
+  </Collapser>
+  <Collapser
+    id="delete-private locations"
+    title="Delete a private location"
+  >
+
+  ```
+  mutation {
+    syntheticsDeletePrivateLocation (
+      guid: `YOUR_ENTITY_GUID`
+      ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+  ```
+  </Collapser>
+  <Collapser
+    id="purge-private-location"
+    title="Purge a private location job queue"
+  >
+
+If you need to clear an unwieldy backlog, use this: 
+
+  ```
+  mutation {
+    syntheticsPurgePrivateLocationQueue (
+      guid: `YOUR_ENTITY_GUID`
+      ) {
+      errors {
+        description
+        type
+      }
+    }
+  }
+  ```
+  </Collapser>
+</CollapserGroup>
+
+## Manage your secure credentials [#secure-credentials]
+
+You use [secure credentials](/docs/synthetics/synthetic-monitoring/using-monitors/store-secure-credentials-scripted-browsers-api-tests) when storing, protecting, and centrally managing protected information used by your monitors, like passwords, API keys, or encoded certificates. Using NerdGraph allows you to programmatically change the values of your secure credentials if you need to reset any credentials for any reason.
+
+<CollapserGroup>
+  <Collapser
+    id="secure-credential"
+    title="Create a secure credential"
+  >
+
+  ```
+  mutation {
+    syntheticsCreateSecureCredential (
+      accountId: `YOUR_ENTITY_GUID`, 
+      description: "YourOptionalDescription", 
+      key: `SECURE_CREDENTIAL_NAME`, 
+      value: `SECURE_CREDENTIAL_VALUE` 
+      ) {
+      errors {
+        description
+      }
+    }
+  }
+  ```
+
+  </Collapser>
+  <Collapser
+    id="update-secure"
+    title="Update a secure credential"
+  >
+
+  ```
+  mutation {
+    syntheticsUpdateSecureCredential (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      description: "YourOptionalDescription", 
+      key: `SECURE_CREDENTIAL_NAME`, 
+      value: `SECURE_CREDENTIAL_VALUE`) {
+      createdAt
+      lastUpdate
+      errors {
+        description
+      }
+    }
+  }
+  ```
+
+  </Collapser>
+  <Collapser
+    id="secure-credential"
+    title="Delete a secure credential"
+  >
+
+  ```
+  mutation {
+    syntheticsDeleteSecureCredential (
+      accountId: `YOUR_ACCOUNT_ID`, 
+      key: `SECURE_CREDENTIAL_NAME`
+      ) {
+      errors {
+        description
+      }
+    }
+  }
+  ```
+  </Collapser>
+</CollapserGroup>
