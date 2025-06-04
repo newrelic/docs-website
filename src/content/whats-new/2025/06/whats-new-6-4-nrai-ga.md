@@ -6,7 +6,7 @@
 
 **Key things to know about today’s news:**
 
-* NRAI experiences on the New Relic platform are **generally available (GA) as of June 4, 2025**. Agentic Integrations, which connect users to New Relic AI capabilities from other platforms like GitHub Copilot and ServiceNow, will remain in preview until July 15, 2025\.  
+* NRAI experiences on the New Relic platform are **generally available (GA) as of June 4, 2025**. Agentic Integrations, which connect users to New Relic AI capabilities from other platforms like GitHub Copilot and ServiceNow, will remain in preview until July 15, 2025.  
 * Some AI capabilities now **consume Advanced Compute Units (aCCUs)**, which means you will need to have New Relic’s Advanced Compute SKU to continue using NRAI beyond GA.  
 * **Unlike many copilots, NRAI is not shelfware.** You only pay for what you use — most NRAI features are triggered manually.  
 * You can track all AI usage transparently through your Compute Usage dashboard.
