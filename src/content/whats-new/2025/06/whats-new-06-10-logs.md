@@ -1,12 +1,12 @@
 ---
-title: "Logs details now also in the query console"
+title: "Logs details view now also in the query console"
 summary: "Logs details can now be expired directly in the new query builder."
 releaseDate: "2025-06-10"
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/#query-ui'
 getStartedLink: ''
 ---
 
-The New Relic query console, located in the drawer at the bottom of the UI across the entire platform, allows you to query and analyze all telemetry data, including logs. Previously, you had to use the separate Logs capability to view log details. Now, the [new unified query console](https://docs.newrelic.com/whats-new/2024/02/whats-new-02-21-new-query-experience/) includes support for logs details, making it easy to explore your logs data without needing to switch to a different querying tool or write NRQL queries.
+The New Relic query console, located in the drawer at the bottom of the UI across the entire platform, allows you to query and analyze all telemetry data, including logs. Previously, you had to use the separate Logs capability to view log details. Now, the [new unified query console](https://docs.newrelic.com/whats-new/2024/02/whats-new-02-21-new-query-experience/) integrates log details, enabling you to effortlessly explore your logs data without switching to a separate querying tool or requiring advanced query language skills.
 
 ![triage tab](/images/whatsnew-logsdetails.webp "triage tab")
 
