@@ -8,7 +8,7 @@ getStartedLink: ''
 
 The New Relic query console, located in the drawer at the bottom of the UI across the entire platform, allows you to query and analyze all telemetry data, including logs. Previously, you had to use the separate Logs capability to view log details. Now, the [new unified query console](https://docs.newrelic.com/whats-new/2024/02/whats-new-02-21-new-query-experience/) includes support for logs details, making it easy to explore your logs data without needing to switch to a different querying tool or write NRQL queries.
 
-[Image to be added]
+![triage tab](/images/whatsnew-logsdetails.webp "triage tab")
 
 ## Key Features:
 
