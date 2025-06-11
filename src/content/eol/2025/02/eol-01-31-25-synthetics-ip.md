@@ -28,9 +28,9 @@ We will be migrating the IP address range for the New Relic service used by Synt
 
   * `64.251.192.0/20`
 
-* After **May 21, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
+* After **May 28, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
 
-**Old IP ranges to remove:** Please refer to the table below for a complete list of current IP ranges **that need to be removed after May 21, 2025**.
+**Old IP ranges to remove:** The following table list the old IP ranges however, it is recommended not to remove the old IP ranges until notified.
 
 <table>
   <thead>
