@@ -9,6 +9,7 @@ import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
 import MDXContainer from '../components/MDXContainer';
 import { getTitle } from '../utils/releaseNotes';
+import { LOCALES } from '../../scripts/actions/utils/constants';
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug, disableSwiftype, currentPage } = pageContext;
@@ -21,7 +22,31 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   const now = useMemo(() => new Date(), []);
 
-  const sortedPosts = posts.slice().sort((a, b) => {
+  const uniquePosts = posts.reduce((acc, post) => {
+    const { slug: postSlug } = post.fields;
+
+    // Check if the postSlug starts with any of the defined locale prefixes
+    const isTranslated = LOCALES.some((locale) =>
+      postSlug.startsWith(`/${locale}/`)
+    );
+
+    if (isTranslated) {
+      acc.push(post);
+    } else {
+      // This is an English post. Check if a translated version exists.
+      const hasTranslation = posts.some(
+        (otherPost) =>
+          otherPost !== post &&
+          getTitle(otherPost.frontmatter) === getTitle(post.frontmatter)
+      );
+      if (!hasTranslation) {
+        acc.push(post);
+      }
+    }
+    return acc;
+  }, []);
+
+  const sortedPosts = uniquePosts.slice().sort((a, b) => {
     // Sort by releaseDate descending
     return (
       new Date(b.frontmatter.releaseDate) - new Date(a.frontmatter.releaseDate)
@@ -107,7 +132,6 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                   key={post.version}
                   css={css`
                     margin-bottom: 2rem;
-
                     &:last-child {
                       margin-bottom: ${isLast ? 0 : '4rem'};
                     }
