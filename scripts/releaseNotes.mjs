@@ -73,7 +73,10 @@ const INCLUDE_AGENTS = new Set([
   'sdk',
   'fluentbit',
   'nrdot',
-  'prometheus'
+  'prometheus',
+  'streaming_for_android',
+  'streaming_for_ios',
+  'streaming_for_others',
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {

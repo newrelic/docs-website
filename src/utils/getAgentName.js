@@ -40,6 +40,9 @@ const AGENTS = {
   'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
   'nrdot-release-notes': 'nrdot',
+  'streaming-android-release-notes': 'streaming_for_android',
+  'streaming-ios-release-notes': 'streaming_for_ios',
+  'streaming-other-release-notes': 'streaming_for_others',
 };
 
 // keeping the naming streamlined and in matching with previous data
