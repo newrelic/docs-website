@@ -1,7 +1,7 @@
 ---
 title: 'Send notifications directly to Microsoft Teams'
 summary: 'New feature lets you integrate natively with Microsoft Teams instead of using webhooks'
-releaseDate: '2025-03-13'
+releaseDate: '2025-06-16'
 ---
 
 
