@@ -74,8 +74,8 @@ const INCLUDE_AGENTS = new Set([
   'fluentbit',
   'nrdot',
   'prometheus',
-  'streaming_for_android',
-  'streaming_for_ios',
+  'streaming_for_mobile',
+  'streaming_for_browser',
   'streaming_for_others',
   'aws_firehose_log_forwarder',
   'aws_lambda_log_forwarder'
