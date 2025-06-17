@@ -77,6 +77,8 @@ const INCLUDE_AGENTS = new Set([
   'streaming_for_android',
   'streaming_for_ios',
   'streaming_for_others',
+  'aws_firehose_log_forwarder',
+  'aws_lambda_log_forwarder'
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {

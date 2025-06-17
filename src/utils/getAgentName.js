@@ -43,6 +43,8 @@ const AGENTS = {
   'streaming-android-release-notes': 'streaming_for_android',
   'streaming-ios-release-notes': 'streaming_for_ios',
   'streaming-other-release-notes': 'streaming_for_others',
+  'aws-firehose-log-forwarder-release-notes': 'aws_firehose_log_forwarder',
+  'aws-lambda-log-forwarder-release-notes': 'aws_lambda_log_forwarder',
 };
 
 // keeping the naming streamlined and in matching with previous data
