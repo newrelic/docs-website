@@ -7,6 +7,12 @@ learnMoreLink: 'https://docs.newrelic.com/docs/browser/browser-monitoring/browse
 
 We're excited to announce significant enhancements to our session replay player, designed to provide richer insights into user experience and performance issues. These updates introduce visual markers for critical events, improved filtering, and a full-screen viewing option, empowering you to quickly pinpoint and address user friction points.
 
+<img
+  title="Session replay player"
+  alt="Image of the enhanced session replay player"
+  src="/images/whats_new_enhanced_session_replay.webp"
+/>
+
 ## Enhanced session replay player
 We've rolled out powerful updates to the session replay player, making it easier than ever to identify, analyze, and resolve user experience and performance problems.
 
@@ -18,13 +24,7 @@ We've rolled out powerful updates to the session replay player, making it easier
     - **Interaction to Next Paint (INP) performance:** A dedicated icon indicates instances of INP performance issues, helping you target interaction bottlenecks.
 - **Smart issue aggregation:** When multiple performance issues occur at the same timestamp, we now display a convenient count badge on the marker. Hover over the marker to see a complete list of all metrics and issues recorded at that specific moment.
 - **Filtered view of visual markers:** A new filtering mechanism allows you to selectively view these visual markers. This enables more focused analysis, helping you cut through the noise and concentrate on the most relevant performance or error events.
-- **"Active Sessions" indicator:** The session replay listing and player view now clearly indicate "Active Sessions." This means the last recorded user activity occurred within the past 30 minutes, allowing you to quickly identify current Browser users or those who recently completed their session. This offers immediate insights into the most current user behavior.
-
-<Callout variant="important">
-
-In the default 30-minute time window, most or all displayed sessions may appear as **Active**. To see a mix of active and completed sessions, expand your time range using the date/time filters.
-
-</Callout>
+- **"Active Sessions" indicator:** The session replay listing and player view now clearly indicate "Active Sessions." This means the last recorded user activity occurred within the past 30 minutes, allowing you to quickly identify current Browser users or those who recently completed their session. This offers immediate insights into the most current user behavior. Note that in the default 30-minute time window, most or all displayed sessions may appear as **Active**. To see a mix of active and completed sessions, expand your time range using the date/time filters.
 
 - **Full screen mode:** Session replays can now be viewed in full-screen mode, providing better visibility and a more immersive experience for detailed analysis of user interactions.
 
