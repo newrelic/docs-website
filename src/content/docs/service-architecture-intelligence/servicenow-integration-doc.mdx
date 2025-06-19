@@ -107,7 +107,85 @@ On the ServiceNow instance, do the following steps to set up the integration:
     
     2. Click **New**, set the name, set **When to run** to **After**, and set **Insert, Update, Delete**.
     
-    3. Set the table to `sys_user_group`, paste the provided script, replace the property name in the script if necessary, and submit the business rule.
+    3. Set the table to `sys_user_group`, paste the following script, replace the property name in the script if necessary, and submit the business rule.
+    
+    ```javascript
+    (function executeRule(current, previous /*null when async*/ ) {
+    try {
+        var signingKeyProp = gs.getProperty('nr_signing_key_real_time_events');
+
+        if (!signingKeyProp) {
+            gs.log('Error: cant get signing key from sys props');
+        }
+
+		var signingKey = GlideStringUtil.base64Encode(signingKeyProp);
+
+        if (!signingKey) {
+            gs.log('Error: base64 signing key is empty');
+        }
+
+        var payload = {};
+        var tableName;
+
+        for (var fieldName in current) {
+            if (current.getElement(fieldName) && typeof current[fieldName] !== 'function') {
+                payload[fieldName] = current.getValue(fieldName);
+            }
+        }
+
+        payload.instance_name = gs.getProperty('instance_name');
+        payload.event_type = '';
+        payload.event_timestamp = new Date().toISOString();
+      
+        if (current.operation() == 'insert') {
+            tableName = current.getTableName();
+            payload.event_type = 'inserted';
+        } else if (current.operation() == 'update') {
+            tableName = current.getTableName();
+            payload.event_type = 'updated';
+        } else if (current.operation() == 'delete') {
+            tableName = previous.getTableName();
+            for (var fieldNamePrev in previous) {
+                if (previous.getElement(fieldNamePrev) && typeof previous[fieldNamePrev] !== 'function') {
+                    payload[fieldNamePrev] = previous.getValue(fieldNamePrev);
+                }
+            }
+            payload.event_type = 'deleted';
+        }
+
+        var jsonPayload = JSON.stringify(payload);
+		var mac = new GlideCertificateEncryption;
+		var signingAlgo = 'HmacSHA256';
+
+        var signature = mac.generateMac(signingKey, signingAlgo, jsonPayload);
+
+        var r = new sn_ws.RESTMessageV2('nr_realtime_event_rest_message', 'post_nr_realtime_event_rest_message');
+        r.setRequestBody(jsonPayload);
+        r.setRequestHeader('Content-Type', 'application/json');
+        r.setRequestHeader('X-NR-Signature-Key', signature);
+        if (tableName) {
+             r.setRequestHeader('X-NR-Data-Type', tableName);
+        } else {
+            gs.log('Error: Table name could not be determined for X-NR-Data-Type header.');
+        }
+        var response = r.execute();
+        var httpStatus = response.getStatusCode();
+        var responseBody = response.getBody();
+
+        if (httpStatus >= 200 && httpStatus < 300) {
+            gs.log('success status : ' + httpStatus);
+        } else {
+            gs.log('failure status : ' + httpStatus + ' reason : ' + responseBody);
+        }
+    } catch (ex) {
+        gs.log('Error happend :'+ex.getMessage());
+    }
+
+})(current, previous);
+
+    ```
+
+    This script captures changes to the `sys_user_group` table and sends real-time events to New Relic, including the operation type (insert, update, delete) and the relevant data.
 
 11. **Finalize Integration.**
 
