@@ -1,7 +1,7 @@
 ---
 title: 'Enhanced session replay player: Visual markers, core web vitals, and full-screen mode'
 summary: "Our session replay player now features visual markers for errors and core web vitals, smart issue aggregation, and a new full-screen mode. These enhancements, along with improved filtering, provide richer insights for faster issue resolution."
-releaseDate: '2025-06-04'
+releaseDate: '2025-06-17'
 learnMoreLink: 'https://docs.newrelic.com/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started'
 ---
 
