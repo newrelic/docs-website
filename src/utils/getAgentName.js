@@ -40,6 +40,8 @@ const AGENTS = {
   'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
   'nrdot-release-notes': 'nrdot',
+  'aws-firehose-log-forwarder-release-notes': 'aws_firehose_log_forwarder',
+  'aws-lambda-log-forwarder-release-notes': 'aws_lambda_log_forwarder',
 };
 
 // keeping the naming streamlined and in matching with previous data
