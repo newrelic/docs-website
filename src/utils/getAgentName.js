@@ -40,6 +40,9 @@ const AGENTS = {
   'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
   'nrdot-release-notes': 'nrdot',
+  'streaming-mobile-release-notes': 'streaming_for_mobile',
+  'streaming-browser-release-notes': 'streaming_for_browser',
+  'streaming-other-release-notes': 'streaming_for_others',
   'aws-firehose-log-forwarder-release-notes': 'aws_firehose_log_forwarder',
   'aws-lambda-log-forwarder-release-notes': 'aws_lambda_log_forwarder',
 };
