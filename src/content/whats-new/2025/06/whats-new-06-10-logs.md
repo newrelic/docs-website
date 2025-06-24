@@ -1,6 +1,6 @@
 ---
 title: "Logs details view now also in the query console"
-summary: "Logs details can now be expired directly in the new query builder."
+summary: "Logs details can now be explored directly in the new query builder."
 releaseDate: "2025-06-10"
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/#query-ui'
 getStartedLink: ''
