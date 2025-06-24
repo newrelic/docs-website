@@ -106,6 +106,10 @@ const generateReleaseNoteObject = async (filePath) => {
     description: (await excerptify(body)) ?? null,
     slug,
   };
+  
+  if (attributes.category) {
+      output.category = attributes.category;
+  }
 
   if (attributes.eolDate) {
     output.eolDate = attributes.eolDate;
