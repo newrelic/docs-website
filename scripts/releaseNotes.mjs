@@ -73,7 +73,12 @@ const INCLUDE_AGENTS = new Set([
   'sdk',
   'fluentbit',
   'nrdot',
-  'prometheus'
+  'prometheus',
+  'streaming_for_mobile',
+  'streaming_for_browser',
+  'streaming_for_others',
+  'aws_firehose_log_forwarder',
+  'aws_lambda_log_forwarder'
 ]);
 
 const generateReleaseNoteObject = async (filePath) => {
@@ -101,6 +106,10 @@ const generateReleaseNoteObject = async (filePath) => {
     description: (await excerptify(body)) ?? null,
     slug,
   };
+  
+  if (attributes.category) {
+      output.category = attributes.category;
+  }
 
   if (attributes.eolDate) {
     output.eolDate = attributes.eolDate;
