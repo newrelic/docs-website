@@ -13,4 +13,4 @@ Key things to know about today’s news:
 - Easily identify areas of inefficient compute usage, starting with alert conditions, and receive specific guidance on how to optimize them for maximum CCU savings.
 - You can transparently track your optimization opportunities and potential savings directly within the Compute Optimizer dashboard in the Admin panel.
 
-To learn more, see [Compute Optimizer](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/compute-optimizer).
+To learn more, see [Compute Optimizer](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/compute-optimizer/).
