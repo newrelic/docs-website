@@ -28,7 +28,7 @@ This update is part of our ongoing work to improve our platform and streamline o
 * Upgrade to a paid plan (if you are on the free tier) to continue using drop rules after the effective date.
 
 ## If no action is taken [#no-action]
-* As of January 7th, 2026, calls to NRQL Drop Filter Rules API will fail i.e. no rules can be created or deleted. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by then. 
+* As of January 7th, 2026, calls to NRQL Drop Filter Rules API will fail i.e. no rules can be created or deleted. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) before then. 
 * If you are on [Pay As You Go](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#pay-as-you-go) or free tier, drop rules will be disabled if your account is not on Advanced Compute before January 7, 2026.
 * If you have a commitment contract, work with your account team to add Advanced Compute before your next renewal to ensure continuous rule processing and authoring. Otherwise, rule creation will be disabled, and existing rules will be turned off at your renewal.
 
