@@ -13,8 +13,8 @@ This update is part of our ongoing work to improve our platform and streamline o
 
 ## What's changing [#whats-changing]
 * The NRQL Drop Filter Rules API will be deprecated and shut off on January 7, 2026.
-* After January 7, 2026, you must use the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/), or the Pipeline Control UI, for all drop rule creation and management.
-* After January 7, 2026, drop rules targeting infrastructure events in `SystemSample`, `ProcessSample`, `NetworkSample`, and `StorageSample` must be used to drop aggregated data.
+* As of January 7, 2026, you must use the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/), or the Pipeline Control UI, for all drop rule creation and management.
+* On January 7, 2026, drop rules targeting infrastructure events in `SystemSample`, `ProcessSample`, `NetworkSample`, and `StorageSample` will drop aggregated data.
 * Renewals after January 7, 2026 will require the use of [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/), which is available with the [Advanced Compute add-on](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/add-on-billing/).
 
 ## What do you need to do [#what-to-do]
@@ -28,7 +28,7 @@ This update is part of our ongoing work to improve our platform and streamline o
 * Upgrade to a paid plan (if you are on the free tier) to continue using drop rules after the effective date.
 
 ## If no action is taken [#no-action]
-* After January 7th, 2026, calls to NRQL Drop Filter Rrules API will fail. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by then. 
+* As of January 7th, 2026, calls to NRQL Drop Filter Rrules API will fail. Migrate to [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/) by then. 
 * If you are on [Pay As You Go](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#pay-as-you-go) or free tier, drop rules will be disabled if your account is not on Advanced Compute at the next renewal after January 7th, 2026.
 * If you have a commitment contract, work with your account team to add Advanced Compute before your next renewal to ensure continuous rule processing and authoring. Otherwise, rule creation will be disabled, and existing rules will be turned off at your renewal.
 
