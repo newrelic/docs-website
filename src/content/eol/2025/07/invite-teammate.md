@@ -2,7 +2,7 @@
 title: 'End of Life Announcement: Invite a Teammate Feature'
 subject: Invite a Teammate Feature
 publishDate: '2025-07-01'
-eolEffectiveDate: '2026-10-01'
+eolEffectiveDate: '2025-10-01'
 ---
 
 
