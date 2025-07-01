@@ -20,13 +20,24 @@ jobs:
         id: check_permission
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
           script: |
             const commenter = context.payload.comment.user.login;
             const org = context.repo.owner;
-            const team_slugs = ['docs-eng', 'DOCS-ENG', 'third-team']; // <-- add your team slugs here
+            const team_slugs = ['doc', 'DOCS-ENG']; // <-- add your team slugs here
 
             console.log(`Organization: ${org}`);
             console.log(`Commenter: ${commenter}`);
+
+            try {
+              const user = await github.rest.users.getAuthenticated();
+              console.log('Authenticated as:', user.data.login);
+              
+              const scopes = await github.request('GET /user');
+              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
+            } catch (error) {
+              console.log('Auth check failed:', error.message);
+            }
 
             // List all teams where the commenter is a member
             async function listUserTeams() {
@@ -90,6 +101,7 @@ jobs:
         uses: dcarbone/install-jq-action@v2
 
       - name: send request to Netlify build hook
+        id: netlify_build
         env: 
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -99,14 +111,26 @@ jobs:
           sha=$(echo $gh_api_response | jq -r .head.sha)
           pr_number=$(echo $gh_api_response | jq -r .number)
 
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+
           curl -X POST \
           "https://api.netlify.com/build_hooks/${{ secrets.NETLIFY_BUILD_HOOK_ID }}?trigger_branch=$branch_name"'&trigger_title=Manual+deploy+preview+for+PR+%23'"$pr_number"'+-+'"$sha"
 
-      - name: comment for Netlify to update with preview URL
+      # This step gets the branch name and replaces any '/' with '-' to match Netlify's URL format.
+      - name: Sanitize branch name for Netlify URL
+        id: sanitize_branch
+        run: |
+          SANITIZED_BRANCH_NAME=$(echo "${{ steps.netlify_build.outputs.branch_name }}" | sed 's/\//-/g')
+          echo "name=$SANITIZED_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      # This step now posts a comment with the dynamically constructed preview URL.
+      - name: Add PR comment with preview URL
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
-            ### <span aria-hidden="true">⏳</span> Netlify Preview Deployment Information
+            ### <span aria-hidden="true">🚀</span> Netlify Preview Ready!
 
-            This comment will auto update when your preview build is ready
+            The branch deployment preview for this pull request is available at the following URL:
+
+            **[https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app](https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app)**
           comment_tag: manual-build-comment
