@@ -50,13 +50,12 @@ const BasicDoc = ({ data, location, pageContext }) => {
   const { disableSwiftype } = pageContext;
 
   useEffect(() => {
-  
     if (typeof window !== 'undefined') {
-      
       const { pathname, hash } = window.location;
       // Redirect for #app-performance
       if (
-        pathname === '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
+        pathname ===
+          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
         hash === '#app-performance'
       ) {
         window.location.replace(
@@ -65,7 +64,8 @@ const BasicDoc = ({ data, location, pageContext }) => {
       }
       // Redirect for #manual-replays
       if (
-        pathname === '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
+        pathname ===
+          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
         hash === '#manual-replays'
       ) {
         window.location.replace(
@@ -74,7 +74,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
       }
     }
   }, []);
-  
+
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
     return (tableOfContents.items ?? []).map(({ title, url }) => {
