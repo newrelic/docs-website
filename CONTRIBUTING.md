@@ -103,9 +103,9 @@ If the workflows are enabled and running, you will want to disable them. You can
 0. Create a [Github](https://github.com/) account if you don't already have one.
 1. `Fork` this this repository.
 2. Make your changes.
-3. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
+3. Before you raise a PR, test your changes! Review the project's [contribution guide](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md#getting-started) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
-5. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
+5. If you really require a preview url, reach out to one of the writers and they will generate one for you.
 6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
 7. And you are done!
 
