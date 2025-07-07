@@ -11,7 +11,6 @@ import {
   useTranslation,
   ComplexFeedback,
   Table,
-  useLocale,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import { TYPES } from '../utils/constants';
@@ -21,23 +20,9 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-// import events from '../data/attribute-dictionary.json';
-import enJson from '../data/attribute-dictionary-en.json';
-import frJson from '../data/attribute-dictionary-fr.json';
+import events from '../data/attribute-dictionary.json';
 
 const AttributeDictionary = ({ location }) => {
-  const { locale } = useLocale();
-  
-  // const locale = 'fr';
-
-  console.log('inside attribute-dictionary locale is: ', locale)
-
-  const events = (() => {
-    if (locale === 'en') return enJson;
-    if (locale === 'fr') return frJson;
-    return enJson;
-  })();
-
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
