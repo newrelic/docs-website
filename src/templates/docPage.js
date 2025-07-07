@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -49,6 +49,32 @@ const BasicDoc = ({ data, location, pageContext }) => {
   } = mdx;
   const { disableSwiftype } = pageContext;
 
+  useEffect(() => {
+  
+    if (typeof window !== 'undefined') {
+      
+      const { pathname, hash } = window.location;
+      // Redirect for #app-performance
+      if (
+        pathname === '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
+        hash === '#app-performance'
+      ) {
+        window.location.replace(
+          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#app-performance'
+        );
+      }
+      // Redirect for #manual-replays
+      if (
+        pathname === '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
+        hash === '#manual-replays'
+      ) {
+        window.location.replace(
+          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/advanced-features/#manual-replays'
+        );
+      }
+    }
+  }, []);
+  
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
     return (tableOfContents.items ?? []).map(({ title, url }) => {
