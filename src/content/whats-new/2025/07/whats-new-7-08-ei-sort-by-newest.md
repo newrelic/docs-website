@@ -16,7 +16,7 @@ The new sorting option appears in the Errors Inbox’s Sort By dropdown alongsid
 <img
   title="Errors Inbox sort by Newest"
   alt="Errors Inbox sort by Newest"
-  src="/images/errors-inbox-sort-by-newest.webp"
+  src="/images/errors-inbox-sort-by-newest.png"
 />
 
 This enhancement streamlines your error management workflow by allowing you to quickly spot emerging issues and newly introduced bugs. Whether you're monitoring a fresh deployment or investigating recent changes, sorting by newest errors helps you focus on what's happening right now in your applications.
