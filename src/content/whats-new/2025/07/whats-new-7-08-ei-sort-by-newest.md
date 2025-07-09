@@ -11,7 +11,7 @@ We're excited to announce that you can now sort errors in your Errors Inbox by n
 
 
 ## How It Works
-The new sorting option appears in the Errors Inbox’s Sort By dropdown alongside existing sorting methods - Occurrences and Last Seen. Simply select "Newest" from the sort dropdown to view your errors with the most recent occurrences at the top of the list.
+The new sorting option appears in the Errors Inbox’s Sort By drop-down alongside existing sorting methods - Occurrences and Last Seen. Select "Newest" from the sort drop-down to view your errors with the most recent occurrences at the top of the list.
 
 
 ![triage-sort-by](/images/errors-inbox-sort-by-newest.webp "triage-sort-by")
