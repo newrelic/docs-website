@@ -1,7 +1,7 @@
 ---
 title: "Pinpoint performance issues: Advanced filtering for page views and Core Web Vitals"
 summary: "Take command of your performance data with our re-engineered filter bar, delivering superior search and granular controls for exact data exploration. Uncover the nuances in your page views and Core Web Vitals to fine-tune user experience."
-releaseDate: "2025-07-08"
+releaseDate: "2025-07-09"
 learnMoreLink: ''
 getStartedLink: ''
 ---
