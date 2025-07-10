@@ -1,0 +1,398 @@
+---
+title: Détails techniques du tracing distribué
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Get started
+metaDescription: 'Technical details of New Relic''s distributed tracing, including limits, explanation of sampling, trace data structure, and trace storage.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Voici quelques détails techniques sur le fonctionnement du tracing distribué New Relic :
+
+* [Comment fonctionne l&apos;échantillonnage de traces](#sampling)
+* [Comment nous structurons les données de trace](#trace-structure)
+* [Comment nous stockons les données de trace](#trace-storage)
+* [Comment le contexte de trace est transmis entre les applications](#headers)
+
+## échantillonnage de traces [#sampling]
+
+La manière dont vos traces sont échantillonnées dépendra de votre configuration et de l&apos;outil de tracing New Relic que vous utilisez. Par exemple, vous pouvez utiliser un service de télémétrie tiers (comme OpenTelemetry) pour implémenter l&apos;échantillonnage des traces avant que vos données ne nous parviennent. Ou, si vous utilisez [Infinite Tracing](/docs/understand-dependencies/distributed-tracing/infinite-tracing/introduction-infinite-tracing), vous nous enverriez probablement toutes vos données de trace et vous vous fieriez à notre échantillonnage.
+
+Nous avons quelques stratégies d&apos;échantillonnage disponibles :
+
+* [Échantillonnage en début de workflow](#head-based) (standard tracing distribué)
+* [Échantillonnage en fin de workflow](#tail-based) (Infinite Tracing)
+* [Pas d&apos;échantillonnage](#no-sampling)
+
+### Échantillonnage en début de workflow (standard tracing distribué) [#head-based]
+
+À l’exception de notre fonctionnalité [Infinite Tracing](#tail-based), la plupart de nos outils de tracing utilisent une approche d’échantillonnage en début de workflow. Cela applique des filtres aux étendues individuelles avant que toutes les étendues d&apos;une trace n&apos;arrivent, ce qui signifie que les décisions concernant l&apos;acceptation des étendues sont prises au début (la « tête ») du processus de filtrage. Nous utilisons cette stratégie d’échantillonnage pour capturer un échantillon représentatif de l’activité tout en évitant les problèmes de stockage et de performances.
+
+Une fois que la première plage d’une trace arrive, une session est ouverte et maintenue pendant 90 secondes. À chaque arrivée ultérieure d&apos;une nouvelle plage pour cette trace, le délai d&apos;expiration est réinitialisé à 90 secondes. les traces qui n&apos;ont pas reçu de span au cours des 90 dernières secondes seront automatiquement fermées. Le résumé de la trace et les données d&apos;étendue ne sont écrits que lorsqu&apos;une trace est fermée.
+
+Voici quelques détails sur la façon dont l&apos;échantillonnage en début de workflow est implémenté dans nos outils de tracing distribué standard :
+
+<CollapserGroup>
+  <Collapser id="trace-origin-sampling" title="Agents linguistiques : échantillonnage adaptatif">
+    Nos agents linguistiques <InlinePopover type="apm" />utilisent l’échantillonnage adaptatif pour capturer un échantillon représentatif de l’activité du système. Ce qui suit est une explication du fonctionnement de l’échantillonnage adaptatif.
+
+    Le débit du premier service d&apos;une trace est utilisé pour ajuster la fréquence d&apos;échantillonnage requests . Ceci est expliqué plus en détail ci-dessous, et vous pouvez également consulter la documentation de votre agent APM.
+
+    Le premier service que nous monitorons dans une tracedistribuée s&apos;appelle la trace d&apos;origine. L&apos;origine trace choisit au hasard requests à tracer. Cette décision se propage aux services en aval concernés par cette demande. Une fois la demande terminée, les intervalles générés par ces requests sont signalés à New Relic et mis à disposition dans l&apos;UI sous forme de trace complète (bien que les limites d&apos;intervalle de l&apos;agent décrites ci-dessous puissent entraîner une trace fragmentée).
+
+    Le service d&apos;origine de trace échantillonne 10 traces par minute. Il tente d&apos;étaler la collecte de ces 10 traces sur une minute afin d&apos;obtenir un échantillon représentatif dans le temps. Le taux d&apos;échantillonnage exact dépend du nombre de transactions au cours de la minute précédente et s&apos;adapte aux changements de débit des transactions.
+
+    Par exemple, s’il y a eu 100 transactions au cours de la minute précédente, l’agent anticiperait un nombre similaire de transactions et sélectionnerait 1 transaction sur 10 à échantillonner au cours de la minute suivante.
+
+    Les agents APM ont une limite sur le nombre d&apos;intervalles collectés par minute, avec une limite par défaut de 2 000 intervalles collectés par minute par instance d&apos;agent (pour savoir comment ajuster cela, consultez la documentation de configuration de l&apos;agent APM). Si un agent génère plus de plages que sa limite configurée en une minute, certaines de ces plages seront supprimées, ce qui entraînera [une trace fragmentée](/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#fragmented-traces) dans l&apos;UI. Les traces se voient attribuer une priorité aléatoire lorsqu&apos;elles sont sélectionnées pour l&apos;échantillonnage. Ainsi, si plusieurs agents doivent supprimer des étendues, ils peuvent tenter de conserver intactes les traces de priorité supérieure en supprimant d&apos;abord les étendues des traces de priorité inférieure.
+  </Collapser>
+
+  <Collapser id="lambda-sampling" title="Lambda échantillonnage de trace">
+    Notre monitoring AWS Lambda utilise [son propre processus d&apos;échantillonnage](/docs/serverless-function-monitoring/aws-lambda-monitoring/ui-data/understand-lambda-data-structure#data-structure).
+  </Collapser>
+</CollapserGroup>
+
+### Échantillonnage en fin de workflow (Infinite Tracing) [#tail-based]
+
+Notre fonctionnalité [Infinite Tracing](/docs/distributed-tracing/infinite-tracing/introduction-infinite-tracing) utilise une approche d’échantillonnage en fin de flux de travail. « Échantillonnage en fin de workflow » signifie que les décisions de conservation tracesont prises à la fin du traitement, une fois que toutes les traces d&apos;une trace sont arrivées.
+
+Avec Infinite Tracing, vous pouvez nous envoyer 100 % de vos données de trace depuis votre application ou un service de télémétrie tiers, et Infinite Tracing déterminera quelles données de trace sont les plus importantes. Et vous pouvez configurer l&apos;échantillonnage pour garantir que les traces importantes pour vous sont conservées.
+
+<Callout variant="important">
+  Étant donné qu&apos;Infinite Tracing peut collecter et transmettre davantage de données de trace à partir de votre application ou d&apos;un service de télémétrie tiers, vous constaterez peut-être que vos coûts de sortie augmentent en conséquence. Nous vous recommandons de garder un œil sur ces coûts lors du déploiement d’Infinite Tracing pour vous assurer que cette solution vous convient.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="infinite-architecture" title="Architecture">
+    Pour l&apos;Infinite Tracing, les agents ou l&apos;intégration envoient 100 % de toutes les étendues instrumentées à un observateur de trace. L&apos;observateur de trace est un service de tracing distribué résidant dans un cluster de services sur AWS appelé New Relic Edge.
+
+    <Callout variant="tip">
+      Seules vos étendues sont transmises à l&apos;observateur de trace : toutes les autres données telles que les métriques, les événements personnalisés et les traces de transaction sont envoyées par la voie normale vers New Relic et sont soumises à un échantillonnage local.
+    </Callout>
+
+    Vous configurez un point de terminaison d’observateur de trace unique pour la région AWS vers laquelle vous souhaitez envoyer des données. Étant donné que le tracing est une fonctionnalité inter-comptes, notre implémentation par défaut consiste à n&apos;autoriser qu&apos;un seul observateur de trace par région et par [famille de comptes](/docs/glossary/glossary/#account-family) (pour en demander plus, parlez-en à votre représentant de compte). Le point de terminaison représente un observateur de trace pour une workload particulière. Par exemple, toutes les étendues d’une seule trace (requête) doivent atteindre ce point de terminaison.
+
+    Voici deux diagrammes d&apos;architecture : l&apos;un montrant comment les données circulent si vous utilisez des <InlinePopover type="apm" />agents et l&apos;autre si vous utilisez l&apos;intégration New Relic comme l&apos;exportateur OpenTelemetry :
+
+    <img title="Here are two diagrams showing the flow of data: one for agents and another for integrations with Infinite Tracing." alt="Here are two diagrams showing the flow of data: one for agents and another for integrations with Infinite Tracing." src="/images/distributed-tracing_diagram_infinite-tracing-overview.webp" />
+
+    L&apos;observateur de trace maintient la trace ouverte pendant que les intervalles pour cette trace arrivent. Une fois que la première plage d’une trace arrive, une session est maintenue ouverte pendant 10 secondes. Chaque fois qu&apos;une nouvelle plage pour cette trace arrive, le délai d&apos;expiration est réinitialisé à 10 secondes. les traces qui n&apos;ont pas vu de span arriver au cours des 10 dernières secondes expireront automatiquement.
+  </Collapser>
+
+  <Collapser id="tail-sampling-strategy" title="Échantillonnage en fin de workflow algorithmes">
+    Par défaut, chaque observateur de trace propose une trace à trois échantillonneurs : l&apos;un recherche une valeur de durée hors norme, l&apos;autre recherche une trace avec des erreurs et l&apos;autre tente d&apos;échantillonner de manière aléatoire tous les types trace . Chaque échantillonneur conserve un pourcentage cible de traces correspondant à ses critères.
+
+    Voici les détails sur chaque échantillonneur :
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "100px" }}>
+            Échantillonneur
+          </th>
+
+          <th>
+            Critères de correspondance
+          </th>
+
+          <th>
+            Pourcentage cible
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Durée
+          </td>
+
+          <td>
+            tracer avec une durée valeur hors norme, à l&apos;aide de deux algorithmes :
+
+            * Gaussien (suppose une distribution normale et un seuil au 99e percentile)
+            * Excentricité (suppose l&apos;absence de distribution et un seuil basé sur le cluster)
+          </td>
+
+          <td>
+            100%
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Erreur
+          </td>
+
+          <td>
+            trace ayant au moins une étendue avec une erreur
+          </td>
+
+          <td>
+            100%
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Aléatoire
+          </td>
+
+          <td>
+            Toutes les traces
+          </td>
+
+          <td>
+            1% (Ceci est configurable. Voir [Infinite Tracing : filtre de trace aléatoire](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-random-trace-filter))
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Si les critères de correspondance correspondent à la trace, chaque échantillonneur examine la forme de la trace. La forme d&apos;une trace est la combinaison unique du nom de l&apos;entité de la portée racine et du nom de la portée. Il s’agit d’un moyen simple de séparer la trace en utilisant le point d’entrée de la requête.
+
+    Une fois la forme déterminée, l&apos;échantillonneur prend la décision de conserver ou de rejeter la trace en fonction de son pourcentage d&apos;échantillonnage cible. Si c&apos;est 100%, la trace est automatiquement conservée. Si la valeur est inférieure, la probabilité que l&apos;échantillonneur conserve une trace donnée est déterminée par le pourcentage cible. Par exemple, le pourcentage cible par défaut est de 1 pour une trace aléatoire, donc 1 % de ces traces sont conservées. Si vous préférez, vous pouvez [modifier le pourcentage du filtre aléatoire](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-random-trace-filter).
+
+    Étant donné que l&apos;observateur de trace utilise des pourcentages de débit, le nombre de traces sélectionnées variera en fonction de ce débit.
+  </Collapser>
+</CollapserGroup>
+
+### Pas d&apos;échantillonnage [#no-sampling]
+
+Certains de nos outils n&apos;utilisent pas d&apos;échantillonnage. Détails d&apos;échantillonnage pour ces outils :
+
+<CollapserGroup>
+  <Collapser id="browser-spans" title="RapportsBrowser de et des appareils mobiles trace">
+    [monitoring des navigateurs traçant distribués](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing) et [monitoring des applications mobiles](/docs/mobile-monitoring/new-relic-mobile-android/get-started/new-relic-mobile-and-dt) signalent toutes les étendues.
+
+    Nos agents linguistiques <InlinePopover type="apm" />sont souvent utilisés en conjonction avec <InlinePopover type="mobile" />et <InlinePopover type="browser" />, et nos agents linguistiques [utilisent l&apos;échantillonnage](#trace-origin-sampling). Cela signifie qu&apos;il y aura probablement beaucoup plus de portées de navigateur et d&apos;applications mobiles que de portées backend, ce qui peut entraîner une déconnexion des portées de navigateur et d&apos;applications mobiles des portées backend . Pour obtenir des conseils sur l&apos;interrogation des traces contenant des étendues frontales et backend, consultez [Rechercher les données d&apos;étendue du navigateur](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing#find-data).
+  </Collapser>
+</CollapserGroup>
+
+### limites de trace [#trace-limits]
+
+Notre système de traitement des données inclut des limites internes pour protéger notre infrastructure contre les surtensions inattendues de données : API de trace, spans d&apos;agent, spans de navigateur, spans mobiles et spans lambda. Cette couche protectrice maintient non seulement l’intégrité de notre plateforme, mais garantit également une expérience fiable et cohérente pour tous nos clients. Nous ajustons ces limites selon les besoins en fonction de diverses conditions, mais elles sont fixées avec une approche prospective. À mesure que nos utilisateurs et nos données augmentent, nous étendons la capacité de notre infrastructure et augmentons ces limites. Cet engagement garantit que nous capturons toutes les données clients qui nous sont envoyées et vous offrons une vue claire et ininterrompue de vos données de trace. Pour vérifier si vous atteignez ces limites, vous pouvez vous référer à l&apos; [UIdes limites](/docs/data-apis/manage-data/view-system-limits/#limits-ui).
+
+## Comment les données de trace sont structurées [#trace-structure]
+
+Comprendre la structure d&apos;une tracedistribuée peut vous aider à :
+
+* Comprendre [comment les traces sont affichées dans notre UI](/docs/apm/distributed-tracing/ui-data/understand-use-distributed-tracing-data)
+* Vous aide [à interroger les données trace](/docs/apm/distributed-tracing/ui-data/example-queries-distributed-trace-data)
+
+Une traces distribuée a une structure arborescente, avec des « span enfant » qui font référence à un « span parent ». Ce diagramme montre certaines relations d&apos;étendue importantes dans une trace :
+
+<img title="trace-structure-diagram.png" alt="New Relic distributed tracing trace structure diagram" src="/images/distributed-tracing_diagram_distributed-tracing-structure.webp" />
+
+<figcaption>
+  Ce diagramme montre comment les étendues distribuées d&apos;une tracesont liées les unes aux autres.
+</figcaption>
+
+Ce diagramme montre plusieurs concepts importants :
+
+* <DNT>**Trace root.**</DNT> Le premier service ou processus d’une trace est appelé service ou processus <DNT>**root**</DNT> .
+
+* <DNT>**Process boundaries**</DNT>. Un processus représente l’exécution d’un morceau de code logique. Des exemples de processus incluent un service backend ou une fonction Lambda. Les intervalles au sein d&apos;un processus sont classés comme suit :
+
+  * <DNT>**Entry span**</DNT>:la première travée d&apos;un processus.
+  * <DNT>**Exit span**</DNT>:un span est considéré comme un span de sortie s&apos;il a) est le parent d&apos;un span d&apos;entrée, ou b) a l&apos;attribut `http.` ou `db.` et représente donc un appel externe.
+  * <DNT>**In-process span**</DNT>: une étendue qui représente un appel de méthode ou une fonction interne et qui n&apos;est pas une étendue de sortie ou d&apos;entrée.
+
+* <DNT>**Client spans**</DNT>. Un client span représente un appel vers une autre [entité](/docs/using-new-relic/welcome-new-relic/get-started/glossary#entity) ou dépendance externe. Actuellement, il existe deux types de clients SPAN :
+
+  * <DNT>**Datastore**</DNT>. Si un client span possède un attribut préfixé par `db.` (comme `db.statement`), il est classé comme un span datastore .
+  * <DNT>**External**</DNT>. Si un client span a un attribut préfixé par `http.` (comme `http.url`) ou a un span enfant dans un autre processus, il est classé comme un span externe. Il s&apos;agit d&apos;une catégorie générale pour tous les appels externes qui ne sont pas des requêtes datastore . Si une étendue externe contient `http.url` ou `net.peer.name`, elle est indexée sur la page [Services externes](/docs/apm/apm-ui-pages/monitoring/external-services/external-services-intro) .
+
+* <DNT>**Trace duration**</DNT>La durée totale d&apos;une trace est déterminée par la durée écoulée entre le début de la première période et la fin de la dernière période.
+
+Vous pouvez interroger les données de relation d&apos;étendue avec l&apos; [explorateur NerdGraph GraphiQL](/docs/apis/graphql-api/tutorials/query-distributed-trace-data-using-graphql-api) sur [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql).
+
+## Comment les données de trace sont stockées [#trace-storage]
+
+Comprendre comment nous stockons les données trace peut vous aider [à interroger vos données trace ](/docs/apm/distributed-tracing/ui-data/example-queries-distributed-trace-data).
+
+Nous sauvegardons les données de trace comme :
+
+* `Span`:Un [span](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#span) représente les opérations qui font partie d&apos;une tracedistribuée. Les opérations qu&apos;un span peut représenter incluent [l&apos;interaction côté navigateur](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing), la requête de datastore, les appels à d&apos;autres services, la synchronisation au niveau de la méthode et [la fonction Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/introduction-new-relic-monitoring-aws-lambda). Un exemple : dans un service HTTP, un span est créé au début d&apos;une requête HTTP et terminé lorsque le serveur HTTP renvoie une réponse. L&apos;attribut Span contient des informations importantes sur cette opération (telles que la durée, les données de l&apos;hôte, etc.), y compris les détails de la relation trace (tels que traceId, GUID). Pour les données relatives à l&apos;envergure, voir [l&apos;attribut span](/attribute-dictionary/?event=Span).
+* `Transaction`: Si une [entité](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#alert-entity) dans une trace est monitorée par un agent, une requête adressée à cette entité génère un seul événement `Transaction`. Les transactions permettent de lier les données trace à d&apos;autres fonctionnalités de New Relic. Pour les données relatives aux transactions, voir [l&apos;attribut transaction](/attribute-dictionary/?event=Transaction).
+* Contextuel modifié. Nous stockons des métadonnées qui montrent les calculs sur une trace et les relations entre ses étendues. Pour [interroger ces données](/docs/apis/graphql-api/tutorials/query-distributed-trace-data-using-graphql-api), utilisez l&apos; [explorateur NerdGraph GraphiQL](https://api.newrelic.com/graphiql).
+
+## Comment le contexte de trace est transmis entre les applications [#headers]
+
+Nous prenons en charge la norme W3C Trace Context, qui facilite le trace des transactions sur les réseaux et les services. Lorsque vous [activez](/docs/understand-dependencies/distributed-tracing/enable-configure/overview-enable-distributed-tracing) le tracing distribué, les agents New Relic ajoutent des en-têtes HTTP aux requests sortantes d&apos;un service. Les en-têtes HTTP agissent comme des passeports lors d&apos;un voyage international : ils identifient la trace de votre logiciel et transportent des informations importantes lorsqu&apos;ils circulent à travers différents réseaux, processus et systèmes de sécurité.
+
+Les en-têtes contiennent également des informations qui nous aident à relier les étendues entre elles ultérieurement : des métadonnées telles que l&apos;ID de trace, l&apos;ID d&apos;étendue, l&apos;ID de compte New Relic et les informations d&apos;échantillonnage. Consultez le tableau ci-dessous pour plus de détails sur l&apos;en-tête :
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Article
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `accountId`
+      </td>
+
+      <td>
+        Il s&apos;agit de votre identifiant de compte New Relic. Cependant, seuls les membres de votre compte et les administrateurs de New Relic peuvent associer cet identifiant aux informations de votre compte de quelque manière que ce soit.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appId`
+      </td>
+
+      <td>
+        Il s&apos;agit de l&apos;identifiant d&apos;application de l&apos;application générant l&apos;en-tête de la trace. Tout comme `accountId`, cet identifiant ne fournira aucune information à moins que vous ne soyez un utilisateur du compte.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `guid`
+      </td>
+
+      <td>
+        Avec le tracing distribué, chaque segment de travail dans une trace est représenté par un `span` et chaque étendue a un attribut [`guid`](/attribute-dictionary/?event=Span&attribute=guid) . Le `guid` de la dernière étendue du processus est envoyé avec la requête sortante afin que le premier segment de travail dans le service de réception puisse ajouter ce `guid` comme attribut [`parentId`](/attribute-dictionary/?event=Span&attribute=parentId) qui connecte les données dans la trace.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Type de parent
+      </td>
+
+      <td>
+        La source de l&apos;en-tête de la trace, comme dans mobile, navigateur, application Ruby, etc. Cela devient l’attribut [`parent.type`](/attribute-dictionary/?event=Transaction&attribute=parent.type) sur la transaction déclenchée par la demande à laquelle cet en-tête est attaché.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Priorité
+      </td>
+
+      <td>
+        Une valeur de classement de priorité générée aléatoirement qui permet de déterminer quelles données sont échantillonnées lorsque les limites d&apos;échantillonnage sont atteintes. Il s&apos;agit d&apos;une valeur flottante définie par le premier agent New Relic qui fait partie de la demande, de sorte que toutes les données de la trace auront la même valeur de priorité.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Échantillonné
+      </td>
+
+      <td>
+        Une valeur booléenne qui indique à l&apos;agent si des données de trace doivent être collectées pour la demande. Ceci est également ajouté en tant [qu&apos;attribut à toutes les données de transaction et de portée collectées](/attribute-dictionary/?event=Span&attribute=sampled).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        horodatage
+      </td>
+
+      <td>
+        Horodatage Unix en millisecondes lorsque la charge a été créée.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `traceId`
+      </td>
+
+      <td>
+        L&apos; [ID unique](/attribute-dictionary/?event=Span&attribute=traceId) (une chaîne générée aléatoirement) utilisé pour identifier une demande unique lorsqu&apos;elle franchit les limites inter et intra processus. Cet identifiant permet de lier des spans dans une tracedistribuée. Ceci est également ajouté en tant qu&apos;attribut aux données de portée et de transaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transactionId`
+      </td>
+
+      <td>
+        L&apos; [identifiant unique](/attribute-dictionary/?event=Span&attribute=transactionId) de l&apos;événement de transaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Clé de compte de confiance
+      </td>
+
+      <td>
+        Il s’agit d’une clé qui permet d’identifier tous les autres comptes associés à votre compte. Ainsi, si vous avez plusieurs sous-comptes que la trace traverse, nous pouvons confirmer que toutes les données incluses dans la trace proviennent d&apos;une source fiable et nous indiquer quel utilisateur doit avoir accès aux données.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Version et clé de données
+      </td>
+
+      <td>
+        Cela identifie les versions majeures/mineures, donc si un agent reçoit un en-tête de trace d&apos;une version avec des modifications radicales par rapport à celle sur laquelle il se trouve, il peut rejeter cet en-tête et signaler le rejet et la raison.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Ces informations d&apos;en-tête sont transmises tout au long de chaque segment d&apos;une trace, à moins que la progression ne soit arrêtée par quelque chose comme un middleware ou des agents qui ne reconnaissent pas le format d&apos;en-tête (voir Figure 1).
+
+<img title="Diagram of a failed trace with proprietary headers." alt="Diagram of a failed trace with proprietary headers." src="/images/distributed-tracing_diagram_middleware.webp" />
+
+<figcaption>
+  Figure 1
+</figcaption>
+
+Pour résoudre le problème de propagation des en-têtes, nous prenons en charge la spécification W3C Trace Context qui nécessite deux en-têtes standardisés. Nos derniers agents W3C New Relic envoient et reçoivent ces deux en-têtes obligatoires et, par défaut, ils envoient et reçoivent également l&apos;en-tête de l&apos;agent New Relic précédent :
+
+* W3C (`traceparent`) : l&apos;en-tête principal qui identifie l&apos;intégralité de la trace (ID de trace) et le service appelant (ID d&apos;étendue).
+* W3C (`tracestate`) : un en-tête obligatoire qui contient des informations spécifiques au fournisseur et suit l&apos;emplacement d&apos;une trace.
+* New Relic (`newrelic`) : l&apos;en-tête propriétaire d&apos;origine qui est toujours envoyé pour maintenir la compatibilité descendante avec les agents New Relic antérieurs.
+
+Cette combinaison de trois en-têtes permet de propager la trace à travers les services instrumentés avec ces types d&apos;agents :
+
+* Agents W3C New Relic
+* Agents New Relic non-W3C
+* Agents compatibles avec W3C Trace Context
+
+<Callout variant="important">
+  Si vos requests ne concernent que les agents compatibles W3C Trace Context, vous pouvez choisir de désactiver l&apos;en-tête New Relic. Consultez la documentation [de configuration de l&apos;agent](/docs/agents/manage-apm-agents/configuration/configure-agent) pour plus de détails sur la désactivation de l&apos;en-tête `newrelic` .
+</Callout>
+
+Les scénarios ci-dessous montrent différents types de propagation d’en-tête réussie.
+
+<CollapserGroup>
+  <Collapser id="three-agents" title="Scénario 1 : trace touchant trois types d'agents">
+    Ceci montre le flux des en-têtes lorsqu&apos;une demande touche trois types d&apos;agents différents :
+
+    <img title="mixed_example_2.png" alt="Diagram showing a transaction's trip across various components." src="/images/distributed-tracing_diagram_mixed-services-example.webp" />
+  </Collapser>
+
+  <Collapser id="middleware-success" title="Scénario 2 : trace avec W3C New Relic et middleware">
+    Ceci montre la combinaison des en-têtes envoyés par un agent W3C New Relic à certains middlewares.
+
+    <img title="middleware_w3c.png" alt="Diagram showing a successful trace with W3C-compliant middleware." src="/images/distributed-tracing_diagram_middleware-w3c.webp" />
+  </Collapser>
+
+  <Collapser id="another-w3c-agent" title="Scénario 3 : trace avec n’importe quel agent compatible W3C et un agent New Relic.">
+    Ceci montre les deux en-têtes W3C requis d&apos;un autre fournisseur acceptés par un agent W3C New Relic.
+
+    <img title="diff_vend_w3c.png" alt="Diagram shows a successful trace with W3C-compliant vendor." src="/images/distributed-tracing_diagram_different-vendor-w3c.webp" />
+  </Collapser>
+</CollapserGroup>

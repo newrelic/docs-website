@@ -1,0 +1,82 @@
+---
+title: 'agent PHP installation: Amazon Linux 2, RedHat, CentOS (x86_64)'
+tags:
+  - Agents
+  - PHP agent
+  - Installation
+metaDescription: 'How to install New Relic''s PHP agent for application performance monitoring with Amazon Linux 2, RedHat, or CentOS on x86_64 architecture.'
+freshnessValidatedDate: '2024-07-31T00:00:00.000Z'
+translationType: machine
+---
+
+Notre agent PHP auto-instrumente votre code afin que vous puissiez commencer monitoring l&apos;application. Suivez cette procédure pour installer l&apos;agent PHP de New Relic pour APM à l&apos;aide d&apos;Amazon Linux 2, RedHat ou CentOS sur une architecture x86\_64. Pour l&apos;installation sur l&apos;architecture aarch64, veuillez utiliser la méthode [du fichier tar](/docs/php/php-agent-installation-tar-files) . <DNT>**Exception:**</DNT> Si vous avez installé une version antérieure, mettez plutôt [à niveau l&apos;agent](/docs/agents/php-agent/installation/upgrading-php-agent) .
+
+## Installer l&apos;agent [#install]
+
+Même si le nom du package de l&apos;agent PHP de New Relic fait référence à PHP 5, le package fonctionne pour toutes [les versions PHP prises en charge](/docs/agents/php-agent/getting-started/php-agent-compatibility-requirements#php-release).
+
+1. Assurez-vous d&apos;avoir votre <InlinePopover type="licenseKey" />accessible.
+
+2. Utilisez l’une des méthodes suivantes pour obtenir le package d’installation :
+
+   <CollapserGroup>
+     <Collapser
+       id="tell-rpm"
+       title={<>Informez le gestionnaire de paquets (<InlineCode>
+         rpm
+       </InlineCode>) du référentiel New Relic</>
+       }
+     >
+       ```bash
+       sudo rpm -Uvh http://yum.newrelic.com/pub/newrelic/el5/x86_64/newrelic-repo-5-3.noarch.rpm
+       ```
+     </Collapser>
+
+     <Collapser id="download-rpm" title="Téléchargez le fichier rpm depuis New Relic">
+       * ```
+         newrelic-php5-common-X.X.X.X-1.noarch.rpm
+         ```
+       * ```
+         newrelic-daemon-X.X.X.X-1.x86_64.rpm
+         ```
+       * ```
+         newrelic-php5-X.X.X.X-1.x86_64.rpm
+         ```
+     </Collapser>
+   </CollapserGroup>
+
+3. Installez l&apos;agent et le daemon en utilisant votre gestionnaire de paquets préféré :
+
+   <CollapserGroup>
+     <Collapser id="manager-yum" title="miam">
+       ```bash
+       sudo yum install newrelic-php5
+       ```
+
+       La première fois que vous installez New Relic pour PHP, yum vous invite à accepter la clé publique New Relic . L&apos;ID de clé de New Relic est `548C16BF`.
+     </Collapser>
+
+     <Collapser id="manager-rpm" title="tr/min">
+       Remplacez `X.X.X.X` par le [numéro de version de l&apos;agent PHP](/docs/release-notes/agent-release-notes/php-release-notes) le plus récent lorsque vous exécutez cette commande :
+
+       ```bash
+       rpm -i newrelic-php5-common-X.X.X.X-1.noarch.rpm newrelic-daemon-X.X.X.X-1.x86_64.rpm newrelic-php5-X.X.X.X-1.x86_64.rpm
+       ```
+     </Collapser>
+
+     <Collapser id="manager-tarball" title="tarball">
+       Si <DNT>**yum**</DNT> et <DNT>**rpm**</DNT> ne fonctionnent pas avec votre configuration hôte, [installez-les à partir de l&apos;archive binaire tarball](/docs/php/php-agent-installation-tar-files).
+     </Collapser>
+   </CollapserGroup>
+
+4. Exécutez le script `newrelic-install` et suivez les instructions.
+
+   ```bash
+   sudo newrelic-install install
+   ```
+
+5. Redémarrez votre serveur Web (Apache, NGINX, PHP-FPM, etc.).
+
+6. Générez du trafic vers votre application et attendez quelques minutes qu&apos;elle envoie des données à New Relic. Ensuite, [vérifiez les performances de votre application dans l&apos; UI](/docs/apm/applications-menu/monitoring/apm-overview-page).
+
+<InstallFeedback />
