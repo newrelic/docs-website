@@ -5,6 +5,9 @@ publishDate: '2025-05-21'
 eolEffectiveDate: '2026-01-07'
 ---
 
+
+test
+
 Effective January 7, 2026 16:00 UTC, the NRQL Drop Filter Rules API will be discontinued and fully replaced by the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/). Your existing NRQL drop filter rules will be automatically migrated. However, you'll need to take action to ensure a smooth transition to the new cloud rules API.
 
 ## Background [#bg]
