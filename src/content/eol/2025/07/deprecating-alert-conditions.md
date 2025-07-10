@@ -6,7 +6,7 @@ eolEffectiveDate: '2025-07-10'
 ---
 
 
-Effective immediately, New Relic will deprecate the ability to create or modify alert conditions with `FACET` by `messageId` or `timestamp`. We have taken this step to protect our systems and customers from unintended impact, as well as keep our customers from violating our [acceptable use policy](/docs/licenses/license-information/general-usage-licenses/acceptable-use-policy).
+Effective immediately, New Relic is deprecating the ability to create or modify alert conditions with `FACET` by `messageId` or `timestamp`. We have taken this step to protect our systems and customers from unintended impact, as well as keep our customers from violating our [acceptable use policy](/docs/licenses/license-information/general-usage-licenses/acceptable-use-policy).
 
 ## Background [#bg]
 
