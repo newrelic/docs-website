@@ -1,7 +1,7 @@
 ---
 title: 'Agentic integrations for GitHub Copilot and ServiceNow now generally available'
 summary: 'Revolutionize your IT workflows with Agentic AI integrations'
-releaseDate: '2025-07-08'
+releaseDate: '2025-07-15'
 learnMoreLink: 'https://docs.newrelic.com/docs/agentic-ai/agentic-integration/introduction-agentic-ai'
 ---
 
