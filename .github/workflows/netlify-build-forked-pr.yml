@@ -18,6 +18,87 @@ jobs:
     if: github.event.issue.pull_request && github.event.comment.body == 'netlify build fork'
     
     steps:
+      - name: Check for member permission
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          script: |
+            const commenter = context.payload.comment.user.login;
+            const org = context.repo.owner;
+            const team_slugs = ['doc', 'DOCS-ENG']; // <-- add your team slugs here
+
+            console.log(`Organization: ${org}`);
+            console.log(`Commenter: ${commenter}`);
+
+            try {
+              const user = await github.rest.users.getAuthenticated();
+              console.log('Authenticated as:', user.data.login);
+              
+              const scopes = await github.request('GET /user');
+              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
+            } catch (error) {
+              console.log('Auth check failed:', error.message);
+            }
+
+            // List all teams where the commenter is a member
+            async function listUserTeams() {
+              try {
+                const teams = await github.paginate(github.rest.teams.listForAuthenticatedUser, {});
+                const userTeams = teams.filter(team => team.organization.login.toLowerCase() === org.toLowerCase());
+                if (userTeams.length === 0) {
+                  console.log(`${commenter} is not a member of any team in org ${org}.`);
+                } else {
+                  console.log(`${commenter} is a member of the following teams in ${org}:`);
+                  userTeams.forEach(team => {
+                    console.log(`- ${team.slug} (${team.name})`);
+                  });
+                }
+              } catch (err) {
+                console.log(`Could not list teams for user ${commenter}: ${err.message}`);
+              }
+            }
+
+            await listUserTeams();
+
+            async function isMemberOfAnyTeam() {
+              for (const team_slug of team_slugs) {
+                console.log(`Checking team_slug: ${team_slug}`);
+                try {
+                  const response = await github.rest.teams.getMembershipForUserInOrg({
+                    org,
+                    team_slug,
+                    username: commenter,
+                  });
+                  console.log(`API response for team_slug ${team_slug}:`, JSON.stringify(response.data, null, 2));
+                  if (response.data.state === 'active') {
+                    console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                    return true;
+                  }
+                } catch (error) {
+                  console.log(`Error object for team_slug ${team_slug}:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                  if (error.status !== 404) {
+                    console.log(`Error checking team_slug ${team_slug}: ${error.message}`);
+                    core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
+                    return false;
+                  }
+                  // If 404, user is not in this team, continue to next
+                  console.log(`${commenter} is not a member of ${team_slug} (404)`);
+                }
+              }
+              return false;
+            }
+
+            // Properly await the async function
+            const isMember = await isMemberOfAnyTeam();
+            if (!isMember) {
+              core.setFailed(`${commenter} is not a member of any required team (${team_slugs.join(', ')})`);
+            } else {
+              console.log(`✅ ${commenter} is authorized to trigger builds`);
+            }
+            
       - name: Get PR Data and Verify Fork Status
         id: pr-data
         uses: actions/github-script@v6
@@ -185,7 +266,7 @@ jobs:
                 title: prTitle,
                 body: newPrBody,
                 head: prBranch,
-                base: 'main'
+                base: 'develop'
               });
               
               console.log(`Created new PR: ${newPr.number} - ${newPr.html_url}`);
