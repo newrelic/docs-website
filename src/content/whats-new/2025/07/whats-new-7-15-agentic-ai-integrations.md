@@ -21,3 +21,6 @@ Agentic AI elevates enterprise IT by transforming observability data into action
 ## Pricing and availability
 Agentic integrations are charged per Advanced CCU and available exclusively to Advanced CCU customers.
 
+Learn more in our blog posts and documentation:
+- [Blog post](https://newrelic.com/blog/how-to-relic/agentic-ga)
+- [Agentic integrations](https://docs.newrelic.com/docs/agentic-ai/agentic-integration/introduction-agentic-ai)
