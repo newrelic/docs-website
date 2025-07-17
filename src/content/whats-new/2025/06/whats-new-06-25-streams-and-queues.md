@@ -25,6 +25,8 @@ What Makes Queues and Streams Monitoring Unique:
   src="/images/Q&S-Kafka-Navigator-06-2025.webp"
 />
 
+![Kafka navigator](/images/Q&S-Kafka-Navigator-06-2025.webp "Kafka navigator")
+
 Learn more in our blog posts and documentation:
 - [Blog post](https://newrelic.com/blog/nerdlog/streamline-message-flow-observability-with-queues-and-streams-monitoring)
 - [Introduction to Queues and Streams](https://docs.newrelic.com/docs/message-queues-streaming/introduction/)
