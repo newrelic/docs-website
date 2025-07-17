@@ -1,0 +1,419 @@
+name: Fork PR Handler on Comment
+
+# The workflow now triggers when a comment is created on a PR.
+on:
+  issue_comment:
+    types: [created]
+
+# Permissions remain the same as they are still needed for the job's tasks.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  handle-fork-pr:
+    runs-on: ubuntu-latest
+    
+    if: github.event.issue.pull_request && github.event.comment.body == 'netlify build fork'
+    
+    steps:
+      - name: Check for member permission
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          script: |
+            const commenter = context.payload.comment.user.login;
+            const org = context.repo.owner;
+            const team_slugs = ['doc', 'DOCS-ENG']; // <-- add your team slugs here
+
+            console.log(`Organization: ${org}`);
+            console.log(`Commenter: ${commenter}`);
+
+            try {
+              const user = await github.rest.users.getAuthenticated();
+              console.log('Authenticated as:', user.data.login);
+              
+              const scopes = await github.request('GET /user');
+              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
+            } catch (error) {
+              console.log('Auth check failed:', error.message);
+            }
+
+            // List all teams where the commenter is a member
+            async function listUserTeams() {
+              try {
+                const teams = await github.paginate(github.rest.teams.listForAuthenticatedUser, {});
+                const userTeams = teams.filter(team => team.organization.login.toLowerCase() === org.toLowerCase());
+                if (userTeams.length === 0) {
+                  console.log(`${commenter} is not a member of any team in org ${org}.`);
+                } else {
+                  console.log(`${commenter} is a member of the following teams in ${org}:`);
+                  userTeams.forEach(team => {
+                    console.log(`- ${team.slug} (${team.name})`);
+                  });
+                }
+              } catch (err) {
+                console.log(`Could not list teams for user ${commenter}: ${err.message}`);
+              }
+            }
+
+            await listUserTeams();
+
+            async function isMemberOfAnyTeam() {
+              for (const team_slug of team_slugs) {
+                console.log(`Checking team_slug: ${team_slug}`);
+                try {
+                  const response = await github.rest.teams.getMembershipForUserInOrg({
+                    org,
+                    team_slug,
+                    username: commenter,
+                  });
+                  console.log(`API response for team_slug ${team_slug}:`, JSON.stringify(response.data, null, 2));
+                  if (response.data.state === 'active') {
+                    console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                    return true;
+                  }
+                } catch (error) {
+                  console.log(`Error object for team_slug ${team_slug}:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                  if (error.status !== 404) {
+                    console.log(`Error checking team_slug ${team_slug}: ${error.message}`);
+                    core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
+                    return false;
+                  }
+                  // If 404, user is not in this team, continue to next
+                  console.log(`${commenter} is not a member of ${team_slug} (404)`);
+                }
+              }
+              return false;
+            }
+
+            // Properly await the async function
+            const isMember = await isMemberOfAnyTeam();
+            if (!isMember) {
+              core.setFailed(`${commenter} is not a member of any required team (${team_slugs.join(', ')})`);
+            } else {
+              console.log(`✅ ${commenter} is authorized to trigger builds`);
+            }
+            
+      - name: Get PR Data and Verify Fork Status
+        id: pr-data
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.issue.number;
+            console.log(`Fetching data for PR #${prNumber}`);
+            
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            if (pr.head.repo.fork !== true) {
+              console.log("PR is not from a fork. Halting execution.");
+              core.setFailed("This workflow only runs on PRs from forked repositories.");
+              return;
+            }
+            
+            console.log("PR is from a fork. Proceeding.");
+            
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_repo_clone_url', pr.head.repo.clone_url);
+            core.setOutput('pr_title', pr.title);
+            core.setOutput('pr_body', pr.body || '');
+            core.setOutput('pr_author_login', pr.user.login);
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('head_repo_html_url', pr.head.repo.html_url);
+            
+      - name: Log PR event details
+        run: |
+          echo "::group::PR Event Details"
+          echo "Triggered by comment on PR #${{ steps.pr-data.outputs.pr_number }} from fork"
+          echo "PR Title: ${{ steps.pr-data.outputs.pr_title }}"
+          echo "PR Branch: ${{ steps.pr-data.outputs.head_ref }}"
+          echo "PR Author: ${{ steps.pr-data.outputs.pr_author_login }}"
+          echo "Event Type: ${{ github.event_name }} (comment)"
+          echo "::endgroup::"
+      
+      - name: Checkout repo
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.pr-data.outputs.head_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+      
+      - name: Verify checkout
+        run: |
+          echo "::group::Repository Status"
+          if [ -d .git ]; then
+            echo "Repository checkout successful"
+            git status
+            git log -n 1 --oneline
+          else
+            echo "::error::Repository checkout failed"
+            exit 1
+          fi
+          echo "::endgroup::"
+      
+      - name: Setup Git Identity
+        run: |
+          echo "::group::Git Configuration"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          echo "Git identity configured"
+          echo "::endgroup::"
+      
+      - name: Process synced PR
+        id: process-pr
+        run: |
+          echo "::group::Processing synced PR"
+          # Combine author and original branch name
+          FULL_BRANCH_NAME="${{ steps.pr-data.outputs.pr_author_login }}-${{ steps.pr-data.outputs.head_ref }}"
+
+          # Sanitize the branch name for Netlify:
+          # 1. Replace all non-alphanumeric characters with a hyphen.
+          # 2. Squeeze consecutive hyphens into a single hyphen.
+          # 3. Truncate to Netlify's recommended length (38 chars).
+          # 4. Remove any leading/trailing hyphens.
+          PR_BRANCH=$(echo "$FULL_BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g' | tr -s '-' | cut -c1-38 | sed 's/^-//;s/-$//')
+          
+          echo "Original combined branch name: $FULL_BRANCH_NAME"
+          echo "New upstream branch name (sanitized and truncated): $PR_BRANCH"
+          
+          COMMIT_SHA="${{ steps.pr-data.outputs.head_sha }}"
+          COMMIT_SHORT_SHA=$(echo $COMMIT_SHA | cut -c1-7)
+          echo "Latest commit ID: $COMMIT_SHA (short: $COMMIT_SHORT_SHA)"
+          echo "commit_id=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "commit_short_id=$COMMIT_SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "new_branch_name=$PR_BRANCH" >> $GITHUB_OUTPUT
+          
+          if git ls-remote --heads origin "refs/heads/$PR_BRANCH" | grep -q "refs/heads/$PR_BRANCH"; then
+            echo "Branch '$PR_BRANCH' already exists in upstream repo, will update."
+            echo "is_first_commit=false" >> $GITHUB_OUTPUT
+            git checkout -B "$PR_BRANCH" "FETCH_HEAD"
+          else
+            echo "Branch '$PR_BRANCH' does not exist yet in upstream repo, will create."
+            echo "is_first_commit=true" >> $GITHUB_OUTPUT
+            git checkout -b "$PR_BRANCH" "FETCH_HEAD"
+          fi
+          
+          git push origin "$PR_BRANCH" --force
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to push branch to origin"
+            exit 1
+          fi
+          echo "::endgroup::"
+      
+      - name: Get Current Time in IST
+        if: steps.process-pr.outputs.is_first_commit == 'true'
+        id: time
+        run: |
+          echo "ist_time=$(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
+      
+      - name: Create PR in upstream for first commit
+        if: steps.process-pr.outputs.is_first_commit == 'true'
+        id: create-upstream-pr
+        uses: actions/github-script@v6
+        # FIXED: Pass all dynamic values as environment variables to avoid syntax errors
+        env:
+          PR_BRANCH: ${{ steps.process-pr.outputs.new_branch_name }}
+          ORIGINAL_PR_BRANCH: ${{ steps.pr-data.outputs.head_ref }}
+          PR_TITLE: ${{ steps.pr-data.outputs.pr_title }}
+          PR_BODY: ${{ steps.pr-data.outputs.pr_body }}
+          FORK_OWNER: ${{ steps.pr-data.outputs.pr_author_login }}
+          FORK_PR_NUMBER: ${{ steps.pr-data.outputs.pr_number }}
+          IST_TIME: ${{ steps.time.outputs.ist_time }}
+          COMMIT_ID: ${{ steps.pr-data.outputs.head_sha }}
+          SHORT_COMMIT_ID: ${{ steps.process-pr.outputs.commit_short_id }}
+          HEAD_REPO_URL: ${{ steps.pr-data.outputs.head_repo_html_url }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            console.log("Creating new PR in upstream repository...");
+            try {
+              // FIXED: Read values safely from environment variables
+              const prBranch = process.env.PR_BRANCH;
+              const originalPrBranch = process.env.ORIGINAL_PR_BRANCH;
+              const prTitle = `[PREVIEW COPY] ${process.env.PR_TITLE}`;
+              const prBody = process.env.PR_BODY;
+              const forkOwner = process.env.FORK_OWNER;
+              const forkPrNumber = process.env.FORK_PR_NUMBER;
+              const istTime = process.env.IST_TIME;
+              const commitId = process.env.COMMIT_ID;
+              const shortCommitId = process.env.SHORT_COMMIT_ID;
+              const headRepoUrl = process.env.HEAD_REPO_URL;
+
+              const newPrBody = `
+              ## Mirror PR Summary
+              This is a preview copy of PR #${forkPrNumber} from @${forkOwner}, created at ${istTime}.
+              ## Original PR Details
+              - **Original PR:** #${forkPrNumber} (${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/pull/${forkPrNumber})
+              - **Author:** @${forkOwner}
+              - **Original Branch:** \`${originalPrBranch}\`
+              - **Mirrored Branch:** \`${prBranch}\`
+              - **Commit:** \`${commitId}\` ([${shortCommitId}](${headRepoUrl}/commit/${commitId}))
+
+              ---
+
+              ### Original PR Description:
+
+              ${prBody}
+
+              ---
+
+              > This is an automatically generated mirror of a fork PR. Changes here will not be reflected back to the original PR.`;
+              
+              const { data: newPr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: prTitle,
+                body: newPrBody,
+                head: prBranch,
+                base: 'develop'
+              });
+              
+              console.log(`Created new PR: ${newPr.number} - ${newPr.html_url}`);
+              return { prNumber: newPr.number, prUrl: newPr.html_url };
+            } catch (error) {
+              console.error("Error creating upstream PR:", error);
+              core.setFailed("Failed to create upstream PR: " + error.message);
+              return { error: error.message };
+            }
+      
+      - name: Comment on fork PR about new upstream PR
+        if: steps.process-pr.outputs.is_first_commit == 'true'
+        uses: actions/github-script@v6
+        env:
+          CREATE_PR_RESULT: ${{ steps.create-upstream-pr.outputs.result }}
+          COMMIT_ID: ${{ steps.pr-data.outputs.head_sha }}
+          SHORT_COMMIT_ID: ${{ steps.process-pr.outputs.commit_short_id }}
+          HEAD_REPO_URL: ${{ steps.pr-data.outputs.head_repo_html_url }}
+          PR_BRANCH: ${{ steps.process-pr.outputs.new_branch_name }} # Sanitized branch name
+        with:
+          github-token: ${{ secrets.DOCS_ENG_BOT_TOKEN }}
+          script: |
+            const result = JSON.parse(process.env.CREATE_PR_RESULT);
+            if (result.error) {
+              console.log("Skipping comment due to error in previous step.");
+              return;
+            }
+
+            const commitId = process.env.COMMIT_ID;
+            const shortCommitId = process.env.SHORT_COMMIT_ID;
+            const headRepoUrl = process.env.HEAD_REPO_URL;
+            const prBranch = process.env.PR_BRANCH;
+            const upstreamPrNumber = result.prNumber;
+
+            // the suffix that is attached to all preview websites in docs website
+            const netlifySiteName = 'docs-website-netlify';
+            const previewUrl = `https://${prBranch}--${netlifySiteName}.netlify.app`;
+
+            // Updated comment body with the preview link
+            const commentBody = `
+            ✅ Your PR has been mirrored to our repository as PR #${upstreamPrNumber}.
+            **Commit:** \`${commitId}\` ([${shortCommitId}](${headRepoUrl}/commit/${commitId}))
+            Our workflows will run in the mirrored PR linked above.
+            🚀 If the build is successful, a Netlify preview will be available shortly at: **[${previewUrl}](${previewUrl})**
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
+
+            // This separate comment triggers the build in the mirrored PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: upstreamPrNumber,
+              body: `netlify build`
+            });
+            
+      - name: Comment on fork PR about updates
+        if: steps.process-pr.outputs.is_first_commit == 'false'
+        uses: actions/github-script@v6
+        env:
+          PR_BRANCH: ${{ steps.process-pr.outputs.new_branch_name }}
+          COMMIT_ID: ${{ steps.pr-data.outputs.head_sha }}
+          SHORT_COMMIT_ID: ${{ steps.process-pr.outputs.commit_short_id }}
+          HEAD_REPO_URL: ${{ steps.pr-data.outputs.head_repo_html_url }}
+        with:
+          github-token: ${{ secrets.DOCS_ENG_BOT_TOKEN }}
+          script: |
+            const prBranch = process.env.PR_BRANCH;
+            const commitId = process.env.COMMIT_ID;
+            const shortCommitId = process.env.SHORT_COMMIT_ID;
+            const headRepoUrl = process.env.HEAD_REPO_URL;
+            
+            // the suffix that is attached to all preview websites in docs website
+            const netlifySiteName = 'docs-website-netlify';
+            const previewUrl = `https://${prBranch}--${netlifySiteName}.netlify.app`;
+
+            const { data: pullRequests } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${prBranch}`,
+              state: 'open'
+            });
+            
+            if (pullRequests.length > 0) {
+              const upstreamPrNumber = pullRequests[0].number;
+              
+              // Updated comment body for the original PR
+              const forkCommentBody = `
+              ✅ Your updates have been mirrored to our repository in PR #${upstreamPrNumber}.
+              **Commit:** \`${commitId}\` ([${shortCommitId}](${headRepoUrl}/commit/${commitId}))
+              Our workflows will run in the mirrored PR linked above.
+              🚀 If the build is successful, a Netlify preview will be updated shortly at: **[${previewUrl}](${previewUrl})**
+              `;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: forkCommentBody
+              });
+              
+              // Updated comment body for the mirrored PR
+              const upstreamCommentBody = `
+              ♻️ This PR has been updated with the latest changes from the fork PR #${context.issue.number}.
+              **New Commit:** \`${commitId}\` ([${shortCommitId}](${headRepoUrl}/commit/${commitId}))
+              `;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: upstreamPrNumber,
+                body: upstreamCommentBody
+              });
+
+              // This separate comment triggers the build
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: upstreamPrNumber,
+                body: `netlify build`
+              });
+            } else {
+              console.log(`Could not find an open PR for branch ${prBranch}.`);
+            }
+
+      - name: Workflow Summary
+        if: always()
+        run: |
+          echo "::group::Workflow Summary"
+          echo "PR #${{ steps.pr-data.outputs.pr_number }} processing completed"
+          echo "PR Author: ${{ steps.pr-data.outputs.pr_author_login }}"
+          echo "Original PR Branch: ${{ steps.pr-data.outputs.head_ref }}"
+          echo "Upstream Mirrored Branch: ${{ steps.process-pr.outputs.new_branch_name }}"
+          echo "First Commit: ${{ steps.process-pr.outputs.is_first_commit }}"
+          echo "::endgroup::"
