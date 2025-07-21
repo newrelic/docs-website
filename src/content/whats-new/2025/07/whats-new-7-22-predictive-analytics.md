@@ -24,6 +24,6 @@ Predictive alerting complements NRQL predictions by generating alerts when predi
 Predictive analytics features is an Advanced Compute Product feature offered as an [add-on](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/add-on-billing/) or as a part of the Compute pricing model. For detailed pricing information, please contact our sales team or refer to your Order.
 
 Learn more in our blog posts and documentation:
-- Blog post
+- [Blog post](https://newrelic.com/blog/how-to-relic/predictions-GA)
 - [NRQL predictions](https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/nrql-predictions/)
 - [Predictive alerting](https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/predictive-alerts/)
