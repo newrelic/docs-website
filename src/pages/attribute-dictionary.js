@@ -22,8 +22,8 @@ import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // import events from '../data/attribute-dictionary.json';
-import enJson from '../data/attribute-dictionary_en.json';
-import frJson from '../data/attribute-dictionary_fr.json';
+import enJson from '../data/attribute-dictionary-en.json';
+import frJson from '../data/attribute-dictionary-fr.json';
 
 const AttributeDictionary = ({ location }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -32,6 +32,7 @@ const AttributeDictionary = ({ location }) => {
   const { queryParams } = useQueryParams();
   
   const { locale } = useLocale();
+  console.log('locale', locale);
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute(
