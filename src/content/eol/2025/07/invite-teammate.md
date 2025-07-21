@@ -1,6 +1,6 @@
 ---
-title: 'End of Life Announcement: Invite a Teammate Feature'
-subject: Invite a Teammate Feature
+title: 'Attention Required - Upcoming End-of-Life Changes'
+subject: Attention Required - Upcoming End-of-Life Changes
 publishDate: '2025-07-21'
 eolEffectiveDate: '2025-10-28'
 ---
