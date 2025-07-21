@@ -39,6 +39,7 @@ const splitTOCTitle = (title = '') => {
   return [titleText.join(' '), slug];
 };
 
+
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const {
