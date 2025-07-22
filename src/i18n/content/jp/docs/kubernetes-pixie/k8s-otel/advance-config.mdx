@@ -1,0 +1,281 @@
+---
+title: 高度な設定
+metaDescription: Learn how to configure charts for advanced use cases in Kubernetes with OpenTelemetry.
+tags:
+  - Kubernetes
+  - OpenTelemetry
+  - Advanced Configuration
+  - New Relic Kubernetes integration
+  - New Relic Distribution on OpenTelemetry
+  - NRDOT
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic[Helm](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/README.md)OpenTelemetryCollectorは、Kubernetes クラスタ内の に チャート を提供します。このHelmチャートは、さまざまなユースケースの高度な設定など、特定のニーズに合わせてカスタマイズできます。
+
+`nr-k8s-otel-collector` Helm チャートは`DaemonSet`と`Deployment`コレクターの両方をサポートしており、ユースケースに最適なものを選択できます。これらのコレクターは、動作をカスタマイズするように構成できます。New RelicOpenTelemetryCollectorにKubernetes [をインストールする方法の詳細については、 インストール ガイド](/docs/kubernetes-pixie/k8s-otel/install) を参照してください。
+
+このドキュメントでは、いくつかの主要な詳細設定オプションの概要を説明します。
+
+## GKE Autopilot または Red Hat OpenShift との互換性を有効にする [#enable-provider]
+
+特定のKubernetes環境との互換性を確保するために、プロバイダー固有の設定を有効にすることができます。 この設定により、これらの環境の特定の制約に適応することで、 OpenTelemetryーの互換性と適切な機能が確保されます。
+
+[`values.yaml`ファイル](/docs/kubernetes-pixie/k8s-otel/install/#config-params)でこのオプションを有効にします:
+
+```yaml
+  provider: "GKE_AUTOPILOT" # Or "OPEN_SHIFT" if applicable
+```
+
+## LowDataModeを有効にする [#low-data]
+
+`LowDataMode`オプションはデフォルトで有効になっており、 Kubernetes UI に必要なメトリクスのみを取り込みます。 このモードでは、 Kubernetes監視に不可欠なメトリクスに焦点を当て、収集されるデータの量を削減します。
+
+### LowDataMode で追加のメトリクスを追加する [#additional-metrics]
+
+追加のメトリックを取得するには、新しいパイプラインを追加し、 セクションを使用して[`values.yaml` ファイル](/docs/kubernetes-pixie/k8s-otel/install/#config-params) に適切な[ レシーバーとプロセッサ](/docs/kubernetes-pixie/k8s-otel/intro/#otel-components)`extraConfig` を構成します。
+
+次の例は、 `cadvisor_version_info`メトリクスを新しいパイプラインに追加する方法を示しています。 既存のレシーバーを再利用することも、独自のレシーバーを定義することもできます。特定のメトリクスをフィルタリングし、 Kubernetesプロパティで強化するためにプロセッサが追加されます。
+
+```yaml
+  extraConfig:
+    receivers:
+    processors:
+      filter/keep_cadvisor_version_info:
+        metrics:
+            metric:
+              - name != "cadvisor_version_info" # Exclude all metrics except cadvisor_version_info
+    exporters:
+    connectors:
+    pipelines:
+      metrics/additional_metrics:
+        receivers:
+          - prometheus # This references the prometheus receiver defined above
+        processors:
+          - filter/keep_cadvisor_version_info
+          - resource # Essential for basic resource attributes
+          - k8sattributes/ksm # Essential for Kubernetes metadata enrichment
+          - cumulativetodelta # Converts cumulative metrics to delta
+          - batch # For efficient data sending
+        exporters:
+          - otlphttp/newrelic
+```
+
+設定で再利用できるレシーバー、プロセッサー、エクスポーター、パイプラインの包括的なリストについては、 [New Relic Helm Charts リポジトリを参照してください。](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)
+
+## 複数のNew Relicアカウントにデータを送信する [#multiple-accounts]
+
+Kubernetesテレメトリー データを複数のNew Relicアカウントに同時に送信するには、セカンダリ インジェスト ライセンスキーをOpenTelemetry Collectorコンテナに挿入し、追加の OTLP エクスポーターを構成します。
+
+1. セカンダリライセンスキーを挿入するには:
+
+   * [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルの`env`セクションで、使用するセカンダリ取り込みライセンスキーごとに次の環境変数を追加します。
+
+     ```yaml
+     daemonset:
+       envs:
+         - name: MY_SECONDARY_LICENSE_KEY_VAR # Choose a descriptive environment variable name
+           valueFrom:
+             secretKeyRef:
+               name: <Your Secret Name> # Name of your Kubernetes Secret
+               key: <Your Secret Key>    # Key within the Secret that holds the license key
+     deployment:
+       envs:
+         - name: MY_SECONDARY_LICENSE_KEY_VAR
+           valueFrom:
+             secretKeyRef:
+               name: <Your Secret Name>
+               key: <Your Secret Key>
+     ```
+
+   * [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルの`envForm`セクションで、使用するセカンダリ ライセンスキーごとに次の環境変数を追加します。
+
+     ```yaml
+     daemonset:
+       envsFrom:
+         - secretRef:
+             name: <Your Secret Name>
+     deployment:
+       envsFrom:
+         - secretRef:
+             name: <Your Secret Name>
+     ```
+
+2. 追加アカウントごとに`extraConfig`セクションに`otlphttp`エクスポーターを追加し、挿入された環境変数を参照するには、次のようにします。
+
+```yaml
+daemonset:
+  configMap:
+    extraConfig:
+      exporters:
+        otlphttp/secondAccount: # Unique name for this exporter
+          endpoint: "{{include 'nrKubernetesOtel.endpoint'}}"
+          headers:
+            api-key: ${env:MY_SECONDARY_LICENSE_KEY_VAR} # Reference the env var
+deployment:
+  configMap:
+    extraConfig:
+      exporters:
+        otlphttp/secondAccount: # Unique name for this exporter
+          endpoint: "{{include 'nrKubernetesOtel.endpoint'}}"
+          headers:
+            api-key: ${env:MY_SECONDARY_LICENSE_KEY_VAR} # Reference the env var
+# Important: Add this exporter to the relevant pipelines below
+pipelines:
+  metrics:
+    exporters:
+      - otlphttp/newrelic # Original exporter
+      - otlphttp/secondAccount # New exporter
+  traces:
+    exporters:
+      - otlphttp/newrelic
+      - otlphttp/secondAccount
+  logs:
+    exporters:
+      - otlphttp/newrelic
+      - otlphttp/secondAccount
+```
+
+<Callout variant="tip">
+  また、データがこの新しいエクスポータを介して実際に送信されるようにするには、 `daemonset`と`deployment`コレクターの両方について、 `extraConfig`内の関連する`pipelines` (メトリクス、トレース、ログ) に`otlphttp/secondAccount`エクスポータを追加する必要があります。
+</Callout>
+
+3. [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルを更新したら、変更をクラスターに適用します。
+
+```shell
+  helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector -f your-custom-values.yaml -n newrelic
+```
+
+## プロキシ経由でデータを送信する [#proxy-config]
+
+Kubernetesテレメトリデータをプロキシ経由で送信するには、送信接続に HTTP プロキシを使用するようにOpenTelemetry Collectorを構成できます。 これは、直接のインターネット アクセスが制限されている環境やモニター環境で特に役立ちます。
+
+次のいずれかの方法を使用して、プロキシを使用するように OpenTelemetry Collector を構成できます。
+
+<CollapserGroup>
+  <Collapser id="proxy-chart" title="Helm チャートの `proxy` セクションの使用">
+    [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルの`proxy`セクションを使用して、 `nr-k8s-otel-collector`チャートを構成できます。
+
+    ```yaml
+      proxy: '<Your-proxy-server-URL>' # Example: [http://squid-proxy.squid:3128](http://squid-proxy.squid:3128)
+    ```
+  </Collapser>
+
+  <Collapser id="proxy-env-vars" title="環境変数の使用 環境変数とシークレット">
+    OpenTelemetry Collector は標準のプロキシ環境変数 ( `HTTP_PROXY` 、 `HTTPS_PROXY` 、 `NO_PROXY` ) も尊重します。これらをコレクター ポッドに直接挿入し、オプションで Kubernetes Secrets から値を取得してセキュリティを強化することができます。これらの設定は、 `deployment`コレクターと`daemonset`コレクターの両方に適用する必要があることに注意してください。OpenTelemetry プロキシ設定の詳細については、 [OpenTelemetry Collector のドキュメント](https://opentelemetry.io/docs/collector/configuration/)を参照してください。
+
+    * [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルの`env`セクションに環境変数を介してプロキシ設定を挿入するには:
+
+      ```yaml
+      daemonset:
+        envs:
+          - name: HTTPS_PROXY
+            valueFrom:
+              secretKeyRef:
+                name: <Your Secret Name> # Name of your Kubernetes Secret
+                key: <Your Secret Key>    # Key within the Secret that holds the proxy URL
+      deployment:
+        envs:
+          - name: HTTPS_PROXY
+            valueFrom:
+              secretKeyRef:
+                name: <Your Secret Name>
+                key: <Your Secret Key>
+      ```
+
+    * [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイルの`envFrom`セクションに環境変数を介してプロキシ設定を挿入するには:
+
+      ```yaml
+      daemonset:
+        envsFrom:
+          - secretRef:
+              name: <Your Secret Name>
+      deployment:
+        envsFrom:
+          - secretRef:
+              name: <Your Secret Name>
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## Helmチャートにカスタム設定を追加する [#custom-config]
+
+[`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params)ファイル内の`extraConfig`セクションは、 `daemonset`と`deployment`コレクターの両方の機能を拡張する強力な方法を提供します。どちらのコレクターを選択して追加の設定を適用することもでき、監視エクスペリエンスをカスタマイズできます。
+
+これらのオプションにより、デフォルトで含まれていない特定の設定を統合する柔軟性が提供されます。
+
+さらにカスタマイズするには、設定で再利用できるレシーバー、プロセッサ、エクスポーター、パイプラインの[包括的なリスト](/docs/kubernetes-pixie/k8s-otel/intro/#otel-components)を参照してください。
+
+パイプラインでいくつかの推奨プロセッサを採用して、テレメトリーデータの効率と関連性を高めることができます。
+
+* `resource:` メトリクス データに重要なリソース情報が含まれていることを確認して、データ分析の明確さを高めます。
+* `k8sattributes:` Kubernetes固有のプロパティをメトリクスに組み込み、クラスタの動作とパフォーマンスの詳細なインサイトを実現します。
+* `cumulativetodelta:` 累積メトリクスをデルタ メトリクスに変換し、経時的な変化の追跡を改善します。
+* `batch:` メトリクスをバッチで処理してエクスポートし、データ収集中のパフォーマンスを最適化します。
+
+これらのプロセッサは連携してデータを精製し、より正確な監視とアラートを実現します。特定のユースケースに応じて設定をカスタマイズし、Kubernetes 環境内でシームレスな Prometheus サービス検出を実現します。
+
+[Prometheus サービス検出の有効化](#enable-prom-sd)セクションでは、 `extraConfig`セクションを使用して標準の`prometheus.io/scrape`アノテーションを使用してサービス検出を設定する方法の例を示します。
+
+### Prometheusサービス検出を有効にする [#enable-prom-sd]
+
+Kubernetesクラスタ内でPrometheusサービスの検出を有効にするには、 `deployment`コレクターの設定の`extraConfig`セクションを使用します。 これにより、 OpenTelemetry Collector 、 `prometheus.io/scrape`注釈が付けられた Pod からメトリクスを自動的に検出して収集できるようになります。
+
+標準の`prometheus.io/scrape`アノテーションを使用してサービス検出を設定するための構成スニペットの例を次に示します。
+
+```yaml
+
+  extraConfig:
+    receivers:
+      prometheus/discover:
+        config:
+          scrape_configs:
+            - job_name: "auto-discovered-services"
+              scrape_interval: 30s  # Set the scrape interval to 30 seconds
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: true
+                - source_labels: [__meta_kubernetes_pod_label_app]
+                  action: drop
+                  regex: kube-state-metrics
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  target_label: __address__
+                  separator: ;
+                  regex: (.+):(?:\d+);(.*)
+                  replacement: $1:$2
+                - action: replace
+                  target_label: job_label
+                  replacement: auto-discovery
+    processors:
+    exporters:
+    connectors:
+    pipelines:
+      metrics/prom_auto_discover:
+        receivers:
+          - prometheus/discover
+        processors:
+          - resource/metrics
+          - k8sattributes/ksm
+          - cumulativetodelta
+          - batch
+        exporters:
+          - otlphttp/newrelic
+
+```
+
+## 関連記事 [#related-docs]
+
+<DocTiles>
+  <DocTile title="Kubernetes用のOpenTelemetry Collectorをインストールする" path="/docs/kubernetes-pixie/k8s-otel/install/">
+    Collector を使用して、 で Kubernetesクラスタを計装します。New RelicOpenTelemetry
+  </DocTile>
+
+  <DocTile title="Kubernetes の OpenTelemetry のトラブルシューティング" path="/docs/kubernetes-pixie/k8s-otel/troubleshooting/">
+    Kubernetes の OpenTelemetry Collector に関する問題をトラブルシューティングする方法を学びます。
+  </DocTile>
+</DocTiles>

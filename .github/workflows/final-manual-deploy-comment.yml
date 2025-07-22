@@ -1,0 +1,152 @@
+name: Final Netlify build manual deploy comment #temp name
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  deploy-preview:
+    # when a contributor comments 'netlify build',
+    # but only on pull requests, not issues.
+    if: |
+      github.event.comment.body == 'netlify build'
+      && github.event.issue.pull_request
+    runs-on: ubuntu-latest
+
+    steps:
+      # New step to check if the PR is from a forked repository.
+      # If the PR is from a fork, doesn't run. Only runs for branches in the main repo.
+      - name: Check if PR is from a fork
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL="${{ github.event.issue.pull_request.url }}"
+          IS_FORK=$(gh api "$PR_URL" --jq '.head.repo.fork')
+
+          if [[ "$IS_FORK" == "true" ]]; then
+            echo "🛑 Halting: This workflow only runs for branches in the main repository, not for forks."
+            exit 1
+          else
+            echo "✅ PR is not from a fork. Proceeding with the job."
+          fi
+
+      - name: Check for member permission
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
+          script: |
+            const commenter = context.payload.comment.user.login;
+            const org = context.repo.owner;
+            const team_slugs = ['doc', 'DOCS-ENG']; // <-- add your team slugs here
+
+            console.log(`Organization: ${org}`);
+            console.log(`Commenter: ${commenter}`);
+
+            try {
+              const user = await github.rest.users.getAuthenticated();
+              console.log('Authenticated as:', user.data.login);
+              
+              const scopes = await github.request('GET /user');
+              console.log('Token scopes:', scopes.headers['x-oauth-scopes']);
+            } catch (error) {
+              console.log('Auth check failed:', error.message);
+            }
+
+            // List all teams where the commenter is a member
+            async function listUserTeams() {
+              try {
+                const teams = await github.paginate(github.rest.teams.listForAuthenticatedUser, {});
+                const userTeams = teams.filter(team => team.organization.login.toLowerCase() === org.toLowerCase());
+                if (userTeams.length === 0) {
+                  console.log(`${commenter} is not a member of any team in org ${org}.`);
+                } else {
+                  console.log(`${commenter} is a member of the following teams in ${org}:`);
+                  userTeams.forEach(team => {
+                    console.log(`- ${team.slug} (${team.name})`);
+                  });
+                }
+              } catch (err) {
+                console.log(`Could not list teams for user ${commenter}: ${err.message}`);
+              }
+            }
+
+            await listUserTeams();
+
+            async function isMemberOfAnyTeam() {
+              for (const team_slug of team_slugs) {
+                console.log(`Checking team_slug: ${team_slug}`);
+                try {
+                  const response = await github.rest.teams.getMembershipForUserInOrg({
+                    org,
+                    team_slug,
+                    username: commenter,
+                  });
+                  console.log(`API response for team_slug ${team_slug}:`, JSON.stringify(response.data, null, 2));
+                  if (response.data.state === 'active') {
+                    console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                    return true;
+                  }
+                } catch (error) {
+                  console.log(`Error object for team_slug ${team_slug}:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                  if (error.status !== 404) {
+                    console.log(`Error checking team_slug ${team_slug}: ${error.message}`);
+                    core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
+                    return false;
+                  }
+                  // If 404, user is not in this team, continue to next
+                  console.log(`${commenter} is not a member of ${team_slug} (404)`);
+                }
+              }
+              return false;
+            }
+
+            // Properly await the async function
+            const isMember = await isMemberOfAnyTeam();
+            if (!isMember) {
+              core.setFailed(`${commenter} is not a member of any required team (${team_slugs.join(', ')})`);
+            } else {
+              console.log(`✅ ${commenter} is authorized to trigger builds`);
+            }
+        
+      # we use `jq` to parse the GH API response
+      - name: setup jq
+        uses: dcarbone/install-jq-action@v2
+
+      - name: send request to Netlify build hook
+        id: netlify_build
+        env: 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com//')
+          gh_api_response=$(gh api $gh_api_url)
+          branch_name=$(echo $gh_api_response | jq -r .head.ref)
+          sha=$(echo $gh_api_response | jq -r .head.sha)
+          pr_number=$(echo $gh_api_response | jq -r .number)
+
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+
+          curl -X POST \
+          "https://api.netlify.com/build_hooks/${{ secrets.NETLIFY_BUILD_HOOK_ID }}?trigger_branch=$branch_name"'&trigger_title=Manual+deploy+preview+for+PR+%23'"$pr_number"'+-+'"$sha"
+
+      # This step gets the branch name and replaces any non-alpha-numeric characters with '-' to match Netlify's URL format and capital letters to small case
+      - name: Sanitize branch name for Netlify URL
+        id: sanitize_branch
+        run: |
+          # Replace all non-alphanumeric characters with '-' and convert to lowercase
+          SANITIZED_BRANCH_NAME=$(echo "${{ steps.netlify_build.outputs.branch_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr 'A-Z' 'a-z')
+          echo "name=$SANITIZED_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      # This step now posts a comment with the dynamically constructed preview URL.
+      - name: Add PR comment with preview URL
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: |
+            ### <span aria-hidden="true">🚀</span> Netlify Preview Building!
+
+            If the build is successful, the preview for this pull request will be available at the following URL (usually takes 10-20 minutes):
+
+            **[https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app](https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app)**
+          comment_tag: manual-build-comment

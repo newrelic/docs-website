@@ -1,0 +1,297 @@
+---
+title: Advanced configuration
+metaDescription: Learn how to configure charts for advanced use cases in Kubernetes with OpenTelemetry.
+tags:
+    - Kubernetes
+    - OpenTelemetry
+    - Advanced Configuration
+    - New Relic Kubernetes integration
+    - New Relic Distribution on OpenTelemetry
+    - NRDOT
+freshnessValidatedDate: never
+---
+
+New Relic provides a [Helm chart](https://github.com/newrelic/helm-charts/blob/master/charts/nr-k8s-otel-collector/README.md) to deploy OpenTelemetry Collector in your Kubernetes cluster. This Helm charts can customized to meet your specific needs, including advanced configurations for various use cases.
+
+The `nr-k8s-otel-collector` Helm chart supports both `DaemonSet` and `Deployment` collectors, allowing you to choose the best fit for your use case. These collectors can be configured to customize their behavior. For more information on installing the New Relic OpenTelemetry Collector in Kubernetes, refer to the [installation guide](/docs/kubernetes-pixie/k8s-otel/install).
+
+This document provides an overview of some of the key advanced configuration options.
+
+
+## Enable GKE Autopilot or Red Hat OpenShift Compatibility [#enable-provider]
+
+
+To ensure compatibility with specific Kubernetes environments, you can enable provider-specific configurations. This setting ensures compatibility and proper functionality of the OpenTelemetry Collectors by adapting to the specific constraints of these environments. 
+
+Enable this option in your [`values.yaml` file](/docs/kubernetes-pixie/k8s-otel/install/#config-params):
+
+```yaml
+  provider: "GKE_AUTOPILOT" # Or "OPEN_SHIFT" if applicable
+```
+
+## Enable LowDataMode [#low-data]
+
+The `LowDataMode` option is enabled by default to ingest only the metrics required by our Kubernetes UIs. This mode reduces the amount of data collected, focusing on essential metrics for Kubernetes monitoring. 
+
+### Add Additional Metrics in LowDataMode [#additional-metrics]
+
+To fetch additional metrics, add new pipelines and configure the appropriate [receivers and processors](/docs/kubernetes-pixie/k8s-otel/intro/#otel-components) in your [`values.yaml` file](/docs/kubernetes-pixie/k8s-otel/install/#config-params) using the `extraConfig` section.
+
+The following example shows how to add the `cadvisor_version_info` metric to a new pipeline. You can reuse existing receivers or define your own. Processors are added to filter specific metrics and enrich them with Kubernetes attributes.
+
+```yaml
+  extraConfig:
+    receivers:
+    processors:
+      filter/keep_cadvisor_version_info:
+        metrics:
+            metric:
+              - name != "cadvisor_version_info" # Exclude all metrics except cadvisor_version_info
+    exporters:
+    connectors:
+    pipelines:
+      metrics/additional_metrics:
+        receivers:
+          - prometheus # This references the prometheus receiver defined above
+        processors:
+          - filter/keep_cadvisor_version_info
+          - resource # Essential for basic resource attributes
+          - k8sattributes/ksm # Essential for Kubernetes metadata enrichment
+          - cumulativetodelta # Converts cumulative metrics to delta
+          - batch # For efficient data sending
+        exporters:
+          - otlphttp/newrelic
+```
+
+For a comprehensive list of available receivers, processors, exporters, and pipelines that you can reuse in your configurations, refer to the [New Relic Helm Charts repository.](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)
+
+
+## Send data to multiple New Relic accounts [#multiple-accounts]
+
+
+To send your Kubernetes telemetry data to multiple New Relic accounts simultaneously, inject your secondary ingest license key(s) into the OpenTelemetry Collector container and configure additional OTLP exporters.
+
+1. To inject your secondary license key(s):
+
+    * In the `env` section of your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file, add the following environment variable for each secondary ingest license key you want to use:
+
+      ```yaml
+      daemonset:
+        envs:
+          - name: MY_SECONDARY_LICENSE_KEY_VAR # Choose a descriptive environment variable name
+            valueFrom:
+              secretKeyRef:
+                name: <Your Secret Name> # Name of your Kubernetes Secret
+                key: <Your Secret Key>    # Key within the Secret that holds the license key
+      deployment:
+        envs:
+          - name: MY_SECONDARY_LICENSE_KEY_VAR
+            valueFrom:
+              secretKeyRef:
+                name: <Your Secret Name>
+                key: <Your Secret Key>
+      ```
+
+    * In the `envForm` section of your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file, add the following environment variable for each secondary license key you want to use:
+
+      ```yaml
+      daemonset:
+        envsFrom:
+          - secretRef:
+              name: <Your Secret Name>
+      deployment:
+        envsFrom:
+          - secretRef:
+              name: <Your Secret Name>
+      ```
+
+2. To add an `otlphttp` exporter in the `extraConfig` section for each additional account, referencing the injected environment variable:
+
+  ```yaml
+  daemonset:
+    configMap:
+      extraConfig:
+        exporters:
+          otlphttp/secondAccount: # Unique name for this exporter
+            endpoint: "{{include 'nrKubernetesOtel.endpoint'}}"
+            headers:
+              api-key: ${env:MY_SECONDARY_LICENSE_KEY_VAR} # Reference the env var
+  deployment:
+    configMap:
+      extraConfig:
+        exporters:
+          otlphttp/secondAccount: # Unique name for this exporter
+            endpoint: "{{include 'nrKubernetesOtel.endpoint'}}"
+            headers:
+              api-key: ${env:MY_SECONDARY_LICENSE_KEY_VAR} # Reference the env var
+  # Important: Add this exporter to the relevant pipelines below
+  pipelines:
+    metrics:
+      exporters:
+        - otlphttp/newrelic # Original exporter
+        - otlphttp/secondAccount # New exporter
+    traces:
+      exporters:
+        - otlphttp/newrelic
+        - otlphttp/secondAccount
+    logs:
+      exporters:
+        - otlphttp/newrelic
+        - otlphttp/secondAccount
+  ```
+
+  <Callout variant="tip">
+    You must also add the `otlphttp/secondAccount` exporter to the relevant `pipelines` (metrics, traces, logs) within your `extraConfig` for both the `daemonset` and `deployment` collectors to ensure data is actually sent through this new exporter.
+  </Callout>
+
+3. After updating your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file, apply the changes to your cluster:
+
+  ```shell
+    helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector -f your-custom-values.yaml -n newrelic
+  ```
+
+
+## Send data via a proxy [#proxy-config]
+
+To send your Kubernetes telemetry data through a proxy, you can configure the OpenTelemetry Collector to use an HTTP proxy for outbound connections. This is particularly useful in environments where direct internet access is restricted or monitored.
+
+You can configure the OpenTelemetry Collector to use a proxy using one of the following methods:
+
+<CollapserGroup>
+
+<Collapser
+  id="proxy-chart"
+  title="Using the `proxy` section in the Helm chart">
+
+You can use the `proxy` section in your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file to configure the `nr-k8s-otel-collector` chart.
+
+  ```yaml
+    proxy: '<Your-proxy-server-URL>' # Example: [http://squid-proxy.squid:3128](http://squid-proxy.squid:3128)
+  ```
+
+</Collapser>
+
+<Collapser
+  id="proxy-env-vars"
+  title="Using environment variables environment variables and secrets">
+
+The OpenTelemetry Collector also respects standard proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`). You can inject these directly into the collector pods, optionally pulling values from Kubernetes Secrets for enhanced security. Note that these settings must apply to both the `deployment` and `daemonset` collectors. For more information on OpenTelemetry proxy settings, refer to the [OpenTelemetry Collector documentation](https://opentelemetry.io/docs/collector/configuration/).
+
+* To inject proxy settings via environment variables in the `env` section of your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file:
+
+  ```yaml
+  daemonset:
+    envs:
+      - name: HTTPS_PROXY
+        valueFrom:
+          secretKeyRef:
+            name: <Your Secret Name> # Name of your Kubernetes Secret
+            key: <Your Secret Key>    # Key within the Secret that holds the proxy URL
+  deployment:
+    envs:
+      - name: HTTPS_PROXY
+        valueFrom:
+          secretKeyRef:
+            name: <Your Secret Name>
+            key: <Your Secret Key>
+  ```
+
+* To inject proxy settings via environment variables in the `envFrom` section of your [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file:
+
+  ```yaml
+  daemonset:
+    envsFrom:
+      - secretRef:
+          name: <Your Secret Name>
+  deployment:
+    envsFrom:
+      - secretRef:
+          name: <Your Secret Name>
+  ```
+  
+
+</Collapser>
+
+</CollapserGroup>
+
+## Add custom configurations in the Helm chart [#custom-config]
+
+The `extraConfig` section within the [`values.yaml`](/docs/kubernetes-pixie/k8s-otel/install/#config-params) file provide a powerful way to extend the functionality of both the `daemonset` and `deployment` collectors. You can choose either collector to apply additional configurations, allowing you to tailor your monitoring experience.
+
+These options offer flexibility for integrating specific settings not included by default. 
+
+For further customization, you can refer to [our comprehensive list](/docs/kubernetes-pixie/k8s-otel/intro/#otel-components) of receivers, processors, exporters, and pipelines to reuse in your configurations.
+
+You can employs several recommended processors in your pipeline to enhance your telemetry data's efficiency and relevance:
+
+  * `resource:` Ensures your metrics data contains essential resource information, adding clarity to your data analysis.
+  * `k8sattributes:` Incorporates Kubernetes-specific attributes into your metrics for detailed insights into your cluster's behavior and performance.
+  * `cumulativetodelta:` Transforms cumulative metrics into delta metrics for improved tracking of changes over time.
+  * `batch:` Processes and exports metrics in batches, optimizing performance during data collection.
+
+These processors work together to refine your data for more precise monitoring and alerting. Customize the settings according to your specific use case to ensure seamless Prometheus service discovery within your Kubernetes environment.
+
+The [Enable Prometheus service discovery](#enable-prom-sd) section provides an example of how you can use `extraConfig` section to set up service discovery using the standard `prometheus.io/scrape` annotation.
+
+
+### Enable Prometheus service discovery [#enable-prom-sd]
+
+To enable Prometheus service discovery within your Kubernetes cluster, use the `extraConfig` section in your `deployment` collector's configuration. This allows the OpenTelemetry Collector to automatically discover and scrape metrics from pods annotated with `prometheus.io/scrape`.
+
+Here's an example configuration snippet to set up service discovery using the standard `prometheus.io/scrape` annotation:
+
+```yaml
+
+  extraConfig:
+    receivers:
+      prometheus/discover:
+        config:
+          scrape_configs:
+            - job_name: "auto-discovered-services"
+              scrape_interval: 30s  # Set the scrape interval to 30 seconds
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: true
+                - source_labels: [__meta_kubernetes_pod_label_app]
+                  action: drop
+                  regex: kube-state-metrics
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  target_label: __address__
+                  separator: ;
+                  regex: (.+):(?:\d+);(.*)
+                  replacement: $1:$2
+                - action: replace
+                  target_label: job_label
+                  replacement: auto-discovery
+    processors:
+    exporters:
+    connectors:
+    pipelines:
+      metrics/prom_auto_discover:
+        receivers:
+          - prometheus/discover
+        processors:
+          - resource/metrics
+          - k8sattributes/ksm
+          - cumulativetodelta
+          - batch
+        exporters:
+          - otlphttp/newrelic
+
+```
+
+
+## Related articles [#related-docs]
+
+<DocTiles>
+  <DocTile title="Install OpenTelemetry Collector for Kubernetes" path="/docs/kubernetes-pixie/k8s-otel/install/">
+    Instrument your Kubernetes Cluster in New Relic using OpenTelemetry Collectors.
+  </DocTile>
+  <DocTile title="Troubleshooting OpenTelemetry for Kubernetes" path="/docs/kubernetes-pixie/k8s-otel/troubleshooting/">
+    Learn how to troubleshoot issues with the OpenTelemetry Collector in Kubernetes.
+    </DocTile>
+</DocTiles>
