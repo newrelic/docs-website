@@ -3,7 +3,6 @@ title: 'Now Available: Queues and Streams Monitoring'
 summary: 'Queues and Streams Monitoring is now available, giving you real-time, full-stack visibility into your message brokers and streaming systems—without the complexity.'
 releaseDate: '2025-06-25'
 learnMoreLink: 'https://docs.newrelic.com/docs/message-queues-streaming/introduction/'
-
 ---
 
 New Relic’s Queues and Streams Monitoring provides engineering and operations teams with a unified, low-to-no-code solution to monitor, troubleshoot, and optimize data pipelines across Kafka, RabbitMQ, Amazon Kinesis, and other platforms.
@@ -18,15 +17,13 @@ What Makes Queues and Streams Monitoring Unique:
 * Streamlined setup: Get started with minimal configuration across cloud and on-prem systems.
 
 
-
 <img
   title="Kafka Navigator"
   alt="Kafka Navigator"
   src="/images/Q&S-Kafka-Navigator-06-2025.webp"
 />
 
-![Kafka navigator](/images/Q&S-Kafka-Navigator-06-2025.webp "Kafka navigator")
-
 Learn more in our blog posts and documentation:
-- [Blog post](https://newrelic.com/blog/nerdlog/streamline-message-flow-observability-with-queues-and-streams-monitoring)
-- [Introduction to Queues and Streams](https://docs.newrelic.com/docs/message-queues-streaming/introduction/)
+
+* [Blog post](https://newrelic.com/blog/nerdlog/streamline-message-flow-observability-with-queues-and-streams-monitoring)
+* [Introduction to Queues and Streams](https://docs.newrelic.com/docs/message-queues-streaming/introduction/)
