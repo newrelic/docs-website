@@ -491,11 +491,13 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
-        segment: {
+        // Segment analytics commented out to avoid costs and unnecessary data collection
+        // Uncomment if Segment tracking is needed again
+        /* segment: {
           segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
           section: 'docs',
           platform: 'docs_pages',
-        },
+        }, */
       },
     },
   ],
