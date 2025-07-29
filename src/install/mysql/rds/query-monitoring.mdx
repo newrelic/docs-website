@@ -1,0 +1,86 @@
+---
+componentType: default
+headingText: (Optional) Enable MySQL query-level monitoring 
+---
+
+Configure your integration to enable query-level monitoring in New Relic. By setting the appropriate parameters, you can capture detailed metrics on query performance, which allows you to identify and optimize slow or inefficient queries. For more information, refer to [Query-Level monitoring](/docs/infrastructure/infrastructure-data/query-level-monitoring).
+
+Follow these instructions to enable Performance Schema. The configuration method outlined here applies specifically to MySQL RDS.
+
+1. To enable Performance Schema by creating or modifying a DB Parameter Group and associating it with your MySQL RDS DB instance:
+
+    1. In the AWS Management Console, navigate to the RDS service.
+
+    2. Select `Parameter groups` and perform one of the following actions:
+
+        * Create a new DB Parameter Group with a family that matches your MySQL version. For example, `aurora-mysql8.0`.
+        * Modify existing custom DB Parameter Groups already associated with your RDS DB instance. Do not modify the default parameter group.
+    
+    3. Configure the DB Parameter Groups by setting the following consumer parameters:
+
+        ```ini
+        performance_schema = 1
+        max_digest_length = 4096
+        performance_schema_max_digest_length = 4096
+        performance_schema_max_sql_text_length = 4096
+        ```
+
+    4. Associate the modified or newly created DB Parameter Groups with your RDS DB cluster and instance. (Select your DB cluster and instance in the RDS console, click `Modify`, and find the `DB instance parameter group` and `DB cluster parameter group` settings.)
+
+    5. Restart your MySQL RDS DB instance for the changes to take effect. For more information, refer to the [Working with DB Parameter Groups documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithParamGroups.html).
+
+2. To enable query-level monitoring, you must also enable the Performance Schema consumers and instruments using one of the following methods:
+
+    <CollapserGroup>
+
+        <Collapser
+            id="stored-privileges"
+            title="Using stored procedures to update privileges"
+        >
+
+        1. To create the following schema:
+
+            <Callout variant="tip">
+
+                Create a dedicated schema for the New Relic monitoring user. This schema will be used by the integration to store procedures needed for query performance monitoring.
+
+            </Callout>
+
+            ```sql
+                CREATE SCHEMA IF NOT EXISTS newrelic;
+            ```
+        
+        2. To create the procedure to allow the New Relic agent to `enable performance_schema.events_*` `consumers` and `instruments` at runtime:
+
+            ```sql
+            DELIMITER $$
+            CREATE PROCEDURE newrelic.enable_essential_consumers_and_instruments()
+                SQL SECURITY DEFINER
+            BEGIN
+                UPDATE performance_schema.setup_consumers SET enabled='YES' WHERE name LIKE 'events_statements_%' OR name LIKE 'events_waits_%';
+                UPDATE performance_schema.setup_instruments SET ENABLED = 'YES', TIMED = 'YES' WHERE NAME LIKE 'wait/%' OR NAME LIKE 'statement/%' OR NAME LIKE '%lock%';
+            END $$
+            DELIMITER ;
+            GRANT EXECUTE ON PROCEDURE newrelic.enable_essential_consumers_and_instruments TO 'newrelic'@'AWS-or-Azure-instance-name';
+            ```
+
+        </Collapser>
+
+        <Collapser
+            id="direct-update-privileges"
+            title="Direct update privileges"
+        >
+
+            <Callout variant="tip">
+                Grants the monitoring user `UPDATE` privileges on the `performance_schema.setup_consumers` and `performance_schema.setup_instruments` tables. The New Relic agent uses these privileges to manage Performance Schema settings.
+            </Callout>
+
+                ```sql
+                GRANT UPDATE ON performance_schema.setup_consumers TO 'newrelic'@'AWS-or-Azure-instance-name';              
+                GRANT UPDATE ON performance_schema.setup_instruments TO 'newrelic'@'AWS-or-Azure-instance-name';
+                ```
+
+        </Collapser>
+
+    </CollapserGroup>
+
