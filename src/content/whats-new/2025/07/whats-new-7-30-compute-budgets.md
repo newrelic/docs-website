@@ -21,4 +21,3 @@ Empower your engineering teams to leverage observability tools effectively while
 Learn more in our blog posts and documentation:
 
 * [Compute Budgets Documentation](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/compute-budgets/overview)
-* Blog
