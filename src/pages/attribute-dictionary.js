@@ -32,7 +32,6 @@ const AttributeDictionary = ({ location }) => {
   const { queryParams } = useQueryParams();
 
   const { locale } = useLocale();
-  console.log('locale', locale);
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute(
