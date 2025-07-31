@@ -30,7 +30,7 @@ const AttributeDictionary = ({ location }) => {
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
-  
+
   const { locale } = useLocale();
   console.log('locale', locale);
 
