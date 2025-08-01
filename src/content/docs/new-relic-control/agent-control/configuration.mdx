@@ -347,21 +347,22 @@ For proxy setups using HTTPS authentication with self-signed certificates, you n
             secretName: ca-certs
 
     # Configure Flux components to use proxy
-    flux2:
-      sourceController:
-        extraEnv:
-          # Configure Flux source-controller to proxy all requests
-          - name: HTTPS_PROXY
-            value: https://proxy-service:8080
-          # Except for in-cluster requests
-          - name: "NO_PROXY"
-            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
-        volumeMounts:
-          # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
-          # proxy CA cert.
-          - mountPath: /etc/ssl/certs/
-            name: ca-certs
-        volumes:
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
             - name: ca-certs
               secret:
                 secretName: ca-certs
@@ -379,3 +380,135 @@ For proxy setups using HTTPS authentication with self-signed certificates, you n
 </Callout>
 
 When using a proxy, you must also configure proxy settings for each managed agent individually. Refer to each agent's specific documentation for proxy configuration options.
+
+## Secrets Management
+
+Agent Control can retrieve sensitive data (such as passwords) from secret providers. Currently, Hashicorp Vault and Kubernetes (K8s) Secrets are supported.
+
+#### Supported secrets providers
+- Hashicorp Vault (nr-vault)
+- K8s Secrets (nr-kubesec)
+
+### Define secrets
+To use secrets in a configuration YAML file:
+
+1. **Define the secrets providers section:** Each entry should be a different provider from the supported list.
+2. **Include the source configuration:** For each provider, specify the configuration needed to retrieve a group of secrets.
+3. **Set placeholders in agent configurations:** Use the correct placeholder that will be automatically replaced with the secret from the specified source.
+
+<Callout variant="important">
+    If secrets retrieval fails, the configuration won't render, and the agent won't be executed.
+</Callout>
+
+For example, the following Agent-Control configuration defines two sources to retrieve secrets from Vault:
+
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+Then, In an agent configuration, you can add a vault placeholder with the correct path to retrieve a secret from those sources, for example:
+
+```yaml
+config_agent: |+
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+Agent Control will render these secrets from the specified source and path, storing the result in a K8s secret or private config file for use by the corresponding agent.
+
+### Vault secrets
+
+Vault sources need to be set up with the following settings:
+
+<table>
+    <thead>
+    <tr>
+        <th style={{ width: "250px" }}>
+            YAML key
+        </th>
+
+        <th>
+            Description
+        </th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr>
+        <td>
+            `url`
+
+            Type: String
+        </td>
+
+        <td>
+            URL to request data from
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            `token`
+
+            Type: String
+        </td>
+
+        <td>
+            Used to authenticate to the endpoint.
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            `engine`
+
+            Type: String
+        </td>
+
+        <td>
+            Specify **`kv1`** or **`kv2`**.
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+In the configuration file, each secret stored in Vault can be accessed by setting a placeholder with:
+- **mount**
+- **path**
+- **specific key** in the secret to be retrieved.
+
+Example:
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetes secrets
+For Kubernetes, there is no need for sources, but the agent-control pod must have the rights to access the required secrets.
+
+In the configuration file, each secret value can be accessed by setting a placeholder with:
+- **namespace**
+- **name**
+- **specific key** in the secret to be retrieved.
+
+Example:
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
