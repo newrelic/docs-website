@@ -1,3 +1,8 @@
+// EDGE FUNCTION DISABLED - This function has been disabled in netlify.toml 
+// The function was originally created to inject country codes for cookie consent
+// but is not currently needed. Can be re-enabled if country-based functionality 
+// is required in the future.
+
 export default async (request, context) => {
   const response = await context.next();
 
