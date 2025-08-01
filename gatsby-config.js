@@ -432,19 +432,13 @@ module.exports = {
           ],
         },
         newrelic: {
-          config: {
+          config: process.env.ENVIRONMENT === 'production' && {
             instrumentationType: 'proAndSPA',
             accountId: '10956800',
             trustKey: '1',
-            agentID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
+            agentID: '35094662',
             licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-            applicationID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
+            applicationID: '35094662',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
             settings: {
