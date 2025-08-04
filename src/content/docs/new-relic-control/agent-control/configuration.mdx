@@ -347,21 +347,22 @@ For proxy setups using HTTPS authentication with self-signed certificates, you n
             secretName: ca-certs
 
     # Configure Flux components to use proxy
-    flux2:
-      sourceController:
-        extraEnv:
-          # Configure Flux source-controller to proxy all requests
-          - name: HTTPS_PROXY
-            value: https://proxy-service:8080
-          # Except for in-cluster requests
-          - name: "NO_PROXY"
-            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
-        volumeMounts:
-          # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
-          # proxy CA cert.
-          - mountPath: /etc/ssl/certs/
-            name: ca-certs
-        volumes:
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
             - name: ca-certs
               secret:
                 secretName: ca-certs
@@ -379,3 +380,136 @@ For proxy setups using HTTPS authentication with self-signed certificates, you n
 </Callout>
 
 When using a proxy, you must also configure proxy settings for each managed agent individually. Refer to each agent's specific documentation for proxy configuration options.
+
+## Secrets Management
+
+Agent Control provides a robust mechanism for managing sensitive data, such as passwords and API keys, by retrieving them from dedicated secret providers. This ensures that sensitive information is not hard-coded directly into configuration files. The system currently supports the following secret providers:
+
+#### Supported secrets providers
+- HashiCorp Vault: (referred to as nr-vault in configurations)
+- Kubernetes Secrets: (referred to as nr-kubesec in configurations)
+
+### Defining Secrets in Configuration
+To utilize secrets, you must define them within your Agent-Control configuration YAML file. The process involves three key steps:
+
+1. **Define secrets_providers Section:** This section is the central location for configuring your secret providers. Each entry in this section should correspond to a supported provider.
+2. **Configure Secret Sources:** For each provider, you must specify one or more sources. A source includes the necessary configuration details (e.g., URL, token) for Agent Control to connect to and retrieve a group of secrets.
+3. **Use Placeholders in Agent Configurations:** Instead of the actual sensitive data, you will use a placeholder string within your agent's configuration. Agent Control automatically replaces these placeholders with the retrieved secrets during the rendering process.
+
+<Callout variant="important">
+    If Agent Control fails to retrieve a secret for any reason, the configuration rendering will fail, and the agent will not be executed. This is a critical security feature to prevent agents from running with incomplete or incorrect configurations.
+</Callout>
+
+The following agent-control configuration example demonstrates how to configure for retrieving secrets from two Vault sources within the secrets_providers section:
+
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+#### Using Secrets in an Agent Configuration
+
+Once the sources are defined, you can reference them using a specific placeholder syntax. In an agent configuration, you can add a vault placeholder with the correct path and Agent Control will retrieve the secret and use it to render the final configuration file that the agent will use.
+
+Example agent configuration using Vault placeholders:
+
+```yaml
+config_agent: |+
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+In this example:
+
+The placeholder `${nr-vault:local-instance:secret:my_secret:username}` instructs Agent Control to retrieve the value associated with the key username from the secret at the path `secret/my_secret` using the local-instance Vault source.
+The placeholder `${nr-vault:remote:my_mount:my_path:organization}` similarly retrieves the value for the organization key from the remote source.
+
+After successful retrieval, Agent Control will render these secrets from the specified source and path, storing the result in a K8s secret or private config file for use by the corresponding agent.
+
+### Vault secrets
+
+Vault sources need to be set up with the following settings:
+
+<table>
+    <thead>
+    <tr>
+        <th style={{ width: "250px" }}>
+            YAML key
+        </th>
+        <th>
+            Description
+        </th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <tr>
+        <td>
+            `url`
+        </td>
+        <td>
+            URL to request data from
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            `token`
+        </td>
+        <td>
+            Used to authenticate to the endpoint.
+        </td>
+    </tr>
+
+    <tr>
+        <td>
+            `engine`
+        </td>
+        <td>
+            Specify **`kv1`** or **`kv2`**.
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+In the configuration file, each secret stored in Vault can be accessed by setting a placeholder with:
+- **source_name**: The name of the Vault source defined in secrets_providers.
+- **mount**: The name of the secrets engine mount.
+- **path**: The specific path to the secret.
+- **specific key**: The specific key within the secret to be retrieved.
+
+Example of full placeholder format:
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetes secrets
+Kubernetes secrets do not require a separate sources configuration. Instead, Agent Control directly accesses secrets from the Kubernetes API. For this to work, the agent-control pod must have the necessary permissions (e.g., via a Service Account and Role-Based Access Control) to access the specific secrets and namespaces it needs.
+
+In the agent configuration file, each secret value can be retrieved by using a placeholder that specifies:
+
+- **namespace**: The Kubernetes namespace where the secret is located.
+- **name**: The name of the Kubernetes Secret object.
+- **specific key**: The specific key within the secret from which to retrieve the value.
+
+Example of the full placeholder format:
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
