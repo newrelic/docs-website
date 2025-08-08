@@ -14,10 +14,275 @@ freshnessValidatedDate: never
   This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-The [Create Your Own](https://onenr.io/0OQM47KgxjG) feature in Workflow Automation enables you to build custom workflows that meet your specific requirements. With a drag-and-drop interface, you can combine various actions to construct workflows. A library of pre-built actions is available to facilitate deployment. See the [Actions Catalog](/docs/workflow-automation/setup-and-configuration/actions-catalog) for more information.
+The [Create Your Own](https://onenr.io/0OQM47KgxjG) feature in Workflow Automation enables you to build custom workflows that meet your specific requirements. With a drag-and-drop interface, you can combine various actions to construct workflows. A library of pre-built [actions](/docs/workflow-automation/setup-and-configuration/actions-catalog) is available to facilitate deployment.
 
-Let's explore how a workflow operates by building a simple one from scratch using the example below, the goal is to detects a recent deployment related to an issue and initiates a rollback of an AWS API gateway configuration after approval.
+Let's explore how a workflow operates by building a simple one from scratch using the example below, the goal is to automate provisioning, scaling, and termination of an EC2 instances for optimal performance and cost efficiency. The workflow's primary goal is to get user approval to resize an EC2 instance that is experiencing high CPU utilization and then execute the resize automatically using AWS Systems Manager.
 
-1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Workflow Automation**</DNT>.
-2. Click **Create your own**.
-3. By default the **Start** action is added.
+## Workflow inputs
+
+This workflow requires the following input parameters, many of which are securely retrieved from a [secrets manager](/docs/infrastructure/host-integrations/installation/secrets-management/).
+
+<table>
+    <thead>
+        <tr>
+            <th style={{ width: "200px" }}>
+            **Parameter name**
+            </th>
+            <th>
+            **Type**
+            </th>
+            <th>
+            **Default value**
+            </th>
+            <th>
+            **Description**
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+            `awsAccessKeyId`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `${{ :secrets:awsAccessKeyId }}`
+            </td>
+            <td>
+            AWS Access Key ID for authentication.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `awsSecretAccessKey`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `${{ :secrets:awsSecretAccessKey }}`
+            </td>
+            <td>
+            AWS Secret Access Key for authentication.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `awsSessionToken`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `${{ :secrets:awsSessionToken }}`
+            </td>
+            <td>
+            AWS Session Token for temporary credentials.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `slackToken`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `${{ :secrets:slackToken }}`
+            </td>
+            <td>
+            Slack token for API interactions.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `accountId`
+            </td>
+            <td>
+            Int
+            </td>
+            <td>
+            
+            </td>
+            <td>
+            The New Relic account ID to query.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `issueId`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            
+            </td>
+            <td>
+            The ID of the New Relic AI issue that triggered the workflow.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `awsRegion`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `us-east-2`
+            </td>
+            <td>
+            The AWS region where the EC2 instance is located.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `InstanceType`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `t4g.nano`
+            </td>
+            <td>
+            The new EC2 instance type for resizing.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `timestampUnit`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            
+            </td>
+            <td>
+            The unit for the timestamp from the alert.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `timezoneId`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `America/Los_Angeles`
+            </td>
+            <td>
+            The timezone for displaying the alert activation time.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `pattern`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            `MM-dd-yyyy HH:mm`
+            </td>
+            <td>
+            The format pattern for the displayed datetime.
+            </td>
+        </tr>
+        <tr>
+            <td>
+            `channel`
+            </td>
+            <td>
+            String
+            </td>
+            <td>
+            
+            </td>
+            <td>
+            The Slack channel ID to send messages to.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+## Workflow execution flow
+
+The workflow follows a sequential path that includes a user-driven approval process and conditional branching to handle various outcomes.
+
+<Steps>
+  <Step>
+    ### Initial data gathering
+
+      * **`getAlertDetails`**: Queries the New Relic NerdGraph API to retrieve detailed information about the triggered alert, including the activation time, condition name, and the entity GUIDs of the impacted resources.
+      * **`activatedDateTime`**: Converts the `activatedAt` timestamp from the alert details into a human-readable date and time format for display in a Slack message.
+      * **`impactedEC2Instance`**: Queries the New Relic NRDB (New Relic Database) to retrieve the specific EC2 instance ID and its current instance type based on the entity GUID from the alert.
+
+          <img
+            title="Image of initial data gathering"
+            alt="Image of initial data gathering"
+            src="/images/initial-data-gathering.webp"
+          />
+  </Step>
+
+  <Step>
+    ### User approval process
+
+      * **`IssueDetected`**: Posts an initial message to a specified Slack channel, notifying the team of the high CPU utilization on the detected EC2 instance. The message requests confirmation to resize the instance and provides instructions to react with a `:+1:` (approve) or `:-1:` (cancel).
+      * **`GetUserReaction`**: Pauses the workflow for up to 300 seconds, waiting for a user to react to the message in Slack.
+      * (Switch)**: Evaluates the reactions to the Slack message using a conditional switch:
+          * **Condition `1`**: If a user reacts with `:+1:`, the workflow proceeds to `gotYesReaction`.
+          * **Condition `2`**: If a user reacts with `:-1:`, the workflow proceeds to `gotCancelReaction`.
+          * **Condition `3`**: If the user reacts with any other emoji, the workflow proceeds to `unexpectedReaction`, redirecting the user to provide a valid reaction using the `GetUserReaction` step.
+
+          <img
+            title="Image of user approval process"
+            alt="Image of user approval process"
+            src="/images/user-approval-process.webp"
+          />
+  </Step>
+
+  <Step>
+    ### Handling user responses
+
+      * **`unexpectedReaction`**: If an unexpected reaction is detected, the workflow sends a message to the Slack thread, informs the user, and loops back to `GetUserReaction`, waiting for a valid reaction again.
+      * **`gotCancelReaction`**: If the user reacts with `:-1:`, the workflow sends a cancellation message to the Slack thread and proceeds to `workflowCompleted`.
+      * **`gotYesReaction`**: If the user reacts with `:+1:`, the workflow sends a confirmation message to the Slack thread and proceeds to the resizing steps.
+  </Step>
+
+  <Step>
+    ### EC2 resizing and automation
+
+      * **`createSsmDocument`**: A critical step in which the workflow dynamically writes an AWS Systems Manager (SSM) Automation document. This document contains a set of sequential steps to:
+        * Stop the EC2 instance.
+        * Wait for the instance to be in the `stopped` state.
+        * Modify the instance type.
+        * Start the instance.
+        * Wait for the instance to be in the `running` state.
+      * **`generateIdempotencyToken`**: A UUID is generated to serve as an idempotency token for the SSM Automation execution, ensuring the process is not duplicated.
+      * **`startResizing`**: The workflow initiates the newly created SSM Automation document, passing the EC2 instance ID and the new instance type as parameters.
+      * **`progressLoop` (Loop)**: A loop runs five times, with a 10-second wait between each iteration. During each iteration, a "resizing in progress" message is posted to the Slack thread to provide status updates.
+      * **`waitForCompletion`**: The workflow waits for the SSM Automation execution to complete, with a timeout of 120 seconds.
+  </Step>
+
+  <Step>
+    ### Final status and cleanup
+
+      * **`hasCompleted` (Switch)**: After the SSM Automation finishes, this switch checks the final execution status:
+          * **Condition `Failed`**: Proceeds to `displayError`.
+          * **Condition `Success`**: Proceeds to `displaySuccess`.
+          * **Condition (Other)**: Proceeds to `displayUnexpected`.
+      * **`displayUnexpected`**: Logs an unexpected status message to New Relic Logs and proceeds to `cleanupSsmDocument`.
+      * **`displaySuccess`**: Logs a success message to New Relic Logs and proceeds to `sendSuccessMessage`.
+      * **`sendSuccessMessage`**: Sends a final success confirmation message to the Slack thread.
+      * **`displayError`**: Logs an error message to New Relic Logs and proceeds to `cleanupSsmDocument`.
+      * **`cleanupSsmDocument`**: The dynamically created SSM document is deleted from AWS to avoid clutter.
+      * **`sendSSMCleanMessage`**: A final message is sent to Slack, confirming that the SSM document has been cleaned up.
+      * **`workflowCompleted`**: The workflow sends a final message to the Slack thread, confirming that the entire automation process has been completed successfully.
+  </Step>
+</Steps>
