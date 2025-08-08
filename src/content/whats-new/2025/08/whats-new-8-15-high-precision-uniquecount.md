@@ -1,7 +1,7 @@
 ---
 title: 'UniqueCount High Precision Mode and Increased Argument Support is now Generally Available'
 summary: 'Obtain higher precision results and provide more arguments to your uniqueCount() queries.'
-releaseDate: '2025-08-15'
+releaseDate: '2025-08-13'
 learnMoreLink: 'https://docs.newrelic.com/docs/nrql/nrql-syntax-clauses-functions/#func-uniqueCount'
 ---
 
