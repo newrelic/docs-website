@@ -381,6 +381,7 @@ For proxy setups using HTTPS authentication with self-signed certificates, you n
 
 When using a proxy, you must also configure proxy settings for each managed agent individually. Refer to each agent's specific documentation for proxy configuration options.
 
+
 ## Secrets management
 
 Agent Control provides a robust mechanism for managing sensitive data, such as passwords and API keys, by retrieving them from dedicated secret providers. This ensures that sensitive information is not hard-coded directly into configuration files. The system currently supports the following secret providers:
@@ -512,3 +513,133 @@ For example, use the placeholder format:
 ```
 "${nr-kubesec:my_namespace:my_secret:my_value}"
 ```
+
+
+## Private repository configuration
+
+Agent Control supports configuring private Helm repositories to deploy both Agent Control itself and the managed agents. This enables environments where the New Relic Helm charts are not directly accessible.
+
+<Callout variant="caution">
+  When using private Helm repositories, the charts need to be compatible and the referenced images within the charts must be reachable. If not, the agents will not work as expected.
+</Callout>
+
+### 1. Enable private repositories for agents
+
+For security reasons, only explicitly enabled repositories will be allowed in remote configurations. To enable specific repositories, you need to update the Agent Control configuration:
+
+<CollapserGroup>
+  <Collapser
+    id="k8s-private-repository-config"
+    title="Enable private repositories"
+  >
+
+    ```yaml
+    # values-newrelic.yaml
+
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+
+    # ...
+
+    agent-control-deployment:
+      config:
+        allowedChartRepositoryUrl:
+          - https://my-private-repository-1
+          - https://my-private-repository-2
+        # ...
+    ```
+
+  </Collapser>
+</CollapserGroup>
+
+The allowed repository configurations can then be used in your remote configurations within New Relic Control. Example:
+
+```yaml
+chart_version: "1.2.3"
+chart_repository:
+  url: "https://my-private-repository-1"
+  name: "my-chart-name" # Optional: use only if the chart name doesn't match New Relic's chart name
+```
+
+Additionally, you need to configure Agent Control's Helm installation to use your private repository if the `agent-control` chart itself is in a private repository. This is separate from the configuration for managed agents. Refer to the `agent-control` Helm chart [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml) to set up the `installationJob` section. Specifically:
+
+- `chartRepositoryUrl` containing your repository URL
+- `name` if using a different chart name
+- `repositorySecretReferenceName` and `repositoryCertificateSecretReferenceName` for authentication (see the authentication section below for details)
+
+### 2. Set up authentication for private repositories
+
+You need to set up additional resources to enable authentication for accessing your private repository:
+
+<CollapserGroup>
+  <Collapser
+    id="k8s-private-repository-basic-auth"
+    title="Basic authentication"
+  >
+    To authenticate using basic authentication (username and password), you need to create a secret in the Agent Control namespace containing the expected values in `data.username` and `data.password`.
+
+    Example:
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+    stringData:
+      username: "myUser"
+      password: "myPassword"
+    ```
+
+    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+
+    When using basic authentication, the remote configuration should be configured as follows:
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      secret_reference:
+        name: my-secret
+    ```
+
+  </Collapser>
+  <Collapser
+    id="k8s-private-repository-tls-cert"
+    title="TLS certificate authentication"
+  >
+    To authenticate using TLS, you need to create a secret containing:
+    * `tls.crt` and `tls.key`: client certificate and private key used for TLS client authentication
+    * `ca.crt`: CA certificate used to verify the server (required if the server uses a self-signed certificate)
+
+    The Secret should be of type `Opaque` or `kubernetes.io/tls`. All files in the Secret are expected to be PEM-encoded.
+
+    Example:
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+      namespace: newrelic-agent-control
+    type: kubernetes.io/tls # or Opaque
+    data:
+      tls.crt: <BASE64>
+      tls.key: <BASE64>
+      # NOTE: Can be supplied without the above values
+      ca.crt: <BASE64>
+    ```
+
+    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+
+    When using TLS certificate authentication, the remote configuration should be configured as follows:
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      certificate_secret_reference:
+        name: my-secret
+    ```
+
+  </Collapser>
+
+</CollapserGroup>
