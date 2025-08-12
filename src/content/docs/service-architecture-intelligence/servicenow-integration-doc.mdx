@@ -47,6 +47,7 @@ On the ServiceNow instance, do the following steps to set up the integration:
     3. Ensure that the user is active, enable Web **Service Access Only**, and submit the user.
 
 3. **Create Roles.**
+
     1. Navigate to `sys_user_role.list` using the filter.
     
     2. Click **New**, set the role name (e.g., New Relic Service Role), and submit the role.
@@ -60,8 +61,9 @@ On the ServiceNow instance, do the following steps to set up the integration:
     3. Set the operation to **read** and select the table as `sys_user_role`.
     
     4. In the **Requires role** field, select the role created in step 3.
+    
     5. Create similar ACL role for `sys_user_grmember` and repeat the steps.
-     
+    
     6. Submit the ACL.
 
 5. **Assign Role to service user.**
@@ -90,17 +92,20 @@ On the ServiceNow instance, do the following steps to set up the integration:
     
     3. Submit the property to store the unique identifier securely.
 
-    
-9. **Create an HTTP method**
+8. **Create an HTTP method.**
 
     1. Navigate to `sys_rest_message.list` using the filter.
+    
     2. Click **New** to create a REST message and set the name and endpoint.
+    
     3. Submit the REST message.
+    
     4. Create an HTTP method by:
         - Setting the authentication type to **No Authentication**.
         - Specifying the endpoint.
         - Setting the method to **POST**.
         - Submitting the method.
+
 10. **Automate Business Rule.**
 
     1. Navigate to `sys_script.list` using the filter.
@@ -108,99 +113,87 @@ On the ServiceNow instance, do the following steps to set up the integration:
     2. Click **New**, set the name, set **When to run** to **After**, and set **Insert, Update, Delete**.
     
     3. Set the table to `sys_user_group`, paste the following script, replace the property name in the script if necessary, and submit the business rule.
-    
-    ```javascript
-    (function executeRule(current, previous /*null when async*/ ) {
-    try {
-        var signingKeyProp = gs.getProperty('nr_signing_key_real_time_events');
+     ```javascript
+    (function executeRule(current, previous /*null when async*/) {
+        try {
+            var signingKeyProp = gs.getProperty('nr_rt_event_signing_key');
 
-        if (!signingKeyProp) {
-            gs.log('Error: cant get signing key from sys props');
-        }
-
-		var signingKey = GlideStringUtil.base64Encode(signingKeyProp);
-
-        if (!signingKey) {
-            gs.log('Error: base64 signing key is empty');
-        }
-
-        var payload = {};
-        var tableName;
-
-        for (var fieldName in current) {
-            if (current.getElement(fieldName) && typeof current[fieldName] !== 'function') {
-                payload[fieldName] = current.getValue(fieldName);
+            if (!signingKeyProp) {
+                gs.log('Error: cant get signing key from sys props');
             }
-        }
 
-        payload.instance_name = gs.getProperty('instance_name');
-        payload.event_type = '';
-        payload.event_timestamp = new Date().toISOString();
-      
-        if (current.operation() == 'insert') {
-            tableName = current.getTableName();
-            payload.event_type = 'inserted';
-        } else if (current.operation() == 'update') {
-            tableName = current.getTableName();
-            payload.event_type = 'updated';
-        } else if (current.operation() == 'delete') {
-            tableName = previous.getTableName();
-            for (var fieldNamePrev in previous) {
-                if (previous.getElement(fieldNamePrev) && typeof previous[fieldNamePrev] !== 'function') {
-                    payload[fieldNamePrev] = previous.getValue(fieldNamePrev);
+            var signingKey = GlideStringUtil.base64Encode(signingKeyProp);
+
+            if (!signingKey) {
+                gs.log('Error: base64 signing key is empty');
+            }
+
+            var payload = {};
+            var tableName = current.getTableName();
+
+            for (var fieldName in current) {
+                if (current.getElement(fieldName) && typeof current[fieldName] !== 'function') {
+                    payload[fieldName] = current.getValue(fieldName);
                 }
             }
-            payload.event_type = 'deleted';
+
+            payload.instance_name = gs.getProperty('instance_name');
+            payload.event_type = current.operation();
+            payload.event_timestamp = new Date().toISOString();
+
+            var jsonPayload = JSON.stringify(payload);
+            var mac = new GlideCertificateEncryption;
+            var signingAlgo = 'HmacSHA256';
+
+            var signature = mac.generateMac(signingKey, signingAlgo, jsonPayload);
+
+            var r = new sn_ws.RESTMessageV2('nr_rt_rest_message', 'post_nr_rt_message');
+            r.setRequestBody(jsonPayload);
+            r.setRequestHeader('Content-Type', 'application/json');
+            r.setRequestHeader('X-NR-Signature-Key', signature);
+            if (tableName) {
+                r.setRequestHeader('X-NR-Data-Type', tableName);
+            } else {
+                gs.log('Error: Table name could not be determined for X-NR-Data-Type header.');
+            }
+            var response = r.execute();
+            var httpStatus = response.getStatusCode();
+            var responseBody = response.getBody();
+
+            if (httpStatus >= 200 && httpStatus < 300) {
+                gs.log('success status : ' + httpStatus);
+            } else {
+                gs.log('failure status : ' + httpStatus + ' reason : ' + responseBody);
+            }
+        } catch (ex) {
+            gs.log('Error happend :' + ex.getMessage());
         }
-
-        var jsonPayload = JSON.stringify(payload);
-		var mac = new GlideCertificateEncryption;
-		var signingAlgo = 'HmacSHA256';
-
-        var signature = mac.generateMac(signingKey, signingAlgo, jsonPayload);
-
-        var r = new sn_ws.RESTMessageV2('nr_realtime_event_rest_message', 'post_nr_realtime_event_rest_message');
-        r.setRequestBody(jsonPayload);
-        r.setRequestHeader('Content-Type', 'application/json');
-        r.setRequestHeader('X-NR-Signature-Key', signature);
-        if (tableName) {
-             r.setRequestHeader('X-NR-Data-Type', tableName);
-        } else {
-            gs.log('Error: Table name could not be determined for X-NR-Data-Type header.');
-        }
-        var response = r.execute();
-        var httpStatus = response.getStatusCode();
-        var responseBody = response.getBody();
-
-        if (httpStatus >= 200 && httpStatus < 300) {
-            gs.log('success status : ' + httpStatus);
-        } else {
-            gs.log('failure status : ' + httpStatus + ' reason : ' + responseBody);
-        }
-    } catch (ex) {
-        gs.log('Error happend :'+ex.getMessage());
-    }
-
-    })(current, previous);
-
+    })(current, previous);    
     ```
 
-    This script captures changes to the `sys_user_group` table and sends real-time events to New Relic, including the operation type (insert, update, delete) and the relevant data.
+This script captures changes to the `sys_user_group` table and sends real-time events to New Relic, including the operation type (insert, update, delete) and the relevant data.
 
 11. **Finalize Integration.**
 
     1. Provide the Client ID and Client Secret from the application registry, the instance name (e.g., `google`), and the real-time signing key (UUID created).
     
-    2. Validate that teams and users data are being pulled correctly to ensure successful integration.
+    <Callout variant="important">
+    **UUID length requirement**: New Relic requires a minimum length of 16 characters for the UUID signing key. Ensure your generated UUID meets this requirement for successful integration.
+    </Callout>
     
-On the New relic platform, do the following steps to complete the set up integration:
+    2. Validate that teams and users data are being pulled correctly to ensure successful integration.
+
+## Complete setup in New Relic
+
+On the New Relic platform, complete the following steps to finalize the integration:
 
 1. Go to **[one.newrelic.com > + Integration & Agents > ServiceNow integration](https://one.newrelic.com/marketplace/install-data-source?state=9306060d-b674-b245-083e-ff8d42765e0d)**.
+
 2. In the **Set up ServiceNow integration** screen, enter the following details:
 
     - **Client ID**: The Client ID from the application registry.
     - **Client Secret**: The Client Secret from the application registry.
-    - **ServiceNow instnce name**: The name of your ServiceNow instance (e.g., `google.servicenow.com`).
+    - **ServiceNow instance name**: The name of your ServiceNow instance (e.g., `google.servicenow.com`).
     - **Real-time events signing key**: The UUID created in the ServiceNow instance.
 
 3. Click **Continue** to establish the connection between New Relic and ServiceNow.
