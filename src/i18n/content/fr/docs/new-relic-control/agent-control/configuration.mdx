@@ -306,21 +306,22 @@ Pour les configurations de proxy utilisant l&apos;authentification HTTPS avec de
             secretName: ca-certs
 
     # Configure Flux components to use proxy
-    flux2:
-      sourceController:
-        extraEnv:
-          # Configure Flux source-controller to proxy all requests
-          - name: HTTPS_PROXY
-            value: https://proxy-service:8080
-          # Except for in-cluster requests
-          - name: "NO_PROXY"
-            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
-        volumeMounts:
-          # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
-          # proxy CA cert.
-          - mountPath: /etc/ssl/certs/
-            name: ca-certs
-        volumes:
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
             - name: ca-certs
               secret:
                 secretName: ca-certs
@@ -338,20 +339,160 @@ Pour les configurations de proxy utilisant l&apos;authentification HTTPS avec de
 
 Lorsque vous utilisez un proxy, vous devez également configurer les paramètres de proxy pour chaque agent géré individuellement. Reportez-vous à la documentation spécifique de chaque agent pour les options de configuration du proxy.
 
-## Private repository configuration
+## Gestion des secrets
 
-Agent Control supports configuring private Helm repositories to deploy both Agent Control itself and the managed agents. This enables environments where the New Relic Helm charts are not directly accessible.
+Agent Control provides a robust mechanism for managing sensitive data, such as passwords and API keys, by retrieving them from dedicated secret providers. This ensures that sensitive information is not hard-coded directly into configuration files. The system currently supports the following secret providers:
 
-<Callout variant="caution">
-  When using private Helm repositories, the charts need to be compatible and the referenced images within the charts must be reachable. If not, the agents will not work as expected.
+* HashiCorp Vault: referred to as `nr-vault` in configurations.
+* Kubernetes Secrets: referred to as `nr-kubesec` in configurations.
+
+### Defining Secrets in Configuration
+
+To utilize secrets, define them within your Agent-Control configuration YAML file by following these steps:
+
+1. **Define the `secrets_providers` section:** Configure your secret providers centrally in this section. Ensure each entry corresponds to a supported provider.
+2. **Configure secret sources:** For each provider, specify one or more sources. A source includes the necessary configuration details (e.g., URL, token) for Agent control to connect to and retrieve a group of secrets.
+3. **Use placeholders in agent configurations:** Instead of the actual sensitive data, Use a placeholder string within your agent&apos;s configuration. Agent control automatically replaces these placeholders with the retrieved secrets during the rendering process.
+
+<Callout variant="important">
+  If Agent control fails to retrieve a secret, the configuration rendering will fail, and the agent will not be executed. This is a critical security feature to prevent agents from running with incomplete or incorrect configurations.
 </Callout>
 
-### 1. Enable private repositories for agents
+The following agent-control configuration example demonstrates how to configure for retrieving secrets from two Vault sources within the `secrets_providers` section:
 
-For security reasons, only explicitly enabled repositories will be allowed in remote configurations. To enable specific repositories, you need to update the Agent Control configuration:
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+#### Using Secrets in an Agent Configuration
+
+After the sources are defined, in an agent configuration, you can reference the vault using a specific placeholder syntax with the correct path. Agent control retrieves the secret and uses it to render the final configuration file that the agent is going to use.
+
+Example of agent configuration using vault placeholders:
+
+```yaml
+config_agent: |+
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+Dans cet exemple :
+
+The placeholder `${nr-vault:local-instance:secret:my_secret:username}` instructs Agent control to retrieve the value associated with the key username from the secret at the path `secret/my_secret` using the local-instance vault source. The placeholder `${nr-vault:remote:my_mount:my_path:organization}` similarly retrieves the value for the organization key from the remote source.
+
+After successful retrieval, Agent control renders these secrets from the specified source and path, storing the result in a K8s secret or private config file for use by the corresponding agent.
+
+### Les secrets du coffre-fort
+
+Set up the vault sources with the following settings:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Clé YAML
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+      </td>
+
+      <td>
+        URL pour demander des données
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `token`
+      </td>
+
+      <td>
+        Used to authenticate to the endpoint.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `engine`
+      </td>
+
+      <td>
+        Specify **`kv1`** or **`kv2`**.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+In the configuration file, each secret stored in Vault can be accessed by setting a placeholder with:
+
+* **source\_name**: The name of the Vault source defined in `secrets_providers`.
+* **mount**: The name of the secrets engine mount.
+* **path**: The specific path to the secret.
+* **specific key**: The specific key within the secret to be retrieved.
+
+Example of full placeholder format:
+
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetes secrets
+
+If the agent-control pod has permissions, such as through a Service Account and Role-Based Access Control (RBAC), to access the required secrets and namespaces, Agent control can directly access secrets from the Kubernetes API without needing a separate sources configuration.
+
+In the agent configuration file, retrieve each secret value using a placeholder specifying:
+
+* **namespace**: The Kubernetes namespace where the secret is located.
+* **name**: The name of the Kubernetes secret object.
+* **specific key**: The specific key within the secret from which to retrieve the value.
+
+For example, use the placeholder format:
+
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
+
+## Configuration du référentiel privé
+
+Agent Control prend en charge la configuration de Helm privé pour déployer à la fois Agent Control lui-même et les agents gérés. Cela permet des environnements dans lesquels les cartes New Relic Helm ne sont pas directement accessibles.
+
+<Callout variant="caution">
+  Lors de l&apos;utilisation du référentiel privé Helm, les cartes doivent être compatibles et les images référencées dans les cartes doivent être accessibles. Dans le cas contraire, les agents ne fonctionneront pas comme prévu.
+</Callout>
+
+### 1. Activer le référentiel privé pour les agents
+
+Pour des raisons de sécurité, seul le référentiel explicitement activé sera autorisé en configuration à distance. Pour activer un référentiel spécifique, vous devez mettre à jour la configuration de l&apos;Agent Control :
 
 <CollapserGroup>
-  <Collapser id="k8s-private-repository-config" title="Enable private repositories">
+  <Collapser id="k8s-private-repository-config" title="Activer le référentiel privé">
     ```yaml
     # values-newrelic.yaml
 
@@ -371,7 +512,7 @@ For security reasons, only explicitly enabled repositories will be allowed in re
   </Collapser>
 </CollapserGroup>
 
-The allowed repository configurations can then be used in your remote configurations within New Relic Control. Example:
+La configuration référentielle autorisée peut ensuite être utilisée dans votre configuration à distance au sein de New Relic Control. Exemple:
 
 ```yaml
 chart_version: "1.2.3"
@@ -380,19 +521,19 @@ chart_repository:
   name: "my-chart-name" # Optional: use only if the chart name doesn't match New Relic's chart name
 ```
 
-Additionally, you need to configure Agent Control&apos;s Helm installation to use your private repository if the `agent-control` chart itself is in a private repository. This is separate from the configuration for managed agents. Refer to the `agent-control` Helm chart [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml) to set up the `installationJob` section. Specifically:
+De plus, vous devez configurer l&apos;installation Helm d&apos;Agent Control pour utiliser votre référentiel privé si le graphique `agent-control` lui-même se trouve dans un référentiel privé. Ceci est distinct de la configuration des agents gérés. Reportez-vous au fichier `agent-control` Helm chart [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml) pour configurer la section `installationJob`. Spécifiquement:
 
-* `chartRepositoryUrl` containing your repository URL
-* `name` if using a different chart name
-* `repositorySecretReferenceName` and `repositoryCertificateSecretReferenceName` for authentication (see the authentication section below for details)
+* `chartRepositoryUrl` contenant l&apos;URL de votre référentiel
+* `name` si vous utilisez un nom de graphique différent
+* `repositorySecretReferenceName` et `repositoryCertificateSecretReferenceName` pour l&apos;authentification (voir la section authentification ci-dessous pour plus de détails)
 
-### 2. Set up authentication for private repositories
+### 2. Configurer l&apos;authentification pour le référentiel privé
 
-You need to set up additional resources to enable authentication for accessing your private repository:
+Vous devez configurer des ressources supplémentaires pour activer l&apos;authentification pour accéder à votre référentiel privé :
 
 <CollapserGroup>
   <Collapser id="k8s-private-repository-basic-auth" title="Authentification de base">
-    To authenticate using basic authentication (username and password), you need to create a secret in the Agent Control namespace containing the expected values in `data.username` and `data.password`.
+    Pour vous authentifier à l&apos;aide de l&apos;authentification de base (nom d&apos;utilisateur et mot de passe), vous devez créer un secret dans l&apos;espace de nommage Agent Control contenant les valeurs attendues dans `data.username` et `data.password`.
 
     Exemple:
 
@@ -406,9 +547,9 @@ You need to set up additional resources to enable authentication for accessing y
       password: "myPassword"
     ```
 
-    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+    Pour plus de détails, consultez la [documentation Flux](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
 
-    When using basic authentication, the remote configuration should be configured as follows:
+    Lors de l&apos;utilisation de l&apos;authentification de base, la configuration à distance doit être configurée comme suit :
 
     ```yaml
     chart_repository:
@@ -418,13 +559,13 @@ You need to set up additional resources to enable authentication for accessing y
     ```
   </Collapser>
 
-  <Collapser id="k8s-private-repository-tls-cert" title="TLS certificate authentication">
-    To authenticate using TLS, you need to create a secret containing:
+  <Collapser id="k8s-private-repository-tls-cert" title="Authentification par certificat TLS">
+    Pour vous authentifier à l’aide de TLS, vous devez créer un secret contenant :
 
-    * `tls.crt` and `tls.key`: client certificate and private key used for TLS client authentication
-    * `ca.crt`: CA certificate used to verify the server (required if the server uses a self-signed certificate)
+    * `tls.crt` et `tls.key`: certificat client et clé privée utilisés pour l&apos;authentification client TLS
+    * `ca.crt`: Certificat CA utilisé pour vérifier le serveur (requis si le serveur utilise un certificat auto-signé)
 
-    The Secret should be of type `Opaque` or `kubernetes.io/tls`. All files in the Secret are expected to be PEM-encoded.
+    Le secret doit être de type `Opaque` ou `kubernetes.io/tls`. Tous les fichiers du Secret doivent être codés en PEM.
 
     Exemple:
 
@@ -442,9 +583,9 @@ You need to set up additional resources to enable authentication for accessing y
       ca.crt: <BASE64>
     ```
 
-    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+    Pour plus de détails, consultez la [documentation Flux](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
 
-    When using TLS certificate authentication, the remote configuration should be configured as follows:
+    Lors de l&apos;utilisation de l&apos;authentification par certificat TLS, la configuration à distance doit être configurée comme suit :
 
     ```yaml
     chart_repository:
