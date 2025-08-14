@@ -21,7 +21,6 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-// import events from '../data/attribute-dictionary.json';
 import enJson from '../data/attribute-dictionary-en.json';
 import frJson from '../data/attribute-dictionary-fr.json';
 
