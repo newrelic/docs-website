@@ -306,21 +306,22 @@ translationType: machine
             secretName: ca-certs
 
     # Configure Flux components to use proxy
-    flux2:
-      sourceController:
-        extraEnv:
-          # Configure Flux source-controller to proxy all requests
-          - name: HTTPS_PROXY
-            value: https://proxy-service:8080
-          # Except for in-cluster requests
-          - name: "NO_PROXY"
-            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
-        volumeMounts:
-          # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
-          # proxy CA cert.
-          - mountPath: /etc/ssl/certs/
-            name: ca-certs
-        volumes:
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
             - name: ca-certs
               secret:
                 secretName: ca-certs
@@ -338,20 +339,160 @@ translationType: machine
 
 프록시를 사용하는 경우 각 관리 에이전트에 대한 프록시 설정도 개별적으로 구성해야 합니다. 프록시 설정 옵션은 각 에이전트의 특정 문서를 참조하세요.
 
-## Private repository configuration
+## 비밀 관리
 
-Agent Control supports configuring private Helm repositories to deploy both Agent Control itself and the managed agents. This enables environments where the New Relic Helm charts are not directly accessible.
+Agent Control provides a robust mechanism for managing sensitive data, such as passwords and API keys, by retrieving them from dedicated secret providers. This ensures that sensitive information is not hard-coded directly into configuration files. The system currently supports the following secret providers:
 
-<Callout variant="caution">
-  When using private Helm repositories, the charts need to be compatible and the referenced images within the charts must be reachable. If not, the agents will not work as expected.
+* HashiCorp Vault: referred to as `nr-vault` in configurations.
+* Kubernetes Secrets: referred to as `nr-kubesec` in configurations.
+
+### Defining Secrets in Configuration
+
+To utilize secrets, define them within your Agent-Control configuration YAML file by following these steps:
+
+1. **Define the `secrets_providers` section:** Configure your secret providers centrally in this section. Ensure each entry corresponds to a supported provider.
+2. **Configure secret sources:** For each provider, specify one or more sources. A source includes the necessary configuration details (e.g., URL, token) for Agent control to connect to and retrieve a group of secrets.
+3. **Use placeholders in agent configurations:** Instead of the actual sensitive data, Use a placeholder string within your agent&apos;s configuration. Agent control automatically replaces these placeholders with the retrieved secrets during the rendering process.
+
+<Callout variant="important">
+  If Agent control fails to retrieve a secret, the configuration rendering will fail, and the agent will not be executed. This is a critical security feature to prevent agents from running with incomplete or incorrect configurations.
 </Callout>
 
-### 1. Enable private repositories for agents
+The following agent-control configuration example demonstrates how to configure for retrieving secrets from two Vault sources within the `secrets_providers` section:
 
-For security reasons, only explicitly enabled repositories will be allowed in remote configurations. To enable specific repositories, you need to update the Agent Control configuration:
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+#### Using Secrets in an Agent Configuration
+
+After the sources are defined, in an agent configuration, you can reference the vault using a specific placeholder syntax with the correct path. Agent control retrieves the secret and uses it to render the final configuration file that the agent is going to use.
+
+Example of agent configuration using vault placeholders:
+
+```yaml
+config_agent: |+
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+이 예에서:
+
+The placeholder `${nr-vault:local-instance:secret:my_secret:username}` instructs Agent control to retrieve the value associated with the key username from the secret at the path `secret/my_secret` using the local-instance vault source. The placeholder `${nr-vault:remote:my_mount:my_path:organization}` similarly retrieves the value for the organization key from the remote source.
+
+After successful retrieval, Agent control renders these secrets from the specified source and path, storing the result in a K8s secret or private config file for use by the corresponding agent.
+
+### 금고 비밀
+
+Set up the vault sources with the following settings:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        YAML 키
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+      </td>
+
+      <td>
+        데이터를 요청할 URL
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `token`
+      </td>
+
+      <td>
+        Used to authenticate to the endpoint.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `engine`
+      </td>
+
+      <td>
+        Specify **`kv1`** or **`kv2`**.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+In the configuration file, each secret stored in Vault can be accessed by setting a placeholder with:
+
+* **source\_name**: The name of the Vault source defined in `secrets_providers`.
+* **mount**: The name of the secrets engine mount.
+* **path**: The specific path to the secret.
+* **specific key**: The specific key within the secret to be retrieved.
+
+Example of full placeholder format:
+
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetes secrets
+
+If the agent-control pod has permissions, such as through a Service Account and Role-Based Access Control (RBAC), to access the required secrets and namespaces, Agent control can directly access secrets from the Kubernetes API without needing a separate sources configuration.
+
+In the agent configuration file, retrieve each secret value using a placeholder specifying:
+
+* **namespace**: The Kubernetes namespace where the secret is located.
+* **name**: The name of the Kubernetes secret object.
+* **specific key**: The specific key within the secret from which to retrieve the value.
+
+For example, use the placeholder format:
+
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
+
+## 비공개 설정
+
+Agent Control은 Agent Control 자체와 관리 에이전트 모두에 구현, 배포에 대한 개인 Helm 렌즈 구성을 지원합니다. 이를 통해 Helm 차트에 직접 접근할 수 있습니다.
+
+<Callout variant="caution">
+  개인 Helm 저장소를 사용하는 경우 차트가 호환되어야 하며 차트 내에서 참조된 이미지에 접근할 수 있어야 합니다. 그렇지 않으면 에이전트가 예상대로 작동하지 않습니다.
+</Callout>
+
+### 1. 에이전트에 대한 개인 저장소 활성화
+
+보안상의 이유로, 원격 설정에서는 명시적으로 활성화된만 허용됩니다. 특정 이온을 활성화하려면 에이전트 제어 설정을 업데이트해야 합니다:
 
 <CollapserGroup>
-  <Collapser id="k8s-private-repository-config" title="Enable private repositories">
+  <Collapser id="k8s-private-repository-config" title="개인 저장소 활성화">
     ```yaml
     # values-newrelic.yaml
 
@@ -371,7 +512,7 @@ For security reasons, only explicitly enabled repositories will be allowed in re
   </Collapser>
 </CollapserGroup>
 
-The allowed repository configurations can then be used in your remote configurations within New Relic Control. Example:
+그런 다음 허용된 클럽 설정을 뉴렐릭 Control 내의 원격 설정에서 사용할 수 있습니다. 예:
 
 ```yaml
 chart_version: "1.2.3"
@@ -380,19 +521,19 @@ chart_repository:
   name: "my-chart-name" # Optional: use only if the chart name doesn't match New Relic's chart name
 ```
 
-Additionally, you need to configure Agent Control&apos;s Helm installation to use your private repository if the `agent-control` chart itself is in a private repository. This is separate from the configuration for managed agents. Refer to the `agent-control` Helm chart [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml) to set up the `installationJob` section. Specifically:
+또한 `agent-control` 차트 자체가 비공개 위치에 있는 경우 비공개 위치를 사용하도록 에이전트 제어의 Helm 설치를 구성해야 합니다. 이는 관리 에이전트의 설정과는 별개입니다. `installationJob` 섹션을 설정하려면 `agent-control` Helm 차트 [값.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml) 을 참조하세요. 구체적으로:
 
-* `chartRepositoryUrl` containing your repository URL
-* `name` if using a different chart name
-* `repositorySecretReferenceName` and `repositoryCertificateSecretReferenceName` for authentication (see the authentication section below for details)
+* `chartRepositoryUrl` 저장소 URL이 포함되어 있습니다
+* `name` 다른 차트 이름을 사용하는 경우
+* `repositorySecretReferenceName` 인증을 위한 `repositoryCertificateSecretReferenceName` (자세한 내용은 아래 인증 섹션 참조)
 
-### 2. Set up authentication for private repositories
+### 2. 개인 저장소에 대한 인증 설정
 
-You need to set up additional resources to enable authentication for accessing your private repository:
+개인 저장소에 액세스하기 위한 인증을 활성화하려면 추가 리소스를 설정해야 합니다.
 
 <CollapserGroup>
   <Collapser id="k8s-private-repository-basic-auth" title="기본 인증">
-    To authenticate using basic authentication (username and password), you need to create a secret in the Agent Control namespace containing the expected values in `data.username` and `data.password`.
+    기본 인증(사용자 이름 및 비밀번호)을 사용하여 인증하려면 에이전트 제어 네임스페이스에 `data.username` 및 `data.password` 에 예상 값이 포함된 비밀을 생성해야 합니다.
 
     예시:
 
@@ -406,9 +547,9 @@ You need to set up additional resources to enable authentication for accessing y
       password: "myPassword"
     ```
 
-    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+    자세한 내용은 [Flux 문서를](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference) 참조하세요.
 
-    When using basic authentication, the remote configuration should be configured as follows:
+    기본 인증을 사용하는 경우 원격 설정은 다음과 같이 구성해야 합니다.
 
     ```yaml
     chart_repository:
@@ -418,13 +559,13 @@ You need to set up additional resources to enable authentication for accessing y
     ```
   </Collapser>
 
-  <Collapser id="k8s-private-repository-tls-cert" title="TLS certificate authentication">
-    To authenticate using TLS, you need to create a secret containing:
+  <Collapser id="k8s-private-repository-tls-cert" title="TLS 인증서 인증">
+    TLS를 사용하여 인증하려면 다음이 포함된 비밀을 만들어야 합니다.
 
-    * `tls.crt` and `tls.key`: client certificate and private key used for TLS client authentication
-    * `ca.crt`: CA certificate used to verify the server (required if the server uses a self-signed certificate)
+    * `tls.crt` 및 `tls.key`: TLS 클라이언트 인증에 사용되는 클라이언트 인증서 및 개인 키
+    * `ca.crt`: 서버를 검증하는 데 사용되는 CA 인증서(서버가 자체 서명 인증서를 사용하는 경우 필요)
 
-    The Secret should be of type `Opaque` or `kubernetes.io/tls`. All files in the Secret are expected to be PEM-encoded.
+    비밀은 `Opaque` 또는 `kubernetes.io/tls` 유형이어야 합니다. Secret에 있는 모든 파일은 PEM으로 인코딩되어야 합니다.
 
     예시:
 
@@ -442,9 +583,9 @@ You need to set up additional resources to enable authentication for accessing y
       ca.crt: <BASE64>
     ```
 
-    For more details, see the [Flux documentation](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference).
+    자세한 내용은 [Flux 문서를](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference) 참조하세요.
 
-    When using TLS certificate authentication, the remote configuration should be configured as follows:
+    TLS 인증서 인증을 사용하는 경우 원격 설정은 다음과 같이 구성해야 합니다.
 
     ```yaml
     chart_repository:
