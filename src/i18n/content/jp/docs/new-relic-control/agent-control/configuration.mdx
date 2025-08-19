@@ -306,21 +306,22 @@ Agent Control次の優先順位でプロキシ設定を使用します。
             secretName: ca-certs
 
     # Configure Flux components to use proxy
-    flux2:
-      sourceController:
-        extraEnv:
-          # Configure Flux source-controller to proxy all requests
-          - name: HTTPS_PROXY
-            value: https://proxy-service:8080
-          # Except for in-cluster requests
-          - name: "NO_PROXY"
-            value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
-        volumeMounts:
-          # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
-          # proxy CA cert.
-          - mountPath: /etc/ssl/certs/
-            name: ca-certs
-        volumes:
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
             - name: ca-certs
               secret:
                 secretName: ca-certs
@@ -337,3 +338,260 @@ Agent Control次の優先順位でプロキシ設定を使用します。
 </Callout>
 
 プロキシを使用する場合は、管理対象エージェントごとにプロキシ設定を個別に構成する必要があります。プロキシ設定オプションについては、各エージェントの固有のドキュメントを参照してください。
+
+## 秘密管理
+
+Agent Control専用のシークレット プロバイダーからパスワードやAPIキーなどの機密データを取得して管理するための堅牢なメカニズムを提供します。 これにより、機密情報が設定ファイルに直接ハードコードされなくなります。 システムは現在、次のシークレット プロバイダーをサポートしています。
+
+* HashiCorp Vault: 設定では`nr-vault`と呼ばれます。
+* Kubernetes Secrets: 設定では`nr-kubesec`と呼ばれます。
+
+### 設定でシークレットを定義する
+
+シークレットを利用するには、次の手順に従って、エージェント コントロール設定 YAML ファイル内でシークレットを定義します。
+
+1. **`secrets_providers`セクションを定義します。**このセクションでシークレット プロバイダーを集中的に構成します。各エントリがサポートされているプロバイダーに対応していることを確認します。
+2. **シークレット ソースを構成する:**プロバイダーごとに、1 つ以上のソースを指定します。ソースには、エージェント制御がシークレットのグループに接続して取得するために必要な設定の詳細 (例: URL、VPN) が含まれています。
+3. **エージェント設定でプレースホルダーを使用する:**実際の機密データの代わりに、エージェントの設定内でプレースホルダー文字列を使用します。 エージェント コントロールは、レンダリング プロセス中にこれらのプレースホルダーを取得したシークレットに自動的に置き換えます。
+
+<Callout variant="important">
+  エージェント コントロールがシークレットの取得に失敗した場合、設定のレンダリングは失敗し、エージェントは実行されません。 これは、エージェントが不完全または間違った設定で実行されるのを防ぐための重要なセキュリティ機能です。
+</Callout>
+
+次のエージェント制御設定例は、 `secrets_providers`セクション内の 2 つの Vault ソースからシークレットを取得するように設定する方法を示しています。
+
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+#### エージェント設定でのシークレットの使用
+
+ソースを定義した後、エージェント設定で、正しいパスを持つ特定のプレースホルダー構文を使用してボールトを参照できます。 エージェント コントロールはシークレットを取得し、それを使用してエージェントが使用する最終設定ファイルをレンダリングします。
+
+vault プレースホルダーを使用したエージェント設定の例:
+
+```yaml
+config_agent: |+
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+この例では
+
+プレースホルダー`${nr-vault:local-instance:secret:my_secret:username}`は、ローカル インスタンス ボールト ソースを使用してパス`secret/my_secret`のシークレットからキー ユーザー名に関連付けられた値を取得するようにエージェント コントロールに指示します。 プレースホルダー`${nr-vault:remote:my_mount:my_path:organization}`も同様に、リモート ソースから組織キーの値を取得します。
+
+取得が成功すると、エージェント コントロールは指定されたソースとパスからこれらのシークレットをレンダリングし、対応するエージェントが使用できるように結果を K8s シークレットまたはプライベート構成ファイルに保存します。
+
+### ヴォールトの秘密
+
+次の設定で Vault ソースを設定します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        YAMLキー
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+      </td>
+
+      <td>
+        データを要求するURL
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `token`
+      </td>
+
+      <td>
+        エンドポイントへの認証に使用されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `engine`
+      </td>
+
+      <td>
+        **`kv1`**または**`kv2`**を指定します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+構成ファイルでは、次のプレースホルダーを設定することで、Vault に保存されている各シークレットにアクセスできます。
+
+* **source\_name** : `secrets_providers`で定義された Vault ソースの名前。
+* **mount \[マウント]**: シークレットエンジンマウントの名前。
+* **path** : シークレットへの特定のパス。
+* **specific key \[特定のキー]**: 取得するシークレット内の特定のキー。
+
+完全なプレースホルダー形式の例:
+
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetesの秘密
+
+エージェント コントロールのポッドが、サービス アカウントやロールベースのアクセス制御 (RBAC) などを介して、必要なシークレットとネームスペースにアクセスする権限を持っている場合、エージェント コントロールは、別のソース設定を必要とせずに、 Kubernetes APIからシークレットに直接アクセスできます。
+
+エージェント設定ファイルで、次を指定するプレースホルダーを使用して各シークレット値を取得します。
+
+* **namespace \[ネームスペース]**: シークレットが存在するKubernetesネームスペース。
+* **name** : Kubernetes シークレット オブジェクトの名前。
+* **specific key \[特定のキー]**: 値を取得するシークレット内の特定のキー。
+
+たとえば、次のプレースホルダー形式を使用します。
+
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
+
+## プライベートリポジトリ設定
+
+Agent Control は、Agent Control 自体と管理対象エージェントの両方をデプロイするためのプライベート Helm リポジトリの構成をサポートしています。これにより、New Relic Helm チャートに直接アクセスできない環境が可能になります。
+
+<Callout variant="caution">
+  プライベート Helm リポジトリを使用する場合、チャートは互換性があり、チャート内の参照イメージにアクセスできる必要があります。そうしないと、エージェントは期待どおりに動作しません。
+</Callout>
+
+### 1. エージェントのプライベートリポジトリを有効にする
+
+セキュリティ上の理由から、リモート設定では明示的に有効化されたリポジトリのみが許可されます。 特定のリポジトリを有効にするには、 Agent Control設定を更新する必要があります。
+
+<CollapserGroup>
+  <Collapser id="k8s-private-repository-config" title="プライベートリポジトリを有効にする">
+    ```yaml
+    # values-newrelic.yaml
+
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+
+    # ...
+
+    agent-control-deployment:
+      config:
+        allowedChartRepositoryUrl:
+          - https://my-private-repository-1
+          - https://my-private-repository-2
+        # ...
+    ```
+  </Collapser>
+</CollapserGroup>
+
+許可されたリポジトリ設定は、 New Relic Control 内のリモート設定で使用できるようになります。 例：
+
+```yaml
+chart_version: "1.2.3"
+chart_repository:
+  url: "https://my-private-repository-1"
+  name: "my-chart-name" # Optional: use only if the chart name doesn't match New Relic's chart name
+```
+
+さらに、 `agent-control`チャート自体がプライベート リポジトリ内にある場合は、プライベート リポジトリを使用するようにAgent ControlのHelmを構成する必要があります。 マネージドエージェントの設定とは別のものです。 `installationJob`セクションを設定するには、 `agent-control` Helm チャート[values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control/values.yaml)を参照してください。具体的には：
+
+* `chartRepositoryUrl` リポジトリのURLを含む
+* `name` 別のチャート名を使用する場合
+* `repositorySecretReferenceName` 認証には`repositoryCertificateSecretReferenceName`使用します（詳細は以下の認証セクションを参照してください）
+
+### 2. プライベートリポジトリの認証を設定する
+
+プライベート リポジトリにアクセスするための認証を有効にするには、追加のリソースを設定する必要があります。
+
+<CollapserGroup>
+  <Collapser id="k8s-private-repository-basic-auth" title="基本認証">
+    基本認証 (ユーザー名とパスワード) を使用して認証するには、 Agent Controlネームスペースに、 `data.username`および`data.password`の予想される値を含むシークレットを作成する必要があります。
+
+    例：
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+    stringData:
+      username: "myUser"
+      password: "myPassword"
+    ```
+
+    詳細については、 [Flux のドキュメント](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference)を参照してください。
+
+    基本認証を使用する場合、リモート設定は次のように構成する必要があります。
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      secret_reference:
+        name: my-secret
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-private-repository-tls-cert" title="TLS証明書認証">
+    TLS を使用して認証するには、次の内容を含むシークレットを作成する必要があります。
+
+    * `tls.crt` および`tls.key` : TLSクライアント認証に使用されるクライアント証明書と秘密鍵
+    * `ca.crt`: サーバーの検証に使用される CA 証明書 (サーバーが自己署名証明書を使用する場合に必要)
+
+    Secret のタイプは`Opaque`または`kubernetes.io/tls`である必要があります。Secret 内のすべてのファイルは PEM でエンコードされている必要があります。
+
+    例：
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+      namespace: newrelic-agent-control
+    type: kubernetes.io/tls # or Opaque
+    data:
+      tls.crt: <BASE64>
+      tls.key: <BASE64>
+      # NOTE: Can be supplied without the above values
+      ca.crt: <BASE64>
+    ```
+
+    詳細については、 [Flux のドキュメント](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference)を参照してください。
+
+    TLS 証明書認証を使用する場合、リモート設定は次のように構成する必要があります。
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      certificate_secret_reference:
+        name: my-secret
+    ```
+  </Collapser>
+</CollapserGroup>
