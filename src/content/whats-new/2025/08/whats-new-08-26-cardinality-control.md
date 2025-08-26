@@ -1,6 +1,6 @@
 ---
 title: "Cardinality controls"
-summary: "New Relic introduces Cardinality Controls, enabling customers to purchase additional account cardinality beyond 15 million, with limits scaling up to 200 million per account for flexible, cost-effective dimensional metrics management."
+summary: "New Relic introduces cardinality controls, enabling customers to purchase additional account cardinality beyond 15 million, with limits scaling up to 200 million per account for flexible, cost-effective dimensional metrics management."
 releaseDate: "2025-08-26"
 ---
 
