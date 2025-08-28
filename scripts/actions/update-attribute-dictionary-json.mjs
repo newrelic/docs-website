@@ -7,7 +7,7 @@ import sortBy from 'lodash/fp/sortBy.js';
 
 // this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://api.newrelic.com/graphql';
-const JSON_FILE_PATH = 'src/data/attribute-dictionary.json';
+const JSON_FILE_PATH = 'src/data/attribute-dictionary-en.json';
 
 const GQL_QUERY = `
   {
