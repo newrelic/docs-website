@@ -1,4 +1,8 @@
 const onRenderBody = async ({ setPostBodyComponents }) => {
+  // Analytics tracking commented out to avoid Netlify edge function costs
+  // and unnecessary data collection. Uncomment if tracking is needed again.
+  
+  /*
   const linkedInId = (
     <script
       type="text/javascript"
@@ -75,6 +79,10 @@ const onRenderBody = async ({ setPostBodyComponents }) => {
   );
 
   setPostBodyComponents([linkedInId, linkedInFunc, linkedInImg, marketo]);
+  */
+  
+  // No analytics components loaded to reduce costs
+  setPostBodyComponents([]);
 };
 
 export default onRenderBody;
