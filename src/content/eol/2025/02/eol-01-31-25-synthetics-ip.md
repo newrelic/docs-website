@@ -30,7 +30,7 @@ We will be migrating the IP address range for the New Relic service used by Synt
 
 * After **May 28, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
 
-**Old IP ranges to remove:** The following table list the old IP ranges however, it is recommended not to remove the old IP ranges until notified.
+**Old IP ranges to remove:** The following table list the old IP ranges that you must remove before 30th September 2025.
 
 <table>
   <thead>
