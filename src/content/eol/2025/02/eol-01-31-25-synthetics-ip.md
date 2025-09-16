@@ -42,11 +42,6 @@ We will be migrating the IP address range for the New Relic service used by Synt
   </thead>
   <tbody>
     <tr>
-      <td>us-east-1</td>
-      <td>Washington, DC, USA</td>
-      <td>44.202.178.0/24 <br>44.202.180.0/23 <br> 44.210.68.0/24 <br> 44.210.110.0/25</td>
-    </tr>
-    <tr>
       <td>us-east-2</td>
       <td>Columbus, OH, USA</td>
       <td>3.145.224.0/24 <br> 3.145.225.0/25 <br> 3.145.234.0/24</td>
