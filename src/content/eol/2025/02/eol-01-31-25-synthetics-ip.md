@@ -31,7 +31,8 @@ We will be migrating the IP address range for the New Relic service used by Synt
 * The following IP ranges will remain in use for the `us-east-1` region:
   * 44.202.178.0/24
   * 44.202.180.0/23
-  * 44.210.68.0/24  
+  * 44.210.68.0/24
+  * 44.210.110.0/25
 
 * After **September 30, 2025**, remove the old IP ranges from the allowlist. Failure to do so may result in failed connections and trigger alerts.
 
