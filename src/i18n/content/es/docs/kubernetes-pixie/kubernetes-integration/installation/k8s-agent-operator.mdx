@@ -1,0 +1,740 @@
+---
+title: Adjuntar automáticamente el APM en Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+  - APM auto-attach
+metaDescription: Learn how to use the Kubernetes APM auto-attach to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+La conexión automática Kubernetes APM, anteriormente conocida como operador de agente Kubernetes, agiliza la observabilidad de todo el stack para entornos Kubernetes al automatizar la instrumentación APM junto con el despliegue del agente Kubernetes. Al habilitar <InlinePopover type="APM" />instrumentación automática, los desarrolladores ya no necesitan gestionar manualmente [el agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm/). La conexión automática APM Kubernetes instalará, actualizará y eliminará automáticamente el agente APM.
+
+Actualmente es [compatible con](#k8s-supported-versions) Java, .NET, Node.js, Python, Ruby y PHP.
+
+## Cómo funciona [#how-it-works]
+
+* El `MutatingWebHook`, tras la instalación, interviene en la interceptación requests API para desplegar pod en nodos.
+
+* Reflejando la configuración especificada, muta la especificación pod para agregar un contenedor de inicio NR y variables de entorno.
+
+* Tras la creación del pod, el agente New Relic APM se integra perfectamente en la aplicación alojada en él.
+
+<img title="Diagram showing how APM agents are auto injected" alt="Diagram showing how APM agents are auto injected" src="/images/K8s-APM-auto-attach-diagram.webp" />
+
+## Antes de que empieces [#before-begin]
+
+Antes de instalar el operador, verifique lo siguiente:
+
+* [Helm](https://helm.sh/): Debes instalarlo para emplear los gráficos. Consulte la [documentación de Helm](https://helm.sh/docs/) si necesita ayuda para comenzar.
+
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/): Tienes que configurarlo para comunicar con tu clúster.
+
+## Instalacion [#install-k8s-operator]
+
+Dependiendo de lo que necesites, puedes optar por instalar la conexión automática Kubernetes APM de forma independiente o junto con nuestra integración Kubernetes.
+
+Recomendamos encarecidamente instalarlo junto con la integración Kubernetes para aprovechar toda nuestra experiencia [de observabilidad de todo el stack](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) .
+
+### Instalación del paquete además de la integración Kubernetes (recomendado) [#bundle-installation]
+
+El gráfico de conexión automática de Kubernetes APM es parte del gráfico [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle), que gestiona la instalación de todos los componentes necesarios para permitir una observabilidad completa de Kubernetes.
+
+Agregue el parámetro `k8s-agents-operator.enabled=true` a su comando helm o inclúyalo en el archivo [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml). Consulta la página [Instalar la integración de Kubernetes](/install/kubernetes/?dropdown1=helm) para obtener más información sobre el uso de Helm o consulta el gráfico [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle).
+
+Vea este ejemplo de comandos Helm usando parámetro:
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY \
+    --set global.cluster=CLUSTER_NAME \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### Instalación independiente [#standalone-installation]
+
+Para instalar la conexión automática de Kubernetes APM con la configuración predeterminada, ejecute estos comandos:
+
+```shell
+helm repo add k8s-agents-operator https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+```
+
+Para obtener una lista completa de opciones de configuración, consulte el cuadro [LÉAME](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) .
+
+## Configurar instrumentación automática [#configure-auto-instrumentation]
+
+Una vez que la conexión automática de APM esté configurada en su clúster, el siguiente paso es simplemente implementar las configuraciones necesarias para que funcione. Esto implica tener al menos un recurso personalizado de instrumentación (CR) activo en el clúster.
+
+Esto es lo que la instrumentación CR le permite mapear:
+
+* Nombre de la instrumentación CR
+* Donde se aplicará la instrumentación CR empleando [`selectors`](#selectors)
+* agente APM (uno por CR)
+* Versión del agente APM
+* Parámetro de configuración de APM (env vars)
+* clave de licencia (opcional)
+
+El archivo de manifiesto debe inyectar en el mismo namespace (`newrelic` de manera predeterminada) donde instaló la conexión automática APM.
+
+```bash
+kubectl apply -f ./instrumentation.yaml -n newrelic
+```
+
+Aquí tienes una [instrumentación.yaml](https://github.com/newrelic/k8s-agents-operator/blob/main/local/instrumentation.yaml) completa para tu referencia.
+
+## Cómo emplear selectores [#selectors]
+
+Emplee selectores para controlar qué recursos inyecta el CR con el agente APM. Hay tres selectores disponibles. Puedes usarlos individualmente o en combinación. Cuando se combinan, los selectores se evalúan empleando una operación lógica AND (`&&`).
+
+<CollapserGroup>
+  <Collapser id="pod-label-selector" title="Selector de etiquetas de pod">
+    Informa al APM Auto-attach qué pod necesita ser instrumentado.
+
+    El siguiente ejemplo emplea `matchLabel` en `PodLabelSelector` para seleccionar un pod que contiene una etiqueta y un valor específicos:
+
+    ```yaml
+    ...
+    podLabelSelector:
+      matchLabels:
+        app.kubernetes.io/name: flask-hello-world
+    ...
+    ```
+  </Collapser>
+
+  <Collapser id="namespace-label-selector" title="Selector de etiquetas de espacio de nombres">
+    Define el pod autoinstrumentado en el nivel namespace.
+
+    El siguiente ejemplo emplea `matchExpressions` en `NameSpaceLabelSelector` para seleccionar namespace que contiene una etiqueta y un valor específicos:
+
+    ```yaml
+    ...
+    namespaceLabelSelector:
+      matchExpressions:
+        - key: "kubernetes.io/metadata.name"
+          operator: "In"
+          values: ["backend"]
+    ...
+    ```
+
+    <Callout variant="tip">
+      Un selector que emplea la etiqueta `kubernetes.io/metadata.name` coincidirá con el espacio de nombres según su nombre.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="container-selector" title="Selector de contenedores">
+    Define el contenedor auto-instrumentado a nivel de contenedor.
+
+    <Callout variant="tip">
+      Si no se define un `containerSelector`, la integración instrumentará automáticamente el primer contenedor no inicializado que aparece en la especificación del pod.
+    </Callout>
+
+    Proporciona cuatro métodos para seleccionar el contenedor apropiado.
+
+    #### Selector de entorno
+
+    Seleccionar contenedor en función de las variables de entorno del contenedor.
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-envs
+    spec:
+      containerSelector:
+        envSelector:
+          matchEnvs:
+            DEBUG: 'true'
+    #...
+    ```
+
+    Para obtener más información y ejemplos, consulte [envSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#envSelector)
+
+    #### imageSelector
+
+    Seleccione contenedor según la URL de la imagen del contenedor.
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-any-container
+    spec:
+      containerSelector:
+        imageSelector:
+          matchExpressions:
+            - key: url
+              operator: StartsWith
+              values: ["docker.io/"]
+    #...
+    ```
+
+    Para obtener más información y ejemplos, consulte [imageSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#imageSelector)
+
+    #### nameSelector
+
+    Selecciona contenedor para instrumentación en función de su nombre y tipo (`init` o `regular`).
+
+    El valor debe ser una lista de los nombres de contenedores que desea como objetivo. Los contenedores no incluidos en esta lista serán ignorados.
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-names-and-any-container
+    spec:
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: app
+    #...
+    ```
+
+    Para obtener más información y ejemplos, consulte [nameSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#nameSelector)
+
+    #### namesFromPodAnnotation
+
+    Especifica la clave de una anotación de pod. El valor de la anotación especificada debe ser una lista separada por comas de nombres de contenedores para seleccionar para la instrumentación.
+
+    Por ejemplo, si un pod tiene una anotación que identifica a qué contenedor instrumentar. En este caso, la anotación `use-these-for-newrelic` especifica que se deben seleccionar los contenedores denominados `a` y `c`.
+
+    ```yaml
+    #... pod spec
+    metadata:
+      annotations:
+        use-these-for-newrelic: a,c
+    spec:
+      initContainers:
+        - name: a
+          #.. more container spec ..
+      containers:
+        - name: b
+          # ...
+        - name: c
+    #...
+    ```
+
+    A continuación, para emplear esa anotación, configure el campo `namesFromPodAnnotation` en su recurso de instrumentación con la clave de la anotación (`use-these-for-newrelic`):
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-names-from-pod-annotation
+    spec:
+      containerSelector:
+        namesFromPodAnnotation: use-these-for-newrelic
+    #...
+    ```
+
+    Esta configuración instrumentó el contenedor `a` (`init`) y `c` (`regular`), mientras ignoraba el contenedor `b`, porque sus nombres se especificaron en la anotación `use-these-for-newrelic` del pod.
+
+    Para obtener más información y ejemplos, consulte [namesFromPodAnnotation](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#namesFromPodAnnotation)
+  </Collapser>
+</CollapserGroup>
+
+### MatchLabel y MatchExpressions
+
+Todos los selectores admiten `matchLabel` y `matchExpressions`.
+
+<CollapserGroup>
+  <Collapser
+    id="label-selectors"
+    title={<>Cómo emplear <InlineCode>
+      matchLabel
+    </InlineCode> y <InlineCode>
+      matchExpressions
+    </InlineCode></>
+    }
+  >
+    `matchExpressions` es un selector de etiquetas más expresivo en Kubernetes y admite la coincidencia basada en conjuntos a diferencia de `matchLabels`, que solo puede usar para una coincidencia exacta. Puede usarlo con o sin el selector `matchLabels`.
+
+    ```yaml
+    ...
+    selector:
+      matchLabels:
+        tier: frontend
+      matchExpressions:
+        - {key: name, operator: In, values: [payroll, web]}
+        - {key: environment, operator: NotIn, values: [dev]}
+    ...
+    ```
+
+    Puede agregar más expresiones al selector. Como en el ejemplo, cada expresión debe contener una clave, un operador y posiblemente (dependiendo del operador) una lista de valores. Hay cuatro operadores válidos:
+
+    * `In`:El valor de la etiqueta debe coincidir con uno de los valores especificados.
+    * `NotIn`:El valor de la etiqueta no debe coincidir con ninguno de los valores especificados.
+    * `Exists`:El pod debe incluir una etiqueta con la clave especificada (el valor no es importante). Al emplear este operador, no debe especificar el campo de valores.
+    * `DoesNotExist`:El pod no debe incluir una etiqueta con la clave especificada. No debe especificar la propiedad de valores.
+
+    Si especifica muchas expresiones, todas esas expresiones deben evaluar como verdaderas para que el selector coincida con un pod. Si especifica `matchLabels` y `matchExpressions`, todas las etiquetas deben coincidir y todas las expresiones deben evaluar como verdaderas para que el pod coincida con el selector.
+  </Collapser>
+</CollapserGroup>
+
+### Agente APM [#apm-agent]
+
+Debes especificar el agente APM y su versión dentro del CR de instrumentación. Recomendamos emplear la última versión para aprovechar las nuevas funciones disponibles.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Idioma
+      </th>
+
+      <th>
+        Imagen
+      </th>
+
+      <th>
+        Versiones disponibles
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        puntonet
+      </td>
+
+      <td>
+        `newrelic-dotnet-init:latest`
+      </td>
+
+      <td>
+        [.NET](https://hub.docker.com/repository/docker/newrelic/newrelic-dotnet-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        java
+      </td>
+
+      <td>
+        `newrelic-java-init:latest`
+      </td>
+
+      <td>
+        [Java](https://hub.docker.com/repository/docker/newrelic/newrelic-java-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        node.js
+      </td>
+
+      <td>
+        `newrelic-node-init:latest`
+      </td>
+
+      <td>
+        [Nodo](https://hub.docker.com/repository/docker/newrelic/newrelic-node-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        pitón
+      </td>
+
+      <td>
+        `newrelic-python-init:latest`
+      </td>
+
+      <td>
+        [Python](https://hub.docker.com/repository/docker/newrelic/newrelic-python-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        rubí
+      </td>
+
+      <td>
+        `newrelic-ruby-init:latest`
+      </td>
+
+      <td>
+        [Ruby](https://hub.docker.com/repository/docker/newrelic/newrelic-ruby-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        php
+      </td>
+
+      <td>
+        `newrelic-php-init:latest`
+      </td>
+
+      <td>
+        [PHP](https://hub.docker.com/repository/docker/newrelic/newrelic-php-init/general)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Vea este ejemplo:
+
+```yaml
+...
+spec:
+  agent:
+    language: dotnet
+    image: newrelic/newrelic-dotnet-init:latest
+...
+```
+
+### Configuración de manija APM [#apm-config-parameters]
+
+La instrumentación CR proporciona la capacidad de inyectar variables de entorno en el pod para agilizar la configuración del agente APM. Vea este ejemplo:
+
+```yaml
+...
+spec:
+  agent:
+    env:
+      # Example overriding the appName configuration by using a label of the pod
+      - name: NEW_RELIC_APP_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.labels['app.kubernetes.io/name']
+...
+```
+
+En el ejemplo anterior, le mostramos cómo puede configurar los ajustes del agente globalmente usando variables de entorno. Consulte la documentación de configuración de cada agente para conocer las opciones de configuración disponibles:
+
+* [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [Nodo](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+* [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
+* [.NET](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
+* [Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
+* [PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
+
+<Callout variant="important">
+  Puede inyectar estas variables de entorno en el manifiesto de implementación de la aplicación.
+</Callout>
+
+### clave de licencia (opcional) [#license-keys]
+
+Al instalarlo se crea un <InlinePopover type="licenseKey" />y es la licencia por defecto. Siga estos pasos si necesita enviar la telemetría de APM a una cuenta diferente:
+
+* Para crear un secreto que contenga una nueva clave de licencia, ejecute este comando:
+
+  ```bash
+  kubectl create secret generic newrelic-key-secret \
+      --namespace my-monitored-namespace \
+      --from-literal=new_relic_license_key=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+  ```
+
+* Para hacer referencia al secreto del CR de instrumentación, ejecute este comando:
+
+  ```yaml
+  ...
+  spec:
+    licenseKeySecret: the-name-of-the-custom-secret
+  ...
+  ```
+
+## Ejemplos de instrumentación CR [#cr-examples]
+
+<CollapserGroup>
+  <Collapser id="label-selector-dotnet" title="Agente Python : pod con una etiqueta y un valor específicos y un nombre de aplicación anulador">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+        env:
+          - name: NEW_RELIC_APP_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-dotnet" title="Agente Python : pod con una etiqueta específica solo monitoreando init contenedor con un nombre específico">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: flask-hello-app
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-java" title="agente de Java: pod de un namespaceespecífico">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-java" title="Agente de Java: pod de un namespace específico que solo monitorea contenedores con un nombre específico">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+      containerSelector:
+        nameSelector:
+          matchExpressions:
+            - key: container
+              operator: In
+              values: ["java-app"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-ruby" title="Agente Ruby : cualquier namespace que contenga la etiqueta Ruby y envíe datos a una cuenta diferente">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-ruby
+      namespace: newrelic
+    spec:
+      agent:
+        language: ruby
+        image: newrelic/newrelic-ruby-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "Ruby"
+            operator: "Exists"
+      licenseKeySecret: the-name-of-the-custom-secret
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Actualizar instrumentación APM en la aplicación [#upgrade-apm-instrumention]
+
+De forma predeterminada, la conexión automática APM Kubernetes instala automáticamente la última versión disponible del [agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm/) correspondiente.
+
+Una vez que comienza el monitoreo de una aplicación, esta no se actualiza automáticamente a una versión más nueva a menos que usted elija actualizarla. Puede actualizar la aplicación volviendo a implementar el pod o resetear su implementación.
+
+## Eliminar instrumentación APM en la aplicación [#remove-apm-instrumentation]
+
+Para eliminar la instrumentación APM de una aplicación, debe cambiar el selector de etiqueta correspondiente dentro del `podLabelSelector` o `namespaceLabelSelector` usado o eliminar el CR de instrumentación. Luego, resetear el despliegue. El proceso de eliminación sólo tarda unos segundos.
+
+## Actualizar la conexión automática de APM de Kubernetes [#update-k8s-auto-attach]
+
+### instalación del paquete [#upgrading-bundle-installation]
+
+Ejecute una actualización del gráfico `nri-bundle` con el siguiente parámetro:
+
+```shell
+k8s-agents-operator.enabled=true
+```
+
+### Instalación independiente [#standalone-installation]
+
+Ejecute el comando `helm upgrade` para actualizar a una versión más nueva de la conexión automática de APM de Kubernetes.
+
+```shell
+helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Desinstalación de la conexión automática de APM de Kubernetes [#uninstall-k8s-auto-attach]
+
+### instalación del paquete [#uninstall-bundle-installation]
+
+Desinstale el gráfico `nri-bundle` o, si solo desea eliminar la conexión automática de Kubernetes APM, ejecute una actualización de Helm con el siguiente parámetro:
+
+```shell
+k8s-agents-operator.enabled=false
+```
+
+### Instalación independiente [#uninstall-standalone-installation]
+
+Para desinstalar y eliminar la conexión automática de Kubernetes APM, ejecute este comando:
+
+```shell
+helm uninstall k8s-agents-operator -n newrelic
+```
+
+## Buscar y utilizar datos [#find-data]
+
+* Obtenga información valiosa de su aplicación y resuelva el incidente empleando la página [de resumen APM](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/).
+
+* Consulte la página [de resumen de Kubernetes](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) . Proporciona Kubernetes información valiosa en el contexto de su aplicación de monitor.
+
+## Certificados [#certificates]
+
+La conexión automática de APM de Kubernetes puede admitir [`cert-manager`](https://github.com/cert-manager/cert-manager) si se prefiere.
+
+* Ejecute este comando para instalar el gráfico Helm [`cert-manager`](https://github.com/cert-manager/cert-manager) :
+
+  ```shell
+  helm install cert-manager jetstack/cert-manager \
+      --namespace cert-manager \
+      --create-namespace \
+      --set crds.enabled=true
+  ```
+
+* En su archivo `values.yaml`, configure `admissionWebhooks.autoGenerateCert.enabled: false` y `admissionWebhooks.certManager.enabled: true`. A continuación, instale el gráfico de forma normal.
+
+## Lanzamientos de gráficos disponibles [#available-chart-releases]
+
+Ejecute este comando para ver los gráficos disponibles:
+
+```shell
+helm search repo k8s-agents-operator
+```
+
+## Preguntas frecuentes [#faq]
+
+<CollapserGroup>
+  <Collapser id="route-apps-telemetry" title="¿Puedo enrutar mi aplicación telemetría a diferentes cuentas?">
+    Sí, solo necesitas agregar más secretos en el clúster. Consulte los pasos necesarios en la sección [clave de licencia (opcional)](#license-keys%5D).
+
+    <Callout variant="important">
+      La [experiencia de K8s APM ](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)solo está disponible en la cuenta donde están disponibles los datos de la aplicación y del clúster de Kubernetes.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="modify-conf-apm" title="¿Puedo instalar la conexión automática Kubernetes APM si mi aplicación ya está instrumentada?">
+    Instalar dos agentes APM en la misma aplicación puede generar potencialmente problemas inesperados. Por lo tanto, recomendamos encarecidamente quitar cualquier instrumentación existente antes de instalarla.
+  </Collapser>
+
+  <Collapser id="custom-apm" title="¿Puedo usar instrumentación personalizada con la conexión automática de APM de Kubernetes?">
+    Sí, la instrumentación personalizada funcionará de la misma manera que sin la conexión automática de APM. La principal diferencia es que el agente ahora se inyecta mediante la conexión automática APM en lugar de instalar en el contenedor con el resto de la dependencia de la aplicación.
+
+    Aún puedes importar y llamar a la API del agente para agregar instrumentación personalizada a tu aplicación. También puede emplear un archivo de configuración o variables de entorno para agregar instrumentación personalizada si el agente particular que está empleando lo admite. Tenga en cuenta que el agente tiene orden de precedencia entre la configuración a través de variables de entorno y la configuración a través de archivos de configuración, por lo que deberá cerciorar de que la configuración de su variable de entorno a través del operador no entre en conflicto con su configuración a través del archivo de configuración. Consulte los documentos de cada agente instrumentación personalizada para obtener más detalles:
+
+    * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation/)
+    * [Nodo](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation/)
+    * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+    * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/)
+    * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+    * [PHP](/docs/apm/agents/php-agent/features/php-custom-instrumentation/)
+  </Collapser>
+
+  <Collapser id="read-only-file-system" title="¿Puedo instalar la conexión automática Kubernetes APM si mis aplicaciones se ejecutan en un sistema de archivos de solo lectura?">
+    No, no puedes. Los agentes APM se inyectan en el tiempo de ejecución de la aplicación y necesitan acceso para escribir en el sistema de archivos del contenedor de la aplicación.
+  </Collapser>
+
+  <Collapser id="setup-operator" title="¿Puedo configurar la conexión automática de Kubernetes APM en nodos de Windows?">
+    Sólo es compatible con nodos Linux.
+
+    Se espera que en el futuro cercano exista compatibilidad con nodos de Windows.
+  </Collapser>
+
+  <Collapser id="setup-operator" title="¿Puedo configurar la conexión automática de Kubernetes APM en los nodos de Fargate?">
+    No se probó en nodos [AWS Fargate](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-eks-fargate/) con EKS.
+  </Collapser>
+</CollapserGroup>
+
+## Resolución de problemas [#troubleshooting]
+
+Si tu aplicación no está instrumentada, debes verificar lo siguiente:
+
+* Cerciorar de volver a implementar o desplegar una nueva aplicación luego de instalar la conexión automática Kubernetes APM. Observe que solo las nuevas aplicaciones auto-instrumentadas se implementan en el clúster.
+
+* Ejecute este comando para verificar que el secreto esté instalado en el namespace de la aplicación:
+
+  ```bash
+  kubectl get secrets -n NAMESPACE
+  ```
+
+* Verifique que el pod tenga las etiquetas necesarias que habilitan la instrumentación automática a través de CR cuando se emplea `podLabelSelector`. De manera similar, verifique que el namespace tenga las etiquetas requeridas cuando emplee `namespaceLabelSelector` dentro del CR.
+
+  ```bash
+  kubectl get pod POD_NAME -n NAMESPACE -o jsonpath='{.metadata.annotations}'
+  ```
+
+* Ejecute este comando para obtener registros del pod de conexión automática de APM:
+
+  ```bash
+  kubectl logs AGENT_OPERATOR_POD -n newrelic
+  ```
+
+* Ejecute este comando para garantizar que el contenedor `init` se inyectó y ejecutado correctamente dentro del pod de la aplicación.
+
+  ```bash
+  kubectl describe pod POD_NAME -n NAMESPACE
+  ```
+
+## Cómo migrar desde versiones anteriores que requerían anotaciones [#migrate]
+
+A partir de la versión 0.14, las anotaciones dentro del manifiesto de despliegue de la aplicación ya no son necesarias para que la aplicación se instrumente automáticamente.
+
+Se recomienda desinstalar cualquier versión anterior a la 0.14 y continuar con la instalación de la última versión. La utilización de los selectores de etiquetas dentro de la instrumentación CR permitirá la implementación precisa del agente APM, eliminando así la necesidad de anotaciones.
+
+## Apoyo [#support]
+
+La conexión automática de Kubernetes APM admite los siguientes idiomas y sus versiones mínimas compatibles de acuerdo con nuestra política de compatibilidad de agente APM estándar:
+
+* **Agente de Java:** 8.12
+* **Agente .NET:** 10.25
+* **Agente Ruby :** 9.10
+* **Agente Node.js :** 11.9
+* **Python:** 9.10
+* **PHP:** 11.12
+
+Para cualquier problema:
+
+* Revise la [sección de problemas en GitHub](https://github.com/newrelic/k8s-agents-operator/issues) para detectar problemas similares o considere abrir un nuevo problema.
+
+* Puede comunicar con el equipo [de soporte de New Relic](https://support.newrelic.com/) para obtener ayuda.

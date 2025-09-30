@@ -1,0 +1,186 @@
+---
+title: "Manage existing instrumentation with Agent Control"
+metaDescription: "You can reinstall your current instrumentation to manage it through Agent Control"
+freshnessValidatedDate: never
+---
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+<Callout variant="important">
+Agent Control currently only supports **Kubernetes**. The migration process described in this document is specific to this environment. We are working on a public preview for on-host Linux systems, and support for other environments will be added in the future.
+</Callout>
+
+If your Kubernetes cluster is already instrumented with New Relic, you must migrate your agents to be managed by Agent Control to use its features. This process involves a "rip-and-replace" approach where you uninstall your existing agents and then install them through Agent Control.
+
+Agent Control supports a unified configuration method for all agents, ensuring you can retain all features and settings from your original Helm chart installation.
+
+<Callout variant="tip" title="Best practices">
+To ensure data continuity, use the same cluster name and point to the same New Relic account during your Agent Control installation. You can continue to keep any agents or components that are not yet supported by Agent Control on the cluster.
+</Callout>
+
+### Step 1. Match and Retrieve Your Existing Configuration
+
+First, identify which of your existing agents can be managed by Agent Control.
+
+Agent Control can deploy and manage the following agents, supported by the Helm charts included in the `nri-bundle` chart:
+
+- `newrelic-infrastructure`, `nri-kube-events`, `kube-state-metrics`, and `nri-kube-events` (now managed through the New Relic Infrastructure agent type)
+- `newrelic-prometheus-configurator` (now managed through the New Relic Prometheus agent type)
+- `newrelic-logging` (now managed through the Fluent Bit agent type)
+- The `nr-k8s-otel-collector` chart (now managed through the New Relic OpenTelemetry Collector agent type)
+
+If you installed agents using Helm, retrieve your installation config from the cluster by running the following command:
+
+```sh
+$ helm get values <release-name> --namespace <namespace-name>
+```
+
+If you have the original configuration file saved from the installation, you can use that directly.
+
+
+On the other hand, if you have instrumented the cluster via manifest, find the corresponding options in each agent chart. 
+
+<Callout variant="tip" title="TIP">
+    You can continue to keep any agents or components within the cluster, especially those that are not yet supported by Agent Control. To ensure the best experience, make sure to maintain the same cluster name and point to the same account.
+</Callout>
+
+
+### Step 2. Create a New Agent Control Configuration
+
+Now, create a new Agent Control values.yaml file based on your existing configuration. This will tell Agent Control how to deploy and configure your agents after the migration.
+
+1. Start the [Agent Control Installation](/docs/new-relic-control/agent-control/setup/) via guided install and select all the agents you are interested in.
+2. Copy the `values.yaml` file to your local machine.
+3. Update the downloaded file to correspond with the configurations of your old agents.
+
+#### Example: Migrating an nri-bundle Installation
+
+This example shows how to convert a configuration from the nri-bundle chart to a new Agent Control configuration.
+
+**Existing `nri-bundle` configuration:**
+
+```shell
+global:
+  cluster: test-migration
+  licenseKey: ***
+kube-state-metrics:
+  enabled: false
+newrelic-prometheus-agent:
+  enabled: true
+newrelic-infrastructure:
+  enabled: true
+  kubelet:
+    tolerations:
+      - operator: "Exists"
+        effect: "NoSchedule"
+      - operator: "Exists"
+        effect: "NoExecute"
+      - operator: "Exists"
+        key: "MyToleration"
+  ksm:
+    enabled: false
+  common:
+    config:
+      interval: 29s
+newrelic-logging:
+  enabled: true
+  image:
+    tag: "latest"
+  resources:
+    limits:
+      cpu: 200m
+    requests:
+      cpu: 200m
+nri-kube-events:
+  enabled: true
+  customAttributes:
+    test_tag_label: test_tag_value
+```
+**New Agent Control configuration:**
+
+You will modify the subAgents section of your new configuration to match the old settings. The example below shows how the original settings map to the new format.
+
+```shell
+global:
+  cluster: "test-migration"
+  licenseKey: "****"
+agent-control-deployment:
+  identityClientId: "****"
+  identityClientSecret: "****"
+  config:
+    fleet_control:
+      fleet_id: "****"
+      auth:
+        organizationId: "****"
+    subAgents:
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          chart_version: "1.25.1"
+          chart_values:
+            newrelic-logging:
+              image:
+                tag: "latest"
+              resources:
+                limits:
+                  cpu: 200m
+                requests:
+                  cpu: 200m
+      infrastructure:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "5.0.109"
+          chart_values:
+            newrelic-infrastructure:
+              kubelet:
+                tolerations:
+                  - operator: "Exists"
+                    effect: "NoSchedule"
+                  - operator: "Exists"
+                    effect: "NoExecute"
+                  - operator: "Exists"
+                    key: "MyToleration"
+              ksm:
+                enabled: false
+              common:
+                config:
+                  interval: 29s
+            nri-kube-events:
+              customAttributes:
+                test_tag_label: test_tag_value
+      prometheus:
+        type: newrelic/com.newrelic.prometheus:0.1.0
+        content:
+          chart_version: "1.15.4"
+```
+
+### Step 3. Uninstall Your Old Agents
+
+Before you can install Agent Control, you must remove the old agents from your cluster. Refer to the documentation for your existing agents for instructions on how to uninstall them.
+
+For a Helm installation, you can use the helm uninstall command.
+
+```shell
+$ helm uninstall <release-name> -n <namespace>
+```
+
+For the example above, you would run:
+
+```shell
+$ helm uninstall nri-bundle -n newrelic
+```
+
+
+
+### Step 4. Install Agent Control
+
+Once your old instrumentation is uninstalled, you are ready to install Agent Control with your new configuration. Follow the remaining installation steps included in the guided install.
+
+For a Helm installation, you would typically run:
+
+```shell
+$ helm upgrade --install agent-control-bootstrap -n newrelic newrelic/agent-control-bootstrap --create-namespace --values my_migrated_values.yaml
+```

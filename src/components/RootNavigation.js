@@ -4,6 +4,7 @@ import JpNav from './JpNav';
 import EsNav from './EsNav';
 import PtNav from './PtNav';
 import EnNav from './EnNav';
+import FrNav from './FrNav';
 import StyleGuideNav from './StyleGuideNav';
 
 const RootNavigation = ({ locale, className, isStyleGuide }) => {
@@ -13,6 +14,7 @@ const RootNavigation = ({ locale, className, isStyleGuide }) => {
     en: <EnNav className={className} />,
     es: <EsNav className={className} />,
     pt: <PtNav className={className} />,
+    fr: <FrNav className={className} />,
   };
   if (isStyleGuide) {
     return <StyleGuideNav className={className} />;

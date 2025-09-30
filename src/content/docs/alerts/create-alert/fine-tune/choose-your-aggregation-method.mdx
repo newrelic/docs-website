@@ -1,0 +1,114 @@
+---
+title: Choose your aggregation method
+tags:
+  - Alerts
+metaDescription: "Use this for guidance on choosing the best aggregation method for your alerting conditions and notification thresholds."
+freshnessValidatedDate: never
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/get-started/choose-your-aggregation-method
+---
+
+Alerts conditions provide a sophisticated set of tools for describing when you want to be notified about something that's happened or failed to happen on something you're monitoring. For best results, choose the aggregation method that best matches the way your data arrives.
+
+The three aggregation methods are event flow, event timer, and cadence. If you're interested in a conceptual overview, see our doc on [streaming alerts, key terms and concepts](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/streaming-alerts-key-terms-concepts/).
+
+## What's aggregation? [#aggregation]
+
+When an application or service is monitored by New Relic, data can arrive in different ways. Some data arrives consistently and predictably, while other data arrives inconsistently and sporadically.
+
+Aggregation is how our alerting system gathers data together before analyzing it for exceeding warning or critical threshold levels.
+
+Your data is collected as data points in an aggregation window and then turned into a single numeric value. The data points are aggregated based on your NRQL query using methods like sum, average, min, and max, among others. This single numeric value is what's used to evaluate the condition's threshold.
+
+Once data has been aggregated, no more data points can be added to it. Our different aggregation methods will help you strike a balance between aggregating your data quickly and waiting for enough data points to arrive.
+
+## Why it matters [#why]
+
+With the correct aggregation method, you're more likely to get notifications you care about, while preventing ones you don't.
+
+The most important questions to consider when deciding on your aggregation method: How often does my data arrive? How consistently does my data arrive?
+
+When data arrives frequently and consistently in a linear way, we recommend using event flow.
+
+When data arrives sporadically, inconsistently, and out of order, we recommend using event timer aggregation.
+
+## When to use event flow [#event-flow]
+
+<img
+  title="Diagram showing regularly arriving data points."
+  alt="Diagram showing regularly arriving data points"
+  src="/images/accounts_diagram_time-series-data-points.webp"
+/>
+
+With event flow, data is aggregated based on data point timestamps, so it's important that data points arrive in a consistent and linear manner. This aggregation method doesn't work as well for data point timestamps that arrive out of order or with a wide span of time within a short period.
+
+Event flow is the default aggregation method, because it applies for the most common use cases.
+
+## How event flow works [#event-flow-detail]
+
+Event flow uses data point timestamps to determine when to open and close an aggregation window.
+
+For example, if you're using event flow with a 2 minute delay window, then an aggregation window will close when a timestamp arrives that's two minutes later than the last timestamp that was received.
+
+A data point with a 12:00pm timestamp arrives. An aggregation window opens. At some point, a 12:03pm data point arrives. Event flow closes the window, excluding the 12:03 data point, and evaluates that closed window against your thresholds.
+
+The event flow aggregation window will continue collecting data points until that later timestamp. The later timestamps are what moves the system forward, not the data points themselves. Event flow will wait as long as necessary for the next data point later than your delay setting to arrive, before aggregating the data.
+
+Event flow works best for data that arrives frequently and consistently.
+
+<Callout variant="caution">
+  If you expect your data points to arrive more than 65 minutes apart, please use the event timer method described below.
+</Callout>
+
+## Event flow use cases [#event-flow-use-cases]
+
+Here are some typical event flow use cases:
+
+* <InlinePopover type="apm"/> agent data.
+* Infrastructure agent data.
+* Any data coming from a 3rd party that comes in frequently and reliably.
+* Most AWS CloudWatch metrics coming from the AWS Metric Stream (NOT polling). The main exception is that some AWS CloudWatch data is very infrequent (like S3 volume data) regardless of whether it's streaming or polling and, in that case, you'd use <DNT>**Event timer**</DNT>.
+
+## When to use event timer [#event-timer]
+
+<img
+  title="A screenshot showing where you can find the NRQL query builder button in the UI."
+  alt="A screenshot showing where you can find the NRQL query builder button in the UI."
+  src="/images/accounts_diagram_signal-consistency-.webp"
+/>
+
+Event timer aggregation is based on a timer that counts down when a data point arrives. The timer resets every time a new data point arrives. If the timer counts down before a new data point arrives, event timer aggregates all of the data points received during that time.
+
+Event timer is best for alerting on events that happen sporadically and with large gaps of time.
+
+## How event timer works [#event-timer-detail]
+
+Errors are a type of event that happens sporadically, unpredictably, and often with large gaps of time.
+
+For example, you might have a condition with a query that returns a count of errors. Many minutes may go by without any errors at all, and then suddenly 5 errors arrive within a minute.
+
+In this example, event timer would do nothing until the first of the 5 errors arrive. Then it would start the timer, resetting it each time a new error arrives. If the timer countdown reaches 0 without a new error, event timer aggregates the data, and evaluates it against your threshold.
+
+## Event timer use cases [#event-timer-use-cases]
+
+Here are some typical event timer use cases:
+
+* New Relic usage data.
+* Cloud integration data that is being polled (such as with GCP, Azure, or AWS polling methods).
+* Queries that deliver sparse or infrequent data, such as error counts.
+
+## Cadence [#cadence]
+
+Cadence is our original aggregation method. It aggregates data on specific time intervals as detected by New Relic's internal wall clock, regardless of data timestamps.
+
+We recommend that you use one of our other aggregation methods instead, unless your events are susceptible to clock skew and you don't have control on the producer to correct it. For instance, `PageAction` events are instrumented on users browsers, and rely on the user device clock to assign a timestamp. A single event with a skewed timestamp can affect event flow or even timer alerts, as windows may be aggregated too early and result in false positives.
+
+Outside of this scenario, you will want to choose one of the other aggregation methods. Event flow is best for consistent, predictable data points. Event timer is best for inconsistent, sporadic data points.
+
+## Aggregation and loss of signal [#loss-signal]
+
+Our loss of signal system runs separately from these aggregation methods and settings.
+
+If you set your alert condition to open a new incident when your signal is lost for 10 minutes, a loss of signal service watches for data points to arrive. If a new data point fails to arrive within 10 minutes, loss of signal causes an incident to open.
+
+For more information on when to use gap filling and loss single, see our forum post on [when to use gap filling and loss of signal](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401).

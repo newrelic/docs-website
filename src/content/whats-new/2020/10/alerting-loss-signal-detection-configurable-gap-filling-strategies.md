@@ -14,4 +14,4 @@ We know that not all signals or time series that are being monitored have a cons
 
 When editing a NRQL Alert Condition, you can configure loss of signal detection under **Condition settings > Set your condition thresholds** and gap filling under **Condition settings > Fine-tune advanced signal settings**.
 
-![Animated gif showing condition settings.](./images/whats_up_signal_loss.gif "whats_up_signal_loss.gif")
+![Animated gif showing condition settings.](/images/whats_up_signal_loss.gif 'whats_up_signal_loss.gif')

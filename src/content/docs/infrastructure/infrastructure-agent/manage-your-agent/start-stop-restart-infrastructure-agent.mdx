@@ -1,0 +1,409 @@
+---
+title: 'Start, stop, and restart the infrastructure agent'
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Manage your agent
+translate:
+  - jp
+  - kr
+metaDescription: 'Use your system''s init system to start, stop, or restart New Relic''s infrastructure agent.'
+redirects:
+    - /docs/infrastructure-start-stop-restart-check-agent-status
+    - /docs/servers/new-relic-servers-linux/maintenance/restarting-servers-linux
+    - /docs/servers/new-relic-servers-linux/maintenance/restarting-agent-new-relic-servers-linux
+    - /docs/servers/new-relic-servers-linux/maintenance/restart-agent-new-relic-servers-linux
+    - /docs/servers/new-relic-servers-linux/maintenance
+    - /docs/servers/new-relic-servers-windows/maintenance
+    - /docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status
+    - /docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent
+freshnessValidatedDate: never
+---
+
+The infrastructure agent starts automatically after you run the installation script. However, there are situations where you may need to manually restart the agent (for example, after [changing your agent configuration](/docs/infrastructure-configure-your-agent)).
+
+Want to try out our infrastructure agent? [Create a New Relic account](https://newrelic.com/signup) for free! No credit card required.
+
+## Linux [#linux]
+
+For [Linux](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-linux), ensure you use the correct command for [your init system](#init-system). Select `start`, `stop`, `restart`, or `status` as appropriate:
+
+* <DNT>**SystemD**</DNT> (Amazon Linux 2, SLES 12, CentOS 7 or higher, Debian 8 or higher, RHEL 7 or higher, Ubuntu 15.04 or higher):
+  ```shell
+  sudo systemctl <start|stop|restart|status> newrelic-infra
+  ```
+
+* <DNT>**System V**</DNT> (Debian 7, SLES 11.4, RHEL 5):
+  ```shell
+  sudo /etc/init.d/newrelic-infra <start|stop|restart|status>
+  ```
+
+* <DNT>**Upstart**</DNT> (Amazon Linux, RHEL 6, Ubuntu 14.04 or lower):
+  ```shell
+  sudo initctl <start|stop|restart|status> newrelic-infra
+  ```
+
+## Windows [#windows]
+
+<Callout variant="important">
+  To start, stop, or restart the agent, you must run `cmd.exe` or PowerShell as <DNT>**Administrator**</DNT>.
+</Callout>
+
+For [Windows Server](/docs/infrastructure/new-relic-infrastructure/installation/install-infrastructure-windows-server), you can use the Windows command prompt or PowerShell.
+
+### Command prompt (cmd.exe)
+
+* Start or stop the Windows agent:
+  ```shell
+  net <start|stop> newrelic-infra
+  ```
+
+* Restart the Windows agent:
+  ```shell
+  net stop newrelic-infra ; net start newrelic-infra
+  ```
+
+* Check the status of the Windows agent:
+  ```shell
+  sc query "newrelic-infra" | find "STATE"
+  ```
+
+### PowerShell
+
+* Start or stop the Windows agent:
+
+  ```shell
+  Stop-Service -Name "newrelic-infra"
+  Start-Service -Name "newrelic-infra"
+  ```
+
+  <Callout variant="tip">
+    You can also use `net start|stop newrelic-infra`
+  </Callout>
+
+
+* Restart the Windows agent:
+  ```shell
+  Restart-Service newrelic-infra
+  ```
+
+* Check status of Windows agent:
+  ```shell
+  (Get-Service newrelic-infra).Status
+  ```
+
+## macOS [#macOS]
+
+* Stop or start the agent:
+  ```shell
+  brew services stop newrelic-infra-agent
+  brew services start newrelic-infra-agent
+  ```
+
+* Restart the agent:
+  ```shell
+  brew services restart newrelic-infra-agent
+  ```
+
+* Check status of the agent:
+  ```shell
+  brew services list
+  ```
+
+## Customize agent logs [#logging]
+
+The infrastructure agent logs to a default location which depends on your platform. You can customize this location with the [`log_file`](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings#log-file) setting. You can also [generate verbose logs for troubleshooting](/docs/infrastructure/new-relic-infrastructure/troubleshooting/generating-logs-troubleshooting-infrastructure).
+
+## Determine your init system [#init-system]
+
+For Windows Server, the commands in this document use the Windows command prompt.
+
+For Linux, the infrastructure agent selects an init system appropriate for your distribution:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px", textAlign: "right" }}>
+        Distribution
+      </th>
+
+      <th style={{ width: "110px", textAlign: "center" }}>
+        SystemD
+      </th>
+
+      <th style={{ width: "110px", textAlign: "center" }}>
+        System V
+      </th>
+
+      <th style={{ width: "110px", textAlign: "center" }}>
+        Upstart
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Amazon Linux
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Amazon Linux 2
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        CentOS 7
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        CentOS 8
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Debian 7 ("Wheezy")
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Debian 8 ("Jessie")
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Debian 9 ("Stretch")
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        RHEL 5
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        RHEL 6
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        RHEL 7
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        RHEL 8
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Ubuntu, 14.04 or lower
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        Ubuntu, 16.04 or higher
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        SLES 12
+      </td>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+
+    <tr>
+      <td style={{ textAlign: "right" }}>
+        SLES 11
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+
+      <td style={{ textAlign: "center" }}>
+        <Icon
+          style={{color: '#328787'}}
+          name="fe-check"
+        />
+      </td>
+
+      <td style={{ textAlign: "center" }}/>
+    </tr>
+  </tbody>
+</table>
+
+## Configuration management tools [#config-mgmt]
+
+To manage the infrastructure agent with your config management tool, see:
+
+* [Ansible configuration](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-using-ansible)
+* [Chef configuration](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-using-chef)
+* [AWS Elastic Beanstalk configuration](/docs/infrastructure/install-infrastructure-agent/config-management-tools/install-infrastructure-agent-aws-elastic-beanstalk)
+* [Puppet configuration](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-puppet)

@@ -1,0 +1,739 @@
+---
+title: Kubernetes APM 自動アタッチ
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+  - APM auto-attach
+metaDescription: Learn how to use the Kubernetes APM auto-attach to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+KubernetesAPM以前はKubernetes エージェントKubernetes APMKubernetesオペレーターとして知られていた 自動アタッチは、 エージェント デプロイメントとともに インストゥルメンテーションを自動化することで、 環境のフルスタック オブザーバビリティを合理化します。<InlinePopover type="APM" />自動インストゥルメンテーションを有効にすると、開発者は[APMエージェントを](/docs/apm/new-relic-apm/getting-started/introduction-apm/)手動で管理する必要がなくなります。 Kubernetes APM自動アタッチは、 APMエージェントを自動的にインストール、アップグレード、削除します。
+
+現在、Java、.NET、Node.js[をサポートしています](#k8s-supported-versions)。 Python、Ruby、PHP。
+
+## 使い方 [#how-it-works]
+
+* `MutatingWebHook` は、インストール時に、ノードへのデプロイ ポッドのAPIリクエストのインターセプトに関与します。
+
+* 設定の指定を反映して、Podの仕様を変更してNR initコンテナと環境変数を追加します。
+
+* ポッドの確立後、New Relic APM エージェントはその中に格納されているアプリケーションにシームレスに統合されます。
+
+<img title="Diagram showing how APM agents are auto injected" alt="Diagram showing how APM agents are auto injected" src="/images/K8s-APM-auto-attach-diagram.webp" />
+
+## あなたが始める前に [#before-begin]
+
+オペレーターをインストールする前に、次の点を確認してください。
+
+* [Helm](https://helm.sh/) : チャートを使用するにはこれをインストールする必要があります。 開始する際にサポートが必要な場合は、 [Helm のドキュメントを](https://helm.sh/docs/)参照してください。
+
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/) : クラスターと通信するように設定する必要があります。
+
+## インストール [#install-k8s-operator]
+
+必要に応じて、 Kubernetes APM自動アタッチを個別にインストールするか、 Kubernetesインテグレーションと一緒にインストールするかを選択できます。
+
+[フルスタックのサバビリティエクスペリエンス](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 全体を活用するには、Kubernetes インテグレーションと一緒にインストールすることを強くお勧めします。
+
+### Kubernetesインテグレーションに加えてインストレーションをバンドルする（推奨） [#bundle-installation]
+
+KubernetesAPM[`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)自動接続チャートは、完全なKubernetes オブザーバビリティを可能にするために必要なすべてのコンポーネントのインストールを管理する チャートの一部です。
+
+`k8s-agents-operator.enabled=true`問題を helm コマンドに追加するか、 [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)ファイルに含めます。 Helm の使用方法の詳細については[、「 Kubernetesインテグレーションのインストール」](/install/kubernetes/?dropdown1=helm)ページを参照するか、 [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)チャートを確認してください。
+
+問題を使用した Helm コマンドのサンプルを参照してください。
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY \
+    --set global.cluster=CLUSTER_NAME \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### スタンドアロン インストール [#standalone-installation]
+
+Kubernetes APM自動アタッチをデフォルト設定でインストールするには、次のコマンドを実行します。
+
+```shell
+helm repo add k8s-agents-operator https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+```
+
+設定オプションの完全なリストについては、 [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values)チャートを参照してください。
+
+## 自動計装を構成する [#configure-auto-instrumentation]
+
+クラスター内で APM 自動アタッチがすべて設定されたら、次のステップは、それを動作させるために必要な構成を展開することです。 これには、クラスタ内で少なくとも 1 つのインストゥルメンテーション カスタム リソース (CR) をアクティブにすることが含まれます。
+
+インストゥルメンテーション CR で計画できる内容は次のとおりです。
+
+* インストゥルメンテーション CR の名前
+* [`selectors`](#selectors)を使用して計装 CR を適用する場所
+* APMエージェント (CR ごとに 1 つ)
+* APMエージェントバージョン
+* APM構成の問題 (環境変数)
+* ライセンスキー（オプション）
+
+マニフェスト ファイルは、 APM自動アタッチをインストールしたのと同じネームスペース (デフォルトでは `newrelic`) に挿入する必要があります。
+
+```bash
+kubectl apply -f ./instrumentation.yaml -n newrelic
+```
+
+ここに、参照用の完全な[計装.yaml](https://github.com/newrelic/k8s-agents-operator/blob/main/local/instrumentation.yaml)があります。
+
+## セレクタの使い方 [#selectors]
+
+セレクターを使用して、CR がAPMエージェントでどのリソースを挿入するかを制御します。 3 つのセレクターが利用可能です。個別に使用することも、組み合わせて使用することもできます。組み合わせると、セレクターは論理 AND ( `&&` ) 演算を使用して評価されます。
+
+<CollapserGroup>
+  <Collapser id="pod-label-selector" title="ポッドラベルセレクター">
+    どのポッドをインストゥルメントする必要があるかをAPM自動アタッチに通知します。
+
+    次の例では、 `PodLabelSelector`内の`matchLabel`を使用して、特定のタグと値を含むポッドを選択します。
+
+    ```yaml
+    ...
+    podLabelSelector:
+      matchLabels:
+        app.kubernetes.io/name: flask-hello-world
+    ...
+    ```
+  </Collapser>
+
+  <Collapser id="namespace-label-selector" title="名前空間ラベルセレクター">
+    ネームスペースレベルで自動インストゥルメントされたポッドを定義します。
+
+    次の例では、 `NameSpaceLabelSelector`の`matchExpressions`を使用して、特定のタグと値を含むネームスペースを選択します。
+
+    ```yaml
+    ...
+    namespaceLabelSelector:
+      matchExpressions:
+        - key: "kubernetes.io/metadata.name"
+          operator: "In"
+          values: ["backend"]
+    ...
+    ```
+
+    <Callout variant="tip">
+      `kubernetes.io/metadata.name`ラベルを使用するセレクターは、名前に基づいてネームスペースと一致します。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="container-selector" title="コンテナセレクター">
+    コンテナレベルで自動インストゥルメントされたコンテナを定義します。
+
+    <Callout variant="tip">
+      `containerSelector`が定義されていない場合、インテグレーションは、ポッドの仕様にリストされている最初の非初期コンテナを自動的にインストゥルメント化します。
+    </Callout>
+
+    適切なコンテナを選択するための 4 つの方法を提供します。
+
+    #### 環境セレクタ
+
+    コンテナ環境変数に基づいてコンテナを選択します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-envs
+    spec:
+      containerSelector:
+        envSelector:
+          matchEnvs:
+            DEBUG: 'true'
+    #...
+    ```
+
+    詳細情報と例については、 [imageSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#imageSelector)参照してください。
+
+    #### imageSelector
+
+    コンテナー イメージの URL に基づいてコンテナーを選択します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-any-container
+    spec:
+      containerSelector:
+        imageSelector:
+          matchExpressions:
+            - key: url
+              operator: StartsWith
+              values: ["docker.io/"]
+    #...
+    ```
+
+    詳細情報と例については、 [envSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#envSelector)参照してください。
+
+    #### nameSelector
+
+    名前とタイプ ( `init`または`regular` ) に基づいて計装用のコンテナを選択します。
+
+    値は、ターゲットとするコンテナ名のリストである必要があります。このリストに含まれていないコンテナは無視されます。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-names-and-any-container
+    spec:
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: app
+    #...
+    ```
+
+    詳細情報と例については、[nameSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#nameSelector)参照してください。
+
+    #### namesFromPodAnnotation
+
+    ポッド注釈のキーを指定します。指定されたアノテーションの値は、計装用に選択するコンテナ名のカンマ区切りのリストである必要があります。
+
+    たとえば、ポッドにどのコンテナを計装するかを識別するアノテーションがあるとします。 この場合、 `use-these-for-newrelic`アノテーションは、 `a`および`c`という名前のコンテナーを選択するように指定します。
+
+    ```yaml
+    #... pod spec
+    metadata:
+      annotations:
+        use-these-for-newrelic: a,c
+    spec:
+      initContainers:
+        - name: a
+          #.. more container spec ..
+      containers:
+        - name: b
+          # ...
+        - name: c
+    #...
+    ```
+
+    次に、そのアノテーションを使用するには、アノテーション リソースの`namesFromPodAnnotation`フィールドをアノテーションのキー ( `use-these-for-newrelic` ) に設定します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-names-from-pod-annotation
+    spec:
+      containerSelector:
+        namesFromPodAnnotation: use-these-for-newrelic
+    #...
+    ```
+
+    この設定インストゥルメントは、ポッドの `use-these-for-newrelic` アノテーションで名前が指定されていたため、 `b`コンテナを無視して、 `a` ( `init` ) および`c` ( `regular` ) コンテナを扱い 。
+
+    詳細情報と例については、 [namesFromPodAnnotation](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#namesFromPodAnnotation)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+### MatchLabel と MatchExpressions
+
+すべてのセレクターは`matchLabel`と`matchExpressions`をサポートしています。
+
+<CollapserGroup>
+  <Collapser
+    id="label-selectors"
+    title={<><InlineCode>
+      matchLabel
+    </InlineCode>使い方と <InlineCode>
+      matchExpressions
+    </InlineCode></>
+    }
+  >
+    `matchExpressions` Kubernetes のより表現力豊かなラベル セレクターであり、完全一致にしか使用できない`matchLabels`とは異なり、セットベースの一致をサポートします。 `matchLabels`セレクターの有無にかかわらず使用できます。
+
+    ```yaml
+    ...
+    selector:
+      matchLabels:
+        tier: frontend
+      matchExpressions:
+        - {key: name, operator: In, values: [payroll, web]}
+        - {key: environment, operator: NotIn, values: [dev]}
+    ...
+    ```
+
+    セレクターにさらに式を追加できます。 例のように、各式にはキー、演算子、および場合によっては (演算子に応じて) 値のリストが含まれている必要があります。 有効な演算子は 4 つあります。
+
+    * `In`: ラベルの値は指定された値のいずれかと一致する必要があります。
+    * `NotIn`: ラベルの値は指定された値のいずれとも一致してはなりません。
+    * `Exists`: ポッドには指定されたキーを持つラベルが含まれている必要があります (値は重要ではありません)。 この演算子を使用する場合は、値フィールドを指定しないでください。
+    * `DoesNotExist`: ポッドには指定されたキーを持つラベルを含めることはできません。 values プロパティを指定しないでください。
+
+    複数の式を指定する場合、セレクターがポッドと一致するためには、それらの式すべてが true と評価される必要があります。 `matchLabels`と`matchExpressions`の両方を指定した場合、ポッドがセレクターと一致するには、すべてのラベルが一致し、すべての式が true と評価される必要があります。
+  </Collapser>
+</CollapserGroup>
+
+### APMエージェント [#apm-agent]
+
+インストゥルメンテーション CR 内でAPMエージェントとそのバージョンを指定する必要があります。 最新の機能を活用するには、最新バージョンを使用することをお勧めします。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        言語
+      </th>
+
+      <th>
+        画像
+      </th>
+
+      <th>
+        利用可能なバージョン
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ドットネット
+      </td>
+
+      <td>
+        `newrelic-dotnet-init:latest`
+      </td>
+
+      <td>
+        [.NET](https://hub.docker.com/repository/docker/newrelic/newrelic-dotnet-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ジャワ
+      </td>
+
+      <td>
+        `newrelic-java-init:latest`
+      </td>
+
+      <td>
+        [Java](https://hub.docker.com/repository/docker/newrelic/newrelic-java-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ノードJS
+      </td>
+
+      <td>
+        `newrelic-node-init:latest`
+      </td>
+
+      <td>
+        [ノード](https://hub.docker.com/repository/docker/newrelic/newrelic-node-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        パイソン
+      </td>
+
+      <td>
+        `newrelic-python-init:latest`
+      </td>
+
+      <td>
+        [Python](https://hub.docker.com/repository/docker/newrelic/newrelic-python-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ルビー
+      </td>
+
+      <td>
+        `newrelic-ruby-init:latest`
+      </td>
+
+      <td>
+        [Ruby](https://hub.docker.com/repository/docker/newrelic/newrelic-ruby-init/general)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        php
+      </td>
+
+      <td>
+        `newrelic-php-init:latest`
+      </td>
+
+      <td>
+        [PHP](https://hub.docker.com/repository/docker/newrelic/newrelic-php-init/general)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+次の例をご覧ください:
+
+```yaml
+...
+spec:
+  agent:
+    language: dotnet
+    image: newrelic/newrelic-dotnet-init:latest
+...
+```
+
+### APM設定 [#apm-config-parameters]
+
+インストゥルメンテーション CR は、 APMエージェントの設定を合理化するために、ポッドに環境変数を挿入する機能を提供します。 次の例をご覧ください:
+
+```yaml
+...
+spec:
+  env:
+    # Example overriding the appName configuration by using a label of the pod
+    - name: NEW_RELIC_APP_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/name']
+...
+```
+
+上記の例では、環境変数を使用してエージェント設定をグローバルに構成する方法を示しています。 利用可能な設定オプションについては、各エージェントの設定ドキュメントを参照してください。
+
+* [Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [ノード](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+* [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/)
+* [.NET](/docs/apm/agents/net-agent/configuration/net-agent-configuration/)
+* [Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/)
+* [PHP](/docs/apm/agents/php-agent/configuration/php-agent-configuration/)
+
+<Callout variant="important">
+  これらの環境変数をアプリ デプロイメント マニフェストに挿入できます。
+</Callout>
+
+### ライセンスキー（オプション） [#license-keys]
+
+インストールすると、 <InlinePopover type="licenseKey" />が作成され、それがデフォルトのライセンスになります。 APMテレメトリーを別のアカウントに送信する必要がある場合は、次の手順に従ってください。
+
+* 新しいライセンスキーを含むシークレットを作成するには、次のコマンドを実行します。
+
+  ```bash
+  kubectl create secret generic newrelic-key-secret \
+      --namespace my-monitored-namespace \
+      --from-literal=new_relic_license_key=YOUR_NEW_RELIC_INGEST_LICENSE_KEY
+  ```
+
+* インストゥルメンテーション CR からシークレットを参照するには、次のコマンドを実行します。
+
+  ```yaml
+  ...
+  spec:
+    licenseKeySecret: the-name-of-the-custom-secret
+  ...
+  ```
+
+## インストゥルメンテーション CR の例 [#cr-examples]
+
+<CollapserGroup>
+  <Collapser id="label-selector-dotnet" title="Python エージェント: 特定のラベルと値を持つポッドとオーバーライドするアプリ名">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+        env:
+          - name: NEW_RELIC_APP_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-dotnet" title="Python エージェント: 特定のラベルを持つポッドは、特定の名前の init コンテナのみを監視します。">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: flask-hello-app
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-java" title="Javaエージェント: 特定のネームスペースのポッド">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-java" title="Javaエージェント: 特定のネームスペースのポッドのみ 特定の名前を持つコンテナを監視">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+      containerSelector:
+        nameSelector:
+          matchExpressions:
+            - key: container
+              operator: In
+              values: ["java-app"]
+    ```
+  </Collapser>
+
+  <Collapser id="label-selector-ruby" title="Rubyエージェント: Rubyラベルを含み、別のアカウントにデータを送信するネームスペース">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-ruby
+      namespace: newrelic
+    spec:
+      agent:
+        language: ruby
+        image: newrelic/newrelic-ruby-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "Ruby"
+            operator: "Exists"
+      licenseKeySecret: the-name-of-the-custom-secret
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## アプリケーションのAPMインストゥルメンテーションを更新する [#upgrade-apm-instrumention]
+
+デフォルトでは、 Kubernetes APM自動アタッチは、対応する[APMエージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm/)の利用可能な最新バージョンを自動的にインストールします。
+
+アプリケーションの監視が開始されると、更新を選択しない限り、新しいバージョンに自動的に更新されることはありません。 ポッドを再デプロイするか、デプロイメントを再起動することで、アプリケーションを更新できます。
+
+## アプリケーション内のAPMインストゥルメンテーションを削除します [#remove-apm-instrumentation]
+
+アプリケーションからAPMインストゥルメンテーションを削除するには、使用される `podLabelSelector` または `namespaceLabelSelector` 内の一致するラベル セレクターを変更するか、インストゥルメンテーション CR を削除する必要があります。 次に、デプロイメントを再起動します。 削除プロセスには数秒しかかかりません。
+
+## Kubernetes APM自動アタッチを更新する [#update-k8s-auto-attach]
+
+### バンドル インストレーション [#upgrading-bundle-installation]
+
+次のコマンドを使用して、 `nri-bundle`チャートの更新を実行します。
+
+```shell
+k8s-agents-operator.enabled=true
+```
+
+### スタンドアロン インストール [#standalone-installation]
+
+`helm upgrade`コマンドを実行して、Kubernetes APM 自動アタッチの新しいバージョンに更新します。
+
+```shell
+helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Kubernetes APM自動アタッチのアンインストール [#uninstall-k8s-auto-attach]
+
+### バンドル インストレーション [#uninstall-bundle-installation]
+
+`nri-bundle` チャートをアンインストールするか、 Kubernetes APM自動アタッチのみを削除する場合は、次の引数で helm upgrade を実行します。
+
+```shell
+k8s-agents-operator.enabled=false
+```
+
+### スタンドアロン インストール [#uninstall-standalone-installation]
+
+Kubernetes APM 自動アタッチをアンインストールして削除するには、次のコマンドを実行します。
+
+```shell
+helm uninstall k8s-agents-operator -n newrelic
+```
+
+## データを見つけて使用する [#find-data]
+
+* アプリケーションのサイトを取得し、 [APMサマリー](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/)ページを使用して問題を解決します。
+
+* [Kubernetes の概要](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)ページを確認してください。 モニターアプリケーションのコンテキストでKubernetesインサイト を提供します。
+
+## 証明書 [#certificates]
+
+Kubernetes APM 自動アタッチは、必要に応じて[`cert-manager`](https://github.com/cert-manager/cert-manager)サポートできます。
+
+* このコマンドを実行して、 [`cert-manager`](https://github.com/cert-manager/cert-manager) Helm チャートをインストールします。
+
+  ```shell
+  helm install cert-manager jetstack/cert-manager \
+      --namespace cert-manager \
+      --create-namespace \
+      --set crds.enabled=true
+  ```
+
+* `values.yaml`ファイルで、 `admissionWebhooks.autoGenerateCert.enabled: false`と`admissionWebhooks.certManager.enabled: true`を設定します。 その後、通常どおりチャートをインストールします。
+
+## 利用可能なチャートリリース [#available-chart-releases]
+
+利用可能なチャートを表示するには、次のコマンドを実行します。
+
+```shell
+helm search repo k8s-agents-operator
+```
+
+## よくあるご質問 [#faq]
+
+<CollapserGroup>
+  <Collapser id="route-apps-telemetry" title="アプリケーションテレメトリを別のアカウントにルーティングできますか?">
+    はい、クラスターにシークレットを追加するだけです。 [「ライセンスキー (オプション)」](#license-keys%5D)セクションで必要な手順を確認してください。
+
+    <Callout variant="important">
+      [K8s APMエクスペリエンスは、](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)アプリケーションとKubernetesクラスタからのデータが利用可能なアカウントでのみ利用できます。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="modify-conf-apm" title="アプリケーションがすでにインストルメントされている場合、 Kubernetes APM自動アタッチをインストールできますか?">
+    同じアプリケーションに 2 つのAPMエージェントをインストールすると、予期しない問題が発生する可能性があります。 したがって、既存のインストゥルメンテーションをインストールする前に削除することを強くお勧めします。
+  </Collapser>
+
+  <Collapser id="custom-apm" title="Kubernetes APM自動アタッチでカスタムインストゥルメンテーションを使用できますか?">
+    はい、カスタムインストゥルメンテーションは、 APM自動アタッチなしの場合と同じように機能します。 主な違いは、エージェントが、アプリケーションの残りの依存関係とともにコンテナにインストールされるのではなく、APM の自動アタッチによって注入されるようになったことです。
+
+    エージェントAPIインポートして呼び出して、カスタムインストゥルメンテーションをアプリケーションに追加することもできます。 使用している特定のエージェントがサポートしている場合は、設定ファイルまたは環境変数を利用してカスタムインストゥルメンテーションを追加することもできます。 エージェントには環境変数経由の設定と設定ファイル経由の設定の間に優先順位があるため、オペレーター経由の環境変数設定が設定ファイル経由の設定と競合していないことを確認する必要があることに注意してください。 詳細については、各エージェントのカスタムインストゥルメンテーションのドキュメントを参照してください。
+
+    * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation/)
+    * [ノード](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation/)
+    * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+    * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation/)
+    * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+    * [PHP](/docs/apm/agents/php-agent/features/php-custom-instrumentation/)
+  </Collapser>
+
+  <Collapser id="read-only-file-system" title="アプリケーションが読み取り専用ファイルシステムで実行されている場合、Kubernetes APM 自動アタッチをインストールできますか?">
+    いいえ、できません。 APMエージェントはアプリケーションの実行時に挿入され、アプリケーション コンテナのファイル システムに書き込むためのアクセスが必要です。
+  </Collapser>
+
+  <Collapser id="setup-operator" title="Windows ノードで Kubernetes APM 自動アタッチを設定できますか?">
+    Linux ノードのみをサポートします。
+
+    近い将来、Windows ノードのサポートが予定されています。
+  </Collapser>
+
+  <Collapser id="setup-operator" title="Fargate ノードで Kubernetes APM 自動アタッチを設定できますか?">
+    EKS を使用した[AWS Fargate](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-eks-fargate/)ノードではテストされていません。
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+アプリケーションがインストゥルメントされていない場合は、次の点を確認してください。
+
+* Kubernetes APM 自動アタッチをインストールした後は、必ず再デプロイするか、新しいアプリケーションをデプロイしてください。 自動インストゥルメントされた新しいアプリケーションのみがクラスタ内でデプロイされることに注意してください。
+
+* 次のコマンドを実行して、アプリのネームスペースにシークレットがインストールされていることを確認します。
+
+  ```bash
+  kubectl get secrets -n NAMESPACE
+  ```
+
+* `podLabelSelector`の使用時に CR による自動インストゥルメンテーションを有効にする必要なラベルがポッドにあることを確認してください。 同様に、CR 内で`namespaceLabelSelector`使用する場合は、ネームスペースに必要なラベルがあることを確認してください。
+
+  ```bash
+  kubectl get pod POD_NAME -n NAMESPACE -o jsonpath='{.metadata.annotations}'
+  ```
+
+* APM 自動アタッチ ポッドからログを取得するには、次のコマンドを実行します。
+
+  ```bash
+  kubectl logs AGENT_OPERATOR_POD -n newrelic
+  ```
+
+* このコマンドを実行して、 `init`コンテナがアプリケーションのポッド内に挿入され、正常に実行されたことを確認します。
+
+  ```bash
+  kubectl describe pod POD_NAME -n NAMESPACE
+  ```
+
+## 注釈を必要とした以前のバージョンから移行する方法 [#migrate]
+
+バージョン 0.14 以降、アプリケーションが自動インストゥルメントされるために、アプリケーション デプロイメント マニフェスト内の注釈は必要なくなりました。
+
+0.14 より前のバージョンをアンインストールし、最新リリースのインストールを続行することをお勧めします。 インストゥルメンテーション CR 内のラベル セレクターを利用すると、 APMエージェントの正確なデプロイメントが可能になり、それによって注釈の要件が不要になります。
+
+## サポート [#support]
+
+Kubernetes APM自動アタッチは、標準のAPMエージェント サポート ポリシーに従って、次の言語とその最小サポート バージョンをサポートします。
+
+* **Javaエージェント:** 8.12
+* **.NET エージェント:** 10.25
+* **Rubyエージェント:** 9.10
+* **Node.js エージェント:** 11.9
+* **パイソン:** 9.10
+* **PHP:** 11.12
+
+問題がある場合は:
+
+* 同様の問題がないか[GitHub の問題セクション](https://github.com/newrelic/k8s-agents-operator/issues)を確認するか、新しい問題を開くことを検討してください。
+
+* [New Relic サポート](https://support.newrelic.com/)チームに問い合わせてサポートを受けることができます。

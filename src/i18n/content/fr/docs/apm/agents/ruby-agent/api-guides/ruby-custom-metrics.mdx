@@ -1,0 +1,136 @@
+---
+title: Ruby métriques personnalisées
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: 'For information about customizing New Relic''s Ruby agent API to collect additional metrics, start here.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+les métriques personnalisées vous permettent d&apos;enregistrer des données de performances arbitraires via un appel d&apos;API (par exemple, des données de timing ou de ressources informatiques). Utilisez ensuite le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) pour créer des graphiques et suivre cette métrique. Vous pouvez utiliser des métriques personnalisées pour unifier votre monitoring dans New Relic.
+
+<Callout variant="caution">
+  Collecter trop de métriques peut avoir un impact sur les performances de votre application et de votre agent New Relic. Pour éviter les problèmes de données, gardez le nombre total de métriques uniques personnalisées en dessous de 2000.
+</Callout>
+
+## Nommer les métriques [#metric\_names][#metric_names]
+
+les noms métriques identifient des valeurs de données spécifiques suivies par New Relic. Lorsque vous utilisez l&apos;API de l&apos;agent Ruby New Relic pour suivre les métriques personnalisées, il est important de prendre en compte la dénomination de vos métriques et la manière dont les valeurs seront agrégées.
+
+Un nom métriques personnalisées se compose du préfixe `Custom/`, du nom de la classe ou de la catégorie et d&apos;une étiquette, chacun séparé par une barre oblique `/`: `Custom/<class>/<method>` ou `Custom/<category>/<name>` (par exemple, `Custom/MyClass/My_method`).
+
+<CollapserGroup>
+  <Collapser id="metric_names" title="noms et chemins métriques">
+    les noms métriques sont des chemins délimités par une barre oblique `/`. Pour une instrumentation personnalisée, utilisez ce modèle :
+
+    ```
+    <category>/<class>/<method>
+    ```
+
+    Pour remplacer le nom de métrique par défaut, transmettez un deuxième argument à `add_method_tracer`. Cela peut être nécessaire pour spécifier une catégorie autre que la valeur par défaut `Custom`, ou si la méthode et le nom de la classe ne représentent pas bien la métrique.
+
+    Les catégories réservées incluent :
+
+    * Enregistrement actif
+    * Apdex
+    * Processeur
+    * Contrôleur
+    * base de données
+    * mémoire
+    * Voir
+    * Coutume
+
+    <Callout variant="tip">
+      Pour les noms métriques personnalisés, utilisez `Custom/<class>/<method>` ou `Custom/<category>/<name>`
+    </Callout>
+  </Collapser>
+
+  <Collapser id="metrics_and_stats" title="Métriques et statistiques dans l'agent Ruby">
+    Il existe deux structures de données de base utilisées pour collecter des données métriques : `MetricSpec` et `Stats`.
+
+    Un `MetricSpec` est un identifiant pour lequel nous avons des données. Le pseudo <DNT>Ruby</DNT> suivant définit une métrique :
+
+    ```rb
+    class MetricSpec
+      attr_accessor :name    # String - metric name
+      attr_accessor :scope   # String - current controller action
+    end
+    ```
+
+    Le nom identifie ce que représente la métrique. La portée facultative est le nom de l’action du contrôleur gérant la demande en cours. Une métrique est « globale » si la portée est vide.
+
+    les valeurs métriques sont enregistrées par `Stats`. `Stats` collecte généralement des données sur l&apos;exécution des méthodes, mais peut stocker toutes les données intéressantes. Le pseudo Ruby suivant définit `Stats`:
+
+    ```rb
+    class Stats
+      attr_accessor :call_count           # Integer - method invocation count
+      attr_accessor :total_call_time      # Float - total method call time (in seconds)
+      attr_accessor :total_exclusive_time # Float - total time spent in the traced method minus any child time (in seconds)
+      attr_accessor :min_call_time        # Float - the smallest method invocation time (in seconds)
+      attr_accessor :max_call_time        # Float - the largest method invocation time (in seconds)
+      attr_accessor :sum_of_squares       # Float - the sum of squares of response times - used for standard deviation computation
+      attr_accessor :begin_time           # Time - the start of the time window for this data
+      attr_accessor :end_time             # Time - end of the time window for this data
+    end
+    ```
+  </Collapser>
+
+  <Collapser id="stat_policy" title="Politique d'agrégation des statistiques">
+    L’une des forces de New Relic est sa capacité à agréger des données au fil du temps. (L&apos;agrégation est l&apos;acte de combiner plusieurs choses en une seule.) Lors de la collecte de métriques personnalisées, la politique d&apos;agrégation peut être importante à connaître lors de la collecte de métriques personnalisées. Il s’agit notamment de :
+
+    * `call_count`: Ajout
+    * `total_call_time`: Ajout
+    * `total_exclusive_time`: Ajout
+    * `min_call_time`: Min() de chaque min\_call\_time
+    * `max_call_time`: Max() de chaque max\_call\_time
+    * `sum_of_squares`: Ajout
+    * `begin_time`: Min() de chaque heure de début
+    * `end_time`: Max() de chaque end\_time
+  </Collapser>
+</CollapserGroup>
+
+## Enregistrer des métriques personnalisées [#recording-custom-metrics]
+
+L&apos;API publique pour l&apos;enregistrement des données métriques se compose de deux méthodes sur `NewRelic::Agent`, [`record_metric`](#record_metric) et [`increment_metric`](#increment_metric).
+
+<Callout variant="tip">
+  `record_metric` et `increment_metric` sont tous deux thread-safe.
+</Callout>
+
+### record\_metric(metric\_name, value) [#record\_metric][#record_metric]
+
+`record_metric` doit être utilisé pour enregistrer une métrique basée sur un événement, généralement associée à une durée particulière. `metric_name` doit être une chaîne suivant les règles de dénomination métrique standard. `value` sera généralement un numérique, mais peut également être un hacher.
+
+Lorsque `value` est une valeur numérique, elle doit représenter l&apos;ampleur d&apos;une mesure associée à un événement, comme la durée d&apos;un appel de méthode particulier.
+
+Lorsque `value` est un hacher, il doit contenir les clés `:count`, `:total`, `:min`, `:max` et `:sum_of_squares` , toutes avec des valeurs numériques. Ce formulaire est utile si vous souhaitez effectuer vous-même des métriques agrégées et les signaler périodiquement (par exemple, à partir d&apos;un fil de discussion en arrière-plan). Les statistiques fournies seront agrégées avec toutes les valeurs précédemment collectées pour la même métrique. Les noms des clés Hacher ont été choisis pour correspondre aux noms des clés utilisées par l&apos;API de la plateforme.
+
+### increment\_metric(metric\_name, amount=1) [#increment\_metric][#increment_metric]
+
+`increment_metric` devrait être utilisé pour mettre à jour une métrique qui agit comme un simple compteur. Le nombre de la métrique sélectionnée sera incrémenté du montant spécifié.
+
+## Exemple de métriques personnalisées [#example]
+
+Voici un exemple qui montre comment vous pouvez utiliser des métriques pour suivre les flux monétaires sur un site :
+
+```rb
+class Cart
+
+  def checkout()
+    amount = compute_cart_total    # computes the amount to charge the customer
+
+    ::NewRelic::Agent.record_metric('Custom/Cart/charge_amount', amount)
+
+    charge_customer(amount)
+    ...
+  end
+end
+```
+
+Pour plus d&apos;informations sur la manière dont les données s&apos;agrègent au fil du temps, consultez [la politique d&apos;agrégation de Stat](/docs/ruby/ruby-custom-metric-naming#stat_policy).
+
+## Afficher les métriques personnalisées [#viewing-custom]
+
+Pour afficher ces métriques personnalisées, utilisez le [générateur de requêtes](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) pour rechercher des métriques, créer des graphiques personnalisables et ajouter ces graphiques au dashboard.

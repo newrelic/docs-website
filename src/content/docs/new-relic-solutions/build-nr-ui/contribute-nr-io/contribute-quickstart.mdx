@@ -1,0 +1,61 @@
+---
+title: 'Contribute a Quickstart to New Relic I/O'
+metaDescription: 'Quickstarts course'
+freshnessValidatedDate: never
+---
+
+Imagine you've developed a new database called FlashDB, the lightest and fastest database in space. Your database is already very popular among developers.
+You know that New Relic provides great tools for observability, so you recommend your users to use New Relic to get insights from their stack. Until now, your users have to manually set up dashboards and alerts in New Relic.
+You recently learned about New Relic Instant Observability (I/O), which equips you with observability building blocks to get value from your data faster.
+
+With the rising popularity of your database, you decide to help users of FlashDB to quickly and easily observe it in New Relic.
+
+To achieve your goal, contribute a quickstart to New Relic I/O so other users can quickly monitor FlashDB.
+
+## Instant Observability [#instant-observability]
+
+[New Relic Instant Observability (I/O)](https://newrelic.com/instant-observability) is a unified ecosystem of out-of-the-box observability resources that help you get immediate value from your data. It allows you to instrument, monitor, and analyze your technology stack while avoiding the burden of manual setup.
+
+With New Relic I/O, you:
+
+* Get started faster
+* Reduce toil of manual instrumentation
+* Learn from observability experts
+
+<Video
+  id="c9zprczTXj8"
+  type="youtube"
+/>
+
+You can choose from hundreds of quickstarts that bundle the necessary building blocks for instrumenting and monitoring your technology stack, install them in a click, and start monitoring.
+
+## Quickstart [#quickstart]
+
+With New Relic, you can collect, monitor, and report data from different sources. You can use dashboards to view, explore, customize, understand, and correlate the data you collect using different user-friendly charts.
+You can also set alert policies to monitor key performance metrics and receive notifications for anomalies.
+
+Traditionally, FlashDB users would have to spend crucial development hours creating dashboards, alerts, and other entities to monitor their database. But with quickstarts, you can do that work for them. Quickstarts provide immediate value for your specific use case. They include:
+
+* Clear instructions for instrumenting your services
+* Observability building blocks like dashboards and alerts
+
+All of this is available through New Relic I/O where New Relic developers, partners, and customers contribute their best-practice solutions. You, as the developer of FlashDB, are a great candidate to contribute a quickstart to help your users quickly monitor their instances.
+
+## Objectives [#objectives]
+
+* Send telemetry data to New Relic
+* Create dashboard & alerts
+* Create a quickstart
+  * Add your dashboard
+  * Add your alerts
+  * Add a data source
+  * Contribute quickstart to GitHub
+
+## Prerequisite [#prerequisite]
+
+* Create a free [New Relic account](https://login.newrelic.com/login)
+* Install [Python](https://www.python.org/downloads/)
+
+<Callout variant="tip">
+  This procedure is a part of course that teaches you how to build a quickstart. Before you start building a quickstart, [set up your environment](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/deploy-your-application).
+</Callout>

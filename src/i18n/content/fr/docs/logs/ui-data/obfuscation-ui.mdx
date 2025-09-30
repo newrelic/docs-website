@@ -1,0 +1,706 @@
+---
+title: 'obfuscation des logs : hacher ou masquer des données sensibles dans votre log'
+metaDescription: How to hash or mask sensitive data in logs you send to New Relic with our log obfuscation UI or API.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Avec log règle d&apos;obfuscation, vous pouvez empêcher l&apos;enregistrement de certains types d&apos;informations dans New Relic.
+
+## Exigences [#requirements]
+
+Notre fonctionnalité obfuscation des logest disponible dans le cadre de notre [option Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices).
+
+## Qu&apos;est-ce que l&apos;obfuscation des logs ? [#overview]
+
+Notre [service<InlinePopover type="logs" />](/docs/logs/get-started/get-started-log-management) masque automatiquement les modèles de numéros que nous identifions comme étant probablement des éléments sensibles, tels que les numéros de carte de crédit ou de sécurité sociale.
+
+Si vous avez besoin d&apos; obfuscation supplémentaire, une option consiste à ajuster la configuration du redirecteur de logque vous utilisez (par exemple, notre agent infrastructure ). Mais une option plus simple est d&apos;utiliser notre fonctionnalité obfuscation des log , disponible avec [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices). Cette fonctionnalité vous permet de configurer log des règles d&apos;obfuscation directement depuis logl&apos;interface utilisateur de gestion des , ou via notre API NerdGraph, sans longue configuration manuelle. Vous définirez des expressions régulières correspondant à vos informations sensibles, puis créerez des règles pour masquer ces données. Vous pouvez choisir de masquer ou de hacher les informations sensibles.
+
+## Définitions [#definitions]
+
+Voici quelques termes importants :
+
+* <DNT>**Obfuscation rules**</DNT> définir à quel log appliquer les actions obfuscation .
+* <DNT>**Obfuscation rule actions**</DNT> définir quel attribut regarder, quel texte obscurcir et comment obscurcir (soit par masquage, soit par hachage).
+* <DNT>**Obfuscation expressions**</DNT> sont des expressions régulières nommées identifiant le texte à obscurcir.
+* <DNT>**Masking**</DNT> supprime complètement les informations et les remplace par `X` caractères. Vous ne pouvez pas rechercher des valeurs spécifiques une fois cette opération effectuée.
+* <DNT>**Hashing**</DNT> cache des informations. Vous pouvez utiliser l&apos;outil de hachage pour obtenir le hachage d&apos;une valeur sensible, puis rechercher le log contenant ce hachage.
+
+## Comment fonctionne l&apos;obfuscation [#overview]
+
+Les objets JSON affichés dans l&apos;exemple suivant sont des simplifications de la charge utilisée par notre API NerdGraph. Cela vous aidera à mieux corréler les différentes opérations d&apos;API avec leurs homologues équivalents de l&apos;interface utilisateur.
+
+### Exemple : enregistrement du log avant obfuscation [#example-before]
+
+Imaginez que vous avez l’enregistrement log suivant :
+
+```json
+{
+  "message": "The credit card number 4321-5678-9876-2345 belongs to user user@email.com (born on 01/02/2003) with SSN 123-12-1234",
+  "creditCardNumber": "4321-5678-9876-2345",
+  "ssn": "123-12-1234",
+  "department": "sales",
+  "serviceName": "loginService"
+}
+```
+
+Cet enregistrement log contient plusieurs données sensibles. Idéalement, vous aimeriez que votre log ressemble à ceci :
+
+```json
+{
+  "message": "The credit card number 9aa9bc1528859aee1b1df75795f1ebd54beb2f0d26c8a1d4580a71a07189cdd5 belongs to user user@email.com (born on XXXXXXXXXX) with SSN 30e6897f76dc102e32ee1d781c43417d259e586eac15c963d75ab8b5187769da",
+  "creditCardNumber": "9aa9bc1528859aee1b1df75795f1ebd54beb2f0d26c8a1d4580a71a07189cdd5",
+  "ssn": "30e6897f76dc102e32ee1d781c43417d259e586eac15c963d75ab8b5187769da",
+  "department": "sales",
+  "serviceName": "loginService"
+}
+```
+
+### Exemple : processus de base [#example-process]
+
+Voici le processus de base que vous utiliseriez pour masquer les données sensibles dans cet exemple.
+
+<CollapserGroup>
+  <Collapser id="example-actions" title="1. Quelles actions appliquer">
+    Vous décidez que vous souhaitez appliquer les actions obfuscation suivantes à tous les logs provenant de ce service :
+
+    * `HASH` le numéro de carte de crédit présent dans l&apos;attribut `message` et `creditCardNumber` .
+    * `MASK` la date de naissance présente dans l&apos;attribut `message` .
+    * `HASH` le numéro de sécurité sociale présent dans les attributs `message` et `ssn` .
+  </Collapser>
+
+  <Collapser id="example-expressions" title="2. Comment les expressions captureront les données sensibles">
+    La première chose que vous devez faire est de définir une expression d&apos;obfuscation qui vous permettra de capturer ces informations sensibles.
+
+    <Callout variant="tip">
+      Les exemples ci-dessous montrent des expressions régulières que vous utiliseriez directement dans l&apos;interface utilisateur. Plus loin dans ce document, nous discutons de la manière dont vous pouvez utiliser les versions échappées de ces expressions régulières pour [NerdGraph](#expressions-create).
+    </Callout>
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            expression d&apos;obfuscation
+          </th>
+
+          <th>
+            Définition
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Numéro de Carte de Crédit
+          </td>
+
+          <td>
+            Nous devons capturer 4 groupes de 4 chiffres séparés par des tirets :
+
+            ```json
+            {
+              "name": "Credit Card Number",
+              "regex": "((?:(?:4\d{3})|(?:5[1-5]\d{2})|6(?:011|5[0-9]{2}))(?:-?|\040?)(?:\d{4}(?:-?|\040?)){3}|(?:3[4,7]\d{2})(?:-?|\040?)\d{6}(?:-?|\040?)\d{5})"
+            }
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Numéro de sécurité sociale
+          </td>
+
+          <td>
+            Nous devons capturer 3 groupes de 3, 2 et 4 chiffres séparés par des tirets :
+
+            ```json
+            {
+              "name": "Social Security Number",
+              "regex": "(\d{3}-\d{2}-\d{4})"
+            }
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Date de naissance (`loginService` spécifique)
+          </td>
+
+          <td>
+            Dans cet exemple, la date de naissance fait partie du service de connexion. Nous définissons la partie à obscurcir en fonction des informations de date dans les mots environnants `"(born on 01/02/2003)"`:
+
+            ```json
+            {
+              "name": "Born date - loginService specific",
+              "regex": "born on (.*)\)"
+            }
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    Chaque expression d&apos;obfuscation définit comment capturer certaines informations sensibles d&apos;une chaîne (à l&apos;aide d&apos;une expression régulière) et l&apos;associe à un nom convivial afin que vous puissiez facilement l&apos;identifier plus tard.
+
+    les expressions d&apos;obfuscation *peuvent* être réutilisables ; elles sont totalement indépendantes de la manière dont l&apos;attribut log contenant les données sensibles est nommé. Par instance, l’expression de sécurité sociale définie ci-dessus pourrait être appliquée à un attribut log nommé `ssn`, `socialSecurityNumber` ou `socSecNum`.
+
+    Vous pouvez également créer des expressions d&apos;obfuscation non réutilisables, comme `Born date (loginService specific)`, qui sont étroitement couplées au format de l&apos;attribut log . Par exemple, vous pouvez utiliser tout ce qui vient après `born on` et `before`.
+
+    <Callout variant="caution" title="Les groupes de capture d'expressions régulières imbriquées ne sont pas pris en charge">
+      La responsabilité principale de cette fonctionnalité est de remplacer les données sensibles par le hacheur ou le masqueur de manière simple et performante. Si vous souhaitez ou devez regrouper différentes correspondances dans un groupe de capture, n&apos;oubliez pas d&apos;utiliser la syntaxe de groupe sans capture `(?:{EXPRESSION})` pour éviter de créer des groupes de capture imbriqués. Par exemple, évitez `(([A-Z]{12})|([a-z]{6}))` et utilisez plutôt `((?:[A-Z]{12})|((?:[a-z]{6}))`.
+    </Callout>
+  </Collapser>
+
+  <Collapser id="example-rules" title="3. Quel log utilisera votre règle">
+    Maintenant que nous avons défini comment capturer nos données sensibles, nous devons spécifier quels logs doivent être obscurcis (ceux du service de connexion) et comment (avec les actions obfuscation que nous avons définies). Pour y parvenir, nous définissons une règle d&apos;obfuscation.
+
+    ```json
+    {
+      "name": "Obfuscate Login Service Logs",
+      "filter": "serviceName = 'loginService' AND department = 'sales'",
+      "actions": [
+        {
+          "attributes": ["message", "creditCardNumber"],
+          "expression": {"name": "Credit Card Number"},
+          "method": "HASH_SHA256"
+        },
+        {
+          "attributes": ["message"],
+          "expression": {"name": "Born date - loginService specific"},
+          "method": "MASK"
+        },
+        {
+          "attributes": ["message", "ssn"],
+          "expression": {"name": "Social Security Number"},
+          "method": "HASH_SHA256"
+        }
+      ]
+    }
+    ```
+
+    Cette règle contient trois éléments principaux :
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            composant règle d&apos;obscurcissement
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Nom
+          </td>
+
+          <td>
+            Le nom permet d’identifier facilement ce que fait la règle. Dans cet exemple, cette règle définit comment masquer les différents attributs du log provenant du service de connexion.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Filtre
+          </td>
+
+          <td>
+            Le filtre utilise le format NRQL pour indiquer à notre système comment identifier le log cible provenant du service de connexion. Cet exemple de requête pour le log où `serviceName = loginService` et `department = sales`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Actes
+          </td>
+
+          <td>
+            Enfin, cette règle définit l’ensemble des actions obfuscation à appliquer au log correspondant au filtre. Chaque action définit :
+
+            * Quelle expression d&apos;obfuscation créée précédemment utiliser pour extraire les informations sensibles de chaque ensemble d&apos;attributs
+
+            * Quelle méthode obfuscation (`HASH_SHA256` ou `MASK`) appliquer pour obscurcir ces données
+
+              Notez que lors de la définition de la règle d&apos;obfuscation via NerdGraph, vous devrez spécifier le `id` de l&apos;expression d&apos;obfuscation au lieu de leurs noms. Pour rendre l&apos;exemple précédent plus lisible, nous avons utilisé l&apos;expression d&apos;obfuscation names à la place.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="example-more" title="4. Réutilisation d'expressions dans d'autres règles">
+    Comme dernier exemple, imaginons que nous devions également masquer le log provenant d&apos;un autre service nommé « Checkout Service » qui possède un attribut `serviceName = checkoutService` ainsi qu&apos;un attribut `ccn` contenant des informations de carte de crédit :
+
+    ```json
+    {
+      "message": "Order completed",
+      "ccn": "4321-5678-9876-2345",
+      "department": "sales",
+      "serviceName": "checkoutService"
+    }
+    ```
+
+    Pour obscurcir le log de ce service, il suffirait de définir une autre règle d&apos;obfuscation ciblant ce log spécifique, et il suffirait de réutiliser l&apos;expression d&apos;obfuscation `Credit card number` précédemment créée :
+
+    ```json
+    {
+      "name": "Obfuscate Checkout Service Logs",
+      "filter": "serviceName = 'checkoutService' AND department = 'sales'",
+      "actions": [
+        {
+          "attributes": ["ccn"],
+          "expression": {"name": "Credit Card Number"},
+          "method": "HASH_SHA256"
+        }
+      ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Liste de contrôle : étapes pour masquer le log [#checklist]
+
+Pour obscurcir votre log :
+
+1. Étudiez la forme de votre log en identifiant les modèles de données sensibles qui y apparaissent. Par exemple:
+
+   * Est-ce que tous vos logs contiennent des informations sensibles ? Ou pouvez-vous être plus précis (uniquement le log du service A ou de la région B) ?
+   * Quelles informations sensibles contiennent-ils : numéros de carte de crédit, numéros de permis de conduire, cartes d’identité nationales, données biométriques, autres valeurs ?
+
+2. Créez [des expressions](#expressions) d’obfuscation pour identifier comment extraire les données sensibles.
+
+3. Définir obfuscation [des règles](#rules) pour chaque ensemble de logs :
+
+   * Définissez comment vous allez les capturer en utilisant NRQL.
+   * Définissez quelles actions d’obfuscation doivent être appliquées à chacun d’eux. Demandez-vous : devrai-je interroger mon log à l’aide de ces informations sensibles plus tard (envisagez d’utiliser `HASH`), ou dois-je supprimer entièrement ces informations de mon log (envisagez d’utiliser `MASK`) ?
+
+<Callout variant="tip">
+  L&apos;interface utilisateur <DNT>**Logs obfuscation**</DNT> inclut un <DNT>**Hashing tool**</DNT> afin que vous puissiez trouver un hacher à partir d&apos;une valeur connue et le copier pour l&apos;utiliser avec d&apos;autres expressions et règles.
+</Callout>
+
+## Limites du processeur [#cpu-limits]
+
+L&apos;obfuscation a des limites de CPU par minute. Si un compte atteint ces limites de ressources, le log ne sera pas obscurci comme prévu. Pour vérifier les limites de votre processeur, accédez à [la page <DNT>**Limits**</DNT> de votre système](/docs/data-apis/manage-data/view-system-limits/#limits-ui) dans l&apos;interface utilisateur <DNT>**Data management**</DNT> .
+
+Si vous dépassez les limites d&apos; obfuscation par minute du processeur et que le log ne peut pas être obscurci ou haché, l&apos;attribut auquel la règle d&apos;obfuscation a été appliquée sera <DNT>**dropped**</DNT> et remplacé par un texte indiquant pourquoi l&apos;attribut a été abandonné. Par exemple, si la règle d&apos;obfuscation est appliquée au champ `message` et que la limite de CPU par minute est atteinte, le log résultant ressemblera à ceci :
+
+```json
+{
+  ...
+  "message": "<OBFUSCATION> The account is over its obfuscation per-minute limit, attribute dropped",
+  ...
+}
+```
+
+Cela permet d’éviter que des informations personnelles identifiables ou d’autres données sensibles soient ingérées par inadvertance.
+
+De plus, l&apos;erreur « NrIntegrationError » suivante sera enregistrée dans le compte :
+
+```json
+{
+  "category": "RateLimit",
+  "level": "error",
+  "limitName": "Log API obfuscation per account per minute",
+  "message": "You’ve exceeded our limit of per-account obfuscation time per-minute for the Log ingestion pipeline. Please reduce your usage or contact New Relic support.",
+  "name": "ObfuscationTimeLimitReached",
+  "newRelicFeature": "Logs",
+  "rateLimitType": "ObfuscationTimePerMinute",
+  "timestamp": 1678819264283
+}
+```
+
+Pour évaluer le bon fonctionnement de vos règles d&apos;obfuscation et voir lesquelles sont ignorées, accédez à <DNT>**Logs Obfuscation &gt; Health**</DNT>. Les règles d&apos;obfuscation sont gourmandes en ressources CPU, ces graphiques peuvent donc vous aider à déterminer quelles règles sont les plus impactées par les limitations de ressources.
+
+## expression d&apos;obfuscation [#expressions]
+
+Vous pouvez créer, lire, mettre à jour ou supprimer des expressions d&apos;obfuscation en utilisant l&apos;interface utilisateur de New Relic ou en utilisant NerdGraph, notre explorateur GraphQL .
+
+<img title="Logs obfuscation expressions in UI" alt="Screenshot of Logs obfuscation expressions UI" src="/images/logs_screenshot-crop_log-obfuscation-expression.webp" />
+
+<figcaption>
+  <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs &gt; Obfuscation**</DNT>:Créez d&apos;abord une ou plusieurs expressions d&apos;obfuscation, puis créez votre règle d&apos;obfuscation.
+</figcaption>
+
+<CollapserGroup>
+  <Collapser id="expressions-create" title="Créer une expression d'obfuscation">
+    Utilisez l&apos;une de ces options pour créer une expression d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Cliquez sur <DNT>**Create regex**</DNT>.
+
+    3. Saisissez un nom pour votre nouvelle règle d&apos;obfuscation, ainsi qu&apos;une expressions régulières correspondant aux données sensibles que vous souhaitez capturer. Utilisez [la syntaxe RE2](https://github.com/google/re2/wiki/Syntax).
+
+       L&apos;exemple suivant montre une expression d&apos;obfuscation de base qui correspondra aux numéros de carte de crédit :
+
+       <img title="Create an obfuscation expression using the logs UI" alt="Create an obfuscation expression using the logs UI" src="/images/logs_screenshot-crop_obfuscation-create-expression.webp" />
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsCreateObfuscationExpression` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql#query=mutation%20%7B%0A%20%20logConfigurationsCreateObfuscationExpression%28accountId%3A%201234%2C%20expression%3A%20%7Bname%3A%20%22Credit%20Card%20Number%22%2C%20regex%3A%20%22%28%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D%29%22%2C%20description%3A%20%22Reusable%20expression%20to%20capture%20credit%20card%20numbers%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    <Callout variant="important">
+      Vous devez échapper aux expressions régulières lorsque vous les utilisez dans NerdGraph. Par exemple: `((?:(?:4\\d{3})|(?:5[1-5]\\d{2})|6(?:011|5[0-9]{2}))(?:-?|\\040?)(?:\\d{4}(?:-?|\\040?)){3}|(?:3[4,7]\\d{2})(?:-?|\\040?)\\d{6}(?:-?|\\040?)\\d{5})`
+    </Callout>
+  </Collapser>
+
+  <Collapser id="expressions-read" title="Lire une expression d'obfuscation">
+    Utilisez l&apos;une de ces options pour interroger une expression d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+    2. Sélectionnez l&apos;onglet <DNT>**Expressions**</DNT> pour visualiser toutes les expressions d&apos;obfuscation disponibles et leurs définitions.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez le récupérateur `obfuscationExpressions` sous `actor.account.logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=%7B%0A%20%20actor%20%7B%0A%20%20%20%20account%28id%3A%201234%29%20%7B%0A%20%20%20%20%20%20logConfigurations%20%7B%0A%20%20%20%20%20%20%20%20obfuscationExpressions%20%7B%0A%20%20%20%20%20%20%20%20%20%20id%0A%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20regex%0A%20%20%20%20%20%20%20%20%20%20description%0A%20%20%20%20%20%20%20%20%20%20createdAt%0A%20%20%20%20%20%20%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20updatedAt%0A%20%20%20%20%20%20%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+  </Collapser>
+
+  <Collapser id="expressions-update" title="Mettre à jour une expression d'obfuscation">
+    Utilisez l&apos;une de ces options pour mettre à jour une expression d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Sélectionnez l’onglet <DNT>**Expressions**</DNT> .
+
+    3. Cliquez sur l&apos;icône représentant des points de suspension <DNT>**...**</DNT> à droite de l&apos;expression d&apos;obfuscation que vous souhaitez modifier, puis cliquez sur <DNT>**Edit**</DNT>.
+
+    4. Modifiez les champs selon vos besoins et cliquez sur <DNT>**Update**</DNT>.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsUpdateObfuscationExpression` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationExpression%28accountId%3A%201234%2C%20expression%3A%20%7Bname%3A%20%22Credit%20Card%20Number%20-%20EDITED%22%2C%20regex%3A%20%22%28%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D%29%22%2C%20description%3A%20%22Reusable%20expression%20to%20capture%20credit%20card%20numbers%20-%20EDITED%22%2C%20id%3A%20%225678%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    <Callout variant="important">
+      Vous devez échapper aux expressions régulières lorsque vous les utilisez dans NerdGraph. Par exemple: `((?:(?:4\\d{3})|(?:5[1-5]\\d{2})|6(?:011|5[0-9]{2}))(?:-?|\\040?)(?:\\d{4}(?:-?|\\040?)){3}|(?:3[4,7]\\d{2})(?:-?|\\040?)\\d{6}(?:-?|\\040?)\\d{5})`
+    </Callout>
+
+    Vous n&apos;avez pas besoin de spécifier tous les champs d&apos;une expression d&apos;obfuscation lors de sa mise à jour, uniquement l&apos;id (obligatoire) et les champs que vous souhaitez modifier.
+  </Collapser>
+
+  <Collapser id="expressions-delete" title="Supprimer une expression d'obfuscation">
+    <Callout variant="important">
+      Vous ne pourrez pas supprimer une expression d&apos;obfuscation si elle est actuellement utilisée par une règle d&apos;obfuscation.
+    </Callout>
+
+    Utilisez l&apos;une de ces options pour supprimer une expression d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Sélectionnez l’onglet <DNT>**Expressions**</DNT> .
+
+    3. Cliquez sur l&apos;icône représentant des points de suspension <DNT>**...**</DNT> à droite de l&apos;expression d&apos;obfuscation que vous souhaitez supprimer, puis cliquez sur <DNT>**Delete**</DNT>.
+
+    4. Confirmez que vous souhaitez supprimer l’expression en cliquant sur <DNT>**Delete**</DNT>.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsDeleteObfuscationExpression` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsDeleteObfuscationExpression%28accountId%3A%201234%2C%20id%3A%205678%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20email%0A%20%20%20%20%20%20name%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20email%0A%20%20%20%20%20%20name%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    La mutation renverra un instantané de l&apos;expression avant d&apos;être supprimée.
+  </Collapser>
+</CollapserGroup>
+
+## Exemples d&apos;expressions [#samples]
+
+Ci-dessous, nous avons fourni quelques exemples d&apos;expressions régulières pour masquer certains des types de données sensibles les plus courants. L&apos;expression d&apos;obfuscation doit être créée pour chaque compte New Relic où ces expressions seront utilisées.
+
+<Callout variant="tip">
+  Les exemples suivants sont des expressions régulières que vous pouvez utiliser dans l&apos;interface utilisateur. Pour les utiliser dans GraphQL, vous devez les échapper comme indiqué dans cet [exemple](#expressions-create).
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="ssn" title="Numéro de sécurité sociale aux États-Unis">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    (\d{3}[-\s\.]?\d{2}[-\s\.]?\d{4})
+    ```
+  </Collapser>
+
+  <Collapser id="ccn" title="Numéro de Carte de Crédit">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ((?:(?:4\d{3})|(?:5[1-5]\d{2})|6(?:011|5[0-9]{2}))(?:-?|\040?)(?:\d{4}(?:-?|\040?)){3}|(?:3[4,7]\d{2})(?:-?|\040?)\d{6}(?:-?|\040?)\d{5})
+    ```
+  </Collapser>
+
+  <Collapser id="dob" title="Date de naissance aux États-Unis">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ((?:\d{2})?\d\d(?:\\)?(?:\/)?\d\d(?:\\)?(?:\/)?\d{2}(?:\d{2})?)
+    ```
+  </Collapser>
+
+  <Collapser id="email-address" title="Adresse email">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ([a-zA-Z0-9!#$'*+?^_`{|}~.-]+(?:@|%40)(?:[a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+)
+    ```
+  </Collapser>
+
+  <Collapser id="ipv4" title="Adresse IP (ipv4)">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$
+    ```
+  </Collapser>
+
+  <Collapser id="usstreetaddress" title="Adresse postale aux États-Unis">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    /\d{1,}(\s{1}\w{1,})(\s{1}?\w{1,})/g
+    ```
+  </Collapser>
+
+  <Collapser id="usphone" title="Numéro de téléphone américain">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    (^[\+]?[1]?[\W]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4})
+    ```
+  </Collapser>
+
+  <Collapser id="uspassport" title="Numéro de passeport américain">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ([a-zA-Z]?\d?\d{5,8})
+    ```
+  </Collapser>
+
+  <Collapser id="uknino" title="Numéro d'assurance nationale du Royaume-Uni (NINO)">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ([a-zA-Z]{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?\d{2}[-\s]?[a-dA-D])
+    ```
+  </Collapser>
+
+  <Collapser id="spainnid" title="Carte d'identité nationale espagnole (NIE/DNI/NIF)">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ([a-zA-Z]?[-\s]?\d{7,8}[-\s]?[a-zA-Z])
+    ```
+  </Collapser>
+
+  <Collapser id="indiapanid" title="ID PAN de l'Inde">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ^([a-zA-Z]){5}([0-9]){4}([a-zA-Z]){1}?$
+    ```
+  </Collapser>
+
+  <Collapser id="indiaaadhaar" title="ID AADHAAR de l'Inde">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    ^([2-9]{1}[0-9]{3}\s\d{4}\s\d{4})$
+    ```
+  </Collapser>
+
+  <Collapser id="caphin" title="Numéro d'assurance maladie/numéro d'assurance sociale personnel du Canada (PHIN/NAS)">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    (\d{3}[-\s\.]?\d{3}[-\s\.]?\d{3})
+    ```
+  </Collapser>
+
+  <Collapser id="cahcn" title="Numéro de carte santé du Canada">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    (\d{10})
+    ```
+  </Collapser>
+
+  <Collapser id="japanid" title="Numéro d'identité nationale du Japon (Mon numéro)">
+    <DNT>
+      **Expression:**
+    </DNT>
+
+    ```regex
+    (d{4}\sd{4}\sd{4})
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## règle d&apos;obfuscation [#rules]
+
+Vous pouvez créer, lire, mettre à jour ou supprimer des règles d&apos;obfuscation en utilisant l&apos;interface utilisateur de New Relic ou en utilisant NerdGraph, notre explorateur GraphQL .
+
+<CollapserGroup>
+  <Collapser id="rules-create" title="Créer une règle d'obfuscation">
+    Utilisez l&apos;une de ces options pour créer une règle d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Cliquez sur <DNT>**Create obfuscation rule**</DNT>.
+
+    3. Entrez un nom pour votre nouvelle règle d&apos;obfuscation, ainsi qu&apos;un critère de correspondance (au format NRQL ) pour capturer l&apos;ensemble cible de logs que vous souhaitez obscurcir.
+
+    4. Ajoutez un nouveau `actions` (le premier est ajouté automatiquement) pour spécifier l&apos;expression d&apos;obfuscation (regex) pour capturer chaque ensemble d&apos;attributs, ainsi que s&apos;il faut les `MASK` ou `HASH`.
+
+       * Plusieurs attributs peuvent être spécifiés séparés par des virgules.
+       * `MASK` remplacera tous les caractères correspondants par `X`es. Si vous utilisez `MASK`, vous ne pourrez pas interroger une valeur obscurcie particulière ultérieurement.
+       * `HASH` remplacera les données sensibles par la valeur Hacher SHA-256. Si vous utilisez `HASH`, vous pourrez les interroger à l&apos;aide de notre outil de hachage, à condition de connaître sa valeur en clair.
+
+       Votre règle devrait ressembler à ceci :
+
+       <img title="Create an obfuscation rule using the logs UI" alt="Create an obfuscation rule using the logs UI" src="/images/logs_screenshot-crop_log-obfuscation-create-rule.webp" />
+
+    5. Cliquez sur <DNT>**Create rule**</DNT> pour créer et activer votre règle d&apos;obfuscation.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsCreateObfuscationRule` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsCreateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bname%3A%20%22Obfuscate%20Login%20Service%20Logs%22%2C%20description%3A%20%22Removes%20PII%20from%20the%20Login%20Service%20Logs%20owned%20by%20the%20Sales%20department.%20Do%20not%20modify%20this%20rule%20without%20contacting%20the%20Sales%20team%20first.%22%2C%20filter%3A%20%22serviceName%20%3D%20%27loginService%27%20AND%20department%20%3D%20%27sales%27%22%2C%20enabled%3A%20true%2C%20actions%3A%20%5B%7Battributes%3A%20%5B%22message%22%2C%20%22creditCardNumber%22%5D%2C%20expressionId%3A%20%2212%22%2C%20method%3A%20HASH_SHA256%7D%2C%20%7Battributes%3A%20%5B%22message%22%5D%2C%20expressionId%3A%20%2234%22%2C%20method%3A%20MASK%7D%2C%20%7Battributes%3A%20%5B%22message%22%2C%20%22ssn%22%5D%2C%20expressionId%3A%20%2256%22%2C%20method%3A%20HASH_SHA256%7D%5D%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    <Callout variant="important">
+      Vous devez spécifier l&apos;obfuscation `expressionId` afin de la lier à une action d&apos;obfuscation donnée. Pour récupérer cet identifiant, vous pouvez [interroger le `obfuscationRules`](#rules-read).
+    </Callout>
+  </Collapser>
+
+  <Collapser id="rules-read" title="Lire une règle d'obfuscation">
+    Utilisez l&apos;une de ces options pour interroger une règle d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Sélectionnez l&apos;onglet <DNT>**Rules**</DNT> (par défaut) pour afficher toutes les règles d&apos;obfuscation disponibles et leurs définitions.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez le récupérateur `obfuscationRules` sous `actor.account.logConfigurations`. Reportez-vous à l&apos;exemple renseigné dans GraphiQL ainsi qu&apos;à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=%7B%0A%20%20actor%20%7B%0A%20%20%20%20account%28id%3A%201234%29%20%7B%0A%20%20%20%20%20%20logConfigurations%20%7B%0A%20%20%20%20%20%20%20%20obfuscationRules%20%7B%0A%20%20%20%20%20%20%20%20%20%20id%0A%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20description%0A%20%20%20%20%20%20%20%20%20%20filter%0A%20%20%20%20%20%20%20%20%20%20enabled%0A%20%20%20%20%20%20%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20method%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20createdAt%0A%20%20%20%20%20%20%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20updatedAt%0A%20%20%20%20%20%20%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)
+  </Collapser>
+
+  <Collapser id="rules-update" title="Mettre à jour une règle d'obfuscation">
+    Utilisez l&apos;une de ces options pour mettre à jour une règle d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Sélectionnez l’onglet <DNT>**Rules**</DNT> (par défaut).
+
+    3. Cliquez sur l&apos;icône représentant des points de suspension <DNT>**...**</DNT> à droite de la règle d&apos;obfuscation que vous souhaitez modifier, puis cliquez sur <DNT>**Edit**</DNT>.
+
+    4. Modifiez les champs selon vos besoins et cliquez sur <DNT>**Update rule**</DNT>.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsUpdateObfuscationRule` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bid%3A%20%225678%22%2C%20name%3A%20%22EDITED%20-%20Obfuscate%20Login%20Service%20Logs%22%2C%20description%3A%20%22EDITED%20-%20Removes%20PII%20from%20the%20Login%20Service%20Logs%20owned%20by%20the%20Sales%20department.%20Do%20not%20modify%20this%20rule%20without%20contacting%20the%20Sales%20team%20first.%22%2C%20filter%3A%20%22serviceName%20%3D%20%27loginService%27%20AND%20department%20%3D%20%27sales%27%22%2C%20enabled%3A%20true%2C%20actions%3A%20%5B%7Battributes%3A%20%5B%22message%22%2C%20%22creditCardNumber%22%5D%2C%20expressionId%3A%20%2212%22%2C%20method%3A%20HASH_SHA256%7D%2C%20%7Battributes%3A%20%5B%22message%22%5D%2C%20expressionId%3A%20%2234%22%2C%20method%3A%20MASK%7D%2C%20%7Battributes%3A%20%5B%22message%22%2C%20%22ssn%22%5D%2C%20expressionId%3A%20%2256%22%2C%20method%3A%20HASH_SHA256%7D%5D%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    <Callout variant="important">
+      Vous devez spécifier l&apos;obfuscation `expressionId` afin de la lier à une action d&apos;obfuscation donnée. Pour récupérer cet identifiant, vous pouvez utiliser le `obfuscationRules`, comme décrit dans \[query the `obfuscationRules`]]\(#rules-read).
+    </Callout>
+
+    Vous n&apos;avez pas besoin de spécifier tous les champs d&apos;une règle d&apos;obfuscation lors de sa mise à jour, uniquement les `id` (obligatoire) et les champs que vous souhaitez modifier. Voici un exemple pour [mettre à jour uniquement le nom](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bid%3A%20%225678%22%2C%20name%3A%20%22EDITED%20-%20Obfuscate%20Login%20Service%20Logs%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+  </Collapser>
+
+  <Collapser id="rules-delete" title="Supprimer une règle d'obfuscation">
+    Utilisez l&apos;une de ces options pour supprimer une règle d&apos;obfuscation:
+
+    <DNT>
+      **Using the logs UI:**
+    </DNT>
+
+    1. Allez à <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &gt; Logs**</DNT> et dans la navigation de gauche, sélectionnez <DNT>**Obfuscation**</DNT>.
+
+    2. Sélectionnez l’onglet <DNT>**Rules**</DNT> (par défaut).
+
+    3. Cliquez sur l&apos;icône représentant des points de suspension <DNT>**...**</DNT> à droite de la règle d&apos;obfuscation que vous souhaitez supprimer, puis cliquez sur <DNT>**Delete**</DNT>.
+
+    4. Confirmez que vous souhaitez supprimer l’expression en cliquant sur <DNT>**Delete**</DNT>.
+
+    <DNT>
+      **Using NerdGraph:**
+    </DNT>
+
+    Utilisez la mutation `logConfigurationsDeleteObfuscationRule` sous `logConfigurations`. Reportez-vous à l’exemple renseigné dans GraphiQL ainsi qu’à la documentation associée dans [<DNT>**api.newrelic.com/graphiql**</DNT>](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsDeleteObfuscationRule%28accountId%3A%201234%2C%20id%3A%205678%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A).
+
+    La mutation renverra un instantané de la règle avant d&apos;être supprimée.
+  </Collapser>
+</CollapserGroup>

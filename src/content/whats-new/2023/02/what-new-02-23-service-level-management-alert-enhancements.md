@@ -9,16 +9,18 @@ Now you can automatically determine alert thresholds and set up alerts for error
 
 If you’re unfamiliar with alerting on error budgets and burn rates, check out [the documentation](https://docs.newrelic.com/docs/service-level-management/alerts-slm/) to learn more.
 
-![Discover the power of service levels and take action faster with error budget and burn rate alerting](./images/service_level_management_with_new_relic.webp "A screenshot showing the service level management overview page.")
+![Discover the power of service levels and take action faster with error budget and burn rate alerting](/images/service_level_management_with_new_relic.webp 'A screenshot showing the service level management overview page.')
 
 **How this helps you:**
-* You can automatically determine alert thresholds for SLIs and SLOs.
-* Set pre-configured alerts for fast burn rates, error budgets, and SLI attainment based on Google’s SRE book recommendations.
-* Connect service levels to alert workflows quickly with just a few clicks.
-* Roll up multiple service levels into a workload to track the health status of multiple entities all together.
-* Use the high-level period-over-period view in the service levels UI for managers to understand the reliability of your systems over time.
+
+- You can automatically determine alert thresholds for SLIs and SLOs.
+- Set pre-configured alerts for fast burn rates, error budgets, and SLI attainment based on Google’s SRE book recommendations.
+- Connect service levels to alert workflows quickly with just a few clicks.
+- Roll up multiple service levels into a workload to track the health status of multiple entities all together.
+- Use the high-level period-over-period view in the service levels UI for managers to understand the reliability of your systems over time.
 
 **How to get started:**
+
 1. Log into New Relic and click on **All Capabilities** at the top of the left-hand navigation menu.
 2. Click on the **Service Levels** item on this page to access the interface.
 3. On the service levels page, you’ll see existing service levels and can set up new ones.

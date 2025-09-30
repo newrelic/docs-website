@@ -1,0 +1,176 @@
+---
+title: Update the infrastructure agent
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Update or uninstall
+translate:
+  - jp
+metaDescription: 'Update the New Relic infrastructure agent on Linux, Windows, or macOS systems.'
+redirects:
+    - /docs/server/upgrading-the-server-monitor
+    - /docs/servers/new-relic-servers-linux/maintenance/upgrading-server-monitor
+    - /docs/update-infrastructure-agent
+    - /docs/servers/new-relic-servers-linux/maintenance/upgrading-servers-linux
+    - /docs/servers/new-relic-servers-linux/maintenance/upgrading-agent-new-relic-servers-linux
+    - /docs/servers/new-relic-servers-windows/maintenance/upgrading-servers-windows
+    - /docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent
+    - /docs/infrastructure/install-configure-manage-infrastructure/update-or-uninstall/update-infrastructure-agent
+    - /docs/infrastructure/install-infrastructure-agent/update-or-uninstall/update-infrastructure-agent
+freshnessValidatedDate: never
+---
+
+If you need to install the infrastructure agent for the first time, see the installation docs for [Linux](/docs/infrastructure-install-amazon-linux-centos-debian-rhel-or-ubuntu), [Windows](/docs/infrastructure-install-windows-server), or [configuration management tools](/docs/infrastructure/new-relic-infrastructure/config-management-tools).
+
+If you need to uninstall the infrastructure agent, see [Uninstall the infrastructure agent](/docs/agents/manage-apm-agents/installation/uninstall-agent).
+
+## Identify the infrastructure agent version [#version]
+
+The infrastructure agent doesn't update itself automatically. To see if you have the latest agent version, see the [infrastructure agent release notes](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes).
+
+To view the current infrastructure agent version for a host in the New Relic UI, use any of these options:
+
+* Single hosts: See the `agentVersion` tag on any [host entity](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#find), or look for its `Agent version` in the <DNT>**Infrastructure**</DNT> UI.
+* Multiple hosts: Go to <DNT>**Infrastructure > Navigator**</DNT> and group reporting entities by `agentVersion` to see a list of active hosts per version.
+* Query: Use the `agentVersion` attribute on any standard agent metric to generate a report. For example, the following NRQL query shows number of unique active hosts group by agent version:
+  ```sql
+  FROM SystemSample SELECT uniqueCount(hostname) 
+  FACET agentVersion 
+  LIMIT MAX
+  ```
+
+To manually check the version on the host, you can log onto a server and run `newrelic-infra --version`, or the applicable command for your package manager. The directory where you'd run this differs between operating systems, but here are the default paths:
+
+* Linux: `/usr/bin/newrelic-infra`
+* Windows: `C:\Program Files\New Relic\newrelic-infra\`
+* macOS: `/usr/local/bin/newrelic-infra`
+
+## Identify outdated agent versions from the UI [#check-version]
+
+You'll first need to determine the latest version available from the agent [release notes](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes), we recommend running versions that are no older than three months when possible.
+
+To identify active hosts that are running a version that's older than a given `major.minor` (for example, `1.45.0`), you can run this NRQL query:
+
+```sql
+FROM SystemSample 
+SELECT uniques(hostname) 
+WHERE numeric(capture(agentVersion, '(?P<major>.[0-9]*).([0-9]*).([0-9]*)')) <= 1 
+AND numeric(capture(agentVersion, '([0-9]*).(?P<minor>.[0-9]*).([0-9]*)')) <= 45
+LIMIT MAX
+```
+
+## Update the agent for installs using the package manager [#update]
+
+If you used the default installation process, use your package manager to update the program and its dependencies to the latest version. Here are examples for some common systems:
+
+<CollapserGroup>
+  <Collapser
+    id="apt-update"
+    title={<>Update using apt (<img src="/images/os_icon_debian.webp" title="Debian icon" alt="Debian.webp" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>Debian, <img src="/images/os_icon_ubuntu.webp" title="ubuntu icon" alt="ubuntu icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>Ubuntu)</>}
+  >
+    To manually update the infrastructure agent with `apt-get`:
+
+    ```shell
+    sudo apt-get update && sudo apt-get install --only-upgrade newrelic-infra -y
+    ```
+  </Collapser>
+
+  <Collapser
+    id="yum-update"
+    title={<>Update using yum (<img src="/images/os_icon_amazon-linux.webp" title="amazon linux.webp" alt="amazon linux.webp" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>Amazon Linux, <img src="/images/os_icon_centos.webp" title="centos icon" alt="centos icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>CentOS, <img src="/images/os_icon_redhat.webp" title="redhat icon" alt="redhat icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>RHEL)</>}
+  >
+    To manually update the infrastructure agent with yum:
+
+    ```shell
+    sudo yum update newrelic-infra -y
+    ```
+
+    After updating you may need to [start the agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#linux).
+  </Collapser>
+
+  <Collapser
+    id="zypper-update"
+    title={<>Update using Zypper (<img src="/images/os_icon_suse.webp" title="suse icon" alt="suse icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>SLES)</>}
+  >
+    To manually update the infrastructure agent with Zypper:
+
+    ```shell
+    sudo zypper -n update newrelic-infra
+    ```
+
+    After updating you may need to [start the agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#linux).
+  </Collapser>
+
+  <Collapser
+    id="windows-update-32"
+    title={<>Update on <img src="/images/os_icon_windows.webp" title="Windows Server" alt="Windows Server icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>Windows Server (32 bits)</>}
+  >
+    To manually update the infrastructure agent on Windows Server:
+
+    1. Download the latest .MSI installer image from [download.newrelic.com/infrastructure_agent/windows/386/newrelic-infra-386.msi](https://download.newrelic.com/infrastructure_agent/windows/386/newrelic-infra-386.msi)
+    2. Run the install script. To install from the Windows command prompt, run:
+
+       ```shell
+       msiexec.exe /qn /i PATH\TO\newrelic-infra-386.msi
+       ```
+
+       After updating you may need to [start the agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#windows).
+  </Collapser>
+
+  <Collapser
+    id="windows-update"
+    title={<>Update on <img src="/images/os_icon_windows.webp" title="Windows Server" alt="Windows Server icon" style={{ height: '32px', width: '32px', verticalAlign: 'middle' }}/>Windows Server (64 bits)</>}
+  >
+    To manually update the infrastructure agent on Windows Server:
+
+    1. Download the latest .MSI installer image from [download.newrelic.com/infrastructure_agent/windows/newrelic-infra.msi](https://download.newrelic.com/infrastructure_agent/windows/newrelic-infra.msi)
+    2. Run the install script. To install from the Windows command prompt, run:
+
+       ```shell
+       msiexec.exe /qn /i PATH\TO\newrelic-infra.msi
+       ```
+
+       After updating you may need to [start the agent](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status#windows).
+  </Collapser>
+
+  <Collapser
+    id="macos-update"
+    title={<>Update on macOS</>}
+  >
+    To manually update the infrastructure agent on macOS, open the terminal and run the following commands:
+
+    1. Stop the service (if already running):
+       ```shell
+       brew services stop newrelic-infra-agent
+       ```
+
+    2. Update the agent:
+       ```shell
+       brew upgrade newrelic-infra-agent
+       ```
+  </Collapser>
+
+  <Collapser
+    id="config-mgmt-update"
+    title="Update with config management tools"
+  >
+    To update the infrastructure agent using your configuration management tool, see the documentation for your tool:
+
+    * [<img style={{ width: '32px', height: '32px', verticalAlign: 'middle'}} class="inline" title="Ansible" alt="Ansible" src="/images/os_icon_ansible-red.webp"/>Configure with Ansible](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-using-ansible)
+    * [<img style={{ width: '32px', height: '32px', verticalAlign: 'middle'}} class="inline" title="Chef" alt="Chef" src="/images/os_icon_chef.webp"/>Configure with Chef](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-using-chef)
+    * <img style={{ width: '32px', height: '32px', verticalAlign: 'middle'}} class="inline" title="EBS" alt="EBS" src="/images/os_icon_ebs.webp"/>[Configure with AWS Elastic Beanstalk](/docs/infrastructure/install-infrastructure-agent/config-management-tools/install-infrastructure-agent-aws-elastic-beanstalk)
+    * [<img style={{ width: '32px', height: '32px', verticalAlign: 'middle'}} class="inline" title="Puppet" alt="Puppet" src="/images/os_icon_puppet.webp"/>Configure with Puppet](/docs/infrastructure/new-relic-infrastructure/config-management-tools/configure-new-relic-infrastructure-puppet)
+  </Collapser>
+</CollapserGroup>
+
+## Update the agent for assisted and manual tarball installs [#tarball]
+
+<Callout variant="important">
+  Since there are are no automated scripts, old files may remain when you update. Be sure to manually remove outdated files.
+</Callout>
+
+To update the agent, download the file again and follow the installation procedure for Linux ([assisted](/docs/infrastructure/install-configure-infrastructure/linux-installation/assisted-install-infrastructure-linux) or [manual](/docs/infrastructure/install-configure-infrastructure/linux-installation/manual-install-infrastructure-linux)) or Windows ([assisted](/docs/infrastructure/install-configure-infrastructure/windows-installation/assisted-install-infrastructure-windows) or [manual](/docs/infrastructure/install-configure-infrastructure/windows-installation/manual-install-infrastructure-windows)). This will overwrite your old installation.
+
+## Update the containerized version of the agent [#docker]
+
+Use the `latest` label to ensure that [our Docker image](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-container-infrastructure-monitoring) is automatically updated.

@@ -10,6 +10,6 @@ Everything on the internet has an address, and these addresses often end up in y
 
 Create or update your parsing rules to get started slicing and dicing logs by their geography with this new functionality.
 
-![Geolocate ip addresses with parsing](./images/whats-new-03-15-geolocate-logged-ip-addresses.webp "A screenshot that shows parsing rule with geo grok action")
+![Geolocate ip addresses with parsing](/images/whats-new-03-15-geolocate-logged-ip-addresses.webp 'A screenshot that shows parsing rule with geo grok action')
 
 For more information, see our [log parsing docs](https://docs.newrelic.com/docs/logs/ui-data/parsing/#geo).

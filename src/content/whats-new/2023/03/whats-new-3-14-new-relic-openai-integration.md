@@ -12,13 +12,13 @@ Companies around the world are embracing GPT to power help desk tickets and live
 
 ## New Relic integrates with OpenAI, GPT-3, and beyond to provide the following benefits:
 
-![New Relic's OpenAI integration providing a pre-built dashboard for monitoring performance, cost, and usage of GPT applications. ](./images/newrelic_openai_integration_dashboard.webp "A screenshot showing the New Relic Instant Observability quickstart dashboard for OpenAI.")
+![New Relic's OpenAI integration providing a pre-built dashboard for monitoring performance, cost, and usage of GPT applications. ](/images/newrelic_openai_integration_dashboard.webp 'A screenshot showing the New Relic Instant Observability quickstart dashboard for OpenAI.')
 
-* __Get started for free:__ Our out-of-the-box GPT monitoring solution is the first of its kind, and included at no additional cost to all New Relic full platform users.
-* __Easy installation:__ With just two lines of code, users can import the monitor module from the `nr_openai_monitor` library and automatically generate a dashboard that displays a variety of key GPT performance metrics.
-* __Monitor cost:__ Usage of OpenAI’s Davinci model costs $0.12 per 1000 tokens, which can add up quickly and make it difficult to operate at scale. New Relic provides engineering teams with real-time cost tracking of their GPT usage.
-* __Optimize performance:__ New Relic gives engineering teams insight into the average response time and other key performance metrics around GPT requests, allowing engineers to optimize usage and ensure the best possible response times.
-* __Analyze prompts and responses:__ New Relic provides valuable information about the usage, speed, and effectiveness of GPT to help engineering teams achieve better results from their ML models.
+- **Get started for free:** Our out-of-the-box GPT monitoring solution is the first of its kind, and included at no additional cost to all New Relic full platform users.
+- **Easy installation:** With just two lines of code, users can import the monitor module from the `nr_openai_monitor` library and automatically generate a dashboard that displays a variety of key GPT performance metrics.
+- **Monitor cost:** Usage of OpenAI’s Davinci model costs \$0.12 per 1000 tokens, which can add up quickly and make it difficult to operate at scale. New Relic provides engineering teams with real-time cost tracking of their GPT usage.
+- **Optimize performance:** New Relic gives engineering teams insight into the average response time and other key performance metrics around GPT requests, allowing engineers to optimize usage and ensure the best possible response times.
+- **Analyze prompts and responses:** New Relic provides valuable information about the usage, speed, and effectiveness of GPT to help engineering teams achieve better results from their ML models.
 
 ## How to get started
 

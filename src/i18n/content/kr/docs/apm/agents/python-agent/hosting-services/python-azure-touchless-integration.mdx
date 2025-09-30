@@ -1,0 +1,303 @@
+---
+title: Microsoft Azure 컨테이너 앱 및 App Service에 Python 에이전트 통합
+metaDescription: How to integrate APM for Python on Microsoft Azure App Services and Container Apps
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [출시 전 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) 에 따라 미리보기 프로그램의 일부로 제공됩니다.
+</Callout>
+
+이 문서는 특별히 코드를 수정하지 않고도 Azure 호스팅 Python 구성에 뉴렐릭 통합하는 솔루션을 제공합니다. 이 기능에는 두 가지 지원되는 인스턴스가 있습니다.
+
+* [Azure 컨테이너 앱](https://learn.microsoft.com/en-us/azure/container-apps/overview)
+* [Microsoft Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/overview), 코드 사용
+
+컨테이너화된 이미지를 사용하는 App Services의 뉴렐릭 통합은 지원되지 않습니다.
+
+## 호환성 및 요구 사항 [#compatibility-requirements]
+
+시작하기 전에 다음 사항을 권장합니다.
+
+* 구현하다, 배포하다이었던 컨테이너 앱 또는 App Service로 시작하기
+* Azure Portal을 사용하지 않는 경우 환경에 [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-macos) 설치
+
+<Callout variant="tip" title="정보">
+  Python 에이전트는 통합 없이 Azure Functions 용 텔레메트리를 캡처하지 않는다는 점을 명심하세요. Azure Functions에 대한 데이터를 수집하려면 [Azure Functions 모니터링 통합을](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/) 설치하는 것이 좋습니다.
+</Callout>
+
+## 컨테이너 앱에 Python 에이전트 통합 [#integrate-agent-container-app]
+
+어떤 경우에는 [Azure Container Apps를](https://learn.microsoft.com/en-us/azure/container-apps/overview) 통해 관리되는 앱에 사용자가 수정할 수 없는 이미지가 이미 포함되어 있거나 사용자가 앱을 수정하고 싶어하지 않을 수도 있습니다. 이를 통해 컨테이너화된 이미지를 빌드하는 코드를 수정하지 않고도 뉴렐릭을 환경에 통합할 수 있는 방법이 제공됩니다.
+
+이 작업은 Azure Portal이나 Azure CLI를 통해 수행할 수 있습니다.
+
+<CollapserGroup>
+  <Collapser id="container-app-init-container-portal" title="Azure Portal을 통해 뉴렐릭 Python 에이전트를 컨테이너 앱에 통합합니다.">
+    <Steps>
+      <Step>
+        ### [뉴렐릭 클러스터](docs/apis/intro-apis/new-relic-api-keys/#license-key)추가 [#add-license-key-portal]
+
+        이 단계는 선택 사항이지만 적극 권장됩니다.
+
+        [Azure Key Vault가](https://azure.microsoft.com/en-us/products/key-vault) 생성되지 않은 경우 [이 퀵스타트 가이드를](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-portal) 따르세요.
+
+        1. <DNT>**Container Apps &gt; (select a Python app) &gt; Settings &gt; Secrets**</DNT> 선택합니다.
+        2. 비밀을 추가하세요. 비밀에 이름을 지정하고 &quot;Key Vault 참조&quot;를 선택한 다음 라이선스 키를 추가합니다.
+        3. 변경 사항을 저장합니다.
+      </Step>
+
+      <Step>
+        ### Azure 파일 공유를 컨테이너 앱에 연결 [#add-volume-portal]
+
+        [이 퀵스타트 튜토리얼 에 따라](https://learn.microsoft.com/en-us/azure/storage/files/storage-how-to-use-files-portal?tabs=azure-portal) [Azure 파일 공유를](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) 만들어 보세요.
+
+        1. <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT> 선택합니다.
+        2. &quot;편집 및 구현하다, 배포하다&quot;를 선택합니다.
+        3. &quot;볼륨&quot; 탭으로 이동하여 &quot;(+) 추가&quot;를 클릭합니다.
+        4. &quot;Azure 파일 볼륨&quot;을 선택하고 원하는 볼륨 이름을 입력한 다음, 이전에 만든 파일 공유를 선택합니다.
+        5. 변경 사항을 저장합니다.
+      </Step>
+
+      <Step>
+        ### init 컨테이너 추가 및 설정 [#init-container-setup-portal]
+
+        1. <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT> 선택합니다.
+
+        2. &quot;컨테이너 이미지&quot; 섹션에서 &quot;추가&quot;를 클릭하고 &quot;Init컨텍스트&quot;를 선택합니다.
+
+        3. 다음을 입력하세요.
+
+           * 원하는 init 컨테이너 이름
+           * &quot;이미지 소스&quot;에 대한 &quot;docker Hub 또는 기타 레지스트리&quot;
+           * `newrelic/newrelic-python-init` &quot;이미지 및 태그&quot; 아래
+           * `/bin/sh` &quot;명령 재정의&quot;에 대해
+           * `-c, cp -r /instrumentation /mnt/` &quot;인수 재정의&quot;에 대해
+           * 원하는 CPU 코어 및 메모리. 이는 1차 컨테이너의 용량을 초과해서는 안 됩니다.
+
+        4. &quot;볼륨 마운트&quot; 탭으로 이동하여 이전 단계에서 생성한 볼륨 마운트를 선택합니다. 마운트 경로는 `/mnt/instrumentation` 이어야 합니다.
+
+        5. 변경 사항을 저장합니다.
+      </Step>
+
+      <Step>
+        ### 뉴클릭을 기본 구성에 연결하세요 [#link-nr-to-app-portal]
+
+        1. <DNT>**Container Apps &gt; (select a Python app) &gt; Application &gt; Containers**</DNT> 선택합니다.
+
+        2. &quot;컨테이너 이미지&quot; 섹션에서 기본 애플리케이션을 선택하고 &quot;편집&quot;을 클릭합니다.
+
+        3. &quot;환경 변수&quot; 탭으로 이동하여 다음을 입력하세요.
+
+           * `NEW_RELIC_APP_NAME`: \[원하는 앱 이름]
+           * `PYTHONPATH`: `/mnt/instrumentation`
+           * `NEW_RELIC_AZURE_OPERATOR_ENABLED`: `True`
+           * `NEW_RELIC_LICENSE_KEY` &gt; 비밀 참조 &gt; 1단계에서 비밀 이름을 선택합니다(또는 수동으로 라이선스 키를 입력합니다)
+
+        4. &quot;볼륨 마운트&quot; 탭으로 이동하여 2단계에서 생성한 볼륨 마운트를 선택합니다. 마운트 경로는 `/mnt/instrumentation` 이어야 합니다.
+
+        5. 변경 사항을 저장합니다.
+      </Step>
+
+      이는 컨테이너 앱을 다시 구현하다, 배포해야 합니다. init 컨테이너 실행이 완료될 때까지 몇 분간 기다리세요.
+    </Steps>
+  </Collapser>
+
+  <Collapser id="container-app-init-container-cli" title="Azure CLI를 통해 뉴렐릭 Python 에이전트를 컨테이너 앱에 통합합니다.">
+    <Steps>
+      <Step>
+        ### Azure Key Vault에 뉴플레이 클러스터 키 추가 [#add-license-key-cli]
+
+        이 단계는 선택 사항이지만 적극 권장됩니다.
+
+        [Azure Key Vault가](https://azure.microsoft.com/en-us/products/key-vault) 생성되지 않은 경우 [이 퀵스타트 자습서를](https://learn.microsoft.com/en-us/azure/key-vault/general/quick-create-cli) 따르세요.
+
+        `az containerapp secret set --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --secrets license-key=$NEW_RELIC_LICENSE_KEY`
+      </Step>
+
+      <Step>
+        ### Azure 파일 공유를 만들고 컨테이너 앱에 연결합니다. [#add-volume-cli]
+
+        1. `az storage account create --resource-group $RESOURCE_GROUP --name $STORAGE_ACCOUNT_NAME --location $LOCATION --kind StorageV2 --sku Standard_LRS --enable-large-file-share`
+        2. `az storage share-rm create --resource-group $RESOURCE_GROUP --storage-account $STORAGE_ACCOUNT_NAME --name $STORAGE_SHARE_NAME --quota 4096 --enabled-protocols SMB`
+        3. `` STORAGE_ACCOUNT_KEY=`az storage account keys list -n $STORAGE_ACCOUNT_NAME --query "[0].value" -o tsv --resource-group $RESOURCE_GROUP` ``
+        4. `az containerapp env storage set --access-mode ReadWrite --azure-file-account-name $STORAGE_ACCOUNT_NAME --azure-file-account-key $STORAGE_ACCOUNT_KEY --azure-file-share-name $STORAGE_SHARE_NAME --storage-name $STORAGE_MOUNT_NAME --name $ENVIRONMENT_NAME --resource-group $RESOURCE_GROUP`
+      </Step>
+
+      <Step>
+        ### 환경 변수 추가 [#add-env-vars-cli]
+
+        `az containerapp update --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --set-env-vars "NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME" "NEW_RELIC_AZURE_OPERATOR_ENABLED=True" "NEW_RELIC_LICENSE_KEY=secretref:license-key" "PYTHONPATH="/mnt/instrumentation`
+      </Step>
+
+      <Step>
+        ### 뉴클릭을 기본 구성에 연결하세요 [#link-nr-to-app-portal]
+
+        #### 앱 설정 내보내기
+
+        `az containerapp show --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --output yaml > demoapp.yaml`
+
+        이 파일은 컨테이너 앱에 대한 정보를 포함하는 부분 템플릿 파일을 생성합니다. 앱에 뉴렐릭을 연결하려면 추가 정보가 필요합니다.
+
+        #### 컨테이너 앱에 볼륨 마운트
+
+        속성 &gt; 템플릿에 `volumes` 이라는 섹션이 있습니다. 지금은 `volumes: null` 이라고 합니다. 해당 줄을 다음 줄로 바꿔보겠습니다.
+
+        ```bash
+        volumes:
+        - name: $VOLUME_NAME
+            storageName: $STORAGE_MOUNT_NAME
+            storageType: AzureFile
+        ```
+
+        여기서 `$STORAGE_MOUNT_NAME` 은 2단계에서 사용된 이름이고 `$VOLUME_NAME` 은 선택한 이름입니다.
+
+        #### init 컨테이너 추가
+
+        속성 &gt; 템플릿에 `initContainers` 이라는 섹션이 있습니다. 지금은 `initContainers: null` 이라고 합니다. 해당 줄을 다음 줄로 바꿔보겠습니다.
+
+        ```bash
+        initContainers:
+        - args:
+            - -c
+            - cp -r /instrumentation /mnt/
+            command:
+            - /bin/sh
+            image: docker.io/newrelic/newrelic-python-init
+            name: nr-init-container
+        ```
+
+        #### 컨테이너에 볼륨 연결
+
+        속성 &gt; 템플릿에 이제 `containers` 및 `initContainers` 섹션이 있습니다. 각 섹션에 다음 줄을 추가합니다.
+
+        ```bash
+        volumeMounts:
+        - mountPath: /mnt/instrumentation
+            volumeName: $VOLUME_NAME
+        ```
+
+        여기서 `$VOLUME_NAME` 은 이전에 선택한 이름입니다.
+
+        #### 새로운 설정으로 앱 컨테이너 업데이트
+
+        `az containerapp update --name $CONTAINER_APP_NAME --resource-group $RESOURCE_GROUP --yaml demoapp.yaml`
+
+        이는 컨테이너 앱을 다시 구현하다, 배포해야 합니다. init 컨테이너 실행이 완료될 때까지 몇 분간 기다리세요.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+## Python 에이전트를 Azure App Service에 통합 [#integrate-agent-app-service]
+
+현재 App Services는 사이드카만 지원하고 init 컨테이너는 지원하지 않습니다. 해당 지원이 제공될 때까지 이 사전 빌드 스크립트를 사용할 수 있습니다. 참고: 이 기능은 코드를 사용하는 App Services에만 적용되며 컨테이너화된 이미지에는 적용되지 않습니다.
+
+이 작업은 Azure Portal 또는 Azure CLI를 통해 수행할 수 있습니다.
+
+```bash prebuild.sh
+#!/bin/sh
+# prebuild.sh
+
+# Retrieve files to use in startup script:
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/newrelic_k8s_operator.py > newrelic_k8s_operator.py
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/requirements-vendor.txt > requirements-vendor.txt
+curl -L https://raw.githubusercontent.com/newrelic/newrelic-agent-init-container/refs/heads/main/src/python/requirements-builder.txt > requirements-builder.txt
+
+cd /home/
+
+pip install -r requirements-builder.txt
+
+export NEW_RELIC_EXTENSIONS=false
+export WRAPT_DISABLE_EXTENSIONS=true
+
+pip install newrelic --target=./workspace/newrelic
+
+mkdir -p ./workspace/vendor
+pip install --target=./workspace/vendor -r requirements-vendor.txt
+
+cp ./workspace/* /home/
+cp /home/workspace/newrelic/newrelic/bootstrap/sitecustomize.py /home/sitecustomize.py
+
+cd /home/site/wwwroot
+
+# This is the where the application's original startup script goes:
+gunicorn app:app
+```
+
+<CollapserGroup>
+  <Collapser id="app-service-startup-script-portal" title="Azure Portal을 통해 뉴렐릭 Python 에이전트를 App Services에 통합합니다.">
+    <Steps>
+      <Step>
+        ### 시작 스크립트 업로드
+
+        https://\[YOUR\_LINUX\_AZURE\_WEBSITE\_NAME].scm.azurewebsites.net/newui/fileManager로 이동합니다. `prebuild.sh` 스크립트를 `/home` 디렉토리에 업로드합니다.
+      </Step>
+
+      <Step>
+        ### 필요한 환경 변수를 추가합니다
+
+        1. <DNT>**App Services &gt; (select a Python app) &gt; Settings &gt; Environment variables**</DNT> 선택합니다.
+
+        2. <DNT>**App settings**</DNT> 에 다음을 추가합니다.
+
+           * `NEW_RELIC_APP_NAME`: Linux Azure 웹사이트 이름
+           * `NEW_RELIC_LICENSE_KEY`: 당신의 뉴렐릭<InlinePopover type="licenseKey" />
+           * `PYTHONPATH`: `/home:/home/workspace/newrelic`
+           * `NEW_RELIC_AZURE_OPERATOR_ENABLED`: `True`
+
+        3. 설정을 저장합니다.
+
+        특정 에이전트 버전이 필요한 경우 버전 번호와 함께 `AGENT_VERSION` 환경 변수를 추가하고 앞에 `v` 붙입니다(예: `v10.0.0`).
+      </Step>
+
+      <Step>
+        ### `prebuild.sh` 시작 파일 설정으로 추가합니다.
+
+        1. <DNT>**App Services &gt; (select a Python app) &gt; Settings &gt; Configuration**</DNT> 선택합니다.
+        2. <DNT>**Startup Command**</DNT> 에 다음을 추가합니다. `/home/prebuild.sh`
+        3. 설정을 저장하세요. 이렇게 하면 앱이 다시 배포됩니다.
+
+        몇 분 정도 걸릴 겁니다.
+      </Step>
+    </Steps>
+  </Collapser>
+
+  <Collapser id="app-service-startup-script-cli" title="Azure CLI를 통해 뉴렐릭 Python 에이전트를 App Services에 통합합니다.">
+    <Steps>
+      <Step>
+        ### 시작 스크립트 업로드
+
+        `az webapp deploy --resource-group ${RESOURCE_GROUP} --name ${WEB_APP_NAME} --src-path prebuild.sh --target-path /home/prebuild.sh --type=static`
+      </Step>
+
+      <Step>
+        ### 필요한 환경 변수를 추가합니다
+
+        `az webapp config appsettings set --name ${WEB_APP_NAME} --resource-group ${RESOURCE_GROUP} --settings NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY NEW_RELIC_AZURE_OPERATOR_ENABLED=true NEW_RELIC_APP_NAME="Azure Service App" PYTHONPATH="/home:/home/workspace/newrelic"`
+
+        특정 에이전트 버전이 필요한 경우 버전 번호와 함께 `AGENT_VERSION` 환경 변수를 추가하고 앞에 `v` 붙입니다(예: `v10.0.0`) 아래 예와 같습니다.
+
+        `az webapp config appsettings set --name ${WEB_APP_NAME} --resource-group ${RESOURCE_GROUP} --settings AGENT_VERSION=v10.0.0`
+      </Step>
+
+      <Step>
+        ### `prebuild.sh` 시작 파일 설정으로 추가합니다.
+
+        `az webapp config set --resource-group ${RESOURCE_GROUP} --name ${WEB_APP_NAME} --startup-file "/home/prebuild.sh"`
+
+        몇 분 정도 걸릴 겁니다.
+      </Step>
+    </Steps>
+  </Collapser>
+</CollapserGroup>
+
+### 문제점 해결 [#troubleshooting]
+
+어떤 경우에는 텔레메트리를 사용할 수 없거나 `prebuild.sh` 전개로 인해 기존의 제작이 다시 배포되지 않을 수도 있습니다. 이를 해결하려면 다음 환경 변수를 활성화하세요.
+
+* `SCM_DO_BUILD_DURING_DEVELOPMENT`: `True`
+* `ENABLE_ORYX_BUILD`: `True`

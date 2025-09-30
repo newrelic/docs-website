@@ -1,0 +1,421 @@
+---
+title: 通知メッセージテンプレート
+tags:
+  - Alerts
+  - Notification templates
+metaDescription: Read about various notification message templates you can use and apply.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+通知メッセージのテンプレートを使うと、サードパーティの送信先に送信する前に、通知イベントデータをカスタマイズすることができます。テンプレートは、お客様のカスタム値をサードパーティの送信先で使用される値にマッピングします。
+
+これにより、どのようなデータがどこに送信されるかを完全にコントロールすることができ、お客様が利用するサービスを十分に活用することができます。
+
+## メッセージテンプレートの変数 [#variables]
+
+メッセージテンプレートとは、New Relic のイベントデータをサードパーティサービスで利用可能なデータに変換するために使用するものです。変数は、サードパーティサービスのデータフィールドにマッピングされる特定の属性です。
+
+メッセージ テンプレートは、 [Handlebars](https://handlebarsjs.com/guide/)と呼ばれる単純なテンプレート言語で記述されます。メッセージ テンプレート内の変数は、二重中括弧`{{ }}`内の[式](https://handlebarsjs.com/guide/expressions.html)として記述されます。
+
+<img
+  title="An example webhook notification message template."
+  alt="A screenshot of an example webhook notification message template."
+  src="/images/accounts_screenshot-crop_notification-payload-template.webp"
+/>
+
+<figcaption>
+  通知メッセージテンプレートを使用して、New Relic の通知を外部サービスのフィールドにマッピングします。
+</figcaption>
+
+## 変数メニュー [#variables-menu]
+
+New Relic の変数名は、メッセージテンプレートの変数メニューに記載されています。変数はサブカテゴリーに分類されています。
+
+変数メニューで、 `{{`と入力して変数のリストから選択します。 入力すると、変数名がオートコンプリートで表示されます。 変数の型は右側に記述されます。 ワークフローに[エンリッチメント](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/#enrichments)がある場合は、 `{{`と入力するとリストの上部に表示されます。
+
+<img
+  title="The variables menu that shows the breadth of variable options available."
+  alt="A screenshot of the variables menu that. shows the breadth of variable options available."
+  src="/images/accounts_screenshot-crop_notification-custom-variables.webp"
+/>
+
+<figcaption>
+  変数メニューには、New Relic の通知フィールドを外部サービスのフィールドにマッピングする際のオプションが表示されます。
+</figcaption>
+
+<Callout variant="important">
+  `accumulations.tag.foo`などの問題固有の変数は、このメタデータを含む問題がすでに存在していない限り表示されません。 問題が発生する前にそれらを含むメッセージ テンプレートを作成するには、以下に説明する[`#if`ステートメント](/docs/alerts-applied-intelligence/notifications/message-templates/#missing-attributes)を使用します。
+</Callout>
+
+## Handlebarsの構文を使う [#handlebars-syntax]
+
+イベントで通知が発生すると、メッセージテンプレートはハンドルバー変数を使用して、通知データをサードパーティサービスが使用するフィールドにマッピングします。
+
+Handlebars 言語は、基本的な変数置換に加えて、反復 (ループ)、条件ステートメントなど、 [ネストされた入力オブジェクト](https://handlebarsjs.com/guide/#nested-input-objects) と関数の評価を含む多くの機能を提供します。 ハンドルバーでは、これらの関数はヘルパーと呼ばれます。ワークフローで使用される変数の説明については [、ここをクリック](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/custom-variables-incident-workflows/) してください。
+
+## ヘルパー機能 [#help-functions]
+
+私たちのメッセージテンプレートは、Handlebars [組み込みヘルパー](https://handlebarsjs.com/guide/builtin-helpers.html) をサポートしています。
+
+さらに、あなたの役に立つかもしれない他のヘルパーも追加しました。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="json"
+    title="JSON"
+  >
+    `{{json}}`ヘルパーは、テキストを JSON 要素に変換します。
+
+    JSON構文を使用するWebhookのペイロードを設定する場合や、JSON形式のデータを渡したい場合などに使用します。
+
+    たとえば、 `data`という変数を使用します。
+
+    ```json
+    {
+      "data":{
+        "tags":["infra, team-a"]
+      }
+    }
+    ```
+
+    `tags`配列を JSON 要素として取得するには、 `{{json}}`ヘルパーを使用します。
+
+    ```handlebars
+    {{json data.tags}}
+    ```
+
+    を得ることができます。
+
+    ```json
+     ["infra","team-a"]
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="escape"
+    title="逃げる"
+  >
+    `{{json}}`ヘルパーと同様に、 `{{escape}}`ヘルパーは JSON の分割文字をエスケープしますが、JSON 出力は生成しません。
+
+    変数の値に、メッセージ テンプレートの構文が正しいようにエスケープする必要がある`"`などの JSON 区切り文字を含むテキストが含まれている場合は、エスケープ ヘルパーを使用します。
+
+    たとえば、Slack Webhook エンドポイントに送信する場合など、次の内容をテキストとして送信する必要があります。
+
+    ```json
+    {
+      "text": "id:{{ escape issueId }},\nEnrichment Data: {{ escape [latest my_enrichment] }},\nDescription:{{ escape accumulations.conditionDescription }}"
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="equality"
+    title="平等性"
+  >
+    等値`{{#eq}}`ヘルパーを使用して変数を比較します。
+
+    ```handlebars
+    Compares variables a and b, renders 'yes' or 'no':
+
+    {{#eq a b}} yes {{else}} no {{/eq}}
+
+    Compares string value "a" to variable b, renders 'yes' or 'no':
+
+    {{#eq "a" b}} yes {{else}} no {{/eq}}
+
+    Renders 'true' or 'false':
+
+    {{eq a b}}
+
+    Renders 'y' or 'n':
+
+    {{eq a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="contains"
+    title="収録内容"
+  >
+    `{{#contains}}`ヘルパーを使用して変数を比較します。
+
+    ```handlebars
+    Asserts that b contains a, renders 'yes' or 'no':
+
+    {{#contains a b}} yes {{else}} no {{/contains}}
+
+    Asserts that variable b contains string value "a", renders 'yes' or 'no':
+
+    {{#contains "a" b}} yes {{else}} no {{/contains}}
+
+    Renders 'true' or 'false':
+
+    {{contains a b}}
+
+    Renders 'y' or 'n':
+
+    {{contains a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="math"
+    title="算数"
+  >
+    単純な数学演算を実行するには、 `{{#math}}` を使用します。
+
+    ```handlebars
+    Renders addition of two number values:
+
+    {{#math openIncidentsCount '+' closedIncidentsCount}} {{/math}}
+
+    Renders subtraction of two number values:
+
+    {{#math createdAt '-' closedAt}}{{/math}}
+
+    Renders multiplication of two number values:
+
+    {{#math 3 '*' 3}}{{/math}}
+
+    Renders division of two number values:
+
+    {{#math 9 '/' 3}}{{/math}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="timezone"
+    title="タイムゾーン"
+  >
+    `{{#timezone}}` を使用して、エポック時間を「yyyy-MM-dd HH:mm:ss zzz」形式の日付に変換します。tz データベースのタイムゾーンのリストは [、ここで](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)見つけることができます。
+
+    例 #1: エポック時間の createdAt を米国東部タイムゾーンに変換します。
+
+    ```handlebars
+    {{#timezone createdAt 'US/Eastern'}}{{/timezone}}
+    ```
+
+    を得ることができます。
+
+    ```
+    "2023-06-06 09:45:07 EDT"
+    ```
+
+    例 #2: エポックタイムをパリのタイムゾーンに変換します::
+
+    ```handlebars
+    {{#timezone 1686059107319 'Europe/Paris'}}{{/timezone}}
+    ```
+
+    を得ることができます。
+
+    ```
+    "2023-06-06 15:45:07 GMT+2"
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="replace"
+    title="交換"
+  >
+    `replace`ヘルパーは、2 番目のパラメーターの最初のパラメーターのインスタンスを子ブロックに置き換えます。
+
+    `else`句を使用して、最初のパラメーターのインスタンスが見つからない場合の処理を指定します。省略した場合、空の文字列が生成されます。
+
+    例 #1: 文`The dog likes to eat`の単語`dog`を`cat`に置き換えます。
+
+    ```handlebars
+    {{#replace "dog" "The dog likes to eat"}}cat{{/replace}}
+    ```
+
+    を得ることができます。
+
+    ```
+    The cat likes to eat
+    ```
+
+    例 #2: 文`The dog likes to eat`の単語`cat`を`mouse`に置き換えます。
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{/replace}}
+    ```
+
+    をクリックすると、空の文字列が表示されます。
+
+    ```
+
+    ```
+
+    例 #3: `else`句を使用して、文`The dog likes to eat`内の単語`cat`を`mouse`に置き換えます。
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{else}}There is no cat to replace{{/replace}}
+    ```
+
+    を得ることができます。
+
+    ```
+    There is no cat to replace
+    ```
+
+    例 #4: 大文字と小文字を区別せずに、文`The DOG likes to eat`の単語`dog`を`cat`に置き換えます。
+
+    ```handlebars
+    {{#replace "/dog/i" "The DOG likes to eat"}}cat{{/replace}}
+    ```
+
+    を得ることができます。
+
+    ```
+    The cat likes to eat
+    ```
+
+    例 #5: 変数`{{haystack}}`内の変数`{{needle}}`を変数`{{replacement}}`に置き換えます。
+
+    ```handlebars
+    {{#replace needle haystack}}{{replacement}}{{/replace}}
+    ```
+
+    このデータを使って
+
+    ```json
+    {
+      "needle": "/dog/i",
+      "haystack": "The DOG likes to eat",
+      "replacement": "cat"
+    }
+    ```
+
+    を得ることができます。
+
+    ```
+    The cat likes to eat
+    ```
+  </Collapser>
+</CollapserGroup>
+
+ヘルパー関数はネストすることもできます。次に例を示します。
+
+```handlebars
+{{#eq "a" b}} yes1 {{else}}{{#eq "a" c}} yes2 {{else}} no {{/eq}}{{/eq}}
+```
+
+## 使用例 [#usage-examples]
+
+例は、 `data`という変数に基づいています。
+
+```json
+"data": {
+  "tags":["infra, team-a"],
+  "id":123456789,
+  "name": "Alice",
+}
+```
+
+`data`値は、同等のドット表記形式です。
+
+```json
+"data.tags": ["infra, team-a"]
+"data.id": 123456789
+"data.name": "Alice"
+```
+
+### データの検証 [#validate]
+
+`id`が`123456789`と等しい場合、出力は`valid`です。そうでない場合、出力は`not valid`です。
+
+```handlebars
+{{eq data.name "Alice" yes='valid' no='not valid'}}
+```
+
+`name`が`Alice`と等しい場合、出力は`valid`です。
+
+### JSONを返す [#json]
+
+`tags`とオブジェクトのプロパティを JSON 形式で取得します。
+
+```handlebars
+{{json data.tags}}
+```
+
+そうすると、次のようなJSONが返ってきます。
+
+```json
+["infra","team-a"]
+```
+
+### 配列からの値の取得 [#array]
+
+`tags`配列から最初のタグを取得します。
+
+```handlebars
+{{json data.tags.[0]}}
+```
+
+これは、配列から最初の値を返すことになります。
+
+```
+"infra"
+```
+
+### 配列の反復処理 [#iterate-array]
+
+配列型の変数をイテレートし、その値を文字列に集約します。
+
+```handlebars
+{{#each tags}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+結果には、カンマで区切られたタグが含まれます（末尾のカンマは省略されます）。
+
+```
+infra, team
+```
+
+同様に、 `data`変数を反復し、オブジェクトの値を集計して、JSON 要素を出力します。
+
+```handlebars
+{{#each (json data)}}{{this}}{{/each}}
+```
+
+これは次のようなJSONを返します。
+
+```json
+{
+  "tags":["infra, team-a"],
+  "name":"Alice",
+  "id":"123456789"
+}
+```
+
+`data`変数を反復処理してから、オブジェクトのエントリを文字列に集約します。
+
+```handlebars
+{{#each data}}{{@key}}: {{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+これは次のような文字列を返します。
+
+```
+tags: infra,team-a, name: Alice, id: 123456789
+```
+
+### 欠落した属性の処理 [#missing-attributes]
+
+以前の号には存在しなかったタグなど、場合によっては、属性が[変数メニュー](/docs/alerts-applied-intelligence/notifications/message-templates/#variables-menu)にないか、まったく存在しないことがあります。
+
+`#if`ステートメントを使用して、次のようなフォールバックを設定できます。
+
+```handlebars
+{{#if data.type}} {{ json data.type }} {{else}}"N/A"{{/if}}
+```
+
+これにより、文字列`"N/A"`が返されます。

@@ -9,8 +9,6 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-import queriesnrqlHighCardinalityMetrics from 'images/queries-nrql_diagram_high-cardinality-metrics.webp'
-
 高いカーディナリティがどのように機能するかを理解することは、データの制限に達するまでの時間に影響を与えるため、重要です。
 
 ## カーディナリティとは何か、なぜそれが重要なのか？ [#what-why]
@@ -47,11 +45,7 @@ New Relic では、メトリックのカーディナリティの制限をメト�
 
 4 つのホストのネットワークを想像してください。それぞれで 2 つのコンテナーが実行されており、各コンテナーはホスト名とコンテナー ID が属性として追加されたゲージ メトリック`memory.heap`を定期的に報告します。
 
-<img
-  title="Multiple hosts with multiple containers"
-  alt="Host and containers combination resulting in high cardinality"
-  src={queriesnrqlHighCardinalityMetrics}
-/>
+<img title="Multiple hosts with multiple containers" alt="Host and containers combination resulting in high cardinality" src="/images/queries-nrql_diagram_high-cardinality-metrics.webp" />
 
 Metric APIに送信すると、これらのメトリクスの1つは以下のようになります。
 
@@ -78,7 +72,7 @@ Metric APIに送信すると、これらのメトリクスの1つは以下のよ
 
 上記のように、キーや値に変更があれば、新しいカーディナリティを表すことになりますが、それらの変更が全体のカーディナリティにどのような影響を与えるかを予測するのは、少し難しいことです。メトリックのカーディナリティは、可能性のある各キーに対するすべての可能性のある値の数の積であると仮定したくなるが、あるキーの値が他のキーの値に依存したり決定したりすることが多いため、実際にはほとんどない。
 
-前の例を使用すると、 `container`の値が`1`になると、コンテナ ID がグローバルに一意であると仮定して、 `host`の値が &#x7B; `W` } に固定されました。したがって、4 つのホストに 8 つのコンテナーがありますが、カーディナリティは 4 \* 8 = 32 ではなく 8 のままです。これは、単純な乗算方法でカウントされるほとんどの組み合わせが不可能であり、そのメトリックのカーディナリティに寄与しないためです。たとえば、 `host = 'X', container = 1`の組み合わせは見られません。
+前の例を使用すると、 `container`の値が`1`になると、コンテナ ID がグローバルに一意であると仮定して、 `host`の値が `W` に固定されました。したがって、4 つのホストに 8 つのコンテナーがありますが、カーディナリティは 4 \* 8 = 32 ではなく 8 のままです。これは、単純な乗算方法でカウントされるほとんどの組み合わせが不可能であり、そのメトリックのカーディナリティに寄与しないためです。たとえば、 `host = 'X', container = 1`の組み合わせは見られません。
 
 これはまた、属性マップにキーを追加しても、必ずしも総カーディナリティが増加するわけではないことを意味します。新しいキーの値が既存のキーの値によって一意に決定される場合、長期的に新しいカーディナリティが追加されることはありません。たとえば、例のマップに`region`のようなものを追加すると、 `container`の値も特定の地域の値に固定され、カーディナリティが 8 に保たれる可能性があります。
 
@@ -144,9 +138,39 @@ FROM Metric SELECT cardinality(memory.heap, exclude: {'container.id'}) SINCE tod
 FROM Metric SELECT cardinality(memory.heap, include: {'host.name', 'region'}) SINCE today RAW
 ```
 
-カーディナリティを管理することは、概念的には難しいことですが、上記の方法は、"どのメトリックが最もカーディナリティに寄与しているか？" や"ある属性がそのカーディナリティの合計に対してどのような影響を与えているか？" といった質問に対する答えを得るのに役立ちます。
+カーディナリティを管理することは、概念的には難しいことですが、上記の方法は、&quot;どのメトリックが最もカーディナリティに寄与しているか？&quot; や&quot;ある属性がそのカーディナリティの合計に対してどのような影響を与えているか？&quot; といった質問に対する答えを得るのに役立ちます。
 
 カーディナリティは最もユニークな値を追跡する場合が多く、その値は他の属性が取り得る値を特定することができるからです。しかし、一握りの属性の可能な組み合わせが爆発的に増えることで、カーディナリティの合計が大きくなるケースも多々あります。一般的には、一意の識別子のようなものから始めるのが良いでしょうが、単一のキーではなく、2つ以上のキーの組み合わせである場合もあります。データとそれを生成するシステムに精通していればいるほど、どの属性を含めるべきか、あるいは除外すべきかを簡単に把握することができます。
+
+### カーディナリティ制限の調整 [#adjusting-cardinality-limits]
+
+メトリクスが高いカーディナリティで識別され、そのカーディナリティの有効な使用法であると判断されると、発生する可能性のある制限を緩和するためにいくつかの調整が可能になります。 特定のメトリクス名のカーディナリティを増やすには、 [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用できます。 以下に、NerdGraph リクエストの例をいくつか示します。
+
+API を使用してカーディナリティ制限を調整する前に、[カーディナリティに影響を与える要因を](#influences)確認してください。
+
+<CollapserGroup>
+  <Collapser id="api-create-qualified-limit-override" title="メトリクス名の制限オーバーライドを作成する">
+    特定のメトリクス名の制限オーバーライドを作成するには、次の手順を実行します。
+
+    ```graphql
+    mutation {
+      dataManagementCreateAccountLimit(
+        accountId: "<INSERT_YOUR_ACCOUNT_ID>"
+        accountLimit: {
+          limit: { name: "Dimensional Metric per-metric cardinality ingested per day" }
+          overrideReason: "<INSERT_REASON_FOR_OVERRIDE>"
+          overrideValue: "<THE_DESIRED_CARDINALITY>"
+          qualifier: "<INSERT_METRIC_NAME>"
+        }
+      ) {
+        name
+        unit
+        value
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
 
 <Callout variant="tip">
   Metric APIの制限やトラブルシューティングについて詳しく知りたい方は、こちらの2つの資料をご参照ください。
