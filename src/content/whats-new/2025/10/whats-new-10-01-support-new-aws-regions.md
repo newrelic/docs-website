@@ -39,8 +39,8 @@ To begin monitoring resources in these new regions, simply update your existing 
 
 1.  Navigate to your AWS cloud integration settings.
 2.  Select the account you wish to modify.
-3.  In the configuration settings for either Polling or Metric Stream, find the region list and select the newly available regions you want to monitor. ![AWS Region Selection](/images/aws-regions-selection.webp "AWS Region Selection")
-4.  For Auto Discovery, find the region list and select newly available regions. ![Auto Discovery Region Selection](/images/aws-auto-discovery-selection.webp "Auto Discovery Region Selection")
+3.  In the configuration settings for either Polling or Metric Stream, find the region list and select the newly available regions you want to monitor. ![AWS Region Selection](/images/aws-regions-selection.png "AWS Region Selection")
+4.  For Auto Discovery, find the region list and select newly available regions. ![Auto Discovery Region Selection](/images/aws-auto-discovery-selection.png "Auto Discovery Region Selection")
 5.  Save your updated configuration.
 
 Data from the selected regions will begin populating in your account shortly after the changes are saved. ✨
