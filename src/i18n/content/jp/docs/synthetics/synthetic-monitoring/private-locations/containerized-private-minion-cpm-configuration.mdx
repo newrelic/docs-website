@@ -10,27 +10,258 @@ translationType: machine
 ---
 
 <Callout variant="important">
-  2024 年 8 月 26 日以降、パブリックまたはプライベートな場所でレガシー ランタイムを使用して新しいモニターを作成することはできなくなります。
-
   2024 年 10 月 22 日をもって、コンテナー化された プライベートミニオン (1 分間あたりの呼出し回数) とそれがサポートする レガシー合成バージョン[のサポートは終了](/whats-new/2024/04/whats-new-04-09-eol-synthetics-runtime-cpm)します。 プライベートロケーションモニターのパフォーマンス低下を回避するために、 [推奨される移行手順](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-transition-guide/#monitorMigration)を確認してください。
 </Callout>
 
-このドキュメントでは[、コンテナ化された プライベートミニオン (CPM)](/docs/install-containerized-private-minions-cpms)を構成する手順について説明します。
+[containerized private minion (CPM)](/docs/install-containerized-private-minions-cpms) を設定する方法については、こちらをご覧ください。
 
 CPMをカスタマイズするには以下の方法があります。
 
-* [環境変数](#environment-variables)を使用して、コンテナ化されたプライベートミニオンを構成します。
 * [](#custom-modules)[スクリプトAPI](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) または[ スクリプトbrowser](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers) モニターの カスタム モジュール を設定します。
 * [永久データ保存](#preserve-data-volume) で打ち上げデータを保存します。
+* [環境変数](#environment-variables) を使って設定してください。
 
 お客様はCPMファイルを変更することはできず、お客様が行った変更についてニューレリックは責任を負いません。
 
-## 環境変数を使用した設定 [#environment-variables]
+## ボリュームのマウントに関するガイドライン
+
+すべてのディレクトリとファイル<DoNotTranslate>**must**</DoNotTranslate>には、読み取り/書き込み権限を持つグループ所有権が`3729`として割り当てられます。 これにより、 `uid: 1000`と`gid: 3729`を使用するランナーがマウントされたすべてのボリュームにアクセスできるようになります。 ただし、ミニオンは root ( `uid: 0` ) として、または`[2000, 4000]`の範囲内の任意の`uid`で実行できます。 詳細については、「Kubernetes または[ Docker](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#docker-env-config)[ で非 root](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#kubernetes-env-config) として実行する」を参照してください。
+
+<DoNotTranslate>
+  **Docker**
+</DoNotTranslate>
+
+* ディレクトリは、内で`-v`引数を指定することにより、ボリュームとしてコンテナにマウントされます。 `docker run`
+* 例えば、 `docker run ... -v /path/to/src:/path/to/dest:rw`
+
+<DoNotTranslate>
+  **Kubernetes**
+</DoNotTranslate>
+
+* `kubectl cp`を使用して、永続ボリューム (
+
+  <DoNotTranslate>**PV**</DoNotTranslate>
+
+  ) にディレクトリを追加できます。 ただし、ファイルのアクセス許可が適切に設定されている限り、別のアプローチもサポートされます。
+
+* たとえば、 `kubectl cp /path/to/src <POD_NAME>:/path/to/dest`は指定されたポッドの各PVにディレクトリを追加します
+
+* 各PVには、ディレクトリのコピーが個別に存在する必要があります。例えば、 _n_ Minion のレプリカを持つクラスターでは、 _n_ PV が必要で、それぞれがディレクトリのコピーを持つ必要があります。
+
+* これらのディレクトリとファイルは、Minionが起動する前に追加する必要があります。そうしないと、アップデートを検出するためにMinionを再起動する必要があります。
+
+## カスタムノードモジュール [#custom-modules]
+
+カスタム ノード モジュールは、1分間あたりの呼発信回数に限定されます。 これにより、[ノード モジュール](https://docs.npmjs.com/about-packages-and-modules)の任意のセットを提供し、それらを外形監視のスクリプト モニターで使用できるようになります。
+
+モジュールをセットアップするには
+
+1. [npmの公式ガイドライン](https://docs.npmjs.com/files/package.json)に従って、ディレクトリのルートに`package.json`を含むディレクトリを作成します。 `dependencies`フィールドに含まれるものはすべて、開始時にCPMによってインストールされ、そのプライベートミニオンでモニターを実行するときに使用できるようになります。
+
+   必要に応じて、ルート レベル`package.json`を Node.js バージョン固有のディレクトリでオーバーライドできます。これにより、ランタイムの[Node.js バージョンが](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)依存関係と互換性がなくなった場合に、モニター ランタイムごとにスクリプトを更新できます。以下の例を参照してください。
+
+   <CollapserGroup id="custom-module-dir">
+     <Collapser
+       id="example-module-directory"
+       title="カスタムモジュールのディレクトリ"
+     >
+       この例では、次のような構造のカスタムモジュールディレクトリを使用しています。
+
+       ```
+       /example-custom-modules-dir/
+             ├── counter
+             │   ├── index.js
+             │   └── package.json
+             └── package.json            ⇦ the only mandatory file
+       ```
+
+       `package.json`は`dependencies`ローカル モジュール (例: `counter` ) とホストされたモジュール (例: `async`バージョン`^2.6.1` ) の両方として定義します。
+
+       ```
+       {
+             "name": "custom-modules",
+             "version": "1.0.0",           ⇦ optional
+             "description": "example custom modules directory", ⇦ optional
+             "dependencies": {
+               "async": "^2.6.1",          ⇦ hosted module
+               "counter": "file:./counter" ⇦ local module
+             }
+           }
+       ```
+     </Collapser>
+
+     <Collapser
+       id="example-overrides"
+       title="Node.js バージョン固有のオーバーライド"
+     >
+       ルート レベルの`package.json`をオーバーライドする Node.js バージョンごとに`package.json`を宣言できます。これにより、ランタイムの[Node.js バージョンが](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)依存関係と互換性がなくなった場合に、モニター ランタイムごとにモニター スクリプトを更新できます。[最初の例](#example-module-directory)に示すように、ローカル モジュールはバージョン固有のディレクトリ内で定義できます。特定の Node.js バージョンに対して`package.json`が定義されていない場合、依存関係をインストールするためにルート レベル`package.json`が使用されます。
+
+       この例では、次のような構造のカスタムモジュールディレクトリを使用しています。
+
+       ```
+       /example-custom-modules-dir/
+             ├── 6.11.2            ⇦ optional Node.js specific directory
+             │   └── package.json
+             └── 10.15.0           ⇦ optional Node.js specific directory
+             │   └── package.json
+             ├── counter
+             │   ├── index.js
+             │   └── package.json
+             └── package.json      ⇦ the only mandatory file
+         ​
+       ```
+     </Collapser>
+   </CollapserGroup>
+
+2. カスタムモジュールディレクトリと`package.json`を作成したら、DockerとKubernetesのCPMに適用できます。
+
+   <CollapserGroup id="apply-to-docker-kubernetes">
+     <Collapser
+       id="docker"
+       title="Docker"
+     >
+       Dockerの場合、ディレクトリを`/var/lib/newrelic/synthetics/modules`にマウントするCPMを起動します。例えば：
+
+       ```
+       docker run ... -v /example-custom-modules-dir:/var/lib/newrelic/synthetics/modules:rw ...
+       ```
+     </Collapser>
+
+     <Collapser
+       id="kubernetes"
+       title="Kubernetes"
+     >
+       次の項目を完了します。
+
+       1. CPMを起動し、インストール中にコマンドラインまたはYAMLファイルのいずれかで`persistence.customModules`構成値の値を設定します。この値は、カスタムモジュールファイルが存在するMinionの永続ボリュームのサブパスを指定する必要があります。例えば：
+
+          ```
+          helm install ... --set persistence.customModules=<custom-modules-subpath> ...
+          ```
+
+       2. カスタムモジュールディレクトリがミニオンポッドで利用可能であることを確認してください。ホストからミニオンにディレクトリをコピーする1つの方法として`kubectl cp`を使用できます。例えば：
+
+          ```
+          kubectl cp /example-custom-modules-dir <namespace>/<pod_name>:/var/lib/newrelic/synthetics/modules
+          ```
+     </Collapser>
+   </CollapserGroup>
+
+3. `"... Initialization of Custom Modules ..."`の[CPMログ](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs)を調べて、モジュールが正しくインストールされているかどうか、またはエラーが発生していないかどうかを確認します。 npmインストールログが表示されます。
+
+これで、このプライベートな場所に送信するモニターの[スクリプト](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers)に`"require('async');"`を追加できます。
+
+### カスタムモジュールの`package.json`を変更 [#change-package-json]
+
+ローカルおよびホストされたモジュールに加えて、 [Node.js モジュール](/docs/synthetics/new-relic-synthetics/scripting-monitors/import-nodejs-modules)も使用できます。 1 分間あたりの呼発信回数で使用されるカスタム モジュールを変更するには、 `package.json`を変更し、1 分間あたりの呼発信回数を再起動します。 再起動中に設定の変更を検出し、クリーンアップして再インストールします。
+
+<Callout variant="caution">
+  ローカルモジュール： `package.json`には任意のローカルモジュールを含めることができますが、これらのモジュールは、カスタムモジュールディレクトリの下のツリー内に存在する必要があります。ツリーの外部に保存されている場合、初期化プロセスは失敗し、CPMの起動後に[Dockerログ](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs)にエラーメッセージが表示されます。
+</Callout>
+
+## データの永久保存 [#permanent-data-volume]
+
+CPMはステートレスアプリケーションであり、デフォルトでは以前のリクエストまたはセッションからの情報を保持しません。ただし、永続的なデータストレージを有効にすることで、起動間でデータを保持できます。たとえば、ミニオンがそれ自体を識別する方法（たとえば、 `Minion_ID` ）を永続的に設定し、それを使用して、そのデータを、それを生成した正確なミニオンに関連付けることができます。
+
+Dockerに恒久的なデータ保存を設定するには
+
+1. ディレクトリを作成します。
+
+2. CPMを起動し、ディレクトリを`/var/lib/newrelic/synthetics`にマウントします。
+
+   例：
+
+   ```
+   docker run ... -v /example-permanent-dir:/var/lib/newrelic/synthetics:rw ...
+   ```
+
+Kubernetesに恒久的なデータストレージを設定すること。
+
+1. CPMを起動し、インストール中にコマンドラインまたはYAMLファイルのいずれかで`persistence.permanentData`構成値の値を設定します。この値は、データを保存するMinionの永続ボリュームのサブパスを指定する必要があります。
+
+   例：
+
+   ```
+   helm install ... --set persistence.permanentData=<permanent-data-subpath> ...
+   ```
+
+## スクリプトによるモニターのためのユーザー定義の環境変数 [#vars-scripted-monitors]
+
+コンテナ化されたプライベートミニオンを使用すると、スクリプト化されたモニターで使用する環境変数を構成できます。これらの変数はCPMでローカルにホストされ、 `$env.USER_DEFINED_VARIABLES`を介してアクセスできます。ユーザー定義変数を設定するには、JSONファイルをマウントする方法と、起動時に環境変数をCPMに提供する方法の2つがあります。両方が提供されている場合、CPMは環境から提供された値のみを使用します。
+
+<CollapserGroup>
+  <Collapser
+    id="user-file-example"
+    title="JSONファイルの実装"
+  >
+    JSONファイルには、読み取り権限があり、JSON形式のマップが含まれている必要があります。
+
+    ユーザー定義の変数ファイルの例。
+
+    ```
+    {
+    "KEY" : "VALUE",
+    "User_Name": "MINION",
+    "My_Password": "PASSW0RD 1 2 3",
+    "my_URL": "https://newrelic.com/",
+    "ETC" : "ETC"
+    }
+    ```
+
+    ファイルが利用可能であるか、コンテナ内のパスにマウントされている必要があります。
+
+    `/var/lib/newrelic/synthetics/variables/user_defined_variables.json`
+
+    Dockerの例です。
+
+    ```
+    docker run ... -v /example-user-defined-variables.json:/var/lib/newrelic/synthetics/variables/user_defined_variables.json:rw ...
+    ```
+
+    Kubernetesの例。
+
+    KubernetesでJSONファイルをMinion Podにマウントする際には、ファイルをMinion Podに直接コピーするか、Minionが使用するのと同じPersistent VolumeとPersistent Volume ClaimにアクセスできるPodにコピーします。ファイルの読み込みに成功した後、変更を有効にするためにMinion Podの再起動が必要になる場合があります。
+
+    ```
+    kubectl cp path/to/user_defined_variables.json <namespace>/<pod_name>:/var/lib/newrelic/synthetics/variables/user_defined_variables.json
+    ```
+  </Collapser>
+
+  <Collapser
+    id="passing-env-var"
+    title="環境変数として渡す"
+  >
+    `-e`フラグを使用して、 `MINION_USER_DEFINED_VARIABLES`という名前の環境変数を設定し、JSON形式のマップ文字列の値を指定します。
+
+    ```
+    docker run ... -e MINION_USER_DEFINED_ENV_VARIABLES='{"KEY":"VALUE","NAME":"MINION","ETC":"ETC"}' ...
+    ```
+
+    <Callout variant="tip">
+      KubernetesのCPMは現在、環境変数によるユーザー定義の環境変数の読み込みをサポートしていません。JSONファイルをマウントしてKubernetesのCPMを設定する必要があります。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### スクリプトからユーザー定義の環境変数にアクセスする [#env-vars-scripts]
+
+構成されたユーザー定義の環境変数を参照するには、予約済みの`$env.USER_DEFINED_VARIABLES`に続けて、ドット表記の特定の変数の名前を使用します。
+
+例えば、 `$env.USER_DEFINED_VARIABLES.MY_VARIABLE`
+
+<Callout variant="caution">
+  ユーザー定義の環境変数はログからサニタイズされません。機密情報については、 [セキュアな認証情報](/docs/synthetics/new-relic-synthetics/using-monitors/secure-credentials-store-credentials-information-scripted-browsers) 機能の使用を検討してください。
+</Callout>
+
+## 環境変数
 
 環境変数により、お客様の環境や機能のニーズに合わせてCPMの構成を微調整することができます。
 
 <CollapserGroup>
-  <Collapser id="docker-env-config" title="Dockerの環境設定">
+  <Collapser
+    id="docker-env-config"
+    title="Dockerの環境設定"
+  >
     変数は、起動時に`-e, --env`引数を使用して提供されます。
 
     次の表は、CPMがサポートするすべての環境変数を示しています。 `MINION_PRIVATE_LOCATION_KEY`は必須であり、他のすべての変数はオプションです。
@@ -55,7 +286,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            <DNT>**REQUIRED.**</DNT> プライベートロケーションの UUID (プライベートロケーション Web ページにあります)。
+            <DoNotTranslate>**REQUIRED.**</DoNotTranslate> プライベートロケーションの UUID (プライベートロケーション Web ページにあります)。
           </td>
         </tr>
 
@@ -91,7 +322,7 @@ CPMをカスタマイズするには以下の方法があります。
 
             [EUベース](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy)のアカウントの場合、エンドポイントは次のとおりです。 `https://synthetics-horde.eu01.nr-data.net/`
 
-            CPM が適切なエンドポイントに接続してモニターにサービスを提供できることを確認してください。
+            モニターを提供するために、CPMが適切なエンドポイントに接続できることを確認してください。
           </td>
         </tr>
 
@@ -221,7 +452,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            Minion Network Healthcheck は、パブリック インターネット アクセスの CPM チェックを管理するための無効な状態です。 デフォルトは「false」ですが、「true」に設定すると、CPM はこのヘルスチェックをバイパスします。
+            公共のインターネットアクセスに対するCPMのチェックを管理するための、Minionネットワークヘルスチェックの無効状態です。デフォルトは「false」で、「true」に設定すると、CPMはこのヘルスチェックをバイパスします。
           </td>
         </tr>
 
@@ -233,7 +464,7 @@ CPMをカスタマイズするには以下の方法があります。
           <td>
             フォーマット： [例](#vars-scripted-monitors).
 
-            ローカルにホストされた、ユーザー定義のキー値のペアのセット。
+            ユーザーが定義したキーバリューペアのセットをローカルにホストすること。
           </td>
         </tr>
 
@@ -263,14 +494,17 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            設定すると、 <DNT>**verified script execution**</DNT>が有効になり、この値が<DNT>**passphrase**</DNT>として使用されます。
+            設定すると、 <DoNotTranslate>**verified script execution**</DoNotTranslate>が有効になり、この値が<DoNotTranslate>**passphrase**</DoNotTranslate>として使用されます。
           </td>
         </tr>
       </tbody>
     </table>
   </Collapser>
 
-  <Collapser id="kubernetes-env-config" title="Kubernetesの環境設定">
+  <Collapser
+    id="kubernetes-env-config"
+    title="Kubernetesの環境設定"
+  >
     変数は、起動時に`--set`引数を使用して提供されます。
 
     次のリストは、CPMがサポートするすべての環境変数を示しています。 `synthetics.privateLocationKey`は必須であり、他のすべての変数はオプションです。
@@ -295,7 +529,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            <DNT>**REQUIRED if `synthetics.privateLocationKeySecretName` is not set**</DNT>。プライベートロケーション Web ページにある、プライベートロケーションの UUID/ [プライベートロケーション キー](/docs/synthetics/synthetic-monitoring/private-locations/install-containerized-private-minions-cpms#private-location-key)。
+            <DoNotTranslate>**REQUIRED if `synthetics.privateLocationKeySecretName` is not set**</DoNotTranslate>。プライベートロケーション Web ページにある、プライベートロケーションの UUID/ [プライベートロケーション キー](/docs/synthetics/synthetic-monitoring/private-locations/install-containerized-private-minions-cpms#private-location-key)。
           </td>
         </tr>
 
@@ -305,7 +539,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            <DNT>**REQUIRED if `synthetics.privateLocationKey` is not set**</DNT>。キー`privateLocationKey`を含む Kubernetes シークレットの名前。これには、外形監視プライベートロケーションに関連付けられた認証キーが含まれます。
+            <DoNotTranslate>**REQUIRED if `synthetics.privateLocationKey` is not set**</DoNotTranslate>。キー`privateLocationKey`を含む Kubernetes シークレットの名前。これには、外形監視プライベートロケーションに関連付けられた認証キーが含まれます。
           </td>
         </tr>
 
@@ -393,7 +627,7 @@ CPMをカスタマイズするには以下の方法があります。
 
             [EUベース](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy)のアカウントの場合、エンドポイントは次のとおりです。 `https://synthetics-horde.eu01.nr-data.net/`
 
-            CPM が適切なエンドポイントに接続してモニターにサービスを提供できることを確認してください。
+            モニターを提供するために、CPMが適切なエンドポイントに接続できることを確認してください。
           </td>
         </tr>
 
@@ -413,7 +647,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            設定すると、 <DNT>**verified script execution**</DNT>が有効になり、この値が<DNT>**passphrase**</DNT>として使用されます。
+            設定すると、 <DoNotTranslate>**verified script execution**</DoNotTranslate>が有効になり、この値が<DoNotTranslate>**passphrase**</DoNotTranslate>として使用されます。
           </td>
         </tr>
 
@@ -499,7 +733,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            Minion Network Healthcheck は、パブリック インターネット アクセスの CPM チェックを管理するための無効な状態です。 デフォルトは「false」ですが、「true」に設定すると、CPM はこのヘルスチェックをバイパスします。
+            公共のインターネットアクセスに対するCPMのチェックを管理するための、Minionネットワークヘルスチェックの無効状態です。デフォルトは「false」で、「true」に設定すると、CPMはこのヘルスチェックをバイパスします。
           </td>
         </tr>
 
@@ -607,7 +841,7 @@ CPMをカスタマイズするには以下の方法があります。
           </td>
 
           <td>
-            `user-defined-variable.json`ファイルへのボリューム上のパス。 詳細については、 [ユーザー定義変数](/docs/synthetics/synthetic-monitoring/private-locations/containerized-private-minion-cpm-configuration#vars-scripted-monitors)を参照してください。
+            ボリューム上の`user-defined-variable.json`ファイルへのパス。詳細については、 [ユーザー定義変数](/docs/synthetics/synthetic-monitoring/private-locations/containerized-private-minion-cpm-configuration#vars-scripted-monitors)を参照してください。
           </td>
         </tr>
 
@@ -690,208 +924,3 @@ CPMをカスタマイズするには以下の方法があります。
     </table>
   </Collapser>
 </CollapserGroup>
-
-## ボリュームのマウントに関するガイドライン
-
-すべてのディレクトリとファイル<DNT>**must**</DNT>には、読み取り/書き込み権限を持つグループ所有権が`3729`として割り当てられます。 これにより、 `uid: 1000`と`gid: 3729`を使用するランナーがマウントされたすべてのボリュームにアクセスできるようになります。 ただし、ミニオンはルート ( `uid: 0` ) として実行することも、 `[2000, 4000]`の範囲内の任意の`uid`を使用して実行することもできます。 詳細については、「Kubernetes または[ Docker](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#docker-env-config)[ で非 root](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#kubernetes-env-config) として実行する」を参照してください。
-
-<DNT>
-  **Docker**
-</DNT>
-
-* ディレクトリは、内で`-v`引数を指定することにより、ボリュームとしてコンテナにマウントされます。 `docker run`
-* 例えば、 `docker run ... -v /path/to/src:/path/to/dest:rw`
-
-<DNT>
-  **Kubernetes**
-</DNT>
-
-* `kubectl cp`を使用して、永続ボリューム ( <DNT>**PV**</DNT> ) にディレクトリを追加できます。 ただし、ファイルのアクセス許可が適切に設定されている限り、別のアプローチもサポートされます。
-* たとえば、 `kubectl cp /path/to/src <POD_NAME>:/path/to/dest`は指定されたポッドの各PVにディレクトリを追加します
-* 各PVには、ディレクトリのコピーが個別に存在する必要があります。例えば、 *n* Minion のレプリカを持つクラスターでは、 *n* PV が必要で、それぞれがディレクトリのコピーを持つ必要があります。
-* ディレクトリとファイルは、ミニオンの起動前に追加する必要があります。そうしないと、更新を検出するためにミニオンを再起動する必要があります。
-
-## カスタムノードモジュール [#custom-modules]
-
-カスタム ノード モジュールは、1分間あたりの呼発信回数に限定されます。 これにより、[ノード モジュール](https://docs.npmjs.com/about-packages-and-modules)の任意のセットを提供し、それらを外形監視のスクリプト モニターで使用できるようになります。
-
-モジュールをセットアップするには
-
-1. [npm の公式ガイドライン](https://docs.npmjs.com/files/package.json)に従って、ディレクトリのルートに`package.json`を含むディレクトリを作成します。 `dependencies`フィールドに含まれるものはすべて、開始時に CPM によってインストールされ、そのプライベート ミニオンでモニターを実行するときに使用できるようになります。
-
-   必要に応じて、ルート レベル`package.json`を Node.js バージョン固有のディレクトリでオーバーライドできます。これにより、ランタイムの[Node.js バージョンが](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)依存関係と互換性がなくなった場合に、モニター ランタイムごとにスクリプトを更新できます。以下の例を参照してください。
-
-   <CollapserGroup id="custom-module-dir">
-     <Collapser id="example-module-directory" title="カスタムモジュールのディレクトリ">
-       この例では、次のような構造のカスタムモジュールディレクトリを使用しています。
-
-       ```
-       /example-custom-modules-dir/
-             ├── counter
-             │   ├── index.js
-             │   └── package.json
-             └── package.json            ⇦ the only mandatory file
-       ```
-
-       `package.json`は`dependencies`ローカル モジュール (例: `counter` ) とホストされたモジュール (例: `async`バージョン`^2.6.1` ) の両方として定義します。
-
-       ```json
-       {
-         "name": "custom-modules",
-         "version": "1.0.0",                                ⇦ optional
-         "description": "example custom modules directory", ⇦ optional
-         "dependencies": {
-           "async": "^2.6.1",                               ⇦ hosted module
-           "counter": "file:./counter"                      ⇦ local module
-         }
-       }
-       ```
-     </Collapser>
-
-     <Collapser id="example-overrides" title="Node.js バージョン固有のオーバーライド">
-       Node.js のバージョンごとに`package.json`を宣言して、ルート レベル`package.json`をオーバーライドできます。 これにより、 [ランタイムの Node.js バージョン](/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment)がコンテナーと互換性がなくなった場合に、コンテナー ランタイムごとにコンテナー スクリプトを更新できるようになります。 [最初の例](#example-module-directory)に示すように、ローカル モジュールはバージョン固有のディレクトリ内で定義できます。 特定の Node.js バージョンに対して`package.json`が定義されていない場合は、依存関係のインストールにルート レベル`package.json`が使用されます。
-
-       この例では、次のような構造のカスタムモジュールディレクトリを使用しています。
-
-       ```
-       /example-custom-modules-dir/
-             ├── 6.11.2            ⇦ optional Node.js specific directory
-             │   └── package.json
-             └── 10.15.0           ⇦ optional Node.js specific directory
-             │   └── package.json
-             ├── counter
-             │   ├── index.js
-             │   └── package.json
-             └── package.json      ⇦ the only mandatory file
-         ​
-       ```
-     </Collapser>
-   </CollapserGroup>
-
-2. カスタムモジュールディレクトリと`package.json`を作成したら、DockerとKubernetesのCPMに適用できます。
-
-   <CollapserGroup id="apply-to-docker-kubernetes">
-     <Collapser id="docker" title="Docker">
-       Dockerの場合、ディレクトリを`/var/lib/newrelic/synthetics/modules`にマウントするCPMを起動します。例えば：
-
-       ```shell
-       docker run ... -v /example-custom-modules-dir:/var/lib/newrelic/synthetics/modules:rw ...
-       ```
-     </Collapser>
-
-     <Collapser id="kubernetes" title="Kubernetes">
-       次の項目を完了します。
-
-       1. CPMを起動し、インストール中にコマンドラインまたはYAMLファイルのいずれかで`persistence.customModules`構成値の値を設定します。この値は、カスタムモジュールファイルが存在するMinionの永続ボリュームのサブパスを指定する必要があります。例えば：
-
-          ```shell
-          helm install ... --set persistence.customModules=CUSTOM_MODULES_SUBPATH ...
-          ```
-
-       2. カスタム モジュール ディレクトリがミニオン ポッドで使用可能であることを確認します。 ホストからミニオンにディレクトリをコピーする方法の 1 つとして、 `kubectl cp`を使用できます。 例えば：
-
-          ```shell
-          kubectl cp /example-custom-modules-dir NAMESPACE/POD_NAME:/var/lib/newrelic/synthetics/modules
-          ```
-     </Collapser>
-   </CollapserGroup>
-
-3. `"... Initialization of Custom Modules ..."`の[CPMログ](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs)を調べて、モジュールが正しくインストールされているかどうか、またはエラーが発生していないかどうかを確認します。 npmインストールログが表示されます。
-
-これで、このプライベートな場所に送信するモニターの[スクリプト](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers)に`"require('async');"`を追加できます。
-
-### 変化 `package.json` [#change-package-json]
-
-ローカル モジュールやホスト モジュールとともに[Node.js モジュール](/docs/synthetics/new-relic-synthetics/scripting-monitors/import-nodejs-modules)を使用することもできます。 CPM で使用されるカスタム モジュールを変更するには、を変更して CPM を再起動します。`package.json`を変更して 1分間あたりの呼出回数を再起動します。 再起動時に設定の変更を検出し、クリーンアップして再インストールします。
-
-<Callout variant="caution">
-  ローカルモジュール： `package.json`には任意のローカルモジュールを含めることができますが、これらのモジュールは、カスタムモジュールディレクトリの下のツリー内に存在する必要があります。ツリーの外部に保存されている場合、初期化プロセスは失敗し、CPMの起動後に[Dockerログ](/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs)にエラーメッセージが表示されます。
-</Callout>
-
-## データの永久保存 [#permanent-data-volume]
-
-CPMはステートレスアプリケーションであり、デフォルトでは以前のリクエストまたはセッションからの情報を保持しません。ただし、永続的なデータストレージを有効にすることで、起動間でデータを保持できます。たとえば、ミニオンがそれ自体を識別する方法（たとえば、 `Minion_ID` ）を永続的に設定し、それを使用して、そのデータを、それを生成した正確なミニオンに関連付けることができます。
-
-Dockerに恒久的なデータ保存を設定するには
-
-1. ディレクトリを作成します。
-
-2. CPMを起動し、ディレクトリを`/var/lib/newrelic/synthetics`にマウントします。
-
-   例：
-
-   ```shell
-   docker run ... -v /example-permanent-dir:/var/lib/newrelic/synthetics:rw ...
-   ```
-
-Kubernetesに恒久的なデータストレージを設定すること。
-
-1. CPMを起動し、インストール中にコマンドラインまたはYAMLファイルのいずれかで`persistence.permanentData`構成値の値を設定します。この値は、データを保存するMinionの永続ボリュームのサブパスを指定する必要があります。
-
-   例：
-
-   ```shell
-   helm install ... --set persistence.permanentData=PERMANENT_DATA_SUBPATH ...
-   ```
-
-## スクリプトによるモニターのためのユーザー定義の環境変数 [#vars-scripted-monitors]
-
-コンテナ化されたプライベートミニオンを使用すると、スクリプト化されたモニターで使用する環境変数を構成できます。これらの変数はCPMでローカルにホストされ、 `$env.USER_DEFINED_VARIABLES`を介してアクセスできます。ユーザー定義変数を設定するには、JSONファイルをマウントする方法と、起動時に環境変数をCPMに提供する方法の2つがあります。両方が提供されている場合、CPMは環境から提供された値のみを使用します。
-
-<CollapserGroup>
-  <Collapser id="user-file-example" title="JSONファイルの実装">
-    JSONファイルには、読み取り権限があり、JSON形式のマップが含まれている必要があります。
-
-    ユーザー定義の変数ファイルの例。
-
-    ```json
-    {
-      "KEY" : "VALUE",
-      "User_Name": "MINION",
-      "My_Password": "PASSW0RD 1 2 3",
-      "my_URL": "https://newrelic.com/",
-      "ETC" : "ETC"
-    }
-    ```
-
-    ファイルが利用可能であるか、コンテナ内のパスにマウントされている必要があります。
-
-    `/var/lib/newrelic/synthetics/variables/user_defined_variables.json`
-
-    Dockerの例です。
-
-    ```shell
-    docker run ... -v /example-user-defined-variables.json:/var/lib/newrelic/synthetics/variables/user_defined_variables.json:rw ...
-    ```
-
-    Kubernetesの例。
-
-    KubernetesでJSONファイルをMinion Podにマウントする際には、ファイルをMinion Podに直接コピーするか、Minionが使用するのと同じPersistent VolumeとPersistent Volume ClaimにアクセスできるPodにコピーします。ファイルの読み込みに成功した後、変更を有効にするためにMinion Podの再起動が必要になる場合があります。
-
-    ```shell
-    kubectl cp path/to/user_defined_variables.json NAMESPACE/POD_NAME:/var/lib/newrelic/synthetics/variables/user_defined_variables.json
-    ```
-  </Collapser>
-
-  <Collapser id="passing-env-var" title="環境変数として渡す">
-    `-e`フラグを使用して、 `MINION_USER_DEFINED_VARIABLES`という名前の環境変数を設定し、JSON形式のマップ文字列の値を指定します。
-
-    ```shell
-    docker run ... -e MINION_USER_DEFINED_ENV_VARIABLES='{"KEY":"VALUE","NAME":"MINION","ETC":"ETC"}' ...
-    ```
-
-    <Callout variant="tip">
-      KubernetesのCPMは現在、環境変数によるユーザー定義の環境変数の読み込みをサポートしていません。JSONファイルをマウントしてKubernetesのCPMを設定する必要があります。
-    </Callout>
-  </Collapser>
-</CollapserGroup>
-
-### スクリプトからユーザー定義の環境変数にアクセスする [#env-vars-scripts]
-
-構成されたユーザー定義の環境変数を参照するには、予約済みの`$env.USER_DEFINED_VARIABLES`に続けて、ドット表記の特定の変数の名前を使用します。
-
-例えば、 `$env.USER_DEFINED_VARIABLES.MY_VARIABLE`
-
-<Callout variant="caution">
-  ユーザー定義の環境変数はログからサニタイズされません。機密情報については、 [セキュアな認証情報](/docs/synthetics/new-relic-synthetics/using-monitors/secure-credentials-store-credentials-information-scripted-browsers) 機能の使用を検討してください。
-</Callout>

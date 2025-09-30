@@ -1,9 +1,8 @@
 import { frontmatter } from './utils/frontmatter.js';
-import { mkdir, readdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { readFileSync } from 'fs';
 import { glob } from 'glob10';
 import yaml from 'js-yaml';
-import sortBy from 'lodash/sortBy.js';
 import { join } from 'path';
 import { LOCALES } from './actions/utils/constants.js';
 
@@ -77,75 +76,46 @@ for (const path of installYamlPaths) {
   }
 }
 
-// adds a rewrite so these URLs work:
-// `release-notes/agent-release-notes/<agent>/current`
-const AGENT_RELEASE_NOTES_DIR =
-  './src/content/docs/release-notes/agent-release-notes';
-const agentDirs = await readdir(AGENT_RELEASE_NOTES_DIR);
-const currentReleaseNotesRedirects = await Promise.all(
-  agentDirs.map(async (agentDir) => {
-    const notesDir = join(AGENT_RELEASE_NOTES_DIR, agentDir);
-    const releaseNoteDirs = (await readdir(notesDir)).map((releaseNote) =>
-      join(notesDir, releaseNote)
-    );
-    const releaseNotes = (
-      await Promise.all(
-        releaseNoteDirs.map(async (path) => {
-          const contents = await readFile(path);
-          const {
-            attributes: { releaseDate },
-          } = frontmatter(contents);
-
-          return [path, releaseDate ? new Date(releaseDate) : null];
-        })
-      )
-    ).filter(([_path, date]) => date != null);
-
-    // this is in ascending order, so the last item is the most recent
-    const sortedReleaseNotes = sortBy(releaseNotes, ([_path, date]) => date);
-    const current = sortedReleaseNotes
-      .at(-1)[0]
-      .replace('src/content', '')
-      .replace(/\.mdx$/, '');
-    const agentPath = join(AGENT_RELEASE_NOTES_DIR, agentDir).replace(
-      'src/content',
-      ''
-    );
-
-    return [join(agentPath, 'current'), [current, 200]];
-  })
-);
-currentReleaseNotesRedirects.forEach(([path, to]) => {
-  redirects.set(path, to);
-});
-
 const redirectsList = Array.from(redirects.entries())
-  .map(([from, to]) => {
-    if (typeof to === 'string') {
-      return {
-        from,
-        to,
-        status: 301,
-      };
-    }
-
-    const [path, status] = to;
-    return {
-      from,
-      to: path,
-      status,
-    };
-  })
+  .map(([from, to]) => ({
+    from,
+    to,
+    status: 301,
+  }))
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
 let redirectsAndRewrites = `${redirectsList}`;
 
-// rewrites with splats for i18n sites
+// trying forced rewrites with splats
 LOCALES.forEach(
   (locale) =>
     (redirectsAndRewrites += `\n/${locale}/* https://docs-website-${locale}.netlify.app/${locale}/:splat  200!`)
 );
+
+// rewrites
+
+// for (const locale of LOCALES) {
+//   const localPaths = await glob(
+//     `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
+//   );
+
+//   const localeRewrites = localPaths
+//     .map((path) => {
+//       const urlPath = path
+//         .replace(`src/i18n/content/${locale}`, '')
+//         .replace(/\.mdx?$/, '');
+//       const from = urlPath.replace(/^\/docs/, `/${locale}/docs`);
+//       const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
+//       return {
+//         from,
+//         to,
+//       };
+//     })
+//     .map(({ from, to }) => `${from} ${to} 200`)
+//     .join('\n');
+//   redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
+// }
 
 await mkdir('./public').catch(() => null);
 writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');

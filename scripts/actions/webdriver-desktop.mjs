@@ -82,7 +82,7 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [initialNextNode] = await waitForXPath(nextNodeXPath);
@@ -98,9 +98,7 @@ const navTest = async () => {
 };
 
 const searchTest = async () => {
-  const [searchInput] = await waitForXPath(
-    './/input[@placeholder="Search docs"]'
-  );
+  const [searchInput] = await waitForXPath('//aside//input');
   console.log('\nClicking search input');
   await searchInput.click();
   const activeEl = await driver.executeScript('return document.activeElement');

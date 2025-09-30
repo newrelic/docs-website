@@ -171,18 +171,18 @@ describe('actions tests', () => {
      * Every 4 Booleans represents mocking if the file exists and therefore should be renamed or skipped for those locale paths
     */
     [
-      // doc[0]: jp renamed, kr renamed, es renamed, pt renamed, fr renamed
-      true, true, true, true, true,
-      // doc[1]: jp renamed, kr skipped, es skipped, pt skipped, fr skipped
-      true, false, false, false, false,
-      // doc[2]: jp skipped, kr renamed, es skipped, pt skipped, fr skipped
-      false, true, false, false, false,
-      // doc[3]: jp skipped, kr skipped, es renamed, pt skipped, fr skipped
-      false, false, true, false, false,
-      // doc[4]: jp skipped, kr skipped, es skipped, pt renamed, fr skipped
-      false, false, false, true, false,
-      // doc[5]: jp skipped, kr skipped, es skipped, pt skipped, fr renamed
-      false, false, false, false, true,
+      // doc[0]: jp renamed, kr renamed, es renamed, pt renamed
+      true, true, true, true,
+      // doc[1]: jp renamed, kr skipped, es skipped, pt skipped
+      true, false, false, false,
+      // doc[2]: jp skipped, kr renamed, es skipped, pt skipped
+      false, true, false, false,
+      // doc[3]: jp skipped, kr skipped, es renamed, pt skipped
+      false, false, true, false,
+      // doc[4]: jp skipped, kr skipped, es skipped, pt renamed
+      false, false, false, true,
+      // doc[5]: jp skipped, kr skipped, es skipped, pt skipped
+      false, false, false, false,
     ].forEach(
       (returnValue) => {
         mockFs.existsSync.mockReturnValueOnce(returnValue);
@@ -191,7 +191,7 @@ describe('actions tests', () => {
 
     const result = Actions.getRenameChanges(input);
 
-    expect(result.length).toBe(10);
+    expect(result.length).toBe(8);
     expect(result).toStrictEqual([
       {
         from:
@@ -215,11 +215,6 @@ describe('actions tests', () => {
       },
       {
         from:
-          'src/i18n/content/fr/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
-        to: 'src/i18n/content/fr/docs/choose-your-data-center.mdx',
-      },
-      {
-        from:
           'src/i18n/content/jp/docs/apm/agents/c-sdk/get-started/images/c-apm-summary.png',
         to:
           'src/i18n/content/jp/docs/apm/agents/c-sdk/images/c-apm-summary.png',
@@ -239,10 +234,6 @@ describe('actions tests', () => {
       {
         from: 'src/i18n/content/pt/docs/apm/auspicious-petite-moth.mdx',
         to: 'src/i18n/content/pt/docs/apm/aesthetic-purple-moon.mdx',
-      },
-      {
-        from: 'src/i18n/content/fr/docs/apm/errors-inbox/errors-inbox-ui.mdx',
-        to: 'src/i18n/content/fr/docs/apm/errors-inbox-ui.mdx',
       },
 
     ]);

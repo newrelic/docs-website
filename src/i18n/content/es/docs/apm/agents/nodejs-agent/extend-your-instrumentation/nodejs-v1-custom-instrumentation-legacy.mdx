@@ -1,0 +1,142 @@
+---
+title: Node.js v1 instrumentación personalizada (legacy)
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: 'Expand your Node.js instrumentation in New Relic to cover uninstrumented frameworks, databases, segments. Use custom tracers to better track async work.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic para Node.js instrumentó automáticamente la mayoría de las solicitudes web estándar, pero a veces desea una instrumentación ampliada. Con instrumentación personalizada, puede implementar [sockets web](#web-txn), [trabajos en segundo plano](#background-txn) y [bases de datos no compatibles](#expanding-instrumentation). La instrumentación personalizada también puede [apuntar a secciones específicas de su código para obtener información valiosa y más profunda](#expanding-instrumentation).
+
+La instrumentación personalizada está disponible en las versiones 1.10.0 o superiores del agente Node.js. Para aprovechar la última característica del agente de Node.js, [actualice su agente](/docs/agents/nodejs-agent/installation-configuration/upgrade-nodejs-agent).
+
+## Instrumentación transacción web [#web-txn]
+
+Para un instrumento de transacción web, como solicitudes de websocket, cree una transacción personalizada. La creación de una transacción personalizada le brinda el mismo tipo de visibilidad de esa transacción personalizada que obtendría de una transacción que el agente instrumentó automáticamente.
+
+1. Envuelva el controlador con el que desea instrumentar [`createWebTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createWebTransaction).
+2. Asegúrese de llamar [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) al final de la transacción.
+
+<Callout variant="important">
+  No utilice corchetes `[suffix]` al final del nombre de su transacción. New Relic elimina automáticamente los corchetes del nombre. En su lugar, utilice paréntesis `(suffix)` u otros símbolos si es necesario.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="instrument-in-socket-io"
+    title="Ejemplo: instrumento dos transacción en socket.io"
+  >
+    Este ejemplo instrumentó una transacción `/websocket/ping` y una transacción `/websocket/new-message` dentro de <DoNotTranslate>**socket.io**</DoNotTranslate>. El ejemplo `/ping` es sincrónico, mientras que el ejemplo `/new-message` es asincrónico.
+
+    ```js
+    var nr = require('newrelic');
+    var app = require('http').createServer();
+    var io = require('socket.io')(app);
+
+    io.on('connection', function (socket) {
+      socket.on('ping', nr.createWebTransaction('/websocket/ping', function (data) {
+        socket.emit('pong');
+        nr.endTransaction();
+      }));
+      socket.on('new-message', nr.createWebTransaction('/websocket/new-message', function (data) {
+        addMessageToChat(data, function () {
+          socket.emit('message-received');
+          nr.endTransaction();
+        });
+      }));
+    });
+    ```
+
+    <Callout variant="tip">
+      Asegúrese de llamar [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) al final de la transacción.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Instrumentado fondo transacción [#background-txn]
+
+También puede utilizar transacciones personalizadas para instrumentar tareas en segundo plano, como trabajos periódicos dentro de su aplicación o trabajos que continúan después de que se completa una solicitud. Para instrumentar tareas en segundo plano, ajuste el controlador con el que desea instrumentar [`createBackgroundTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createBackgroundTransaction). Asegúrese de llamar [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) al final de la transacción.
+
+<CollapserGroup>
+  <Collapser
+    id="example-instrument-update"
+    title="Ejemplo: instrumento dentro de setInterval"
+  >
+    Este ejemplo instrumentó `update:cache` dentro de `setInterval`:
+
+    ```js
+    var nr = require('newrelic');
+    var redis = require('redis').createClient();
+
+    setInterval(nr.createBackgroundTransaction('update:cache', function () {
+      var newValue = someDataGenerator();
+
+      redis.set('some:cache:key', newValue, function () {
+        nr.endTransaction(); // End the transaction once redis is done
+      });
+    }), 30000); // Every 30s
+    ```
+
+    <Callout variant="tip">
+      Asegúrese de llamar [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) al final de la transacción.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Ampliando la instrumentación dentro de transacción [#expanding-instrumentation]
+
+También puede utilizar instrumentación personalizada para proporcionar más visibilidad a las transacciones web que ya están instrumentadas, o para obtener información valiosa sobre la base de datos y otros trabajos en transacción que no se instrumentan automáticamente. Para hacer esto, envuelva su devolución de llamada en un rastreador personalizado. El rastreador personalizado crea y recopila métricas específicas para un segmento adicional dentro de una transacción existente, como una función particular o una llamada a una base de datos.
+
+Para realizar devoluciones de llamada, envuelva la devolución de llamada con [`createTracer()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createTracer). Si desea instrumentar una función que se llama dentro de una función asincrónica, debe envolver tanto la función objetivo como su función asincrónica principal con [`createTracer()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createTracer).
+
+<Callout variant="tip">
+  Debes colocar estos ejemplos dentro de una transacción ya instrumentada. La transacción puede instrumentarse automáticamente o mediante una transacción personalizada.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="wrap-single-callback"
+    title="Ejemplo: instrumento una devolución de llamada"
+  >
+    Este ejemplo incluye una única devolución de llamada:
+
+    ```js
+    // Wrap the callback in a segment
+    db.createObject(nr.createTracer('db:createObject', function (err, result) {
+      // Some error handler that will end the response for us
+      if (util.handleError(err, res)) {
+        return;
+      }
+      res.write(JSON.stringify(result.rows[0].id));
+      res.write('\n');
+      res.end();
+    }));
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-two-callbacks"
+    title="Ejemplo: instrumento una función asíncrona"
+  >
+    Este ejemplo incluye tanto `pg.connect` como `client.query`. Esto se debe a que `client.query` es llamado por una función principal asincrónica (`pg.connect`). De lo contrario, no obtendríamos ningún dato de `client.query`. Esto permite a `createTracer()` propagar la transacción activa a través de esos límites asincrónicos.
+
+    ```js
+    pg.connect(config.db_string, nr.createTracer('pg:connect', function (err, client, done) {
+      if (util.handleError(err, '500', res)) {
+        return done();
+      }
+      client.query('SELECT count(*) FROM test_count', nr.createTracer('pg:query', function (err, result) {
+        if (util.handleError(err, '500', res)) {
+          return done();
+        }
+
+        res.write(result.rows[0].count);
+        res.write('\n');
+      }));
+    }));
+    ```
+  </Collapser>
+</CollapserGroup>

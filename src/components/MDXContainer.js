@@ -1,6 +1,7 @@
 import {
   ExternalLink,
   Link,
+  Lightbox,
   MDXLink,
   MDX,
   MarkdownContainer,
@@ -12,9 +13,7 @@ import { css } from '@emotion/react';
 import cx from 'classnames';
 
 import { DocTile, DocTiles } from './DocTile';
-import DeveloperIcons from './DeveloperIcons';
 import EolPage from './EolPage';
-import FunctionDefinition from './FunctionDefinition';
 import HeaderLink from './HeaderLink';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
@@ -26,13 +25,11 @@ import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
 import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
-import OptionReference from './OptionReference';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
-import TypeDefReference from './TypeDefReference';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -52,43 +49,30 @@ const defaultComponents = {
         }
       />
     ) : (
-      <span
-        style={{
-          position: 'relative',
-          display: 'block',
-          textAlign: 'center',
-          margin: '1em 0',
-        }}
-      >
-        <a
-          href={props.src}
-          target="_blank"
-          rel="noreferrer"
-          style={{ display: 'inline-block' }}
-        >
-          <img
-            width={props.width ? props.width : 'auto'}
-            src={props.src}
-            alt={props.alt ? props.alt : 'Docs site'}
-            title={props.title}
-            style={
-              props.style
-                ? {
-                    ...props.style,
-                    borderRadius: '0.25rem',
-                    maxWidth: '100%',
-                    margin: '0 0.25rem',
-                  }
-                : {
-                    borderRadius: '0.25rem',
-                    maxWidth: '100%',
-                    margin: '0 0.25rem',
-                  }
-            }
-            loading="lazy"
-          />
-        </a>
-      </span>
+      <Lightbox>
+        <img
+          width={props.width ? props.width : 'auto'}
+          src={props.src}
+          // this prevents images from stretching if the width is set to a percent value
+          className={cx(props.className, props.width && 'unbound')}
+          alt={props.alt ? props.alt : 'Docs site'}
+          title={props.title}
+          style={
+            props.style
+              ? {
+                  ...props.style,
+                  borderRadius: '0.25rem',
+                  maxWidth: '100%',
+                  margin: '0 0.25rem',
+                }
+              : {
+                  borderRadius: '0.25rem',
+                  maxWidth: '100%',
+                  margin: '0 0.25rem',
+                }
+          }
+        />
+      </Lightbox>
     ),
   DocTile: (props) => (
     <DocTile
@@ -104,26 +88,23 @@ const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
-  FunctionDefinition,
   HeaderLink,
   HeroContent: ({ children }) => <>{children}</>,
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
-  OptionReference,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
-  DNT: ({ children }) => <>{children}</>, // DoNotTranslate component
+  DoNotTranslate: ({ children }) => <>{children}</>,
   CONTRIBUTOR_NOTE: ContributorNote,
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
-  TypeDefReference,
   InlineSignup,
   InlinePopover,
   InstallFeedback,
@@ -132,7 +113,6 @@ const defaultComponents = {
   SideBySide,
   UserJourneyControls,
   EolPage,
-  DeveloperIcons,
 };
 
 const MDXContainer = ({ body, children, components }) => {

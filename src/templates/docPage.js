@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -48,32 +48,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     fields: { fileRelativePath },
   } = mdx;
   const { disableSwiftype } = pageContext;
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const { pathname, hash } = window.location;
-      // Redirect for #app-performance
-      if (
-        pathname ===
-          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
-        hash === '#app-performance'
-      ) {
-        window.location.replace(
-          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/additional-information/#app-performance'
-        );
-      }
-      // Redirect for #manual-replays
-      if (
-        pathname ===
-          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/get-started/' &&
-        hash === '#manual-replays'
-      ) {
-        window.location.replace(
-          '/docs/browser/browser-monitoring/browser-pro-features/session-replay/advanced-features/#manual-replays'
-        );
-      }
-    }
-  }, []);
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -160,7 +134,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
           <Layout.PageTools
             css={css`
               background: var(--primary-background-color);
-              gap: 0;
               top: calc(var(--global-header-height) + 3rem);
               &.page-tools-transition-enter {
                 translate: calc(var(--sidebar-width) - 50px);
@@ -195,20 +168,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
               pageTitle={title}
               fileRelativePath={fileRelativePath}
               issueLabels={['feedback', 'feedback-issue']}
-              css={css`
-                margin-top: 1rem;
-                background: var(--system-text-primary-dark);
-
-                .dark-mode && {
-                  background: var(--erno-black);
-                }
-                a {
-                  color: var(--primary-system-text);
-                  font-size: 1rem;
-                  border-radius: 3px;
-                  border: none;
-                }
-              `}
             />
           </Layout.PageTools>
         </CSSTransition>

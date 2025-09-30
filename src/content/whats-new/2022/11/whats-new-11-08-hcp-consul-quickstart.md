@@ -11,9 +11,9 @@ DevOps teams and app developers need visibility into their microservices and net
 
 Monitoring your cluster metrics is pivotal for keeping your mesh services operating at full capacity. Keeping your Consul clusters healthy can help with:
 
-- Optimizing query times
-- Troubleshooting slow HTTP response times
-- Real-time alerting on down-time for your HCP clusters
+* Optimizing query times
+* Troubleshooting slow HTTP response times
+* Real-time alerting on down-time for your HCP clusters 
 
 This integration works by installing goStatsD tooling on your HCP Consul cluster and sending metrics to New Relic for data visualization, alerting, and more. For additional details, see our [HCP Consul integration docs](https://docs.newrelic.com/docs/infrastructure/infrastructure-integrations/cloud-integrations/hcp-consul-monitoring).
 
@@ -21,7 +21,7 @@ This integration works by installing goStatsD tooling on your HCP Consul cluster
 
 Install the [HCP Consul quickstart](https://newrelic.com/instant-observability/hcp-consul) for a pre-built dashboard that lets you see health and performance metrics for your environment, client members, network, runtime, cluster membership, and Envoy.
 
-![Screenshot showing sample HCP Consul dashboard in New Relic](/images/whatsnew_hcp_consul_dashboard01.webp 'Screenshot showing sample HCP Consul dashboard in New Relic')
+![Screenshot showing sample HCP Consul dashboard in New Relic](./images/whatsnew_hcp_consul_dashboard01.webp "Screenshot showing sample HCP Consul dashboard in New Relic")
 
 ## About HCP Consul
 

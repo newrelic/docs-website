@@ -164,7 +164,6 @@ const FeedbackModal = ({ onClose }) => {
             node.style.position = 'fixed';
             node.style.bottom = '2rem';
             node.style.right = '1.5rem';
-            node.style.zIndex = 10;
           }
         }}
       >
@@ -243,7 +242,7 @@ const SuprQ = ({ onSubmit }) => {
               [questionId]: response,
             }))
           }
-          statement={t(`strings.surveyModal.suprQ.${questionId}`)}
+          statement={t(`surveyModal.suprQ.${questionId}`)}
         />
       ))}
       <Steps>

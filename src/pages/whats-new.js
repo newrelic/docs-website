@@ -14,8 +14,9 @@ import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
-const WhatsNew = ({ data, location }) => {
+const WhatsNew = ({ data, location, pageContext }) => {
   const now = useMemo(() => new Date(), []);
+  const { slug } = pageContext;
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
   const postsByDate = Array.from(
@@ -63,7 +64,7 @@ const WhatsNew = ({ data, location }) => {
         >
           <span>{t('strings.whatsNew.title')}</span>
           <Link
-            to="/whats-new/feed.xml"
+            to={`${slug}/feed.xml`}
             css={css`
               display: flex;
               align-items: center;
@@ -129,6 +130,7 @@ const WhatsNew = ({ data, location }) => {
 WhatsNew.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

@@ -5,17 +5,16 @@ releaseDate: '2022-03-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent'
 getStartedLink: 'https://one.newrelic.com/launcher/logger.log-launcher'
 ---
-
 All existing New Relic accounts using Microsoft Azure or Google Cloud Platform cloud infrastructure integrations can now send logs to New Relic One without the need for unsupported forwarders or custom solutions published by customer success teams.
 
 Sending logs to New Relic One is a great way to get more detailed and comprehensive information about the services and instances running on your cloud providers. Monitoring logs alongside metrics make it easier to troubleshoot and identify the root cause of issues faster.
 
 New logs integrations:
 
-- **For Azure:** Blob Storage, or via an Event Hub
-- **For GCP:** pub/sub integration
+* **For Azure:** Blob Storage, or via an Event Hub
+* **For GCP:** pub/sub integration
 
-!["Azure and CGP Integration Icons"](/images/azure_gcp_logs_icons.webp 'Azure and CGP Integration Icons')
+!["Azure and CGP Integration Icons"](./images/azure_gcp_logs_icons.webp "Azure and CGP Integration Icons")
 
 <figcaption>Azure and GCP log integrations are part of New Relic’s log forwarding plugins that make it easy for our customers to get logs into New Relic One.</figcaption>
 

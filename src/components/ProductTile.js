@@ -1,90 +1,90 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { css } from '@emotion/react';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 import SurfaceLink from './SurfaceLink';
 
-const ProductTile = ({ children, icon, title, to }) => (
-  <div
-    id="productTile"
-    css={css`
-      background: var(--secondary-background-color);
-      border-radius: 10px;
-      height: 8.625rem;
-      margin: 1.5rem 0.5rem;
-      position: relative;
-      width: calc(25% - 1rem);
+const ProductTile = ({ children, icon, title, to }) => {
+  const [textWidth, setTextWidth] = useState('');
+  const [titleWidth, setTitleWidth] = useState('');
+  const textRef = useRef(null);
+  const titleRef = useRef(null);
 
-      @media screen and (max-width: 1439px) {
-        width: calc(33% - 1rem);
-      }
+  useEffect(() => {
+    if (!textRef.current) {
+      return null;
+    }
+    if (!titleRef.current) {
+      return null;
+    }
 
-      @media screen and (max-width: 1000px) {
-        width: calc(50% - 1rem);
-      }
+    const textRect = textRef.current.getBoundingClientRect();
+    const titleRect = titleRef.current.getBoundingClientRect();
 
-      @media screen and (max-width: 600px) {
-        flex: 0 1 100%;
-      }
-    `}
-  >
-    <SurfaceLink
+    setTextWidth(textRect.width);
+    setTitleWidth(titleRect.width);
+  }, []);
+
+  return (
+    <div
       css={css`
         background: var(--secondary-background-color);
-        box-shadow: none;
-        container-type: size;
-        color: var(--primary-text-color);
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        justify-content: flex-start;
-        left: 0;
-        overflow: hidden;
-        padding-top: 1.125rem;
-        padding: 1.375rem;
-        position: absolute;
-        top: 0;
-        transition: scale 500ms, transform 500ms;
-        transition-timing-function: linear;
-        width: 100%;
+        border-radius: 10px;
+        height: 8.625rem;
+        margin: 1.5rem 0.5rem;
+        position: relative;
+        width: calc(25% - 1rem);
 
-        .inverse-transform-container {
-          scale: 1;
-          transform-origin: top center;
-          translate: 0 0;
-          transition: scale 500ms, translate 500ms;
-          transition-timing-function: linear;
-          width: 130%;
+        @media screen and (max-width: 1439px) {
+          width: calc(33% - 1rem);
         }
 
-        .productText {
-          font-size: 14px;
-          line-height: 24px;
-          margin: 0;
-          opacity: 0;
-          overflow: visible;
+        @media screen and (max-width: 1000px) {
+          width: calc(50% - 1rem);
+        }
+
+        @media screen and (max-width: 600px) {
+          flex: 0 1 100%;
+        }
+      `}
+    >
+      <SurfaceLink
+        css={css`
+          background: var(--secondary-background-color);
+          color: var(--primary-text-color);
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          left: 0;
+          overflow: hidden;
+          padding: 1.375rem;
+          padding-top: 1.125rem;
+          position: absolute;
+          top: 0;
+          transform: translate(0, 0);
+          transition: height 500ms, transform 500ms, width 500ms;
           width: 100%;
-        }
+          border-radius: 10px;
+          box-shadow: none;
 
-        .title {
-          font-size: 20px;
-          font-weight: 400;
-          line-height: 1.5;
-          margin-bottom: 0.5rem;
-          padding-right: 30%;
-          width: 100%;
-        }
+          .text {
+            margin: 0;
+            overflow: visible;
+            transition: width 500ms;
+            width: 130%;
+          }
 
-        svg {
-          scale: 1;
-          transition: scale 500ms;
-        }
+          .title {
+            margin-bottom: 0.5rem;
+            width: ${titleWidth}px;
+          }
 
-        @media screen and (min-width: 1001px) {
           &:hover {
             color: var(--primary-text-color);
-            scale: 1.3;
-            transition: scale 500ms, transform 500ms;
+            height: 130%;
+            transform: translate(-10%, -10%);
+            transition: height 500ms, transform 500ms, width 500ms;
+            width: 130%;
             z-index: 10;
 
             .hover-hide {
@@ -94,20 +94,10 @@ const ProductTile = ({ children, icon, title, to }) => (
               display: block;
             }
 
-            .inverse-transform-container {
-              translate: -15cqw -7.5cqh;
-              scale: calc(1 / 1.3);
-              transition: scale 500ms, translate 500ms;
-            }
-
-            .productText {
+            .text {
               opacity: 1;
               transition: opacity 500ms;
-            }
-
-            svg {
-              scale: calc(1 / 1.3);
-              transition: scale 500ms;
+              width: ${textWidth}px;
             }
           }
 
@@ -115,46 +105,76 @@ const ProductTile = ({ children, icon, title, to }) => (
             box-shadow: unset;
             border: var(--brand-button-primary-accent) solid 1px;
           }
-        }
 
-        .dark-mode & {
-          border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
-        }
-      `}
-      to={to}
-    >
-      <div className="inverse-transform-container">
-        <h3 className="title">{title}</h3>
-        <p className="productText">{children}</p>
-      </div>
-      <Icon
-        name={icon}
-        size="20px"
-        className="hover-hide product-icon"
-        css={css`
-          align-self: flex-end;
-          bottom: 1rem;
-          flex: 1;
-          position: absolute;
-          right: 1rem;
+          .dark-mode & {
+            border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
+          }
+          @media screen and (max-width: 1000px) {
+            &:hover {
+              transform: none;
+              height: 100%;
+              width: 100%;
+
+              .text {
+                display: none;
+              }
+            }
+          }
         `}
-      />
-      <Icon
-        name="fe-arrow-right"
-        size="1.5rem"
-        className="hover-show"
-        css={css`
-          align-self: flex-end;
-          bottom: 1rem;
-          display: none;
-          flex: 1;
-          max-height: 1.5625rem;
-          position: absolute;
-          right: 1rem;
-        `}
-      />
-    </SurfaceLink>
-  </div>
-);
+        to={to}
+      >
+        <h3
+          css={css`
+            font-size: 20px;
+            font-weight: 400;
+          `}
+          className="title"
+          ref={titleRef}
+        >
+          {title}
+        </h3>
+        <p
+          className="text"
+          css={css`
+            font-size: 14px;
+            line-height: 24px;
+            opacity: 0;
+            transition: opacity 325ms;
+            width: 100%;
+          `}
+          ref={textRef}
+        >
+          {children}
+        </p>
+        <Icon
+          name={icon}
+          size="20px"
+          className="hover-hide product-icon"
+          css={css`
+            align-self: flex-end;
+            bottom: 1rem;
+            flex: 1;
+            position: absolute;
+            right: 1rem;
+          `}
+        />
+        <Icon
+          name="fe-arrow-right"
+          size="1.5rem"
+          className="hover-show"
+          css={css`
+            align-self: flex-end;
+            bottom: 1rem;
+            display: none;
+            flex: 1;
+            max-height: 1.5625rem;
+            position: absolute;
+            right: 1rem;
+          `}
+        />
+      </SurfaceLink>
+    </div>
+  );
+};
 
 export default ProductTile;

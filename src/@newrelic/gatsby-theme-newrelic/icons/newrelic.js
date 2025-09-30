@@ -35,7 +35,6 @@ import BookmarkIcon from './newrelic/bookmark';
 import PrivateIcon from './newrelic/private';
 import AttachmentIcon from './newrelic/attachment';
 import DocLinkIcon from './newrelic/doc-link';
-import MediaStreamingIcon from './newrelic/media-streaming';
 
 export default {
   ...defaultIcons,
@@ -58,7 +57,6 @@ export default {
   'ai-monitoring': AIMonitoringIcon,
   'k8s-cluster': K8sClusterIcon,
   'learning-models': LearningModelsIcon,
-  'media-streaming': MediaStreamingIcon,
   'ml-endpoints': MachineLearningEndpointsIcon,
   synthetics: SyntheticsIcon,
   'upstream-deployment': UpstreamDeploymentIcon,

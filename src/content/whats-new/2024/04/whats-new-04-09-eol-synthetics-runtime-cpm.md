@@ -32,7 +32,7 @@ Below are some notes about how the update affects your public or private locatio
 * Customers should update their scripted API, scripted browser, and step monitors to the new runtime [using the runtime upgrade UI](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui) before October 22, 2024. 
    * If you do not update, we’ll force update your monitors to the new runtime on the EOL date. **This may result in check failures and triggered alerts.**
    * Remember to use the test results from the runtime upgrade UI to determine the monitors that may require modifications before updating to the new runtime.
-* As of **August 26, 2024**, customers will be unable to create new monitors using legacy runtimes on public locations.
+* As of June 30, 2024, customers will be unable to create new monitors using legacy runtimes on public locations.
 
 ### For private locations
 
@@ -44,7 +44,7 @@ Below are some notes about how the update affects your public or private locatio
    * Verified script execution (VSE)
    * Custom environment variables
    * Custom node modules
-* Customers will be unable to create new monitors using legacy runtimes on private locations as of **August 26, 2024**.
+* Customers will be unable to create new monitors using legacy runtimes on private locations as of June 30, 2024.
 
 ## Links to additional resources
 

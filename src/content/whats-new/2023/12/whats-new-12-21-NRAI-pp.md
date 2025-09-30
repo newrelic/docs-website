@@ -9,14 +9,14 @@ We've expanded early access for [New Relic AI](https://docs.newrelic.com/docs/ne
 
 This preview offers an early taste of what New Relic AI will be able to do once it becomes generally available. Here are some of the capabilities that you can explore during this preliminary release phase:
 
-- Translate plain language into New Relic Query Language (NRQL) queries, run NRQL queries, and render the results in plain language or visualize them as a chart or graph.
-- Synthesize how-to guides based on our extensive [documentation](https://docs.newrelic.com/).
-- Surface New Relic Lookout insights/anomaly data in response to root cause analysis (RCA)-style prompts.
-- Summarize and get recommendations for open dashboards.
-- Understand and fix errors in CodeStream.
+* Translate plain language into New Relic Query Language (NRQL) queries, run NRQL queries, and render the results in plain language or visualize them as a chart or graph.
+* Synthesize how-to guides based on our extensive [documentation](https://docs.newrelic.com/).
+* Surface New Relic Lookout insights/anomaly data in response to root cause analysis (RCA)-style prompts.
+* Summarize and get recommendations for open dashboards.
+* Understand and fix errors in CodeStream.
 
-Eligible\* customers can get early access to New Relic AI today upon acceptance of the New Relic [pre-release policy](https://docs.newrelic.com/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) and [service specific terms](https://newrelic.com/termsandconditions/service-specific).
+Eligible* customers can get early access to New Relic AI today upon acceptance of the New Relic [pre-release policy](https://docs.newrelic.com/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) and [service specific terms](https://newrelic.com/termsandconditions/service-specific).
 
-![Screenshot of All Entities with arrow pointing to Ask AI button](/images/all_entities_ask_ai.webp 'Screenshot of All Entities with arrow pointing to Ask AI button')
+![Screenshot of All Entities with arrow pointing to Ask AI button](./images/all_entities_ask_ai.webp "Screenshot of All Entities with arrow pointing to Ask AI button")
 
-\*_FedRAMP-enabled and HIPAA-enabled customers aren't eligible to participate in the preview of New Relic AI at this time._
+**FedRAMP-enabled and HIPAA-enabled customers aren't eligible to participate in the preview of New Relic AI at this time.*

@@ -2,7 +2,7 @@
 title: 'Try the new and improved querying interface'
 summary: 'Explore your data from anywhere in the platform faster with context'
 releaseDate: '2024-02-12'
-learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/'
+learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/' 
 getStartedLink: 'https://one.newrelic.com/data-exploration'
 ---
 
@@ -10,7 +10,7 @@ Engineers need intuitive and fast access to telemetry data to make informed deci
 
 Starting today, you can try the new query experience. To try it out, go to the [query your data](https://one.newrelic.com/data-exploration) capability and select the “Try it out” button in the banner.
 
-![Try the new query experience in New Relic](/images/query-your-data-try.webp 'Try the new query experience in New Relic.')
+![Try the new query experience in New Relic](./images/query-your-data-try.webp "Try the new query experience in New Relic.")
 
 The new UI combines the chart editing features of the old query builder with the portability of the old NRQL console. The enhanced user interface helps you:
 
@@ -23,7 +23,6 @@ Watch the demo video below for more tips and tricks on using the new querying in
 <iframe width="560" height="315" src="https://www.youtube.com/embed/sjms5NYRMLs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 New features include:
-
 - An expandable query bar at the bottom of the screen to work in context
 - See the data behind charts across the platform with the “view query” button
 - Keep your query as you navigate across New Relic
@@ -33,6 +32,6 @@ New features include:
 - Recommended queries for a jumpstart in exploring your data
 - Keyboard shortcuts to speed up your experience
 
-**Note:** The new experience does not modify URLs, so you must use the “Copy permalink” button rather than copying the browser URL to get the query link.
+**Note:** The new experience does not modify URLs, so you must use the “Copy permalink” button rather than copying the browser URL to get the query link. 
 
 Try the new [query your data](https://one.newrelic.com/data-exploration) experience now.

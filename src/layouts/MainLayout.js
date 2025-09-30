@@ -8,7 +8,9 @@ import {
   useLayout,
   Icon,
   Button,
+  SearchInput,
   addPageAction,
+  useTranslation,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
 import { isNavClosed, setNavClosed } from '../utils/navState';
@@ -18,7 +20,7 @@ import { CSSTransition } from 'react-transition-group';
 import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import { useLocation } from '@reach/router';
+import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext }) => {
@@ -26,8 +28,10 @@ const MainLayout = ({ children, pageContext }) => {
   const { locale, slug } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(true);
-  const navHeaderHeight = '55px';
+  const { t } = useTranslation();
+  const navHeaderHeight = '100px';
   const isStyleGuide =
     slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
   const addTrailingSlash = (path) => {
@@ -191,6 +195,30 @@ const MainLayout = ({ children, pageContext }) => {
                     />
                   </Link>
                 </div>
+                {sidebar && (
+                  <SearchInput
+                    placeholder={t('strings.home.search.placeholder')}
+                    value={searchTerm || ''}
+                    iconName={SearchInput.ICONS.SEARCH}
+                    isIconClickable
+                    alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onSubmit={() => {
+                      addPageAction({
+                        eventName: 'nonHomepageSidebarSearch',
+                        category: 'SearchInput',
+                        searchTerm,
+                      });
+                      navigate(`?q=${searchTerm || ''}`);
+                    }}
+                    css={css`
+                      margin: 1.5rem 0 2rem;
+                      svg {
+                        color: var(--primary-text-color);
+                      }
+                    `}
+                  />
+                )}
               </div>
 
               <>
@@ -217,10 +245,6 @@ const MainLayout = ({ children, pageContext }) => {
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
                   padding-top: 2.75rem;
-
-                  @media (min-width: 1241px) {
-                    padding-right: 1.5rem;
-                  }
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
@@ -256,7 +280,7 @@ const MainLayout = ({ children, pageContext }) => {
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
-                height: 80px;
+                height: 60px;
                 ${!sidebar &&
                 css`
                   grid-column: 1/3;

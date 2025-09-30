@@ -17,10 +17,10 @@ const options = new Options().setMobileEmulation({
 // options required for github action to run chromedriver properly
 options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
-options.addArguments('--headless=new');
+options.addArguments('headless');
 
-const TIMEOUT = 30000;
-const SLEEP_TIME = 2000;
+const TIMEOUT = 10000;
+const SLEEP_TIME = 500;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -44,11 +44,10 @@ const main = async () => {
   // and the current homepage does not have the hamburger menu for `navTest`
   await driver.get(testUrl);
   await tileTest();
-  await driver.get(testUrl + 'docs/mdx-test-page/');
   await navTest();
+  await driver.get(testUrl + 'docs/mdx-test-page/');
   await collapserTest();
-  // TODO: reenable after fixing mobile search focus behavior
-  // await searchTest();
+  await searchTest();
 
   // this step isn't necessary in synthetics
   await driver.quit();
@@ -72,23 +71,16 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [hamburgerButton] = await waitForXPath(
     '//header//button[contains(@aria-label, "Mobile")]'
   );
   console.log('\nOpening mobile Nav menu');
-  let _desktopRN;
-  let releaseNotes;
-  const MAX_TRIES = 3;
-  let tries = 0;
-  do {
-    await hamburgerButton.click();
-    await driver.sleep(SLEEP_TIME);
-    // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
-    [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
-    tries += 1;
-  } while (releaseNotes == null && tries < MAX_TRIES);
+  await hamburgerButton.click();
+  await driver.sleep(SLEEP_TIME);
+  // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
+  const [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
   console.log('\nClicking Release Notes div');
@@ -99,15 +91,10 @@ const navTest = async () => {
     afterNextNode,
     'clicking Release Notes in the nav did not expand the Release Notes section'
   );
-  const [navCloseButton] = await waitForXPath(
-    '//div[@id="portal"]//button[@aria-label="Close"]'
-  );
-  await navCloseButton.click();
-  await driver.sleep(1000);
 };
 
 const searchTest = async () => {
-  const [searchButton] = await waitForXPath('.//*[@id="mobile-search-expand"]');
+  const [searchButton] = await waitForXPath('//a[contains(@href, "?q=")]');
   console.log('\nClicking search input');
   await searchButton.click();
   // sleep is required here on mobile to account for the click delay

@@ -16,4 +16,4 @@ Key transactions help you track the most important business transactions that yo
     <li>Ensure your key transactions are delivering on your business agreements by defining service levels.</li>
 </ul>
 
-![Key transaction golden signals view with change tracking](/images/key_transactions.webp 'A screenshot that show key transaction golden signals with change tracking')
+![Key transaction golden signals view with change tracking](./images/key_transactions.webp "A screenshot that show key transaction golden signals with change tracking")

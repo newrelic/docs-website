@@ -79,9 +79,13 @@ module.exports = {
         background_color: '#663399',
         theme_color: '#663399',
         display: 'minimal-ui',
-        icon: 'static/images/favicon.png', // This path is relative to the root of the site.
+        icon: 'src/images/favicon.png', // This path is relative to the root of the site.
       },
     },
+    // this (optional) plugin enables Progressive Web App + Offline functionality
+    // To learn more, visit: https://gatsby.dev/offline
+    // `gatsby-plugin-offline`,
+    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -131,7 +135,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: true,
+              linkImagesToOriginal: false,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -222,7 +226,7 @@ module.exports = {
           },
           {
             resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
-          },
+          }
         ],
       },
     },
@@ -321,9 +325,19 @@ module.exports = {
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-    'gatsby-plugin-eol-rss',
+
     'gatsby-source-nav',
     'gatsby-source-install-config',
+    {
+      resolve: 'gatsby-plugin-gatsby-cloud',
+      options: {
+        allPageHeaders: [
+          'Referrer-Policy: no-referrer-when-downgrade',
+          'Content-Security-Policy: frame-ancestors *.newrelic.com',
+          'Cache-Control: no-cache',
+        ],
+      },
+    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
@@ -428,17 +442,23 @@ module.exports = {
             'md',
             'java',
             'razor',
-            'hcl',
+            'hcl'
           ],
         },
         newrelic: {
-          config: process.env.ENVIRONMENT === 'production' && {
+          config: {
             instrumentationType: 'proAndSPA',
             accountId: '10956800',
             trustKey: '1',
-            agentID: '35094662',
+            agentID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
             licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-            applicationID: '35094662',
+            applicationID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
             settings: {
@@ -446,13 +466,12 @@ module.exports = {
                 enabled: true,
                 block_selector: '',
                 mask_text_selector: '*',
-                sampling_rate: 50.0,
+                sampling_rate: 5.0,
                 error_sampling_rate: 100.0,
                 mask_all_inputs: true,
                 collect_fonts: true,
                 inline_images: false,
                 inline_stylesheet: true,
-                fix_stylesheets:true,
                 mask_input_options: {},
               },
               distributed_tracing: { enabled: true },
@@ -485,13 +504,11 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
-        // Segment analytics commented out to avoid costs and unnecessary data collection
-        // Uncomment if Segment tracking is needed again
-        /* segment: {
+        segment: {
           segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
           section: 'docs',
           platform: 'docs_pages',
-        }, */
+        },
       },
     },
   ],

@@ -1,11 +1,10 @@
 ---
-title: 'Azure Native New Relic Service now generally available'
-summary: 'Store telemetry data on Azure, manage integration, install agents, and consolidate billing.'
-releaseDate: '2023-01-24'
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/azure-native-new-relic-service'
+title: 'Azure Native New Relic Service now generally available' 
+summary: 'Store telemetry data on Azure, manage integration, install agents, and consolidate billing.' 
+releaseDate: '2023-01-24' 
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/azure-native-new-relic-service' 
 getStartedLink: 'https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg?exp=ubp8'
 ---
-
 We’re announcing the availability of the Azure Native New Relic Service in the [Microsoft Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg?tab=Overview&exp=ubp8) to help accelerate cloud migration and multi-cloud initiatives. Microsoft Azure customers can now subscribe to the New Relic service to collect telemetry data for applications and infrastructure and store that telemetry data in Azure. In addition, Azure customers can allocate their multi-year committed Azure spend to leverage New Relic, making it significantly easier to allocate budget for all-in-one observability.
 
 New Relic helps you accelerate your cloud adoption and multi-cloud journeys by providing a comprehensive view of the entire application stack, including the underlying cloud infrastructure, application code, and user experience, so you can quickly identify and troubleshoot performance issues, optimize multi-cloud resources, and ensure that your applications are running smoothly.
@@ -24,13 +23,13 @@ We designed a cell-based platform on Azure that leverages the New Relic service,
 
 With this integration, DevOps teams can get started fast with Azure integrations and agents, all from the New Relic platform. You can monitor all your workloads so you can debug, measure, and improve your entire stack.
 
-## Rapid onboarding in Azure Portal
+## Rapid onboarding in Azure Portal 
 
 Get to observability in under three minutes.
 
 We’ve optimized our solution to now accelerate your Microsoft Azure observability, so you can manage the New Relic integration for Microsoft Azure directly in the Azure Portal. In addition, install infrastructure monitoring, .NET and Java APM agents, and select resources to be monitored from the Azure Portal.
 
-Watch this Data Bytes video to learn how to onboard:
+Watch this Data Bytes video to learn how to onboard: 
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/48LHdqOMAsQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
@@ -38,12 +37,12 @@ For more specific configurations, see [our docs](https://docs.newrelic.com/docs/
 
 ## Install New Relic agents easily from the Azure Portal
 
-After you’ve set up the New Relic integration, you’ll need to deploy our infrastructure and APM agents to get a fuller view of your stack, and we’ve made it easy to do so right from the Azure Portal.
+After you’ve set up the New Relic integration, you’ll need to deploy our infrastructure and APM agents to get a fuller view of your stack, and we’ve made it easy to do so right from the Azure Portal. 
 
-![Install the New Relic infrastructure monitoring agent from the Azure Portal](/images/azure-native-new-relic-service-InfraAgentInstall.webp 'Install the New Relic infrastructure monitoring agent from the Azure Portal')
+![Install the New Relic infrastructure monitoring agent from the Azure Portal](./images/azure-native-new-relic-service-InfraAgentInstall.webp "Install the New Relic infrastructure monitoring agent from the Azure Portal")
 Install the New Relic infrastructure monitoring agent from the Azure Portal
 
-![Install the New Relic APM agent from the Azure Portal](/images/azure-native-new-relic-service-APMAgentInstall.webp 'Install the New Relic APM agent from the Azure Portal')
+![Install the New Relic APM agent from the Azure Portal](./images/azure-native-new-relic-service-APMAgentInstall.webp "Install the New Relic APM agent from the Azure Portal")
 Install a New Relic APM agent from the Azure Portal
 
 ## Pay with Azure MACC Credits
@@ -54,7 +53,7 @@ Your New Relic billing will be consolidated with your Microsoft Azure spending a
 
 ## Next steps
 
-To get started with the Azure Native New Relic Service, view our [New Relic listing in the Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg?exp=ubp8). Or, you can go to the Azure Portal and search for New Relic in the Azure Marketplace. By subscribing to the service, you’ll automatically set up a New Relic organization with Data Plus.
+To get started with the Azure Native New Relic Service, view our [New Relic listing in the Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/newrelicinc1635200720692.newrelic_liftr_payg?exp=ubp8). Or, you can go to the Azure Portal and search for New Relic in the Azure Marketplace. By subscribing to the service, you’ll automatically set up a New Relic organization with Data Plus. 
 
 For more about what's included with Data Plus for Azure Native New Relic subscribers, see [our Data Plus docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus). Note: Not all Data Plus features are available for Azure subscriptions.
 

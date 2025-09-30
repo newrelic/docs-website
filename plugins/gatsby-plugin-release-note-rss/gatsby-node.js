@@ -11,8 +11,6 @@ const removeExports = require('remark-mdx-remove-exports');
 const parseISO = preferDefault(require('date-fns/parseISO'));
 const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
 const handlers = require('../utils/handlers');
-const { getTitle } = require('../../src/utils/releaseNotes');
-const visit  = require('unist-util-visit');
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified()
@@ -90,15 +88,6 @@ const getFeedItem = (node, siteMetadata, imageHashMap) => {
   const { frontmatter, slug, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
 
-  const baseUrl = 'https://docs.newrelic.com';
-
-  // Traverse and update the MDX AST to prepend base URL to relative links
-  visit(mdxAST, 'link', (node) => {
-    if (node.url.startsWith('/docs/')) {
-      node.url = `${baseUrl}${node.url}`;
-    }
-  });
-
   const transformedAST = htmlGenerator.runSync(mdxAST);
   const html = htmlGenerator.stringify(
     toHast(transformedAST, {
@@ -117,7 +106,7 @@ const getFeedItem = (node, siteMetadata, imageHashMap) => {
 
   return {
     guid: id,
-    title: getTitle(frontmatter),
+    title: `${subject} ${version}`,
     custom_elements: [
       { link },
       { pubDate },

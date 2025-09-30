@@ -9,4 +9,4 @@ Logs can provide valuable information about what is happening to the entities th
 
 At a glance you can correlate logs with these operational events to provide greater detail about them, allowing you to troubleshoot problematic deployments or to quickly uncover the cause of an incident.
 
-![Logs in Context](/images/whats-new-10-15-logs-in-context.webp 'Logs in context')
+![Logs in Context](./images/whats-new-10-15-logs-in-context.webp 'Logs in context')

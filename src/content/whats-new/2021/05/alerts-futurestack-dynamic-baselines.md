@@ -9,6 +9,20 @@ Business services and infrastructure are always changing. Now, instead of needin
 
 We’ve expanded our existing dynamic anomaly alerting, which previously had to be individually configured for each individual signal, to allow one alert configuration to apply dynamic thresholding across up to five thousand related time series of a particular service or entity. This greatly simplifies the process of adding alert coverage to all of your entities, by all of your teams. No team should be sitting on the sidelines, and missing the benefits of incident response.
 
-![Animated gif showing condition thresholds](/images/dyn-baselines-2.gif 'Animated gif showing condition thresholds')
+![Animated gif showing condition thresholds](./images/dyn-baselines-2.gif "Animated gif showing condition thresholds")
 
-Setting static thresholds can be intimidating to many engineers. It is easy to create dynamic anomaly alert conditions that cover all of your services and infrastructure. Simply add the “FACET” clause to the NRQL queries you are using, and specify the metadata attributes that differentiate the signals that you want to monitor. Then, simply drag a slider to set and tune the sensitivity.
+Setting static thresholds can be intimidating to many engineers. It is easy to create dynamic anomaly alert conditions that cover all of your services and infrastructure. Simply add the “FACET” clause to the NRQL queries you are using, and specify the metadata attributes that differentiate the signals that you want to monitor. Then, simply drag a slider to set and tune the sensitivity. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+

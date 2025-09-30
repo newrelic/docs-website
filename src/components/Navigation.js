@@ -32,7 +32,7 @@ const Navigation = ({ nav, className }) => {
       css={css`
         height: 100%;
         overflow: auto;
-        margin: 0 0 16px;
+        margin: 16px 0;
         -ms-overflow-style: none;
         scrollbar-width: none;
         &::-webkit-scrollbar {

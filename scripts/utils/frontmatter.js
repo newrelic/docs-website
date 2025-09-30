@@ -78,14 +78,6 @@ const frontmatter = (mdString) => {
   return result;
 };
 
-const stringifyFrontmatter = (body, attributes, options) => {
-  try {
-    return grayMatter.stringify(body, attributes, options);
-  } catch (error) {
-    return error;
-  }
-};
-
 /**
  * Parse the frontmatter and check for required freshnessValidatedDate field on most content doc pages. 
  * Valid options are `never` or `YYYY-MM-DD`
@@ -215,7 +207,6 @@ const validateReleaseDate = (mdString) => {
 
 module.exports = {
   frontmatter,
-  stringifyFrontmatter,
   validateFreshnessDate,
   validateReleaseDate,
 };

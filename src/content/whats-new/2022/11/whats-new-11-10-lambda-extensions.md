@@ -2,7 +2,7 @@
 title: 'Ingest Telemetry directly from Lambda using New Relic Extensions'
 summary: 'Access your AWS Lambda telemetry directly using the New Relic extension to receive enhanced telemetry data (logs, platform traces, and new performance metrics) directly from Lambda execution environment through a single interface'
 releaseDate: '2022-11-10'
-learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989'
+learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989' 
 getStartedLink: 'https://newrelic.com/instant-observability/aws-lambda-telemetry-extension'
 ---
 
@@ -14,10 +14,11 @@ The New Relic extension subscribes to the telemetry streams directly from within
 
 Telemetry API allows extensions to subscribe to three different telemetry streams:
 
-- Function logs: Custom logs that Lambda function code generates (`stdout`/`stderr`)
-- Extension logs: Lambda extension code generates custom logs to `stdout` and `stderr`
-- Platform telemetry: Metrics, events and traces which describe events and errors related to execution environment runtime lifecycle, extension lifecycle, and function invocations.
+* Function logs: Custom logs that Lambda function code generates (`stdout`/`stderr`)
+* Extension logs: Lambda extension code generates custom logs to `stdout` and `stderr`
+* Platform telemetry: Metrics, events and traces which describe events and errors related to execution environment runtime lifecycle, extension lifecycle, and function invocations.
 
 Telemetry API enables extensions to receive traces about the events related to Lambda execution environment lifecycle, with trace spans compatible with the OpenTelemetry format. Trace segments can be enriched by additional metadata for easier contextualization and diagnosis. Pairing this trace data with log data, you can rapidly troubleshoot performance problems, outages, and errors.
 
-![Metrics, events and logs from Lambda Extensions displayed in New Relic](/images/lambda_extensions.webp 'Metrics, events and logs from Lambda Extensions displayed in New Relic')
+![Metrics, events and logs from Lambda Extensions displayed in New Relic](./images/lambda_extensions.webp "Metrics, events and logs from Lambda Extensions displayed in New Relic")
+

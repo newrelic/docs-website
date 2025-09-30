@@ -17,14 +17,7 @@ const AGENTS = {
   'java-release-notes': 'java',
   'job-manager-release-notes': 'job manager',
   'kubernetes-integration-release-notes': 'kubernetes',
-  'pipeline-control-gateway-release-notes': 'pipeline_control_gateway',
-  'agent-control-deployment-chart-release-notes':
-    'agent_control_deployment_chart',
-  'agent-control-continuous-delivery-chart-release-notes':
-    'agent_control_continuous_delivery_chart',
-  'prometheus-agent-release-notes': 'prometheus',
   'logs-release-notes': 'logs',
-  'fluentbit-release-notes': 'fluentbit',
   'net-maui-release-notes': '.net maui',
   'net-release-notes': '.net',
   'new-relic-android-release-notes': 'newrelic for android',
@@ -41,14 +34,7 @@ const AGENTS = {
   'react-native-release-notes': 'react native',
   'ruby-release-notes': 'ruby',
   'service-levels-release-notes': 'service levels',
-  'serverless-release-notes': 'serverless',
   'xamarin-release-notes': 'xamarin',
-  'nrdot-release-notes': 'nrdot',
-  'streaming-mobile-release-notes': 'streaming_for_mobile',
-  'streaming-browser-release-notes': 'streaming_for_browser',
-  'streaming-other-release-notes': 'streaming_for_others',
-  'aws-firehose-log-forwarder-release-notes': 'aws_firehose_log_forwarder',
-  'aws-lambda-log-forwarder-release-notes': 'aws_lambda_log_forwarder',
 };
 
 // keeping the naming streamlined and in matching with previous data

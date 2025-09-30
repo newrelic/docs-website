@@ -1,9 +1,10 @@
 const all = require('mdast-util-to-hast/lib/all');
+const one = require('mdast-util-to-hast/lib/one');
 const { findAttribute } = require('../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
-const path = require('path');
-const { get } = require('lodash');
+const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
+const { set, get } = require('lodash');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -14,6 +15,8 @@ const getAllAttributes = (node) =>
         return { ...obj, [propName]: value };
       }, {})
     : {};
+
+const getSrcUrl = (url) => url.replace('images/', '');
 
 const isBlockImage = (parent, node) => {
   const isBlock = [];
@@ -79,8 +82,13 @@ const isBlockImage = (parent, node) => {
 };
 
 module.exports = {
-  image: (h, node, parent) => {
-    const src = path.join('https://docs.newrelic.com', node.url);
+  image: (h, node, parent, imageHashMap) => {
+    const domain = 'https://docs.newrelic.com';
+    const srcUrl = getSrcUrl(node.url);
+
+    const src = imageHashMap[srcUrl]
+      ? new URL(imageHashMap[srcUrl], domain).href
+      : node.url;
 
     const applyBlockImageAttributes = isBlockImage(parent, node);
 

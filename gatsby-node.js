@@ -31,7 +31,7 @@ exports.onCreateWebpackConfig = ({ actions }) => {
         zlib: false,
       },
       alias: {
-        images: path.resolve(__dirname, 'static/images/'),
+        images: path.resolve(__dirname, 'src/images/'),
       },
     },
   });
@@ -64,7 +64,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              subject
+              type
             }
             fields {
               fileRelativePath
@@ -82,6 +82,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
+              type
               subject
             }
           }
@@ -98,6 +99,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
+              type
               subject
               translationType
             }
@@ -452,6 +454,13 @@ const createPageFromNode = (
   }
 };
 
+const TEMPLATES_BY_TYPE = {
+  landingPage: 'landingPage',
+  apiDoc: 'docPage',
+  releaseNote: 'releaseNote',
+  troubleshooting: 'docPage',
+};
+
 const getTemplate = (node) => {
   const {
     frontmatter,
@@ -459,6 +468,9 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
+    case Boolean(frontmatter.type):
+      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
+
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
       return {
         template: 'releaseNoteLandingPage',
@@ -467,9 +479,6 @@ const getTemplate = (node) => {
 
     case fileRelativePath.includes('src/content/docs/release-notes'):
       return { template: 'releaseNote' };
-
-    case fileRelativePath.includes('src/content/eol'):
-      return { template: 'eolAnnouncement' };
 
     case fileRelativePath.includes('src/content/whats-new'):
       return { template: 'whatsNew' };

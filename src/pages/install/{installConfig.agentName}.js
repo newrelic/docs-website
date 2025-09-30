@@ -285,7 +285,6 @@ const InstallPage = ({ data, location }) => {
         </Layout.Content>
         <Layout.PageTools
           css={css`
-            gap: 0;
             @media (max-width: 1240px) {
               display: none;
             }

@@ -17,4 +17,4 @@ Introducing this feature and a tool to access a more extensive historical record
 
 We are committed to continually improving our platform and providing you with the best possible experience. This new feature will significantly enhance your ability to analyze signals and incidents, making your incident management process more efficient and effective. Give it a try and let us know your thoughts. We're always eager to hear your feedback and suggestions for future improvements.
 
-<iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/o8r4tfsa8l" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://newrelic.wistia.com/medias/o8r4tfsa8l" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>

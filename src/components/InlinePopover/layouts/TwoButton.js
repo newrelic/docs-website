@@ -17,6 +17,8 @@ const TwoButton = ({
   learnMoreUrl,
   primaryButton,
   primaryButtonUrl,
+  secondaryButton,
+  secondaryButtonUrl,
   type,
   ...props
 }) => {
@@ -34,12 +36,21 @@ const TwoButton = ({
     noop,
     instrumentation('primaryButton')
   );
+  const onSecondaryClick = useInstrumentedHandler(
+    noop,
+    instrumentation('secondaryButton')
+  );
 
   return (
     <Popover {...props}>
       <Container>
         <Heading>{header}</Heading>
-        <Text>{text}</Text>
+        <Text>
+          {text}{' '}
+          <Link onClick={onLearnMore} href={learnMoreUrl}>
+            {learnMore}
+          </Link>
+        </Text>
         <PrimaryButton
           as="a"
           href={primaryButtonUrl}
@@ -55,17 +66,15 @@ const TwoButton = ({
             name="fe-external-link"
           />
         </PrimaryButton>
-        {learnMore && (
-          <LearnMoreButton
-            as="a"
-            href={learnMoreUrl}
-            onClick={onLearnMore}
-            tabIndex={0}
-            variant={Button.VARIANT.OUTLINE}
-          >
-            {learnMore}
-          </LearnMoreButton>
-        )}
+        <SecondaryButton
+          as="a"
+          href={secondaryButtonUrl}
+          onClick={onSecondaryClick}
+          tabIndex={0}
+          variant={Button.VARIANT.OUTLINE}
+        >
+          {secondaryButton}
+        </SecondaryButton>
       </Container>
     </Popover>
   );
@@ -88,12 +97,21 @@ const Heading = styled.h2`
   margin: 0;
 `;
 
+const Link = styled.a`
+  color: currentColor;
+  text-decoration: underline;
+
+  &:hover {
+    color: currentColor;
+  }
+`;
+
 const PrimaryButton = styled(Button)`
   cursor: pointer;
   width: 100%;
 `;
 
-const LearnMoreButton = styled(Button)`
+const SecondaryButton = styled(Button)`
   border-color: var(--system-background-app-light);
   color: var(--system-background-app-light);
   cursor: pointer;
