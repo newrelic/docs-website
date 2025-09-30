@@ -1,18 +1,18 @@
 ---
-title: "Added Support For New Regions For Polling and Metric Stream Integration"
-summary: "Extended support for 4 new aws regions (mx-central-1, ap-east-2, ap-southeast-5, ap-southeast-7) in Infrastructre monitoring in AWS Polling and Metric stream integration."
+title: "Added Support For New Regions For AWS API Polling and AWS Cloud Watch Metric Streams integrations"
+summary: "Extended support for 4 new aws regions (mx-central-1, ap-east-2, ap-southeast-5, ap-southeast-7) in Infrastructre monitoring in AWS API Polling and AWS Cloud Watch Metric Streams integrations."
 releaseDate: "2025-10-01"
 ---
 
 # Expanded AWS Region Support for Infrastructure Monitoring
 
-We are excited to announce the expansion of our AWS infrastructure monitoring capabilities. Support for both our **Polling** and **Metric Stream** integrations has been extended to include four new AWS regions. This update allows you to gain complete visibility into your AWS services across an even wider geographical footprint, ensuring you have a comprehensive view of your entire infrastructure. 🗺️
+We are excited to announce the expansion of our AWS infrastructure monitoring capabilities. Support for both our **API Polling** and **AWS Cloud Watch Metric Streams** integrations has been extended to include four new AWS regions. This update allows you to gain complete visibility into your AWS services across an even wider geographical footprint, ensuring you have a comprehensive view of your entire infrastructure. 🗺️
 
 ***
 
 ## Changes
 
-You can now monitor resources in four additional AWS regions, closing potential gaps in your observability strategy. By enabling these new regions in your integration settings, you can seamlessly pull metrics, events, and inventory data into your dashboards, alerts, and analysis tools.
+You can now monitor resources in four additional AWS regions, closing potential gaps in your observability strategy. By enabling these new regions in your integration settings, you can seamlessly pull metrics, tags and metadata into your dashboards, alerts, and analysis tools.
 
 
 This enhancement provides several key benefits:
@@ -37,9 +37,9 @@ The newly supported regions are detailed below:
 
 To begin monitoring resources in these new regions, simply update your existing AWS integration configuration:
 
-1.  Navigate to your AWS cloud integration settings.
+1.  Navigate to your AWS integrations page.
 2.  Select the account you wish to modify.
-3.  In the configuration settings for either Polling or Metric Stream, find the region list and select the newly available regions you want to monitor. ![AWS Region Selection](/images/aws-regions-selection.png "AWS Region Selection")
+3.  In the configuration settings for either AWS API Polling and AWS Cloud Watch Metric Streams integrations, find the region list and select the newly available regions you want to monitor. ![AWS Region Selection](/images/aws-regions-selection.png "AWS Region Selection")
 4.  For Auto Discovery, find the region list under manage integration and select newly available regions.
 5.  Save your updated configuration.
 
