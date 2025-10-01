@@ -32,15 +32,3 @@ The newly supported regions are detailed below:
 | Mexico (Central) | `mx-central-1` | `MX_CENTRAL_1` |
 
 ***
-
-### Getting Started
-
-To begin monitoring resources in these new regions, simply update your existing AWS integration configuration:
-
-1.  Navigate to your AWS integrations page.
-2.  Select the account you wish to modify.
-3.  In the configuration settings for either AWS API Polling and AWS Cloud Watch Metric Streams integrations, find the region list and select the newly available regions you want to monitor. ![AWS Region Selection](/images/aws-regions-selection.png "AWS Region Selection")
-4.  For Auto Discovery, find the region list under manage integration and select newly available regions.
-5.  Save your updated configuration.
-
-Data from the selected regions will begin populating in your account shortly after the changes are saved. ✨
