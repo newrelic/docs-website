@@ -1850,139 +1850,22 @@ To set permanent data storage on Kubernetes, the user has two options:
   helm install ... --set synthetics.persistence.existingVolumeName=sjm-volume --set synthetics.persistence.storageClass=standard ...
   ```
 
-## Sizing considerations for Docker, Kubernetes, and OpenShift [#kubernetes-sizing]
-
-### Docker [#docker]
-
-To ensure your private location runs efficiently, you must provision enough CPU resources on your Docker host to handle your monitoring workload. Many factors impact sizing, but you can quickly estimate your needs.
-
-You'll need **1 CPU core for each simultaneous heavyweight monitor** (i.e., each scripted browser or scripted API test).
-
-Below are two formulas to help you calculate the number of cores you need, whether you're diagnosing a current setup or planning for a future one.
-
-
-<CollapserGroup>
-
-<Collapser
-      id="existing-location"
-      title="Formula 1: For diagnosing an existing location">
-
-
-If your current private location is struggling to keep up and you suspect jobs are queuing, use this formula to find out how many cores you actually need. It's based on the observable performance of your system.
-
-
-**The equation:**
-
-```math
-$$C_{req} = (J_{processed} + Q_{growth}) \times D_j$$
-```
-
-```
-* $C_{req}$ = **Required CPU Cores**
-* $J_{processed}$ = The rate of jobs being **processed** per minute
-* $Q_{growth}$ = The rate your `jobManagerHeavyweightJobs` queue is **growing** per minute
-* $D_j$ = The **average duration** of a job in minutes
-```
-
-**Here's how it works:** This formula calculates your true job arrival rate by adding the jobs your system *is processing* to the jobs that are *piling up* in the queue. Multiplying this total load by the average job duration tells you exactly how many cores you need to clear all the work without queuing.
-
-
-  </Collapser>
-
-  <Collapser
-      id="future-location"
-      title="Formula 2: For Forecasting a New or Future Location"
-  >
-
-
-```math
-$$C_{req} = N_m \times F_j \times D_j$$
-```
-
-If you're setting up a new private location or planning to add more monitors, use this formula to forecast your needs ahead of time.
-
-**The equation:**
-
-```math
-$$C_{req} = N_m \times F_j \times D_j$$
-```
-
-```
-* $C_{req}$ = Required CPU Cores
-* $N_m$ = The total number of heavyweight monitors you plan to run.
-* $F_j$ = The average frequency of the monitors in jobs per minute (e.g., a monitor running every 5 minutes has a frequency of 1/5 or 0.2).
-* $D_j$ = The average duration of a job in minutes.
-
-```
-
-**Here's how it works:** This calculates your expected workload from first principles: how many monitors you have, how often they run, and how long they take.
-
-</Collapser>
-
-</CollapserGroup>
-
-#### Important sizing factors
-
-When using these formulas, remember to account for these factors:
-
-* **Job duration ($D_j$):** Your average should include jobs that **time out** (often ~3 minutes), as these hold a core for their entire duration.
-* **Job failures and retries:** When a monitor fails, it's automatically retried. These retries are additional jobs that add to the total load. A monitor that consistently fails and retries **effectively multiplies its frequency**, significantly impacting throughput.
-* **Scaling out:** In addition to adding more cores to a host (scaling up), you can deploy additional synthetics job managers with the same private location key to load balance jobs across multiple environments (scaling out).
-
-#### NRQL queries for diagnosis
-
-You can run these queries in the [query builder](/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to get the inputs for the diagnostic formula. Make sure to set the time range to a long enough period to get a stable average.
-
-**1. Find jobs processed per minute ($J\_{processed}$):**
-This query counts the number of non-ping (heavyweight) jobs completed over the last day and shows the average rate per minute.
-
-```nrql
-FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**2. Find queue growth per minute ($Q\_{growth}$):**
-This query calculates the average per-minute growth of the `jobManagerHeavyweightJobs` queue on a time series chart. A line above zero indicates the queue is growing, while a line below zero means it's shrinking.
-
-```nrql
-FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
-```
+## Sizing considerations for OpenShift, Kubernetes and Docker [#kubernetes-sizing]
 
 <Callout variant="tip">
-  Make sure to select the account where the private location exists. It's best to view this query as a time series because the derivative function can vary wildly. The goal is to get an estimate of the rate of queue growth per minute. Play with different time ranges to see what works best.
+  Docker specific sizing considerations will be available soon.
 </Callout>
 
-**3. Find average job duration in minutes ($D\_j$):**
-This query finds the average execution duration of completed non-ping jobs and converts the result from milliseconds to minutes. Why use `executionDuration`? It represents the time the job took to execute on the host, which is what we want to measure.
+If you're working in larger environments, you may need to customize the job manager configuration to meet minimum requirements to execute synthetic monitors efficiently. Many factors can impact sizing requirements for a synthetics job manager deployment, including:
 
-```nrql
-FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
+* If all runtimes are required based on expected usage
+* The number of jobs per minute by monitor type (ping, simple or scripted browser, and scripted API)
+* Job duration, including jobs that time out at around 3 minutes
+* The number of job failures. For job failures, automatic retries are scheduled when a monitor starts to fail to provide built-in 3/3 retry logic. These additional jobs add to the throughput requirements of the synthetic job manager.
 
-**4. Find total number of heavyweight monitors ($N\_m$):**
-This query finds the unique count of heavyweight monitors.
+In addition to the sizing configuration settings listed below, additional synthetics job managers can be deployed with the same private location key to load balance jobs across multiple environments.
 
-```nrql
-FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**5. Find average heavyweight monitor frequency ($F\_j$):**
-If the private location's `jobManagerHeavyweightJobs` queue is growing, it isn't accurate to calculate the average monitor frequency from existing results. This will need to be estimated from the list of monitors on the [Synthetic Monitors](https://one.newrelic.com/synthetics) page. Make sure to select the correct New Relic account and you may need to filter by `privateLocation`.
-
-<Callout variant="tip">
-  Synthetic monitors may exist in multiple sub accounts. If you have more sub accounts than can be selected in the query builder, choose the accounts with the most monitors.
-</Callout>
-
-#### Note about ping monitors and the `pingJobs` queue
-
-**Ping monitors are different.** They are lightweight jobs that do not consume a full CPU core each. Instead, they use a separate queue (`pingJobs`) and run on a pool of worker threads.
-
-While they are less resource-intensive, a high volume of ping jobs, especially failing ones, can still cause performance issues. Keep these points in mind:
-
-  * **Resource model:** Ping jobs utilize worker threads, not dedicated CPU cores. The core-per-job calculation does not apply to them.
-  * **Timeout and retry:** A failing ping job can occupy a worker thread for up to **60 seconds**. It first attempts an HTTP HEAD request (30-second timeout). If that fails, it immediately retries with an HTTP GET request (another 30-second timeout).
-  * **Scaling:** Although the sizing formula is different, the same principles apply. To handle a large volume of ping jobs, you may need to scale up your host's resources or scale out by deploying more job managers to keep the `pingJobs` queue clear and prevent delays.
-
-### Kubernetes and OpenShift [#k8s]
+## Kubernetes and OpenShift [#k8s]
 
 Each runtime used by the Kubernetes and OpenShift synthetic job manager can be sized independently by setting values in the [helm chart](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager).
 
