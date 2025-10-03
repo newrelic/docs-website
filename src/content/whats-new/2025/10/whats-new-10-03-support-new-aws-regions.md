@@ -1,7 +1,7 @@
 ---
 title: "Added Support For New Regions For AWS API Polling and AWS Cloud Watch Metric Streams integrations"
 summary: "Extended support for 4 new aws regions (mx-central-1, ap-east-2, ap-southeast-5, ap-southeast-7) in Infrastructre monitoring in AWS API Polling and AWS Cloud Watch Metric Streams integrations."
-releaseDate: "2025-10-01"
+releaseDate: "2025-10-03"
 ---
 
 # Expanded AWS Region Support for Infrastructure Monitoring
