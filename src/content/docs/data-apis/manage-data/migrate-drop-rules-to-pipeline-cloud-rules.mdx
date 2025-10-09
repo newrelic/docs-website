@@ -1,77 +1,832 @@
 ---
 title: Migrate from drop rules to Pipeline control cloud rules
-# tags:
-#   - 
+tags:
+  - Data Management
+  - Migration
+  - Drop Rules
+  - Pipeline Control
+  - Terraform
+  - GitOps
 metaDescription: Migrate your NRQL drop rules to Pipeline control cloud rules using Terraform with GitOps (CI/CD) or on your local machine.
-# redirects:
-#   - 
 freshnessValidatedDate: never
 ---
 
 <Callout variant="important">
 As of May 21, 2025, new customers can no longer use NRQL drop rules. [NRQL drop rules will be end-of-life](/eol/2025/05/drop-rule-filter) on January 7, 2026.
 
-Migrate to [Pipeline Control cloud rules](/docs/new-relic-control/pipeline-control/cloud-rules-api) to continue managing your data dropping rules.
+Migrate to [Pipeline control cloud rules](/docs/new-relic-control/pipeline-control/cloud-rules-api) to continue managing your data dropping rules.
 </Callout>
 
-This guide helps you migrate Terraform-managed drop rules to Pipeline Control cloud rules. You can choose between:
-- **GitOps (CI/CD) migration** - Migrate using CI/CD workflows.
-- **Local Terraform migration** - Run migration commands on your local machine.
+Although New Relic automatically migrated all drop rules to Pipeline control cloud rules in the UI, Terraform users still have a manual migration step. As Terraform maintains its own state file, it only knows about the `newrelic_nrql_drop_rule` resources you explicitly configured. It doesn't automatically understand that these are now linked to `newrelic_pipeline_cloud_rule` resources in the backend.
+
+Since Terraform treats these as two completely different resource types, you must manually migrate by importing the Pipeline control cloud rules into Terraform's state and removing the old drop rule resources. This guide helps you migrate Terraform-managed drop rules to Pipeline control cloud rules.
 
 ## Prerequisites [#prerequisites]
-- **New Relic Terraform Provider >= v3.68.0** (includes `pipeline_cloud_rule_entity_id` support)
-- **Terraform >= v1.5** (for import blocks)
-- **New Relic API key** with appropriate permissions
-- **New Relic CLI** (optional, but recommended for automation)
 
-<Steps>
-<Step>
+- **Terraform or OpenTofu >= v1.7:** You'll need this version or later to ensure compatibility with the migration process.
+- **New Relic Terraform Provider >= v3.68.0:** You'll need this version or later because it adds support for linking `newrelic_nrql_drop_rule` to `pipeline_cloud_rule_entity_id` and introduces the `newrelic_pipeline_cloud_rule` resource for managing Pipeline control cloud rules.
+- **New Relic CLI**
+
 ## Choose your migration approach [#choose-approach]
 
 <CollapserGroup>
   <Collapser
-    id="local-terraform"
-    title="Migrate using local Terraform"
-  >
-    ### Step 1: Export existing Drop Rules
-    [Content...]
-    
-    ### Step 2: Configure Terraform locally
-    [Content...]
-    
-    ### Step 3: Apply changes
-    [Content...]
-  </Collapser>
-
-  <Collapser
     id="gitops-cicd"
     title="Migrate using GitOps (CI/CD)"
   >
-    ### Step 1: Export existing Drop Rules
-    [Content...]
-    
-    ### Step 2: Set up Git repository
-    [Content...]
-    
-    ### Step 3: Configure CI/CD pipeline
-    [Content...]
-    
-    ### Step 4: Deploy via pipeline
-    [Content...]
+    <CollapserGroup>
+      <Collapser
+        id="gitops-step1"
+        title="1. Map existing drop rules to Pipeline control cloud rules"
+      >
+        In this step, you'll add a validation script provided by New Relic to your CI/CD Terraform configuration that maps your existing drop rules to their corresponding Pipeline control cloud rules.
+
+        <Steps>
+          <Step>
+            **Find your drop rule resources:**
+
+            Look through your Terraform configuration files (`.tf` files) in your workspace and identify all your `newrelic_nrql_drop_rule` resources.
+
+            For example, if your Terraform configuration file has these drop rules:
+
+            ```hcl
+            resource "newrelic_nrql_drop_rule" "drop_debug_logs" {
+              account_id  = var.new_relic_account_id
+              description = "Filters out debug level logs"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE level = 'debug'"
+            }
+
+            resource "newrelic_nrql_drop_rule" "drop_health_checks" {
+              account_id  = var.new_relic_account_id
+              description = "Removes health check logs"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE endpoint = '/health'"
+            }
+
+            resource "newrelic_nrql_drop_rule" "drop_pii_data" {
+              account_id  = var.new_relic_account_id
+              description = "Filters out PII data"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE contains(message, 'SSN')"
+            }
+            ```
+
+            In resource `"newrelic_nrql_drop_rule" "drop_debug_logs"`:
+
+              - The resource identifier is `drop_debug_logs`.
+              - The full resource reference is `newrelic_nrql_drop_rule.drop_debug_logs`.
+
+            Make a note of each resource identifier and their corresponding full resource references. You'll need these in the next step.
+          </Step>
+
+          <Step>
+            **Add the validation script to your Terraform configuration:**
+
+            Create a new file (for example, `outputs.tf`) in your Terraform workspace and add the following script:
+
+       ```hcl
+            # Local list of all drop rule resources in the experimental folder
+            locals {
+            experimental_drop_rule_resources = [
+                {
+                name     = "drop_debug_logs"
+                resource = newrelic_nrql_drop_rule.drop_debug_logs
+                },
+                {
+                name     = "drop_health_checks"
+                resource = newrelic_nrql_drop_rule.drop_health_checks
+                },
+                {
+                name     = "drop_pii_data"
+                resource = newrelic_nrql_drop_rule.drop_pii_data
+                }
+            ]
+
+            # Validation logic compatible with Terraform 1.2.x
+            validation_results = [
+                for drop_rule in local.experimental_drop_rule_resources : {
+                name      = drop_rule.name
+                entity_id = try(drop_rule.resource.pipeline_cloud_rule_entity_id, null)
+                is_valid  = try(drop_rule.resource.pipeline_cloud_rule_entity_id, null) != null
+                }
+            ]
+
+            # Create error message if any validation fails
+            validation_errors = [
+                for result in local.validation_results :
+                "❌ Drop rule '${result.name}' does not export `pipeline_cloud_rule_entity_id` or it is null"
+                if !result.is_valid
+            ]
+
+            # Pre-computed JSON object to avoid complex expressions in output
+            json_data_object = {
+                drop_rule_resource_ids = [
+                for drop_rule in local.experimental_drop_rule_resources : {
+                    name                        = drop_rule.name
+                    id                          = drop_rule.resource.id
+                    pipeline_cloud_rule_entity_id = length(local.validation_errors) == 0 ? drop_rule.resource.pipeline_cloud_rule_entity_id : null
+                }
+                ]
+            }
+
+            # Pre-computed formatted JSON string to avoid heredoc issues in conditional expressions
+            formatted_json_string = <<-EOT
+            {
+            "drop_rule_resource_ids": [
+            ${join(",\n", [for drop_rule in local.experimental_drop_rule_resources : "    {\n      \"name\": \"${drop_rule.name}\",\n      \"id\": \"${drop_rule.resource.id}\",\n      \"pipeline_cloud_rule_entity_id\": ${length(local.validation_errors) == 0 ? "\"${drop_rule.resource.pipeline_cloud_rule_entity_id}\"" : "null"}\n    }"])}
+                ]
+            }
+            EOT
+            }
+
+            # Success validation output - only shows meaningful content when all validations pass
+            output "a_validation_success" {
+            description = "Confirmation that all resources export pipeline_cloud_rule_entity_id"
+            value       = length(local.validation_errors) == 0 ? "✅ All listed resources export pipeline_cloud_rule_entity_id" : null
+            }
+
+            # JSON output with all experimental drop rule IDs - only when validation passes
+            output "experimental_drop_rule_resource_ids" {
+            description = "JSON containing all drop rule resource names and IDs from experimental folder"
+            value       = length(local.validation_errors) == 0 ? jsonencode(local.json_data_object) : null
+            }
+
+            # Formatted/Pretty JSON output for better readability - only when validation passes
+            output "experimental_drop_rule_resource_ids_formatted" {
+            description = "Pretty-formatted JSON containing all drop rule resource names and IDs from experimental folder"
+            value       = length(local.validation_errors) == 0 ? local.formatted_json_string : null
+            }
+
+            # Validation output - only shows meaningful content when there are errors
+            output "validation_errors" {
+            description = "Lists any drop rule resources that do not export pipeline_cloud_rule_entity_id"
+            value       = length(local.validation_errors) > 0 ? local.validation_errors : null
+            }
+            ```
+          </Step>
+
+          <Step>
+            **Update the script with your drop rule resources:**
+
+            In the `locals` block of the script you just added, populate it with the drop rule resources you identified in step 1:
+
+            ```hcl
+            locals {
+              experimental_drop_rule_resources = [
+                {
+                  name     = "drop_debug_logs"
+                  resource = newrelic_nrql_drop_rule.drop_debug_logs
+                },
+                {
+                  name     = "drop_health_checks"
+                  resource = newrelic_nrql_drop_rule.drop_health_checks
+                },
+                {
+                  name     = "drop_pii_data"
+                  resource = newrelic_nrql_drop_rule.drop_pii_data
+                }
+              ]
+            }
+            ```
+            <Callout title="Note">
+              The `name` field should match the resource identifier and the `resource` field must match the full resource reference.
+            </Callout>
+          </Step>
+
+          <Step>
+            **Run terraform plan:**
+
+            In your CI/CD environment, run:
+
+            ```bash
+            terraform plan
+            ```
+
+            If you see validation errors like this:
+
+            ```
+            Changes to Outputs:
+              + validation_errors = [
+                  + "❌ Drop rule 'drop_debug_logs' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                  + "❌ Drop rule 'drop_health_checks' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                  + "❌ Drop rule 'drop_pii_data' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                ]
+            ```
+
+            This means you're not on New Relic Terraform Provider >= v3.68.0. Upgrade your provider version in your Terraform configuration.
+
+            If you see no errors, proceed to the next step.
+          </Step>
+
+          <Step>
+            **Run terraform apply:**
+
+            ```bash
+            terraform apply
+            ```
+
+            After the apply completes, you'll see output like this:
+
+            ```
+            Outputs:
+
+            a_validation_success = "✅ All listed resources export pipeline_cloud_rule_entity_id"
+            experimental_drop_rule_resource_ids = "{\"drop_rule_resource_ids\":[{\"id\":\"3806526:106878882\",\"name\":\"drop_debug_logs\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"},{\"id\":\"3806526:106878883\",\"name\":\"drop_health_checks\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"},{\"id\":\"3806526:106878884\",\"name\":\"drop_pii_data\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"}]}"
+            experimental_drop_rule_resource_ids_formatted = <<EOT
+            {
+              "drop_rule_resource_ids": [
+                {
+                  "name": "drop_debug_logs",
+                  "id": "3806526:106878882",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_health_checks",
+                  "id": "3806526:106878883",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_pii_data",
+                  "id": "3806526:106878884",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                }
+              ]
+            }
+            ```
+          </Step>
+
+          <Step>
+            **Copy the JSON output:**
+
+            Copy the entire JSON string from the `experimental_drop_rule_resource_ids_formatted` output. You'll need this for Step 2.
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser
+        id="gitops-step2"
+        title="2. Generate Pipeline control cloud rule configuration locally"
+      >
+        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline control cloud rules based on the JSON output from Step 1.
+
+        <Steps>
+          <Step>
+            **Save the JSON output to a file:**
+
+            Create a JSON file (for example, `drop_rules.json`) in your Terraform workspace directory and paste the JSON output from Step 1.
+
+           ```json
+           {
+             "drop_rule_resource_ids": [
+               {
+                 "name": "drop_debug_logs",
+                 "id": "3806526:106878882",
+                 "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+               },
+               {
+                 "name": "drop_health_checks",
+                 "id": "3806526:106878883",
+                 "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+               },
+               {
+                 "name": "drop_pii_data",
+                 "id": "3806526:106878884",
+                 "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+               }
+             ]
+           }
+            ```
+          </Step>
+
+          <Step>
+            **Run the New Relic CLI migration command:**
+
+            Navigate to your Terraform workspace directory and run:
+
+           ```bash
+           newrelic migrate nrqldroprules tf-importgen-ci \
+             --file drop_rules.json \
+             --workspacePath /path/to/your/terraform/workspace
+           ```
+
+           <table>
+             <thead>
+               <tr>
+                 <th style={{width: "200px"}}>Parameter</th>
+                 <th>Type</th>
+                 <th>Description</th>
+                 <th>Required</th>
+               </tr>
+             </thead>
+             <tbody>
+               <tr>
+                 <td>--file</td>
+                 <td>String</td>
+                 <td>Path to the JSON file containing your drop rule mappings from Step 1. Either <InlineCode>--file</InlineCode> or <InlineCode>--json</InlineCode> must be provided, but not both.</td>
+                 <td>Yes*</td>
+               </tr>
+               <tr>
+                 <td>--json</td>
+                 <td>String</td>
+                 <td>JSON string containing your drop rule mappings. Alternative to <InlineCode>--file</InlineCode>.</td>
+                 <td>Yes*</td>
+               </tr>
+               <tr>
+                 <td>--workspacePath</td>
+                 <td>String</td>
+                 <td>Path to your Terraform workspace. Defaults to current directory if omitted.</td>
+                 <td>No</td>
+               </tr>
+               <tr>
+                 <td>--tofu</td>
+                 <td>Boolean</td>
+                 <td>Use if you're using OpenTofu instead of Terraform.</td>
+                 <td>No</td>
+               </tr>
+             </tbody>
+           </table>
+
+           **Example using `--json` parameter:**
+
+           If you prefer not to create a file, you can pass the JSON string directly:
+
+           ```bash
+           newrelic migrate nrqldroprules tf-importgen-ci \
+             --json '{"drop_rule_resource_ids":[{"name":"drop_debug_logs","id":"3806526:106878882","pipeline_cloud_rule_entity_id":"MzgwNjUyNnxORVVMS..."}]}' \
+             --workspacePath /path/to/your/terraform/workspace
+            ```
+          </Step>
+
+          <Step>
+            **Review the generated files:**
+
+            The CLI command generates four Terraform configuration files in your workspace:
+
+            - **`provider.tf`:** Terraform and New Relic provider configuration.
+            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline control cloud rules in New Relic.
+            - **`pcrs.tf`:** Pipeline control cloud rule resource definitions (generated during `terraform plan` with `-generate-config-out` flag).
+            - **`removals.tf`:** Removed blocks to safely remove old `newrelic_nrql_drop_rule` resources from Terraform state without deleting them.
+
+           {/* **Example of generated configuration:**
+
+           ```hcl
+           # provider.tf
+           terraform {
+             required_providers {
+               newrelic = {
+                 source  = "newrelic/newrelic"
+                 version = "~> 3.68.0"
+               }
+             }
+           }
+
+           # imports.tf
+           import {
+             to = newrelic_pipeline_cloud_rule.drop_debug_logs
+             id = "3806526:MzgwNjUyNnxORVVMS..."
+           }
+
+           import {
+             to = newrelic_pipeline_cloud_rule.drop_health_checks
+             id = "3806526:MzgwNjUyNnxORVVMS..."
+           }
+
+           import {
+             to = newrelic_pipeline_cloud_rule.drop_pii_data
+             id = "3806526:MzgwNjUyNnxORVVMS..."
+           }
+
+           # removals.tf
+           removed {
+             from = newrelic_nrql_drop_rule.drop_debug_logs
+             lifecycle {
+               destroy = false
+             }
+           }
+
+           removed {
+             from = newrelic_nrql_drop_rule.drop_health_checks
+             lifecycle {
+               destroy = false
+             }
+           }
+
+           removed {
+             from = newrelic_nrql_drop_rule.drop_pii_data
+             lifecycle {
+               destroy = false
+             }
+           }
+
+           # pcrs.tf (generated during terraform plan)
+           resource "newrelic_pipeline_cloud_rule" "drop_debug_logs" {
+             account_id  = 3806526
+             description = "Filters out debug level logs"
+             action      = "drop"
+             nrql        = "SELECT * FROM Log WHERE level = 'debug'"
+           }
+
+           resource "newrelic_pipeline_cloud_rule" "drop_health_checks" {
+             account_id  = 3806526
+             description = "Removes health check logs"
+             action      = "drop"
+             nrql        = "SELECT * FROM Log WHERE endpoint = '/health'"
+           }
+
+           resource "newrelic_pipeline_cloud_rule" "drop_pii_data" {
+             account_id  = 3806526
+             description = "Filters out PII data"
+             action      = "drop"
+             nrql        = "SELECT * FROM Log WHERE contains(message, 'SSN')"
+           }
+            ``` */}
+          </Step>
+
+          <Step>
+            **Commit and push the generated configuration:**
+
+            Add the generated Terraform files to your git repository:
+
+            ```bash
+            git add .
+            git commit -m "Add Pipeline control cloud rule migration configuration"
+            git push origin your-branch-name
+            ```
+
+            This will trigger your CI/CD pipeline to process the changes in Step 3.
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser
+        id="gitops-step3"
+        title="3. Import Pipeline control cloud rules in your CI/CD environment"
+      >
+        In this step, your CI/CD pipeline will process the changes you pushed in Step 2, import the Pipeline control cloud rules into Terraform state, and remove the old drop rule resources.
+
+        <Steps>
+          <Step>
+            **Review the Terraform plan:**
+
+            After pushing your changes, your CI/CD pipeline will automatically trigger and post a plan comment on your pull request. The plan output will show:
+
+           - **Resources being imported:** Three `newrelic_pipeline_cloud_rule` resources
+           - **Resources being removed from state:** Three `newrelic_nrql_drop_rule` resources (with `destroy = false`)
+           - **Plan summary:** `Plan: 3 to import, 0 to add, 0 to change, 0 to destroy`
+
+           **Example Terraform plan output:**
+
+           ```diff
+           Terraform will perform the following actions:
+
+            # newrelic_nrql_drop_rule.drop_debug_logs will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_debug_logs" {
+                  id                            = "3806526:106878882"
+                  # (6 unchanged attributes hidden)
+              }
+
+            # newrelic_nrql_drop_rule.drop_health_checks will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_health_checks" {
+                  id                            = "3806526:106878884"
+                  # (6 unchanged attributes hidden)
+              }
+
+            # newrelic_nrql_drop_rule.drop_pii_data will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_pii_data" {
+                  id                            = "3806526:106878885"
+                  # (6 unchanged attributes hidden)
+              }
+
+           # newrelic_pipeline_cloud_rule.drop_debug_logs will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_debug_logs" {
+                 account_id  = 3806526
+                 description = "Filters out debug level logs from production environment to reduce data volume"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZjgtYmFmNy03MjU3LWE3M2MtZWY5OTkxYTQxMjgy"
+                 name        = "NRQL drop rule ID: 106878882 created by user ID: 1004672904 created at: 2025-09-15T10:43:13.122888Z"
+                 nrql        = "DELETE FROM `Log` WHERE ((`level` = 'debug') AND (`environment` = 'production'))"
+             }
+
+           # newrelic_pipeline_cloud_rule.drop_health_checks will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_health_checks" {
+                 account_id  = 3806526
+                 description = "Removes userEmail and userName attributes from MyCustomEvent data"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ0Yy03NDM5LWJhNDYtZjI4MTg0ODc5YmE2"
+                 name        = "NRQL drop rule ID: 106878884 created by user ID: 1004672904 created at: 2025-09-15T10:45:47.049993Z"
+                 nrql        = "DELETE `userEmail`, `userName` FROM `MyCustomEvent`"
+             }
+
+           # newrelic_pipeline_cloud_rule.drop_pii_data will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_pii_data" {
+                 account_id  = 3806526
+                 description = "Excludes containerId attribute from Metric aggregates"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ4Ni03MDI4LWJlMDktZmYzOTM2NWQ4ODUw"
+                 name        = "NRQL drop rule ID: 106878885 created by user ID: 1004672904 created at: 2025-09-15T10:45:47.060296Z"
+                 nrql        = "DELETE `containerId` FROM `MetricAggregate`"
+             }
+
+           Plan: 3 to import, 0 to add, 0 to change, 0 to destroy.
+            ```
+
+            **Important:** Note the message "will no longer be managed by Terraform, but will not be destroyed" confirms the old drop rules won't be deleted from New Relic.
+          </Step>
+
+          <Step>
+            **Apply the changes:**
+
+            Once you've reviewed the plan and confirmed it looks correct, comment on your pull request:
+
+            ```
+            Terraform apply
+            ```
+
+            Your CI/CD pipeline will execute the Terraform apply, which will:
+            - Import the Pipeline control cloud rules into Terraform state,
+            - Remove the old drop rule resources from state (without deleting them from New Relic),
+            - Update your Terraform state file,
+
+            **Example apply output:**
+
+            ```
+            newrelic_pipeline_cloud_rule.drop_health_checks: Importing...
+            newrelic_pipeline_cloud_rule.drop_health_checks: Import complete
+            newrelic_pipeline_cloud_rule.drop_debug_logs: Importing...
+            newrelic_pipeline_cloud_rule.drop_debug_logs: Import complete
+            newrelic_pipeline_cloud_rule.drop_pii_data: Importing...
+            newrelic_pipeline_cloud_rule.drop_pii_data: Import complete
+
+            Apply complete! Resources: 3 imported, 0 added, 0 changed, 0 destroyed.
+            ```
+          </Step>
+
+          <Step>
+            **Verify the migration:**
+
+            After the apply succeeds:
+
+            - Check the output to confirm all imports completed successfully.
+            - Verify in the New Relic UI that your Pipeline control cloud rules are still active and functioning.
+            - Run `terraform plan` in your CI/CD to confirm there are no pending changes (the output should show "No changes").
+          </Step>
+
+          <Step>
+            **Merge your pull request:**
+
+            Once verification is complete, merge your pull request to finalize the migration. Your Terraform configuration now manages Pipeline control cloud rules instead of NRQL drop rules.
+          </Step>
+        </Steps>
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="local-terraform"
+    title="Migrate using local Terraform"
+  >
+    <CollapserGroup>
+      <Collapser
+        id="local-step1"
+        title="1. Update Terraform state with Pipeline control cloud rule mappings"
+      >
+        In this step, you'll use the New Relic CLI to automatically identify all drop rules in your Terraform workspace and update your Terraform state with their corresponding Pipeline control cloud rule mappings.
+
+        <Steps>
+          <Step>
+            **Navigate to your Terraform workspace:**
+
+            Open your terminal and navigate to the directory containing your Terraform configuration files with `newrelic_nrql_drop_rule` resources.
+
+           ```bash
+           cd /path/to/your/terraform/workspace
+           ```
+          </Step>
+
+          <Step>
+            **Run the New Relic CLI update command:**
+
+            Execute the following command to update your Terraform state:
+
+           ```bash
+           newrelic migrate nrqldroprules tf-update
+           ```
+
+            This command automatically:
+            - Scans your Terraform workspace to identify all `newrelic_nrql_drop_rule` resources
+            - Runs `terraform plan` and `terraform apply` operations on these resources
+            - Updates your Terraform state file with the `pipeline_cloud_rule_entity_id` attribute for each drop rule
+
+           <Callout variant="important">
+             **Prerequisites:**
+             - Ensure you're using New Relic Terraform Provider >= v3.68.0
+             - The New Relic CLI must be installed and configured with appropriate credentials
+             - Your Terraform workspace must be initialized (`terraform init` already run)
+           </Callout>
+          </Step>
+
+          <Step>
+            **Verify the state update:**
+
+            After the command completes, your Terraform state file now contains the mapping between drop rules and Pipeline control cloud rules. You can verify this by checking your state:
+
+           ```bash
+           terraform show -json | grep pipeline_cloud_rule_entity_id
+           ```
+
+            You should see the `pipeline_cloud_rule_entity_id` values for each drop rule in the output.
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser
+        id="local-step2"
+        title="2. Generate Terraform configuration files"
+      >
+        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline control cloud rules. The CLI reads the pipeline cloud rule mappings directly from your Terraform state file (updated in Step 1).
+
+        <Steps>
+          <Step>
+            **Run the New Relic CLI import generation command:**
+
+            In your Terraform workspace directory, run:
+
+           ```bash
+           newrelic migrate nrqldroprules tf-importgen-ci
+           ```
+
+            This command automatically:
+            - Reads your Terraform state file to extract all `pipeline_cloud_rule_entity_id` values
+            - Generates import blocks for each Pipeline control cloud rule
+            - Creates resource definitions for the Pipeline control cloud rules
+            - Generates removal blocks for the old drop rule resources
+
+           <Callout variant="tip">
+             **Optional parameters:**
+             - `--workspacePath`: Specify a different Terraform workspace path (defaults to current directory)
+             - `--tofu`: Use if you're using OpenTofu instead of Terraform
+           </Callout>
+          </Step>
+
+          <Step>
+            **Review the generated files:**
+
+            The CLI command generates three main Terraform configuration files in your workspace:
+
+            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline control cloud rules in New Relic.
+            - **`pcrs.tf`:** Pipeline control cloud rule resource definitions (will be populated during `terraform plan` in Step 3).
+            - **`removals.tf`:** Removed blocks to safely remove old `newrelic_nrql_drop_rule` resources from Terraform state without deleting them from New Relic.
+
+           The command also initializes the Terraform provider and prepares your workspace for the migration.
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser
+        id="local-step3"
+        title="3. Apply the migration"
+      >
+        In this step, you'll execute the migration locally by running Terraform commands to import the Pipeline control cloud rules into your state and remove the old drop rule resources. All files generated in Step 2 are already in your local workspace.
+
+        <Steps>
+          <Step>
+            **Run terraform plan with configuration generation:**
+
+            ```bash
+            terraform plan -generate-config-out=pcrs.tf
+            ```
+
+            The `-generate-config-out` flag tells Terraform to automatically generate the configuration for the resources being imported and save them to `pcrs.tf`. The plan output will show:
+
+           - **Resources being imported:** Three `newrelic_pipeline_cloud_rule` resources
+           - **Resources being removed from state:** Three `newrelic_nrql_drop_rule` resources (with `destroy = false`)
+           - **Plan summary:** `Plan: 3 to import, 0 to add, 0 to change, 0 to destroy`
+
+           **Example Terraform plan output:**
+
+           ```diff
+           Terraform will perform the following actions:
+
+            # newrelic_nrql_drop_rule.drop_debug_logs will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_debug_logs" {
+                  id                            = "3806526:106878882"
+                  # (6 unchanged attributes hidden)
+              }
+
+            # newrelic_nrql_drop_rule.drop_health_checks will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_health_checks" {
+                  id                            = "3806526:106878884"
+                  # (6 unchanged attributes hidden)
+              }
+
+            # newrelic_nrql_drop_rule.drop_pii_data will no longer be managed by Terraform, but will not be destroyed
+            # (destroy = false is set in the configuration)
+            . resource "newrelic_nrql_drop_rule" "drop_pii_data" {
+                  id                            = "3806526:106878885"
+                  # (6 unchanged attributes hidden)
+              }
+
+           # newrelic_pipeline_cloud_rule.drop_debug_logs will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_debug_logs" {
+                 account_id  = 3806526
+                 description = "Filters out debug level logs from production environment to reduce data volume"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZjgtYmFmNy03MjU3LWE3M2MtZWY5OTkxYTQxMjgy"
+                 name        = "NRQL drop rule ID: 106878882 created by user ID: 1004672904 created at: 2025-09-15T10:43:13.122888Z"
+                 nrql        = "DELETE FROM `Log` WHERE ((`level` = 'debug') AND (`environment` = 'production'))"
+             }
+
+           # newrelic_pipeline_cloud_rule.drop_health_checks will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_health_checks" {
+                 account_id  = 3806526
+                 description = "Removes userEmail and userName attributes from MyCustomEvent data"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ0Yy03NDM5LWJhNDYtZjI4MTg0ODc5YmE2"
+                 name        = "NRQL drop rule ID: 106878884 created by user ID: 1004672904 created at: 2025-09-15T10:45:47.049993Z"
+                 nrql        = "DELETE `userEmail`, `userName` FROM `MyCustomEvent`"
+             }
+
+           # newrelic_pipeline_cloud_rule.drop_pii_data will be imported
+             resource "newrelic_pipeline_cloud_rule" "drop_pii_data" {
+                 account_id  = 3806526
+                 description = "Excludes containerId attribute from Metric aggregates"
+                 id          = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ4Ni03MDI4LWJlMDktZmYzOTM2NWQ4ODUw"
+                 name        = "NRQL drop rule ID: 106878885 created by user ID: 1004672904 created at: 2025-09-15T10:45:47.060296Z"
+                 nrql        = "DELETE `containerId` FROM `MetricAggregate`"
+             }
+
+           Plan: 3 to import, 0 to add, 0 to change, 0 to destroy.
+            ```
+
+            **Important:** Note the message "will no longer be managed by Terraform, but will not be destroyed" confirms the old drop rules won't be deleted from New Relic.
+          </Step>
+
+          <Step>
+            **Apply the changes:**
+
+            Once you've reviewed the plan and confirmed it looks correct, run:
+
+           ```bash
+           terraform apply
+           ```
+
+           Terraform will:
+           - Import the Pipeline control cloud rules into Terraform state
+           - Remove the old drop rule resources from state (without deleting them from New Relic)
+           - Update your Terraform state file
+
+           **Example apply output:**
+
+           ```
+           newrelic_pipeline_cloud_rule.drop_health_checks: Importing...
+           newrelic_pipeline_cloud_rule.drop_health_checks: Import complete
+           newrelic_pipeline_cloud_rule.drop_debug_logs: Importing...
+           newrelic_pipeline_cloud_rule.drop_debug_logs: Import complete
+           newrelic_pipeline_cloud_rule.drop_pii_data: Importing...
+           newrelic_pipeline_cloud_rule.drop_pii_data: Import complete
+
+           Apply complete! Resources: 3 imported, 0 added, 0 changed, 0 destroyed.
+            ```
+          </Step>
+
+          <Step>
+            **Verify the migration:**
+
+            After the apply succeeds:
+
+            - Check the output to confirm all imports completed successfully.
+            - Verify in the New Relic UI that your Pipeline control cloud rules are still active and functioning.
+            - Run `terraform plan` to confirm there are no pending changes (the output should show "No changes").
+          </Step>
+
+          <Step>
+            **Clean up the old drop rule resources:**
+
+            Once verification is complete, you can remove the old `newrelic_nrql_drop_rule` resource definitions from your original Terraform configuration files. Your Terraform configuration now manages Pipeline control cloud rules instead of NRQL drop rules.
+          </Step>
+        </Steps>
+      </Collapser>
+    </CollapserGroup>
   </Collapser>
 </CollapserGroup>
-</Step>
-
-<Step>
-## Verify your migration [#verify]
-[Common verification steps]
-</Step>
-
-<Step>
-## Clean up old Drop Rules [#cleanup]
-[How to disable/remove old rules]
-</Step>
-</Steps>
 
 ## Troubleshooting [#troubleshooting]
-[Common issues]
+
+### Import fails with "resource not found"
+
+If imports fail during `terraform apply`:
+
+**Solution:** Run `terraform refresh` to ensure your state is synchronized with New Relic, then verify the `pipeline_cloud_rule_entity_id` values are correct in your state file (for local approach) or JSON file (for GitOps approach).
+
+### Plan shows unexpected changes after migration
+
+If `terraform plan` shows changes after successful migration:
+
+**Solution:** This usually indicates the generated `pcrs.tf` doesn't match the actual resource configuration. Review and adjust the generated configuration to match your New Relic settings exactly.
+
+### Old drop rules still showing in Terraform state
+
+If `terraform state list` still shows `newrelic_nrql_drop_rule` resources after migration:
+
+**Solution:** Ensure your `removals.tf` file is properly configured with `destroy = false` and run `terraform apply` to remove them from state without deleting from New Relic.
