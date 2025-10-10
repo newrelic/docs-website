@@ -20,6 +20,8 @@ def get_initial_commit(file_path):
     # --reverse lists commits from oldest to newest. We take the first one.
     command = ['git', 'log', '--reverse', '--pretty=format:%H', '--', file_path]
     all_commits = run_git_command(command)
+    if not all_commits:
+        return None
     initial_commit = all_commits.split('\n')[0]
     return initial_commit
 
@@ -56,24 +58,31 @@ def analyze_character_diff(original_text, new_text):
     return modified_percentage, unmodified_percentage
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python diff_chars.py <file_path>")
+    # --- ARGUMENT PARSING WITH OPTIONAL COMMITS ---
+    if len(sys.argv) == 2:
+        # Mode 1: Automatic detection
+        file_path = sys.argv[1]
+        print(f"🔎 Automatically finding commits for: {file_path}...")
+        old_commit = get_initial_commit(file_path)
+        new_commit = get_latest_commit(file_path)
+        if not old_commit:
+            print(f"Error: Could not find any commits for '{file_path}'. Does the file exist and is it tracked by Git?")
+            sys.exit(1)
+
+    elif len(sys.argv) == 4:
+        # Mode 2: Manual commit entry
+        file_path = sys.argv[1]
+        old_commit = sys.argv[2]
+        new_commit = sys.argv[3]
+        print(f"✅ Using provided commits for: {file_path}...")
+
+    else:
+        print("Usage (automatic): python diff_chars.py <file_path>")
+        print("Usage (manual):   python diff_chars.py <file_path> <old_commit> <new_commit>")
         sys.exit(1)
 
-    file_path = sys.argv[1]
-
-    print(f"🔎 Automatically finding commits for: {file_path}...")
-    
-    # --- AUTOMATIC COMMIT DETECTION ---
-    old_commit = get_initial_commit(file_path)
-    new_commit = get_latest_commit(file_path)
-
-    if not old_commit:
-        print(f"Error: Could not find any commits for '{file_path}'. Does the file exist and is it tracked by Git?")
-        sys.exit(1)
-
-    print(f"   Initial commit found: {old_commit[:7]}")
-    print(f"   Latest commit found:  {new_commit[:7]}")
+    print(f"   Old commit: {old_commit[:7]}")
+    print(f"   New commit: {new_commit[:7]}")
     print("--------------------------------------------------")
 
     original_content = get_file_content(old_commit, file_path)
