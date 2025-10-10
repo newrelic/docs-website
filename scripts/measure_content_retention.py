@@ -6,7 +6,7 @@ def run_git_command(command):
     """A helper function to run a git command and return the output."""
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8')
-        # .strip() removes any trailing newlines from the command output
+        
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error executing command '{' '.join(command)}': {e.stderr}")
@@ -17,7 +17,6 @@ def run_git_command(command):
 
 def get_initial_commit(file_path):
     """Finds the very first commit hash for a given file."""
-    # --reverse lists commits from oldest to newest. We take the first one.
     command = ['git', 'log', '--reverse', '--pretty=format:%H', '--', file_path]
     all_commits = run_git_command(command)
     if not all_commits:
@@ -27,7 +26,6 @@ def get_initial_commit(file_path):
 
 def get_latest_commit(file_path):
     """Finds the most recent commit hash for a given file."""
-    # -1 limits the log to the single most recent commit.
     command = ['git', 'log', '-1', '--pretty=format:%H', '--', file_path]
     return run_git_command(command)
 
@@ -58,7 +56,7 @@ def analyze_character_diff(original_text, new_text):
     return modified_percentage, unmodified_percentage
 
 if __name__ == "__main__":
-    # --- ARGUMENT PARSING WITH OPTIONAL COMMITS ---
+    
     if len(sys.argv) == 2:
         # Mode 1: Automatic detection
         file_path = sys.argv[1]
