@@ -34,9 +34,7 @@ If you have an existing stack, you must perform a stack update.
 1.  Navigate to your stack in the AWS CloudFormation console.
 2.  Initiate an update and choose "Replace existing template".
 3.  Provide the following updated template URL:
-    ```
     [https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/newrelic-cloudformation-mstreams.yml](https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/newrelic-cloudformation-mstreams.yml)
-    ```
 4.  Proceed with the stack update, selecting `opentelemetry1.0` when prompted for the output format.
 
 ### Terraform
