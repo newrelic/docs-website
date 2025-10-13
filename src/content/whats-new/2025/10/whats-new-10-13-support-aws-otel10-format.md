@@ -41,7 +41,7 @@ If you have an existing stack, you must perform a stack update.
 
 ### Terraform
 
-Our Terraform configuration uses the official `newrelic` provider to create the necessary AWS and New Relic resources. To enable OTLP 1.0, you define a variable for the output format and set its value to `opentelemetry-1.0`.
+Our Terraform configuration uses the official `newrelic` provider to create the necessary AWS and New Relic resources. To enable OTLP 1.0, you define a variable for the output format and set its value to `opentelemetry1.0`.
 
 First, define the variable in your `variables.tf` file, defaulting to `opentelemetry0.7` for backward compatibility:
 
