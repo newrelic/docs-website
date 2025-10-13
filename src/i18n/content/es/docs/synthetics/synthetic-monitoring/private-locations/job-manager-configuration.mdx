@@ -1823,99 +1823,22 @@ Para configurar el almacenamiento permanente de datos en Kubernetes, el usuario 
   helm install ... --set synthetics.persistence.existingVolumeName=sjm-volume --set synthetics.persistence.storageClass=standard ...
   ```
 
-## Consideraciones de tamaño para Docker, Kubernetes y OpenShift [#kubernetes-sizing]
-
-### Docker [#docker]
-
-Para garantizar que su ubicación privada funcione de manera eficiente, debe aprovisionar suficientes recursos de CPU en su host Docker para manejar su carga de trabajo de monitoreo. Muchos factores influyen en el tamaño, pero puedes estimar rápidamente tus necesidades.
-
-Necesitará **1 núcleo de CPU para cada monitor pesado simultáneo** (es decir, cada navegador con script o prueba de API con script).
-
-A continuación se muestran dos fórmulas que lo ayudarán a calcular la cantidad de núcleos que necesita, ya sea que esté diagnosticando una configuración actual o planeando una futura.
-
-#### Fórmula 1: Para diagnosticar una ubicación existente
-
-Si su ubicación privada actual tiene dificultades para mantener el ritmo y sospecha que hay cola de trabajos, emplee esta fórmula para descubrir cuántos núcleos necesita realmente. Se basa en el rendimiento observable de su sistema.
-
-**La ecuación:** $$C\_req = (J\_processed + Q\_growth) \times D\_j$$
-
-* $C\_req$ = **Núcleos de CPU requeridos**
-* $J\_processed$ = La tasa de trabajos que se **procesan** por minuto.
-* $Q\_growth$ = La velocidad a la que su cola `jobManagerHeavyweightJobs` **crece** por minuto.
-* $D\_j$ = La **duración promedio** de un trabajo en minutos.
-
-**Así es como funciona:** esta fórmula calcula su tasa real de llegada de trabajos agregando los trabajos que su sistema *está procesando* a los trabajos que se *acumulan* en la cola. Al multiplicar esta carga total por la duración promedio del trabajo, obtendrá exactamente cuántos núcleos necesita para borrar todo el trabajo sin ponerlo en cola.
-
-#### Fórmula 2: Para pronosticar una ubicación nueva o futura
-
-Si está configurando una nueva ubicación privada o planea agregar más monitores, use esta fórmula para pronosticar sus necesidades con anticipación.
-
-**La ecuación:** $$C\_req = N\_m \times F\_j \times D\_j$$
-
-* $C\_req$ = **Núcleos de CPU requeridos**
-* $N\_m$ = La **cantidad** total de monitores pesados que planea ejecutar.
-* $F\_j$ = La **frecuencia** promedio de los monitores en trabajos por minuto (por ejemplo, un monitor que se ejecuta cada 5 minutos tiene una frecuencia de 1/5 o 0,2).
-* $D\_j$ = La **duración promedio** de un trabajo en minutos.
-
-**Así es como funciona:** calcula su carga de trabajo esperada a partir de los principios básicos: cuántos monitores tiene, con qué frecuencia se ejecutan y cuánto tiempo tardan.
-
-#### Factores de tamaño importantes
-
-Al emplear estas fórmulas, recuerde tener en cuenta estos factores:
-
-* **Duración del trabajo ($D\_j$):** su promedio debe incluir trabajos que **expiran** (generalmente \~3 minutos), ya que estos mantienen un núcleo durante toda su duración.
-* **Errores de trabajo y reintentos:** cuando un monitor falla, se vuelve a intentar automáticamente. Estos reintentos son trabajos adicionales que se suman a la carga total. Un monitor que falla y vuelve a intentarlo constantemente **multiplica efectivamente su frecuencia**, lo que afecta significativamente el rendimiento.
-* **Escalamiento horizontal:** además de agregar más núcleos a un host (escalamiento vertical), puede implementar administradores de trabajos sintéticos adicionales con la misma clave de ubicación privada para equilibrar la carga de trabajos en múltiples entornos (escalamiento horizontal).
-
-#### Consulta de NRQL para diagnóstico
-
-Puede ejecutar estas consultas en el [generador de consultas](/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) para obtener los insumos para la fórmula de diagnóstico. Cerciorar de establecer el rango de tiempo en un periodo lo suficientemente largo para obtener un promedio estable.
-
-**1. Buscar trabajos procesados por minuto ($J\_processed$):** esta consulta cuenta la cantidad de trabajos sin ping (de gran peso) completados durante el último día y muestra la tasa promedio por minuto.
-
-```nrql
-FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**2. Encontrar el crecimiento de la cola por minuto ($Q\_growth$):** esta consulta calcula el crecimiento promedio por minuto de la cola `jobManagerHeavyweightJobs` en un gráfico de seriales de tiempo. Una línea por encima de cero indica que la cola está creciendo, mientras que una línea por debajo de cero significa que se está reduciendo.
-
-```nrql
-FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
-```
+## Consideraciones de tamaño para OpenShift, Kubernetes y Docker [#kubernetes-sizing]
 
 <Callout variant="tip">
-  Cerciorar de seleccionar la cuenta donde existe la ubicación privada. Es mejor ver esta consulta como un serial de tiempo porque la función derivada puede variar mucho. El objetivo es obtener una estimación de la tasa de crecimiento de la cola por minuto. Play con diferentes rangos de tiempo para ver qué funciona mejor.
+  Las consideraciones de tamaño específicas Docker estarán disponibles pronto.
 </Callout>
 
-**3. Encontrar la duración promedio del trabajo en minutos ($D\_j$):** esta consulta encuentra la duración promedio de ejecución de trabajos sin ping completados y convierte el resultado de milisegundos a minutos. ¿Por qué emplear `executionDuration`? Representa el tiempo que tardó el trabajo en ejecutar en el host, que es lo que queremos medir.
+Si está trabajando en entornos más grandes, es posible que necesite personalizar la configuración del administrador de trabajos para cumplir con los requisitos mínimos para ejecutar el monitor Sintético de manera eficiente. Muchos factores pueden afectar los requisitos de tamaño para el despliegue de un administrador de trabajos de Sintético, entre ellos:
 
-```nrql
-FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
+* Si se requieren todos los tiempos de ejecución según el uso esperado
+* El número de trabajos por minuto por tipo de monitor (ping, browser simple o con secuencias de comandos y API con secuencias de comandos)
+* Duración del trabajo, incluidos los trabajos cuyo tiempo de espera es de aproximadamente 3 minutos
+* El número de fracasos laborales. En el caso de errores de trabajo, se programan reintentos automáticos cuando un monitor comienza a fallar para proporcionar una lógica de reintento 3/3 incorporada. Estos trabajos adicionales se suman a los requisitos de rendimiento del administrador de trabajos de Sintético.
 
-**4. Encontrar el número total de monitores pesados ($N\_m$):** esta consulta encuentra el recuento único de monitores pesados.
+Además de los ajustes de configuración de tamaño que se enumeran a continuación, se pueden implementar administradores de trabajos de Sintético adicionales con la misma clave de ubicación privada para equilibrar la carga de trabajos en múltiples entornos.
 
-```nrql
-FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**5. Encuentre la frecuencia promedio de monitorización de peso pesado ($F\_j$):** si la cola `jobManagerHeavyweightJobs` de la ubicación privada está creciendo, no es preciso calcular la frecuencia promedio de monitorización a partir de los resultados existentes. Esto deberá estimar a partir de la lista de monitores en la página [Monitores Sintéticos](https://one.newrelic.com/synthetics). Cerciórate de seleccionar la cuenta New Relic correcta y es posible que debas filtrar por `privateLocation`.
-
-<Callout variant="tip">
-  Los monitores sintéticos pueden existir en múltiples subcuentas. Si tienes más subcuentas de las que se pueden seleccionar en el generador de consultas, elige las cuentas con más monitores.
-</Callout>
-
-#### Nota sobre los monitores de ping y la cola `pingJobs`
-
-**Los monitores de ping son diferentes.** Son trabajos ligeros que no consumen un núcleo de CPU completo cada uno. En su lugar, emplean una cola separada (`pingJobs`) y se ejecutan en un grupo de subprocesos de trabajo.
-
-Si bien consumen menos recursos, un gran volumen de trabajos de ping, especialmente los fallidos, aún pueden causar problemas de rendimiento. Tenga en cuenta estos puntos:
-
-* **Modelo de recursos:** los trabajos de ping emplean subprocesos de trabajo, no núcleos de CPU dedicados. En estos casos no se aplica el cálculo de núcleo por puesto de trabajo.
-* **Tiempo de espera y reintento:** un trabajo de ping fallido puede ocupar un hilo de trabajo durante hasta **60 segundos**. Primero intenta una solicitud HTTP HEAD (tiempo de espera de 30 segundos). Si eso falla, vuelve a intentarlo inmediatamente con una solicitud HTTP GET (otro tiempo de espera de 30 segundos).
-* **Escalamiento:** aunque la fórmula de dimensionamiento es diferente, se aplican los mismos principios. Para manejar un gran volumen de trabajos de ping, es posible que necesite ampliar los recursos de su host o escalar horizontalmente implementando más administradores de trabajos para mantener la cola `pingJobs` limpia y evitar demoras.
-
-### Kubernetes y OpenShift [#k8s]
+## Kubernetes y OpenShift [#k8s]
 
 Cada entorno de ejecución empleado por el administrador de trabajos Kubernetes y OpenShift Sintético se puede dimensionar de forma independiente configurando valores en el [gráfico de Helm](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager).
 
@@ -1931,7 +1854,7 @@ Cuando `completions` es mayor que 1, el pod con estado &quot;Completado&quot; pe
 
 Una duración del trabajo de Kubernetes de 5 minutos (`kubectl get jobs -n YOUR_NAMESPACE`) es un objetivo conservador para tener en cuenta la variabilidad en el tiempo que tarda el pod en completarse y cuántos trabajos de Sintético deben ejecutarse por minuto (tasa de trabajos). Las siguientes ecuaciones se pueden utilizar como punto de partida para `completions` y `parallelism` para cada tiempo de ejecución. Es posible que sea necesario realizar ajustes en función de las observaciones del crecimiento de la cola de ubicación privada.
 
-```m
+```math
 completions = 300 / avg job duration (s)
 parallelism = synthetics jobs per 5 minutes / completions
 ```
@@ -2013,10 +1936,10 @@ Si su configuración `parallelism` funciona bien para mantener la cola en cero, 
 
 Es importante tener en cuenta que el valor `completions` no debe ser demasiado grande o CronJob experimentará un evento de advertencia como el siguiente:
 
-```
+```sql
 8m40s       Warning   TooManyMissedTimes     cronjob/synthetics-node-browser-runtime                  too many missed start times: 101. Set or decrease .spec.startingDeadlineSeconds or check clock skew
 ```
 
 <Callout variant="tip">
-  Tenga en cuenta que New Relic no es responsable de ninguna modificación que realice en los archivos del administrador de trabajos de Sintéticos.
+  New Relic no es responsable de ninguna modificación que realice en los archivos del administrador de trabajos de Sintéticos.
 </Callout>
