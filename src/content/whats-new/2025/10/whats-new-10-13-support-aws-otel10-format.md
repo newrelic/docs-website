@@ -1,6 +1,6 @@
 ---
-title: "AWS Metric Streams Integration Now Supports OpenTelemetry 1.0 Format"
-summary: "Enhanced support for the OpenTelemetry 1.0 output format in our AWS CloudWatch Metric Streams integration, offering improved performance and richer metadata for all setup methods."
+title: "New Relic AWS Metric Streams Integration Now Supports OpenTelemetry 1.0 Format"
+summary: "Enhanced Support for the OpenTelemetry 1.0 output format in our AWS CloudWatch Metric Streams integration, offering improved performance and richer metadata for all setup methods."
 releaseDate: "2025-10-13"
 ---
 
@@ -8,7 +8,7 @@ We are excited to announce a significant enhancement to our AWS infrastructure m
 
 ## What's Changed
 
-You can now configure your AWS Metric Stream to send data using the OTLP 1.0 format, which uses an efficient binary protobuf encoding. To ensure backward compatibility and a seamless transition for existing users, our updated CloudFormation and Terraform integrations will continue to **default to the OTLP 0.7 format**. You can easily opt-in to use the new 1.0 format.
+You can now configure your AWS Metric Stream integration to send data using the OTLP 1.0 format, which uses an efficient binary protobuf encoding. To ensure backward compatibility and a seamless transition for existing users, our updated CloudFormation and Terraform integrations will continue to **default to the OTLP 0.7 format**. You can easily change the default to use the new 1.0 format.
 
 This enhancement provides several key benefits:
 
