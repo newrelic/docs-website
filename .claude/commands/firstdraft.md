@@ -1,4 +1,4 @@
-# New Doc Creation Workflow - Claude Code
+# First Draft Documentation Workflow - Claude Code
 
 ## STEP 1: GATHER BASIC INFORMATION
 Ask user for information **one by one** (not all at once):
