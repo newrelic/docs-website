@@ -1,5 +1,5 @@
 ---
-title: Migrate from drop rules to Pipeline control cloud rules
+title: Migrate from drop rules to Pipeline cloud rules
 tags:
   - Data Management
   - Migration
@@ -7,39 +7,147 @@ tags:
   - Pipeline Control
   - Terraform
   - GitOps
-metaDescription: Migrate your NRQL drop rules to Pipeline control cloud rules using Terraform with GitOps (CI/CD) or on your local machine.
+metaDescription: Migrate your NRQL drop rules to Pipeline cloud rules using Terraform with GitOps (CI/CD) or on your local machine.
 freshnessValidatedDate: never
 ---
 
 <Callout variant="important">
 As of May 21, 2025, new customers can no longer use NRQL drop rules. [NRQL drop rules will be end-of-life](/eol/2025/05/drop-rule-filter) on January 7, 2026.
 
-Migrate to [Pipeline control cloud rules](/docs/new-relic-control/pipeline-control/cloud-rules-api) to continue managing your data dropping rules.
+Migrate to [Pipeline cloud rules](/docs/new-relic-control/pipeline-control/cloud-rules-api) to continue managing your data dropping rules.
 </Callout>
 
-Although New Relic automatically migrated all drop rules to Pipeline control cloud rules in the UI, Terraform users still have a manual migration step. As Terraform maintains its own state file, it only knows about the `newrelic_nrql_drop_rule` resources you explicitly configured. It doesn't automatically understand that these are now linked to `newrelic_pipeline_cloud_rule` resources in the backend.
+Although New Relic automatically migrated all drop rules to Pipeline cloud rules in the New Relic application, Terraform users still have a manual migration step. As Terraform maintains its own state file, it only knows about the `newrelic_nrql_drop_rule` resources you explicitly configured. It doesn't automatically understand that these are now linked to `newrelic_pipeline_cloud_rule` resources in the backend.
 
-Since Terraform treats these as two completely different resource types, you must manually migrate by importing the Pipeline control cloud rules into Terraform's state and removing the old drop rule resources. This guide helps you migrate Terraform-managed drop rules to Pipeline control cloud rules.
+Since Terraform treats these as two completely different resource types, you'll need to manually migrate by importing the Pipeline cloud rules into Terraform's state and removing the old drop rule resources. This guide helps you migrate Terraform-managed drop rules to Pipeline cloud rules.
 
-## Prerequisites [#prerequisites]
+## Migration approaches [#migration-approaches]
 
-- **Terraform or OpenTofu >= v1.7:** You'll need this version or later to ensure compatibility with the migration process.
-- **New Relic Terraform Provider >= v3.68.0:** You'll need this version or later because it adds support for linking `newrelic_nrql_drop_rule` to `pipeline_cloud_rule_entity_id` and introduces the `newrelic_pipeline_cloud_rule` resource for managing Pipeline control cloud rules.
-- **New Relic CLI**
+This guide covers two ways to migrate your NRQL drop rules to Pipeline cloud rules in Terraform:
 
-## Choose your migration approach [#choose-approach]
+1. Native Terraform commands: The standard Terraform workflow using `terraform import`, `terraform plan`, and `terraform state rm` commands.
+2. New Relic CLI automation tools: New Relic provides CLI tools that automate the native Terraform workflow, available in two flavors:
+   - GitOps (CI/CD): For teams using CI/CD tools.
+   - Local Terraform: For teams executing Terraform commands on their local machines.
+
+We recommend using New Relic's automation tools as they significantly reduce manual work and potential for errors. However, if you prefer complete control or have specific requirements, you can follow the native Terraform command approach.
+
+## Migrate with native Terraform commands [#native-terraform]
+
+This section describes the standard Terraform workflow for migrating from `newrelic_nrql_drop_rule` resources to `newrelic_pipeline_cloud_rule` resources using native Terraform commands.
+
+### Prerequisites [#native-prerequisites]
+
+- Terraform or OpenTofu >= v1.5: This version introduced the `import` block feature, which makes the migration process more efficient by eliminating the need to manually write resource configurations.
+- New Relic Terraform Provider >= v3.68.0: This version adds support for the `pipeline_cloud_rule_entity_id` attribute on `newrelic_nrql_drop_rule` resources and introduces the `newrelic_pipeline_cloud_rule` resource.
+
+### Steps to migrate [#native-steps]
+
+<Steps>
+  <Step>
+    #### Get the Pipeline cloud rule IDs [#get-pipeline-cloud-rule-ids]
+
+    Upgrade the New Relic Terraform Provider to v3.68.0 or greater, then refresh and apply your configuration with the existing `newrelic_nrql_drop_rule` resources. This allows the `pipeline_cloud_rule_entity_id` attribute to be exported by each drop rule resource.
+
+    ```bash
+    terraform refresh
+    terraform apply
+    ```
+
+    After running the above commands, you'll get the Pipeline cloud rule entity ID for each drop rule. Keep the IDs handy for the next step.
+
+    ```hcl
+    # Example: Get the entity ID for a drop rule
+    newrelic_nrql_drop_rule.foo.pipeline_cloud_rule_entity_id
+    ```
+  </Step>
+
+  <Step>
+    #### Import the Pipeline cloud rules into Terraform state [#import-pipeline-cloud-rules]
+
+    Use the `terraform import` command with the Pipeline cloud rule entity IDs obtained in the previous step to import each rule as a `newrelic_pipeline_cloud_rule` resource.
+
+    ```bash
+    terraform import newrelic_pipeline_cloud_rule.foo <pipeline_cloud_rule_entity_id>
+    ```
+
+    <Callout title="Note">
+      The ID of a Pipeline cloud rule is not the same as the ID of the corresponding NRQL drop rule. You must use the `pipeline_cloud_rule_entity_id` attribute exported by the drop rule resource to get the correct Pipeline cloud rule ID.
+
+      You can pair the import with `terraform plan -generate-config-out` to automatically generate the corresponding resource configuration for the imported Pipeline cloud rules.
+
+      {/* ```hcl
+      import {
+        to = newrelic_pipeline_cloud_rule.foo
+        id = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZjgtYmFmNy03MjU3LWE3M2MtZWY5OTkxYTQxMjgy"
+        # id = newrelic_nrql_drop_rule.foo.pipeline_cloud_rule_entity_id
+      }
+      ```
+
+      Then run:
+
+      ```bash
+      terraform plan -generate-config-out=pipeline_cloud_rules.tf
+      terraform apply
+      ``` */}
+    </Callout>
+  </Step>
+
+  <Step>
+    #### Remove the old drop rule resources from Terraform state [#remove-old-drop-rules]
+
+    After successfully importing the Pipeline cloud rules, you should remove all references to `newrelic_nrql_drop_rule` resources from your Terraform state using the `terraform state rm` command.
+
+    ```bash
+    terraform state rm newrelic_nrql_drop_rule.foo
+    ```
+
+    This removes the drop rules from Terraform state without deleting them from New Relic.
+  </Step>
+
+  <Step>
+    #### Clean up your Terraform configuration [#clean-up-terraform-configuration]
+
+    Run the `terraform plan` command to remove the old `newrelic_nrql_drop_rule` resource definitions from your Terraform configuration files and verify the migration.
+
+    ```bash
+    terraform plan
+    ```
+
+    The output should show "No changes" if the migration was successful.
+  </Step>
+</Steps>
+
+## Migrate with New Relic's automation tools [#automation-tools]
+
+To simplify the native Terraform migration workflow described above, New Relic provides CLI automation tools that handle the import and state management for you. These tools automate the same underlying Terraform operations (import, plan, apply, and state removal) but with significantly less manual work.
+
+You can choose between two approaches based on your Terraform workflow:
+
+- GitOps (CI/CD): For teams using CI/CD tools to manage Terraform.
+- Local Terraform: For teams executing Terraform commands directly on their local machines.
+
+Both approaches use the New Relic CLI to streamline the migration process and reduce the risk of errors.
+
+### Prerequisites [#automation-prerequisites]
+
+- Terraform or OpenTofu >= v1.7: Required for the automated migration approaches.
+- New Relic Terraform Provider >= v3.68.0: This version adds support for the `pipeline_cloud_rule_entity_id` attribute and the `newrelic_pipeline_cloud_rule` resource.
+- New Relic CLI: Required to run the automated migration commands.
+
+### Choose your approach [#choose-approach]
 
 <CollapserGroup>
   <Collapser
     id="gitops-cicd"
-    title="Migrate using GitOps (CI/CD)"
+    title="Using GitOps (CI/CD)"
   >
     <CollapserGroup>
       <Collapser
         id="gitops-step1"
-        title="1. Map existing drop rules to Pipeline control cloud rules"
+        title="1. Map existing drop rules to Pipeline cloud rules"
       >
-        In this step, you'll add a validation script provided by New Relic to your CI/CD Terraform configuration that maps your existing drop rules to their corresponding Pipeline control cloud rules.
+        In this step, you'll add a validation script provided by New Relic to your CI/CD Terraform configuration that maps your existing drop rules to their corresponding Pipeline cloud rules.
 
         <Steps>
           <Step>
@@ -266,9 +374,9 @@ Since Terraform treats these as two completely different resource types, you mus
 
       <Collapser
         id="gitops-step2"
-        title="2. Generate Pipeline control cloud rule configuration locally"
+        title="2. Generate Pipeline cloud rule configuration locally"
       >
-        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline control cloud rules based on the JSON output from Step 1.
+        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline cloud rules based on the JSON output from Step 1.
 
         <Steps>
           <Step>
@@ -310,7 +418,7 @@ Since Terraform treats these as two completely different resource types, you mus
              --workspacePath /path/to/your/terraform/workspace
            ```
 
-           <table>
+             <table>
              <thead>
                <tr>
                  <th style={{width: "200px"}}>Parameter</th>
@@ -364,8 +472,8 @@ Since Terraform treats these as two completely different resource types, you mus
             The CLI command generates four Terraform configuration files in your workspace:
 
             - **`provider.tf`:** Terraform and New Relic provider configuration.
-            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline control cloud rules in New Relic.
-            - **`pcrs.tf`:** Pipeline control cloud rule resource definitions (generated during `terraform plan` with `-generate-config-out` flag).
+            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline cloud rules in New Relic.
+            - **`pcrs.tf`:** Pipeline cloud rule resource definitions (generated during `terraform plan` with `-generate-config-out` flag).
             - **`removals.tf`:** Removed blocks to safely remove old `newrelic_nrql_drop_rule` resources from Terraform state without deleting them.
 
            {/* **Example of generated configuration:**
@@ -450,7 +558,7 @@ Since Terraform treats these as two completely different resource types, you mus
 
             ```bash
             git add .
-            git commit -m "Add Pipeline control cloud rule migration configuration"
+            git commit -m "Add Pipeline cloud rule migration configuration"
             git push origin your-branch-name
             ```
 
@@ -461,9 +569,9 @@ Since Terraform treats these as two completely different resource types, you mus
 
       <Collapser
         id="gitops-step3"
-        title="3. Import Pipeline control cloud rules in your CI/CD environment"
+        title="3. Import Pipeline cloud rules in your CI/CD environment"
       >
-        In this step, your CI/CD pipeline will process the changes you pushed in Step 2, import the Pipeline control cloud rules into Terraform state, and remove the old drop rule resources.
+        In this step, your CI/CD pipeline will process the changes you pushed in Step 2, import the Pipeline cloud rules into Terraform state, and remove the old drop rule resources.
 
         <Steps>
           <Step>
@@ -544,7 +652,7 @@ Since Terraform treats these as two completely different resource types, you mus
             ```
 
             Your CI/CD pipeline will execute the Terraform apply, which will:
-            - Import the Pipeline control cloud rules into Terraform state,
+            - Import the Pipeline cloud rules into Terraform state,
             - Remove the old drop rule resources from state (without deleting them from New Relic),
             - Update your Terraform state file,
 
@@ -568,14 +676,14 @@ Since Terraform treats these as two completely different resource types, you mus
             After the apply succeeds:
 
             - Check the output to confirm all imports completed successfully.
-            - Verify in the New Relic UI that your Pipeline control cloud rules are still active and functioning.
+            - Verify in the New Relic UI that your Pipeline cloud rules are still active and functioning.
             - Run `terraform plan` in your CI/CD to confirm there are no pending changes (the output should show "No changes").
           </Step>
 
           <Step>
             **Merge your pull request:**
 
-            Once verification is complete, merge your pull request to finalize the migration. Your Terraform configuration now manages Pipeline control cloud rules instead of NRQL drop rules.
+            Once verification is complete, merge your pull request to finalize the migration. Your Terraform configuration now manages Pipeline cloud rules instead of NRQL drop rules.
           </Step>
         </Steps>
       </Collapser>
@@ -584,14 +692,14 @@ Since Terraform treats these as two completely different resource types, you mus
 
   <Collapser
     id="local-terraform"
-    title="Migrate using local Terraform"
+    title="Using local Terraform"
   >
     <CollapserGroup>
       <Collapser
         id="local-step1"
-        title="1. Update Terraform state with Pipeline control cloud rule mappings"
+        title="1. Update Terraform state with Pipeline cloud rule mappings"
       >
-        In this step, you'll use the New Relic CLI to automatically identify all drop rules in your Terraform workspace and update your Terraform state with their corresponding Pipeline control cloud rule mappings.
+        In this step, you'll use the New Relic CLI to automatically identify all drop rules in your Terraform workspace and update your Terraform state with their corresponding Pipeline cloud rule mappings.
 
         <Steps>
           <Step>
@@ -629,7 +737,7 @@ Since Terraform treats these as two completely different resource types, you mus
           <Step>
             **Verify the state update:**
 
-            After the command completes, your Terraform state file now contains the mapping between drop rules and Pipeline control cloud rules. You can verify this by checking your state:
+            After the command completes, your Terraform state file now contains the mapping between drop rules and Pipeline cloud rules. You can verify this by checking your state:
 
            ```bash
            terraform show -json | grep pipeline_cloud_rule_entity_id
@@ -644,7 +752,7 @@ Since Terraform treats these as two completely different resource types, you mus
         id="local-step2"
         title="2. Generate Terraform configuration files"
       >
-        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline control cloud rules. The CLI reads the pipeline cloud rule mappings directly from your Terraform state file (updated in Step 1).
+        In this step, you'll use the New Relic CLI to automatically generate Terraform configuration files for your Pipeline cloud rules. The CLI reads the pipeline cloud rule mappings directly from your Terraform state file (updated in Step 1).
 
         <Steps>
           <Step>
@@ -658,8 +766,8 @@ Since Terraform treats these as two completely different resource types, you mus
 
             This command automatically:
             - Reads your Terraform state file to extract all `pipeline_cloud_rule_entity_id` values
-            - Generates import blocks for each Pipeline control cloud rule
-            - Creates resource definitions for the Pipeline control cloud rules
+            - Generates import blocks for each Pipeline cloud rule
+            - Creates resource definitions for the Pipeline cloud rules
             - Generates removal blocks for the old drop rule resources
 
            <Callout variant="tip">
@@ -674,8 +782,8 @@ Since Terraform treats these as two completely different resource types, you mus
 
             The CLI command generates three main Terraform configuration files in your workspace:
 
-            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline control cloud rules in New Relic.
-            - **`pcrs.tf`:** Pipeline control cloud rule resource definitions (will be populated during `terraform plan` in Step 3).
+            - **`imports.tf`:** Import blocks that link new resources to existing Pipeline cloud rules in New Relic.
+            - **`pcrs.tf`:** Pipeline cloud rule resource definitions (will be populated during `terraform plan` in Step 3).
             - **`removals.tf`:** Removed blocks to safely remove old `newrelic_nrql_drop_rule` resources from Terraform state without deleting them from New Relic.
 
            The command also initializes the Terraform provider and prepares your workspace for the migration.
@@ -687,7 +795,7 @@ Since Terraform treats these as two completely different resource types, you mus
         id="local-step3"
         title="3. Apply the migration"
       >
-        In this step, you'll execute the migration locally by running Terraform commands to import the Pipeline control cloud rules into your state and remove the old drop rule resources. All files generated in Step 2 are already in your local workspace.
+        In this step, you'll execute the migration locally by running Terraform commands to import the Pipeline cloud rules into your state and remove the old drop rule resources. All files generated in Step 2 are already in your local workspace.
 
         <Steps>
           <Step>
@@ -772,7 +880,7 @@ Since Terraform treats these as two completely different resource types, you mus
            ```
 
            Terraform will:
-           - Import the Pipeline control cloud rules into Terraform state
+           - Import the Pipeline cloud rules into Terraform state
            - Remove the old drop rule resources from state (without deleting them from New Relic)
            - Update your Terraform state file
 
@@ -796,20 +904,22 @@ Since Terraform treats these as two completely different resource types, you mus
             After the apply succeeds:
 
             - Check the output to confirm all imports completed successfully.
-            - Verify in the New Relic UI that your Pipeline control cloud rules are still active and functioning.
+            - Verify in the New Relic UI that your Pipeline cloud rules are still active and functioning.
             - Run `terraform plan` to confirm there are no pending changes (the output should show "No changes").
           </Step>
 
           <Step>
             **Clean up the old drop rule resources:**
 
-            Once verification is complete, you can remove the old `newrelic_nrql_drop_rule` resource definitions from your original Terraform configuration files. Your Terraform configuration now manages Pipeline control cloud rules instead of NRQL drop rules.
+            Once verification is complete, you can remove the old `newrelic_nrql_drop_rule` resource definitions from your original Terraform configuration files. Your Terraform configuration now manages Pipeline cloud rules instead of NRQL drop rules.
           </Step>
         </Steps>
       </Collapser>
     </CollapserGroup>
   </Collapser>
 </CollapserGroup>
+
+{/* The following content will go into a troubleshooting guide
 
 ## Troubleshooting [#troubleshooting]
 
@@ -829,4 +939,4 @@ If `terraform plan` shows changes after successful migration:
 
 If `terraform state list` still shows `newrelic_nrql_drop_rule` resources after migration:
 
-**Solution:** Ensure your `removals.tf` file is properly configured with `destroy = false` and run `terraform apply` to remove them from state without deleting from New Relic.
+**Solution:** Ensure your `removals.tf` file is properly configured with `destroy = false` and run `terraform apply` to remove them from state without deleting from New Relic. */}
