@@ -1,0 +1,213 @@
+---
+title: Bring your own cache
+tags:
+  - Distributed tracing
+  - Infinite Tracing
+  - On-premise
+  - Redis
+  - Cache configuration
+metaDescription: 'Configure Redis-compatible caches for Infinite Tracing on-premise tail sampling processor to enable high-availability and distributed processing'
+redirects: []
+freshnessValidatedDate: never
+---
+
+
+New Relic's Infinite Tracing Processor is an implementation of the OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor). In addition to upstream features, it supports highly scalable distributed processing by using a distributed cache for shared state storage. This documentation describes the supported cache implementations and their configuration.
+
+# Supported caches
+
+The processor supports any Redis-compatible cache implementation. It has been tested and validated with Redis and Valkey in both single-instance and cluster configurations.
+
+For production deployments, we recommend using cluster mode (sharded) to ensure high availability and scalability. To enable the cache, add the following configuration to your `tail_sampling` processor section:
+
+```yaml
+  tail_sampling:
+      redis:
+        enabled: true
+        addr: redis://localhost:6379/0
+        prefix: "itc"
+        max_traces_per_batch: 50 # this impacts instance memory, because batches are loaded in memory
+```
+
+When `enabled` is set to `false`, the collector will use in-memory processing instead. The `addr` parameter must specify a valid Redis-compatible server address using the standard format:
+
+```shell
+redis[s]://[[username][:password]@][host][:port][/db-number]
+```
+
+Alternatively, you can embed the password directly in the `addr` parameter and omit the separate `password` field:
+
+```yaml
+  tail_sampling:
+      redis:
+        enabled: true
+        addr: redis://:local@localhost:6379/0
+        password: ''
+        prefix: "itc"
+```
+
+The processor is implemented in Go and uses the [go-redis](https://github.com/redis/go-redis/tree/v9) client library.
+
+# Redis-compatible cache requirements
+
+The processor uses the cache as distributed storage for the following trace data:
+
+- Trace and span attributes
+- Active trace data
+- Sampling decision cache
+
+The processor executes **Lua scripts** to interact with the Redis cache atomically. Lua script support is typically enabled by default in Redis-compatible caches. No additional configuration is required unless you have explicitly disabled this feature.
+
+## Sizing and performance
+
+Proper Redis instance sizing is critical for optimal performance. The following example demonstrates how to calculate memory requirements based on a sample `tail_sampling` configuration:
+
+```yaml
+  tail_sampling:
+    decision_wait: 30s
+    decision_cache:
+      non_sampled_cache_size: 1_000_000
+      sampled_cache_size: 1_000_000
+    redis:
+      enabled: true
+      addr: redis://localhost:6379/0
+      password: local
+      prefix: "itc"
+      max_traces_per_batch: 50
+```
+
+To complete the calculation, you must also estimate your workload characteristics:
+- **Spans per second**: Assumed throughput of 10,000 spans/sec
+- **Average span size**: Assumed size of 900 bytes (marshaled protobuf format)
+
+### Memory estimation formula
+
+```
+Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
+```
+
+#### 1. Trace data storage
+
+Trace data is stored temporarily in Redis during the `decision_wait` period:
+
+- **Per-span storage**: ~900 bytes (marshaled protobuf)
+- **Storage duration**: `decision_wait * 2` (default TTL)
+- **Formula**: `Memory = spans_per_second × decision_wait_seconds × 900 bytes`
+
+**Example calculation**: At 10,000 spans/second with a 30-second `decision_wait`:
+```
+10,000 spans/sec × 30 sec × 900 bytes = 270 MB
+```
+
+#### 2. Decision cache storage
+
+The number of cached entries is controlled by the `sampled_cache_size` and `non_sampled_cache_size` configuration parameters. The LRU caches store trace IDs (16 bytes each) plus Redis data structure overhead:
+
+- **Sampled cache**: `1,000,000 trace IDs × ~50 bytes = ~50 MB`
+- **Non-sampled cache**: `1,000,000 trace IDs × ~50 bytes = ~50 MB`
+- **Total decision cache**: ~100 MB (default)
+
+
+
+#### 3. Batch processing overhead
+
+- **Current batch queue**: Minimal (trace IDs + scores in sorted set)
+- **In-flight batches**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
+
+**Example calculation**: 50 traces per batch with 20 spans per trace on average:
+```
+50 × 20 × 900 bytes = 900 KB per batch
+```
+
+Batch size also impacts memory usage and processing efficiency.
+
+### Complete sizing example
+
+Based on the configuration above with the following workload parameters:
+- **Throughput**: 10,000 spans/second
+- **Average span size**: 900 bytes
+
+| Component | Memory Required |
+|-----------|----------------|
+| Trace data (active) | 270 MB |
+| Decision caches | 100 MB |
+| Batch processing | ~1 MB |
+| Redis overhead (20%) | ~74 MB |
+| **Total** | **~445 MB** |
+
+<Callout variant="important">
+  **Sizing guidance**: The calculations above serve as an estimation example. We recommend performing your own capacity planning based on your specific workload characteristics. For production deployments, consider:
+  - Provisioning **2-3x the calculated memory** to accommodate traffic spikes and growth
+  - Using Redis cluster mode for horizontal scaling
+  - Monitoring actual memory usage and adjusting capacity accordingly
+</Callout>
+
+### Performance considerations
+
+- **Network latency**: Round-trip time between the collector and Redis directly impacts sampling throughput. Deploy Redis instances with low-latency network connectivity to the collector.
+- **Lua script execution**: All cache operations use atomic Lua scripts executed server-side, ensuring data consistency and optimal performance.
+- **Cluster mode**: Distributing load across multiple Redis nodes increases throughput and provides fault tolerance for high-availability deployments.
+
+# Limitations and evictions
+
+<Callout variant="caution">
+  **Performance bottleneck**: Redis and network communication are typically the limiting factors for processor performance. The speed and reliability of your Redis cache are essential for proper collector operation. Ensure your Redis instance has sufficient resources and maintains low-latency network connectivity to the collector.
+</Callout>
+
+The processor stores trace data temporarily in Redis while making sampling decisions. Understanding data management and eviction policies is critical for optimal performance.
+
+## Data stored in Redis
+
+The processor stores the following data structures in Redis:
+
+1. **Trace spans**: Stored as lists using protobuf-marshaled trace data
+2. **Decision cache**: Separate LRU caches for sampled and non-sampled trace IDs
+3. **Current batch queue**: Sorted set tracking traces waiting for sampling decisions
+4. **In-flight batches**: Temporary storage for traces being evaluated
+
+## TTL and expiration
+
+<Callout variant="tip">
+  **Important**: The `decision_wait` configuration parameter directly impacts all TTL values in this section. Adjusting `decision_wait` will proportionally change Redis memory usage and data retention times. For example, doubling `decision_wait` from 30s to 60s will approximately double your Redis memory requirements for trace data.
+</Callout>
+
+- **Trace data TTL**: Set to `decision_wait * 2` by default
+  - Ensures trace data persists long enough for evaluation
+  - Automatically expires after the decision is made
+  - Example: With `decision_wait: 30s`, traces expire after 60 seconds
+
+- **In-flight timeout**: Set to `decision_wait * 4` by default
+  - Protects against orphaned batches from processor failures
+  - Orphaned batches are automatically recovered and re-queued
+  - Example: With `decision_wait: 30s`, in-flight batches timeout after 120 seconds
+
+## LRU eviction for decision caches
+
+The decision caches implement a Least Recently Used (LRU) eviction strategy using Lua scripts:
+
+- **Sampled cache**: Default capacity of 1,000,000 trace IDs
+- **Non-sampled cache**: Default capacity of 1,000,000 trace IDs
+
+When a cache reaches its maximum capacity, the least recently accessed trace IDs are automatically evicted. This approach ensures:
+- Recent sampling decisions remain available for late-arriving spans
+- Memory usage remains within configured bounds
+- Consistent cache performance under load
+
+Configure cache sizes through the following parameters:
+
+```yaml
+tail_sampling:
+  decision_cache:
+    sampled_cache_size: 1000000
+    non_sampled_cache_size: 1000000
+```
+
+## Batch processing
+
+The processor handles traces in batches to optimize performance:
+
+- **Maximum traces per batch**: Default of 50, configurable via `max_traces_per_batch`
+- **Atomic batch operations**: Batches are retrieved atomically from the current queue
+- **Failure recovery**: Failed batches are automatically recovered and re-queued after the in-flight timeout expires
+
+
