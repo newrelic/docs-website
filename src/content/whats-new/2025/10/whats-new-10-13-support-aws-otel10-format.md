@@ -1,7 +1,7 @@
 ---
-title: "New Relic AWS Metric Streams Integration Now Supports OpenTelemetry 1.0 Format"
-summary: "Enhanced Support for the OpenTelemetry 1.0 output format in our AWS CloudWatch Metric Streams integration, offering improved performance and richer metadata for all setup methods."
-releaseDate: "2025-10-13"
+title: 'New Relic AWS Metric Streams Integration Now Supports OpenTelemetry 1.0 Format'
+summary: 'Enhanced Support for the OpenTelemetry 1.0 output format in our AWS CloudWatch Metric Streams integration, offering improved performance and richer metadata for all setup methods.'
+releaseDate: '2025-10-13'
 ---
 
 We are excited to announce a significant enhancement to our AWS infrastructure monitoring capabilities. Our **AWS CloudWatch Metric Streams** integration now supports the **OpenTelemetry (OTEL) 1.0** output format. This update allows you to leverage the latest industry standards for telemetry data, providing a more efficient and future-proof way to stream metrics from your AWS environment into New Relic.
@@ -12,10 +12,8 @@ You can now configure your AWS Metric Stream integration to send data using the 
 
 This enhancement provides several key benefits:
 
-1.  **Improved Performance and Efficiency**
-    * Utilize the highly efficient binary protobuf format of OTEL 1.0, reducing data transfer volume and processing overhead compared to JSON-based formats.
-2.  **Richer Metadata and Future-Proofing**
-    * Align with the latest OpenTelemetry standards, ensuring compatibility with future enhancements and enabling richer, more detailed metric attributes.
+- **Improved Performance and Efficiency**: Utilize the highly efficient binary protobuf format of OTEL 1.0, reducing data transfer volume and processing overhead compared to JSON-based formats.
+- **Richer Metadata and Future-Proofing**: Align with the latest OpenTelemetry standards, ensuring compatibility with future enhancements and enabling richer, more detailed metric attributes.
 
 ## How to Enable OpenTelemetry 1.0
 
@@ -32,14 +30,14 @@ When setting up a new stack with our latest template, you will have the option t
 If you have an existing stack, you must perform a stack update.
 
 1.  Navigate to your stack in the AWS CloudFormation console.
-2.  Initiate an update and choose "Replace existing template".
+2.  Initiate an update and choose **Replace existing template**.
 3.  Provide the following updated template URL:
     [https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/newrelic-cloudformation-mstreams.yml](https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/newrelic-cloudformation-mstreams.yml)
 4.  Proceed with the stack update, selecting `opentelemetry1.0` when prompted for the output format.
 
 ### Terraform
 
-> **Note:** Support for the OTEL 1.0 format is available starting with version 3.70.6 of the New Relic Terraform Provider.
+**Note:** Support for the OTEL 1.0 format is available starting with version 3.70.6 of the New Relic Terraform provider.
 
 Our Terraform configuration uses the official `newrelic` provider to create the necessary AWS and New Relic resources. To enable OTEL 1.0, you define a variable for the output format and set its value to `opentelemetry1.0`.
 
@@ -65,17 +63,15 @@ resource "aws_cloudwatch_metric_stream" "newrelic_metric_stream" {
 }
 ```
 
-When you run your Terraform plan, you can set `output_format` to `"opentelemetry1.0"` to enable the new format.
+When you run your Terraform plan, you can set `output_format` to `opentelemetry1.0` to enable the new format.
 
-### Manual Setup
+### Manual setup
 
 If you configured your integration manually, you can update the format directly in the AWS console.
 
-1.  Navigate to **CloudWatch** -\> **Metrics** -\> **Streams**.
+1.  Navigate to **CloudWatch > Metrics > Streams**.
 2.  Select the metric stream that forwards data to New Relic's Kinesis Firehose.
 3.  Click **Edit**.
-4.  Under "Output format," change the selection to **OpenTelemetry 1.0**.
-5.  Save your changes.
-
-<!-- end list -->
+4.  Under **Output format**, change the selection to **OpenTelemetry 1.0**.
+5.  Click **Save**.
 
