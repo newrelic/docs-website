@@ -1,7 +1,7 @@
 ---
 title: 'End of Life Announcement: Pre-insights APM legacy embedded charts'
 subject: On June 30, 2026, APM legacy embedded charts will be deprecated
-publishDate: '2025-08-10'
+publishDate: '2025-10-17'
 eolEffectiveDate: '2026-06-30'
 ---
 
@@ -15,13 +15,13 @@ When New Relic launched the new user experience, we updated this functionality f
 
 ## Overview of changes [#overview]
 
-As part of our continued efforts to enhance security and reliability, we’re retiring APM legacy embedded charts. These public charts, created through the now deprecated legacy APM experience, have remained accessible through public URLs, which may also be embedded into external websites and applications. We are preparing to deprecate this service, which will result in the **affected links failing to display the chart's data effective end of June 2026**. To replace them with new New Relic Charts, [learn hot to share charts externally](/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/).
+As part of our continued efforts to enhance security and reliability, we’re retiring APM legacy embedded charts. These public charts, created through the now deprecated legacy APM experience, have remained accessible through public URLs, which may also be embedded into external websites and applications. We are preparing to deprecate this service, which will result in the **affected links failing to display the chart's data effective end of June 2026**. To replace them with new New Relic Charts, [learn how to share charts externally](/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/).
 
-Failure to create replacement embedded charts may lead to missing data for your enterprise if you rely on APM legacy embedded charts. We advise that you take this opportunity to explore the embedded chart links you are still accessing to create replacements.
+Failure to create replacement embedded charts may lead to missing out on the information in those APM legacy embedded charts. We advise that you take this opportunity to explore the embedded chart links to create replacement charts in order to continue accessing data.
 
 ## Impact by account type [#impact-account-type]
 
-Effective end of June, 2026, URLs generated prior to the rollout of New Relic One will expire and will be inaccessible, regardless of account tier (Free, Standard, Pro, Enterprise, or legacy accounts). Note that **Free and Standard accounts** cannot create new embedded charts. To continue using the embedded charts feature after the EOL date, Free and Standard tier customers must upgrade to **Pro or Enterprise** accounts.
+Effective June 30, 2026, URLs generated prior to the rollout of New Relic One will expire and will be inaccessible, regardless of account tier (Free, Standard, Pro, Enterprise, or legacy edition accounts). Note that **Free and Standard edition accounts** cannot create new embedded charts. To continue using the embedded charts feature after the EOL date, Free and Standard edition customers must upgrade to **Pro or Enterprise edition** accounts.
 
 ## What do you need to do [#what-to-do]
 
@@ -30,12 +30,16 @@ Effective end of June, 2026, URLs generated prior to the rollout of New Relic On
   - Navigate to your **APM & Services** page
     - Explore the available charts to find a match for your legacy chart
     - Click the ellipsis (three dots) and select **Get Chart Link**
-      
+
+<img
+     title="Image of the Get Chart Link"
+     alt="Image of the Get chart link"
+     src="/images/get-chart-link.webp"
+   />
   
 - If a match is not found, but you know what data was being queried, then you can try and replicate the query in **Data Explorer** (Query Your Data):
   - Run the query and select the type of chart to use 
-  - Click the ellipsis and select **Get chart link**
-
+  - Click the ellipsis and select **Get Chart Link**
 
 ## Additional support
 
