@@ -1850,7 +1850,102 @@ To set permanent data storage on Kubernetes, the user has two options:
   helm install ... --set synthetics.persistence.existingVolumeName=sjm-volume --set synthetics.persistence.storageClass=standard ...
   ```
 
-## Sizing considerations for OpenShift, Kubernetes and Docker [#kubernetes-sizing]
+## Sizing considerations for Docker, Kubernetes, and OpenShift [#kubernetes-sizing]
+
+### Docker [#docker]
+
+To ensure your private location runs efficiently, you must provision enough CPU resources on your Docker host to handle your monitoring workload. Many factors impact sizing, but you can quickly estimate your needs.
+
+You'll need **1 CPU core for each simultaneous heavyweight monitor** (i.e., each scripted browser or scripted API test).
+
+Below are two formulas to help you calculate the number of cores you need, whether you're diagnosing a current setup or planning for a future one.
+
+
+<CollapserGroup>
+
+<Collapser
+      id="existing-location"
+      title="Formula 1: For diagnosing an existing location">
+
+
+If your current private location is struggling to keep up and you suspect jobs are queuing, use this formula to find out how many cores you actually need. It's based on the observable performance of your system.
+
+
+**The equation:**
+
+```math
+$$C_{req} = (J_{processed} + Q_{growth}) \times D_j$$
+```
+
+```
+* $C_{req}$ = **Required CPU Cores**
+* $J_{processed}$ = The rate of jobs being **processed** per minute
+* $Q_{growth}$ = The rate your `jobManagerHeavyweightJobs` queue is **growing** per minute
+* $D_j$ = The **average duration** of a job in minutes
+```
+
+**Here's how it works:** This formula calculates your true job arrival rate by adding the jobs your system *is processing* to the jobs that are *piling up* in the queue. Multiplying this total load by the average job duration tells you exactly how many cores you need to clear all the work without queuing.
+
+
+  </Collapser>
+
+  <Collapser
+      id="future-location"
+      title="Formula 2: For Forecasting a New or Future Location"
+  >
+
+
+```math
+$$C_{req} = N_m \times F_j \times D_j$$
+```
+
+If you're setting up a new private location or planning to add more monitors, use this formula to forecast your needs ahead of time.
+
+**The equation:**
+
+```math
+$$C_{req} = N_m \times F_j \times D_j$$
+```
+
+```
+* $C_{req}$ = Required CPU Cores
+* $N_m$ = The total number of heavyweight monitors you plan to run.
+* $F_j$ = The average frequency of the monitors in jobs per minute (e.g., a monitor running every 5 minutes has a frequency of 1/5 or 0.2).
+* $D_j$ = The average duration of a job in minutes.
+
+```
+
+**Here's how it works:** This calculates your expected workload from first principles: how many monitors you have, how often they run, and how long they take.
+
+</Collapser>
+
+</CollapserGroup>
+
+#### Important sizing factors
+
+When using these formulas, remember to account for these factors:
+
+* **Job duration ($D_j$):** Your average should include jobs that **time out** (often ~3 minutes), as these hold a core for their entire duration.
+* **Job failures and retries:** When a monitor fails, it's automatically retried. These retries are additional jobs that add to the total load. A monitor that consistently fails and retries **effectively multiplies its frequency**, significantly impacting throughput.
+* **Scaling out:** In addition to adding more cores to a host (scaling up), you can deploy additional synthetics job managers with the same private location key to load balance jobs across multiple environments (scaling out).
+
+#### NRQL queries for diagnosis
+
+You can run these queries in the [query builder](/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to get the inputs for the diagnostic formula. Make sure to set the time range to a long enough period to get a stable average.
+
+**1. Find jobs processed per minute ($J\_{processed}$):**
+This query counts the number of non-ping (heavyweight) jobs completed over the last day and shows the average rate per minute.
+
+```nrql
+FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+```
+
+**2. Find queue growth per minute ($Q\_{growth}$):**
+This query calculates the average per-minute growth of the `jobManagerHeavyweightJobs` queue on a time series chart. A line above zero indicates the queue is growing, while a line below zero means it's shrinking.
+
+```nrql
+FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
+```
 
 <Callout variant="tip">
   Docker specific sizing considerations will be available soon.
