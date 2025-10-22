@@ -14,6 +14,7 @@ redirects:
   - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-overview
   - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-versions
   - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-otlp
+  - /docs/opentelemetry/best-practices/opentelemetry-otlp-attributes-processing-update
 ---
 
 [OpenTelemetry Protocol](https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md) (OTLP) is a general-purpose telemetry data delivery protocol designed for the OpenTelemetry project. Each OpenTelemetry language SDK provides OTLP exporters, and the OpenTelemetry Collector has OTLP receivers and exporters. Additionally, various tools outside the OpenTelemetry project have added support for OTLP export.
@@ -201,26 +202,87 @@ The mechanism to configure headers will vary, but OpenTelemetry language SDKs ge
 
 ## Config: Attribute limits [#attribute-limits]
 
-Requirement level: **Required**
+Requirement level: **Recommended**
 
-In order to send OTLP data to New Relic, you must configure your telemetry source to conform to New Relic attribute limits. Failure to do so may result in [`NrIntegrationError`](/docs/data-apis/manage-data/nrintegrationerror/) events during asynchronous data validation.
+New Relic imposes a variety of limits on attributes in OTLP payloads. In general, we have a lenient posture on validation and will prune, truncate, or otherwise modify attributes rather than dropping the data all together. Whenever an attribute is modified, we create an [NrIntegrationError](https://docs.newrelic.com/docs/data-apis/manage-data/nrintegrationerror/) to help track down and fix the problem at the source.
 
-Attribute limits are as follows:
+<table>
+  <thead>
+    <tr>
+      <td>Case</td>
+      <td>Description</td>
+      <td>Relevant config</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>String value length limit</td>
+      <td>Attribute values of type string have a max length of 4095 characters. Values exceeding this limit are truncated.</td>
+      <td>Set `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095`. See [OpenTelemetry docs](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for more info.</td>
+    </tr>
+    <tr>
+      <td>Key value length limit</td>
+      <td>Attribute keys have a max length of 255 characters. Keys exceeding this limit are truncated.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Attribute count limit</td>
+      <td>
+        Each attribute source is subject to a count limit. When exceeded, excess attributes are pruned, prioritizing attributes defined in the OpenTelemetry semantic conventions. Limits are as follows:<br/>
+        <ul>
+          <li>Max resource attributes: 64</li>
+          <li>Max scope attributes: 8</li>
+          <li>Max record attributes (span, metric datapoint, log): 128</li>
+        </ul>
+      </td>
+      <td>Partial mitigation by setting `OTEL_ATTRIBUTE_COUNT_LIMIT=64`. See [OpenTelemetry docs](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for more info.</td>
+    </tr>
+    <tr>
+      <td>Value types</td>
+      <td>Attribute values are limited to types: string, integer, double, boolean, and byte array. Attribute values with complex types are pruned. Log attributes are excluded from this limit. **[1]**</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Unset values</td>
+      <td>Attribute values must set (i.e. `null`). Attributes with unset values are pruned.<br/>**Note:** `NrIntegrationError`s are not created in this case, since this occurs frequently enough that `NrIntegrationErrors` would obscure more actionable validation issues.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Array length limit</td>
+      <td>Arrays have a max length of 64 entries. Attributes exceeding this limit are pruned.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Array homogeneity</td>
+      <td>Arrays entries must all be of the same type. Attributes with heterogeneous array entries are pruned. Log attributes are excluded from this limit. **[1]**</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Unset array entries</td>
+      <td>Array entries must not be unset (i.e. `null`). Unset array entries are pruned.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Array entry value types</td>
+      <td>Array entries are limited to types: string, integer, double, and boolean. Array attribute values with complex types are pruned. Log attributes are excluded from this limit. **[1]**</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Byte array length limit</td>
+      <td>Byte arrays have a max length of 128,000. Attributes exceeding this limit are pruned.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Attribute value types</td>
+      <td>Attribute values are limited to types: string, integer, double, boolean, and byte array. Attribute values with complex types are pruned. Log attributes are excluded from this limit. **[1]**</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
 
-* Maximum length of attribute name: 255 characters
-* Maximum length of attribute value: 4095 characters
-* Maximum size of attribute array value: 64 entries
+**[1]**: See [OTLP attribute types](#otlp-attribute-types).
 
 See [metric attribute limits](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes/) and [event attribute limits](/docs/data-apis/ingest-apis/event-api/introduction-event-api/#limits) for other limits.
-
-The mechanism to configure attribute limits will vary, but OpenTelemetry language SDKs generally support setting the `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095` and `OTEL_ATTRIBUTE_COUNT_LIMIT=64` environment variables (see [OpenTelemetry docs](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for more info).
-
-When using the collector, you can configure the [transform processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor) to truncate attributes to New Relic limits.
-
-Notes:
-
-* Resource attributes are subject to attribute limits, but there are no standard environment variables to limit them. If a resource attribute is over the allowed limit, consider truncating using the Collector [transform processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor), or overwriting the resource attribute to another value.
-* There is no standard mechanism to limit attribute names. However, instrumentation generally does not produce attribute names which exceed New Relic limits. If you encounter name length limits, remove the attribute using the Collector.
 
 ## Config: Payload batching, timeout, compression and rate limits [#payload-limits]
 
@@ -283,7 +345,7 @@ The mechanism to configure the endpoint will vary, but OpenTelemetry language SD
 
 ## OTLP protocol version [#otlp-version-support]
 
-New Relic uses OTLP release [v1.4.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v1.4.0). Later and earlier versions are supported but new features are not yet implemented. Experimental features which were removed after 0.18.0 are not supported. 
+New Relic uses OTLP release [v1.4.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v1.4.0). Later and earlier versions are supported but new features are not yet implemented. Experimental features which were removed after 0.18.0 are not supported.
 
 See [Traces](/docs/opentelemetry/best-practices/opentelemetry-best-practices-traces/), [Metrics](/docs/opentelemetry/best-practices/opentelemetry-best-practices-metrics/), and [Logs](/docs/opentelemetry/best-practices/opentelemetry-best-practices-logs/) for specific details on how data is mapped and which features are implemented.
 
