@@ -15,7 +15,9 @@ When New Relic launched the new user experience, we updated this functionality f
 
 ## Overview of changes [#overview]
 
-As part of our continued efforts to enhance security and reliability, we’re retiring APM legacy embedded charts. These public charts, created through the now deprecated legacy APM experience, have remained accessible through public URLs, which may also be embedded into external websites and applications. We are preparing to deprecate this service, which will result in the **affected links failing to display the chart's data effective end of June 2026**. To replace them with new New Relic Charts, [learn how to share charts externally](/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/).
+As part of our continued efforts to enhance security and reliability, we're retiring APM legacy embedded charts. These public charts, created through the now deprecated legacy APM experience, have remained accessible through public URLs, which may also be embedded into external websites and applications. We are preparing to deprecate this service, which will result in the **affected links failing to display the chart's data effective June 30, 2026**. To replace them with updated New Relic charts, [learn how to share charts externally](/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/).
+
+**Note**: This change only affects charts shared publicly via external URLs. It doesn't impact charts viewed within New Relic.
 
 Failure to create replacement embedded charts may lead to missing out on the information in those APM legacy embedded charts. We advise that you take this opportunity to explore the embedded chart links to create replacement charts in order to continue accessing data.
 
