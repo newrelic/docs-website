@@ -1861,12 +1861,13 @@ To ensure your private location runs efficiently, you must provision enough CPU 
 If your current private location is struggling to keep up and you suspect jobs are queuing, use this formula to find out how many cores you actually need. It's based on the observable performance of your system.
 
 **The equation:**
-$$C_{req} = (J_{processed} + Q_{growth}) \times D_j$$
 
-  * $C_{req}$ = **Required CPU Cores**
-  * $J_{processed}$ = The rate of jobs being **processed** per minute.
-  * $Q_{growth}$ = The rate your `jobManagerHeavyweightJobs` queue is **growing** per minute.
-  * $D_j$ = The **average duration** of a job in minutes.
+$$C_{req} = (R_{proc} + R_{growth}) \times D_{avg,m}$$
+
+  * $C_{req}$ = **Required CPU Cores**.
+  * $R_{proc}$ = The **rate** of heavyweight jobs being **processed** per minute.
+  * $R_{growth}$ = The **rate** your `jobManagerHeavyweightJobs` queue is **growing** per minute.
+  * $D_{avg,m}$ = The **average duration** of heavyweight jobs in **minutes**.
 
 **Here's how it works:** This formula calculates your true job arrival rate by adding the jobs your system *is processing* to the jobs that are *piling up* in the queue. Multiplying this total load by the average job duration tells you exactly how many cores you need to clear all the work without queuing.
 
@@ -1876,12 +1877,12 @@ If you're setting up a new private location or planning to add more monitors, us
 
 **The equation:**
 
-$$C_{req} = N_m \times D_j \times \frac{1}{P_m}$$
+$$C_{req} = N_{mon} \times D_{avg,m} \times \frac{1}P_{avg,m}$$
 
-  * $C_{req}$ = **Required CPU Cores**
-  * $N_m$ = The total **number** of heavyweight monitors you plan to run.
-  * $D_j$ = The **average duration** of a job in minutes.
-  * $P_m$ = The **period** of the monitor in minutes (e.g., a monitor that runs every 5 minutes has a period of 5).
+  * $C_{req}$ = **Required CPU Cores**.
+  * $N_{mon}$ = The total **number** of heavyweight **monitors** you plan to run.
+  * $D_{avg,m}$ = The **average duration** of a heavyweight job in **minutes**.
+  * $P_{avg,m}$ = The **average period** for heavyweight monitors in **minutes** (e.g., a monitor that runs every 5 minutes has $P_{avg,m} = 5$).
 
 **Here's how it works:** This calculates your expected workload from first principles: how many monitors you have, how often they run, and how long they take.
 
@@ -1889,8 +1890,8 @@ $$C_{req} = N_m \times D_j \times \frac{1}{P_m}$$
 
 When using these formulas, remember to account for these factors:
 
-  * **Job duration ($D_j$):** Your average should include jobs that **time out** (often \~3 minutes), as these hold a core for their entire duration.
-  * **Job failures and retries:** When a monitor fails, it's automatically retried. These retries are additional jobs that add to the total load. A monitor that consistently fails and retries **effectively multiplies its frequency**, significantly impacting throughput.
+  * **Job duration ($D_{avg,m}$):** Your average should include jobs that **time out** (often \~3 minutes), as these hold a core for their entire duration.
+  * **Job failures and retries:** When a monitor fails, it's automatically retried. These retries are additional jobs that add to the total load. A monitor that consistently fails and retries **effectively multiplies its period**, significantly impacting throughput.
   * **Scaling out:** In addition to adding more cores to a host (scaling up), you can deploy additional synthetics job managers with the same private location key to load balance jobs across multiple environments (scaling out).
 
 It's important to note that a single Synthetics Job Manager (SJM) has a throughput limit of **approximately 15 heavyweight jobs per minute**. This is due to an internal threading strategy that favors the efficient competition of jobs across multiple SJMs over the raw number of jobs processed per SJM. If your calculations indicate a need for higher throughput, you must **scale out** by deploying additional SJMs. You can [check if your job queue is growing](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) to determine if more SJMs are needed.
@@ -1905,14 +1906,14 @@ Adding more SJMs with the same private location key provides several advantages:
 
 You can run these queries in the [query builder](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to get the inputs for the diagnostic formula. Make sure to set the time range to a long enough period to get a stable average.
 
-**1. Find jobs processed per minute ($J_{processed}$):**
+**1. Find the rate of jobs processed per minute ($R_{proc}$):**
 This query counts the number of non-ping (heavyweight) jobs completed over the last day and shows the average rate per minute.
 
 ```nrql
 FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-**2. Find queue growth per minute ($Q_{growth}$):**
+**2. Find the rate of queue growth per minute ($R_{growth}$):**
 This query calculates the average per-minute growth of the `jobManagerHeavyweightJobs` queue on a time series chart. A line above zero indicates the queue is growing, while a line below zero means it's shrinking.
 
 ```nrql
@@ -1923,22 +1924,24 @@ FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs
   Make sure to select the account where the private location exists. It's best to view this query as a time series because the derivative function can vary wildly. The goal is to get an estimate of the rate of queue growth per minute. Play with different time ranges to see what works best.
 </Callout>
 
-**3. Find average job duration in minutes ($D_j$):**
+**3. Find total number of heavyweight monitors ($N_{mon}$):**
+This query finds the unique count of heavyweight monitors.
+
+```nrql
+
+  FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+
+```
+
+**4. Find average job duration in minutes ($D_{avg,m}$):**
 This query finds the average execution duration of completed non-ping jobs and converts the result from milliseconds to minutes. `executionDuration` represents the time the job took to execute on the host.
 
 ```nrql
 FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-**4. Find total number of heavyweight monitors ($N_m$):**
-This query finds the unique count of heavyweight monitors.
-
-```nrql
-FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**5. Find average heavyweight monitor frequency ($F_j$):**
-If the private location's `jobManagerHeavyweightJobs` queue is growing, it isn't accurate to calculate the average monitor frequency from existing results. This will need to be estimated from the list of monitors on the [Synthetic Monitors](https://one.newrelic.com/synthetics) page. Make sure to select the correct New Relic account and you may need to filter by `privateLocation`.
+**5. Find average heavyweight monitor period ($P_{avg,m}$):**
+If the private location's `jobManagerHeavyweightJobs` queue is growing, it isn't accurate to calculate the average monitor period from existing results. This will need to be estimated from the list of monitors on the [Synthetic Monitors](https://one.newrelic.com/synthetics) page. Make sure to select the correct New Relic account and you may need to filter by `privateLocation`.
 
 <Callout variant="tip">
   Synthetic monitors may exist in multiple sub accounts. If you have more sub accounts than can be selected in the query builder, choose the accounts with the most monitors.
@@ -1952,7 +1955,7 @@ While they are less resource-intensive, a high volume of ping jobs, especially f
 
   * **Resource model:** Ping jobs utilize worker threads, not dedicated CPU cores. The core-per-job calculation does not apply to them.
   * **Timeout and retry:** A failing ping job can occupy a worker thread for up to **60 seconds**. It first attempts an HTTP HEAD request (30-second timeout). If that fails, it immediately retries with an HTTP GET request (another 30-second timeout).
-  * **Scaling:** Although the sizing formula is different, the same principles apply. To handle a large volume of ping jobs, you may need to scale up your host's resources or scale out by deploying more job managers to keep the `pingJobs` queue clear and prevent delays.
+  * **Scaling:** Although the sizing formula is different, the same principles apply. To handle a large volume of ping jobs and keep the `pingJobs` queue from growing, you may need to scale up and/or scale out. Scaling up means increasing cpu and memory resources per host or namespace. Scaling out means adding more instances of the ping runtime. This can be done by deploying more job managers on more hosts, in more namespaces, or even [within the same namespace](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#scaling-out-with-multiple-sjm-instances). Alternatively, the `ping-runtime` in Kubernetes allows you to set [a larger number of replicas](https://github.com/newrelic/helm-charts/blob/41c03e287dafd41b9c914e5a6c720d5aa5c01ace/charts/synthetics-job-manager/values.yaml#L173) per deployment.
 
 ### Kubernetes and OpenShift [#k8s]
 
@@ -1962,9 +1965,9 @@ A key consideration when sizing your runtimes is that a single SJM instance has 
 
 You can use your average job duration to calculate the maximum effective `parallelism` for a single SJM before hitting this throughput ceiling:
 
-$$Parallelism_{max} \approx 15 \times \mathrm{ajd}_m$$
+$${Parallelism}_{max} \approx 15 \times D_{avg,m}$$
 
-Where $\mathrm{ajd}_m$ is the average job duration in minutes.
+Where $D_{avg,m}$ is the **average heavyweight job duration** in **minutes**.
 
 If your monitoring needs exceed this \~15 jobs/minute limit, you must **scale out** by deploying multiple SJM instances. You can [check if your job queue is growing](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) to see if more instances are needed.
 
@@ -1972,13 +1975,13 @@ The `parallelism` setting controls how many pods of a particular runtime run con
 
 The following equations can be used as a starting point for `completions` and `parallelism` for each runtime.
 
-$$Completions = \frac{300}{ajd_s}$$
+$$Completions = \frac{300}D_{avg,s}$$
 
-Where $\mathrm{ajd}_s$ is the average job duration in seconds.
+Where $D_{avg,s}$ is the **average job duration** in **seconds**.
 
-$$Parallelism = \frac{sj_5m}{Completions}$$
+$$Parallelism = \frac{N_m}{Completions}$$
 
-Where $\mathrm{sj_5m}$ is the number of synthetics jobs per 5 minutes.
+Where $N_m$ is the **number** of synthetic jobs you need to run every **5 minutes.**
 
 The following queries can be used to obtain average duration and rate for a private location.
 
