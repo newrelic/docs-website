@@ -1833,12 +1833,14 @@ Kubernetes に永続的なデータ ストレージを設定するには、ユ�
 
 現在のプライベートロケーションを維持するのが難しく、ジョブがキューに登録されているのではないかと思われる場合は、この式を使用して実際に必要なコアの数を調べてください。 これは、システムの観測可能なパフォーマンスに基づいています。
 
-**式:** $$C\_req = (J\_processed + Q\_growth) \times D\_j$$
+**方程式：**
 
-* $C\_req$ =**必要なCPUコア数**
-* $J\_processed$ = 1 分あたりに**処理さ**れるジョブの速度。
-* $Q\_growth$ = `jobManagerHeavyweightJobs`キューが 1 分あたりに**増加して**いる速度。
-* $D\_j$ = ジョブの**平均所要時間**（分）。
+$$C\_req = (R\_proc + R\_growth) \times D\_avg,m$$
+
+* $C\_req$ = **Required CPU Cores**.
+* $R\_proc$ = The **rate** of heavyweight jobs being **processed** per minute.
+* $R\_growth$ = The **rate** your `jobManagerHeavyweightJobs` queue is **growing** per minute.
+* $D\_avg,m$ = The **average duration** of heavyweight jobs in **minutes**.
 
 **仕組みは次のとおりです。**この式は、システム*が処理している*ジョブとキューに*蓄積されている*ジョブを追加して、実際のジョブ到着率を計算します。この合計負荷に平均ジョブ継続時間を掛けると、キューに入れずにすべての作業をクリアするために必要なコア数が正確にわかります。
 
@@ -1848,12 +1850,12 @@ Kubernetes に永続的なデータ ストレージを設定するには、ユ�
 
 **方程式：**
 
-$$C\_req = N\_m \times D\_j \times \frac1P\_m$$
+$$C\_req = N\_mon \times D\_avg,m \times \frac1P\_avg,m$$
 
-* $C\_req$ =**必要なCPUコア数**
-* $N\_m$ = 実行を計画している重量級モニターの合計**数**。
-* $D\_j$ = ジョブの**平均所要時間**（分）。
-* $P\_m$ = モニターの**期間**（分単位）（たとえば、5 分ごとに実行されるモニターの期間は 5 です）。
+* $C\_req$ = **Required CPU Cores**.
+* $N\_mon$ = The total **number** of heavyweight **monitors** you plan to run.
+* $D\_avg,m$ = The **average duration** of a heavyweight job in **minutes**.
+* $P\_avg,m$ = The **average period** for heavyweight monitors in **minutes** (e.g., a monitor that runs every 5 minutes has $P\_avg,m = 5$).
 
 **仕組みは次のとおりです。**これは、基本的な原則（モニターの数、実行頻度、実行時間）から予想されるワークロードを計算します。
 
@@ -1861,8 +1863,8 @@ $$C\_req = N\_m \times D\_j \times \frac1P\_m$$
 
 これらの数式を使用する場合は、次の要素を考慮してください。
 
-* **ジョブ期間 ($D\_j$):**平均には、**タイムアウトする**ジョブ (多くの場合約 3 分) も含める必要があります。これらのジョブは、期間全体にわたってコアを保持するためです。
-* **ジョブの失敗と再試行:**モニターが失敗すると、自動的に再試行されます。これらの再試行は、合計負荷に追加される追加のジョブです。継続的に失敗して再試行するモニターは、**その頻度を実質的に倍増させ**、スループットに大きな影響を与えます。
+* **Job duration ($D\_avg,m$):** Your average should include jobs that **time out** (often \~3 minutes), as these hold a core for their entire duration.
+* **Job failures and retries:** When a monitor fails, it&apos;s automatically retried. These retries are additional jobs that add to the total load. A monitor that consistently fails and retries **effectively multiplies its period**, significantly impacting throughput.
 * **スケールアウト:**ホストにコアを追加する (スケールアップ) ことに加えて、同じプライベートロケーションキーを持つ追加の外部監視ジョブマネージャーを展開して、複数の環境間でジョブの負荷を分散する (スケールアウト) ことができます。
 
 単一の外形監視ジョブ マネージャー (SJM) には**、1 分あたり約 15 の重量ジョブ**というスループット制限があることに注意することが重要です。 これは、SJM ごとに処理されるジョブの数よりも、複数の SJM 間でのジョブの効率的な競争を優先する内部スレッド戦略によるものです。計算により、より高いスループットが必要であることが示された場合は、追加の SJM を展開して**スケールアウトする**必要があります。 [ジョブ キューが大きくなっているかどうかを確認し](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/)、さらに SJM が必要かどうかを判断できます。
@@ -1877,13 +1879,13 @@ $$C\_req = N\_m \times D\_j \times \frac1P\_m$$
 
 これらの書き込みを[書き込みビルダー](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/)で実行して、診断式の入力を取得できます。 安定した平均値を得るために、時間範囲を十分に長い期間に設定してください。
 
-**1. 1 分あたりに処理されたジョブを検索します ($J\_processed$):**このクエリは、過去 1 日間に完了した非 ping (重量級) ジョブの数をカウントし、1 分あたりの平均レートを表示します。
+**1. Find the rate of jobs processed per minute ($R\_proc$):** This query counts the number of non-ping (heavyweight) jobs completed over the last day and shows the average rate per minute.
 
 ```nrql
 FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-**2. 1 分あたりのキューの増加を見つける ($Q\_growth$):**このクエリは、時系列チャートで`jobManagerHeavyweightJobs`キューの 1 分あたりの平均増加を計算します。ゼロより上の線はキューが増加していることを示し、ゼロより下の線はキューが減少することを意味します。
+**2. Find the rate of queue growth per minute ($R\_growth$):** This query calculates the average per-minute growth of the `jobManagerHeavyweightJobs` queue on a time series chart. A line above zero indicates the queue is growing, while a line below zero means it&apos;s shrinking.
 
 ```nrql
 FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
@@ -1893,19 +1895,21 @@ FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs
   必ずプライベートロケーションが存在するアカウントを選択してください。 微分関数は大きく変化する可能性があるため、このクエリを時系列として表示するのが最適です。目標は、1 分あたりのキューの増加率を推定することです。さまざまな時間範囲をPlayて、最も効果的な方法を見つけてください。
 </Callout>
 
-**3. 平均ジョブ実行時間を分単位で検索します ($D\_j$):**このクエリは、完了した非 ping ジョブの平均実行時間を検索し、結果をミリ秒から分に変換します。`executionDuration` 、ホスト上でジョブの実行にかかった時間を表します。
+**3. Find total number of heavyweight monitors ($N\_mon$):** This query finds the unique count of heavyweight monitors.
+
+```nrql
+
+  FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+
+```
+
+**4. Find average job duration in minutes ($D\_avg,m$):** This query finds the average execution duration of completed non-ping jobs and converts the result from milliseconds to minutes. `executionDuration` represents the time the job took to execute on the host.
 
 ```nrql
 FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-**4. 重量級モニターの合計数 ($N\_m$) を検索します。**このクエリは、重量級モニターの一意の数を検索します。
-
-```nrql
-FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
-```
-
-**5. 平均ヘビーウェイト モニター頻度 ($F\_j$) を見つける:**プライベートロケーションの`jobManagerHeavyweightJobs`キューが増大している場合、既存の結果から平均モニター頻度を計算することは正確ではありません。 これは[、合成モニター](https://one.newrelic.com/synthetics)ページのモニターのリストから推定する必要があります。 正しい New Relic アカウントを選択してください。また、 `privateLocation`でフィルタリングする必要がある場合があります。
+**5. Find average heavyweight monitor period ($P\_avg,m$):** If the private location&apos;s `jobManagerHeavyweightJobs` queue is growing, it isn&apos;t accurate to calculate the average monitor period from existing results. This will need to be estimated from the list of monitors on the [Synthetic Monitors](https://one.newrelic.com/synthetics) page. Make sure to select the correct New Relic account and you may need to filter by `privateLocation`.
 
 <Callout variant="tip">
   合成モニターは複数のサブアカウントに存在する場合があります。書き込みビルダーで選択できる数を超えるサブアカウントがある場合は、モニター数が最も多いアカウントを選択してください。
@@ -1919,7 +1923,7 @@ FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE locat
 
 * **リソース モデル:** Ping ジョブは専用の CPU コアではなくワーカー スレッドを利用します。これらにはジョブあたりのコア数の計算は適用されません。
 * **タイムアウトと再試行:**失敗した ping ジョブは、最大**60 秒間**ワーカー スレッドを占有する可能性があります。最初に HTTP HEAD リクエスト (30 秒のタイムアウト) を試行します。これが失敗した場合は、HTTP GETリクエストを使用してすぐに再試行します (さらに 30 秒のタイムアウト)。
-* **スケーリング:**サイズ設定の式は異なりますが、同じ原則が適用されます。大量の ping ジョブを処理するには、ホストのリソースをスケールアップするか、ジョブ マネージャーを追加してスケールアウトし、 `pingJobs`キューをクリアな状態に保ち、遅延を防ぐ必要がある場合があります。
+* **Scaling:** Although the sizing formula is different, the same principles apply. To handle a large volume of ping jobs and keep the `pingJobs` queue from growing, you may need to scale up and/or scale out. Scaling up means increasing cpu and memory resources per host or namespace. Scaling out means adding more instances of the ping runtime. This can be done by deploying more job managers on more hosts, in more namespaces, or even [within the same namespace](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#scaling-out-with-multiple-sjm-instances). Alternatively, the `ping-runtime` in Kubernetes allows you to set [a larger number of replicas](https://github.com/newrelic/helm-charts/blob/41c03e287dafd41b9c914e5a6c720d5aa5c01ace/charts/synthetics-job-manager/values.yaml#L173) per deployment.
 
 ### KubernetesとOpenShift [#k8s]
 
@@ -1929,9 +1933,9 @@ Kubernetes および OpenShift 合成ジョブ マネージャーによって使
 
 平均ジョブ期間を使用して、このスループット上限に達する前に単一の SJM の最大有効`parallelism`計算できます。
 
-$$Parallelism\_max \approx 15 \times \mathrmajd\_m$$
+$$Parallelism*max \approx 15 \times D*avg,m$$
 
-ここで、$\mathrmajd\_m$ はジョブの平均所要時間（分）です。
+Where $D\_avg,m$ is the **average heavyweight job duration** in **minutes**.
 
 監視ニーズがこの最大 15 ジョブ/分の制限を超える場合は、複数の SJM インスタンスを展開して**スケールアウトする**必要があります。 [ジョブ キューが大きくなっているかどうかを確認し、](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/)さらにインスタンスが必要かどうかを確認できます。
 
@@ -1939,13 +1943,13 @@ $$Parallelism\_max \approx 15 \times \mathrmajd\_m$$
 
 次の式は、各ランタイムの`completions`と`parallelism`開始点として使用できます。
 
-$$完了 = \frac300ajd\_s$$
+$$Completions = \frac300D\_avg,s$$
 
-ここで、$\mathrmajd\_s$ は平均ジョブ継続時間（秒）です。
+Where $D\_avg,s$ is the **average job duration** in **seconds**.
 
-$$並列性 = \fracsj\_5mCompletions$$
+$$Parallelism = \fracN\_mCompletions$$
 
-$\mathrmsj\_5m$ は 5 分あたりの外部監視ジョブの数です。
+Where $N\_m$ is the **number** of synthetic jobs you need to run every **5 minutes.**
 
 次の文章を使用して、プライベートロケーションの平均所要時間と料金を取得できます。
 
