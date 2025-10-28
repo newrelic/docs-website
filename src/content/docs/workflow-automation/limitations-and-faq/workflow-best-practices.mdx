@@ -56,17 +56,31 @@ Always include error handling for external API calls and critical operations.
 
 When critical steps can fail, add fallback actions that notify your team.
 
-**Example**: Send Slack notification if EC2 resize fails:
+**Example**: Send Slack notification even if a step fails using `ignoreErrors`:
 
 ```yaml
-- name: resizeInstance
-  action: aws.ec2.modifyInstanceAttribute
-  onError:
-    - name: notifyFailure
-      action: slack.chat.postMessage
-      inputs:
-        text: "EC2 resize failed for ${{ .inputs.instanceId }}"
+- name: sendNotification
+  type: action
+  action: aws.execute.api
+  version: 1
+  ignoreErrors: true
+  inputs:
+    service: sqs
+    api: send_message
+    parameters:
+      MessageBody: "Rollback notification"
+      QueueUrl: "${{ .workflowInputs.queueUrl }}"
+
+- name: logResult
+  type: action
+  action: newrelic.ingest.sendLogs
+  version: 1
+  inputs:
+    logs:
+      - message: "Notification sent: ${{ .steps.sendNotification.outputs.success }}"
 ```
+
+Use `ignoreErrors: true` to continue workflow execution even if a step fails.
 
 ### Set appropriate timeouts
 
@@ -246,11 +260,19 @@ When using conditional logic or loops, explain the logic:
 ```yaml
 - name: checkCPU
   # Query CPU for last 10 minutes to avoid false positives
+  type: action
   action: newrelic.nerdgraph.execute
+  version: 1
 
 - name: decideAction
   # If CPU > 90%: resize, 70-90%: warn, < 70%: no action
-  action: workflow.switch
+  type: switch
+  switch:
+    - condition: "${{ .steps.checkCPU.outputs.result > 90 }}"
+      next: resizeInstance
+    - condition: "${{ .steps.checkCPU.outputs.result > 70 }}"
+      next: sendWarning
+  next: noAction
 ```
 
 ## Security
