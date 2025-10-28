@@ -1,0 +1,319 @@
+---
+title: Workflow Automation best practices
+tags:
+  - Workflow Automation
+  - workflow
+  - best practices
+  - workflow automation best practices
+metaDescription: "Build reliable, maintainable workflows that handle errors gracefully and scale with your operations."
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Build reliable workflows that handle errors gracefully, protect sensitive data, and scale with your operations. Follow these patterns to create maintainable automations.
+
+## Design focused workflows
+
+Keep workflows focused on a single responsibility. Group related actions together, but avoid combining unrelated tasks.
+
+### One workflow, one purpose
+
+**Do**: Create separate workflows for incident response and scheduled maintenance.
+**Don't**: Combine EC2 resizing, database backups, and Slack notifications into one workflow.
+
+### Reuse workflows with parameters
+
+Use input parameters to make workflows reusable across environments instead of duplicating workflows.
+
+**Example**: One EC2 resize workflow with region and instance type parameters:
+
+```yaml
+inputs:
+  awsRegion: us-east-1
+  instanceType: t3.medium
+  instanceId: i-1234567890abcdef0
+```
+
+This replaces creating separate workflows for each region or instance type.
+
+### Combine related actions
+
+Group related actions that should execute together:
+
+- **Do**: Query alert details, format message, send to Slack in one workflow
+- **Don't**: Create separate workflows for "query alert," "format message," "send to Slack"
+
+## Handle errors
+
+Always include error handling for external API calls and critical operations.
+
+### Add fallback actions
+
+When critical steps can fail, add fallback actions that notify your team.
+
+**Example**: Send Slack notification even if a step fails using `ignoreErrors`:
+
+```yaml
+- name: sendNotification
+  type: action
+  action: aws.execute.api
+  version: 1
+  ignoreErrors: true
+  inputs:
+    service: sqs
+    api: send_message
+    parameters:
+      MessageBody: "Rollback notification"
+      QueueUrl: "${{ .workflowInputs.queueUrl }}"
+
+- name: logResult
+  type: action
+  action: newrelic.ingest.sendLogs
+  version: 1
+  inputs:
+    logs:
+      - message: "Notification sent: ${{ .steps.sendNotification.outputs.success }}"
+```
+
+Use `ignoreErrors: true` to continue workflow execution even if a step fails.
+
+### Set appropriate timeouts
+
+Set timeouts for external API calls to prevent workflows from hanging:
+
+- AWS API calls: 30-60 seconds
+- Database queries: 10-30 seconds
+- HTTP requests: 15-30 seconds
+- Slack messages: 10 seconds
+
+### Log errors for troubleshooting
+
+Include these details in error logs:
+- Action that failed
+- Input parameters
+- Error message from the service
+- Timestamp
+
+## Secure credentials
+
+Store all sensitive values in New Relic's secrets manager. Never hardcode credentials in workflow definitions.
+
+### Use secrets manager
+
+Store AWS credentials, API tokens, and passwords:
+
+```graphql
+mutation {
+  secretsManagementCreateSecret(
+    scope: {type: ACCOUNT id: "YOUR_NR_ACCOUNT_ID"}
+    namespace: "aws"
+    key: "awsAccessKeyId"
+    description: "AWS Access Key ID for workflow automation"
+    value: "YOUR_AWS_ACCESS_KEY_ID"
+  ) {
+    key
+  }
+}
+```
+
+Reference secrets: `${{ :secrets:awsAccessKeyId }}`
+
+### Rotate credentials regularly
+
+If using IAM user access keys:
+- Rotate every 90 days minimum
+- Set calendar reminders
+- Test new credentials before deleting old ones
+
+**Recommended**: Use IAM roles instead—they rotate automatically.
+
+### Use least privilege permissions
+
+Grant only required permissions. Start with read-only, add write permissions only when needed.
+
+**AWS IAM policy example** for SQS:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "sqs:SendMessage",
+  "Resource": "arn:aws:sqs:us-west-2:123456789012:my-queue"
+}
+```
+
+This restricts access to one specific queue.
+
+## Test before production
+
+Test workflows in non-production environments before deploying to production.
+
+### Duplicate for testing
+
+Create test versions of production workflows:
+
+1. Navigate to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+2. Find the workflow and click the more options menu
+3. Select **Duplicate**
+4. Update credentials to use test accounts
+5. Test with non-production resources
+
+### Test failure scenarios
+
+Verify workflows handle failures:
+
+- What if AWS API is unavailable?
+- What if Slack is down?
+- What if credentials expire?
+- What if a required resource doesn't exist?
+
+### Verify integrations
+
+Before scheduling, manually trigger the workflow and verify:
+- AWS actions execute successfully
+- Slack messages appear in correct channels
+- Approval gates wait for responses
+- Error handling works as expected
+
+## Optimize performance
+
+Build efficient workflows that execute quickly.
+
+### Query once, reuse results
+
+Store query results and reference them multiple times:
+
+```yaml
+- name: getAlertDetails
+  action: newrelic.nerdgraph.execute
+
+- name: sendToSlack
+  inputs:
+    text: "${{ .steps.getAlertDetails.outputs.data }}"
+
+- name: updateJira
+  inputs:
+    body: "${{ .steps.getAlertDetails.outputs.data }}"
+```
+
+**Don't**: Query alert details separately for Slack and Jira.
+
+## Monitor and maintain
+
+Regularly monitor workflow execution and keep workflows updated.
+
+### Check execution history weekly
+
+Review workflow runs:
+
+1. Navigate to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+2. Select the workflow
+3. Click **Run history**
+4. Look for failed runs or increasing execution times
+
+### Set up failure alerts
+
+Configure alerts for workflow failures:
+
+1. Create alert condition for workflow execution failures
+2. Send notifications to team's primary channel
+3. Include workflow name and error details
+
+### Review workflows quarterly
+
+Set recurring calendar reminders to:
+
+- Remove unused workflows
+- Update expiring credentials
+- Verify integrated services haven't changed APIs
+- Test failure scenarios
+- Update documentation
+
+## Document workflows
+
+Make workflows easy to understand.
+
+### Use descriptive names
+
+- **Do**: "EC2 Auto-Resize for High CPU Alerts"
+- **Don't**: "Workflow 1" or "EC2 Automation"
+
+### Write clear descriptions
+
+Explain what, when, and who:
+
+```
+Automatically resizes EC2 instances when CPU exceeds 90% for 10 minutes.
+Requires approval via Slack before executing changes.
+Owner: DevOps Team (devops@example.com)
+Last updated: 2025-01-26
+```
+
+### Add comments for complex logic
+
+When using conditional logic or loops, explain the logic:
+
+```yaml
+- name: checkCPU
+  # Query CPU for last 10 minutes to avoid false positives
+  type: action
+  action: newrelic.nerdgraph.execute
+  version: 1
+
+- name: decideAction
+  # If CPU > 90%: resize, 70-90%: warn, < 70%: no action
+  type: switch
+  switch:
+    - condition: "${{ .steps.checkCPU.outputs.result > 90 }}"
+      next: resizeInstance
+    - condition: "${{ .steps.checkCPU.outputs.result > 70 }}"
+      next: sendWarning
+  next: noAction
+```
+
+## Security
+
+Protect workflows and the resources they access.
+
+### Use approval gates for destructive operations
+
+Require human approval before:
+
+- Deleting resources
+- Scaling down production services
+- Rolling back deployments
+- Modifying IAM permissions
+
+### Audit workflow changes
+
+Use version history to track changes:
+
+1. Go to workflow details
+2. Click **Version history**
+3. Review changes and who made them
+
+### Restrict workflow access
+
+Ensure only authorized team members can edit workflows:
+
+1. Review user roles in account settings
+2. Limit edit permissions to DevOps team
+3. Use separate accounts for production and test
+
+## Next steps
+
+**Understand limits:**
+- **[Workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits)** - Timeout, action, and payload constraints
+
+**Troubleshoot issues:**
+- **[Troubleshooting](/docs/workflow-automation/troubleshooting)** - Solutions to common problems
+
+**See examples:**
+- **[Workflow examples](/docs/workflow-automation/workflow-examples)** - Real-world automation scenarios
+
+**Manage workflows:**
+- **[Managing workflows](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)** - Edit, duplicate, and monitor workflows
