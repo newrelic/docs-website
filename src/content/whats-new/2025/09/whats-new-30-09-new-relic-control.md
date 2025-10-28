@@ -17,7 +17,7 @@ This release eliminates the high complexity and toil of agent lifecycle manageme
 ### Agent Control: Instrumentation supervisor for Kubernetes
 Agent Control is a lightweight, Kubernetes-native supervisor that installs on your clusters to manage New Relic and open source telemetry agents. It keeps your instrumentation healthy and in sync with remote configurations received from Fleet Control.
 
-Seamless remote updates: Agent Control can remotely update itself and its managed agents to stay current with the latest features and security patches.
+- **Seamless remote updates:** Agent Control can remotely update itself and its managed agents to stay current with the latest features and security patches.
 
 - **Kubernetes-native design:** Leverage a declarative approach to agent management, ensuring consistency across your entire environment with a single source of truth for agent configuration.
 
@@ -45,4 +45,4 @@ To begin centrally managing instrumentation on Kubernetes clusters, install Agen
 
 - [Supported agent types](https://docs.newrelic.com/docs/new-relic-control/agent-control/agent-types/)
 
-Fleet and Agent Control for Linux host-based fleets is also available in Public Preview and your feedback is invaluable. We encourage you to try it out and let us know what you think!
+Fleet Control and Agent Control for Linux host-based fleets are also available in Public Preview and your feedback is invaluable. We encourage you to try it out and let us know what you think!
