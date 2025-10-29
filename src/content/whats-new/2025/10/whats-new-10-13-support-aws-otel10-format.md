@@ -4,7 +4,7 @@ summary: 'Enhanced Support for the OpenTelemetry 1.0 output format in our AWS Cl
 releaseDate: '2025-10-13'
 ---
 
-We are excited to announce a significant enhancement to our AWS infrastructure monitoring capabilities. Our **AWS CloudWatch Metric Streams** integration now supports the **OpenTelemetry (OTel) 1.0** output format. This update allows you to leverage the latest industry standards for telemetry data, providing a more efficient and future-proof way to stream metrics from your AWS environment into New Relic.
+We're excited to announce a significant enhancement to our AWS infrastructure monitoring capabilities. Our **AWS CloudWatch Metric Streams** integration now supports the **OpenTelemetry (OTel) 1.0** output format. This update allows you to leverage the latest industry standards for telemetry data, providing a more efficient and future-proof way to stream metrics from your AWS environment into New Relic.
 
 ## What's Changed
 
@@ -12,7 +12,7 @@ You can now configure your AWS Metric Stream integration to send data using the 
 
 This enhancement provides several key benefits:
 
-- **Improved Performance and Efficiency**: Utilize the highly efficient binary protobuf format of OTel 1.0, reducing data transfer volume and processing overhead compared to JSON-based formats.
+- **Improved Performance and Efficiency**: Use the highly efficient binary protobuf format of OTel 1.0, reducing data transfer volume and processing overhead compared to JSON-based formats.
 - **Richer Metadata and Future-Proofing**: Align with the latest OpenTelemetry standards, ensuring compatibility with future enhancements and enabling richer, more detailed metric attributes.
 
 ## How to Enable OpenTelemetry 1.0
