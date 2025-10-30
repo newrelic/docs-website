@@ -6,6 +6,10 @@ learnMoreLink: 'https://newrelic.com/solutions/industry/healthcare'
 getStartedLink: 'https://docs.newrelic.com/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/'
 ---
 
+<Callout variant="caution">
+New Relic has discontinued the use of the HITRUST framework for attesting to our HIPAA compliance. New Relic now relies on our third party HIPAA attestation as evidence of compliance with HIPAA standards and controls. New Relic provides the list of “HIPAA Covered Services,” which may be referenced in the applicable business associate agreement, on this successor [HIPAA page](/docs/security/security-privacy/compliance/certificates-standards-regulations/hipaa/).
+</Callout>
+
 ## Deliver a superior digital patient and provider experience
 
 Optimize your patients' interactions by reducing page load times, application latency, and errors. Understand which sections of your portals and apps get the most usage, guiding you where to invest in further development.

@@ -1,0 +1,608 @@
+---
+title: Workflow definition schema
+tags:
+  - workflow automation
+  - workflow schems
+  - workflow automation API
+metaDescription: "Workflow definitions are written in YAML. Keys use a camelCase naming convention."
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+## Schema
+
+Workflow definitions are written in YAML. Keys use a `camelCase` naming convention.
+
+### **name** (Required)
+  - **Type**: String
+  - **Format**: Must conform to the regex `^[A-Za-z_][A-Za-z0-9_-]*$`.
+  - **Max. length**: 100
+  - **Description**: `name` values are case-insensitive. For example, `ExampleWorkflow`, `exampleworkflow`, and `EXAMPLEWORKFLOW` are all considered to represent the same workflow definition.
+
+### **description** (Optional)
+  - **Type**: String
+  - **Format**: Must conform to the regex `^[A-Za-z0-9 _-]*$`.
+  - **Max. length**: 200
+  - **Description**: A `description` of the workflow that explains its purpose.
+
+### **workflowInputs** (Optional)
+  - **Type**: Map of maps
+  - **Max. size**: 100
+  - **Description**: A map of workflow inputs that the workflow accepts.
+  - **Example**:
+
+  ```java
+    workflowInputs:
+      myInput1:
+        type: String
+      myInput2:
+        type: Number
+        defaultValue: 42
+  ```
+
+  - **`workflowInputs.<inputName>`** (Required)
+
+    - **Type**: String (conforming to [expression-safe pattern]())
+    - **Min. length**: 1
+    - **Max. length**: 50
+    - **Description**: The name of the workflow input.
+
+  - **`workflowInputs.<inputName>.type`** (Required)
+    - **Type**: Enum (Boolean, List, Map, String, Int, Float)
+    - **Description**: The data type of the workflow input.
+
+  - **`workflowInputs.<inputName>.defaultValue`** (Optional)
+    - **Type**: Any; must conform to `type`.
+    - **Description**: The default value for the workflow input.
+
+- **steps** (Required)
+
+  - **Type**: Array of maps
+  - **Description**: The steps to be performed when the workflow definition is run. There must be at least one step.
+
+  <Callout variant="important">
+    Steps will run in the order they’re defined in the `steps` array.
+
+    If a different ordering is desired, a “jump” can be performed by setting the `steps[*].next` property to the name of the desired step to jump to.
+  </Callout>
+
+  - **`steps[*].name`** (Required)
+    - **Type**: String (conforming to [expression-safe pattern](); cannot be `end`)
+    - **Max. length**: 100
+    - **Description**: The name of the step to be referenced by `steps[*].next`. It cannot be the special keywords `end`, `continue`, or `break`, as these are used to indicate a terminating step, a continuation of a loop, or to break out of a loop.
+
+  - **`steps[*].type`** (Required)
+    - **Type**: String
+    - **Description**: The type of the step, indicating what the step does when run. Refer to [Step Types]() for the available options.
+
+  - [**`steps[*].next`**](#steps-next) (Optional)
+    - **Type**: String (conforming to [expression-safe pattern]())
+    - **Description**:
+      - The name of the next step to run when this step completes successfully. The special keyword `end` can be used to indicate that this step should be the last one to run.
+      - If `next` is omitted, the following entry in the definition’s `steps` array will be used as the implicit next step. If there is no following entry, the workflow will be completed.
+
+## Step Types
+
+### **action**
+
+    A step that runs a specific action. Refer to [Action Catalog](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog) for the available options.
+
+    - **`steps[*].action`** (Required)
+      - **Type**: String
+      - **Description**: The fully qualified name of the action function to run. It should follow the following convention:
+
+        `<company domain>.<category of work>.<action name in camelCase>`
+      - **Example**:
+        - Action using New Relic services (e.g. through NerdGraph): `newrelic.dashboards.getDashboard`
+        - Action using Slack: `slack.chat.postMessage`
+
+    - **`steps[*].version`** (Required)
+      - **Type**: String
+      - **Description**: The version of the action function to run.
+
+    - **`steps[*].inputs`** (Optional)
+      - **Type**: Map of values (includes [expressions]())
+      - **Description**:
+        - The inputs to pass to the action function. The specific inputs accepted are defined by each action.
+        - Inputs can use expressions. See the [Expressions Strings]() section for details.
+
+      <Callout variant="important">
+        No sensitive data (no API keys or secrets, no PII, PHI or any personally identifiable data) should be passed-in as arguments.
+      </Callout>
+
+    - **`steps[*].inputs.selectors`** (Optional)
+      - **Type**: list of map in the form of `name` with `expression`.
+      - **Description**:
+        - The `selectors` input allows to redefine the output to only return the specified elements.
+        - Expression can be used. See the [Expressions Strings]() section for details.
+      - **Example**
+        - In the given example we are getting the `pageUrl` and `statusDescription` as response of http.get action.
+
+        ```yaml
+            name: status
+            description: A workflow for checking the status of New Relic components
+
+            steps:
+              - name: query1
+                type: action
+                action: http.get
+                version: 1
+                inputs:
+                  url: "https://status.newrelic.com/api/v2/status.json"
+                  selectors:
+                    - name: statusCode
+                      expression: '.statusCode'
+                    - name: pageUrl
+                      expression: '.responseBody | fromjson | .page.url'
+                    - name: statusDescription
+                      expression: '.responseBody | fromjson | .status.description'
+
+              - name: logOutput1
+                type: action
+                action: newrelic.ingest.sendLogs
+                version: 1
+                inputs:
+                  logs:
+                    - message: "status is '${{ .steps.query1.outputs.statusDescription }}' details at ${{ .steps.query1.outputs.pageUrl }}"
+          ```
+
+### **loop**
+
+A loop will iterate over a given collection defined by `in` and create loop variables `index` and `element` for each of its iteration.  These loop variables are accessible within the loop only with expression `${{ .steps.<loopStepName>.loop.element }}` or `${{ .steps.<loopStepName>.loop.index }`
+
+For more details see below:
+
+<CollapserGroup>
+    <Collapser
+        id="moreforloop"
+        title="Loop to iterate through a list, map, or collection"
+    >
+
+      You can use the loop to iterate through a list, map, or collection.
+
+      - `for` (Required)
+        - **Type**: Constant
+        - **Description**: Signal starting of a loop.
+
+      - `in` (Required)
+        - **Type**: string (expression)
+        - **Description**: An expression that needs to be evaluated to a collection of elements.
+
+      - `steps` (Required)
+        - **Description**: Steps to be executed each iteration of the loop. A step can be any type of step, including another loop.
+        - **Examples**: The following shows how to execute the loop workflowInputs. Note, that the result must be a type of collection.
+
+            ```yaml
+                name: myWorkflow
+                steps:
+                  - name: loopStep
+                    type: loop
+                    for:
+                      in: '${{ .workflowInputs.count }}'
+                      steps:
+                        - name: step1
+                          type: action
+                          action: example.messaging.sayHello
+                          version: '1.0.0'
+                          inputs:
+                            name: '${{ .steps.loopStep.loop.element }}' # not exist outside of this loop
+                            index: '${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
+            ```
+
+      <Callout variant="important">
+        - `element` and `index` are automatically assigned as part of the loop.
+        - `Index` is a zero-based.
+        - The `element` can be a complex type if you have a collection of complex elements.
+        - All loop variables and outputs from steps within the loop have loop-level scope. These variables are cleared after exiting the loop and accessing them outside of the loop will result in null value. Loop can access variables that are outside of the loop if it’s previously defined.
+      </Callout>
+
+      **Simple for loop on integers**
+
+      ```yaml
+          name: myWorkflow
+          steps:
+            - name: loopStep
+              type: loop
+              for:
+                in: ${{ [range(1; 6)] }}
+                steps:
+                  - name: step1
+                    type: action
+                    action: example.messaging.sayHello
+                    version: '1.0.0'
+                    inputs:
+                      name: '${{ .steps.loopStep.loop.element }}'  # [1, 2, 3, 4, 5]
+                      index: '${{ .steps.loopStep.loop.index }}' # [0, 1, 2, 3, 4]
+      ```
+
+      **Simple loop for map**
+
+      ```yaml
+          name: myWorkflow
+          steps:
+            - name: loopStep
+              type: loop
+              for:
+                in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
+                steps:
+                  - name: step1
+                    type: action
+                    action: example.messaging.sayHello
+                    version: '1.0.0'
+                    inputs:
+                      name: '${{ .steps.loopStep.loop.element }}'  # [{ "key1": "val1" }, { "key2": "val2"}]
+                      index: '${{ .steps.loopStep.loop.index }}' # [0, 1]
+      ```
+
+      **Jump within a loop**
+
+      Only jumping between named steps belonging to the same for loop is allowed. Jumping in or out of a for loop, to an inner/outer loop, or between two different for loops, is not allowed.
+
+      ```yaml
+          name: myWorkflow
+          steps:
+            - name: firstStep
+              type: action
+              action: example.messaging.sayHello
+              version: '1.0.0'
+            - name: loopStep
+              type: loop
+              for:
+                in: '${{ .workflowInputs.count }}'
+                steps:
+                  - name: step1
+                    type: action
+                    action: example.messaging.sayHello
+                    version: '1.0.0'
+                    inputs:
+                      name: '${{ .steps.loopStep.loop.element }}'
+                    next: step3                                 # Okay within the loop
+                  - name: step2
+                    type: action
+                    action: example.messaging.sayHello
+                    version: '1.0.0'
+                    inputs:
+                      name: '${{ .steps.step1.outputs.greeting }}'
+                  - name: step3
+                    type: action
+                    action: example.messaging.sayHello
+                    version: '1.0.0'
+                    next: firstStep                            # Not okay, first step is not in the loop context
+      ```
+
+      **Use break/continue in a loop**
+
+      To change the flow of a for loop, you can use `next: break` or `next: continue`. Note that `break` and `continue` are reserved jump targets defined implicitly within a loop. Using use `next: break` or `next: continue` outside of a loop will jump to the end of the workflow steps.
+
+      - The `end` serves as the same as `break` if it's used inside a loop
+      - Next can be used in both switch steps or any type of step.
+
+      ```yaml
+        name: myWorkflow
+        steps:
+          - name: loopStep
+            type: loop
+            for:
+              in: '${{ [range(1; 6)] }}'
+              steps:
+                - name: insideLoopStep1
+                  type: action
+                  action: example.messaging.sayHello
+                  version: '1.0.0'
+                  inputs:
+                    name: '${{ .steps.loopStep.loop.element }}'
+                  next: continue
+                - name: insideLoopStep2
+                  type: action
+                  action: example.messaging.sayHello
+                  version: '1.0.0'
+                  inputs:
+                    name: '${{ .steps.loopStep.loop.element }}'
+          - name: loopStepAgain
+            type: loop
+            for:
+              in: '${{ .workflowInputs.count }}'
+              steps:
+                - name: switchStep
+                  type: switch
+                  switch:
+                    - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
+                      next: break
+                - name: insideLoopStepAgain
+                  type: action
+                  action: example.messaging.sayHello
+                  version: '1.0.0'
+                  inputs:
+                    name: '${{ .steps.loopStepAgain.loop.element }}'
+      ```
+    </Collapser>
+</CollapserGroup>
+
+    - **`steps[*].for`** (Required)
+      - **Type**: constant
+      - **Description**: Signal starting of a loop
+
+    - **`steps[*].in`** (Required)
+        - **Type**: string (expression)
+        - **Description**: An expression that need to evaluate to a collection of elements.
+
+      - **`steps[*].steps`** (Optional)
+        - **Description**: Steps to be executed each iteration of the loop. See definition for steps above.
+        - **Example**:
+
+          ```yaml
+            name: myWorkflow
+            steps:
+              - name: loopStep
+                type: loop
+                for:
+                  in: "${{ [range(1; 5)] }}""
+                  steps:
+                    - name: step1
+                      type: action
+                      action: newrelic.ingest.sendLogs
+                      version: 1
+                      inputs:
+                        logs:
+                          - message: "Loop: ${{ .steps.loopStep.loop.element }}"
+          ```
+
+### **switch**
+
+    - A step that checks various conditionals and takes the first branch that evaluates to true.
+    - A switch can contain any number of condition elements in a list. It will check the conditions in order and process the first one that evaluates to true. If none evaluate to true, it will run its next step as defined in steps[*].next
+
+  - **`steps[*].switch`** (Required)
+    - **Type**: array
+    - **Description**: An array of switch cases, specifying the ordered list of conditions to evaluate.
+
+  - **`steps[*].switch[*].condition`** (Required)
+    - **Type**: string (expression)
+    - **Description**: The condition of the switch case. If evaluated to true, the case’s next step will be executed.
+
+  - **`steps[*].switch[*].next`** (Required)
+    - **Type**: string (conforming to [expression-safe pattern]())
+    - **Description**: The name of the step to run if the case’s condition evaluates to true. The special keyword end can be used to indicate that this step should be the last one to run.
+
+    ```yaml
+    - name: hasCompleted
+      type: switch
+      switch:
+        - condition: ${{ .steps.waitForCompletion.outputs.automationExecutionStatus == "Failed" }}
+          next: displayError
+        - condition: ${{ .steps.waitForCompletion.outputs.automationExecutionStatus == "Success" }}
+          next: displaySuccess
+      next: displayUnexpected
+    ```
+
+### wait
+
+  A step that causes the workflow run to wait a certain number of seconds before continuing. It can also listen for one or more signals. If no signal is received during the wait, it will proceed as normal. The signals are defined in a list. Each signal must have a corresponding next step defined. The first signal to be received is the one that will be processed. The value received for the signal will be stored in the step output for the wait step and can be used for logic our processing in later steps.
+
+  - Example:
+
+    ```yaml
+      name: waitSignalExample
+      workflowInputs:
+      steps:
+        - name: waitStep
+          type: wait
+          seconds: 300
+          signals: [{name: 'mySignalName', next: 'firstStep'}]
+        - name: endStep
+          type: action
+          action: newrelic.ingest.sendLogs
+          version: 1
+          inputs:
+            logs:
+              - message: "didn't get signal"
+          next: end
+        - name: firstStep
+          type: action
+          action: newrelic.ingest.sendLogs
+          version: 1
+          inputs:
+            logs:
+              - message: ${{ .steps.waitStep.outputs.signalInputs.myString }}
+    ```
+
+  - **`steps[*].seconds`** (Required)
+    - **Type**: number
+    - **Description**: The number of seconds to wait before continuing the workflow run.
+
+  - **`steps[*].signals`**
+    - **Type**: array
+    - **Description**: The signals which, when received, will divert the program flow.
+
+  - **`steps[*].signals[*].name`**
+    - **Type**: string
+    - **Description**: The name of the signal to listen for.
+
+  - **`steps[*].signals[*].next`**
+    - **Type**: string
+    - **Description**: The Step to execute if the specified signal is received.
+
+## Shared Types
+
+### Expression strings
+
+Several properties accept string values with embedded expressions that are evaluated during workflow execution, allowing for dynamic values to be used within workflow definitions. Expression strings can contain one or multiple expressions, each of which are enclosed within double curly braces. The content within the braces is evaluated using jq.
+
+jq provides the ability to access and operate on values in many ways. For example, the length of a workflow input string could be achieved with the following:
+`${{ .workflowInputs.myString | length }}`
+
+To build and [test JQ](https://play.jqlang.org/) expression this tool can be used.
+
+### Expression properties
+
+A number of properties can be accessed with expressions. These properties live in a “scope” object, so expressions must start with a period (.) to access those properties of the scope object.
+
+The available properties are:
+
+- `workflowInputs` - object containing the inputs passed to the workflow on start.
+  - Example: `${{ .workflowInputs.myInput }}`
+- `steps` - object containing a property for each step in the workflow
+  - `steps.<stepName>` - object containing properties for a specific step
+    - `steps.<stepName>.outputs` - object containing result properties, specific to the step/action.
+      - Example: `${{ .steps.myStep.outputs.myResult }}`
+
+### Expression evaluation results
+
+A single jq expression can evaluate to any JSON type, but it’s important to note that the final result of an entire expression string will be dependent on the string content (if any) surrounding the expression(s).
+
+If the entirety of an expression string consists of a single expression, then it will be evaluated to the jq expression’s result—maintaining the JSON type of the result. For example, if a workflow is passed an array as input, the string `${{ .workflowInputs.myArray }}` would evaluate to an array. This can be useful for passing complex data within a workflow.
+
+If the expression string contains content other than a single expression, then it will be evaluated to a string result. For example, this occurs when an expression has content before/after it or if the string has multiple expressions within it. Each expression within the string is evaluated and converted to a string representation.
+
+Example:
+
+For the following examples, assume myArray has a value of [1, 2, 3].
+
+<table>
+  <thead>
+    <tr>
+      <th>Expression string</th>
+      <th>Result data</th>
+      <th>Result type</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`${{ .workflowInputs.myArray }}`</td>
+      <td>[1, 2, 3]</td>
+      <td>array of numbers</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray | length }}`</td>
+      <td>3</td>
+      <td>number</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray | length > 0 }}`</td>
+      <td>true</td>
+      <td>boolean</td>
+    </tr>
+    <tr>
+      <td>`Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`</td>
+      <td>"Input is not empty: true"</td>
+      <td>string</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`</td>
+      <td>" has length 3"</td>
+      <td>string</td>
+    </tr>
+  </tbody>
+</table>
+
+### Expression-Safe Pattern [#expression-safe-pattern]
+
+Properties that can be used in expressions must conform to the following regex:
+ `^[A-Za-z_][A-Za-z0-9_]*$`
+
+### Secret References
+
+Secret values can be used in actions via reference strings that specify the name of a secret to look up in the Secrets Service. To reference a secret in a workflow definition, use the syntax:
+  - `${{ :secrets:<SECRET_NAME> }}` for a secret not in a `namespace`
+  - `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` for a secret in a `namespace`
+
+An expression string can contain a mix of secret references and JQ expressions and/or multiple secret references.
+
+Examples:
+
+```yaml
+  steps:
+  - name: bearer_auth
+    type: action
+    action: http.post
+    inputs:
+      headers:
+        Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
+```
+
+## Examples
+
+- Hello World
+
+```yaml
+name: helloWorld
+description: 'A hello world workflow'
+
+workflowInputs:
+  name:
+    type: String
+    defaultValue: World
+    required: false
+    validations:
+      - type: maxLength
+        errorMessage: "name must be at most 100 characters"
+        length: 100
+  slackTokenSecret:
+    type: String
+    defaultValue: "${{ :secrets:SLACK_TOKEN }}"
+  slackChannel:
+    type: String
+    defaultValue: my-channel
+    validations:
+      - type: regex
+        errorMessage: "A slack channel name must be lowercase and can only contain letters, numbers, and hyphens"
+        pattern: "^[a-z0-9\\-]+$"
+    required: true
+
+steps:
+  - name: init1
+    type: assign
+    inputs:
+      greeting: Hello ${{ .workflowInputs.name }}
+
+  - name: logName
+    type: action
+    action: newrelic.ingest.sendLogs
+    version: 1
+    inputs:
+      logs:
+        - message: ${{ .steps.init1.outputs.greeting }}
+
+  - name: waiting1
+    type: wait
+    seconds: 1
+
+  - name: queryForLog
+    type: action
+    action: newrelic.nrdb.query
+    version: 1
+    inputs:
+      query: >-
+        FROM Log SELECT * WHERE message LIKE '${{ .steps.init1.outputs.greeting
+        }}'
+
+  - name: checkResult
+    type: switch
+    switch:
+      - condition: ${{ .steps.queryForLog.outputs.results | length > 0 }}
+        next: FoundMessage
+
+  - name: waitingMessage
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      channel: ${{ .workflowInputs.slackChannel }}
+      text: Waiting for log message...
+      token: ${{ .workflowInputs.slackTokenSecret }}
+    next: waiting1
+
+  - name: FoundMessage
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      channel: ${{ .workflowInputs.slackChannel }}
+      text: Found message! ${{ .steps.queryForLog.outputs.results[0].message }}
+      token: ${{ .workflowInputs.slackTokenSecret }}
+```
