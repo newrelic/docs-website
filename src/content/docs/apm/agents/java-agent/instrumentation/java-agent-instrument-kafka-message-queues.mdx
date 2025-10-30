@@ -105,7 +105,7 @@ To enable Kafka event collection:
 3. Use the [event explorer](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data) to view your Kafka events, located in the `KafkaMetrics` event type. Or, use [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) to query your events directly. For example:
 
    ```sql
-   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   SELECT average('producer-metrics.record-send-rate') FROM KafkaMetrics SINCE 30 minutes ago TIMESERIES
    ```
 
    If you are querying Kafka Streams metrics, use the `KafkaStreamsMetrics` event type to access streams-specific metrics.
@@ -205,12 +205,31 @@ To collect distributed traces from Kafka:
       distributed_tracing:
         enabled: true
       ```
-    * Enable the Kafka-specific distributed tracing features by adding the following to your config file:
+    * Enable general Kafka-specific distributed tracing features by adding the following to your config file:
 
       ```yml
       class_transformer:
         com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
           enabled: true
+      ```
+    * Enable spring-kafka instrumentation for agent versions `8.21` and up.
+
+      <Callout variant="important">
+        This may cause a spike in ingest and memory usage so it is disabled
+      </Callout>
+
+      ```yml
+      class_transformer:
+        com.newrelic.instrumentation.spring-kafka-2.2.0:
+          enabled: true
+      ```
+    * Enable distributed tracing for batch calls for Kafka for agent versions `8.21` and up. (Batch call distributed traces are disabled by default as transactions can only accept 1 parent trace from a message):
+      ```yml
+      kafka:
+        spans:
+          distributed_trace: 
+            consume_many:
+              enabled: true
       ```
   </Collapser>
 
@@ -239,7 +258,9 @@ To collect distributed traces from Kafka:
     id="instrument-kafka-consumer"
     title="3. Instrument the Kafka consumer"
   >
-    To instrument your Kafka consumer, you'll need to start a transaction when the message is being processed. The agent stores the distributed tracing payload header under the `newrelic` key or under the W3C's `traceparent` and `tracestate` keys. Retrieve the header, then call the New Relic transaction API to accept the payload.
+  
+    ### Scenario 1: Using manual instrumentation with Kafka Client
+    To instrument your Kafka consumer via manual insteumantation, you'll need to start a transaction when the message is being processed. The agent stores the distributed tracing payload header under the `newrelic` key or under the W3C's `traceparent` and `tracestate` keys. Retrieve the header, then call the New Relic transaction API to accept the payload.
 
     For example:
 
@@ -270,6 +291,37 @@ To collect distributed traces from Kafka:
 
       // Accept distributed tracing headers to link this request to the originating request
       NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+    ### Scenario 2: Using auto instrumentation for kafka clients
+    This will only apply for agent versions `8.21` and up. You can leverage auto instrumentation too to read distributed tracing for kafka consumers. 
+    This is accomplished by starting a transaction and calling the `poll(...)` method of a consumer when the transaction is happening.
+
+    This is disabled by dafault because consumer polling by default accepts multiple messages and transactions can only have one parent trace so only 1 message will be read.
+
+    To enable automatically accepting distributed traces for Kafka consumer polls, you need to enable distributed tracing for batch calls as showin in step 1.
+    
+    Example of instrumenting kafka consumer polls:
+
+    ```java
+    @Trace(dispatcher = true)
+    private void consumeMessage(KafkaConsumer<String, String> consumer) {
+      final ConsumerRecords<String, String> records = consumer.poll(1000);
+      // Process your records ....
+    }
+    ```
+
+    ### Scenario 3: Using Spring Kafka
+    If you are using Spring Kafka, you can enable auto instrumentation when for methods instrumented with `@KafkaListener` if you are using agent versions `8.21.0` and up.
+    This creates transactions and auto-acceots distributed traces for consumers.
+    Due to Kafka being a high throughput platform, it is disabled to prevent too much ingest and memory ovehead. 
+    You can enable spring-kafka instrunenation with the config shown in step 1.
+
+    Example:
+    ```java
+    @KafkaListener(id = "foo", topics = "myTopic", clientIdPrefix = "myClientId")
+    public void listen(String data) {
+      ...
     }
     ```
 

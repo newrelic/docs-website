@@ -86,7 +86,7 @@ After APM auto-attach is all set up in your cluster, the next step is just to ro
 Here's what the instrumentation CR lets you map out:
 
    * Name of the instrumentation CR
-   * Where it will apply the instrumentation CR (thanks to `podLabelSelector` and `namespaceLabelSelector`)
+   * Where it will apply the instrumentation CR using [`selectors`](#selectors)
    * APM agent (one per CR)
    * APM agent version
    * APM config parameters (env vars)
@@ -95,44 +95,181 @@ Here's what the instrumentation CR lets you map out:
 The manifest file needs to injected in the same namespace (`newrelic` by default) where you installed APM auto-attach.
 
 ```bash
-kubectl apply -f ./values.yaml -n newrelic
+kubectl apply -f ./instrumentation.yaml -n newrelic
 ```
 
-### How to use selectors [#selectors]
+Here you have a complete [instrumentation.yaml](https://github.com/newrelic/k8s-agents-operator/blob/main/local/instrumentation.yaml) for your reference.
 
-To know when the instrumentation CR is going to inject APM agents, we need to use selectors. There are 2 label selectors available that you can use together (they act as a logical AND (`&&`) operator) or by separate depending on your needs.
+## How to use selectors [#selectors]
 
-* `PodLabelSelector` informs the APM Auto-attach which pods needs to be instrumented.
+Use selectors to control which resources the CR injects with APM agents. Three selectors are available. You can use them individually or in combination. When combined, the selectors are evaluated using a logical AND (`&&`) operation.
 
-  Example using `matchLabel` (select pods containing an specific tag and value):
 
-    ```yaml
-    ...
-    podLabelSelector:
-      matchLabels:
-        app.kubernetes.io/name: flask-hello-world
-    ...
-    ```
+<CollapserGroup>
+  <Collapser
+    id="pod-label-selector"
+    title="PodLabelSelector"
+  >
+    
+  
+Informs the APM Auto-attach which pods needs to be instrumented.
 
-* `NameSpaceLabelSelector` defines at the namespace level the auto-instrumented pods.
+The following example uses `matchLabel` in the `PodLabelSelector` to select pods containing an specific tag and value:
 
-  Example using `matchExpressions` (select namespace containing an specific tag and value):
+```yaml
+...
+podLabelSelector:
+  matchLabels:
+    app.kubernetes.io/name: flask-hello-world
+...
+```
+</Collapser>
 
-  ```yaml
-  ...
-  namespaceLabelSelector:
-    matchExpressions:
-      - key: "kubernetes.io/metadata.name"
-        operator: "In"
-        values: ["backend"]
-  ...
-  ```
+  <Collapser
+    id="namespace-label-selector"
+    title="NameSpaceLabelSelector"
+  >
 
-    <Callout title="TIP">
-    Keep in mind that apply the `kubernetes.io/metadata.name` label is the same as selecting based on the namespace's name.
-    </Callout>
 
-Both selectors support `matchLabel` and `matchExpressions`.
+Defines the auto-instrumented pods at the namespace level.
+
+The following example uses `matchExpressions` in the `NameSpaceLabelSelector` to select namespace containing an specific tag and value:
+
+```yaml
+...
+namespaceLabelSelector:
+  matchExpressions:
+    - key: "kubernetes.io/metadata.name"
+      operator: "In"
+      values: ["backend"]
+...
+```
+  <Callout variant="tip">
+    A selector that uses the `kubernetes.io/metadata.name` label will match namespaces based on their name.
+  </Callout>
+
+</Collapser>
+
+  <Collapser
+    id="container-selector"
+    title="ContainerSelector"
+  >
+
+
+Defines the auto-instrumented container at the container level.
+
+  <Callout variant="tip">
+    If a `containerSelector` isn't defined, the integration automatically instruments the first non-init container listed in the pod's specification.
+  </Callout>
+
+It provides four methods to select the appropriate container.
+
+#### envSelector
+
+Select containers based on the container environment variables.
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: select-by-match-envs
+spec:
+  containerSelector:
+    envSelector:
+      matchEnvs:
+        DEBUG: 'true'
+#...
+```
+
+For more information and examples, refer [envSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#envSelector)
+#### imageSelector
+
+Select containers based on the container image URL.
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: select-by-any-container
+spec:
+  containerSelector:
+    imageSelector:
+      matchExpressions:
+        - key: url
+          operator: StartsWith
+          values: ["docker.io/"]
+#...
+```
+
+For more information and examples, refer [imageSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#imageSelector)
+
+#### nameSelector
+
+Selects containers for instrumentation based on their name and type (`init` or `regular`).
+
+The value should be a list of the container names you want to target. Containers not included in this list will be ignored.
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: select-by-match-names-and-any-container
+spec:
+  containerSelector:
+    nameSelector:
+      matchNames:
+        anyContainer: app
+#...
+```
+
+For more information and examples, refer [nameSelector](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#nameSelector)
+
+#### namesFromPodAnnotation
+
+Specifies the key of a pod annotation. The value of the specified annotation must be a comma-separated list of container names to select for instrumentation.
+
+For example, if a pod has an annotation identifying which containers to instrument. In this case, the `use-these-for-newrelic` annotation specifies that the containers named `a` and `c` should be selected.
+
+```yaml
+#... pod spec
+metadata:
+  annotations:
+    use-these-for-newrelic: a,c
+spec:
+  initContainers:
+    - name: a
+      #.. more container spec ..
+  containers:
+    - name: b
+      # ...
+    - name: c
+#...
+```
+
+Next, to use that annotation, set the `namesFromPodAnnotation` field in your instrumentation resource to the annotation's key (`use-these-for-newrelic`):
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: select-by-names-from-pod-annotation
+spec:
+  containerSelector:
+    namesFromPodAnnotation: use-these-for-newrelic
+#...
+```
+
+This configuration instruments the `a` (`init`) and `c` (`regular`) containers, while ignoring the `b` container, because their names were specified in the pod's `use-these-for-newrelic` annotation.
+
+For more information and examples, refer [namesFromPodAnnotation](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#namesFromPodAnnotation)
+
+</Collapser>
+
+</CollapserGroup>
+
+### MatchLabel and MatchExpressions
+
+All the selectors support `matchLabel` and `matchExpressions`.
 
 <CollapserGroup>
   <Collapser
@@ -263,19 +400,22 @@ spec:
     image: newrelic/newrelic-dotnet-init:latest
 ...
 ```
-### APM configuration parameters [#apm-config-parameters]
+### APM configuration [#apm-config-parameters]
+
+#### Using environment variables
 
 The instrumentation CR provides the capability to inject environment variables in the pod to streamline the configuration of the APM agents. See this example:
 
 ```yaml
 ...
 spec:
-  env:
-    # Example overriding the appName configuration by using a label of the pod
-    - name: NEW_RELIC_APP_NAME
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.labels['app.kubernetes.io/name']
+  agent:
+    env:
+      # Example overriding the appName configuration by using a label of the pod
+      - name: NEW_RELIC_APP_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.labels['app.kubernetes.io/name']
 ...
 ```
 
@@ -292,6 +432,26 @@ In the above example, we show you how you can configure the agent settings globa
 <Callout variant="important">
   You can inject these environment variables in the app deployment manifest.
 </Callout>
+
+#### Using a configmap (Java only)
+
+When using the configmap, note the following requirements: 
+
+- The Java configuration must be stored in a key named `newrelic.yaml`. 
+- Setting the application name or license key in the `configmap` is not supported. 
+- To set these properties, use environment variables or custom secrets instead.
+
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation-java
+  namespace: newrelic
+spec:
+  agentConfigMap: "my-java-app-config" # This configmap must exist in every namespace that the pod in this `Instrumentation` is targeting
+  agent: ...
+```
 
 ### License keys (optional) [#license-keys]
 
@@ -324,7 +484,7 @@ When you install it, a <InlinePopover type="licenseKey"/> is created and it's th
   >
 
 ```yaml
-apiVersion: newrelic.com/v1alpha2
+apiVersion: newrelic.com/v1beta2
 kind: Instrumentation
 metadata:
   name: newrelic-instrumentation-python
@@ -347,12 +507,39 @@ spec:
   </Collapser>
 
   <Collapser
+    id="label-selector-dotnet"
+    title="Python agent: Pods with a specific label only monitoring init containers with a specific name"
+  >
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation-python
+  namespace: newrelic
+spec:
+  agent:
+    language: python
+    image: newrelic/newrelic-python-init:latest
+  podLabelSelector:
+    matchExpressions:
+      - key: "app"
+        operator: "In"
+        values: ["flask-hello-world","flask-hello-world-v2"]
+  containerSelector:
+    nameSelector:
+      matchNames:
+        anyContainer: flask-hello-app
+```
+  </Collapser>
+
+  <Collapser
     id="label-selector-java"
     title="Java agent: Pods of a specific namespace"
   >
 
 ```yaml
-apiVersion: newrelic.com/v1alpha2
+apiVersion: newrelic.com/v1beta2
 kind: Instrumentation
 metadata:
   name: newrelic-instrumentation-java
@@ -370,12 +557,41 @@ spec:
   </Collapser>
 
   <Collapser
+    id="label-selector-java"
+    title="Java agent: Pods of a specific namespace only monitoring containers with a specific name"
+  >
+
+```yaml
+apiVersion: newrelic.com/v1beta2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation-java
+  namespace: newrelic
+spec:
+  agent:
+    language: java
+    image: newrelic/newrelic-java-init:latest
+  namespaceLabelSelector:
+    matchExpressions:
+      - key: "kubernetes.io/metadata.name"
+        operator: "In"
+        values: ["java"]
+  containerSelector:
+    nameSelector:
+      matchExpressions:
+        - key: container
+          operator: In
+          values: ["java-app"]
+```
+  </Collapser>
+
+  <Collapser
     id="label-selector-ruby"
     title="Ruby agent: Any namespace containing the Ruby label and sending data to a different account"
   >
 
 ```yaml
-apiVersion: newrelic.com/v1alpha2
+apiVersion: newrelic.com/v1beta2
 kind: Instrumentation
 metadata:
   name: newrelic-instrumentation-ruby

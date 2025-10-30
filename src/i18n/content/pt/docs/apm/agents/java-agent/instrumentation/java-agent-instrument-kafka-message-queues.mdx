@@ -104,7 +104,7 @@ Para ativar a coleta de eventos Kafka:
 3. Use o [explorador de eventos](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data) para visualizar seus eventos Kafka, localizados no tipo de evento `KafkaMetrics` . Ou use [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) para consultar seu evento diretamente. Por exemplo:
 
    ```sql
-   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   SELECT average('producer-metrics.record-send-rate') FROM KafkaMetrics SINCE 30 minutes ago TIMESERIES
    ```
 
    Se você estiver consultando a métrica do Kafka Streams, use o tipo de evento `KafkaStreamsMetrics` para acessar a métrica específica do stream.
@@ -209,6 +209,28 @@ Para coletar rastreamento distribuído do Kafka:
         com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
           enabled: true
       ```
+
+    * Habilitar instrumentação spring-kafka para versões de agente `8.21` e superiores.
+
+      <Callout variant="important">
+        Isso pode causar um pico na ingestão e no uso de memória, por isso é desabilitado
+      </Callout>
+
+      ```yml
+      class_transformer:
+        com.newrelic.instrumentation.spring-kafka-2.2.0:
+          enabled: true
+      ```
+
+    * Habilitar distributed tracing para chamadas em lote do Kafka para versões do agente `8.21` e superiores. (O rastreamento distribuído de chamadas em lote é desabilitado por padrão, pois as transações só podem aceitar 1 trace pai de uma mensagem):
+
+      ```yml
+      kafka:
+        spans:
+          distributed_trace: 
+            consume_many:
+              enabled: true
+      ```
   </Collapser>
 
   <Collapser id="instrument-kafka-producer" title="2. instrumento do produtor Kafka">
@@ -230,7 +252,9 @@ Para coletar rastreamento distribuído do Kafka:
   </Collapser>
 
   <Collapser id="instrument-kafka-consumer" title="3. Instrumento do consumidor Kafka">
-    Para instrumentar seu consumidor Kafka, você precisará iniciar uma transação quando a mensagem estiver sendo processada. O agente armazena o cabeçalho da carga útil distributed tracing na chave `newrelic` ou nas chaves `traceparent` e `tracestate` do W3C. Recupere o cabeçalho e chame a API de transação New Relic para aceitar a carga.
+    ### Cenário 1: Usando instrumentação manual com o Kafka Client
+
+    Para instrumentar seu consumidor Kafka por meio de instalação manual, você precisará iniciar uma transação quando a mensagem estiver sendo processada. O agente armazena o cabeçalho de carga distributed tracing na chave `newrelic` ou nas chaves `traceparent` e `tracestate` do W3C. Recupere o cabeçalho e chame New Relic API a de transação para aceitar a carga.
 
     Por exemplo:
 
@@ -261,6 +285,37 @@ Para coletar rastreamento distribuído do Kafka:
 
       // Accept distributed tracing headers to link this request to the originating request
       NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+
+    ### Cenário 2: Usando instrumentação automática para clientes Kafka
+
+    Isso só se aplicará às versões do agente `8.21` e superiores. Você também pode aproveitar a instrumentação automática para ler distributed tracing para o consumidor kafka. Isso é feito iniciando uma transação e chamando o método `poll(...)` de um consumidor quando a transação está acontecendo.
+
+    Isso é desabilitado por padrão porque a pesquisa do consumidor aceita, por padrão, várias mensagens e as transações podem ter apenas um trace pai, então apenas uma mensagem será lida.
+
+    Para habilitar a aceitação automática de rastreamento distribuído para pesquisas de consumidores do Kafka, você precisa habilitar distributed tracing para chamadas em lote, conforme mostrado na etapa 1.
+
+    Exemplo de pesquisas de consumidores instrumentado kafka:
+
+    ```java
+    @Trace(dispatcher = true)
+    private void consumeMessage(KafkaConsumer<String, String> consumer) {
+      final ConsumerRecords<String, String> records = consumer.poll(1000);
+      // Process your records ....
+    }
+    ```
+
+    ### Cenário 3: Usando Spring Kafka
+
+    Se estiver usando o Spring Kafka, você pode habilitar a instrumentação automática para métodos instrumentados com `@KafkaListener` se estiver usando o agente nas versões `8.21.0` e superiores. Isso cria transações e aceita automaticamente o rastreamento distribuído para o consumidor. Como o Kafka é uma plataforma com altas taxas de download, ele é desabilitado para evitar muita ingestão e sobrecarga de memória. Você pode habilitar a instrumentação do spring-kafka com a configuração mostrada na etapa 1.
+
+    Exemplo:
+
+    ```java
+    @KafkaListener(id = "foo", topics = "myTopic", clientIdPrefix = "myClientId")
+    public void listen(String data) {
+      ...
     }
     ```
 
