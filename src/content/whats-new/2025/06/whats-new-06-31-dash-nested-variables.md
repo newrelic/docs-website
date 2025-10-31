@@ -11,10 +11,10 @@ Template variables are already a powerful tool for filtering an entire dashboard
 - Create parent/child relationships: Form a tree-like structure for multi-level filtering.
 - Reuse and dynamically change variables: Efficiently filter data based on other variables' selections.
 
-### Key Features:
+### Key features:
 
-- Parent/Child Relationships: Establishes hierarchical links between variables.
-- Dynamic Data Changes: Automatically updates displayed data.
+- Parent/Child relationships: Establishes hierarchical links between variables.
+- Dynamic data changes: Automatically updates displayed data.
 
 **Learn more:**
 -   [Template Variables](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/)
