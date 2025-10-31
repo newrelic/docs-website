@@ -10,12 +10,12 @@ Secure your sensitive operational data with New Relic's new Password Protection 
 
 ### Key features
 
--   Password Generation: Passwords are auto-generated and highly complex.
--   Password Storage: New Relic DOES NOT store the plain-text password. It is only displayed once upon creation or reset. Users must copy and securely store the password themselves.
--   Session-based Access: Once a user enters the correct password, they will have access to the dashboard for a 3-hour session. They will not need to re-enter the password during this period unless the session expires or their browser closes.
+-   Password generation: Passwords are auto-generated and highly complex.
+-   Password storage: New Relic DOES NOT store the plain-text password. It's only displayed once upon creation or reset. Users must copy and securely store the password themselves.
+-   Session-based access: Once a user enters the correct password, they will have access to the dashboard for a 3-hour session. They will not need to re-enter the password during this period unless the session expires or their browser closes.
 -   reCAPTCHA: A reCAPTCHA challenge may appear on the password entry page, particularly after multiple failed attempts.
--   API Control: Full control over enabling, disabling, and resetting passwords is available via NerdGraph API.
--   UI Control: Users can enable/disable password protection and initiate a password reset.
+-   API control: Full control over enabling, disabling, and resetting passwords is available via NerdGraph API.
+-   UI control: Users can enable/disable password protection and initiate a password reset.
 
 **Learn more:**
 -   [Password Protection for Public Dashboards](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/#create-dashboard-url)
