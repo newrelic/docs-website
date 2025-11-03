@@ -1,7 +1,7 @@
 ---
 title: 'Augmenting User Experiences: Leveraging Session Replay for Core Web Vital Optimization'
 summary: 'Connect Core Web Vitals data with Session Replays for faster, visual root cause analysis, and performance optimization in Browser monitoring.'
-releaseDate: '2025–07–31'
+releaseDate: '2025-07-31'
 learnMoreLink: 'https://docs.newrelic.com/docs/tutorial-improve-site-performance/guide-to-monitoring-core-web-vitals/'
 ---
 
