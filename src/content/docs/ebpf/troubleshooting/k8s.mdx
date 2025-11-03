@@ -1,0 +1,145 @@
+---
+title: 'Troubleshoot eBPF on Kubernetes'
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Kubernetes
+  - Troubleshooting
+metaDescription: Troubleshooting steps for eBPF agent issues specific to Kubernetes environments.
+freshnessValidatedDate: never
+---
+
+## Problem
+
+You're experiencing issues with the eBPF agent in your Kubernetes environment, such as file descriptor limits, privilege errors, or performance problems.
+
+## Solution
+
+### File descriptor limit exceeded
+
+If you encounter file descriptor limit errors, see our dedicated [file descriptor limit troubleshooting guide](/docs/ebpf/troubleshooting/file-descriptor-limit) for detailed resolution steps.
+
+### Privilege and permission issues
+
+**Problem:** eBPF agent fails to start due to insufficient privileges.
+
+**Solution:**
+1. Verify that the eBPF agent DaemonSet has the necessary privileges. The Helm chart should automatically configure required permissions.
+
+2. Check pod security context in your deployment:
+   ```bash
+   kubectl describe pod <ebpf-agent-pod> -n newrelic
+   ```
+
+3. Ensure your cluster supports eBPF. Check kernel version on nodes:
+   ```bash
+   kubectl get nodes -o wide
+   # Kernel version should be 5.4 or later
+   ```
+
+### Performance and resource issues
+
+**Problem:** eBPF agent consuming excessive resources or causing performance degradation.
+
+**Solution:**
+1. **Monitor resource usage:**
+   ```bash
+   kubectl top pods -n newrelic
+   ```
+
+2. **Adjust memory limits** in your Helm values:
+   ```yaml
+   agent:
+     resources:
+       limits:
+         memory: "2Gi"  # Increase if needed
+       requests:
+         memory: "512Mi"
+   ```
+
+3. **Configure data filtering** to reduce load:
+   ```yaml
+   dropDataForNamespaces: ["kube-system", "monitoring"]
+   dropDataServiceNameRegex: "kube-dns|otel-collector"
+   ```
+
+4. **Limit protocol monitoring** if not all protocols are needed:
+   ```yaml
+   protocols:
+     http:
+       enabled: true
+     mysql:
+       enabled: false  # Disable if not needed
+   ```
+
+### Pod startup and connectivity issues
+
+**Problem:** eBPF agent pods not starting or unable to send data.
+
+**Solution:**
+1. **Check pod status:**
+   ```bash
+   kubectl get pods -n newrelic
+   kubectl describe pod <ebpf-agent-pod> -n newrelic
+   ```
+
+2. **Review pod logs:**
+   ```bash
+   kubectl logs <ebpf-agent-pod> -n newrelic
+   ```
+
+3. **Verify network connectivity:**
+   ```bash
+   # Test from within the cluster
+   kubectl run test-connectivity --image=busybox --rm -it --restart=Never -- \
+     nslookup otlp.nr-data.net
+   ```
+
+4. **Check service account and RBAC:**
+   ```bash
+   kubectl get serviceaccount -n newrelic
+   kubectl get clusterrole,clusterrolebinding -l app.kubernetes.io/name=nr-ebpf-agent
+   ```
+
+### Kubernetes-specific configuration issues
+
+**Problem:** Entity names not appearing correctly or data not attributed to correct services.
+
+**Solution:**
+1. **Verify service discovery:** Ensure your applications have proper Kubernetes service definitions:
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: my-service  # This becomes the entity name
+   spec:
+     selector:
+       app: my-app
+   ```
+
+2. **Check namespace filtering:** Verify the agent is monitoring the correct namespaces:
+   ```yaml
+   # In values.yaml
+   dropDataForNamespaces: []  # Remove namespaces you want to monitor
+   ```
+
+3. **Custom entity naming:** For Kubernetes, entity names are derived from service names, not environment variables.
+
+### Verification steps
+
+1. **Check successful installation logs:**
+   ```bash
+   kubectl logs <ebpf-agent-pod> -n newrelic | grep "STEP-7"
+   ```
+   Should show: `[STEP-7] => Successfully started the eBPF Agent.`
+
+2. **Verify data flow:**
+   - Check New Relic UI for entities with `instrumentation.name = nr_ebpf`
+   - Look for Kubernetes service names in the entity list
+
+3. **Test network connectivity to New Relic:**
+   ```bash
+   kubectl exec -it <ebpf-agent-pod> -n newrelic -- \
+     curl -v https://otlp.nr-data.net:4317
+   ```
