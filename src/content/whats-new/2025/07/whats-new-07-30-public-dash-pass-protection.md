@@ -1,7 +1,7 @@
 ---
 title: 'Password Protection (Public Dashboards)'
 summary: 'Enhance the security of your publicly shared content by leveraging our new password protection feature so that only users with the URL and the password can access the shared content!'
-releaseDate: '2025-07-30'
+releaseDate: '2025–07–30'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/#create-dashboard-url'
 getStartedLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/share-charts-dashboards-externally/'
 ---
