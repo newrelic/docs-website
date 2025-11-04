@@ -23,7 +23,11 @@ Failure to create replacement embedded charts may lead to missing out on the inf
 
 ## Impact by account type [#impact-account-type]
 
-Effective June 30, 2026, URLs generated prior to the rollout of New Relic One will expire and will be inaccessible, regardless of account tier (Free, Standard, Pro, Enterprise, or legacy edition accounts). Note that **Free and Standard edition accounts** cannot create new embedded charts. To continue using the embedded charts feature after the EOL date, Free and Standard edition customers must upgrade to **Pro or Enterprise edition** accounts.
+Effective June 30, 2026, the legacy embedded charts feature will be retired, and all legacy URLs will expire for all users.
+
+ - **For Pro & Enterprise Accounts**: Your legacy charts will stop working. You can manually recreate them using the new embedded charts feature, which is already available to you.
+ - **For Free & Standard Accounts**: Your legacy charts will stop working. The new embedded charts feature is not available on your current tier.
+ - **Action Required for Free/Standard**: To continue using embedded charts, you must upgrade to a Pro or Enterprise account and recreate your charts using the new feature.
 
 ## What do you need to do [#what-to-do]
 
