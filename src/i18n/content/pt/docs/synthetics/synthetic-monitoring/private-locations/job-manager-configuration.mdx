@@ -1823,52 +1823,144 @@ Para definir o armazenamento permanente de dados no Kubernetes, o usuário tem d
   helm install ... --set synthetics.persistence.existingVolumeName=sjm-volume --set synthetics.persistence.storageClass=standard ...
   ```
 
-## Considerações de dimensionamento para OpenShift, Kubernetes e Docker [#kubernetes-sizing]
+## Considerações de dimensionamento para Docker, Podman, Kubernetes e OpenShift [#kubernetes-sizing]
 
-<Callout variant="tip">
-  considerações de dimensionamento específicas Docker estarão disponíveis em breve.
-</Callout>
+### Docker e Podman [#docker]
 
-Se você estiver trabalhando em ambientes maiores, pode ser necessário customizar a configuração do gerenciador de tarefas para atender aos requisitos mínimos para executar o monitor Sintético com eficiência. Muitos fatores podem impactar os requisitos de dimensionamento para uma implantação do gerenciador de tarefas Sintético, incluindo:
+Para garantir que sua localização privada seja executada com eficiência, você deve provisionar recursos de CPU suficientes em seu host para lidar com sua workload de monitoramento. Muitos fatores influenciam o dimensionamento, mas você pode estimar rapidamente suas necessidades. Você precisará **de 1 núcleo de CPU para cada monitor pesado** (por exemplo, navegador simples, navegador com script ou monitor de API com script). Abaixo estão duas fórmulas para ajudar você a calcular o número de núcleos necessários, seja para diagnosticar uma configuração atual ou planejar uma futura.
 
-* Se todos os tempos de execução forem necessários com base no uso esperado
-* O número de trabalhos por minuto por tipo de monitor (ping, navegador simples ou com script e API com script)
-* Duração do trabalho, incluindo trabalhos que expiram em cerca de 3 minutos
-* O número de falhas de trabalho. Para falhas de trabalho, novas tentativas automáticas são agendadas quando um monitor começa a falhar ao fornecer lógica de repetição 3/3 integrada. Estes empregos adicionais somam-se aos requisitos de taxas de transferência do gestor de empregos Sintético.
+#### Fórmula 1: Diagnosticando um Local Existente
 
-Além das definições de configuração de dimensionamento listadas abaixo, gerenciadores de tarefas adicionais do Sintético podem ser implantados com a mesma chave de localização privada para balancear a carga de tarefas em vários ambientes.
+Se sua localização privada atual estiver com dificuldades para acompanhar e você suspeitar que há trabalhos na fila, use esta fórmula para descobrir quantos núcleos você realmente precisa. Baseia-se no desempenho observável do seu sistema.
 
-## Kubernetes e OpenShift [#k8s]
+**A equação:**
 
-Cada tempo de execução usado pelo gerenciador de tarefas Kubernetes e do OpenShift Sintético pode ser dimensionado independentemente definindo valores no [gráfico do Helm](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager).
+$$C\_req = (R\_proc + R\_crescimento) \vezes D\_méd,m$$
 
-Tempos de execução de ping adicionais podem ser iniciados para ajudar a executar a carga do monitor de ping aumentando a configuração `ping-runtime.replicaCount` do valor padrão de `1`.
+* $C\_req$ = **Núcleos de CPU necessários**.
+* $R\_proc$ = A **taxa** de trabalhos pesados sendo **processados** por minuto.
+* $R\_growth$ = A **taxa** **de crescimento** da sua fila `jobManagerHeavyweightJobs` por minuto.
+* $D\_avg,m$ = A **duração média** de trabalhos pesados em **minutos**.
 
-Os tempos de execução da API Node.js e do navegador Node.js são dimensionados de forma independente usando uma combinação das configurações `parallelism` e `completions` . A configuração ideal para essas configurações irá variar de acordo com os requisitos do cliente.
+**Veja como funciona:** esta fórmula calcula sua taxa real de chegada de trabalhos adicionando os trabalhos que seu sistema *está processando* aos trabalhos que estão *se acumulando* na fila. Multiplicar essa carga total pela duração média do trabalho informa exatamente quantos núcleos você precisa para concluir todo o trabalho sem filas.
 
-A configuração `parallelism` controla quantos pods de um ambiente de execução específico são executados simultaneamente. A configuração `parallelism` é equivalente à configuração `synthetics.heavyWorkers` no minion privado conteinerizado (chamadas por minuto). Certifique-se de que seu cluster do Kubernetes tenha recursos suficientes disponíveis para executar esse número de pods com base em suas [solicitações de recursos e valores limite](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#kubernetes-requirements).
+#### Fórmula 2: Previsão de um local novo ou futuro
 
-A configuração `completions` controla quantos pods de um determinado ambiente de execução devem ser concluídos antes que o `CronJob` possa iniciar outro trabalho do Kubernetes para esse ambiente de execução. Observe a diferença entre um trabalho do Kubernetes (J maiúsculo) e um trabalho de monitor Sintético. Para maior eficiência, `completions` deve ser definido como 6 a 10x o valor de `parallelism` . Isso pode ajudar a minimizar a ineficiência de &quot;próximo ao fim das conclusões&quot;, em que menos do que o pod de número `parallelism` pode acabar sendo executado enquanto o trabalho do Kubernetes aguarda a conclusão de todos os `completions` .
+Se você estiver configurando uma nova localização privada ou planejando adicionar mais monitores, use esta fórmula para prever suas necessidades com antecedência.
 
-Quando `completions` for maior que 1, o pod com status &quot;Concluído&quot; permanecerá visível na saída de `kubectl get pods -n YOUR_NAMESPACE` até que todas as conclusões definidas no trabalho do Kubernetes tenham sido atendidas, por exemplo, 6/6 conclusões. Os recursos são liberados do nó quando um pod tem o status Concluído ou Com falha.
+**A equação:**
 
-Um trabalho do Kubernetes com duração de 5 minutos (`kubectl get jobs -n YOUR_NAMESPACE`) é um destino conservador para levar em conta a variabilidade em quanto tempo leva para o pod ser concluído e quantos trabalhos Sintético precisam ser executados por minuto (taxa de trabalhos). As equações a seguir podem ser usadas como ponto de partida para `completions` e `parallelism` para cada tempo de execução. Talvez seja necessário fazer ajustes com base nas observações do crescimento da fila de localização privada.
+$$C\_req = N\_mon \vezes D\_méd,m \vezes \frac1P\_méd,m$$
 
-```math
-completions = 300 / avg job duration (s)
-parallelism = synthetics jobs per 5 minutes / completions
+* $C\_req$ = **Núcleos de CPU necessários**.
+* $N\_mon$ = O **número** total de **monitores** pesados que você planeja executar.
+* $D\_avg,m$ = A **duração média** de um trabalho pesado em **minutos**.
+* $P\_avg,m$ = O **período médio** para monitores pesados em **minutos** (por exemplo, um monitor que é executado a cada 5 minutos tem $P\_avg,m = 5$).
+
+**Veja como funciona:** isso calcula sua workload esperada a partir de princípios básicos: quantos monitores você tem, com que frequência eles são executados e quanto tempo eles levam.
+
+#### Fatores importantes de dimensionamento
+
+Ao usar essas fórmulas, lembre-se de levar em conta estes fatores:
+
+* **Duração do trabalho ($D\_avg,m$):** Sua média deve incluir trabalhos que **expiram** (geralmente \~3 minutos), pois eles mantêm um núcleo durante toda a sua duração.
+* **Falhas e novas tentativas de trabalho:** quando um monitor falha, ele é automaticamente repetido. Essas tentativas são trabalhos adicionais que aumentam a carga total. Um monitor que falha consistentemente e tenta novamente **multiplica efetivamente seu período**, impactando significativamente as taxas de transferência.
+* **Escalonamento:** além de adicionar mais núcleos a um host (escalonamento vertical), você pode implantar gerenciadores de tarefas adicionais da Sintéticos com a mesma chave de localização privada para balancear a carga de tarefas em vários ambientes (escalonamento horizontal).
+
+É importante observar que um único Sintéticos Job Manager (SJM) tem um limite de taxas de transferência de **aproximadamente 15 trabalhos pesados por minuto**. Isso se deve a uma estratégia de segmentação interna que favorece a competição eficiente de trabalhos entre vários SJMs em relação ao número bruto de trabalhos processados por SJM. Se seus cálculos indicarem a necessidade de taxas de transferência mais altas, você deverá **expandir** implantando SJMs adicionais. Você pode [verificar se sua fila de tarefas está crescendo](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) para determinar se mais SJMs são necessários.
+
+Adicionar mais SJMs com a mesma chave de localização privada oferece diversas vantagens:
+
+* **Balanceamento de carga**: Os trabalhos para localização privada são distribuídos em todos os SJMs disponíveis.
+* **Proteção contra failover**: se uma instância do SJM ficar inativa, outras poderão continuar processando trabalhos.
+* **Taxas de transferência totais mais altas**: As taxas de transferência totais para sua localização privada tornam-se a soma das taxas de transferência de cada SJM (por exemplo, dois SJMs fornecem até \~30 trabalhos/minuto).
+
+#### Consulta NRQL para diagnóstico
+
+Você pode executar essas consultas no [criador de consultas](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) para obter as entradas para a fórmula de diagnóstico. Certifique-se de definir o intervalo de tempo para um período longo o suficiente para obter uma média estável.
+
+**1. Encontre a taxa de trabalhos processados por minuto ($R\_proc$):** esta consulta conta o número de trabalhos não ping (pesados) concluídos no último dia e mostra a taxa média por minuto.
+
+```nrql
+FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-Tempos de execução diferentes provavelmente terão durações e taxas de trabalho Sintético diferentes. A consulta a seguir pode ser usada para obter duração média e taxa para uma localização privada.
+**2. Encontre a taxa de crescimento da fila por minuto ($R\_growth$):** esta consulta calcula o crescimento médio por minuto da fila `jobManagerHeavyweightJobs` em um gráfico de série temporal. Uma linha acima de zero indica que a fila está crescendo, enquanto uma linha abaixo de zero significa que ela está diminuindo.
+
+```nrql
+FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
+```
+
+<Callout variant="tip">
+  Certifique-se de selecionar a conta onde existe a localização privada. É melhor visualizar essa consulta como uma série temporal porque a função derivada pode variar muito. O objetivo é obter uma estimativa da taxa de crescimento da fila por minuto. Play diferentes intervalos de tempo para ver o que funciona melhor.
+</Callout>
+
+**3. Encontre o número total de monitores pesados ($N\_mon$):** Esta consulta encontra a contagem exclusiva de monitores pesados.
+
+```nrql
+
+  FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+
+```
+
+**4. Encontre a duração média da tarefa em minutos ($D\_avg,m$):** esta consulta encontra a duração média de execução de tarefas não ping concluídas e converte o resultado de milissegundos para minutos. `executionDuration` representa o tempo que o trabalho levou para ser executado no host.
+
+```nrql
+FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+```
+
+**5. Encontre o período médio do monitor de peso pesado ($P\_avg,m$):** Se a fila `jobManagerHeavyweightJobs` da localização privada estiver crescendo, não será preciso calcular o período médio do monitor a partir dos resultados existentes. Isso precisará ser estimado a partir da lista de monitores na página [Monitores Sintético](https://one.newrelic.com/synthetics). Certifique-se de selecionar a conta New Relic correta e talvez seja necessário filtrar por `privateLocation`.
+
+<Callout variant="tip">
+  Monitores Sintéticos podem existir em múltiplas subcontas. Se você tiver mais subcontas do que as que podem ser selecionadas no criador de consulta, escolha as contas com mais monitores.
+</Callout>
+
+#### Nota sobre monitores de ping e a fila `pingJobs`
+
+**Os monitores de ping são diferentes.** São trabalhos leves que não consomem um núcleo de CPU completo cada. Em vez disso, eles usam uma fila separada (`pingJobs`) e são executados em um pool de threads de trabalho.
+
+Embora consumam menos recursos, um alto volume de tarefas de ping, especialmente aquelas com falhas, ainda pode causar problemas de desempenho. Tenha estes pontos em mente:
+
+* **Modelo de recursos:** os trabalhos de ping utilizam threads de trabalho, não núcleos de CPU dedicados. O cálculo de núcleo por trabalho não se aplica a eles.
+* **Tempo limite e nova tentativa:** uma tarefa de ping com falha pode ocupar um thread de trabalho por até **60 segundos**. Primeiro, ele tenta uma solicitação HTTP HEAD (tempo limite de 30 segundos). Se isso falhar, ele tenta imediatamente com uma solicitação HTTP GET (outro tempo limite de 30 segundos).
+* **Dimensionamento:** embora a fórmula de dimensionamento seja diferente, os mesmos princípios se aplicam. Para lidar com um grande volume de trabalhos de ping e evitar que a fila `pingJobs` cresça, talvez seja necessário aumentar e/ou diminuir a escala. Aumentar a escala significa aumentar os recursos de CPU e memória por host ou namespace. Escalar significa adicionar mais instâncias do tempo de execução do ping. Isso pode ser feito implantando mais gerenciadores de tarefas em mais hosts, em mais namespaces ou até mesmo [dentro do mesmo namespace](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#scaling-out-with-multiple-sjm-instances). Como alternativa, o `ping-runtime` no Kubernetes permite que você defina [um número maior de réplicas](https://github.com/newrelic/helm-charts/blob/41c03e287dafd41b9c914e5a6c720d5aa5c01ace/charts/synthetics-job-manager/values.yaml#L173) por implantação.
+
+### Kubernetes e OpenShift [#k8s]
+
+Cada tempo de execução usado pelo gerenciador de tarefas Kubernetes e do OpenShift Sintético pode ser dimensionado independentemente definindo valores no [gráfico do helm](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager). O [node-api-runtime](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager/charts/node-api-runtime) e o [node-browser-runtime](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager/charts/node-browser-runtime) são dimensionados independentemente usando uma combinação das configurações `parallelism` e `completions`.
+
+Uma consideração importante ao dimensionar seus tempos de execução é que uma única instância SJM tem uma taxa máxima de download de **aproximadamente 15 trabalhos pesados por minuto** ( API com script e monitores de navegador). Isso se deve a uma estratégia de segmentação interna que favorece a competição eficiente de trabalhos entre vários SJMs em relação ao número bruto de trabalhos processados por SJM.
+
+Você pode usar a duração média do seu trabalho para calcular o `parallelism` efetivo máximo para um único SJM antes de atingir este teto de taxas de transferência:
+
+$$Paralelismo*máximo \aprox. 15 \vezes D*avg,m$$
+
+Onde $D\_avg,m$ é a **duração média do trabalho pesado** em **minutos**.
+
+Se suas necessidades de monitoramento excederem esse limite de \~15 trabalhos/minuto, você deverá **expandir** implantando múltiplas instâncias de SJM. Você pode [verificar se sua fila de tarefas está crescendo](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) para ver se mais instâncias são necessárias.
+
+A configuração `parallelism` controla quantos pods de um tempo de execução específico são executados simultaneamente e é o equivalente à variável de ambiente `HEAVYWEIGHT_WORKERS` no Docker e no Podman SJM. A configuração `completions` controla quantos pods de um tempo de execução específico devem ser concluídos antes que o `CronJob` possa iniciar outro trabalho Kubernetes para esse tempo de execução. Para maior eficiência, `completions` deve ser definido como 6-10x o valor `parallelism`.
+
+As equações a seguir podem ser usadas como ponto de partida para `completions` e `parallelism` para cada tempo de execução.
+
+$$Conclusões = \frac300D\_avg,s$$
+
+Onde $D\_avg,s$ é a **duração média do trabalho** em **segundos**.
+
+$$Paralelismo = \fracN\_mCompletions$$
+
+Onde $N\_m$ é o **número** de tarefas do Sintético que você precisa executar a cada **5 minutos.**
+
+A consulta a seguir pode ser usada para obter duração média e tarifa para uma localização privada.
 
 ```sql
 -- non-ping average job duration by runtime type
 FROM SyntheticCheck SELECT average(duration) AS 'avg job duration'
-WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET type SINCE 1 hour ago
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET typeLabel SINCE 1 hour ago
 
 -- non-ping jobs per minute by runtime type
 FROM SyntheticCheck SELECT rate(uniqueCount(id), 5 minutes) AS 'jobs per 5 minutes'
-WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET type SINCE 1 hour ago
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET typeLabel SINCE 1 hour ago
 ```
 
 <Callout variant="tip">
@@ -1943,3 +2035,21 @@ Se suas configurações `parallelism` estiverem funcionando bem para manter a fi
 <Callout variant="tip">
   New Relic não se responsabiliza por quaisquer modificações que você fizer nos arquivos do gerenciador de tarefas do Sintéticos.
 </Callout>
+
+#### Expandindo com múltiplas instâncias SJM
+
+Para atingir taxas totais de transferência maiores, você pode instalar várias versões do SJM Helm no mesmo namespace Kubernetes. Cada SJM competirá por trabalhos da mesma localização privada, fornecendo balanceamento de carga, proteção contra failover e um aumento nas taxas totais de transferência de trabalho.
+
+Ao instalar várias versões do SJM, você deve fornecer um nome exclusivo para cada versão. Todas as instâncias devem ser configuradas com a **mesma chave de localização privada** em seu arquivo `values.yaml`. Embora não seja obrigatório, é recomendável definir `fullnameOverride` para criar nomes de recursos mais curtos e gerenciáveis.
+
+Por exemplo, para instalar dois SJMs chamados `sjm-alpha` e `sjm-beta` no namespace `newrelic` :
+
+```sh
+helm upgrade --install sjm-alpha -n newrelic newrelic/synthetics-job-manager -f values.yaml --set fullnameOverride=sjm-alpha --create-namespace
+```
+
+```sh
+helm upgrade --install sjm-beta -n newrelic newrelic/synthetics-job-manager -f values.yaml --set fullnameOverride=sjm-beta
+```
+
+Você pode continuar esse padrão para quantos SJMs forem necessários para evitar que a fila de trabalhos cresça. Para cada SJM, defina `parallelism` e `completions` como um valor razoável com base na duração média do seu trabalho e no limite de \~15 trabalhos por minuto por instância.
