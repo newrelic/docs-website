@@ -13,80 +13,71 @@ Este documento explica como o browser coleta e armazena dados do seu aplicativo 
 
 ## Interação do browser [#browser-interaction]
 
-No centro do monitoramento do SPA está o conceito de <DNT>**browser interaction**</DNT>. A New Relic define uma interação do browser como qualquer coisa que ocorra no browser do usuário do aplicativo; por exemplo:
+No centro do monitoramento do SPA está o conceito de <DNT>**browser interaction**</DNT>. New Relic define uma interação do navegador, também chamada de navegação suave, como a seguinte sequência de eventos, extraída da [heurística do Google](https://github.com/WICG/soft-navigations?tab=readme-ov-file#heuristics):
 
-* Uma interação do usuário que leva ao carregamento da página ou à alteração da rota
-* Uma atualização dinâmica e agendada para o widget de um aplicativo
+1. Ocorre uma interação do usuário. Buscamos especificamente por eventos `click`, `keydown` ou `submit`. O evento `popstate` da API do Histórico também iniciará uma interação.
+2. A URL muda de alguma forma, seja o caminho ou o hash aplicado.
+3. Quaisquer alterações, incluindo no atributo do nó ou no texto, ocorrem em qualquer lugar na árvore DOM do documento.
 
-Uma interação do browser inclui não apenas o evento inicial de acionamento, mas também a atividade causada por esse evento, como solicitações AJAX e JavaScript síncrono e assíncrono. Ao rastrear não apenas a causa, mas também os efeitos de uma interação do browser, ajudamos você a entender como as visualizações e rotas do seu aplicativo são alteradas.
+Seguindo essas etapas, a interação do navegador será considerada concluída no próximo quadro de repintura. Eles também associarão XHR e buscarão requests iniciadas dentro de seu intervalo. A v2.1 introduziu outra etapa:
 
-Todos os aplicativos são diferentes e têm necessidades de monitoramento diferentes. É por isso que incluímos monitoramento padrão, bem como a capacidade de configurar monitoramento personalizado para qualquer interação do browser que você escolher.
+4. Para a versão 2.1 e posteriores do SPA, o monitor verifica retorno de chamada de longa duração por no máximo 5 segundos. Se um retorno de chamada de longa duração for identificado, o sistema estende a interação atual e executa novamente o monitor.
+
+a interação será concluída completamente quando houver um período de 5 segundos sem nenhuma tarefa longa. Durante o período de extensão que antecede o final da última tarefa longa observada, qualquer AjaxRequest e JavascriptError que ocorrer também será associado à interação. É importante ressaltar que a duração da interação não incluirá os últimos 5 segundos de inatividade.
+
+Observe que a etapa quatro pode ser interrompida ou ignorada em certos cenários.
+
+<Callout variant="tip">
+  O gatilho de evento `popstate` é gerenciado exclusivamente em comparação a outros gatilhos de evento de interface devido ao seu comportamento específico em navegadores. Quando um evento `popstate` ocorre dentro de 500 milissegundos após outro evento de interface, como um clique, ele será mesclado à interação existente iniciada por esse evento, sem alterar o gatilho original da interação (por exemplo, &apos;clique&apos;). Entretanto, dois eventos `popstate` consecutivos nunca serão mesclados dessa maneira.
+
+  A interação com `popstate` como gatilho geralmente se origina de ações do navegador, como usar o botão voltar ou avançar, ou de ações relacionadas ao código, como alterar programaticamente o URL.
+</Callout>
 
 ## Tipos de SPA relatório de dados [#spa-data]
 
-Três categorias principais de dados de aplicativos de página única podem ser relatadas à New Relic:
-
-* Carregamento inicial da página
-* Mudanças de rota
-* Interação personalizada do browser criada por meio da [API SPA](/docs/browser/single-page-app-monitoring/use-spa-data/use-spa-api)
+@@ -39,54 +38,39 @@ Três categorias principais de dados de aplicativos de página única podem ser relatadas ao New Relic:
 
 Cada um deles cria um evento `BrowserInteraction` . Se uma ou mais solicitações AJAX fizerem parte de uma interação, então o evento `AjaxRequest` associado também será criado. Estes eventos e seus atributos podem ser consultados no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
 
+<Callout variant="important">
+  A interação padrão ou não personalizada não aguarda a conclusão requests de rede. Elas são associadas à interação no estado em que se encontram, o que significa que somente requests concluídas antes da interação ser coletada pelo agendador são vinculadas a ela. Se uma solicitação de rede tiver uma duração lenta ou longa e começar como parte de uma interação, ela poderá ficar fora dessa janela de tempo e não ser associada à interação.
+
+  Como alternativa, você pode estender manualmente a duração de uma interação para garantir que ela permaneça aberta até que qualquer solicitação de rede importante retorne usando a API.
+</Callout>
+
 ## Carregamento inicial da página
 
-Um <DNT>**initial page load**</DNT> é uma alteração de URL tradicional, resultante de um carregamento ou recarregamento completo de um URL. Isso é indicado no browser quando um evento de carregamento de página é acionado (o evento `window.onload` ). Os carregamentos iniciais da página aparecem junto com as alterações de rota na [interface do browser](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
+Um <DNT>**initial page load**</DNT> é uma alteração de URL tradicional, decorrente de um carregamento ou recarregamento completo de uma URL. Isso é indicado no navegador quando um evento de carregamento de página é disparado (o evento `window.onload` ) e também é chamado de navegação difícil. Os carregamentos iniciais da página aparecem junto com as alterações de rota na [interface do navegador](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
 
 ## Mudanças de rota
 
 A rota dinâmica da experiência do usuário do SPA muda de maneira semelhante aos carregamentos de páginas. Os visitantes de um site ou aplicativo geralmente não se importam <DNT>**how**</DNT> uma nova visualização tenha sido entregue; eles simplesmente sabem que quando realizam uma ação, uma nova visão aparece. Por esse motivo, tratamos as alterações de rota de maneira semelhante aos carregamentos de páginas na interface.
 
-Para monitor de maneira ideal o aplicativo de página única, iniciamos o monitoramento de muitas interações do browser que poderiam, teoricamente, levar a mudanças de rota.
+Para monitorar de forma otimizada o aplicativo de página única, começamos a monitorar qualquer interação que possa teoricamente levar a alterações de rota.
 
-* Se essas interações **não** levarem a mudanças de rota, o browser inicia o monitoramento, mas depois as descarta.
+* Se essas interações **não** completarem as etapas heurísticas definidas acima, o agente inicia o monitoramento, mas depois as descarta.
+* Se essas interações <DNT>**do**</DNT> seguirem todos os passos, o agente salva a sequência como um evento `BrowserInteraction` concluído.
 
-* Se essas interações
+Uma interação é considerada uma alteração de rota e salva como um evento `BrowserInteraction` se a URL mudar entre o início e o fim. As alterações de URL são rastreadas de duas maneiras:
 
-  <DNT>
-    **do**
-  </DNT>
-
-  levarem a uma mudança de rota, o browser salva a sequência de interação como um evento `BrowserInteraction` , incluindo informações sobre atividades síncronas e assíncronas.
-
-Uma interação é considerada uma alteração de rota e salva como um evento `BrowserInteraction` quando ocorre uma das seguintes situações:
-
-* O URL aplica alterações de hash (geralmente usando `window.location.hash`).
-* Um evento `popstate` é acionado durante um retorno de chamada associado a uma interação.
-* Uma API `pushState` ou `replaceState` é chamada.
+* O evento `popstate`. Alterar a URL programaticamente, como definir `window.location.hash`, acionará esse evento.
+* `pushState` ou `replaceState` é chamado. Os SPAs geralmente usam esses métodos da API de histórico para atualizar a URL.
 
 As alterações de rota aparecem junto com os carregamentos iniciais da página na [interface do browser](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
 
-Recebemos e salvamos fragmentos de hash aplicados de URLs de mudança de rota. Se você usar aplicar hash para passar dados privados ou confidenciais, esses dados poderão ficar visíveis para o usuário da sua conta New Relic. Para obter mais informações sobre coleta de dados e relatórios, consulte [Segurança para browser](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser).
+Observe que os relatórios do agente aplicam fragmentos de hash de URLs de alteração de rota. Se você usar aplicar hash para passar dados privados ou confidenciais, esses dados poderão ficar visíveis para o usuário da sua conta New Relic. Para obter mais informações sobre coleta e relatórios de dados, consulte [Segurança do navegador](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser).
 
 ## Monitoramento personalizado [#api-custom-events]
 
-Você pode usar a [API SPA](/docs/browser/new-relic-browser/browser-agent-spa-api) para configurar o monitoramento personalizado da interação do browser que não é monitorado por padrão. Você também pode usar a API para desabilitar o monitoramento padrão.
+Todos os aplicativos são diferentes e têm necessidades de monitoramento diferentes. Você pode usar a [APIdo SPA](/docs/browser/new-relic-browser/browser-agent-spa-api) para personalizar a interação do seu navegador ou definir a maneira como ela é capturada.
 
-Evento personalizado são salvos como `BrowserInteraction` evento e possuem o seguinte atributo:
+evento personalizado são salvos como `BrowserInteraction` evento e têm a seguinte diferença em atributo:
 
 * O atributo `category` terá o valor `Custom`.
 * O atributo `trigger` terá o valor `api`. (Este é o valor padrão, mas pode ser alterado com a API.)
 
-## Diferença do tempo de carregamento de página tradicional [#page-load-timing-diff]
-
-Para fornecer dados otimizados para monitoramento de aplicativos de página única, medimos o tempo de carregamento da página de uma nova maneira: agrupando funções de browser de baixo nível, tanto síncronas quanto assíncronas. Isso fornece uma descrição mais completa de quanto tempo leva para concluir as alterações necessárias para uma nova visualização.
-
-Isso é diferente do método tradicional de tempo de carregamento da página. [O tempo de carregamento de página tradicional](/docs/browser/new-relic-browser/page-load-timing-resources/page-load-timing-process) usa o acionamento do evento `window.onload` para determinar quando uma página é carregada. Essa não é uma maneira ideal de medir o tempo de alteração da visualização porque os aplicativos da web geralmente têm código assíncrono que é executado por um período significativo após a ocorrência do evento `window.onload` .
-
-<Callout variant="tip">
-  A página <DNT>**Page views**</DNT> padrão do browser, não SPA, exibe um ritmo de carregamento da página diferente do que quando o monitoramento SPA está ativado. Como o monitoramento do SPA mede toda a atividade assíncrona, os tempos de carregamento do SPA geralmente serão maiores do que o tempo de carregamento da página padrão.
-</Callout>
-
-O tempo de carregamento da página `window.onload` tradicional ainda aparece na página <DNT>**Page views**</DNT> do SPA. Quando você seleciona um evento de carregamento de página específico, <DNT>**Window onload**</DNT> aparece como uma linha vermelha no gráfico de tempo de carregamento da página. Você também pode selecionar <DNT>**Switch to standard page views**</DNT> para retornar às exibições tradicionais de tempo de carregamento.
-
-## Temporizadores [#spa-timers]
-
-O agente monitora todas as chamadas assíncronas, inclusive os timers. Os temporizadores com durações inferiores a um segundo são agrupados. Timers com mais de um segundo não são agrupados porque geralmente são destinados à [transação fora da web](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions), como trabalho em segundo plano ou polling que não está relacionado à interação do usuário.
+A API permite que você determine quando iniciar e parar essa interação personalizada, caso a heurística acima não se ajuste à sua base de usuários ou aplicativo.
 
 ## Evento e atributo [#event-data-structure]
 
-Salvamos a interação do browser que leva a alterações de rota e carregamentos de página como evento `BrowserInteraction` e solicitações AJAX como evento `AjaxRequest` . Você pode consultar estes eventos no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
+Salvamos interações do navegador que levam a alterações de rota e carregamentos de página, ou são criadas por meio de API, como evento `BrowserInteraction`, e requests AJAX como evento `AjaxRequest`. Você pode consultar estes eventos no [criador de consulta](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
