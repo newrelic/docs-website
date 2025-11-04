@@ -1,7 +1,7 @@
 ---
 title: 'End of Life Announcement: Pre-insights APM legacy embedded charts'
-subject: On June 30, 2026, APM legacy embedded charts will be deprecated
-publishDate: '2025-10-17'
+subject: EOL for Pre-insights APM legacy embedded charts
+publishDate: '2025-11-17'
 eolEffectiveDate: '2026-06-30'
 ---
 
