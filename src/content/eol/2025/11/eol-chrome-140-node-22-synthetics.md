@@ -15,6 +15,7 @@ The following upgrades will be implemented:
 * **Synthetics Node API runtime**: Upgraded to Node.js 22
 * **Synthetics Node browser runtime**: Upgraded to Node.js 22  
 * **Chrome browser**: Upgraded to Chrome 140
+* Release candidate version available via Docker image tags (rc1.1)
 
 ## What's changing?
 
@@ -43,19 +44,38 @@ The following monitor types will be affected by these changes:
 
 * **Node Browser runtime**: The "latest" tag on `DESIRED_RUNTIMES` will point to Chrome 140 with Node.js 22 runtime starting **December 8, 2025**. Until then, "latest" points to Chrome 134 with Node.js 16 runtime.
 
-## What you need to do
 
-### During the transition period
 
-1. **Review and test your monitors** using the new runtime options available in the monitor configuration screens.
+## Changes during transition period
 
-2. **Address Node.js 22 time out behavior**: Node.js 22 has documented issues with time out behavior for resource handles. Review the [Node.js 22 release documentation](https://nodejs.org/en/blog/announcements/v22-release-announce) for details.
+### For public browser monitors
 
-3. **Ensure monitors don't time out** with Node.js 22 before the transition date.
+In the creation/edit monitor screen, you'll see the ability to select Chrome browser versions:
+
+* Chrome 134
+* Chrome 140
+
+  ![Chrome version](/images/runtime-synthetic.webp "Chrome version changes")
+
+### For other monitor types
+
+Select the runtime in the Configure monitor screen.
+
+  ![node runtime](/images/node-synthetic-runtime.webp "node runtime changes")
+
+
+
+## What you need to do during the transition period
+
+1. Review and test your monitors using the new runtime options available in the monitor configuration screens.
+
+2. Address Node.js 22 time out behavior: Node.js 22 has documented issues with time out behavior for resource handles. Review the [Node.js 22 release documentation](https://nodejs.org/en/blog/announcements/v22-release-announce) for details.
+
+3. Ensure monitors don't time out with Node.js 22 before the transition date.
 
 ### Handle resource cleanup properly
 
-Our analysis indicates that Node.js executes browser monitor scripts successfully but waits for open handles, eventually causing monitor time outs. Ensure proper cleanup of resource handles.
+Our analysis indicates that Node.js executes browser monitor scripts successfully but waits for open handles, eventually causing monitor time-outs. Ensure proper cleanup of resource handles.
 
 **Example 1 - Stream cleanup:**
 
@@ -75,7 +95,29 @@ finally {
 const req = https.request(options, (res) => {
   try {
     const cert = res.socket.getPeerCertificate();
-    
+
+    if (cert && Object.keys(cert).length > 0) {
+      const validTo = cert.valid_to || cert.validTo;
+      console.log("Raw certificate valid_to:", validTo);
+      resolve({ validTo: validTo });
+    } else {
+      reject(new Error("Could not get certificate information"));
+    }
+  } catch (err) {
+    res.destroy();
+    if (res.socket) res.socket.destroy();
+    reject(err);
+  }
+});
+```
+
+In the above example, `res.socket` is opening the socket and in the if condition we are not closing the socket. For above code, you can add cleanup functionality as follows:
+
+```javascript
+const req = https.request(options, (res) => {
+  try {
+    const cert = res.socket.getPeerCertificate();
+
     // Always destroy the response and socket
     const cleanup = () => {
       try {
@@ -84,7 +126,7 @@ const req = https.request(options, (res) => {
           res.socket.destroy();
         }
       } catch (e) {
-        console.log('Cleanup warning:', e.message);
+        console.log("Cleanup warning:", e.message);
       }
     };
 
@@ -105,18 +147,7 @@ const req = https.request(options, (res) => {
 });
 ```
 
-## Changes during transition period
 
-### For public browser monitors
-
-In the creation/edit monitor screen, you'll see the ability to select Chrome browser versions:
-
-* Chrome 134 (current)
-* Chrome 140 (new)
-
-### For other monitor types
-
-Select the runtime in the Configure monitor screen.
 
 ## Troubleshooting
 
@@ -134,4 +165,4 @@ Select the runtime in the Configure monitor screen.
 
 * [Synthetics runtime documentation](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime/)
 
-* If you have questions or need assistance during this transition, please contact our [support team](https://support.newrelic.com/s/).
+* If you have questions or need assistance during this transition, please contact our [support team](https://support.newrelic.com/s/)
