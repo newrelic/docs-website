@@ -22,119 +22,140 @@ This error indicates that the eBPF agent has reached the maximum number of file 
 
 ## Solution
 
+You must increase the file descriptor limit for the eBPF agent service or pod.
+
 ### For Linux hosts:
 
-1. **Increase the file descriptor limit temporarily:**
+Use the `systemd` override mechanism to set a higher limit for the agent service.
+
+1. Increase the file descriptor limit temporarily:
+
    ```bash
    ulimit -n 4096
    ```
 
-2. **Make the change persistent** by editing `/etc/security/limits.conf`:
+2. Run the following command to edit the change persistent at `/etc/security/limits.conf`:
+
    ```bash
    sudo nano /etc/security/limits.conf
    ```
-   
+
    Add the following lines:
+
    ```
-   * soft nofile 4096
-   * hard nofile 8192
+      * soft nofile 4096
+      * hard nofile 8192
    ```
 
-3. **Restart the eBPF agent:**
+3. Restart the eBPF agent:
+
    ```bash
-   sudo systemctl restart newrelic-ebpf-agent
+      sudo systemctl restart newrelic-ebpf-agent
    ```
 
-4. **Verify the change:**
+4. Verify the new limit:
+
    ```bash
-   # Check current limits
-   cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
    ```
 
 ### For Kubernetes:
 
-1. **Update your Helm values** to increase resource limits:
+1. Edit your `values.yaml` file used for the Helm deployment:
+
    ```yaml
-   # values.yaml
-   agent:
-     resources:
-       limits:
-         memory: "2Gi"
-     # Add security context if needed
-     securityContext:
-       capabilities:
-         add:
-         - SYS_ADMIN
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
    ```
 
-2. **Apply the changes:**
-   ```bash
-   helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
-   ```
-
-3. **Verify the pods restart successfully:**
-   ```bash
-   kubectl get pods -n newrelic -w
-   ```
-
-### Alternative solutions:
-
-1. **Reduce monitoring scope** if increasing limits isn't feasible:
+2. Apply the changes:
    
-   **For Linux hosts** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`):
    ```bash
-   # Exclude specific processes or entities
-   DROP_DATA_FOR_ENTITY="process1,process2"
-   ```
-   
-   **For Kubernetes** (`values.yaml`):
-   ```yaml
-   # Exclude namespaces or services
-   dropDataForNamespaces: ["kube-system", "monitoring"]
-   dropDataServiceNameRegex: "kube-dns|system-service"
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
    ```
 
-2. **Disable specific protocol monitoring** to reduce file descriptor usage:
-   
-   **For Linux hosts:**
+3. Verify the pods restart and are in a Running state:
+
    ```bash
-   PROTOCOLS_MYSQL_ENABLED="false"
-   PROTOCOLS_MONGODB_ENABLED="false"
+      kubectl get pods -n newrelic -w
    ```
+
+### Alternative solutions
+
+If increasing resource limits is not feasible, you can reduce the agent's file descriptor usage by limiting the scope of what it monitors.
+
+1. Reduce monitoring scope by filtering out namespaces or services:
    
-   **For Kubernetes:**
-   ```yaml
-   protocols:
-     mysql:
-       enabled: false
-     mongodb:
-       enabled: false
-   ```
+   * **For Linux hosts** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`):
 
-### Verification:
-
-1. **Check that the error no longer appears** in the logs:
+      ```bash
+         # Exclude specific processes or entities
+         DROP_DATA_FOR_ENTITY="process1,process2"
+      ```
    
-   **For Linux hosts:**
-   ```bash
-   sudo journalctl -u newrelic-ebpf-agent -f
-   ```
+   * **For Kubernetes** (`values.yaml`):
+
+      ```yaml
+         # Exclude namespaces or services
+         dropDataForNamespaces: ["kube-system", "monitoring"]
+         dropDataServiceNameRegex: "kube-dns|system-service"
+      ```
+
+2. Disable specific protocol monitoring to reduce the number of probes:
    
-   **For Kubernetes:**
-   ```bash
-   kubectl logs -f <ebpf-agent-pod> -n newrelic
+   * **For Linux hosts:**
+      
+      ```bash
+         PROTOCOLS_MYSQL_ENABLED="false"
+         PROTOCOLS_MONGODB_ENABLED="false"
+      ```
+   
+   * **For Kubernetes:**
+
+      ```yaml
+         protocols:
+         mysql:
+            enabled: false
+         mongodb:
+            enabled: false
+      ```
+
+### Verification
+
+1. Check that the error no longer appears in the agent logs:
+   
+   * **For Linux hosts:**
+
+      ```bash
+         sudo journalctl -u newrelic-ebpf-agent -f
+      ```
+
+   * **For Kubernetes:**
+
+      ```bash
+         kubectl logs -f <ebpf-agent-pod> -n newrelic
+      ```
+
+2. Confirm the agent is functioning normally by looking for the startup message in the logs:
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
    ```
 
-2. **Confirm the agent is functioning normally** by looking for:
-   ```
-   [STEP-7] => Successfully started the eBPF Agent.
-   ```
+3. Verify data is flowing to New Relic UI by filtering entities with `instrumentation.name = nr_ebpf`.
 
-3. **Verify data is flowing** to New Relic UI by filtering entities with `instrumentation.name = nr_ebpf`.
+### Additional notes
 
-## Additional notes:
-
-- The file descriptor limit error is more common in environments with many running processes or services
-- Each monitored process/service requires file descriptors for eBPF probe attachment
-- The default limit (usually 1024) may be insufficient for large-scale deployments
-- Increasing the limit to 4096 is generally safe and sufficient for most use cases
+- The file descriptor limit error is more common in environments with many running processes or services.
+- Each monitored process/service requires file descriptors for eBPF probe attachment.
+- The default system limit (often 1024) may be insufficient for large-scale deployments.
+- Increasing the limit to 4096 is generally safe and sufficient for most use cases.
