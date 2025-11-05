@@ -1823,52 +1823,144 @@ Kubernetes에 영구 데이터 저장소를 설정하기 위해 사용자에게�
   helm install ... --set synthetics.persistence.existingVolumeName=sjm-volume --set synthetics.persistence.storageClass=standard ...
   ```
 
-## OpenShift, Kubernetes 및 Docker에 대한 크기 고려 사항 [#kubernetes-sizing]
+## 도커, Podman, Kubernetes 및 OpenShift에 대한 크기 고려 사항 [#kubernetes-sizing]
 
-<Callout variant="tip">
-  Docker 특정 크기 고려 사항은 곧 제공될 예정입니다.
-</Callout>
+### 도커와 포드맨 [#docker]
 
-대규모 환경에서 작업하는 경우 합성 모니터를 효율적으로 실행하기 위한 최소 요구 사항을 충족하도록 작업 관리자 구성을 사용자 지정해야 할 수 있습니다. 다음을 포함하여 많은 요소가 합성 작업 관리자 배포의 크기 요구 사항에 영향을 줄 수 있습니다.
+방정식이 효율적으로 실행되도록 하려면 호스트에서 모니터링 워크로드를 처리할 만큼 충분한 CPU 리소스를 프로비저닝해야 합니다. 사이즈에 영향을 미치는 요소는 많지만, 귀하의 필요 사항을 빠르게 예측할 수 있습니다. **중량급 모니터(예: 간단한 브라우저, 스크립트 브라우저 또는 스크립트 API 모니터) 하나당 CPU 코어 1개가** 필요합니다. 현재 설정을 진단하거나 향후 설정을 계획하는 경우 필요한 코어 수를 계산하는 데 도움이 되는 두 가지 공식은 다음과 같습니다.
 
-* 예상 사용량에 따라 모든 런타임이 필요한 경우
-* 모니터 유형(ping, 단순 또는 스크립트 브라우저, 스크립트 API)별 분당 작업 수
-* 작업 시간(약 3분에 시간 초과되는 작업 포함)
-* 작업 실패 횟수입니다. 작업 실패의 경우 모니터가 내장된 3/3 재시도 논리를 제공하는 데 실패하기 시작할 때 자동 재시도가 예약됩니다. 이러한 추가 작업은 합성 작업 관리자의 처리량 요구 사항에 추가됩니다.
+#### 공식 1: 기존 위치 진단
 
-아래 나열된 크기 조정 구성 설정 외에도 동일한 개인 위치 키로 추가 합성 작업 관리자를 배포하여 여러 환경에서 작업 부하를 분산할 수 있습니다.
+현재 사용하고 있는 가상화 로케이션이 따라잡기 힘들고 작업이 대기하고 있다고 의심되는 경우, 이 공식을 사용하여 실제로 필요한 코어 수를 확인하세요. 이는 시스템의 관찰 가능한 성능에 따라 결정됩니다.
 
-## Kubernetes 와 오픈시프트 [#k8s]
+**방정식:**
 
-Kubernetes와 OpenShift 합성 작업 관리자가 사용하는 각 런타임은 [helm 차트](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager) 에서 값을 설정하여 독립적으로 크기를 조정할 수 있습니다.
+$$C\_req = (R\_proc + R\_growth) \times D\_avg,m$$
 
-기본값 `1` 에서 `ping-runtime.replicaCount` 설정을 늘려 핑 모니터 로드를 실행하는 데 도움이 되도록 추가 핑 런타임을 시작할 수 있습니다.
+* $C\_req$ = **필요한 CPU 코어**.
+* $R\_proc$ = 분당 **처리** 되는 중량 작업의 **비율** 입니다.
+* $R\_growth$ = `jobManagerHeavyweightJobs` 대기열이 분당 **증가하는** **속도** 입니다.
+* $D\_avg,m$ = 중량 작업의 **평균 소요 시간** **(분)** 입니다.
 
-Node.js API 및 Node.js 브라우저 런타임은 `parallelism` 및 `completions` 설정의 조합을 사용하여 독립적으로 크기가 조정됩니다. 이러한 설정에 대한 이상적인 구성은 고객 요구 사항에 따라 달라집니다.
+**작동 원리는 다음과 같습니다.** 이 공식은 시스템 *에서 처리 중인* 작업과 대기열에 *쌓인* 작업을 더하여 실제 작업 도착률을 계산합니다. 이 총 부하를 평균 작업 기간에 곱하면 대기열에 넣지 않고 모든 작업을 완료하는 데 필요한 코어 수를 정확히 알 수 있습니다.
 
-`parallelism` 설정은 특정 런타임의 Pod가 동시에 실행되는 수를 제어합니다. `parallelism` 설정은 컨테이너화된 프라이빗 미니언(CPM)의 `synthetics.heavyWorkers` 구성과 동일합니다. Kubernetes 클러스터에 [리소스 요청 및 제한 값을](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#kubernetes-requirements) 기반으로 이 수의 Pod를 실행하는 데 사용할 수 있는 충분한 리소스가 있는지 확인하세요.
+#### 공식 2: 새 위치 또는 미래 위치 예측
 
-`completions` 설정은 `CronJob` 가 해당 런타임에 대해 다른 Kubernetes 작업을 시작하기 전에 완료해야 하는 특정 런타임의 포드 수를 제어합니다. Kubernetes 작업(대문자 J)과 합성 모니터 작업의 차이점을 확인하세요. 효율성을 높이려면 `completions` `parallelism` 값의 6-10배로 설정해야 합니다. 이는 Kubernetes 작업이 모든 `completions` 가) 완료될 때까지 기다릴 때 `parallelism` 개 미만의 포드가 실행될 수 있는 &quot;완료가 거의 끝나가는&quot; 비효율성을 최소화하는 데 도움이 될 수 있습니다.
+새로운 위치 위치를 설정하거나 더 많은 모니터를 추가할 계획이라면 이 공식을 사용하여 요구 사항을 미리 예측하세요.
 
-`completions` 가 1보다 크면 Kubernetes 작업에 정의된 모든 완료(예: 6/6 완료)가 충족될 때까지 &apos;완료됨&apos; 상태의 Pod가 `kubectl get pods -n YOUR_NAMESPACE` 출력에 계속 표시됩니다. Pod의 상태가 Completed 또는 Failed이면 노드에서 리소스가 해제됩니다.
+**방정식:**
 
-5분(`kubectl get jobs -n YOUR_NAMESPACE`)의 Kubernetes 작업 기간은 포드를 완료하는 데 걸리는 시간과 분당 실행해야 하는 합성 작업 수(작업 속도)의 가변성을 설명하기 위한 보수적인 목표입니다. 다음 방정식은 각 런타임에 대한 `completions` 및 `parallelism` 의 시작점으로 사용될 수 있습니다. 개인 위치 대기열 증가에 대한 관찰을 기반으로 조정이 필요할 수 있습니다.
+$$C\_req = N\_mon \times D\_avg,m \times \frac1P\_avg,m$$
 
-```math
-completions = 300 / avg job duration (s)
-parallelism = synthetics jobs per 5 minutes / completions
+* $C\_req$ = **필요한 CPU 코어**.
+* $N\_mon$ = 실행하려는 중량 **모니터** 의 총 **수** 입니다.
+* $D\_avg,m$ = 중량 작업의 **평균 소요 시간** **(분)** 입니다.
+* $P\_avg,m$ = 중량 모니터의 **평균 기간** **(분)** (예: 5분마다 실행되는 모니터의 경우 $P\_avg,m = 5$).
+
+**작동 방식은 다음과 같습니다.** 이는 첫 번째 원칙, 즉 쿼리 수, 실행 빈도, 실행 시간으로부터 예상되는 오류를 계산합니다.
+
+#### 중요한 크기 요소
+
+이러한 공식을 사용할 때는 다음 요소를 고려해야 합니다.
+
+* **작업 기간($D\_avg,m$):** 평균에는 **시간 초과** 된 작업(대개 \~3분)도 포함되어야 합니다. 이러한 작업은 전체 기간 동안 핵심을 유지합니다.
+* **작업 실패 및 재시도:** 모니터가 실패하면 자동으로 재시도됩니다. 이러한 재시도는 전체 부하를 증가시키는 추가 작업입니다. 지속적으로 실패하고 재시도하는 모니터는 **주기를 늘려** 처리량에 상당한 영향을 미칩니다.
+* **스케일 아웃:** 호스트에 더 많은 코어를 추가하는 것(스케일 업) 외에도 동일한 독립 로케이션 키를 사용하여 추가 신세틱스 작업 관리자를 구현하고 배치하여 여러 환경에 걸쳐 작업의 로드 밸런싱을 수행할 수 있습니다(스케일 아웃).
+
+단일 신세틱스 Job Manager(SJM)는 **분당 약 15개의 중량 작업을** 처리할 수 있는 처리량 제한이 있다는 점에 유의하는 것이 중요합니다. 이는 SJM당 처리되는 작업의 순수한 개수보다 여러 SJM 간의 작업의 효율적인 경쟁을 선호하는 내부 스레딩 전략 때문입니다. 계산 결과 더 높은 처리량이 필요하다는 것을 나타내는 경우 추가 SJM을 구현, 배포하여 **확장** 해야 합니다. [작업 대기열이 늘어나는지 확인하여](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) 더 많은 SJM이 필요한지 확인할 수 있습니다.
+
+동일한 위치 위치 키를 사용하여 더 많은 SJM을 추가하면 다음과 같은 이점이 있습니다.
+
+* **로드 밸런싱**: 고립로케이션에 대한 작업은 사용 가능한 모든 SJM에 분산됩니다.
+* **장애 조치 보호**: 하나의 SJM 인스턴스가 다운되더라도 다른 인스턴스가 작업을 계속 처리할 수 있습니다.
+* **더 높은 총 처리량**: 상대 로케이션에 대한 총 처리량은 각 SJM의 처리량의 합이 됩니다(예: 2개의 SJM은 분당 최대 30개의 작업을 제공합니다).
+
+#### 진단을 위한 NRQL 쿼리
+
+진단 공식에 대한 입력을 얻으려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) 에서 이러한 쿼리를 실행할 수 있습니다. 안정적인 평균을 얻으려면 시간 범위를 충분히 길게 설정하세요.
+
+**1. 분당 처리된 작업 속도 찾기($R\_proc$):** 이 쿼리는 지난 하루 동안 완료된 핑이 없는(중량급) 작업의 수를 세고 분당 평균 속도를 보여줍니다.
+
+```nrql
+FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
 ```
 
-런타임마다 합성 작업 기간과 속도가 다를 수 있습니다. 다음 쿼리를 사용하여 개인 위치의 평균 기간과 요금을 얻을 수 있습니다.
+**2. 분당 대기열 증가율($R\_growth$) 찾기:** 이 쿼리는 시계열 차트에서 `jobManagerHeavyweightJobs` 대기열의 분당 평균 증가율을 계산합니다. 0보다 큰 선은 대기열이 늘어나고 있음을 나타내고, 0보다 작은 선은 대기열이 줄어들고 있음을 나타냅니다.
+
+```nrql
+FROM SyntheticsPrivateLocationStatus SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'queue growth rate per minute' WHERE name = 'YOUR_PRIVATE_LOCATION' TIMESERIES SINCE 1 day ago
+```
+
+<Callout variant="tip">
+  해당 로그인이 존재하는 계정을 선택하세요. 파생 함수가 크게 달라질 수 있으므로 이 쿼리를 시계열로 보는 것이 가장 좋습니다. 목표는 분당 대기열 증가율을 추정하는 것입니다. 다양한 시간 범위를 적용해 보고 어떤 것이 가장 효과적인지 확인 Play .
+</Callout>
+
+**3. 중량 모니터의 총 수($N\_mon$) 찾기:** 이 쿼리는 중량 모니터의 고유한 수를 찾습니다.
+
+```nrql
+
+  FROM SyntheticCheck SELECT uniqueCount(monitorId) AS 'monitor count' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+
+```
+
+**4. 평균 작업 기간(분) 찾기($D\_avg,m$):** 이 쿼리는 완료된 비핑 작업의 평균 실행 기간을 찾고 결과를 밀리초에서 분으로 변환합니다. `executionDuration` 호스트에서 작업을 실행하는 데 걸린 시간을 나타냅니다.
+
+```nrql
+FROM SyntheticCheck SELECT average(executionDuration)/60e3 AS 'avg job duration (m)' WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' SINCE 1 day ago
+```
+
+**5. 평균 헤비급 감시 기간($P\_avg,m$) 찾기:** 처리로케이션의 `jobManagerHeavyweightJobs` 큐가 증가하는 경우 기존 결과에서 평균 감시 기간을 계산하는 것은 정확하지 않습니다. 이는 [Synthetic Monitor](https://one.newrelic.com/synthetics) 페이지의 모니터 목록에서 추산해야 합니다. 올바른 뉴렐릭 계정을 선택했는지 확인하고 `privateLocation` 로 필터링해야 할 수도 있습니다.
+
+<Callout variant="tip">
+  합성 모니터는 여러 하위 계정에 존재할 수 있습니다. 쿼리 빌더에서 선택할 수 있는 하위 계정보다 많은 하위 계정이 있는 경우, 모니터가 가장 많은 계정을 선택하세요.
+</Callout>
+
+#### ping 모니터 및 `pingJobs` 대기열에 대한 참고 사항
+
+**Ping 모니터는 다릅니다.** 각각 전체 CPU 코어를 소모하지 않는 가벼운 작업입니다. 대신 별도의 대기열(`pingJobs`)을 사용하고 작업자 스레드 풀에서 실행됩니다.
+
+ping 작업은 리소스를 덜 사용하지만, 특히 실패하는 작업의 경우 ping 작업량이 많으면 여전히 성능 문제가 발생할 수 있습니다. 다음 사항을 명심하세요.
+
+* **리소스 모델:** Ping 작업은 전용 CPU 코어가 아닌 작업자 스레드를 활용합니다. 이러한 경우에는 작업당 코어 계산이 적용되지 않습니다.
+* **시간 초과 및 재시도:** 실패한 ping 작업은 최대 **60초** 동안 작업자 스레드를 차지할 수 있습니다. 먼저 HTTP HEAD 요청을 시도합니다(제한 시간 30초). 실패하면 즉시 HTTP GET 요청으로 재시도합니다(30초의 시간 초과).
+* **크기 조정:** 크기 조정 공식은 다르지만 동일한 원칙이 적용됩니다. 대량의 ping 작업을 처리하고 `pingJobs` 대기열이 커지는 것을 방지하려면 확장 및/또는 확장이 필요할 수 있습니다. 확장은 호스트나 네임스페이스당 CPU와 메모리 리소스를 늘리는 것을 의미합니다. 확장은 ping 런타임 인스턴스를 더 추가하는 것을 의미합니다. 이는 더 많은 호스트, 더 많은 라벨스페이스 또는 [동일한 라벨스페이스 내에서](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-configuration#scaling-out-with-multiple-sjm-instances) 구현하다, 배포하다 더 많은 작업 관리자를 통해 수행될 수 있습니다. 또는 Kubernetes 의 `ping-runtime` 을 사용하면 구현, 배포당 [더 많은 수의 복제본을](https://github.com/newrelic/helm-charts/blob/41c03e287dafd41b9c914e5a6c720d5aa5c01ace/charts/synthetics-job-manager/values.yaml#L173) 설정할 수 있습니다.
+
+### Kubernetes 와 오픈시프트 [#k8s]
+
+Kubernetes와 OpenShift 합성 작업 관리자가 사용하는 각 런타임은 [helm 차트](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager) 에서 값을 설정하여 독립적으로 크기를 조정할 수 있습니다. [node-api-runtime](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager/charts/node-api-runtime) 과 [node-browser-runtime은](https://github.com/newrelic/helm-charts/tree/master/charts/synthetics-job-manager/charts/node-browser-runtime) `parallelism` 및 `completions` 설정의 조합을 사용하여 독립적으로 크기가 조정됩니다.
+
+런타임 크기를 조정할 때 고려해야 할 주요 사항은 단일 SJM 인스턴스의 최대 처리량이 **분당 약 15개의 중량 작업** (스크립트 API 및 브라우저 모니터)이라는 것입니다. 이는 SJM당 처리되는 작업의 순수한 개수보다 여러 SJM 간의 작업의 효율적인 경쟁을 선호하는 내부 스레딩 전략 때문입니다.
+
+이 처리량 상한에 도달하기 전에 단일 SJM에 대한 최대 유효 `parallelism` 계산하려면 평균 작업 기간을 사용할 수 있습니다.
+
+$$평행도*최대 \약 15 \times D*avg,m$$
+
+여기서 $D\_avg,m$은 **분 단위** 의 **평균 중량 작업 기간** 입니다.
+
+모니터링 요구 사항이 이 최대 15개 작업/분 제한을 초과하는 경우 구현하다, 배포하다 여러 SJM을 사용하여 **확장** 해야 합니다. [작업 대기열이 커지는지 확인하여](/docs/synthetics/synthetic-monitoring/private-locations/job-manager-maintenance-monitoring/) 더 많은 인스턴스가 필요한지 알아볼 수 있습니다.
+
+`parallelism` 설정은 특정 런타임의 파드가 동시에 실행되는 횟수를 제어하며, 도커 및 Podman SJM의 `HEAVYWEIGHT_WORKERS` 환경 변수와 동일합니다. `completions` 설정은 `CronJob` 이 해당 런타임에 대해 다른 Kubernetes 작업을 시작하기 전에 특정 런타임의 파드가 얼마나 완료되어야 하는지 제어합니다. 효율성을 향상시키려면 `completions` `parallelism` 값의 6\~10배로 설정해야 합니다.
+
+다음 방정식은 각 런타임에 대한 `completions` 및 `parallelism` 의 시작점으로 사용할 수 있습니다.
+
+$$완료 = \frac300D\_avg,s$$
+
+여기서 $D\_avg,s$는 **평균 작업 기간** **초** 입니다.
+
+$$평행도 = \fracN\_m완료$$
+
+여기서 $N\_m$은 5분마다 실행해야 하는 합성 작업의 **수** 입니다 **.**
+
+다음 쿼리를 사용하여 상대 이동의 평균 지속 시간과 비율을 얻을 수 있습니다.
 
 ```sql
 -- non-ping average job duration by runtime type
 FROM SyntheticCheck SELECT average(duration) AS 'avg job duration'
-WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET type SINCE 1 hour ago
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET typeLabel SINCE 1 hour ago
 
 -- non-ping jobs per minute by runtime type
 FROM SyntheticCheck SELECT rate(uniqueCount(id), 5 minutes) AS 'jobs per 5 minutes'
-WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET type SINCE 1 hour ago
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET typeLabel SINCE 1 hour ago
 ```
 
 <Callout variant="tip">
@@ -1943,3 +2035,21 @@ WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION' FACET type SINCE 1
 <Callout variant="tip">
   뉴렐릭은 신세틱스 작업 관리자 파일에 대한 수정 사항에 대해 책임을 지지 않습니다.
 </Callout>
+
+#### 여러 SJM 인스턴스로 확장
+
+더 높은 총 처리량을 달성하려면 동일한 Kubernetes 네임스페이스에 여러 SJM Helm 릴리스를 설치할 수 있습니다. 각 SJM은 로드 밸런싱, 장애 조치 보호 및 증가된 총 작업 처리량을 제공하여 동일한 위치의 작업을 놓고 경쟁합니다.
+
+여러 개의 SJM 릴리스를 설치하는 경우 각 릴리스에 고유한 이름을 제공해야 합니다. 모든 외부는 해당 `values.yaml` 파일에서 **동일한 독립 로케이션 키로** 구성되어야 합니다. 필수는 아니지만 더 짧고 관리하기 쉬운 리소스 이름을 만들려면 `fullnameOverride` 설정하는 것이 좋습니다.
+
+예를 들어, `sjm-alpha` 및 `sjm-beta` 이라는 두 개의 SJM을 `newrelic` 네임스페이스에 설치하려면 다음을 수행합니다.
+
+```sh
+helm upgrade --install sjm-alpha -n newrelic newrelic/synthetics-job-manager -f values.yaml --set fullnameOverride=sjm-alpha --create-namespace
+```
+
+```sh
+helm upgrade --install sjm-beta -n newrelic newrelic/synthetics-job-manager -f values.yaml --set fullnameOverride=sjm-beta
+```
+
+작업 대기열이 커지는 것을 막기 위해 필요한 만큼 많은 SJM에 대해 이 패턴을 계속할 수 있습니다. 각 SJM에 대해 평균 작업 기간과 인스턴스당 분당 약 15개 작업 제한을 기준으로 `parallelism` 및 `completions` 합리적인 값으로 설정합니다.
