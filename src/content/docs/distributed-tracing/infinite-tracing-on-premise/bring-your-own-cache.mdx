@@ -22,17 +22,20 @@ For production deployments, we recommend using cluster mode (sharded) to ensure 
 
 ```yaml
   tail_sampling:
-    decision_wait: 30s
     distributed_cache:
       connection:
         address: redis://localhost:6379/0
         password: 'local'
-      trace_window_expiration: 30s
-      suffix: "itc"
-      max_traces_per_batch: 500
-      evaluation_interval: 1s
+      trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
+      in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
+      traces_ttl: 3600s                 # Optional: default 1 hour
+      cache_ttl: 7200s                  # Optional: default 2 hours
+      suffix: "itc"                     # Redis key prefix
+      max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
+      evaluation_interval: 1s           # Default: evaluation frequency
+      evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
       data_compression:
-        format: lz4
+        format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
 ```
 
 <Callout variant="important">
@@ -154,8 +157,6 @@ When using `distributed_cache`, the decision caches are stored in Redis without 
   **Memory management**: Configure Redis with `maxmemory-policy allkeys-lru` to allow automatic eviction of old decision cache entries when memory limits are reached. The decision cache keys use TTL-based expiration (controlled by `cache_ttl`) rather than fixed size limits.
 </Callout>
 
-
-
 #### 3. Batch processing overhead
 
 - **Current batch queue**: Minimal (trace IDs + scores in sorted set)
@@ -246,48 +247,3 @@ The processor uses a cascading TTL structure, with each level providing protecti
    - Redis key expiration for decision cache entries (sampled/non-sampled)
    - Prevents duplicate evaluation for late-arriving spans
    - Defined via `distributed_cache.cache_ttl`
-
-### Example configuration
-
-```yaml
-  tail_sampling:
-    distributed_cache:
-      connection:
-        address: redis://localhost:6379/0
-        password: 'local'
-      trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
-      in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
-      traces_ttl: 3600s                 # Optional: default 1 hour
-      cache_ttl: 7200s                  # Optional: default 2 hours
-      suffix: "itc"                     # Redis key prefix
-      max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
-      evaluation_interval: 1s           # Default: evaluation frequency
-      evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
-      data_compression:
-        format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
-```
-
-## LRU eviction for decision caches
-
-When using `distributed_cache`, the decision caches rely on Redis's native LRU eviction rather than application-managed size limits:
-
-<Callout variant="important">
-**Redis LRU configuration required**: Configure your Redis instance with `maxmemory-policy allkeys-lru` to enable automatic eviction of old entries when memory limits are reached. The decision cache keys are stored in Redis with TTL-based expiration (controlled by `cache_ttl`), and Redis will automatically evict the least recently used keys when memory pressure occurs.
-</Callout>
-
-- **Sampled cache**: TTL-managed (default: 2 hours via `cache_ttl`)
-- **Non-sampled cache**: TTL-managed (default: 2 hours via `cache_ttl`)
-
-This approach provides several benefits:
-- Recent sampling decisions remain available for late-arriving spans
-- No hard limit on cache size—Redis manages memory automatically
-- Consistent cache performance under load
-- Simpler configuration without manual cache sizing
-
-## Batch processing
-
-The processor handles traces in batches to optimize performance:
-
-- **Maximum traces per batch**: Default of 500, configurable via `max_traces_per_batch`
-- **Atomic batch operations**: Batches are retrieved atomically from the current queue
-- **Failure recovery**: Failed batches are automatically recovered and re-queued after the in-flight timeout expires
