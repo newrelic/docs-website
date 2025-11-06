@@ -15,7 +15,7 @@ The following upgrades will be implemented:
 * **Synthetics Node API runtime**: Upgraded to Node.js 22
 * **Synthetics Node browser runtime**: Upgraded to Node.js 22  
 * **Chrome browser**: Upgraded to Chrome 140
-* Release candidate version available via Docker image tags (rc1.1)
+* Release candidate version available via Docker image tags (rc1.x)
 
 ## What's changing?
 
