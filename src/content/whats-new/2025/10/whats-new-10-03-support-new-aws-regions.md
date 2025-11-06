@@ -1,6 +1,6 @@
 ---
 title: "New Region Support Added for AWS API Polling and AWS Cloud Watch Metric Streams Integrations"
-summary: "Extended support for four new AWS regions in Infrastructre monitoring in AWS API Polling and AWS Cloud Watch Metric Streams integrations."
+summary: "Extended support for four new AWS regions in Infrastructure monitoring in AWS API Polling and AWS Cloud Watch Metric Streams integrations."
 releaseDate: "2025-10-03"
 ---
 
