@@ -114,4 +114,4 @@ SINCE 1 day ago LIMIT MAX
 
 ## Additional Support
 
-We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to [reach out to our support team](https://docs.newrelic.com/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
+We understand that these changes may require some adjustments to your routine. Please know that we’re committed to supporting you throughout this process. If you have any questions or need further assistance, please don't hesitate to [reach out to our support team](/docs/new-relic-solutions/solve-common-issues/find-help-get-support/).
