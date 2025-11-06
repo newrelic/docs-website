@@ -1,7 +1,6 @@
 ---
 title: 'Browser Update: Soft navigations improvements & New SPA launches'
 summary: 'Update your browser agent version to take advantage of SPA improvements'
-'
 releaseDate: '2025-11-11'
 ---
 
