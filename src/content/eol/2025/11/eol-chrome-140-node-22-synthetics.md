@@ -55,13 +55,23 @@ In the creation/edit monitor screen, you'll see the ability to select Chrome bro
 * Chrome 134
 * Chrome 140
 
-  ![Chrome version](/images/runtime-synthetic.webp "Chrome version changes")
+<img
+  title="Chrome version"
+  alt="Image of the Chrome version changes"
+  src="/images/runtime-synthetic.webp"
+/>
+
 
 ### For other monitor types
 
 Select the runtime in the Configure monitor screen.
 
-  ![node runtime](/images/node-synthetic-runtime.webp "node runtime changes")
+<img
+  title="node runtime"
+  alt="Image of the node runtime changes"
+  src="/images/node-synthetic-runtime.webp"
+/>
+
 
 
 
