@@ -113,6 +113,8 @@ jobs:
             You can follow the build live [here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
           # This tag is CRUCIAL. It lets the final step find and replace this comment.
           comment_tag: manual-build-comment
+          # THIS IS THE FIX for the pending comment
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # We must check out the actual code from the PR head
       - name: Checkout PR head
@@ -127,7 +129,6 @@ jobs:
           # Set this to the Node.js version your docs site uses
           node-version: '18' 
 
-      # THIS IS THE MODIFIED STEP
       - name: Install Dependencies
         run: |
           if [ -f yarn.lock ]; then
@@ -147,7 +148,7 @@ jobs:
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
 
-      # This is the new build step. It REPLACES your 'curl' step.
+      # THIS STEP IS NOW SEPARATED INTO BUILD AND DEPLOY
       - name: Build and Deploy Preview
         id: netlify_deploy
         # This is CRUCIAL! It lets the next step run even if this one fails.
@@ -156,9 +157,16 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: |
-          # --alias creates a predictable URL like: deploy-preview-123.netlify.app
-          # --json captures the output so we can parse it
-          deploy_output=$(netlify deploy --build --json --alias="deploy-preview-${{ steps.pr_info.outputs.pr_number }}" --message="Deploy preview for PR #${{ steps.pr_info.outputs.pr_number }}")
+          # Step 1: Run the build. This WILL stream logs.
+          # If this fails, the 'continue-on-error' will catch it, and the
+          # 'Update PR comment' step will report the failure.
+          echo "Running Netlify Build... (logs will stream)"
+          netlify build
+          
+          # Step 2: If build succeeded, deploy the site.
+          # This is fast and can safely use --json.
+          echo "Deploying to Netlify..."
+          deploy_output=$(netlify deploy --json --alias="deploy-preview-${{ steps.pr_info.outputs.pr_number }}" --message="Deploy preview for PR #${{ steps.pr_info.outputs.pr_number }}")
           
           # Save the full output for debugging
           echo "NETLIFY_DEPLOY_OUTPUT<<EOF" >> $GITHUB_ENV
@@ -173,7 +181,7 @@ jobs:
           
           # Check if 'deploy_url' is null or empty, which indicates a build failure
           if [ -z "$deploy_url" ] || [ "$deploy_url" == "null" ]; then
-            echo "Build failed! No deploy_url returned."
+            echo "Build failed or deploy_url not found!"
             # This ensures the 'outcome' of this step is 'failure'
             exit 1
           fi
@@ -184,6 +192,8 @@ jobs:
         with:
           # This tag finds the "pending" comment and replaces it
           comment_tag: manual-build-comment
+          # THIS IS THE FIX for the final comment
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           # This logic posts a different message based on the build step's outcome
           message: |
             ${{ steps.netlify_deploy.outcome == 'success' && format('### <span aria-hidden="true">✅</span> Build Succeeded: Preview Ready!
