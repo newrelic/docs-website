@@ -20,29 +20,8 @@ jobs:
       - name: Setup jq
         uses: dcarbone/install-jq-action@v2
 
-      # This step is new. It gets all the PR info we need from EITHER trigger.
-      - name: Get PR Info
-        id: pr_info
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get PR API URL from either 'issue_comment' or 'pull_request' event
-          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com\///')
-          gh_api_response=$(gh api $gh_api_url)
-          
-          branch_name=$(echo $gh_api_response | jq -r .head.ref)
-          sha=$(echo $gh_api_response | jq -r .head.sha)
-          pr_number=$(echo $gh_api_response | jq -r .number)
-          repo_full_name=$(echo $gh_api_response | jq -r .head.repo.full_name)
-          
-          echo "branch=$branch_name" >> $GITHUB_OUTPUT
-          echo "sha=$sha" >> $GITHUB_OUTPUT
-          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
-          echo "repo_full_name=$repo_full_name" >> $GITHUB_OUTPUT
-
       # This step only runs if the trigger was a comment, to do the fork and perm checks.
-      - name: Check Permissions (if triggered by comment)
-        if: github.event_name == 'issue_comment'
+      - name: Check Permissions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERM_CHECK_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
@@ -86,7 +65,6 @@ jobs:
                     core.setFailed(`Could not verify team membership for ${team_slug}: ${error.message}`);
                     return false;
                   }
-                  // If 404, user is not in this team, continue to next
                   console.log(`${commenter} is not a member of ${team_slug} (404)`);
                 }
               }
@@ -99,129 +77,145 @@ jobs:
             } else {
               console.log(`✅ ${commenter} is authorized to trigger builds`);
             }
+      
+      # This step REPLACES the old build hook 'curl' command.
+      # It uses the Netlify API to trigger a build and get the build/deploy IDs.
+      - name: Trigger Netlify Build
+        id: trigger_build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }} # <-- MUST ADD THIS SECRET
+        run: |
+          # 1. Get PR info
+          gh_api_url=$(echo ${{ github.event.issue.pull_request.url }} | sed 's/https:\/\/api.github.com\///')
+          gh_api_response=$(gh api $gh_api_url)
+          branch_name=$(echo $gh_api_response | jq -r .head.ref)
+          sha=$(echo $gh_api_response | jq -r .head.sha)
+          pr_number=$(echo $gh_api_response | jq -r .number)
 
-      # This is your new "pending" comment step, with a log link.
+          echo "Triggering build for branch $branch_name (SHA: $sha)..."
+
+          # 2. Create the JSON payload for the Netlify API
+          json_payload=$(jq -n \
+            --arg branch "$branch_name" \
+            --arg sha "$sha" \
+            --arg title "Manual deploy preview for PR #$pr_number - $sha" \
+            '{ "branch": $branch, "sha": $sha, "deploy_context": "branch-deploy", "clear_cache": false, "title": $title }')
+
+          # 3. Call the Netlify API to trigger the build
+          response=$(curl -s -X POST "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/builds" \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$json_payload")
+
+          # 4. Parse the response to get the IDs
+          build_id=$(echo $response | jq -r .build_id)
+          deploy_id=$(echo $response | jq -r .deploy_id)
+
+          if [ -z "$build_id" ] || [ "$build_id" == "null" ]; then
+            echo "::error::Failed to trigger Netlify build. Response:"
+            echo $response
+            exit 1
+          fi
+
+          echo "✅ Build triggered!"
+          echo "Build ID: $build_id"
+          echo "Deploy ID: $deploy_id"
+
+          # 5. Pass outputs to other steps
+          echo "build_id=$build_id" >> $GITHUB_OUTPUT
+          echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+
+      # This step gets the branch name for the final URL
+      - name: Sanitize branch name for Netlify URL
+        id: sanitize_branch
+        run: |
+          SANITIZED_BRANCH_NAME=$(echo "${{ steps.trigger_build.outputs.branch_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr 'A-Z' 'a-z')
+          echo "name=$SANITIZED_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      # This step posts the INITIAL "pending" comment with a link to the Netlify log
       - name: Post "Pending" Comment
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
-            ### <span aria-hidden="true">⏳</span> Netlify Preview Deployment In Progress
+            ### <span aria-hidden="true">⏳</span> Netlify Preview Build Triggered
             
-            Building preview for PR #${{ steps.pr_info.outputs.pr_number }} at commit `${{ steps.pr_info.outputs.sha }}`.
-            This comment will auto-update when the build is complete.
+            Building preview for PR #${{ steps.trigger_build.outputs.pr_number }}.
+            This comment will auto-update when the build is complete (usually 15-20 minutes).
 
-            You can follow the build live [here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
-          # This tag is CRUCIAL. It lets the final step find and replace this comment.
+            **You can follow the live build log on Netlify:**
+            **[https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.trigger_build.outputs.deploy_id }}](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.trigger_build.outputs.deploy_id }})**
           comment_tag: manual-build-comment
-          # THIS IS THE FIX for the pending comment
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # We must check out the actual code from the PR head
-      - name: Checkout PR head
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.pr_info.outputs.repo_full_name }}
-          ref: ${{ steps.pr_info.outputs.sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          # Set this to the Node.js version your docs site uses
-          node-version: '18' 
-
-      - name: Install Dependencies
-        run: |
-          if [ -f yarn.lock ]; then
-            echo "Detected yarn.lock, using yarn install"
-            yarn install --frozen-lockfile
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "Detected pnpm-lock.yaml, using pnpm install"
-            pnpm install --frozen-lockfile
-          elif [ -f package-lock.json ]; then
-            echo "Detected package-lock.json, using npm ci"
-            npm ci
-          else
-            echo "No lockfile detected, using npm install"
-            npm install
-          fi
-
-      - name: Install Netlify CLI
-        run: npm install -g netlify-cli
-
-      # THIS STEP IS NOW SEPARATED INTO BUILD AND DEPLOY
-      - name: Build and Deploy Preview
-        id: netlify_deploy
-        # This is CRUCIAL! It lets the next step run even if this one fails.
-        continue-on-error: true 
+      # This NEW step polls the Netlify API for the build status
+      - name: Poll Netlify Build Status
+        id: poll_build
         env:
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         run: |
-          # Step 1: Run the build. This WILL stream logs.
-          # If this fails, the 'continue-on-error' will catch it, and the
-          # 'Update PR comment' step will report the failure.
-          echo "Running Netlify Build... (logs will stream)"
-          netlify build
+          build_id="${{ steps.trigger_build.outputs.build_id }}"
+          timeout=2700 # 45 minutes (2700s)
+          interval=30  # Poll every 30 seconds
+          elapsed=0
           
-          # Step 2: If build succeeded, deploy the site.
-          # This is fast and can safely use --json.
-          echo "Deploying to Netlify..."
-          deploy_output=$(netlify deploy --json --alias="deploy-preview-${{ steps.pr_info.outputs.pr_number }}" --message="Deploy preview for PR #${{ steps.pr_info.outputs.pr_number }}")
-          
-          # Save the full output for debugging
-          echo "NETLIFY_DEPLOY_OUTPUT<<EOF" >> $GITHUB_ENV
-          echo "$deploy_output" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "Polling build status for Build ID: $build_id..."
 
-          # Parse the JSON to get the URL
-          deploy_url=$(echo "$deploy_output" | jq -r .deploy_url)
-          
-          # Pass the URL to the next step
-          echo "deploy_url=$deploy_url" >> $GITHUB_OUTPUT
-          
-          # Check if 'deploy_url' is null or empty, which indicates a build failure
-          if [ -z "$deploy_url" ] || [ "$deploy_url" == "null" ]; then
-            echo "Build failed or deploy_url not found!"
-            # This ensures the 'outcome' of this step is 'failure'
-            exit 1
-          fi
+          while [ $elapsed -lt $timeout ]; do
+            response=$(curl -s "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/builds/$build_id" -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN")
+            state=$(echo $response | jq -r .state)
+            deploy_id=$(echo $response | jq -r .deploy_id) # Get the latest deploy_id, just in case
+
+            echo "Current build state: $state (Elapsed: $elapsed s)"
+
+            if [ "$state" == "done" ]; then
+              echo "✅ Build succeeded!"
+              echo "build_state=done" >> $GITHUB_OUTPUT
+              echo "final_deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+              exit 0
+            elif [ "$state" == "error" ] || [ "$state" == "cancelled" ]; then
+              echo "::error::Build failed with state: $state"
+              echo "build_state=$state" >> $GITHUB_OUTPUT
+              echo "final_deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+              exit 0 # Exit successfully so the *next* step can post the failure comment
+            fi
+
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+
+          echo "::error::Build timed out after 45 minutes."
+          echo "build_state=timeout" >> $GITHUB_OUTPUT
+          echo "final_deploy_id=${{ steps.trigger_build.outputs.deploy_id }}" >> $GITHUB_OUTPUT # Use original deploy_id
+          exit 0 # Exit successfully so the next step can post the timeout failure
 
       # This final step UPDATES the "pending" comment with the result
       - name: Update PR comment with Build Status
         uses: thollander/actions-comment-pull-request@v2
         with:
-          # This tag finds the "pending" comment and replaces it
           comment_tag: manual-build-comment
-          # THIS IS THE FIX for the final comment
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # This logic posts a different message based on the build step's outcome
           message: |
-            ${{ steps.netlify_deploy.outcome == 'success' && format('### <span aria-hidden="true">✅</span> Build Succeeded: Preview Ready!
+            ${{ steps.poll_build.outputs.build_state == 'done' && format('### <span aria-hidden="true">✅</span> Build Succeeded: Preview Ready!
 
             Your deploy preview for PR #{0} is ready:
-            **Deploy URL: {1}**
+            **Preview URL: [https://{1}--docs-website-netlify.netlify.app](https://{1}--docs-website-netlify.netlify.app)**
 
-            > You can view the full build log for this deployment [here]({2}/{3}/actions/runs/{4}).', steps.pr_info.outputs.pr_number, steps.netlify_deploy.outputs.deploy_url, github.server_url, github.repository, github.run_id) || '' }}
+            > You can view the final deploy log on Netlify [here](https://app.netlify.com/sites/{2}/deploys/{3}).', steps.trigger_build.outputs.pr_number, steps.sanitize_branch.outputs.name, secrets.NETLIFY_SITE_ID, steps.poll_build.outputs.final_deploy_id) || '' }}
 
-            ${{ steps.netlify_deploy.outcome != 'success' && format('### :rotating_light: **BUILD FAILED** :rotating_light:
+            ${{ steps.poll_build.outputs.build_state != 'done' && format('### :rotating_light: **BUILD FAILED** :rotating_light:
 
             :stop_sign: **DO NOT MERGE THIS PULL REQUEST.** :stop_sign:
 
-            The Netlify preview build failed for PR #{0} (commit `{1}`). Merging this **will** break the `develop` branch and cause downstream build failures.
+            The Netlify preview build failed for PR #{0} with state: `{1}`. Merging this **will** break the `develop` branch.
 
             **Action Required:**
-            1.  **[Click here to view the full build log]({2}/{3}/actions/runs/{4})**
-            2.  Click the **`deploy-preview`** job on the left.
-            3.  Expand the **`Build and Deploy Preview`** step to see the error.
+            1.  **[Click here to view the full Netlify build log]({2}/sites/{3}/deploys/{4})**
+            2.  Review the errors, push a fix to this PR.
+            3.  Comment `netlify build` again to trigger a new build.
             
-            Please review the logs, push a fix, and then trigger a new build by pushing your fix (or commenting `netlify build` if this is merged).
-
-            ---
-            <details>
-            <summary>Raw Error Output (if available)</summary>
-
-            ```
-            {5}
-            ```
-            </details>
-            ', steps.pr_info.outputs.pr_number, steps.pr_info.outputs.sha, github.server_url, github.repository, github.run_id, env.NETLIFY_DEPLOY_OUTPUT) || '' }}
+            > GitHub Action log for this job: [{5}/actions/runs/{6}](https://{5}/actions/runs/{6})', steps.trigger_build.outputs.pr_number, steps.poll_build.outputs.build_state, 'https://app.netlify.com', secrets.NETLIFY_SITE_ID, steps.poll_build.outputs.final_deploy_id, github.repository, github.run_id) || '' }}
