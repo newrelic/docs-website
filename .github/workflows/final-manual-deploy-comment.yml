@@ -16,8 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # New step to check if the PR is from a forked repository.
-      # If the PR is from a fork, doesn't run. Only runs for branches in the main repo.
+      # New step to check if the PR is from a fork
       - name: Check if PR is from a fork
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -231,9 +230,15 @@ jobs:
                 echo "🆔 Deploy ID: $DEPLOY_ID"
                 echo "🔗 Netlify Build URL: $BUILD_URL"
                 echo "📅 Created at (UTC): $CREATED_AT"
-                echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)"
+                echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')"
                 echo "----------------------------------------"
                 DEPLOY_FOUND_VIA="commit"
+                
+                # Export values for use in the next step
+                echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+                echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+                echo "deploy_found_via=$DEPLOY_FOUND_VIA" >> $GITHUB_OUTPUT
+                echo "created_at_ist=$(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_OUTPUT
                 break
               else
                 echo "⚠️  Found deployment but it's too old (created ${TIME_DIFF}s before trigger)"
@@ -263,34 +268,37 @@ jobs:
               echo "🆔 Deploy ID: $DEPLOY_ID"
               echo "🔗 Netlify Build URL: $BUILD_URL"
               echo "📅 Created at (UTC): $CREATED_AT"
-              echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)"
+              echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')"
               echo "----------------------------------------"
               DEPLOY_FOUND_VIA="branch"
+              
+              # Export values for use in the next step
+              echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+              echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+              echo "deploy_found_via=$DEPLOY_FOUND_VIA" >> $GITHUB_OUTPUT
+              echo "created_at_ist=$(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_OUTPUT
             else
               echo "❌ No deployment found for branch-based validation either."
               exit 1
             fi
           fi
 
-          # Update the PR comment with deployment details
-          echo "🔄 Updating PR comment with deployment details..."
-          if [ "$DEPLOY_FOUND_VIA" = "commit" ]; then
-            COMMENT_MESSAGE="### 🚀 Netlify Deployment In Progress\n\n"
-            COMMENT_MESSAGE+="The deployment was found via **commit-based validation**.\n\n"
-            COMMENT_MESSAGE+="- **Commit SHA:** \`$SHA\`\n"
-            COMMENT_MESSAGE+="- **Netlify Build URL:** [View Deployment]($BUILD_URL)\n"
-            COMMENT_MESSAGE+="- **Deployment Created At (IST):** $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)\n"
-          elif [ "$DEPLOY_FOUND_VIA" = "branch" ]; then
-            COMMENT_MESSAGE="### 🚀 Netlify Deployment In Progress\n\n"
-            COMMENT_MESSAGE+="The deployment was found via **branch-based validation**.\n\n"
-            COMMENT_MESSAGE+="- **Branch Name:** \`$BRANCH_NAME\`\n"
-            COMMENT_MESSAGE+="- **Netlify Build URL:** [View Deployment]($BUILD_URL)\n"
-            COMMENT_MESSAGE+="- **Deployment Created At (IST):** $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)\n"
-          fi
+      # Update PR comment with deployment details
+      - name: Update PR comment with deployment details
+        if: steps.poll_netlify.outputs.deploy_id != ''
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: |
+            ### 🚀 Netlify Deployment In Progress
 
-          echo "$COMMENT_MESSAGE" > comment_body.txt
+            The deployment was found via **${{ steps.poll_netlify.outputs.deploy_found_via }}-based validation**.
 
-          gh pr comment $PR_NUMBER --body-file comment_body.txt
+            ${{ steps.poll_netlify.outputs.deploy_found_via == 'commit' && format('- **Commit SHA:** `{0}`', steps.netlify_build.outputs.sha) || format('- **Branch Name:** `{0}`', steps.netlify_build.outputs.branch_name) }}
+            - **Netlify Build URL:** [View Deployment](${{ steps.poll_netlify.outputs.build_url }})
+            - **Deployment Created At (IST):** ${{ steps.poll_netlify.outputs.created_at_ist }}
+
+            ⏳ Build is currently in progress. Monitoring status...
+          comment_tag: manual-build-comment
 
       # This step checks the status of the deployment and reports back to the PR
       - name: Check deployment status and report
@@ -311,7 +319,7 @@ jobs:
           echo "📊 Starting deployment status check..."
           echo "🆔 Deploy ID: $DEPLOY_ID"
           echo "📌 Branch: $BRANCH_NAME"
-          echo "📅 Triggered at (IST): $(TZ=Asia/Kolkata date -d @${{ steps.netlify_build.outputs.trigger_time }})"
+          echo "📅 Triggered at (IST): $(TZ=Asia/Kolkata date -d @${{ steps.netlify_build.outputs.trigger_time }} '+%Y-%m-%d %H:%M:%S IST')"
           
           # If no deploy ID found, fallback to branch name
           if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
@@ -320,6 +328,10 @@ jobs:
           fi
           
           while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
+            MINUTES_ELAPSED=$(awk "BEGIN {print $ELAPSED_TIME/60}")
+            echo "🔄 Checking deployment status... (⏱️  elapsed: ${MINUTES_ELAPSED}/30 minutes) at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
+            echo "----------------------------------------"
+            
             if [ "$USE_FALLBACK" = "true" ]; then
               # Fallback: Get latest deployment for branch
               DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
@@ -339,6 +351,9 @@ jobs:
               DEPLOY_URL=$(echo "$DEPLOY" | jq -r '.deploy_ssl_url // .ssl_url // .url')
               ERROR_MESSAGE=$(echo "$DEPLOY" | jq -r '.error_message // ""')
               
+              # Construct the Netlify Build URL
+              BUILD_URL="https://app.netlify.com/sites/$NETLIFY_SITE_ID/deploys/$DEPLOY_ID"
+              
               # Update DEPLOY_ID if we were using fallback
               if [ "$USE_FALLBACK" = "true" ] && [ -z "$DEPLOY_ID" ]; then
                 DEPLOY_ID=$CURRENT_DEPLOY_ID
@@ -349,14 +364,15 @@ jobs:
               
               if [ "$STATE" = "ready" ]; then
                 echo "✅ Deployment successful!"
-                echo "🔗 Netlify Build URL: $DEPLOY_URL"
+                echo "🔗 Netlify Build URL: $BUILD_URL"
+                echo "🌐 Deploy URL: $DEPLOY_URL"
                 echo "status=success" >> $GITHUB_OUTPUT
                 echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
                 echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
                 exit 0
               elif [ "$STATE" = "error" ]; then
                 echo "❌ Deployment failed!"
-                echo "🔗 Netlify Build URL: $DEPLOY_URL"
+                echo "🔗 Netlify Build URL: $BUILD_URL"
                 echo "💥 Error: $ERROR_MESSAGE"
                 echo "status=failure" >> $GITHUB_OUTPUT
                 echo "error_message=$ERROR_MESSAGE" >> $GITHUB_OUTPUT
@@ -364,7 +380,7 @@ jobs:
                 exit 0
               elif [ "$STATE" = "building" ] || [ "$STATE" = "enqueued" ] || [ "$STATE" = "processing" ]; then
                 echo "⏳ Deployment in progress (state: $STATE)..."
-                echo "🔗 Netlify Build URL: $DEPLOY_URL"
+                echo "🔗 Netlify Build URL: $BUILD_URL"
               else
                 echo "⚠️  Unknown state: $STATE"
               fi
@@ -378,12 +394,12 @@ jobs:
           
           echo "⏱️  Timeout reached after ${MAX_WAIT_TIME}s"
           echo "⚠️  Build is still running or Netlify is experiencing delays"
-          echo "🔗 Netlify Build URL: $DEPLOY_URL"
           echo "status=timeout" >> $GITHUB_OUTPUT
+          echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
 
       # Post success comment
       - name: Post success comment
-        if: steps.poll_netlify.outputs.status == 'success'
+        if: steps.check_status.outputs.status == 'success'
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
@@ -391,15 +407,16 @@ jobs:
 
             Your preview deployment has completed successfully and is now live!
 
-            🌐 **Preview URL:** [${{ steps.poll_netlify.outputs.deploy_url }}](${{ steps.poll_netlify.outputs.deploy_url }})
-            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.poll_netlify.outputs.deploy_id }})
+            🌐 **Preview URL:** [${{ steps.check_status.outputs.deploy_url }}](${{ steps.check_status.outputs.deploy_url }})
+            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
             🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             The preview is ready for review. Please test your changes thoroughly before merging.
+          comment_tag: manual-build-comment
 
       # Post failure comment
       - name: Post failure comment
-        if: steps.poll_netlify.outputs.status == 'failure'
+        if: steps.check_status.outputs.status == 'failure'
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
@@ -412,13 +429,13 @@ jobs:
             ### 🔴 Critical Issue Details:
             
             - **Status:** Build Failed
-            - **Deploy ID:** `${{ steps.poll_netlify.outputs.deploy_id }}`
+            - **Deploy ID:** `${{ steps.check_status.outputs.deploy_id }}`
             - **Error Message:** 
             ```
-            ${{ steps.poll_netlify.outputs.error_message }}
+            ${{ steps.check_status.outputs.error_message }}
             ```
             
-            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.poll_netlify.outputs.deploy_id }})
+            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
             🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             ### 🛠️ Required Actions:
@@ -438,10 +455,11 @@ jobs:
             ---
             
             **🔴 MERGING THIS PR IN ITS CURRENT STATE WILL BREAK PRODUCTION 🔴**
+          comment_tag: manual-build-comment
 
       # Post timeout comment
       - name: Post timeout comment
-        if: steps.poll_netlify.outputs.status == 'timeout'
+        if: steps.check_status.outputs.status == 'timeout'
         uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
@@ -454,7 +472,7 @@ jobs:
             - Netlify is experiencing delays
             - The build queue is backed up
             
-            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.poll_netlify.outputs.deploy_id }})
+            🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
             🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             **Next steps:**
@@ -465,11 +483,11 @@ jobs:
             
             **Expected preview URL (once ready):**
             https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app
-
+          comment_tag: manual-build-comment
 
       # Fail the workflow if deployment failed
       - name: Fail workflow on deployment failure
-        if: steps.poll_netlify.outputs.status == 'failure'
+        if: steps.check_status.outputs.status == 'failure'
         run: |
           echo "::error::Netlify deployment failed. This PR should not be merged."
           exit 1
