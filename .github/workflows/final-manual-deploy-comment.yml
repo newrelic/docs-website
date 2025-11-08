@@ -183,15 +183,18 @@ jobs:
           BRANCH_NAME="${{ steps.netlify_build.outputs.branch_name }}"
           TRIGGER_TIME="${{ steps.netlify_build.outputs.trigger_time }}"
           SHA="${{ steps.netlify_build.outputs.sha }}"
+          PR_NUMBER="${{ steps.netlify_build.outputs.pr_number }}"
           MAX_WAIT_TIME=1800  # 30 minutes
           POLL_INTERVAL=90     # 90 seconds for deployment status checks
           DEPLOY_ID=""
+          DEPLOY_FOUND_VIA=""
           
           echo "🔍 Starting deployment tracking..."
           echo "📌 Branch: $BRANCH_NAME"
           echo "📌 Commit SHA: $SHA"
-          echo "⏰ Trigger time: $TRIGGER_TIME"
-          
+          echo "⏰ Trigger time (UTC): $TRIGGER_TIME"
+          echo "⏰ Trigger time (IST): $(TZ=Asia/Kolkata date -d @$TRIGGER_TIME)"
+
           # Wait 30 seconds for Netlify to create the deployment
           echo "⏳ Waiting 30 seconds for Netlify to register the deployment..."
           sleep 30
@@ -200,7 +203,7 @@ jobs:
           echo "🔎 Looking for the deployment triggered by this workflow run..."
           echo "----------------------------------------"
           for i in {1..10}; do
-            echo "🔄 Attempt $i/10 to find deployment..."
+            echo "🔄 Attempt $i/10 to find deployment at $(TZ=Asia/Kolkata date)"
             
             DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
               "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys")
@@ -226,8 +229,10 @@ jobs:
                 echo "✅ Found target deployment!"
                 echo "🆔 Deploy ID: $DEPLOY_ID"
                 echo "🔗 Netlify Build URL: $BUILD_URL"
-                echo "📅 Created at: $CREATED_AT"
+                echo "📅 Created at (UTC): $CREATED_AT"
+                echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)"
                 echo "----------------------------------------"
+                DEPLOY_FOUND_VIA="commit"
                 break
               else
                 echo "⚠️  Found deployment but it's too old (created ${TIME_DIFF}s before trigger)"
@@ -245,22 +250,75 @@ jobs:
             echo "❌ Could not find deployment after 10 attempts"
             echo "🔄 Falling back to branch-based tracking..."
             # Fallback: track by branch name only
+            DEPLOY=$(echo "$DEPLOYS" | jq -r --arg branch "$BRANCH_NAME" \
+              '[.[] | select(.branch == $branch)] | sort_by(.created_at) | reverse | .[0]')
+            
+            if [ "$DEPLOY" != "null" ] && [ -n "$DEPLOY" ]; then
+              DEPLOY_ID=$(echo "$DEPLOY" | jq -r '.id')
+              CREATED_AT=$(echo "$DEPLOY" | jq -r '.created_at')
+              CREATED_TIMESTAMP=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "$CREATED_AT" +%s 2>/dev/null || echo "$TRIGGER_TIME")
+              BUILD_URL="https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID"
+              echo "✅ Found deployment via branch-based validation!"
+              echo "🆔 Deploy ID: $DEPLOY_ID"
+              echo "🔗 Netlify Build URL: $BUILD_URL"
+              echo "📅 Created at (UTC): $CREATED_AT"
+              echo "📅 Created at (IST): $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)"
+              echo "----------------------------------------"
+              DEPLOY_FOUND_VIA="branch"
+            else
+              echo "❌ No deployment found for branch-based validation either."
+              exit 1
+            fi
+          fi
+
+          # Update the PR comment with deployment details
+          echo "🔄 Updating PR comment with deployment details..."
+          if [ "$DEPLOY_FOUND_VIA" = "commit" ]; then
+            COMMENT_MESSAGE="### 🚀 Netlify Deployment In Progress\n\n"
+            COMMENT_MESSAGE+="The deployment was found via **commit-based validation**.\n\n"
+            COMMENT_MESSAGE+="- **Commit SHA:** \`$SHA\`\n"
+            COMMENT_MESSAGE+="- **Netlify Build URL:** [View Deployment]($BUILD_URL)\n"
+            COMMENT_MESSAGE+="- **Deployment Created At (IST):** $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)\n"
+          elif [ "$DEPLOY_FOUND_VIA" = "branch" ]; then
+            COMMENT_MESSAGE="### 🚀 Netlify Deployment In Progress\n\n"
+            COMMENT_MESSAGE+="The deployment was found via **branch-based validation**.\n\n"
+            COMMENT_MESSAGE+="- **Branch Name:** \`$BRANCH_NAME\`\n"
+            COMMENT_MESSAGE+="- **Netlify Build URL:** [View Deployment]($BUILD_URL)\n"
+            COMMENT_MESSAGE+="- **Deployment Created At (IST):** $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP)\n"
+          fi
+
+          echo "$COMMENT_MESSAGE" > comment_body.txt
+
+          gh pr comment $PR_NUMBER --body-file comment_body.txt
+
+      # This step checks the status of the deployment and reports back to the PR
+      - name: Check deployment status and report
+        id: check_status
+        env:
+          NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          DEPLOY_ID="${{ steps.poll_netlify.outputs.deploy_id }}"
+          BRANCH_NAME="${{ steps.netlify_build.outputs.branch_name }}"
+          SHA="${{ steps.netlify_build.outputs.sha }}"
+          PR_NUMBER="${{ steps.netlify_build.outputs.pr_number }}"
+          MAX_WAIT_TIME=1800  # 30 minutes
+          POLL_INTERVAL=90     # 90 seconds for deployment status checks
+          ELAPSED_TIME=0
+          USE_FALLBACK=false
+          
+          echo "📊 Starting deployment status check..."
+          echo "🆔 Deploy ID: $DEPLOY_ID"
+          echo "📌 Branch: $BRANCH_NAME"
+          echo "📅 Triggered at (IST): $(TZ=Asia/Kolkata date -d @${{ steps.netlify_build.outputs.trigger_time }})"
+          
+          # If no deploy ID found, fallback to branch name
+          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
+            echo "⚠️ No Deploy ID found. Falling back to branch-based tracking..."
             USE_FALLBACK=true
-          else
-            echo "🎯 Locked onto deployment ID: $DEPLOY_ID"
-            USE_FALLBACK=false
           fi
           
-          # Now poll the specific deployment until completion
-          echo ""
-          echo "📊 Starting status monitoring..."
-          ELAPSED_TIME=0
-          
           while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
-            MINUTES_ELAPSED=$(awk "BEGIN {print $ELAPSED_TIME/60}")
-            echo "🔄 Checking deployment status... (⏱️  elapsed: ${MINUTES_ELAPSED}/30 minutes)"
-            echo "----------------------------------------"
-            
             if [ "$USE_FALLBACK" = "true" ]; then
               # Fallback: Get latest deployment for branch
               DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
@@ -280,9 +338,6 @@ jobs:
               DEPLOY_URL=$(echo "$DEPLOY" | jq -r '.deploy_ssl_url // .ssl_url // .url')
               ERROR_MESSAGE=$(echo "$DEPLOY" | jq -r '.error_message // ""')
               
-              # Construct the Netlify Build URL
-              BUILD_URL="https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID"
-              
               # Update DEPLOY_ID if we were using fallback
               if [ "$USE_FALLBACK" = "true" ] && [ -z "$DEPLOY_ID" ]; then
                 DEPLOY_ID=$CURRENT_DEPLOY_ID
@@ -293,14 +348,14 @@ jobs:
               
               if [ "$STATE" = "ready" ]; then
                 echo "✅ Deployment successful!"
-                echo "🔗 Netlify Build URL: $BUILD_URL"
+                echo "🔗 Netlify Build URL: $DEPLOY_URL"
                 echo "status=success" >> $GITHUB_OUTPUT
-                echo "deploy_url=$BUILD_URL" >> $GITHUB_OUTPUT
+                echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
                 echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
                 exit 0
               elif [ "$STATE" = "error" ]; then
                 echo "❌ Deployment failed!"
-                echo "🔗 Netlify Build URL: $BUILD_URL"
+                echo "🔗 Netlify Build URL: $DEPLOY_URL"
                 echo "💥 Error: $ERROR_MESSAGE"
                 echo "status=failure" >> $GITHUB_OUTPUT
                 echo "error_message=$ERROR_MESSAGE" >> $GITHUB_OUTPUT
@@ -308,7 +363,7 @@ jobs:
                 exit 0
               elif [ "$STATE" = "building" ] || [ "$STATE" = "enqueued" ] || [ "$STATE" = "processing" ]; then
                 echo "⏳ Deployment in progress (state: $STATE)..."
-                echo "🔗 Netlify Build URL: $BUILD_URL"
+                echo "🔗 Netlify Build URL: $DEPLOY_URL"
               else
                 echo "⚠️  Unknown state: $STATE"
               fi
@@ -322,7 +377,7 @@ jobs:
           
           echo "⏱️  Timeout reached after ${MAX_WAIT_TIME}s"
           echo "⚠️  Build is still running or Netlify is experiencing delays"
-          echo "🔗 Netlify Build URL: $BUILD_URL"
+          echo "🔗 Netlify Build URL: $DEPLOY_URL"
           echo "status=timeout" >> $GITHUB_OUTPUT
 
       # Post success comment
