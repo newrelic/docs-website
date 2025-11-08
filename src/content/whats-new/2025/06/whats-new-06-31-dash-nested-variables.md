@@ -1,7 +1,7 @@
 ---
 title: 'Nested Variables for Dashboards'
 summary: 'Enhance your dashboard filtering with our new Nested Variables, creating a more dynamic and interactive experience!'
-releaseDate: '2025-06-31'
+releaseDate: '2025-06-30'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/nested-variables/'
 getStartedLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/'
 ---
