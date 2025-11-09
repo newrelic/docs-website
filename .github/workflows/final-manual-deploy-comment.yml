@@ -24,7 +24,7 @@ jobs:
           echo "🔍 Checking if PR is from a forked repository..."
           echo "════════════════════════════════════════════════════════════════"
           
-          PR_URL="${{ github.event.issue.pull_request.url }}"
+          PR_URL="${{ github.event.issue.pull_request.url || github.event.pull_request.url }}"
           IS_FORK=$(gh api "$PR_URL" --jq '.head.repo.fork')
 
           if [[ "$IS_FORK" == "true" ]]; then
@@ -44,11 +44,6 @@ jobs:
 
       - name: Validate Team Membership
         # Only run this check for issue_comment events (manual triggers)
-        # For pull_request events, the PR author is implicitly authorized
-
-        # ##########################################################################################
-        # REMOVE THIS CONDITION AFTER TESTING THIS WORKFLOW, THIS SHOULD NOT MAKE IT TO THE MERGE
-        # ##########################################################################################
         if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ secrets.DOCS_ENG_TEAM_MEMBERSHIP_CHECKER }}
@@ -143,7 +138,7 @@ jobs:
           echo "🌐 NETLIFY DEPLOYMENT TRIGGER"
           echo "════════════════════════════════════════════════════════════════"
           
-          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com//')
+          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com\///')
           gh_api_response=$(gh api $gh_api_url)
           branch_name=$(echo $gh_api_response | jq -r .head.ref)
           sha=$(echo $gh_api_response | jq -r .head.sha)
@@ -190,13 +185,21 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
             console.log('📝 Creating initial PR comment...');
             console.log('════════════════════════════════════════════════════════════════');
+            
             const triggerEpoch = Number('${{ steps.netlify_build.outputs.trigger_time }}') * 1000;
-            const triggeredAtIST = new Date(triggerEpoch).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+            const triggeredAtIST = new Date(triggerEpoch).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
             const prNumber = '${{ steps.netlify_build.outputs.pr_number }}';
             const sha = '${{ steps.netlify_build.outputs.sha }}';
             const branchName = '${{ steps.netlify_build.outputs.branch_name }}';
 
-            const body = `### 🚀 Netlify Preview Building!\n\nBuild triggered for PR #${prNumber}\n\n- **Branch:** \`${branchName}\`\n- **Commit SHA:** \`${sha}\`\n- **Triggered At (IST):** ${triggeredAtIST}\n\n⏳ Monitoring deployment status... This usually takes 10-20 minutes.`;
+            const body = `### 🚀 Netlify Preview Building...
+            (Update logged at: ${triggeredAtIST} IST | Commit: \`${sha}\`)
+
+            - **PR:** #${prNumber}
+            - **Branch:** \`${branchName}\`
+            - **Status:** Build triggered on Netlify.
+
+            ⏳ Monitoring deployment status... This usually takes 10-20 minutes.`;
 
             const { data: comment } = await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -355,20 +358,32 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
             console.log('📝 Updating PR comment with deployment details...');
             console.log('════════════════════════════════════════════════════════════════');
+            
             const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
             const existing = await github.rest.issues.getComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               comment_id: commentId
             });
+            
             const deployFoundVia = '${{ steps.poll_netlify.outputs.deploy_found_via }}';
             const sha = '${{ steps.netlify_build.outputs.sha }}';
-            const branchName = '${{ steps.netlify_build.outputs.branch_name }}';
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
             const detailLine = deployFoundVia === 'commit'
-              ? `- **Commit SHA:** \`${sha}\``
-              : `- **Branch Name:** \`${branchName}\``;
-            const append = `---\n\n### 🚀 Netlify Deployment In Progress\n\nThe deployment was found via **${deployFoundVia}-based validation**.\n\n${detailLine}\n- **Netlify Build URL:** [View Deployment](${{ steps.poll_netlify.outputs.build_url }})\n- **Deployment Created At (IST):** ${{ steps.poll_netlify.outputs.created_at_ist }}\n- **Update Logged At (IST):** ${updateIST}\n\n⏳ Build is currently in progress. Monitoring status...`;
+              ? `- **Validation:** Commit-based (\`${sha}\`)`
+              : `- **Validation:** Branch-based`;
+
+            const append = `---
+            ### ⏳ Netlify Deployment In Progress
+            (Update logged at: ${updateIST} IST | Commit: \`${sha}\`)
+
+            - **Status:** Deployment found on Netlify.
+            ${detailLine}
+            - **Netlify Build URL:** [View Deployment](${{ steps.poll_netlify.outputs.build_url }})
+            - **Deployment Created:** ${{ steps.poll_netlify.outputs.created_at_ist }}
+
+            ⏳ Build is currently in progress. Monitoring status...`;
+
             const body = `${existing.data.body}\n\n${append}`;
             await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
             
@@ -519,10 +534,23 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
             console.log('✅ Updating PR comment with success status...');
             console.log('════════════════════════════════════════════════════════════════');
+            
             const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
             const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-            const append = `---\n\n### ✅ Netlify Preview Deploy Successful!\n\nYour preview deployment has completed successfully and is now live!\n\n🌐 **Preview URL:** [${{ steps.check_status.outputs.deploy_url }}](${{ steps.check_status.outputs.deploy_url }})\n🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})\n🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n- **Completed At (IST):** ${updateIST}\n\nThe preview is ready for review. Please test your changes thoroughly before merging.`;
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
+            const sha = '${{ steps.netlify_build.outputs.sha }}';
+
+            const append = `---
+            ### ✅ Netlify Preview Deploy Successful!
+            (Update logged at: ${updateIST} IST | Commit: \`${sha}\`)
+
+            - **Status:** Build Succeeded
+            - **Preview URL:** [${{ steps.check_status.outputs.deploy_url }}](${{ steps.check_status.outputs.deploy_url }})
+            - **Netlify Deployment:** [View Deployment Log](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
+            - **GitHub Actions Job:** [View Job Log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            The preview is ready for review. Please test your changes thoroughly before merging.`;
+
             const body = `${existing.data.body}\n\n${append}`;
             await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
             
@@ -538,10 +566,41 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
             console.log('❌ Updating PR comment with failure status...');
             console.log('════════════════════════════════════════════════════════════════');
+            
             const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
             const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-            const append = `---\n\n# 🚨 ⛔ NETLIFY DEPLOYMENT FAILED ⛔ 🚨\n\n## ❌ **DO NOT MERGE THIS PR** ❌\n\nThe Netlify preview deployment has **FAILED**. This PR contains changes that break the build process.\n\n### 🔴 Critical Issue Details:\n\n- **Status:** Build Failed\n- **Deploy ID:** \`${{ steps.check_status.outputs.deploy_id }}\`\n- **Error Message:** \n\`\`\`\n${{ steps.check_status.outputs.error_message }}\n\`\`\`\n- **Failed At (IST):** ${updateIST}\n\n🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})\n🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n### 🛠️ Required Actions:\n\n1. **Review the error message above carefully**\n2. **Fix the build issues in your branch**\n3. **Test locally before pushing changes**\n4. **Trigger a new build with \`netlify build\` comment once fixed**\n\n### ⚠️ WARNING TO MAINTAINERS:\n\n**This PR has a failing build and should NOT be merged until:**\n- ✅ All build errors are resolved\n- ✅ A successful deployment preview is confirmed\n- ✅ The preview site has been manually tested\n\n---\n\n**🔴 MERGING THIS PR IN ITS CURRENT STATE WILL BREAK PRODUCTION 🔴**`;
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
+            const sha = '${{ steps.netlify_build.outputs.sha }}';
+            const errorMessage = `${{ steps.check_status.outputs.error_message }}`.trim() || "No error message provided by Netlify. Please check the log.";
+
+            const append = `---
+            # 🚨 ⛔ NETLIFY DEPLOYMENT FAILED ⛔ 🚨
+            (Update logged at: ${updateIST} IST | Commit: \`${sha}\`)
+
+            ## ❌ **DO NOT MERGE THIS PR** ❌
+
+            The Netlify preview deployment has **FAILED**. This PR contains changes that break the build process.
+
+            ### 🔴 Critical Issue Details:
+            - **Status:** Build Failed
+            - **Deploy ID:** \`${{ steps.check_status.outputs.deploy_id }}\`
+            - **Netlify Deployment:** [View Deployment Log](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
+            - **GitHub Actions Job:** [View Job Log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - **Error Message:** \`\`\`
+            ${errorMessage}
+            \`\`\`
+
+            ### 🛠️ Required Actions:
+            1.  **Review the error message and Netlify log carefully.**
+            2.  **Fix the build issues in your branch.**
+            3.  **Trigger a new build with \`netlify build\` comment once fixed.**
+
+            ### ⚠️ WARNING TO MAINTAINERS:
+            **This PR has a failing build and should NOT be merged.**
+
+            ---
+            **🔴 MERGING THIS PR IN ITS CURRENT STATE WILL BREAK PRODUCTION 🔴**`;
+
             const body = `${existing.data.body}\n\n${append}`;
             await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
             
@@ -557,10 +616,26 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
             console.log('⏱️  Updating PR comment with timeout status...');
             console.log('════════════════════════════════════════════════════════════════');
+            
             const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
             const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-            const append = `---\n\n### ⏱️ Netlify Deployment Status: Timeout\n\n⚠️ The deployment is taking longer than expected (>30 minutes).\n\n**Possible reasons:**\n- The build is still in progress\n- Netlify is experiencing delays\n- The build queue is backed up\n- **Timeout Reached At (IST):** ${updateIST}\n\n🔗 **Netlify Deployment:** [View Deployment](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})\n🔗 **GitHub Actions Job:** [View Job](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n**Next steps:**\n1. Check the [Netlify dashboard](https://app.netlify.com) manually for deployment status\n2. Look for branch: ${{ steps.netlify_build.outputs.branch_name }}\n3. If the build is still running, please wait for it to complete\n4. If needed, you can re-trigger with another \`netlify build\` comment\n\n**Expected preview URL (once ready):**\nhttps://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app`;
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
+            const sha = '${{ steps.netlify_build.outputs.sha }}';
+
+            const append = `---
+            ### ⏱️ Netlify Deployment Status: Timeout
+            (Update logged at: ${updateIST} IST | Commit: \`${sha}\`)
+
+            - **Status:** Timeout Reached (>30 minutes)
+            - **Netlify Deployment:** [View Deployment Log](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
+            - **GitHub Actions Job:** [View Job Log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - **Expected Preview URL:** \`https://${{ steps.sanitize_branch.outputs.name }}--docs-website-netlify.netlify.app\`
+
+            **Next steps:**
+            1.  Check the [Netlify dashboard](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }}) manually for status.
+            2.  If the build is still running, please wait.
+            3.  If needed, re-trigger with a new \`netlify build\` comment.`;
+
             const body = `${existing.data.body}\n\n${append}`;
             await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
             
