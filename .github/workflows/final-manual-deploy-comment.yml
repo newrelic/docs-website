@@ -296,9 +296,7 @@ jobs:
                 echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
                 echo "deploy_found_via=$DEPLOY_FOUND_VIA" >> $GITHUB_OUTPUT
                 echo "created_at_ist=$(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_OUTPUT
-                
-                echo "status=found" >> $GITHUB_OUTPUT
-                exit 0 # Exit script successfully
+                break
               else
                 echo "  ⚠️  Found deployment but it's too old (${TIME_DIFF}s offset)"
               fi
@@ -310,60 +308,54 @@ jobs:
             fi
           done
           
-          # If we're here, the loop finished and no commit-based deploy was found.
-          
-          echo ""
-          echo "╔════════════════════════════════════════════════════════════════╗"
-          echo "║         CHECKING FOR CONCURRENT BUILDS (ON BRANCH)             ║"
-          echo "╚════════════════════════════════════════════════════════════════╝"
-          echo ""
-          echo "Could not find deployment for commit $SHA. Checking for other active builds on branch $BRANCH_NAME..."
-          
-          # $DEPLOYS is still in scope from the loop
-          ACTIVE_DEPLOY=$(echo "$DEPLOYS" | jq -r --arg branch "$BRANCH_NAME" \
-            '[.[] | select(.branch == $branch and (.state == "building" or .state == "enqueued" or .state == "processing"))] | 
-             sort_by(.created_at) | reverse | .[0]')
-          
-          if [ "$ACTIVE_DEPLOY" != "null" ] && [ -n "$ACTIVE_DEPLOY" ]; then
-            ACTIVE_DEPLOY_ID=$(echo "$ACTIVE_DEPLOY" | jq -r '.id')
-            ACTIVE_COMMIT_SHA=$(echo "$ACTIVE_DEPLOY" | jq -r '.commit_ref // .head')
-            ACTIVE_BUILD_URL="https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/$ACTIVE_DEPLOY_ID"
-            
+          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
             echo ""
             echo "╔════════════════════════════════════════════════════════════════╗"
-            echo "║          ⚠️ CONCURRENT BUILD DETECTED                          ║"
+            echo "║          FALLBACK: SEARCHING BY BRANCH NAME                    ║"
             echo "╚════════════════════════════════════════════════════════════════╝"
-            echo ""
-            echo "Another build is already in progress for this branch."
-            echo "────────────────────────────────────────────────────────────────"
-            echo "  🆔 Active Deploy ID: $ACTIVE_DEPLOY_ID"
-            echo "  📝 Active Commit:    $ACTIVE_COMMIT_SHA"
-            echo "  🔗 Active Build URL: $ACTIVE_BUILD_URL"
-            echo "────────────────────────────────────────────────────────────────"
-            echo "This workflow (for commit $SHA) will be terminated."
             
-            echo "status=concurrent_build" >> $GITHUB_OUTPUT
-            echo "active_deploy_id=$ACTIVE_DEPLOY_ID" >> $GITHUB_OUTPUT
-            echo "active_commit_sha=$ACTIVE_COMMIT_SHA" >> $GITHUB_OUTPUT
-            echo "active_build_url=$ACTIVE_BUILD_URL" >> $GITHUB_OUTPUT
-            exit 0 
+            DEPLOY=$(echo "$DEPLOYS" | jq -r --arg branch "$BRANCH_NAME" \
+              '[.[] | select(.branch == $branch)] | sort_by(.created_at) | reverse | .[0]')
             
-          else
-            echo ""
-            echo "╔════════════════════════════════════════════════════════════════╗"
-            echo "║                  ❌ DEPLOYMENT NOT FOUND                       ║"
-            echo "╚════════════════════════════════════════════════════════════════╝"
-            echo ""
-            echo "No deployment could be located for commit $SHA."
-            echo "No other active builds were found on this branch."
-            echo "════════════════════════════════════════════════════════════════"
-            
-            echo "status=not_found" >> $GITHUB_OUTPUT
-            exit 0
+            if [ "$DEPLOY" != "null" ] && [ -n "$DEPLOY" ]; then
+              DEPLOY_ID=$(echo "$DEPLOY" | jq -r '.id')
+              CREATED_AT=$(echo "$DEPLOY" | jq -r '.created_at')
+              CREATED_TIMESTAMP=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "$CREATED_AT" +%s 2>/dev/null || echo "$TRIGGER_TIME")
+              BUILD_URL="https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID"
+              
+              echo ""
+              echo "╔════════════════════════════════════════════════════════════════╗"
+              echo "║            ✅ DEPLOYMENT FOUND (BRANCH-BASED)                  ║"
+              echo "╚════════════════════════════════════════════════════════════════╝"
+              echo ""
+              echo "📦 Deployment Information:"
+              echo "────────────────────────────────────────────────────────────────"
+              echo "  🆔 Deploy ID:     $DEPLOY_ID"
+              echo "  🔗 Build URL:     Obfuscated, check updated build status in the PR comment"
+              echo "  📅 Created (UTC):  $CREATED_AT"
+              echo "  📅 Created (IST):  $(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S')"
+              echo "  ⚠️  Method:         Branch-based validation (fallback)"
+              echo "════════════════════════════════════════════════════════════════"
+              DEPLOY_FOUND_VIA="branch"
+              
+              echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+              echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+              echo "deploy_found_via=$DEPLOY_FOUND_VIA" >> $GITHUB_OUTPUT
+              echo "created_at_ist=$(TZ=Asia/Kolkata date -d @$CREATED_TIMESTAMP '+%Y-%m-%d %H:%M:%S IST')" >> $GITHUB_OUTPUT
+            else
+              echo ""
+              echo "╔════════════════════════════════════════════════════════════════╗"
+              echo "║                  ❌ DEPLOYMENT NOT FOUND                       ║"
+              echo "╚════════════════════════════════════════════════════════════════╝"
+              echo ""
+              echo "No deployment could be located using either method."
+              echo "════════════════════════════════════════════════════════════════"
+              exit 1
+            fi
           fi
 
       - name: Update PR Comment (Deployment Found)
-        if: steps.poll_netlify.outputs.status == 'found'
+        if: steps.poll_netlify.outputs.deploy_id != ''
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -390,7 +382,7 @@ jobs:
             
             const detailLine = deployFoundVia === 'commit'
               ? `- **Validation:** Commit-based (${commitLink})`
-              : `- **Validation:** Branch-based`; // This line should not be hit based on new logic, but safe to keep
+              : `- **Validation:** Branch-based`;
 
             const append = `---
             ### ⏳ Netlify Deployment In Progress
@@ -411,92 +403,7 @@ jobs:
             console.log('✅ PR comment updated successfully');
             console.log('════════════════════════════════════════════════════════════════');
 
-      # *** NEW STEP ***
-      - name: Update PR Comment (Concurrent Build)
-        if: steps.poll_netlify.outputs.status == 'concurrent_build'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            console.log('════════════════════════════════════════════════════════════════');
-            console.log('⚠️ Updating PR comment with concurrent build status...');
-            console.log('════════════════════════════════════════════════════════════════');
-            
-            const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
-            const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
-            const sha = '${{ steps.netlify_build.outputs.sha }}';
-            const shortSha = sha.substring(0, 7);
-            const repo = '${{ github.repository }}';
-            const commitLink = `[\`${shortSha}\`](https://github.com/${repo}/commit/${sha})`;
-            const jobUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            
-            const activeSha = '${{ steps.poll_netlify.outputs.active_commit_sha }}';
-            const activeShortSha = activeSha ? activeSha.substring(0, 7) : 'unknown';
-            const activeCommitLink = activeSha ? `[\`${activeShortSha}\`](https://github.com/${repo}/commit/${activeSha})` : '`unknown`';
-            const activeBuildUrl = '${{ steps.poll_netlify.outputs.active_build_url }}';
-
-            const append = `---
-            ### ⚠️ Netlify Deployment Halted
-            (Update logged at: ${updateIST} IST | Commit: ${commitLink})
-
-            - **Status:** Concurrent build detected.
-            - **This Workflow (for commit ${commitLink}):** Halted.
-            - **GitHub Actions Job:** [View Job Log](${jobUrl})
-
-            Another build for this branch is already in progress on Netlify.
-            - **In-Progress Commit:** ${activeCommitLink}
-            - **In-Progress Netlify Log:** [View Active Deployment](${activeBuildUrl})
-
-            Please wait for the active build to complete. If you need to build this commit, please trigger a new build *after* the other one has finished.`;
-
-            const body = `${existing.data.body}\n\n${append}`;
-            await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
-            
-            console.log('⚠️ Concurrent build comment posted');
-            console.log('════════════════════════════════════════════════════════════════');
-
-      - name: Update PR Comment (Not Found)
-        if: steps.poll_netlify.outputs.status == 'not_found'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            console.log('════════════════════════════════════════════════════════════════');
-            console.log('❌ Updating PR comment with deployment not found status...');
-            console.log('════════════════════════════════════════════════════════════════');
-            
-            const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
-            const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
-            const sha = '${{ steps.netlify_build.outputs.sha }}';
-            const shortSha = sha.substring(0, 7);
-            const repo = '${{ github.repository }}';
-            const commitLink = `[\`${shortSha}\`](https://github.com/${repo}/commit/${sha})`;
-            const jobUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-
-            const append = `---
-            ### ❌ Netlify Deployment Not Found
-            (Update logged at: ${updateIST} IST | Commit: ${commitLink})
-
-            - **Status:** Deployment Not Found
-            - **GitHub Actions Job:** [View Job Log](${jobUrl})
-
-            The workflow could not find a matching deployment on Netlify for commit ${commitLink} after 10 attempts.
-            No other active builds for this branch were found.
-
-            **Next steps:**
-            1.  Check the [Netlify dashboard](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys) to see if the build was triggered.
-            2.  If needed, re-trigger with a new \`netlify build\` comment.`;
-
-            const body = `${existing.data.body}\n\n${append}`;
-            await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId, body });
-            
-            console.log('❌ Not found comment posted');
-            console.log('════════════════════════════════════════════════════════════════');
-
       - name: Monitor Deployment Status
-        if: steps.poll_netlify.outputs.status == 'found'
         id: check_status
         env:
           NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
@@ -509,9 +416,7 @@ jobs:
           MAX_WAIT_TIME=1800
           POLL_INTERVAL=90
           ELAPSED_TIME=0
-          
-          # This step now only runs if a deploy_id was found.
-          # The 'USE_FALLBACK' logic is no longer needed.
+          USE_FALLBACK=false
           
           echo "════════════════════════════════════════════════════════════════"
           echo "📊 DEPLOYMENT STATUS MONITORING"
@@ -525,6 +430,12 @@ jobs:
           echo "  🔄 Poll Interval:  90 seconds"
           echo "  🕐 Started (IST):  $(TZ=Asia/Kolkata date -d @${{ steps.netlify_build.outputs.trigger_time }} '+%Y-%m-%d %H:%M:%S')"
           echo "════════════════════════════════════════════════════════════════"
+          
+          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
+            echo ""
+            echo "⚠️  WARNING: No Deploy ID found. Using branch-based fallback."
+            USE_FALLBACK=true
+          fi
           
           echo ""
           echo "╔════════════════════════════════════════════════════════════════╗"
@@ -541,14 +452,29 @@ jobs:
             echo "│ 🕐 Time (IST): $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S')"
             echo "└────────────────────────────────────────────────────────────────┘"
             
-            DEPLOY=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
-              "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys/$DEPLOY_ID")
+            if [ "$USE_FALLBACK" = "true" ]; then
+              DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
+                "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys")
+              
+              DEPLOY=$(echo "$DEPLOYS" | jq -r --arg branch "$BRANCH_NAME" \
+                '[.[] | select(.branch == $branch)] | sort_by(.created_at) | reverse | .[0]')
+            else
+              DEPLOY=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
+                "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys/$DEPLOY_ID")
+            fi
             
             if [ "$DEPLOY" != "null" ] && [ -n "$DEPLOY" ]; then
               STATE=$(echo "$DEPLOY" | jq -r '.state')
+              CURRENT_DEPLOY_ID=$(echo "$DEPLOY" | jq -r '.id')
               DEPLOY_URL=$(echo "$DEPLOY" | jq -r '.deploy_ssl_url // .ssl_url // .url')
               ERROR_MESSAGE=$(echo "$DEPLOY" | jq -r '.error_message // ""')
+              
               BUILD_URL="https://app.netlify.com/sites/$NETLIFY_SITE_ID/deploys/$DEPLOY_ID"
+              
+              if [ "$USE_FALLBACK" = "true" ] && [ -z "$DEPLOY_ID" ]; then
+                DEPLOY_ID=$CURRENT_DEPLOY_ID
+                echo "  🆔 Deployment ID: $DEPLOY_ID"
+              fi
               
               echo "  📊 Current State: $STATE"
               
@@ -613,7 +539,7 @@ jobs:
           echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
 
       - name: Update PR Comment (Success)
-        if: steps.poll_netlify.outputs.status == 'found' && steps.check_status.outputs.status == 'success'
+        if: steps.check_status.outputs.status == 'success'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -649,7 +575,7 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
 
       - name: Update PR Comment (Failure)
-        if: steps.poll_netlify.outputs.status == 'found' && steps.check_status.outputs.status == 'failure'
+        if: steps.check_status.outputs.status == 'failure'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -681,8 +607,7 @@ jobs:
             - **Deploy ID:** \`${{ steps.check_status.outputs.deploy_id }}\`
             - **Netlify Deployment:** [View Deployment Log](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
             - **GitHub Actions Job:** [View Job Log](${jobUrl})
-            - **Error Message:** 
-            \`\`\`
+            - **Error Message:** \`\`\`
             ${errorMessage}
             \`\`\`
 
@@ -704,7 +629,7 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
 
       - name: Update PR Comment (Timeout)
-        if: steps.poll_netlify.outputs.status == 'found' && steps.check_status.outputs.status == 'timeout'
+        if: steps.check_status.outputs.status == 'timeout'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -715,7 +640,7 @@ jobs:
             
             const commentId = Number('${{ steps.initial_comment.outputs.comment_id }}');
             const existing = await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: commentId });
-            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/KKolkata', hour12: false });
             const sha = '${{ steps.netlify_build.outputs.sha }}';
             const shortSha = sha.substring(0, 7);
             const repo = '${{ github.repository }}';
@@ -743,7 +668,7 @@ jobs:
             console.log('════════════════════════════════════════════════════════════════');
 
       - name: Fail workflow on deployment failure
-        if: (steps.poll_netlify.outputs.status == 'found' && steps.check_status.outputs.status == 'failure') || steps.poll_netlify.outputs.status == 'not_found'
+        if: steps.check_status.outputs.status == 'failure'
         run: |
-          echo "::error::Netlify deployment failed or was not found. This PR should not be merged."
+          echo "::error::Netlify deployment failed. This PR should not be merged."
           exit 1
