@@ -1,0 +1,161 @@
+---
+title: 'File descriptor limit exceeded'
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Performance
+  - Troubleshooting
+metaDescription: How to resolve file descriptor limit issues with the eBPF agent.
+freshnessValidatedDate: never
+---
+
+## Problem
+
+You see the following error message in your eBPF agent logs:
+
+```
+The number of used file descriptors (820) is above the threshold (819). This may cause issues with attaching uprobes. Consider increasing the process FD limit
+```
+
+This error indicates that the eBPF agent has reached the maximum number of file descriptors it's allowed to use, which can prevent it from properly monitoring your applications.
+
+## Solution
+
+You must increase the file descriptor limit for the eBPF agent service or pod.
+
+### For Linux hosts:
+
+Use the `systemd` override mechanism to set a higher limit for the agent service.
+
+1. Increase the file descriptor limit temporarily:
+
+   ```bash
+   ulimit -n 4096
+   ```
+
+2. Run the following command to edit the change persistent at `/etc/security/limits.conf`:
+
+   ```bash
+   sudo nano /etc/security/limits.conf
+   ```
+
+   Add the following lines:
+
+   ```
+      * soft nofile 4096
+      * hard nofile 8192
+   ```
+
+3. Restart the eBPF agent:
+
+   ```bash
+      sudo systemctl restart newrelic-ebpf-agent
+   ```
+
+4. Verify the new limit:
+
+   ```bash
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+   ```
+
+### For Kubernetes:
+
+1. Edit your `values.yaml` file used for the Helm deployment:
+
+   ```yaml
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
+   ```
+
+2. Apply the changes:
+   
+   ```bash
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
+   ```
+
+3. Verify the pods restart and are in a Running state:
+
+   ```bash
+      kubectl get pods -n newrelic -w
+   ```
+
+### Alternative solutions
+
+If increasing resource limits is not feasible, you can reduce the agent's file descriptor usage by limiting the scope of what it monitors.
+
+1. Reduce monitoring scope by filtering out namespaces or services:
+   
+   * **For Linux hosts** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`):
+
+      ```bash
+         # Exclude specific processes or entities
+         DROP_DATA_FOR_ENTITY="process1,process2"
+      ```
+   
+   * **For Kubernetes** (`values.yaml`):
+
+      ```yaml
+         # Exclude namespaces or services
+         dropDataForNamespaces: ["kube-system", "monitoring"]
+         dropDataServiceNameRegex: "kube-dns|system-service"
+      ```
+
+2. Disable specific protocol monitoring to reduce the number of probes:
+   
+   * **For Linux hosts:**
+      
+      ```bash
+         PROTOCOLS_MYSQL_ENABLED="false"
+         PROTOCOLS_MONGODB_ENABLED="false"
+      ```
+   
+   * **For Kubernetes:**
+
+      ```yaml
+         protocols:
+         mysql:
+            enabled: false
+         mongodb:
+            enabled: false
+      ```
+
+### Verification
+
+1. Check that the error no longer appears in the agent logs:
+   
+   * **For Linux hosts:**
+
+      ```bash
+         sudo journalctl -u newrelic-ebpf-agent -f
+      ```
+
+   * **For Kubernetes:**
+
+      ```bash
+         kubectl logs -f <ebpf-agent-pod> -n newrelic
+      ```
+
+2. Confirm the agent is functioning normally by looking for the startup message in the logs:
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
+   ```
+
+3. Verify data is flowing to New Relic UI by filtering entities with `instrumentation.name = nr_ebpf`.
+
+### Additional notes
+
+- The file descriptor limit error is more common in environments with many running processes or services.
+- Each monitored process/service requires file descriptors for eBPF probe attachment.
+- The default system limit (often 1024) may be insufficient for large-scale deployments.
+- Increasing the limit to 4096 is generally safe and sufficient for most use cases.
