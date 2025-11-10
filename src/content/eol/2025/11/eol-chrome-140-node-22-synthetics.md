@@ -157,6 +157,57 @@ const req = https.request(options, (res) => {
 });
 ```
 
+**Example 3 - Consume the data event:**
+
+When using `http` or `https`, you must listen to the data event, as shown below. Otherwise, the HTTPS connection may remain open.
+
+```javascript
+
+const https = require('https');
+
+https.get('https://example.com', (res) => {
+ console.log('Status Code:', res.statusCode);
+ // It is necessary to consume the response data
+ res.on('data', (d) => {
+  process.stdout.write(d);
+ });
+}).on('error', (e) => {
+ console.error('Error:', e);
+});
+
+```
+
+
+**Example 4 - Disable keep-alive:**
+
+Set the `keepAlive` option to `false` to close HTTP connections after the request is complete.
+
+```javascript
+
+const https = require('https');
+const { Agent } = require('https'); // or http for HTTP requests
+
+const options = {
+ hostname: 'example.com',
+ path: '/',
+ method: 'GET',
+ agent: new Agent({ keepAlive: false }), // Disable Keep-Alive for this request
+};
+
+const req = https.request(options, (res) => {
+ console.log(`Status: ${res.statusCode}`);
+ res.on('data', (d) => {
+  process.stdout.write(d);
+ });
+});
+
+req.on('error', (e) => {
+ console.error(e);
+});
+
+req.end();
+
+```
 
 
 ## Troubleshooting
