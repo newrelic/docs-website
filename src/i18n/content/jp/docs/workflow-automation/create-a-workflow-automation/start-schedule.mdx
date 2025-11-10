@@ -1,0 +1,237 @@
+---
+title: ワークフローを開始してスケジュールする
+tags:
+  - workflow automation
+  - workflow
+  - start a workflow automation
+  - start workflow automation on demand
+  - schedule workflows
+metaDescription: Trigger workflows manually or schedule them to run automatically at specified times using NerdGraph APIs.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+ワークフローを作成したら、オンデマンドで手動で実行したり、特定の時間に自動的に実行するようにスケジュールしたりできます。どちらの方法でも、 [NerdGraph API を](/docs/apis/nerdgraph/get-started/nerdgraph-explorer)使用してワークフローの実行をトリガーします。
+
+## トリガー方法を選択してください
+
+ユースケースに適したアプローチを選択してください。
+
+| **オンデマンドで使用**  | **スケジュール使用**         |
+| -------------- | -------------------- |
+| 新しいワークフローのテスト  | 定期的な健康診断             |
+| 手動承認ワークフロー     | 定期的なデータ処理            |
+| 集中トリガーの応答      | 日次/週次レポート            |
+| アドホックメンテナンスタスク | スケジュールされたメンテナンスウィンドウ |
+| 1回限りの操作        | 定期的なバックアップまたはクリーンアップ |
+
+## あなたが始める前に
+
+ワークフローをトリガーする前に、次のことを確認してください。
+
+* **ワークフローが作成されました**: ワークフロー定義はすでにアカウントにデプロイされています ([テンプレート](/docs/workflow-automation/create-a-workflow-automation/use-a-template)または[カスタム構築](/docs/workflow-automation/create-a-workflow-automation/create-your-own)から)。
+* **アカウント ID** : New Relic アカウント ID ([アカウント設定](/docs/accounts/accounts-billing/account-structure/account-id)で確認できます)。
+* **ワークフロー名**: ワークフロー定義の正確な名前。
+* **必須入力**: ワークフローが期待するすべての値。
+* **構成されたシークレット**: AWS 認証情報、Slack トークン、または[シークレット マネージャー](/docs/infrastructure/host-integrations/installation/secrets-management/)に保存されているその他のシークレット。
+
+<Callout variant="tip">
+  **ワークフローは初めてですか?**ワークフローをトリガーする前に、最初のワークフローを作成します。事前に構築されたワークフローの[テンプレートの使用](/docs/workflow-automation/create-a-workflow-automation/use-a-template)から始めます。
+</Callout>
+
+## オンデマンドでワークフローを実行する [#on-demand]
+
+[StartWorkflowRun API を](/docs/workflow-automation/workflow-automation-apis/start-workflow-run)使用してワークフローを手動でトリガーします。これにより、指定した入力に基づいてワークフローが直ちに実行されます。
+
+### 例: AWS Lambda関数を呼び出す
+
+次のワークフロー定義は、 AWS Lambda関数を呼び出し、出力をログに記録します。 `12345678` New Relic アカウント ID に置き換えます。
+
+```yaml
+  name: lambda1
+
+  workflowInputs:
+    username:
+      type: String
+      defaultValue: "User"
+    key:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_ACCESS_KEY_ID }}"
+    access:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SECRET_ACCESS_KEY }}"
+    token:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SESSION_TOKEN }}"
+    region:
+      type: String
+      defaultValue: us-east-1
+
+  steps:
+    - name: invoke1
+      type: action
+      action: aws.lambda.invoke
+      version: 1
+      inputs:
+        awsAccessKeyId: ${{ .workflowInputs.key }}
+        awsSecretAccessKey: ${{ .workflowInputs.access }}
+        awsSessionToken: ${{ .workflowInputs.token }}
+        region: ${{ .workflowInputs.region }}
+        functionName: hello-you
+        payload:
+          user: ${{ .workflowInputs.username }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'The lambda function message output is:${{ .steps.invoke1.outputs.payload.body }}'
+```
+
+このワークフローを開始するには、次の NerdGraph ミューテーションを使用します。このミューテーションを実行する前に、 `secretsManagementCreateSecret`ミューテーションを使用して AWS 認証情報を保存していることを確認してください。詳細については、 [「シークレット管理の概要」](/docs/apis/nerdgraph/examples/nerdgraph-secrets-management)を参照してください。
+
+```graphql
+mutation {
+  workflowAutomationStartWorkflowRun(
+    # Specify the account where the workflow is defined
+    scope: { type: ACCOUNT id: "12345678" }
+
+    # Reference the workflow definition by name
+    definition: { name: "lambda1" }
+
+    # Provide input values for the workflow
+    workflowInputs: [
+      {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+      {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+      {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+      {key: "region" value:"us-east-2"}
+      {key: "username" value: "Julien"}
+    ]
+  ) {
+    runId
+  }
+}
+```
+
+**問題は次のように説明しました。**
+
+* `scope`: ワークフロー定義が保存されているアカウントID
+* `definition`: 実行するワークフローの名前（ワークフロー定義の`name`フィールドと一致する必要があります）
+* `workflowInputs`: ワークフロー定義の`workflowInputs`セクションのデフォルト値をオーバーライドするキーの値のペア
+
+ミューテーションは`runId` (たとえば、 `7bd25287-2af8-42e1-b783-80f4e760a40b` ) を返します。この ID を使用してログをクエリし、出力を表示します。
+
+<img title="Workflow automation logs" alt="Workflow automation logs showing the Lambda function output" src="/images/autoflow-all-logs-2.webp" />
+
+## ワークフローのスケジュール [#scheduled]
+
+[CreateSchedule API を](/docs/workflow-automation/workflow-automation-apis)使用して、ワークフローが特定の時間に自動的に実行されるようにスケジュールします。スケジュールされたワークフローは、手動による介入なしに定期的なタスクを実行します。
+
+**ワークフローをスケジュールするタイミング:**
+
+* 定期的な健康診断
+* 定期的なデータ処理
+* 日次/週次レポート
+* スケジュールされたメンテナンスウィンドウ
+* 定期的なバックアップまたはクリーンアップ
+
+### Cron式リファレンス
+
+スケジュールでは、cron 式を使用してワークフローの実行タイミングを定義します。形式： `minute hour day month weekday`
+
+| **パターン**       | **説明**     | **使用例**       |
+| -------------- | ---------- | ------------- |
+| `0 9 * * *`    | 毎日午前9時     | 毎朝の健康チェック     |
+| `0 9 * * 1-5`  | 平日午前9時     | 営業日の運営        |
+| `0 */6 * * *`  | 6時間ごと      | 定期的な同期操作      |
+| `0 0 1 * *`    | 月初めの日の深夜0時 | 月次レポート        |
+| `*/15 * * * *` | 15分ごと      | 頻繁な投票         |
+| `0 0 * * 0`    | 毎週日曜日の深夜   | 毎週のクリーンアップタスク |
+
+<Callout variant="tip">
+  **Cron 構文:** `*`は「すべて」、 `/`は「n 番目ごと」、 `-` 「範囲」を意味します。例: `0 9 * * 1-5` = 毎月、毎日、月曜日から金曜日の 0 分、9 時。
+</Callout>
+
+### 例: 毎日の健康診断をスケジュールする
+
+次の例では、 `lambda1`ワークフローを毎日東部標準時の午前 9 時に実行するようにスケジュールします。
+
+```graphql
+mutation {
+  workflowAutomationCreateSchedule(
+    # Specify the account where the workflow is defined
+    scope: { type: ACCOUNT id: "12345678" }
+
+    # Reference the workflow definition by name
+    definition: { name: "lambda1" }
+
+    # Configure the schedule
+    schedule: {
+      # Cron expression: minute hour day month weekday
+      # "0 9 * * *" = every day at 9:00 AM
+      cronExpression: "0 9 * * *"
+
+      # Timezone for the schedule
+      timezone: "America/New_York"
+
+      # Optional: Schedule name for identification
+      name: "daily-lambda-health-check"
+
+      # Optional: Add a description
+      description: "Runs Lambda health check every morning at 9 AM"
+    }
+
+    # Provide input values for the workflow
+    workflowInputs: [
+      {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+      {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+      {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+      {key: "region" value:"us-east-2"}
+      {key: "username" value: "HealthCheckBot"}
+    ]
+  ) {
+    scheduleId
+  }
+}
+```
+
+**返されるもの:**
+
+* `scheduleId`: スケジュールの一意の識別子（後でスケジュールを更新または削除するために使用します）
+
+### スケジュールを管理する
+
+スケジュールを作成した後:
+
+* **アクティブなスケジュールの表示**:[ワークフロー ダッシュボード](/docs/workflow-automation/create-a-workflow-automation/managing-workflow#monitor-runs)でスケジュールされたすべての実行を表示します。
+* **更新スケジュール**: UpdateSchedule APIを使用して頻度または入力を変更します
+* **スケジュールの削除**: 定期的な実行を停止するには、DeleteSchedule API を使用します。
+
+完全な API ドキュメントについては、 [「ワークフロー自動化 API」](/docs/workflow-automation/workflow-automation-apis)を参照してください。
+
+## 次のステップ
+
+ワークフローが実行中です。次に行うべきことは次のとおりです。
+
+**以下を監視および管理します。**
+
+* **[ワークフローの管理](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)**: 実行履歴の表示、ログの確認、問題のトラブルシューティング
+* **[ワークフローのトラブルシューティング](/docs/workflow-automation/troubleshooting)**: 一般的な実行問題を解決する
+
+**生産向けに最適化:**
+
+* **[ベストプラクティス](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: エラー処理、パフォーマンス、信頼性のパターン
+* **[ワークフローの制限](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: タイムアウトと制約の制限を理解する
+
+**ワークフローを拡張します。**
+
+* **[アクション カタログ](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)**: 利用可能なすべての統合を探索します。
+* **[ワークフロー オートメーション API](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api)** : プログラムによるワークフロー管理
