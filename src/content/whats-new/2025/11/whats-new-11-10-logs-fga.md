@@ -20,7 +20,7 @@ With Fine Grained Access control for Logs, you create policies that define exact
 
 This enables you to restrict logs access to only the data a user should need. When a user belongs to multiple grants for an account, any deny policy will always override an allow policy.
 
-![Add Data Policy](/images/add-data-policy.webp "A screenshot that shows how to add a data access policy.")
+!(/static/images/add-data-policy.webp "A screenshot that shows how to add a data access policy.")
 
 <figcaption>Create policies to allow or deny access to specific log partitions from the Access Management UI.</figcaption>
 
