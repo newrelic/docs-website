@@ -82,7 +82,7 @@ helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operat
 インストゥルメンテーション CR で計画できる内容は次のとおりです。
 
 * インストゥルメンテーション CR の名前
-* インストゥルメンテーション CR が適用される場所 ( `podLabelSelector`と`namespaceLabelSelector`に感謝)
+* [`selectors`](#selectors)を使用して計装 CR を適用する場所
 * APMエージェント (CR ごとに 1 つ)
 * APMエージェントバージョン
 * APM構成の問題 (環境変数)
@@ -91,44 +91,164 @@ helm upgrade --install k8s-agents-operator k8s-agents-operator/k8s-agents-operat
 マニフェスト ファイルは、 APM自動アタッチをインストールしたのと同じネームスペース (デフォルトでは `newrelic`) に挿入する必要があります。
 
 ```bash
-kubectl apply -f ./values.yaml -n newrelic
+kubectl apply -f ./instrumentation.yaml -n newrelic
 ```
 
-### セレクタの使い方 [#selectors]
+ここに、参照用の完全な[計装.yaml](https://github.com/newrelic/k8s-agents-operator/blob/main/local/instrumentation.yaml)があります。
 
-インストゥルメンテーション CR がいつAPMエージェントを挿入するかを知るには、セレクターを使用する必要があります。 ラベル セレクターは 2 つあり、必要に応じて一緒に使用したり (論理 AND ( `&&` ) 演算子として機能します)、個別に使用したりできます。
+## セレクタの使い方 [#selectors]
 
-* `PodLabelSelector` どのポッドをインストゥルメントする必要があるかをAPM自動アタッチに通知します。
+セレクターを使用して、CR がAPMエージェントでどのリソースを挿入するかを制御します。 3 つのセレクターが利用可能です。個別に使用することも、組み合わせて使用することもできます。組み合わせると、セレクターは論理 AND ( `&&` ) 演算を使用して評価されます。
 
-  `matchLabel`を使用した例 (特定のタグと値を含むポッドを選択):
+<CollapserGroup>
+  <Collapser id="pod-label-selector" title="ポッドラベルセレクター">
+    どのポッドをインストゥルメントする必要があるかをAPM自動アタッチに通知します。
 
-  ```yaml
-  ...
-  podLabelSelector:
-    matchLabels:
-      app.kubernetes.io/name: flask-hello-world
-  ...
-  ```
+    次の例では、 `PodLabelSelector`内の`matchLabel`を使用して、特定のタグと値を含むポッドを選択します。
 
-* `NameSpaceLabelSelector` ネームスペースレベルで自動インストゥルメントされたポッドを定義します。
+    ```yaml
+    ...
+    podLabelSelector:
+      matchLabels:
+        app.kubernetes.io/name: flask-hello-world
+    ...
+    ```
+  </Collapser>
 
-  `matchExpressions`を使用した例 (特定のタグと値を含むネームスペースを選択):
+  <Collapser id="namespace-label-selector" title="名前空間ラベルセレクター">
+    ネームスペースレベルで自動インストゥルメントされたポッドを定義します。
 
-  ```yaml
-  ...
-  namespaceLabelSelector:
-    matchExpressions:
-      - key: "kubernetes.io/metadata.name"
-        operator: "In"
-        values: ["backend"]
-  ...
-  ```
+    次の例では、 `NameSpaceLabelSelector`の`matchExpressions`を使用して、特定のタグと値を含むネームスペースを選択します。
 
-  <Callout title="ヒント">
-    `kubernetes.io/metadata.name`ラベルを適用することは、ネームスペースの名前に基づいて選択することと同じであることに注意してください。
-  </Callout>
+    ```yaml
+    ...
+    namespaceLabelSelector:
+      matchExpressions:
+        - key: "kubernetes.io/metadata.name"
+          operator: "In"
+          values: ["backend"]
+    ...
+    ```
 
-両方のセレクターは`matchLabel`と`matchExpressions`をサポートします。
+    <Callout variant="tip">
+      `kubernetes.io/metadata.name`ラベルを使用するセレクターは、名前に基づいてネームスペースと一致します。
+    </Callout>
+  </Collapser>
+
+  <Collapser id="container-selector" title="コンテナセレクター">
+    コンテナレベルで自動インストゥルメントされたコンテナを定義します。
+
+    <Callout variant="tip">
+      `containerSelector`が定義されていない場合、インテグレーションは、ポッドの仕様にリストされている最初の非初期コンテナを自動的にインストゥルメント化します。
+    </Callout>
+
+    適切なコンテナを選択するための 4 つの方法を提供します。
+
+    #### 環境セレクタ
+
+    コンテナ環境変数に基づいてコンテナを選択します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-envs
+    spec:
+      containerSelector:
+        envSelector:
+          matchEnvs:
+            DEBUG: 'true'
+    #...
+    ```
+
+    詳細情報と例については、 [imageSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#imageSelector)参照してください。
+
+    #### imageSelector
+
+    コンテナー イメージの URL に基づいてコンテナーを選択します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-any-container
+    spec:
+      containerSelector:
+        imageSelector:
+          matchExpressions:
+            - key: url
+              operator: StartsWith
+              values: ["docker.io/"]
+    #...
+    ```
+
+    詳細情報と例については、 [envSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#envSelector)参照してください。
+
+    #### nameSelector
+
+    名前とタイプ ( `init`または`regular` ) に基づいて計装用のコンテナを選択します。
+
+    値は、ターゲットとするコンテナ名のリストである必要があります。このリストに含まれていないコンテナは無視されます。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-match-names-and-any-container
+    spec:
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: app
+    #...
+    ```
+
+    詳細情報と例については、[nameSelectorを](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#nameSelector)参照してください。
+
+    #### namesFromPodAnnotation
+
+    ポッド注釈のキーを指定します。指定されたアノテーションの値は、計装用に選択するコンテナ名のカンマ区切りのリストである必要があります。
+
+    たとえば、ポッドにどのコンテナを計装するかを識別するアノテーションがあるとします。 この場合、 `use-these-for-newrelic`アノテーションは、 `a`および`c`という名前のコンテナーを選択するように指定します。
+
+    ```yaml
+    #... pod spec
+    metadata:
+      annotations:
+        use-these-for-newrelic: a,c
+    spec:
+      initContainers:
+        - name: a
+          #.. more container spec ..
+      containers:
+        - name: b
+          # ...
+        - name: c
+    #...
+    ```
+
+    次に、そのアノテーションを使用するには、アノテーション リソースの`namesFromPodAnnotation`フィールドをアノテーションのキー ( `use-these-for-newrelic` ) に設定します。
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: select-by-names-from-pod-annotation
+    spec:
+      containerSelector:
+        namesFromPodAnnotation: use-these-for-newrelic
+    #...
+    ```
+
+    この設定インストゥルメントは、ポッドの `use-these-for-newrelic` アノテーションで名前が指定されていたため、 `b`コンテナを無視して、 `a` ( `init` ) および`c` ( `regular` ) コンテナを扱い 。
+
+    詳細情報と例については、 [namesFromPodAnnotation](https://github.com/newrelic/k8s-agents-operator/blob/main/instrumentation.md#namesFromPodAnnotation)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+### MatchLabel と MatchExpressions
+
+すべてのセレクターは`matchLabel`と`matchExpressions`をサポートしています。
 
 <CollapserGroup>
   <Collapser
@@ -338,7 +458,7 @@ spec:
 <CollapserGroup>
   <Collapser id="label-selector-dotnet" title="Python エージェント: 特定のラベルと値を持つポッドとオーバーライドするアプリ名">
     ```yaml
-    apiVersion: newrelic.com/v1alpha2
+    apiVersion: newrelic.com/v1beta2
     kind: Instrumentation
     metadata:
       name: newrelic-instrumentation-python
@@ -360,9 +480,32 @@ spec:
     ```
   </Collapser>
 
+  <Collapser id="label-selector-dotnet" title="Python エージェント: 特定のラベルを持つポッドは、特定の名前の init コンテナのみを監視します。">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-python
+      namespace: newrelic
+    spec:
+      agent:
+        language: python
+        image: newrelic/newrelic-python-init:latest
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: ["flask-hello-world","flask-hello-world-v2"]
+      containerSelector:
+        nameSelector:
+          matchNames:
+            anyContainer: flask-hello-app
+    ```
+  </Collapser>
+
   <Collapser id="label-selector-java" title="Javaエージェント: 特定のネームスペースのポッド">
     ```yaml
-    apiVersion: newrelic.com/v1alpha2
+    apiVersion: newrelic.com/v1beta2
     kind: Instrumentation
     metadata:
       name: newrelic-instrumentation-java
@@ -379,9 +522,34 @@ spec:
     ```
   </Collapser>
 
+  <Collapser id="label-selector-java" title="Javaエージェント: 特定のネームスペースのポッドのみ 特定の名前を持つコンテナを監視">
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: newrelic/newrelic-java-init:latest
+      namespaceLabelSelector:
+        matchExpressions:
+          - key: "kubernetes.io/metadata.name"
+            operator: "In"
+            values: ["java"]
+      containerSelector:
+        nameSelector:
+          matchExpressions:
+            - key: container
+              operator: In
+              values: ["java-app"]
+    ```
+  </Collapser>
+
   <Collapser id="label-selector-ruby" title="Rubyエージェント: Rubyラベルを含み、別のアカウントにデータを送信するネームスペース">
     ```yaml
-    apiVersion: newrelic.com/v1alpha2
+    apiVersion: newrelic.com/v1beta2
     kind: Instrumentation
     metadata:
       name: newrelic-instrumentation-ruby
@@ -557,10 +725,10 @@ helm search repo k8s-agents-operator
 
 Kubernetes APM自動アタッチは、標準のAPMエージェント サポート ポリシーに従って、次の言語とその最小サポート バージョンをサポートします。
 
-* **Java:** 8.12
-* **.NET:** 10.25
-* **Ruby :** 9.10
-* **Node.js:** 11.9
+* **Javaエージェント:** 8.12
+* **.NET エージェント:** 10.25
+* **Rubyエージェント:** 9.10
+* **Node.js エージェント:** 11.9
 * **パイソン:** 9.10
 * **PHP:** 11.12
 

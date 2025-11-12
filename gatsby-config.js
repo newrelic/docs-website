@@ -162,12 +162,10 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
-        remarkPlugins: [],
+        remarkPlugins: [require('remark-math')],
         rehypePlugins: [
-          [
-            require('./rehype-plugins/gatsby-inline-images'),
-            { spacing: '0.5rem' },
-          ],
+          require('rehype-katex'),
+          [require('./rehype-plugins/gatsby-inline-images'), { spacing: '0.5rem' }],
         ],
         gatsbyRemarkPlugins: [
           {
@@ -371,7 +369,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp', 'kr', 'pt', 'es'],
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
@@ -432,19 +430,13 @@ module.exports = {
           ],
         },
         newrelic: {
-          config: {
+          config: process.env.ENVIRONMENT === 'production' && {
             instrumentationType: 'proAndSPA',
             accountId: '10956800',
             trustKey: '1',
-            agentID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
+            agentID: '35094662',
             licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-            applicationID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
+            applicationID: '35094662',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
             settings: {
@@ -491,11 +483,13 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
-        segment: {
+        // Segment analytics commented out to avoid costs and unnecessary data collection
+        // Uncomment if Segment tracking is needed again
+        /* segment: {
           segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
           section: 'docs',
           platform: 'docs_pages',
-        },
+        }, */
       },
     },
   ],

@@ -1,0 +1,702 @@
+---
+title: Solte dados usando as Pipeline cloud regras do Controle de
+metaDescription: Learn how to use the cloud rule API to manage data filtering and processing in New Relic Control.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Uma maneira de [gerenciar sua ingestão de dados](/docs/data-apis/manage-data/manage-data-coming-new-relic) é usar as Pipeline cloud regras do Controle de . Para criar Pipeline cloud regras , você deve New Relic Compute adotar o preço baseado no uso .
+
+Existem duas categorias de regras que você pode criar:
+
+* **Regra de descarte de dados**
+
+  * Remova tipos de dados inteiros ou um subconjunto de dados *(com filtro opcional)*, com NRQL no formato de:
+    ```sql
+    DELETE FROM DATA_TYPE_1, DATA_TYPE_2 (WHERE OPTIONAL_FILTER)
+    ```
+
+* **Regra de atributo de descarte**
+
+  * Remover atributo de tipos de dados *(com filtro opcional)*, com NRQL no formato de:
+    ```sql
+    DELETE dropAttr1, dropAttr2 FROM DATA_TYPE (WHERE OPTIONAL_FILTER)
+    ```
+  * Para esse tipo de regra, você deve passar uma lista não vazia de nomes de atributos **brutos** na cláusula `DELETE` .
+
+<Callout variant="tip">
+  As regras do Controle de Pipeline cloud só se aplicam aos dados que chegam a partir do momento em que você cria a regra; elas não excluem dados que [já foram ingeridos .](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion)
+</Callout>
+
+Para saber mais sobre quais dados são considerados faturáveis ou não, consulte [Ingestão de dados](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#usage-calculation).
+
+## Escopo de dados das regras da nuvem [#data-scope]
+
+Use regras cloud para destino dos seguintes tipos de dados:
+
+* Evento relatado pelo APM
+
+* Evento relatado pelo browser
+
+* Evento relatado em dispositivos móveis
+
+* Evento relatado pelo Sintético
+
+* Evento personalizado (como aqueles gerados pela [API do agente do APM](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) ou pela [API do evento](/docs/insights/insights-data-sources/custom-data/introduction-event-api))
+
+* Log dados (você também pode [usar a interface para descartar dados](/docs/logs/ui-data/drop-data-drop-filter-rules))
+
+* Períodos distributed tracing
+
+* [Evento de monitoramento de infraestrutura padrão](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data) e evento [de integração de infraestrutura](/docs/integrations/infrastructure-integrations/get-started/introduction-infrastructure-integrations) . Algumas advertências:
+
+  * Quando você descarta esses dados, os dados brutos são excluídos, mas os eventos agregados `SystemSample`, `ProcessSample`, `NetworkSample` e `StorageSample` ainda estão disponíveis (para mais informações sobre isso, consulte [Redução de dados](/docs/data-apis/manage-data/manage-data-retention/#infrastructure-data)). Embora ainda disponíveis, esses dados não contam para ingestão e não são faturáveis.
+  * Os dados brutos da infraestrutura são usados para alertas, portanto, se você descartar esses dados, não poderá alertá-los. Como os dados agregados ainda estão disponíveis, você ainda poderá ver esses dados em gráficos com intervalos de tempo acima de 59 minutos.
+
+<Callout variant="important">
+  Em 7 de janeiro de 2026, as regras de descarte direcionadas a infraestrutura de eventos em `SystemSample`, `ProcessSample`, `NetworkSample` e `StorageSample` removerão dados agregados.
+</Callout>
+
+* [Dimensional métrica](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#dimensional-metrics). Algumas advertências:
+
+  * Para métricas geradas pelo [serviço evento-to-métrica](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics): as regras do Cloud não funcionarão, mas essas métricas podem ser interrompidas ou podadas ao desabilitar ou reconfigurar a regra evento-to-métrica.
+  * dados métricos de fração de tempo não podem ser descartados com regras cloud . Para obter mais informações sobre dados de métrica de fração de tempo APM consulte [este documento](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data).
+
+## Restrições NRQL [#restrictions]
+
+* O limite de comprimento da consulta NRQL é **de 4.096** caracteres. Se exceder o comprimento, ocorrerá o erro `INVALID_NRQL_TOO_LONG` . Se você precisar descartar dados com base em uma consulta mais longa que não pode ser dividida, entre em contato com o [suporte da New Relic](https://support.newrelic.com).
+* `JOIN` e [subconsultas](/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql) não são suportadas.
+* Você pode fornecer uma cláusula [`WHERE`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#sel-where) para selecionar dados com atributo específico.
+* Você não deve usar a tag entidade em uma cláusula [`WHERE`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#sel-where) para descartar dados, porque as tags entidade são obtidas em um processo separado e não são atributos dos dados MELT avaliados pela regra cloud do pipeline.
+* recursos como `LIMIT`, `TIMESERIES`, `COMPARE WITH`, `FACET` e outras cláusulas não podem ser usadas.
+* `SINCE` e `UNTIL` não são suportados. Se você tiver regras específicas de tempo (por exemplo, abandonar tudo até um momento no futuro), use `WHERE timestamp < (epoch milliseconds in the future)`.
+* Você não pode usar `SINCE` para descartar dados históricos. As regras da nuvem só se aplicam aos dados relatados após a criação da regra. Se precisar excluir dados que já foram relatados, consulte [Excluir dados existentes](/docs/data-apis/manage-data/manage-data-retention/#deleting-data) ou entre em contato com [o suporte da New Relic](https://support.newrelic.com).
+
+## Histórico de regras de auditoria [#history]
+
+Para ver quem criou e excluiu regras cloud , consulte [os logs de auditoria da sua conta](/docs/insights/use-insights-ui/manage-account-data/query-account-audit-logs-nrauditevent). O [lista de endpoint](#view-rules) também inclui o ID de usuário da pessoa que criou a regra.
+
+## Cuidados ao descartar dados [#caution]
+
+As regras da nuvem se aplicam a cada ponto de dados de forma independente. Por exemplo, vejamos as três regras de descarte de dados a seguir:
+
+<Callout variant="important">
+  Ao criar regras, você é responsável por garantir que elas identifiquem e descartem com precisão os dados que atendem às condições que você estabeleceu. Você também é responsável por monitorar a regra, bem como os dados que você divulga à New Relic.
+</Callout>
+
+```sql
+1. DELETE FROM MyEvent WHERE myAttr not in ('staging')
+2. DELETE FROM MyEvent WHERE myAttr not in ('production')
+3. DELETE FROM MyEvent WHERE myAttr in ('development')
+```
+
+Essas três regras são aplicadas independentemente a cada ponto de dados; em resumo, todos os eventos `MyEvent` contendo `myAttr` com qualquer valor serão descartados:
+
+* `myAttr: 'staging'` -&gt; corresponde à regra 2
+* `myAttr: 'production'` -&gt; corresponde à regra 1
+* `myAttr: 'development'` -&gt; corresponde às regras 1, 2 e 3
+* `myAttr: 'uuid-random-string'` -&gt; regras de correspondência 1 e 2
+
+A New Relic não pode garantir que esta funcionalidade resolverá completamente suas preocupações com divulgação de dados. A New Relic não analisa nem monitora a eficácia das regras que você desenvolve. Sempre teste e teste novamente sua consulta e, depois que a regra de descarte for criada, certifique-se de que ela funciona conforme o esperado.
+
+A criação de regras sobre dados confidenciais pode vazar informações sobre os tipos de dados que você mantém, incluindo o formato dos seus dados ou sistemas (por exemplo, por meio de referência a endereços de e-mail ou números de cartão de crédito específicos). As regras que você cria, incluindo todas as informações nessas regras, podem ser visualizadas e editadas por qualquer usuário com as permissões de controle de acesso baseadas em função relevantes.
+
+Apenas novos dados serão descartados. Os dados existentes [não podem ser editados ou excluídos](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion).
+
+# Gerenciando regras cloud [#how-to]
+
+Para criar e editar regras, você pode usar a interface Controle de Pipeline ou o [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) API Explorer *(**[one.newrelic.com](https://one.newrelic.com) &gt; Apps &gt; NerdGraph API explorer**)*.
+
+<Callout variant="caution">
+  Tenha cuidado ao decidir descartar dados. Os dados que você descarta não podem ser recuperados. Para obter mais detalhes sobre possíveis problemas, consulte [Notas de cuidado](#caution).
+</Callout>
+
+## Exemplos de casos de uso [#example-mutations]
+
+<CollapserGroup>
+  <Collapser id="drop-events" title="Solte dois tipos de eventos">
+    Digamos que você perceba que alguns tipos de eventos estão sendo enviados para o New Relic e que não são importantes para você. Além disso, impedir que a fonte envie esses tipos de eventos rapidamente não é realista, exigindo alterações no agente e/ou na instrumentação API . Usar uma regra cloud é uma maneira mais fácil de atingir o mesmo objetivo.
+
+    Aqui está um exemplo de chamada do NerdGraph que descarta dois tipos de evento: `Event1` e `Event2`.
+
+    ```graphql
+    mutation {
+      entityManagementCreatePipelineCloudRule(
+        pipelineCloudRuleEntity: {
+          description: "Event1 and Event2 are unimportant, see ticket DM-1234",
+          name: "Drop all data for Event1 and Event2",
+          nrql: "DELETE FROM Event1, Event2",
+          scope: {
+            id: "your_nr_account_id",
+            type: ACCOUNT
+          }
+        }
+      ) {
+        entity {
+          id
+          name
+          nrql
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="drop-specific-events" title="Eliminar evento que atenda a determinados critérios">
+    Digamos que você tenha um tipo de evento personalizado de alto volume que chega de várias fontes. Se você não achar todos esses dados importantes, poderá usar uma regra cloud . Aqui está um exemplo de uma regra cloud que filtra eventos com base em critérios específicos.
+
+    ```graphql
+    mutation {
+      entityManagementCreatePipelineCloudRule(
+        pipelineCloudRuleEntity: {
+          description: "Drops all data for MyCustomEvent that comes from the LoadGeneratingApp in the dev environment, because there is too much and we don’t look at it",
+          name: "Drop MyCustomEvent from LoadGeneratingApp in dev",
+          nrql: "DELETE FROM MyCustomEvent WHERE appName='LoadGeneratingApp' AND environment='development'",
+          scope: {
+            id: "your_nr_account_id",
+            type: ACCOUNT
+          }
+        }
+      ) {
+        entity {
+          id
+          name
+          nrql
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="drop-sensitive-data" title="Elimine o atributo sensível enquanto mantém o restante dos dados">
+    Digamos que você notou que um evento possui atributos que contêm Informações de Identificação Pessoal (PII). Você está trabalhando para atualizar seus serviços para parar de enviar os dados, mas até lá, você precisa parar de armazenar mais PII no New Relic. Embora você possa descartar todos os dados conforme eles chegam com `Drop data`, o restante dos dados ainda fornece valor. Portanto, você pode registrar uma regra cloud para remover apenas as PII ofensivas dos seus dados:
+
+    ```graphql
+    mutation {
+      entityManagementCreatePipelineCloudRule(
+        pipelineCloudRuleEntity: {
+          description: "Removes the user name and email fields from MyCustomEvent",
+          name: "Drop username and email from MyCustomEvent",
+          nrql: "DELETE userName, userEmail FROM MyCustomEvent",
+          scope: {
+            id: "your_nr_account_id",
+            type: ACCOUNT
+          }
+        }
+      ) {
+        entity {
+          id
+          name
+          nrql
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Verifique se sua regra funciona [#verify]
+
+Depois de criar uma regra cloud , talvez você queira verificar se ela está funcionando conforme o esperado. A regra deve entrar em vigor rapidamente após um registro bem-sucedido, então tente executar uma versão `TIMESERIES` da consulta que você registrou para ver se os dados desaparecem.
+
+*Observação: os dados de séries temporais são renderizados com o tempo do evento (não o tempo de processamento) como eixo x. Como New Relic aceita dados com um timestamp de até vinte e quatro horas no futuro, você poderá ver alguns dados que foram enviados ao New Relic antes da regra ser criada, mas com um timestamp do evento anterior à criação da regra.*
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Tipo de regra de nuvem
+      </th>
+
+      <th>
+        NRQL
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `Drop data`
+      </td>
+
+      <td>
+        <DNT>
+          **Cloud rule NRQL:**
+        </DNT>
+
+        ```sql
+        DELETE FROM MyEvent WHERE foo = bar
+        ```
+
+        <DNT>
+          **Validation NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT count(*) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        Deve cair para 0. Para verificar se isso não afetou mais nada, inverta a cláusula `WHERE` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Drop attributes`
+      </td>
+
+      <td>
+        <DNT>
+          **Cloud rule NRQL:**
+        </DNT>
+
+        ```sql
+        DELETE dropAttr1, dropAttr2 FROM MyEvent WHERE foo = bar
+        ```
+
+        <DNT>
+          **Validation NRQL:**
+        </DNT>
+
+        ```sql
+        SELECT count(dropAttr1), count(dropAttr2) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        Ambas as linhas devem cair para 0. Para verificar se isso não afetou o evento que continha esses atributos e ainda deveria, inverta a cláusula `WHERE` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+# Exemplos do NerdGraph [#examples]
+
+## Criar regras cloud [#create-rules]
+
+Ao criar uma regra cloud , o campo `enabled` é opcional e o padrão é `true`. Se você deseja criar uma regra em um estado desabilitado, você deve definir explicitamente `enabled: false`.
+
+### Soltar dados:
+
+```graphql
+mutation {
+  entityManagementCreatePipelineCloudRule(
+    pipelineCloudRuleEntity: {
+      description: "Since we only care about MyEvent in staging and production, let's drop all MyEvent data in the test environment",
+      name: "Drop MyEvent in test environment",
+      nrql: "DELETE FROM MyEvent WHERE environment = 'test'",
+      scope: {
+        id: "your_nr_account_id",
+        type: ACCOUNT
+      }
+    }
+  ) {
+    entity {
+      id
+      name
+      nrql
+      enabled
+    }
+  }
+}
+```
+
+### Atributo de queda:
+
+```graphql
+mutation {
+  entityManagementCreatePipelineCloudRule(
+    pipelineCloudRuleEntity: {
+      description: "We don't care about jvmId and targetAttr in the test environment, let's drop those attributes",
+      name: "Drop jvmId and targetAttr from MyEvent in test environment",
+      nrql: "DELETE jvmId, targetAttr FROM MyEvent WHERE environment = 'test'",
+      scope: {
+        id: "your_nr_account_id",
+        type: ACCOUNT
+      }
+    }
+  ) {
+    entity {
+      id
+      name
+      nrql
+      enabled
+    }
+  }
+}
+```
+
+## Atualizar uma regra cloud [#update-rule]
+
+Você pode modificar as regras cloud existentes para ajustar seus critérios de filtragem, tipos de dados, escopo de implantação ou status operacional.
+
+<Callout variant="important">
+  As regras da nuvem só se aplicam aos dados que chegam a partir do momento em que você cria ou atualiza a regra. Eles não afetam dados que já foram ingeridos. Sempre teste e monitore suas regras atualizadas para garantir que elas estejam funcionando conforme o esperado.
+</Callout>
+
+Para atualizar uma regra de nuvem existente, você usará a mutação `updatePipelineCloudRule`. Isso permite que você altere o nome da regra, a descrição e, principalmente, seu NRQL.
+
+### Identifique a regra
+
+Você precisará do ID de entidade exclusivo da regra cloud que deseja atualizar. Você pode encontrar esse ID consultando suas regras usando o NerdGraph. Por exemplo:
+
+```graphql
+actor {
+  entityManagement {
+  entitySearch(
+    query: "type = 'PIPELINE_CLOUD_RULE'"
+    )
+    {
+      results {
+        entities {
+          id
+          name
+          enabled
+        }
+      }
+    }
+  }
+}
+```
+
+### Construa sua mutação:
+
+Use a mutação `updatePipelineCloudRule`, fornecendo o `id` da regra e um objeto `pipelineCloudRuleEntity` contendo os campos que você deseja alterar.
+
+* **`id`:** O ID da entidade da regra cloud que você identificou na etapa 1.
+
+* **`pipelineCloudRuleEntity`:** Um objeto contendo os detalhes atualizados. Você pode fornecer qualquer um ou todos os campos abaixo:
+
+  * **`nrql`:** A consulta NRQL atualizada que define quais dados ou atributos descartar. Esta deve ser uma consulta `DELETE NRQL` (por exemplo, `DELETE FROM MyEvent or DELETE attribute FROM MyEvent`).
+
+  * **`name`:** O novo nome para sua regra (opcional).
+
+  * **`description`:** A nova descrição para sua regra (opcional).
+
+  * **`enabled`:** Um booleano para ativar (true) ou desativar (false) instantaneamente a regra (opcional). Observação: omitir este campo mantém o status atual da regra.
+
+Suponha que você tenha uma regra existente que remove `dropAttr1` do eventType `MyEventToDrop`. Se você quiser alterá-lo para drop `dropAttr2`, chame a seguinte mutação:
+
+```graphql
+mutation UpdatePipelineCloudRule {
+    updatePipelineCloudRule(
+        id: "MTAyNTY1MHxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5ODgwOTUtMmZjNC03MTQ3LTkxMjQtZDk3YjhiY2Y4NGNj", # Replace with your rule's actual entity ID
+        pipelineCloudRuleEntity: {
+            description: "Since we do not need dropAttr2 ingested we would drop this attribute.",
+            name: "Update for Dropping dropAttr2 from MyEventToDrop",
+            nrql: "DELETE dropAttr2 FROM MyEventToDrop"
+        }
+    ) {
+        entity {
+            id
+            type
+            name
+            description
+            nrql
+            enabled
+        }
+    }
+}
+```
+
+### Desabilitando uma regra de nuvem [#disable-rule]
+
+Para desabilitar uma regra de descartar conjunto de dados, defina o campo habilitado como `false` na sua mutação de atualização.
+
+```graphql
+mutation UpdatePipelineCloudRule {
+    updatePipelineCloudRule(
+        id: "MTAyNTY1MHxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5ODgwOTUtMmZjNC03MTQ3LTkxMjQtZDk3YjhiY2Y4NGNj"
+        pipelineCloudRuleEntity: {
+            enabled: false # Stops the rule from dropping data
+        }
+    ) {
+        entity {
+            id
+            enabled
+        }
+    }
+}
+```
+
+### Reativando uma regra de nuvem [#re-enable-rule]
+
+Quando você atualiza uma regra de `enabled: false` para `enabled: true`, o sistema executa uma verificação interna de direitos para garantir que a reativação seja autorizada. Isso é essencial para manter as políticas operacionais da New Relic.
+
+<Callout variant="important">
+  A verificação de direitos é realizada em relação às seguintes políticas internas: Nome da política: legacy\_drop\_rules\_eol (Linha de produtos: genérica) Nome da política: pipeline\_cloud\_drop\_rules\_ccu (Linha de produtos: nr\_queries)
+</Callout>
+
+* Se a regra foi desabilitada por um cliente: A regra será reativada com sucesso.
+* Se a regra foi desabilitada pelo New Relic (por exemplo, política de EOL): a solicitação falhará, a menos que o usuário possua os direitos internos necessários para substituir a política.
+
+```graphql
+mutation UpdatePipelineCloudRule {
+    updatePipelineCloudRule(
+        id: "MTAyNTY1MHxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5ODgwOTUtMmZjNC03MTQ3LTkxMjQtZDk3YjhiY2Y4NGNj"
+        pipelineCloudRuleEntity: {
+            enabled: true # Re-activates the rule
+        }
+    ) {
+        entity {
+            id
+            enabled
+        }
+    }
+}
+```
+
+### Verifique a atualização
+
+* **Verifique a resposta da API:** O objeto de entidade na resposta refletirá o nome atualizado, a descrição, o NRQL e o status habilitado.
+
+* **Monitore seus dados:** envie novos dados que seriam afetados pela regra e confirme se o comportamento de descarte mudou conforme o esperado. Por exemplo, se você mudou de descartar attr1 para attr2, certifique-se de que attr1 agora foi ingerido e que attr2 não está mais aparecendo.
+
+## Excluir uma regra cloud [#delete-rule]
+
+```graphql
+mutation {
+  entityManagementDelete(id: "MTAyNTY1MHxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5NWI0NDYtNjk5My03NGE5LWEyYjktMzBjMzQ1ODM0NTUz") {
+    id
+  }
+}
+
+```
+
+## Ver regras cloud [#view-rules]
+
+Obtenha uma única regra cloud :
+
+```graphql
+{
+  actor {
+    entityManagement {
+      entity(id: "MTAyNTY1MHxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5NWI0M2UtYmFhNy03NDk3LWI0N2ItNjUyMmEzZDFmZTFi") {
+        id
+        ... on EntityManagementPipelineCloudRuleEntity {
+          id
+          name
+          description
+          nrql
+          enabled
+          metadata {
+            createdBy {
+              id
+            }
+            createdAt
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Listar todas as regras cloud :
+
+```graphql
+{
+  actor {
+    entityManagement {
+      entitySearch(query: "type = 'PIPELINE_CLOUD_RULE'") {
+        entities {
+          id
+          type
+          ... on EntityManagementPipelineCloudRuleEntity {
+            id
+            name
+            nrql
+            enabled
+          }
+          metadata {
+            createdBy {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+```
+
+## Evento e atributo não dropáveis [#non-droppable-data]
+
+Você não pode descartar o seguinte evento e atributo usando regras cloud :
+
+<CollapserGroup>
+  <Collapser id="prohibited-events" title="Evento não dropável">
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Tipo de evento
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NrAuditEvent`
+          </td>
+
+          <td>
+            Informações importantes de auditoria sobre o uso da API que não podem ser descartadas.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NrIntegrationError`
+          </td>
+
+          <td>
+            Informações importantes sobre problemas entre você e a New Relic.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser id="prohibited-attributes" title="Atributo não droppable">
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Atributo
+          </th>
+
+          <th>
+            Descrição
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Qualquer atributo prefixado 
+
+            `nr.`
+          </td>
+
+          <td>
+            Usado internamente pela New Relic
+          </td>
+
+          <td />
+        </tr>
+
+        <tr>
+          <td>
+            `timestamp`
+          </td>
+
+          <td>
+            Integral a todos os tipos de dados
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `appId`
+          </td>
+
+          <td>
+            Integral a todos os tipos de dados
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `metricName`
+          </td>
+
+          <td>
+            Integral ao tipo de dado métrico
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `instrumentation.provider`
+          </td>
+
+          <td>
+            Usado para dados de cobrança e uso
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Eliminar atributo em rollups de métricas dimensionais [#drop-attributes-on-dimensional-metric-rollups]
+
+[Métrica dimensional](/docs/data-apis/understand-data/new-relic-data-types/#metrics-conceptual) métrica agregada em rollups para armazenamento de longo prazo e como forma de otimizar consultas de longo prazo. [Os limites de cardinalidade métrica](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes) são aplicados a esses dados.
+
+Você pode usar este recurso para decidir qual atributo você não precisa para armazenamento e consulta de longo prazo, mas gostaria de manter para consultas em tempo real.
+
+Por exemplo, adicionar `containerId` como um atributo pode ser útil para resolução de problemas em tempo real ou análise recente, mas pode não ser necessário ao consultar tendências maiores durante longos períodos de tempo. Devido ao quão único algo como `containerId` pode ser, ele pode levá-lo rapidamente aos [limites de cardinalidade métrica](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes) que, quando atingido, interrompe a síntese de rollups para o restante daquele dia UTC.
+
+Esse recurso também permite manter a [cardinalidade alta](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/) atributo nos dados brutos e removê-la dos rollups, o que lhe dá mais controle sobre a rapidez com que você se aproxima dos limites de cardinalidade.
+
+### Uso
+
+<DNT>**Drop attributes from dimensional metrics rollups**</DNT> (com filtro opcional). Isso usa NRQL do formato:
+
+```sql
+DELETE dropAttr1, dropAttr2 FROM MetricAggregate (WHERE OPTIONAL_FILTER)
+```
+
+Aqui está um exemplo de solicitação do NerdGraph:
+
+```graphql
+mutation {
+  entityManagementCreatePipelineCloudRule(
+    pipelineCloudRuleEntity: {
+      description: "We don't care about targetAttr in the test environment in dimensional metric rolloups, let's drop those attributes",
+      name: "Drop targetAttr from Metric aggregate rollups in test environment",
+      nrql: "DELETE targetAttr FROM MetricAggregate WHERE environment = 'test'",
+      scope: {
+        id: "your_nr_account_id",
+        type: ACCOUNT
+      }
+    }
+  ) {
+    entity {
+      id
+      name
+      nrql
+      enabled
+    }
+  }
+}
+```
+
+Para verificar se está funcionando, aguarde de 3 a 5 minutos para que a regra seja escolhida e os dados agregados sejam gerados. Então, assumindo que o NRQL de exemplo acima é sua regra cloud de controle de pipeline, execute a seguinte consulta:
+
+```sql
+SELECT count(targetAttr) FROM Metric WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago
+SELECT count(targetAttr) FROM MetricRaw WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago
+```
+
+A primeira consulta recupera rollups métricos e deve cair para 0, pois `containerId` foi descartado de acordo com a nova regra de descarte. A segunda consulta recupera dados brutos métricos usando o tipo de evento `MetricRaw` e deve continuar estável, pois os dados brutos não são afetados pela nova regra de descarte. Para mais informações sobre como ver o impacto que isso terá na sua cardinalidade, confira [Entender e consultar cardinalidade alta métrica](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics).
+
+### Restrições
+
+Todas as restrições que se aplicam às regras de descarte de atributos se aplicam às regras de descarte de atributos de agregação métrica dimensional com a restrição adicional de que você só pode destino o tipo de dados `MetricAggregate` . Eles também não funcionam em `Metric` dados de consulta de segmentação criados por um [evento para regra métrica](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics) ou em `Metric` [dados de consulta de segmentação da fração de tempo](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql).
+
+## Saber mais
+
+Recomendações para aprender mais:
+
+* [Noções básicas e terminologia do NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph#terminology)
+* [Noções básicas de NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)
+* Navegue pelo [Fórum de Suporte](https://discuss.newrelic.com/c/telemetry-data-platform/dashboards) para discussões da comunidade sobre regras cloud .
+* Para um mergulho profundo na gestão da ingestão de dados para uma organização complexa, consulte [a governação da ingestão de dados](/docs/new-relic-solutions/observability-maturity/operational-efficiency/intro-data-governance).

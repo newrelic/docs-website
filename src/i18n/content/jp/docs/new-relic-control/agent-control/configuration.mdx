@@ -1,0 +1,1124 @@
+---
+title: 設定の管理
+metaDescription: Overview of the Agent Control configuration
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  Agent Control と New Relic Control が Kubernetes で**一般提供され**ました。Linux ホストのサポートも、弊社の**プレリリース ポリシー**に従って[パブリック プレビュー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)プログラムで提供されます。
+</Callout>
+
+Agent Control 、展開されている環境に依存しない設定のためのシームレスなアプローチを提供します。 エージェント設定の管理には 2 つの方法があります。
+
+* **ローカル設定:**初期Helmインストレーション中に使用される包括的な`values.yaml`ファイル。
+
+* **リモート設定:** New Relic Control で作成する集中型の YAML ベースの設定で、フリート全体にリモートで展開されます。
+
+日常の管理にはリモート設定が推奨されます。 これにより、環境全体で一貫したエージェントの動作が保証され、変更管理が簡素化され、各ホスト上のローカル YAML ファイルを手動で更新することなくスケーリングが可能になります。
+
+<Callout variant="tip">
+  従来New Relicエージェント設定を定義していた`values-newrelic.yaml`ファイルには、 Agent Controlの設定も含まれるようになりました。 このファイルで定義する問題により、 Agent Controlとその管理対象エージェントの両方がどのように動作するかが決まります。 このファイルはローカル設定と呼ばれます。
+</Callout>
+
+## 設定の 2 つの層を理解する
+
+Agent Controlの設定は 2 つの層で構成されています。
+
+1. **Agent Controlのコア設定:**これらは、 New Relicへの接続、ID、フリート管理の詳細など、 Agent Control動作を制御する最上位の設定です。
+
+2. **管理エージェントの設定:**これらは、 Agent Controlコントロール デプロイが管理する各サブエージェント (インフラストラクチャエージェント、 Fluent Bitなど) の個別の`chart_values`です。
+
+ローカル設定とリモート設定の両方が存在する場合、 Agent Control次のロジックを適用します。
+
+1. リモート設定が優先されます。 New Relic Control からのリモート構成で定義された設定は、ローカル`values.yaml`ファイル内の対応する設定を上書きします。
+2. リモート設定をローカル設定で意図的にオーバーライドするには、 New Relic Control を介して空のリモート設定をデプロイできます。 この変更は、選択したフリート内のすべてのクラスターに適用されます。
+
+## Kubernetes設定
+
+これらの手順と例は、 Kubernetesクラスタ上で実行されているAgent Controlに適用されます。
+
+### Kubernetesのローカル`values.yaml`設定
+
+インストール中に使用されるKubernetesのローカル設定ファイルには、 Agent Controlとその管理対象エージェントのすべての設定が含まれています。
+
+この例では、1 つのファイル内に 2 つの設定レイヤーを示します。
+
+<CollapserGroup>
+  <Collapser id="agent-control-config" title="Agent Control設定">
+    ```yaml
+    # Layer 1: Agent Control's Core Configuration
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+      userKey: "YOUR_USER_KEY"
+
+    # Values related to the Agent Control's Helm chart release.
+    # `https://github.com/newrelic/helm-charts/blob/master/charts/agent-control-bootstrap/values.yaml`
+    agent-control-deployment:
+      identityClientId: ""
+      identityClientSecret: ""
+      config:
+        fleet_control:
+          # Optional: Specify a fleet_id (entity guid) to automatically connect to an existing fleet.
+          fleet_id: ""
+          auth:
+            # New Relic organization ID where agent will connect to.
+            organizationId: "YOUR_ORGANIZATION_ID"
+
+        # Layer 2: Managed Agents' Configurations
+        # List of managed agents that will be deployed. The key represents the name of the agent and the value holds the configuration.
+        subAgents:
+          infrastructure:
+            type: newrelic/com.newrelic.infrastructure:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle`
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+              chart_values:
+                newrelic-infrastructure:
+                enableProcessMetrics: true
+          logs:
+            type: newrelic/io.fluentbit:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging`
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+              chart_values:
+                newrelic-logging:
+                  sendMetrics: true
+          agent-operator:
+            type: com.newrelic.k8s_agent_operator:0.1.0
+            content:
+              chart_version: "*"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+このサンプルでは、Agent Control インフラストラクチャエージェントと転送ログ用の 2 つのマネージド エージェントとともにKubernetes Fluent Bitを構成する方法を示します。たとえば、 Fluent Bit Collector にヘルス メトリクスを送信したくない場合は、インストール コマンドを実行する前に YAML ファイルに`sendMetrics: false`を設定するだけです。
+
+### Kubernetesのリモート設定
+
+リモート設定により、環境全体でエージェントの一貫した動作が保証され、変更管理が簡素化され、ローカル YAML ファイルを手動で管理することなく監視を拡張できるようになります。
+
+プロイ設定をクラスタ全体で一元的に展開するには、 の** Configurations** \[設定][Fleet Control](/docs/new-relic-control/fleet-control/overview) セクションでこれと同じ YAML コンテンツを定義します。その後、その設定をリモート展開の一部としてクラスタのフリート全体に適用できます。 これは**リモート設定**ファイルと呼ばれます。
+
+<Callout variant="tip">
+  New Relic Control UIで設定を定義する場合、YAML 構造は異なります。 単一のエージェントの`content`ブロックに対応する YAML のみを提供します。
+</Callout>
+
+### サンプル設定: KubernetesでのAgent Control
+
+設定: Kubernetes上のAgent Control次の例は、さまざまなエージェント セットを管理するようにAgent Controlを構成する方法を示しています。 これらの設定は、初期導入中、またはFleet Controlのリモート設定の一部として使用できます。
+
+利用可能なすべての構成設定を確認するには、 [`values-newrelic.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control-bootstrap/values.yaml)を参照してください。
+
+次の例は、ローカル`values.yaml`ファイルを使用してサブエージェントのセットでAgent Controlを構成する方法を示しています。
+
+#### New Relic InfrastructureとFluent BitによるAgent Control
+
+この例では、インフラストラクチャ監視とログ収集用の 備えたデプロイAgent Control Fluent Bit使用します。
+
+<CollapserGroup>
+  <Collapser id="agent-control-config" title="インフラストラクチャと Fluent Bit のローカル構成">
+    ```yaml
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+      userKey: "YOUR_USER_KEY"
+
+    # See `https://github.com/newrelic/helm-charts/blob/master/charts/agent-control-bootstrap/values.yaml`
+    agent-control-deployment:
+      identityClientId: ""
+      identityClientSecret: ""
+      config:
+        fleet_control:
+          # Optional
+          # fleet_id: YOUR_FLEET_ENTITY_GUID
+          auth:
+            organizationId: "YOUR_ORGANIZATION_ID"
+        subAgents:
+          infrastructure:
+            type: newrelic/com.newrelic.infrastructure:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle`
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+
+              #chart_values:
+              #  newrelic-infrastructure:
+              #    enableProcessMetrics: true
+          logs:
+            type: newrelic/io.fluentbit:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging`
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+
+              #chart_values:
+              #  newrelic-logging:
+              #    sendMetrics: true
+          agent-operator:
+            type: com.newrelic.k8s_agent_operator:0.1.0
+            chart_version: "*"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### OpenTelemetryおよびカスタム コレクター設定を使用したAgent Control
+
+OpenTelemetry とカスタム コレクター設定を使用した例 この例では、New Relic ディストリビューションの OpenTelemetry (NRDOT) コレクターを使用して Agent Control をデプロイし、管理対象の[`nr-k8s-otel-collector` Helm チャート](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector#values)で`filelog`レシーバーを無効にします。
+
+<Callout variant="important">
+  セキュリティのベスト プラクティス: ライセンスキーなどの機密性の高い値を設定に直接保存しないでください。 Kubernetes シークレットの使用をお勧めします。Agent Control 、実行時にシークレットからこれらの値を安全に取得できます。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="otel-config" title="OpenTelemetry設定">
+    ```yaml
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+    # Values related to the Agent Control's Helm chart release.
+    # `https://github.com/newrelic/helm-charts/blob/master/charts/agent-control-bootstrap/values.yaml`
+    agent-control-deployment:
+      identityClientId: ""
+      identityClientSecret: ""
+      config:
+        fleet_control:
+          # Optional: Specify a fleet_id (entity guid) to automatically connect to an existing fleet.
+          fleet_id: ""
+          auth:
+            # New Relic organization ID where agent will connect to.
+            organizationId: "YOUR_ORGANIZATION_ID"
+
+        # List of managed agents that will be deployed. The key represents the name of the agent and the value holds the configuration.
+        subAgents:
+          infrastructure:
+            type: newrelic/com.newrelic.infrastructure:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle%60
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+          agent-operator:
+            type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
+            content:
+              chart_version: "*"
+          fluentbit:
+            type: newrelic/io.fluentbit:0.1.0
+            content:
+              # Ref: `https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging`
+              # Recommended: check and define an explicit chart version (latest stable)
+              chart_version: "*"
+              chart_values:
+                global:
+                  lowDataMode: true
+          prometheus:
+            type: newrelic/com.newrelic.prometheus:0.1.0
+            content:
+              chart_version: "*"
+              chart_values:
+                global:
+                  lowDataMode: true
+                newrelic-prometheus-agent:
+                  config:
+                    kubernetes:
+                      integrations_filter:
+                        enabled: false
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### サンプル設定: Kubernetesでのリモートエージェント設定
+
+次の例は、**New Relic Control** UI から個々のエージェントをリモートで構成する方法を示しています。
+
+#### リモート設定: New Relicインフラストラクチャ
+
+この例では、New Relic Kubernetesを使用して の Infrastructure エージェントをリモートで設定する方法を示します。Fleet Control`enableProcessMetrics: true`設定することでプロセス メトリクス収集を有効にします。
+
+<CollapserGroup>
+  <Collapser id="infra-remote-config" title="インフラストラクチャリモート設定">
+    ```yaml
+    chart_version: "*"
+    chart_values:
+      newrelic-infrastructure:
+        enableProcessMetrics: true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### リモート設定: Fluent Bit
+
+この例では、Fleet Control を介して Fluent Bit をリモートで構成しました。`sendMetrics: true`設定すると、ログコレクターからのヘルス メトリクス レポートが有効になります。
+
+<CollapserGroup>
+  <Collapser id="fluentbit-remote-config" title="Fluent Bit設定">
+    ```yaml
+    chart_version: "*"
+    chart_values:
+      newrelic-logging:
+        sendMetrics: true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### リモート設定: Prometheus
+
+この例では、Fleet Control を使用して Prometheus エージェントをリモートで構成します。これにより、 `low-data mode`テレメトリーの音量を下げ、デフォルトの統合を無効にすることができます。
+
+<CollapserGroup>
+  <Collapser id="prometheus-config" title="プロメテウスの設定">
+    ```yaml
+    chart_version: "*"
+    chart_values:
+      newrelic-prometheus-agent:
+        lowDataMode: true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### リモート設定: OpenTelemetry
+
+この例では、New Relic OpenTelemetry コレクターを設定し、 `lowDataMode`有効なオプションとして有効にします。
+
+<Callout variant="important">
+  セキュリティのベスト プラクティス: ライセンスキーなどの機密性の高い値を設定に直接保存しないでください。 Kubernetes シークレットの使用をお勧めします。Agent Control 、実行時にシークレットからこれらの値を安全に取得できます。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="otel-config" title="OpenTelemetryリモート設定">
+    <Callout variant="important">
+      Kubernetesシークレットを作成してNew Relicライセンスキーを安全に保存し、それを`licenseKey`値の代わりに`chart_values`で使用します。
+
+      ```yaml
+      customSecretName: "your-secret-name"
+      customSecretLicenseKey: "your-secret-key"
+      ```
+    </Callout>
+
+    Fleet Controlを使用して、フリート全体でOpenTelemetry設定を定義およびデプロイすることをお勧めします。 OpenTelemetryリモートで構成するには、以下に示す構造でFleet Controlに設定を作成します。 必要に応じて、 `lowDataMode`や`receivers.filelog.enabled`などの値を調整し、その他の関連する Helm チャート設定を含めることができます。
+
+    ```yaml
+    chart_version: "*"
+    chart_values:
+      newrelic-prometheus-agent:
+        lowDataMode: true
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Kubernetesのプロキシ設定
+
+Agent Control 、トラフィックを企業プロキシ経由でルーティングするためのプロキシ設定をサポートします。 プロキシ設定は、環境変数を通じて、または構成ファイルで直接設定できます。
+
+#### プロキシの優先順位
+
+Agent Control次の優先順位でプロキシ設定を使用します。
+
+1. `proxy` Agent Control設定の設定フィールド
+2. `HTTP_PROXY` 環境変数
+3. `HTTPS_PROXY` 環境変数
+
+#### 自己署名証明書を使用したプロキシ設定
+
+自己署名証明書による HTTPS 認証を使用するプロキシ設定の場合、CA 証明書バンドルを提供し、プロキシ認証を構成する必要があります。
+
+<CollapserGroup>
+  <Collapser id="k8s-proxy-config" title="Kubernetesプロキシ設定例">
+    ```yaml
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+
+    agent-control-deployment:
+      config:
+        agentControl:
+          content:
+            proxy:
+              url: https://proxy-service:8080
+        subAgents: {}
+
+      # Mount CA certificate bundle to Agent Control
+      extraVolumeMounts:
+        - mountPath: /etc/ssl/certs/
+          name: ca-certs
+      extraVolumes:
+        - name: ca-certs
+          secret:
+            secretName: ca-certs
+
+    # Configure Flux components to use proxy
+    agent-control-cd:
+      flux2:
+        sourceController:
+          extraEnv:
+            # Configure Flux source-controller to proxy all requests
+            - name: HTTPS_PROXY
+              value: https://proxy-service:8080
+            # Except for in-cluster requests
+            - name: "NO_PROXY"
+              value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+          volumeMounts:
+            # Mount CA certificate bundle to source-controller trust root store. The bundle should contain the
+            # proxy CA cert.
+            - mountPath: /etc/ssl/certs/
+              name: ca-certs
+          volumes:
+            - name: ca-certs
+              secret:
+                secretName: ca-certs
+
+
+    ```
+  </Collapser>
+</CollapserGroup>
+
+#### マネージドエージェント用プロキシ設定
+
+<Callout variant="caution">
+  Agent Controlでプロキシを構成しても、管理するエージェントに対して同じプロキシ設定が自動的に構成されるわけではあり**ません**。 各エージェントには独自のプロキシ設定があり、そのエージェント固有の設定形式と要件に従って個別に設定する必要があります。
+</Callout>
+
+プロキシを使用する場合は、管理対象エージェントごとにプロキシ設定を個別に構成する必要があります。プロキシ設定オプションについては、各エージェントの固有のドキュメントを参照してください。
+
+### 秘密管理
+
+Agent Control専用のシークレット プロバイダーからパスワードやAPIキーなどの機密データを取得して管理するための堅牢なメカニズムを提供します。 これにより、機密情報が設定ファイルに直接ハードコードされなくなります。 システムは現在、次のシークレット プロバイダーをサポートしています。
+
+* HashiCorp Vault: 設定では`nr-vault`と呼ばれます。
+* Kubernetes Secrets: 設定では`nr-kubesec`と呼ばれます。
+
+### 設定でシークレットを定義する
+
+シークレットを利用するには、次の手順に従って、 Agent Control設定 YAML ファイル内でシークレットを定義します。
+
+1. **`secrets_providers`セクションを定義します。**このセクションでシークレット プロバイダーを集中的に構成します。各エントリがサポートされているプロバイダーに対応していることを確認します。
+2. **シークレット ソースを構成する:**プロバイダーごとに、1 つ以上のソースを指定します。ソースには、 Agent Controlが接続してシークレットのグループを取得するために必要な設定の詳細 (URL、ウイルスなど) が含まれています。
+3. **エージェント設定でプレースホルダーを使用する:**実際の機密データの代わりに、エージェントの設定内でプレースホルダー文字列を使用します。 Agent Controlレンダリング プロセス中にこれらのプレースホルダーを取得したシークレットに自動的に置き換えます。
+
+<Callout variant="important">
+  Agent Controlシークレットの取得に失敗した場合、設定のレンダリングは失敗し、エージェントは実行されません。 これは、エージェントが不完全または間違った設定で実行されるのを防ぐための重要なセキュリティ機能です。
+</Callout>
+
+次のAgent Control設定の例は、 `secrets_providers`セクション内の 2 つの Vault ソースからシークレットを取得する方法を示しています。
+
+```yaml
+secrets_providers:
+  vault:
+    sources:
+      local-instance:
+        url: http://localhost:8200/v1/
+        token: root
+        engine: kv2
+      remote:
+        url: http://my-remote-server:8200/v1/
+        token: root
+        engine: kv1
+
+fleet_control:
+  ...
+
+agents:
+  ...
+```
+
+#### エージェント設定でのシークレットの使用
+
+ソースを定義した後、正しいパスを持つ特定のプレースホルダー構文を使用して、エージェント設定でシークレットを参照できます。 Agent Controlシークレットを取得し、それを使用してエージェントが使用する最終設定ファイルをレンダリングします。
+
+プレースホルダーでシークレットを使用したエージェント設定の例:
+
+```yaml
+config_agent:
+  enable_process_metrics: true
+  custom_attributes:
+    username: "${nr-vault:local-instance:secret:my_secret:username}"
+    organization: "${nr-vault:remote:my_mount:my_path:organization}"
+```
+
+この例では
+
+プレースホルダー`${nr-vault:local-instance:secret:my_secret:username}`は、ローカル インスタンス シークレット プロバイダー ソースを使用して、パス`secret/my_secret`のシークレットからキー`username`に関連付けられた値を取得するようにAgent Controlに指示します。 プレースホルダー`${nr-vault:remote:my_mount:my_path:organization}`も同様に、リモート ソースから`organization`キーの値を取得します。
+
+取得に成功すると、 Agent Control指定されたソースとパスからこれらのシークレットをレンダリングし、その結果をKubernetesシークレットまたはプライベート構成ファイルに保存して、対応するエージェントが使用できるようにします。
+
+### ヴォールトの秘密
+
+HashiCorp Vault ソースを次の設定でセットアップします。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        YAMLキー
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+      </td>
+
+      <td>
+        データを要求するURL
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `token`
+      </td>
+
+      <td>
+        エンドポイントへの認証に使用されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `engine`
+      </td>
+
+      <td>
+        **`kv1`**または**`kv2`**を指定します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+構成ファイルでは、次のプレースホルダーを設定することで、Vault に保存されている各シークレットにアクセスできます。
+
+* **source\_name** : `secrets_providers`で定義された Vault ソースの名前。
+* **mount \[マウント]**: シークレットエンジンマウントの名前。
+* **path** : シークレットへの特定のパス。
+* **specific key \[特定のキー]**: 取得するシークレット内の特定のキー。
+
+完全なプレースホルダー形式の例:
+
+```
+"${nr-vault:source_name:my_mount:my_path:my_value}"
+```
+
+### Kubernetesの秘密
+
+エージェント コントロール ポッドが、サービス アカウントやロールベースのアクセス コントロール (RBAC) などを介して、必要なシークレットとネームスペースにアクセスする権限を持っている場合、 Agent Control 、別のソース設定を必要とせずに、 Kubernetes APIからシークレットに直接アクセスできます。
+
+エージェント設定ファイルで、次のように指定して、プレースホルダーを使用して各シークレット値を取得します。
+
+* **namespace \[ネームスペース]**: シークレットが存在するKubernetesネームスペース。
+* **name** : Kubernetes シークレット オブジェクトの名前。
+* **specific key \[特定のキー]**: 値を取得するシークレット内の特定のキー。
+
+たとえば、次のプレースホルダー形式を使用します。
+
+```
+"${nr-kubesec:my_namespace:my_secret:my_value}"
+```
+
+### プライベートリポジトリ設定
+
+Agent Control は、Agent Control 自体と管理対象エージェントの両方をデプロイするためのプライベート Helm リポジトリの構成をサポートしています。これにより、New Relic Helm チャートに直接アクセスできない環境が可能になります。
+
+<Callout variant="caution">
+  プライベート Helm リポジトリを使用する場合、チャートは互換性があり、チャート内の参照イメージにアクセスできる必要があります。そうしないと、エージェントは期待どおりに動作しません。
+</Callout>
+
+### 1. エージェントのプライベートリポジトリを有効にする
+
+セキュリティ上の理由から、リモート設定では明示的に有効化されたリポジトリのみが許可されます。 特定のリポジトリを有効にするには、次のようにAgent Control設定を更新します。
+
+<CollapserGroup>
+  <Collapser id="k8s-private-repository-config" title="プライベートリポジトリを有効にする">
+    ```yaml
+    # values-newrelic.yaml
+
+    global:
+      cluster: "YOUR_CLUSTER_NAME"
+      licenseKey: "YOUR_LICENSE_KEY"
+
+    # ...
+
+    agent-control-deployment:
+      config:
+        allowedChartRepositoryUrl:
+          - https://my-private-repository-1
+          - https://my-private-repository-2
+        # ...
+    ```
+  </Collapser>
+</CollapserGroup>
+
+許可されたリポジトリ設定は、 New Relic Control 内のリモート設定で使用できるようになります。 例：
+
+```yaml
+chart_version: "1.2.3"
+chart_repository:
+  url: "https://my-private-repository-1"
+  name: "my-chart-name" # Optional: use only if the chart name doesn't match New Relic's chart name
+```
+
+さらに、 `agent-control-bootstrap`チャート自体がプライベート リポジトリにある場合は、プライベート リポジトリを使用するようにAgent ControlのHelmを構成する必要があります。 マネージドエージェントの設定とは別のものです。 `agent-control-bootstrap` Helm チャート[values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/agent-control-bootstrap/values.yaml)を参照して、 `installationJob`セクションを次のように構成します。
+
+* `chartRepositoryUrl`: リポジトリの場所を含む URL。
+* `name`: 別のチャート名を使用している場合はチャート名。
+* `repositorySecretReferenceName` および`repositoryCertificateSecretReferenceName` : リポジトリへの認証に必要なシークレット。詳細については、以下の認証セクションを参照してください。
+
+### 2. プライベートリポジトリの認証を設定する
+
+プライベート リポジトリにアクセスするための認証を有効にするには、次のように追加のリソースを設定する必要があります。
+
+<CollapserGroup>
+  <Collapser id="k8s-private-repository-basic-auth" title="基本認証">
+    基本認証 (ユーザー名とパスワード) を使用して認証するには、 Agent Controlネームスペースに、 `data.username`および`data.password`の予想される値を含むシークレットを作成する必要があります。
+
+    例：
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+    stringData:
+      username: "myUser"
+      password: "myPassword"
+    ```
+
+    詳細については、 [Flux のドキュメント](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference)を参照してください。
+
+    基本認証を使用する場合、リモート設定は次のように構成する必要があります。
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      secret_reference:
+        name: my-secret
+    ```
+  </Collapser>
+
+  <Collapser id="k8s-private-repository-tls-cert" title="TLS証明書認証">
+    TLS を使用して認証するには、次の内容を含むシークレットを作成する必要があります。
+
+    * `tls.crt` および`tls.key` : TLSクライアント認証に使用されるクライアント証明書と秘密鍵
+    * `ca.crt`: サーバーの検証に使用される CA 証明書 (サーバーが自己署名証明書を使用する場合に必要)
+
+    Secret のタイプは`Opaque`または`kubernetes.io/tls`である必要があります。Secret 内のすべてのファイルは PEM でエンコードされている必要があります。
+
+    例：
+
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-secret
+      namespace: newrelic-agent-control
+    type: kubernetes.io/tls # or Opaque
+    data:
+      tls.crt: <BASE64>
+      tls.key: <BASE64>
+      # NOTE: Can be supplied without the above values
+      ca.crt: <BASE64>
+    ```
+
+    詳細については、 [Flux のドキュメント](https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference)を参照してください。
+
+    TLS 証明書認証を使用する場合、リモート設定は次のように構成する必要があります。
+
+    ```yaml
+    chart_repository:
+      url: "https://my-private-repository-1"
+      certificate_secret_reference:
+        name: my-secret
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Linuxの設定
+
+Agent Control設定のデフォルト パスは次のとおりです。
+
+* `Local` 設定ファイル: `/etc/newrelic-agent-control/config.yaml`
+* `Remote` 設定ファイル: `/var/lib/newrelic-agent-control/config.yaml` ( Fleet Controlデプロイメント経由で有効な場合)
+* サービス定義: `/lib/systemd/system/newrelic-agent-control.service`
+* サービス環境ファイル: `/etc/newrelic-agent-control/newrelic-agent-control.conf`
+
+デフォルトでは、エージェントはインフラストラクチャエージェントとOpenTelemetryを調整します。
+
+```yml
+# Configures the integration with Fleet Control
+fleet_control:
+  # EU region? Use: https://opamp.service.eu.newrelic.com/v1/opamp
+  endpoint: https://opamp.service.newrelic.com/v1/opamp
+  headers:
+    api-key: YOUR_INGEST_KEY
+  auth_config:
+    # EU region? Use: https://system-identity-oauth.service.eu.newrelic.com/oauth2/token
+    token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
+    client_id: "YOUR_CLIENT_ID
+    provider: "local"
+    private_key_path: "path/to/key"
+
+# Configures the agents to be supervised by Agent Control
+agents:
+  # Agent name (RFC-1035 valid label)
+  nr-infra-agent:
+    # The supported agent type and agent type version
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  nr-otel-collector:
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+```
+
+監視要件に基づいて、いずれかのエージェントの名前を変更または削除できます。 エージェント名は[有効な RFC-1035](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names)ラベル名である必要があります。
+
+環境変数を使用してエージェント設定を定義することもできます。
+
+* メインのAgent Control設定をターゲットにするには、 `NR_` (単一のアンダースコア) プレフィックスを使用します。
+* Agent Controlで使用可能な設定を対象にするには、 `__` (二重アンダースコア) を使用します。 これは、アンダースコアを含む設定キーとの衝突を避けるために必要です。
+* 環境変数はローカル設定ファイルよりも優先されます。 リモート設定が有効になっている場合、環境変数は考慮されません。
+* たとえば、 `fleet_control::endpoint`動的な設定を定義するには、サービス定義ファイルに`NR_FLEET_CONTROL__ENDPOINT=https://opamp.service.newrelic.com/v1/opamp`を追加します。
+
+### エージェントの設定
+
+```
+agents:
+  # Agent name (RFC-1035 valid label)
+  nr-infra-agent:
+    # The supported agent type and agent type version
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  nr-otel-collector:
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+```
+
+監視要件に基づいて、いずれかのエージェントの名前を変更または削除できます。 エージェント名は[有効な RFC-1035](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names)ラベル名である必要があります。
+
+環境変数を使用してエージェント設定を定義することもできます。
+
+* メインのAgent Control設定をターゲットにするには、 `NR_` (単一のアンダースコア) プレフィックスを使用します。
+* Agent Controlで使用可能な設定を対象にするには、 `__` (二重アンダースコア) を使用します。 これは、アンダースコアを含む設定キーとの衝突を避けるために必要です。
+* 環境変数はローカル設定ファイルよりも優先されます。 リモート設定が有効になっている場合、環境変数は考慮されません。
+* たとえば、 `fleet_control::endpoint`動的な設定を定義するには、サービス定義ファイルに`NR_FLEET_CONTROL__ENDPOINT=https://opamp.service.newrelic.com/v1/opamp`を追加します。
+
+### エージェントを構成する [#agents-config]
+
+Agent Control現在、次の事前定義されたオンホスト エージェント タイプを管理できます。
+
+* New Relicインフラストラクチャ エージェント: `newrelic/com.newrelic.infrastructure` 。 FluentBit[ に基づく](/docs/infrastructure/infrastructure-monitoring/get-started/get-started-infrastructure-monitoring) [オンホスト インワー テグレーションやログフォダー](/docs/infrastructure/host-integrations/get-started/introduction-host-integrations/)[ インテグレーションのオーケストレーションなど、インフラストラクチャ](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) エージェント の 既存の機能がすべてサポートされています。
+* OpenTelemetry の New Relic ディストリビューション: `newrelic/com.newrelic.opentelemetry.collector`
+
+各エージェント タイプには、その動作に合わせてカスタマイズできるオプションの変数のセットが用意されています。エージェントのローカル設定をカスタマイズするには:
+
+1. `values.yml`ファイルを作成します: このファイルには必要な設定値が含まれます。
+2. `values.yml`ファイルを`/etc/newrelic-agent-control/fleet/agents.d/YOUR-AGENT-NAME/values/`ディレクトリに配置します。ここで、 `YOUR-AGENT-NAME`エージェントの実際の名前です (例: `nr-infra-agent` )。
+
+最新のエージェント タイプ バージョンで使用可能な変数のリストは次のとおりです。
+
+* New Relicインフラストラクチャ エージェント: `0.1.0`
+* OpenTelemetry の New Relic ディストリビューション: `0.1.0`
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        エージェントタイプ
+      </th>
+
+      <th>
+        変数
+      </th>
+
+      <th>
+        タイプ
+      </th>
+
+      <th>
+        デフォルト
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `com.newrelic.infrastructure`
+      </td>
+
+      <td>
+        `config_agent`
+      </td>
+
+      <td>
+        インフラストラクチャエージェント設定を含む YAML
+      </td>
+
+      <td>
+        （空の）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `com.newrelic.infrastructure`
+      </td>
+
+      <td>
+        `config_integrations`
+      </td>
+
+      <td>
+        オンホストインテグレーション設定を含む YAML マップ (キーはファイル名)
+      </td>
+
+      <td>
+        （空の）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `com.newrelic.infrastructure`
+      </td>
+
+      <td>
+        `config_logging`
+      </td>
+
+      <td>
+        ログ転送設定を含む YAML マップ (キーはファイル名)
+      </td>
+
+      <td>
+        （空の）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `com.newrelic.infrastructure`
+      </td>
+
+      <td>
+        `health_port`
+      </td>
+
+      <td>
+        インフラストラクチャエージェントのローカルステータスサーバー用のポート
+      </td>
+
+      <td>
+        `/health/status`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `com.newrelic.opentelemetry.collector`
+      </td>
+
+      <td>
+        `config`
+      </td>
+
+      <td>
+        OpenTelemetryコレクター設定(YAML形式)
+      </td>
+
+      <td>
+        （空の）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `com.newrelic.opentelemetry.collector`
+      </td>
+
+      <td>
+        `health_check.path` `health_check.port`
+      </td>
+
+      <td>
+        OTel コレクター[ヘルスチェック拡張機能](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration)ローカル http エンドポイントのパスとポート
+      </td>
+
+      <td>
+        `localhost:13133/health/status`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        すべての管理対象エージェント
+      </td>
+
+      <td>
+        `backoff_delay`
+      </td>
+
+      <td>
+        コレクターの起動に失敗した場合の次回の再試行までの時間 (秒単位)。
+      </td>
+
+      <td>
+        `20s`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  サポートされている設定に従って、必要に応じて[インフラストラクチャエージェント設定](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/)と[OpenTelemetry設定](https://docs-preview.newrelic.com/docs/new-relic-distribution-of-opentelemetry#configure)を構成できます。
+</Callout>
+
+### サンプル設定
+
+#### Fleet Controlによるリモート設定
+
+次の例には、 Agent Controlおよびマネージド エージェントの有効な設定としてコピー アンド ペーストできる一般的な使用例が含まれています。
+
+<CollapserGroup>
+  <Collapser id="remote-config-infra-agent" title="インフラエージェント、オンホストインテグレーション、ログフォワーダー (FluentBit 内蔵)">
+    FluentBit 統合のインフラストラクチャエージェント設定、 Redisインテグレーション設定、およびログ転送設定。 有効な`license_key`を持つ`config_agent`は常に必須です。その他のセクションはオプションです (必要に応じて削除または更新します)。
+
+    ```yml
+    config_agent:
+      license_key: YOUR_LICENSE_KEY
+      custom_attributes:
+        env: demo
+    config_integrations:
+      nri-redis-example.yml:
+        integrations:
+          - name: nri-redis
+            env:
+              hostname: localhost
+              port: 6380
+              keys: '{"0":["<KEY_1>"],"1":["<KEY_2>"]}'
+              remote_monitoring: true
+    config_logging:
+      fluentbit-example.yml:
+        logs:
+          - name: syslog
+            file: /var/log/syslog
+            attributes:
+              logtype: linux_syslog
+    ```
+  </Collapser>
+
+  <Collapser id="remote-config-nrdot" title="New Relic OTel コレクター">
+    OTel コレクター (プロセス監視は無効) と、 APMサービスからトレース、メトリクス、ログを受信するために有効になっている OTLP レシーバーを使用した基本的なホスト監視:
+
+    ```yml
+    config:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+            http:
+
+        hostmetrics:
+          collection_interval: 20s
+          scrapers:
+            cpu:
+              metrics:
+                system.cpu.time:
+                  enabled: false
+                system.cpu.utilization:
+                  enabled: true
+            load:
+            memory:
+              metrics:
+                system.memory.utilization:
+                  enabled: true
+            paging:
+              metrics:
+                system.paging.utilization:
+                  enabled: false
+                system.paging.faults:
+                  enabled: false
+            filesystem:
+              metrics:
+                system.filesystem.utilization:
+                  enabled: true
+            disk:
+              metrics:
+                system.disk.merged:
+                  enabled: false
+                system.disk.pending_operations:
+                  enabled: false
+                system.disk.weighted_io_time:
+                  enabled: false
+            network:
+              metrics:
+                system.network.connections:
+                  enabled: false
+
+        filelog:
+          include:
+            - /var/log/syslog
+
+      processors:
+        # group system.cpu metrics by cpu
+        metricstransform:
+          transforms:
+            - include: system.cpu.utilization
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [ state ]
+                  aggregation_type: mean
+            - include: system.paging.operations
+              action: update
+              operations:
+                - action: aggregate_labels
+                  label_set: [ direction ]
+                  aggregation_type: sum
+        # remove system.cpu metrics for states
+        filter/exclude_cpu_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "interrupt"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "nice"'
+              - 'metric.name == "system.cpu.utilization" and attributes["state"] == "softirq"'
+        filter/exclude_memory_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "inactive"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "cached"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "buffered"'
+              - 'metric.name == "system.memory.utilization" and attributes["state"] == "slab_reclaimable"'
+        filter/exclude_memory_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "slab_unreclaimable"'
+              - 'metric.name == "system.memory.usage" and attributes["state"] == "inactive"'
+        filter/exclude_filesystem_utilization:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.utilization" and attributes["type"] == "squashfs"'
+        filter/exclude_filesystem_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.usage" and attributes["state"] == "reserved"'
+        filter/exclude_filesystem_inodes_usage:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["type"] == "squashfs"'
+              - 'metric.name == "system.filesystem.inodes.usage" and attributes["state"] == "reserved"'
+        filter/exclude_system_disk:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.disk.operations" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.merged" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.io_time" and IsMatch(attributes["device"], "^loop.*") == true'
+              - 'metric.name == "system.disk.operation_time" and IsMatch(attributes["device"], "^loop.*") == true'
+        filter/exclude_system_paging:
+          metrics:
+            datapoint:
+              - 'metric.name == "system.paging.usage" and attributes["state"] == "cached"'
+              - 'metric.name == "system.paging.operations" and attributes["type"] == "cached"'
+        filter/exclude_network:
+          metrics:
+            datapoint:
+              - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
+
+        attributes/exclude_system_paging:
+          include:
+            match_type: strict
+            metric_names:
+              - system.paging.operations
+          actions:
+            - key: type
+              action: delete
+
+        transform:
+          trace_statements:
+            - context: span
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+          log_statements:
+            - context: log
+              statements:
+                - truncate_all(attributes, 4095)
+                - truncate_all(resource.attributes, 4095)
+
+        # used to prevent out of memory situations on the collector
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 100
+
+        batch:
+
+        resourcedetection:
+          detectors: ["env", "system"]
+          system:
+            hostname_sources: ["os"]
+            resource_attributes:
+              host.id:
+                enabled: true
+
+        resourcedetection/cloud:
+          detectors: ["gcp", "ec2", "azure"]
+          timeout: 2s
+          ec2:
+            resource_attributes:
+              host.name:
+                enabled: false
+
+      exporters:
+        otlp:
+          endpoint: otlp.nr-data.net:4317
+          headers:
+            api-key: ${NEW_RELIC_LICENSE_KEY}
+
+      service:
+        pipelines:
+          metrics:
+            receivers: [otlp, hostmetrics]
+            processors:
+              - memory_limiter
+              - metricstransform
+              - filter/exclude_cpu_utilization
+              - filter/exclude_memory_utilization
+              - filter/exclude_memory_usage
+              - filter/exclude_filesystem_utilization
+              - filter/exclude_filesystem_usage
+              - filter/exclude_filesystem_inodes_usage
+              - filter/exclude_system_disk
+              - filter/exclude_network
+              - attributes/exclude_system_paging
+              - batch
+              - resourcedetection
+              - resourcedetection/cloud
+            exporters: [otlp]
+          traces:
+            receivers: [otlp]
+            processors: [transform, resourcedetection, resourcedetection/cloud, batch]
+            exporters: [otlp]
+          logs:
+            receivers: [otlp, filelog]
+            processors: [transform, resourcedetection, resourcedetection/cloud, batch]
+            exporters: [otlp]
+    ```
+  </Collapser>
+
+  <Collapser id="remote-config-agent-control" title="New Relic Agent Control">
+    エージェント (OTel コレクターなど) を無効にする方法を示すAgent Control自体の有効な構成:
+
+    ```yml
+    agents:
+      nr-infra-agent:
+        agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+      #nr-otel-collector:
+      #  agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+    ```
+  </Collapser>
+</CollapserGroup>
