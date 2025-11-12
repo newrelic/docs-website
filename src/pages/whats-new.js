@@ -8,6 +8,8 @@ import {
   Icon,
   Link,
   useTranslation,
+  Callout,
+  ExternalLink
 } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
@@ -39,6 +41,9 @@ const WhatsNew = ({ data, location }) => {
 
   return (
     <ErrorBoundary eventName="whatsNewOverview">
+      <Callout variant="tip">
+          <ExternalLink href="https://onenr.io/0MRNoPKoKjn">See These Updates Directly in the New Relic UI</ExternalLink>
+      </Callout>
       <SEO
         location={location}
         title="What's new in New Relic"

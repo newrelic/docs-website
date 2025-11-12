@@ -7,6 +7,8 @@ import {
   Icon,
   Link,
   useTranslation,
+  Banner,
+  ExternalLink
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
 import { DIRECTION } from '../components/EolTable/TableHeader';
@@ -105,6 +107,9 @@ const Eol = ({ data, location }) => {
 
   return (
     <ErrorBoundary eventName="eolOverview">
+      <Callout variant="tip">
+        <ExternalLink href="https://onenr.io/0MRNoPKoKjn">See These Updates Directly in the New Relic UI</ExternalLink>
+      </Callout>
       <SEO
         location={location}
         title="End-of-life announcements"
