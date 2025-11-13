@@ -22,11 +22,7 @@ The following upgrades will be implemented:
 The following monitor types will be affected by these changes:
 
 * Scripted Browser
-* Step Monitor
-* Simple Browser Monitors
 * Scripted API
-* Cert Check
-* Broken Link
 
 **Note:** Moving to Chrome 140 automatically upgrades to Node.js 22.
 
@@ -55,23 +51,10 @@ In the creation/edit monitor screen, you'll see the ability to select Chrome bro
 * Chrome 134
 * Chrome 140
 
-<img
-  title="Chrome version"
-  alt="Image of the Chrome version changes"
-  src="/images/runtime-synthetic.webp"
-/>
-
 
 ### For other monitor types
 
 Select the runtime in the Configure monitor screen.
-
-<img
-  title="node runtime"
-  alt="Image of the node runtime changes"
-  src="/images/node-synthetic-runtime.webp"
-/>
-
 
 
 
