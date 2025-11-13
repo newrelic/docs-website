@@ -8,7 +8,7 @@ When a log-based alert fires, the race to find the root cause begins. Sifting th
 
 We're excited to introduce **AI Log Alert Summarization (Preview)**, a new feature in our Logs Intelligence suite. Instead of just notifying you of a problem, this feature provides an immediate hypothesis for *why* it's happening.
 
-![](/static/images/AI-Log-Alert-Summarization.webp "AI Log Alert Summarization")
+![AI Log Alert Summarization](/images/AI-Log-Alert-Summarization.webp "AI Log Alert Summarization")
 
 <figcaption>AI Log Alert Summarization in action</figcaption>
 
