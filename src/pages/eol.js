@@ -7,7 +7,6 @@ import {
   Icon,
   Link,
   useTranslation,
-  Banner,
   ExternalLink,
   Callout
 } from '@newrelic/gatsby-theme-newrelic';
