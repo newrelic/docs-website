@@ -8,7 +8,7 @@ Unify your AI agents with a single, standard bridge to your observability data
 
 New Relic is excited to announce that the **New Relic AI Model Context Protocol (MCP) server** is now available in public preview as of **November 4th, 2025**. This update provides a standardized, scalable way to connect your favorite AI development tools directly to the rich context of the New Relic platform, breaking down data silos and accelerating AI-driven operations.
 
-Getting started:
+## Getting started:
 
 Navigate to the **Previews & Trials** page in the New Relic UI and enable the **New Relic AI MCP Server preview**. 
 
