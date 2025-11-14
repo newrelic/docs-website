@@ -8,7 +8,8 @@ import {
   Link,
   useTranslation,
   Banner,
-  ExternalLink
+  ExternalLink,
+  Callout
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
 import { DIRECTION } from '../components/EolTable/TableHeader';
@@ -108,7 +109,8 @@ const Eol = ({ data, location }) => {
   return (
     <ErrorBoundary eventName="eolOverview">
       <Callout variant="tip">
-        <ExternalLink href="https://onenr.io/0MRNoPKoKjn">See These Updates Directly in the New Relic UI</ExternalLink>
+        <p>Did you know? You can get all EOL updates directly in the New Relic UI.</p>
+        <ExternalLink href="https://onenr.io/0OQMm51y9QG">View EOL updates in New Relic UI</ExternalLink>
       </Callout>
       <SEO
         location={location}
@@ -124,6 +126,7 @@ const Eol = ({ data, location }) => {
             align-items: center;
             margin-bottom: 2rem;
             gap: 0.5rem;
+            margin-top: 1rem;
 
             @supports not (gap: 0.5rem) {
               > :first-child {
