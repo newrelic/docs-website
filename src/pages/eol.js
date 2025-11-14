@@ -8,7 +8,7 @@ import {
   Link,
   useTranslation,
   ExternalLink,
-  Callout
+  Callout,
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
 import { DIRECTION } from '../components/EolTable/TableHeader';
@@ -108,8 +108,13 @@ const Eol = ({ data, location }) => {
   return (
     <ErrorBoundary eventName="eolOverview">
       <Callout variant="tip">
-        <p>Did you know? You can get all EOL updates directly in the New Relic UI.</p>
-        <ExternalLink href="https://onenr.io/0OQMm51y9QG">View EOL updates in New Relic UI</ExternalLink>
+        <p>
+          Did you know? You can get all EOL updates directly in the New Relic
+          UI.
+        </p>
+        <ExternalLink href="https://onenr.io/0OQMm51y9QG">
+          View EOL updates in New Relic UI
+        </ExternalLink>
       </Callout>
       <SEO
         location={location}
