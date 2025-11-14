@@ -24,12 +24,12 @@ Based on feedback from our limited preview, we've made key improvements:
   * Detect "noisy neighbor" applications hogging shared resources.
   * Spot Java applications with abnormal Out of Memory (OOM) error rates.
 
-## How to Get Started
+## Get Started
 
-Outlier detection is now available to try in Public Preview.
+Outlier detection is now available to try in public preview.
 
-To create your first condition, navigate to All capabilities > Alerts > Alert Conditions. When you reach the Set thresholds page, simply select the outliers option. You can then choose the new Automatic Mode for simplicity or Manual Mode (DBSCAN) for fine-grained control.
+To create your first condition, navigate to **All capabilities > Alerts > Alert Conditions**. When you reach the **Set thresholds** page, simply select the outliers option. You can then choose the new **Automatic Mode** for simplicity or **Manual Mode (DBSCAN)** for fine-grained control.
 
 Check out our documentation to get started:
 
-[Setup guide] (https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/outlier-detection/)
+[Setup guide](https://docs.newrelic.com/docs/alerts/create-alert/set-thresholds/outlier-detection/)
