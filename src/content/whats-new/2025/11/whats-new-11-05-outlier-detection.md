@@ -1,5 +1,5 @@
 ---
-title: 'New Relic Outlier Detection in Public Preview'
+title: 'New Relic Outlier Detection in public preview'
 summary: 'New Relic Outlier Detection now in Public Preview'
 releaseDate: '2025-11-05'
 ---
@@ -17,14 +17,14 @@ Based on feedback from our limited preview, we've made key improvements:
   * **New 'Auto Mode'**: We've introduced an Automatic mode that dramatically simplifies setup. Just set your desired Sensitivity and New Relic handles the algorithm configuration for you.
   * **Opt-In Required**: For our valued users who participated in the limited preview, please note you will need to opt-in again to access the new Public Preview features.
 
-## Key Use Cases
+## Key use cases
 
   * Find imbalanced Kafka brokers with abnormal CPU I/O wait times.
   * Identify resource utilization outliers (both under- or over-utilized).
   * Detect "noisy neighbor" applications hogging shared resources.
   * Spot Java applications with abnormal Out of Memory (OOM) error rates.
 
-## Get Started
+## Get started
 
 Outlier detection is now available to try in public preview.
 
