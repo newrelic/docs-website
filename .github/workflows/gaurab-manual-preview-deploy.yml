@@ -1,0 +1,72 @@
+name: Manual Netlify Deploy Preview
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'netlify build')
+    steps:
+      - name: Check for member permission
+        id: check_permission
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commenter = context.payload.comment.user.login;
+            const org = context.repo.owner;
+            const team_slug = 'docs-eng'; // <-- use the actual team slug, not display name
+            try {
+              const response = await github.rest.teams.getMembershipForUserInOrg({
+                org,
+                team_slug,
+                username: commenter,
+              });
+              if (response.data.state === 'active') {
+                console.log(`${commenter} is an active member of the ${team_slug} team.`);
+                return 'User is a member';
+              }
+            } catch (error) {
+              if (error.status === 404) {
+                core.setFailed(`${commenter} is not a member of the required team.`);
+              } else {
+                core.setFailed(`Could not verify team membership: ${error.message}`);
+              }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Netlify Deploy
+        if: steps.check_permission.outcome == 'success'
+        run: |
+          curl -X POST -d '{}' "${{ secrets.NEW_NETLIFY_BUILD_HOOK }}"?trigger_branch=${{ github.event.issue.pull_request.head.ref }}&trigger_title=Deploy+preview+for+PR+%23${{ github.event.issue.number }}+by+${{ github.actor }}
+
+      - name: Wait for Netlify deploy to finish
+        id: wait_for_deploy
+        if: steps.check_permission.outcome == 'success'
+        uses: n-ryota/wait-for-netlify-deploy-action@v3
+        with:
+          # Required
+          netlify_token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          site_id: ${{ secrets.NETLIFY_SITE_ID }}
+          # Optional
+          max_timeout: 7200 # 2 hours (in seconds) 
+
+      - name: Post Deploy Preview URL as Comment
+        if: steps.check_permission.outcome == 'success' && steps.wait_for_deploy.outputs.deploy_url
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const previewUrl = '${{ steps.wait_for_deploy.outputs.deploy_url }}';
+            const commentBody = `✅ **Deploy Preview is ready!**\n\nYour preview for this PR is live at:\n${previewUrl}`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

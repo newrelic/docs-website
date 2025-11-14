@@ -1,0 +1,198 @@
+---
+title: Instalación en Windows - v2
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+  - Windows
+metaDescription: 'New Relic''s Kubernetes integration: The installation of Kubernetes on Windows'
+freshnessValidatedDate: '2025-07-01T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="importante">
+  Con el lanzamiento del soporte de Windows para la integración de Kubernetes de New Relic v3, no se recomienda emplear las pautas de instalación que se enumeran aquí. Siga la [guía de instalación de integración de Kubernetes](/install/kubernetes) para obtener las instrucciones más recientes.
+</Callout>
+
+Emplee esta opción cuando tenga un sistema Kubernetes basado en Windows. Tenga en cuenta que la integración de Windows tiene varias [limitaciones](#k8-windows-limitations).
+
+## Compatibilidad y requisitos [#compability-requirements]
+
+Antes de instalar la [integración de Kubernetes](/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration), revise la [compatibilidad y los requisitos](/docs/integrations/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements).
+
+<Callout variant="important">
+  Cuando se utiliza contenedor en Windows, la versión del host del contenedor y la versión de la imagen del contenedor deben ser las mismas. Nuestra integración de Kubernetes puede ejecutarse en las versiones de Windows LTSC 2019 (1809), 20H2 y LTSC 2022.
+</Callout>
+
+Para verificar su versión de Windows, abra una ventana de comando y ejecute este comando:
+
+```shell
+Reg Query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v
+ReleaseIdcmd.exe
+```
+
+## Instalar Kubernetes en Windows [#install-windows]
+
+Puede instalar la integración de Kubernetes para Windows usando Helm. Vea un ejemplo sobre cómo instalar la integración en un clúster con nodos que tienen diferentes versiones de compilación de Windows (1809 y 2004):
+
+<Steps>
+  <Step>
+    ### Agregar el repositorio New Relic Helm
+
+    Si no lo hizo antes, ejecute este comando para agregar el repositorio New Relic Helm:
+
+    ```shell
+    helm repo add newrelic https://helm-charts.newrelic.com
+    ```
+  </Step>
+
+  <Step>
+    ### Crear un namespace para newrelic
+
+    Ejecute este comando para crear un namespace para newrelic:
+
+    ```shell
+    kubectl create namespace newrelic
+    ```
+  </Step>
+
+  <Step>
+    ### Instalar `kube-state-metrics`
+
+    Ejecute este comando para instalar `kube-state-metrics`:
+
+    ```shell
+    helm repo add ksm https://kubernetes.github.io/kube-state-metrics
+    helm install ksm ksm/kube-state-metrics --version 2.13.2
+    ```
+
+    <Callout variant="important">
+      Este comando es para instalar `kube-state-metrics`, una dependencia obligatoria de la integración, en un nodo de Linux. No admitimos la instalación de esto para nodos que no sean Linux y, si lo instala en un nodo que no sea Linux, la implementación podría fallar. Recomendamos emplear `nodeSelector` para elegir un nodo de Linux. Esto se puede hacer editando `kube-state-metrics` despliegue.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Crear un archivo `values-newrelic.yaml`
+
+    Cree un archivo `values-newrelic.yaml` con los siguientes datos. Esto es lo que empleará Helm:
+
+    ```yaml
+    global:
+      licenseKey: YOUR_NEW_RELIC_LICENSE_KEY
+      cluster: K8S_CLUSTER_NAME
+
+      enableLinux: true                   # Set to true if your cluster also has linux nodes
+      enableWindows: true
+      windowsOsList:
+        - version: 2019                   # Human-readable version identifier
+          imageTag: 2-windows-1809-alpha  # Tag to be used for nodes running the windows version above
+          buildNumber: 10.0.17763         # Build number for your nodes running the version above. Used as a selector.
+        - version: 20h2
+          imageTag: 2-windows-20H2-alpha
+          buildNumber: 10.0.19042
+        - version: 2022
+          imageTag: 2-windows-ltsc2022-alpha
+          buildNumber: 10.0.20348
+      nodeSelector:
+        kubernetes.io/os: linux           # Selector for Linux installation.
+      windowsNodeSelector:
+        kubernetes.io/os: windows         # Selector for Windows installation.
+    ```
+  </Step>
+
+  <Step>
+    ### Instalar la integración
+
+    Ejecute este comando para instalar la integración:
+
+    ```shell
+    helm upgrade --install newrelic newrelic/newrelic-infrastructure \
+      --namespace newrelic --create-namespace \
+      --version 2.7.2 \
+      -f values-newrelic.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### Verificar grupo
+
+    Verifique que el pod se despliegue y alcance un estado estable:
+
+    ```shell
+    kubectl -n newrelic get pods -w
+    ```
+
+    El gráfico Helm creará un `DaemonSet` por cada versión de Windows que esté en la lista y usará `NodeSelector` para desplegar el pod correspondiente por nodo.
+  </Step>
+</Steps>
+
+## Ejemplo: obtener Kubernetes para Windows desde un contenedor BusyBox [#example-busybox]
+
+Este es un ejemplo de cómo puede obtener Kubernetes para Windows desde un contenedor BusyBox.
+
+Ejecute este comando:
+
+```shell
+kubectl exec -it busybox1-766bb4d6cc-rmsnj -- Reg Query
+"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v ReleaseId
+```
+
+Debería ver algo como esto:
+
+```shell
+[output] HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion
+[output] ReleaseId	REG_SZ	1809
+```
+
+Para obtener un mapeo útil entre los ID de versión y las versiones del sistema operativo, consulte [aquí](https://hub.docker.com/_/microsoft-windows-servercore).
+
+## Limitaciones de la integración de Kubernetes para Windows [#k8-windows-limitations]
+
+El agente de Windows solo envía [muestras de Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data/#event-types), como `K8sNodeSample` o `K8sPodSample`. Estas limitaciones se aplican a la integración de Kubernetes para Windows:
+
+* `SystemSample`, `StorageSample`, `NetworkSample` y `ProcessSample` no se generan.
+
+* Faltan algunas [Kubernetes métricas](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) porque el kubelet de Windows no las tiene:
+
+  * Nodo:
+
+    * `fsInodes`: no enviado
+    * `fsInodesFree`: no enviado
+    * `fsInodesUsed`: no enviado
+    * `memoryMajorPageFaultsPerSecond`: siempre devuelve cero como valor
+    * `memoryPageFaults`: siempre devuelve cero como valor
+    * `memoryRssBytes`: siempre devuelve cero como valor
+    * `runtimeInodes`: no enviado
+    * `runtimeInodesFree`: no enviado
+    * `runtimeInodesUsed`: no enviado
+
+  * Pod:
+
+    * `net.errorsPerSecond`: no enviado
+    * `net.rxBytesPerSecond`: no enviado
+    * `net.txBytesPerSecond`: no enviado
+
+  * Contenedor:
+
+    * `containerID`: no enviado
+    * `containerImageID`: no enviado
+    * `memoryUsedBytes`: En la UI, esto se muestra en la tarjeta pod que aparece cuando hace clic en un pod y no muestra datos. Pronto solucionaremos este problema actualizando nuestros gráficos para emplear `memoryWorkingSetBytes` en su lugar.
+
+  * Volumen:
+    * `fsUsedBytes`: cero, entonces `fsUsedPercent` es cero
+
+## Problemas conocidos con Windows Kubelet [#known-issues]
+
+Hay un par de problemas con la versión de Windows de Kubelet que pueden impedir que la integración obtenga datos:
+
+* [Problema 90554:](https://github.com/kubernetes/kubernetes/pull/90554) Este problema hace que Kubelet devuelva 500 errores cuando la integración realiza una solicitud al extremo `/stats/summary` . Se incluirá en la versión Kubernetes 1.19 y se ha compatible con las versiones 1.16.11. 1.17.7 y 1.18.4. No existe una solución para este problema en el lado de la integración; le recomendamos que actualice a una de las versiones del parche lo antes posible. Puedes ver si este problema te afecta [habilitando el registro detallado](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#verbose-logging) y buscando mensajes del tipo:
+
+  ```shell
+  [output] error querying Kubelet. Get "https://<KUBELET_IP>/stats/summary": error calling kubelet endpoint. Got status code: 500
+  ```
+
+* [Problema 87730:](https://github.com/kubernetes/kubernetes/pull/87730) Este problema hace que Kubelet métrica sea muy lento cuando se ejecuta con una carga mínima. Hace que la integración falle con un error de tiempo de espera. Se agregó un parche para este problema para Kubernetes 1.18 y se actualizó a 1.15.12. 1.16.9 y 1.17.5. Le recomendamos que actualice a una de las versiones del parche lo antes posible. Para mitigar este problema, puede aumentar el tiempo de espera de integración con la [opción de configuración`TIMEOUT` ](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure#kube-state-metrics-timeout-change). Puedes ver si este problema te afecta [habilitando el registro detallado](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#verbose-logging) y buscando mensajes del tipo:
+
+  ```shell
+  [output] error querying Kubelet. Get "https://<KUBELET_IP>/stats/summary": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  ```

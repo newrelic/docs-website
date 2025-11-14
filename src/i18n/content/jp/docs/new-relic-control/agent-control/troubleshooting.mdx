@@ -1,0 +1,137 @@
+---
+title: よくある問題のトラブルシューティング
+metaDescription: Learn how to diagnose and resolve common problems with Agent Control.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+このドキュメントではAgent Controlインストールまたは操作時によくある問題をトラブルシューティングする手順について説明します。
+
+## デバッグログを有効にする
+
+インストール プロセス中のエラーを診断するには、 `values-newrelic.yaml`ファイルに次の設定を追加して、 Agent Controlのログ レベルを上げることができます。
+
+```yaml
+agent-control-deployment:
+  config:
+    agentControl:
+      content:  
+        log:
+          level: trace
+```
+
+* **デフォルトのログレベル:** `info` 。
+* **その他のサポートされているログレベル:** `debug`および`trace` 。
+* **OTel コレクター ログ:** OpenTelemetry コレクターでデバッグ ログを有効にするには、 `verboseLog: true`を追加します。
+
+Agent Controlを検査するには、次のコマンドを実行します。 `agent-control-***` Agent Controlの名前に置き換えます。
+
+```shell
+kubectl logs agent-control-*** -n agent-control
+```
+
+## ステータスエンドポイント
+
+Agent Control Agent Controlとその管理対象エージェントの正常性をチェックするために使用できるローカル ステータス エンドポイントを公開します。 このエンドポイントは、ポート`52100`でデフォルトで有効になっています。次の手順に従って、クラスタのステータスを確認します。
+
+ローカル ポートをメイン エージェント制御ポッドに転送します。
+
+```shell
+kubectl port-forward <pod-name> 51200:51200
+```
+
+エージェントのステータスを要求します。
+
+```shell
+curl localhost:51200/status
+```
+
+## Helmリリースの失敗
+
+Agent ControlではFleet Controlに安全に接続するために有効な認証資格情報が必要です。 最初に、この資格情報はAgent ControlインストレーションUIを通じて自動的に生成され、値ファイルの`identityClientId`フィールドと`identityClientSecret`フィールドによって表されます。
+
+セキュリティ上の理由から、 Agent Controlのインストールに必要な資格情報は 12 時間後に期限切れになります。 以下のエラーメッセージが表示されてインストールが失敗した場合は、次のトラブルシューティング手順に従ってください。
+
+```shell
+Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+```
+
+システム ID の設定を担当する ジョブのログを確認します。KubernetesAgent Control
+
+まず、ジョブのポッドを識別します。
+
+```shell
+kubectl describe job agent-control-system-identity -n <your-namespace>
+```
+
+イベント セクションで、次のように特定のポッドのエントリを探します。
+
+```shell
+Events:
+      Type     Reason                Age   From            Message
+      ----     ------                ----  ----            -------
+      Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-system-identity-installer-jr6cg
+      Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-system-identity-installer-wnx2v
+      Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-system-identity-installer-8zsqd
+      Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-system-identity-installer-btqh7
+      Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+```
+
+障害が発生したポッドのログを表示します。
+
+```shell
+kubectl logs <pod-name> -n <your-namespace>
+```
+
+例：
+
+```shell
+kubectl logs agent-control-system-identity-installer-btqh7 -n newrelic
+```
+
+ログを確認した後、特定のエラー メッセージを監視し、潜在的な問題がないかログを確認しながら、 Helmを使用してインストレーションを再試行します。 以下に、いくつかの既知の問題とその解釈方法を示します。
+
+* **無効な identityClientId:** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
+* **無効な identityClientSecret:** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
+* **アイデンティティの有効期限が切れました:** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
+* **必要な権限がありません:** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+
+## 無効なNew Relicライセンス
+
+OpenTelemetry Collector デプロイメント ポッドのログに以下のようなエラーメッセージが表示された場合は、 New Relicライセンスキーが無効であることを示している可能性があります。 これにより、コレクターはテレメトリーデータをNew Relicにエクスポートできなくなります。
+
+```shell
+2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+```
+
+### 解決
+
+設定で有効なNew Relicライセンスキーを使用していることを確認してください。
+
+## OTel コレクター ポッドが作成されていません
+
+OTel コレクター ポッドが作成されていない場合は、HelmRelease カスタム リソース定義 (CRD) に問題がある可能性があります。
+
+Helm リリースのステータスを確認します。
+
+```shell
+kubectl get helmrelease open-telemetry -n agent-control
+```
+
+リリースが成功し、正常であれば、 `READY: True`と`STATUS: InstallSucceeded`が表示されます。
+
+リリースが失敗した場合は、 `STATUS`フィールドと`READY`フィールドに問題が示されます。エラーの種類によっては、根本的な問題がステータス フィールドに完全に反映されない場合があります。詳細を取得するには、 `kubectl`を使用して HelmRelease リソースを記述します。
+
+```shell
+kubectl describe helmrelease open-telemetry -n agent-control
+```
+
+## 追加サポート
+
+このセクションで説明されていない問題が発生した場合は、 [New Relic サポート](https://support.newrelic.com)に連絡してさらに支援を受けてください。

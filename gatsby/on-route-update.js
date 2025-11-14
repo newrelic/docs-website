@@ -1,3 +1,5 @@
+const { updateCookieConsentMessage } = require('../scripts/utils/updateCookieConsentMessage');
+
 const onRouteUpdate = ({ location, prevLocation }) => {
   if (
     window.newrelic &&
@@ -6,6 +8,8 @@ const onRouteUpdate = ({ location, prevLocation }) => {
   ) {
     window.newrelic.setCustomAttribute(`hashRequest`, location.hash);
   }
+
+  updateCookieConsentMessage();
 };
 
 export default onRouteUpdate;

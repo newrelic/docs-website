@@ -15,78 +15,75 @@ redirects:
   - /docs/browser/single-page-app-monitoring/use-spa-data/understand-collection-asynchronous-spa-data
 freshnessValidatedDate: never
 ---
-
 This document explains how browser collects and stores your asynchronous single page app (SPA) data. This will give you a better understanding of the [SPA data you see in the browser UI](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser). This will also help you more easily add custom monitoring with the [SPA API](/docs/browser/single-page-app-monitoring/use-spa-data/use-spa-api).
 
 ## Browser interactions [#browser-interaction]
 
-At the heart of SPA monitoring is the concept of the <DNT>**browser interaction**</DNT>. New Relic defines a browser interaction as anything that occurs in the app user's browser; for example:
+At the heart of SPA monitoring is the concept of the <DNT>**browser interaction**</DNT>. New Relic defines a browser interaction, otherwise called a soft navigation, as the following sequence of events, drawing from [Google's heuristics](https://github.com/WICG/soft-navigations?tab=readme-ov-file#heuristics):
 
-* A user interaction that leads to a page load or route change
-* A scheduled, dynamic update to an app's widget
+1. An user interaction occurs. We look specifically for `click`, `keydown` or `submit` events. The `popstate` event from the History API will also start an interaction.
+2. The URL changes in any way, whether it's the path or hash.
+3. Any changes, including to node attributes or text, occurs anywhere on the document DOM tree.
 
-A browser interaction includes not just the initial triggering event, but also the activity caused by that event, such as AJAX requests and both synchronous and asynchronous JavaScript. By tracking not just the cause but also the effects of a browser interaction, we help you understand how users experience your application's views and route changes.
+Following these steps, browser interactions are considered finished on the next repaint frame. They will also associate XHR and fetch requests started within their span. v2.1 introduced another step:
 
-All apps are different and have different monitoring needs. That's why we include default monitoring as well as the ability to set up custom monitoring for any browser interactions you choose.
+4. For new SPA (agent v1.298.0 and later), the monitor checks for long-running callbacks for a maximum of 5 seconds. If a long-running callback is identified, the system extends the current interaction and reruns the monitor.
+
+Interactions will fully conclude when there is a 5-second period without any long tasks. During the extension period leading up to the end of the last observed long task, any AjaxRequest and JavascriptError that occur will also be associated with the interaction. Importantly, the duration of the interaction will not include the final 5 seconds of inactivity.
+
+Note that step four may be short-circuited or bypassed in certain scenarios.
+
+<Callout variant="tip">
+The `popstate` event trigger is managed uniquely compared to other UI event triggers due to its specific behavior in browsers. When a `popstate` event occurs within 500 milliseconds after another UI event like a click, it will be merged into the existing interaction initiated by that event, without changing the interaction's original trigger (e.g., 'click'). However, two consecutive `popstate` events will never be merged in this manner.
+
+Interactions with `popstate` as their trigger typically originate from browser actions, such as using the back or forward button, or from code-related actions like programmatically changing the URL.
+</Callout>
 
 ## Types of SPA data reporting [#spa-data]
 
 Three major categories of single page app data can be reported to New Relic:
 
-* Initial page loads
-* Route changes
-* Custom browser interactions created via the [SPA API](/docs/browser/single-page-app-monitoring/use-spa-data/use-spa-api)
-
 Each of these creates a `BrowserInteraction` event. If one or more AJAX requests are part of an interaction, then associated `AjaxRequest` events are also created. These events and their attributes can be queried in the [query builder](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
+
+<Callout variant="important">
+Default or non-custom interactions do not wait for network requests to complete. They are associated with interactions on an as-is basis, meaning that only requests completed before the interaction is harvested by the scheduler are tied to it. If a network request has a slow or long duration and starts as part of an interaction, it may fall outside this time window and not be associated with the interaction.
+
+Alternatively, you can manually extend the duration of an interaction to ensure it remains open until any important network request returns by using the API.
+</Callout> 
 
 ## Initial page loads
 
-An <DNT>**initial page load**</DNT> is a traditional URL change, stemming from a complete load or reload of a URL. This is indicated in the browser when a page load event fires (the `window.onload` event). Initial page loads appear along with route changes in [the browser UI](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
+An <DNT>**initial page load**</DNT> is a traditional URL change, stemming from a complete load or reload of a URL. This is indicated in the browser when a page load event fires (the `window.onload` event) and also called a hard navigation. Initial page loads appear along with route changes in [the browser UI](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
 
 ## Route changes
 
 SPA users experience dynamic route changes in a similar way to page loads. Visitors to a site or app generally do not care <DNT>**how**</DNT> a new view was delivered; they simply know that when they perform an action, a new view appears. For this reason, we treat route changes in a similar way to page loads in the UI.
 
-In order to optimally monitor single page applications, we start monitoring many browser interactions that could theoretically lead to route changes.
+In order to optimally monitor single page applications, we start monitoring any interaction that could theoretically lead to route changes.
 
-* If these interactions do **not** lead to route changes, browser initiates monitoring but then discards them.
-* If these interactions <DNT>**do**</DNT> lead to a route change, browser saves the interaction sequence as a `BrowserInteraction` event, including information about both synchronous and asynchronous activity.
+* If these interactions do **not** complete the heuristic steps defined above, agent initiates monitoring but then discards them.
+* If these interactions <DNT>**do**</DNT> follow all steps, agent saves the sequence as a completed `BrowserInteraction` event.
 
-An interaction is considered a route change and saved as a `BrowserInteraction` event when one of the following occurs:
+An interaction is considered a route change and saved as a `BrowserInteraction` event if the URL changes between the start and end. URL changes are tracked in two ways:
 
-* The URL hash changes (usually using `window.location.hash`).
-* A `popstate` event fires during a callback associated with an interaction.
-* A `pushState` or `replaceState` API is called.
+* The `popstate` event. Changing the url programmatically, such as setting `window.location.hash` will trigger this event.
+* `pushState` or `replaceState` is called. SPAs commonly use these History API methods to update the URL.
 
 Route changes appear along with initial page loads in the [browser UI](/docs/browser/single-page-app-monitoring/browser-ui/view-spa-data-new-relic-browser).
 
-We receive and save hash fragments from route change URLs. If you use hashes to pass private or sensitive data, that data may be visible to your New Relic account users. For more information about data collection and reporting, see [Security for browser](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser).
+Note that the agent reports hash fragments from route change URLs. If you use hashes to pass private or sensitive data, that data may be visible to your New Relic account users. For more information about data collection and reporting, see [Security for browser](/docs/browser/new-relic-browser/performance-quality/security-new-relic-browser).
 
 ## Custom monitoring [#api-custom-events]
 
-You can use the [SPA API](/docs/browser/new-relic-browser/browser-agent-spa-api) to set up custom monitoring of browser interactions that are not monitored by default. You can also use the API to disable default monitoring.
+All apps are different and have different monitoring needs. You can use the [SPA API](/docs/browser/new-relic-browser/browser-agent-spa-api) to customize your browser interactions or self define the way it's captured.
 
-Custom events are saved as `BrowserInteraction` events and have the following attributes:
+Custom events are saved as `BrowserInteraction` events and have the following difference in attributes:
 
 * The `category` attribute will have the value `Custom`.
 * The `trigger` attribute will have the value `api`. (This is the default value but can be changed with the API.)
 
-## Difference from traditional page load timing [#page-load-timing-diff]
-
-To provide optimized data for single page app monitoring, we measure page load timing in a new way: by wrapping low level browser functions, both synchronous and asynchronous. This gives a fuller depiction of how long it takes to complete the changes required for a new view.
-
-This is different from the traditional method for page load timing. [Traditional page load timing](/docs/browser/new-relic-browser/page-load-timing-resources/page-load-timing-process) uses the firing of the `window.onload` event to determine when a page is loaded. This is not an optimal way to measure view change timing because web apps often have asynchronous code that runs for a significant amount of time after the `window.onload` event occurs.
-
-<Callout variant="tip">
-  Browser's standard, non-SPA <DNT>**Page views**</DNT> page displays different page load times than when SPA monitoring is enabled. Because SPA monitoring is measuring all asynchronous activity, the SPA load times will generally be longer than standard page load times.
-</Callout>
-
-The traditional `window.onload` page load timing still appears on the SPA <DNT>**Page views**</DNT> page. When you select a specific page load event, <DNT>**Window onload**</DNT> appears as a red line in the page load time chart. You can also select <DNT>**Switch to standard page views**</DNT> to return to traditional load timing displays.
-
-## Timers [#spa-timers]
-
-The agent monitors all asynchronous calls, including timers. Timers with durations shorter than one second are wrapped. Timers longer than one second are not wrapped because usually they are meant for [non-web transactions](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions), such as background work or polling that is unrelated to a user interaction.
+The API allows you to dictate when to start and stop such custom interaction, if the above heuristic does not fit your user base or app.
 
 ## Events and attributes [#event-data-structure]
 
-We save browser interactions that lead to route changes and page loads as `BrowserInteraction` events, and AJAX requests as `AjaxRequest` events. You can query these events in the [query builder](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).
+We save browser interactions that lead to route changes and page loads, or are created through API, as `BrowserInteraction` events, and AJAX requests as `AjaxRequest` events. You can query these events in the [query builder](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-specify-data).

@@ -1,0 +1,250 @@
+---
+title: Bring your own cache
+tags:
+  - Distributed tracing
+  - Infinite Tracing
+  - On-premise
+  - Redis
+  - Cache configuration
+metaDescription: 'Configure Redis-compatible caches for Infinite Tracing on-premise tail sampling processor to enable high-availability and distributed processing'
+freshnessValidatedDate: never
+---
+
+New Relic's Infinite Tracing Processor is an implementation of the OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor). In addition to upstream features, it supports highly scalable distributed processing by using a distributed cache for shared state storage. This documentation describes the supported cache implementations and their configuration.
+
+## Supported caches
+
+The processor supports any Redis-compatible cache implementation. It has been tested and validated with Redis and Valkey in both single-instance and cluster configurations.
+
+For production deployments, we recommend using cluster mode (sharded) to ensure high availability and scalability. To enable distributed caching, add the `distributed_cache` configuration to your `tail_sampling` processor section:
+
+  ```yaml
+    tail_sampling:
+      distributed_cache:
+        connection:
+          address: redis://localhost:6379/0
+          password: 'local'
+        trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
+        in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
+        traces_ttl: 3600s                 # Optional: default 1 hour
+        cache_ttl: 7200s                  # Optional: default 2 hours
+        suffix: "itc"                     # Redis key prefix
+        max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
+        evaluation_interval: 1s           # Default: evaluation frequency
+        evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+        data_compression:
+          format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
+  ```
+
+  <Callout variant="important">
+    **Configuration behavior**: When `distributed_cache` is configured, the processor automatically uses the distributed cache for state management. If `distributed_cache` is omitted entirely, the collector will use in-memory processing instead. There is no separate `enabled` flag.
+  </Callout>
+
+The `address` parameter must specify a valid Redis-compatible server address using the standard format:
+
+  ```shell
+  redis[s]://[[username][:password]@][host][:port][/db-number]
+  ```
+
+Alternatively, you can embed credentials directly in the `address` parameter:
+
+  ```yaml
+    tail_sampling:
+      distributed_cache:
+        connection:
+          address: redis://:yourpassword@localhost:6379/0
+  ```
+
+The processor is implemented in Go and uses the [go-redis](https://github.com/redis/go-redis/tree/v9) client library.
+
+## Configuration parameters
+
+The `distributed_cache` section supports the following parameters:
+
+## Connection parameters
+
+- **`connection.address`** (required): Redis server address in format `redis[s]://[[username][:password]@][host][:port][/db-number]`
+- **`connection.password`** (optional): Redis password (alternative to embedding in address)
+
+## Trace evaluation parameters
+
+- **`trace_window_expiration`** (default: 30s): Time window after the last span arrives before a trace is evaluated for sampling decisions
+- **`evaluation_interval`** (default: 1s): How frequently the processor evaluates pending traces for sampling decisions
+- **`evaluation_workers`** (default: number of CPU cores): Number of parallel worker threads for evaluating sampling policies. Higher values increase throughput but consume more resources.
+
+## TTL and expiration parameters
+
+- **`in_flight_timeout`** (default: equals `trace_window_expiration`): Maximum time a batch can remain in processing before being considered orphaned and recovered
+- **`traces_ttl`** (default: 1 hour): Redis key expiration time for trace span data
+- **`cache_ttl`** (default: 2 hours): Redis key expiration time for sampling decision cache entries
+
+## Storage parameters
+
+- **`max_traces_per_batch`** (default: 500): Maximum number of traces processed in a single evaluation cycle. Higher values improve throughput but increase memory usage.
+- **`suffix`** (default: "tsp"): Prefix for Redis keys to avoid collisions when multiple processors share the same Redis instance
+- **`data_compression`** (optional): Compression settings for trace data stored in Redis
+  - **`format`** (default: none): Compression format: `none`, `snappy`, `zstd`, or `lz4`
+
+  <Callout variant="tip">
+    **Compression tradeoffs**: Enabling compression reduces network bandwidth between the processor and Redis and lowers Redis memory requirements. However, compression increases CPU and memory usage on the processor instance during compression/decompression operations.
+
+    **Format recommendations**:
+    - **`zstd`**: Maximum compression ratio, best for bandwidth-constrained environments but highest CPU overhead during decompression
+    - **`lz4`**: Balanced option with good compression and near-negligible decompression overhead—recommended for most deployments
+    - **`snappy`**: Fastest compression/decompression with lowest CPU cost, but lower compression ratios than lz4
+
+    Choose based on your bottleneck: network bandwidth and Redis storage vs. processor CPU availability.
+  </Callout>
+
+## Redis-compatible cache requirements
+
+The processor uses the cache as distributed storage for the following trace data:
+
+- Trace and span attributes
+- Active trace data
+- Sampling decision cache
+
+The processor executes **Lua scripts** to interact with the Redis cache atomically. Lua script support is typically enabled by default in Redis-compatible caches. No additional configuration is required unless you have explicitly disabled this feature.
+
+## Sizing and performance
+
+Proper Redis instance sizing is critical for optimal performance. Use the configuration example from "Supported caches" above. To calculate memory requirements, you must estimate your workload characteristics:
+- **Spans per second**: Assumed throughput of 10,000 spans/sec
+- **Average span size**: Assumed size of 900 bytes (marshaled protobuf format)
+
+### Memory estimation formula
+
+  ```shell
+    Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
+  ```
+
+#### 1. Trace data storage
+
+Trace data is stored in Redis for the full `traces_ttl` period to support late-arriving spans and trace recovery:
+
+- **Per-span storage**: `~900 bytes` (marshaled protobuf)
+- **Storage duration**: Controlled by `traces_ttl` (default: **1 hour**)
+- **Active collection window**: Controlled by `trace_window_expiration` (default: 30s)
+- **Formula**: `Memory ≈ spans_per_second × traces_ttl × 900 bytes`
+
+  <Callout variant="important">
+    **Active window vs. full retention**: Traces are collected during a `~30-second` active window (`trace_window_expiration`), but persist in Redis for the full 1-hour `traces_ttl` period. This allows the processor to handle late-arriving spans and recover orphaned traces. Your Redis sizing must account for the **full retention period**, not just the active window.
+  </Callout>
+
+**Example calculation**: At 10,000 spans/second with 1-hour `traces_ttl`:
+
+  ```shell
+  10,000 spans/sec × 3600 sec × 900 bytes = 32.4 GB
+  ```
+
+**With lz4 compression** (we have observed 25% reduction):
+
+  ```shell
+  32.4 GB × 0.75 = 24.3 GB
+  ```
+
+Note: This calculation represents the primary memory consumer. Actual Redis memory may be slightly higher due to decision caches and internal data structures.
+
+#### 2. Decision cache storage
+
+When using `distributed_cache`, the decision caches are stored in Redis without explicit size limits. Instead, Redis uses its native LRU eviction policy (configured via `maxmemory-policy`) to manage memory. Each trace ID requires approximately 50 bytes of storage:
+
+- **Sampled cache**: Managed by Redis LRU eviction
+- **Non-sampled cache**: Managed by Redis LRU eviction
+- **Typical overhead per trace ID**: `~50 bytes`
+
+  <Callout variant="tip">
+    **Memory management**: Configure Redis with `maxmemory-policy allkeys-lru` to allow automatic eviction of old decision cache entries when memory limits are reached. The decision cache keys use TTL-based expiration (controlled by `cache_ttl`) rather than fixed size limits.
+  </Callout>
+
+#### 3. Batch processing overhead
+
+- **Current batch queue**: Minimal (trace IDs + scores in sorted set)
+- **In-flight batches**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
+
+**Example calculation**: 500 traces per batch (default) with 20 spans per trace on average:
+
+  ```shell
+  500 × 20 × 900 bytes = 9 MB per batch
+  ```
+
+Batch size impacts memory usage during evaluation. In-flight batch memory is temporary and released after processing completes.
+
+### Complete sizing example
+
+Based on the configuration above with the following workload parameters:
+- **Throughput**: 10,000 spans/second
+- **Average span size**: 900 bytes
+- **Storage period**: 1 hour (`traces_ttl`)
+
+**Without compression:**
+
+| Component | Memory Required |
+|-----------|----------------|
+| Trace data (1-hour retention) | 32.4 GB |
+| Decision caches | Variable (LRU-managed) |
+| Batch processing | `~10 MB`|
+| Redis overhead (25%) | `~8.1 GB` |
+| **Total (minimum)** | `**~40.5 GB + decision cache**` |
+
+**With lz4 compression (25% reduction):**
+
+| Component | Memory Required |
+|-----------|----------------|
+| Trace data (1-hour retention) | 24.3 GB |
+| Decision caches | Variable (LRU-managed) |
+| Batch processing | `~7 MB` |
+| Redis overhead (25%) | `~6.1 GB` |
+| **Total (minimum)** | `**~30.4 GB + decision cache**` |
+
+  <Callout variant="important">
+    **Sizing guidance**: The calculations above serve as an estimation example. We recommend performing your own capacity planning based on your specific workload characteristics. For production deployments, consider:
+    - Provisioning **10-15% additional memory** beyond calculated requirements to accommodate traffic spikes and transient overhead
+    - Using Redis cluster mode for horizontal scaling
+    - Monitoring actual memory usage and adjusting capacity accordingly
+  </Callout>
+
+### Performance considerations
+
+- **Network latency**: Round-trip time between the collector and Redis directly impacts sampling throughput. Deploy Redis instances with low-latency network connectivity to the collector.
+- **Cluster mode**: Distributing load across multiple Redis nodes increases throughput and provides fault tolerance for high-availability deployments.
+
+## Data Management and Performance
+
+  <Callout variant="caution">
+    **Performance bottleneck**: Redis and network communication are typically the limiting factors for processor performance. The speed and reliability of your Redis cache are essential for proper collector operation. Ensure your Redis instance has sufficient resources and maintains low-latency network connectivity to the collector.
+  </Callout>
+
+The processor stores trace data temporarily in Redis while making sampling decisions. Understanding data expiration and cache eviction policies is critical for optimal performance.
+
+## TTL and expiration
+
+When using `distributed_cache`, the TTL configuration differs from the in-memory processor. The following parameters control data expiration:
+
+  <Callout variant="important">
+    **Key difference from in-memory mode**: When `distributed_cache` is configured, `trace_window_expiration` replaces `decision_wait` for determining when traces are evaluated. The `trace_window_expiration` parameter defines a sliding window: each time new spans arrive for a trace, the trace remains active for another `trace_window_expiration` period. This incremental approach keeps traces with ongoing activity alive longer than those that have stopped receiving spans.
+  </Callout>
+
+### TTL hierarchy and defaults
+
+The processor uses a cascading TTL structure, with each level providing protection for the layer below:
+
+1. **`trace_window_expiration`** (default: 30s)
+   - Configures how long to wait after the last span arrives before evaluating a trace
+   - Acts as a sliding window: resets each time new spans arrive for a trace
+   - Defined via `distributed_cache.trace_window_expiration`
+
+2. **`in_flight_timeout`** (default: equals `trace_window_expiration` if not specified)
+   - Maximum time a batch can be processed before being considered orphaned
+   - Orphaned batches are automatically recovered and re-queued
+   - Can be overridden via `distributed_cache.in_flight_timeout`
+
+3. **`traces_ttl`** (default: 1 hour)
+   - Redis key expiration for trace span data
+   - Ensures trace data persists long enough for evaluation and recovery
+   - Defined via `distributed_cache.traces_ttl`
+
+4. **`cache_ttl`** (default: 2 hours)
+   - Redis key expiration for decision cache entries (sampled/non-sampled)
+   - Prevents duplicate evaluation for late-arriving spans
+   - Defined via `distributed_cache.cache_ttl`

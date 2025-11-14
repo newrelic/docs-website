@@ -1,0 +1,237 @@
+---
+title: Inicio y programación flujo de trabajo
+tags:
+  - workflow automation
+  - workflow
+  - start a workflow automation
+  - start workflow automation on demand
+  - schedule workflows
+metaDescription: Trigger workflows manually or schedule them to run automatically at specified times using NerdGraph APIs.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Una vez que creaste un flujo de trabajo, puedes ejecutarlo manualmente cuando lo necesites o programarlo para que se ejecute automáticamente en momentos específicos. Ambos métodos emplean la [API de NerdGraph](/docs/apis/nerdgraph/get-started/nerdgraph-explorer) para activar la ejecución del flujo de trabajo.
+
+## Elige tu método de activación
+
+Seleccione el enfoque adecuado para su caso de uso:
+
+| **Emplear bajo demanda**           | **Uso programado**                          |
+| ---------------------------------- | ------------------------------------------- |
+| Probando nuevo flujo de trabajo    | revisiones médicas periódicas               |
+| Aprobación manual flujo de trabajo | Procesamiento periódico de datos            |
+| respuestas activadas por alertas   | Reportes diarios/semanales                  |
+| tareas de mantenimiento ad hoc     | ventanas de mantenimiento programado        |
+| Operaciones únicas                 | Copias de seguridad o limpiezas recurrentes |
+
+## Antes de que empieces
+
+Antes de activar el flujo de trabajo, cerciorar de tener:
+
+* **Flujo de trabajo creado**: una definición de flujo de trabajo ya implementada en su cuenta (a partir de [una plantilla](/docs/workflow-automation/create-a-workflow-automation/use-a-template) o [personalizada](/docs/workflow-automation/create-a-workflow-automation/create-your-own)).
+* **ID de cuenta**: Su ID de cuenta de New Relic (que se encuentra en [la configuración de la cuenta](/docs/accounts/accounts-billing/account-structure/account-id)).
+* **Nombre de flujo de trabajo**: El nombre exacto de su definición de flujo de trabajo.
+* **Datos de entrada requeridos**: Valores para cualquier parámetro que espere su flujo de trabajo.
+* **Secretos configurados**: credenciales AWS, token de Slack u otros secretos almacenados en [el administrador de secretos](/docs/infrastructure/host-integrations/installation/secrets-management/).
+
+<Callout variant="tip">
+  **¿Eres nuevo en el flujo de trabajo?** Crea tu primer flujo de trabajo antes de intentar activarlo. Comience con [Emplee una plantilla](/docs/workflow-automation/create-a-workflow-automation/use-a-template) para flujo de trabajo prediseñado.
+</Callout>
+
+## Ejecutar flujo de trabajo bajo demanda [#on-demand]
+
+Activa el flujo de trabajo manualmente usando la [APIStartWorkflowRun](/docs/workflow-automation/workflow-automation-apis/start-workflow-run). Esto ejecuta el flujo de trabajo inmediatamente con los datos de entrada que proporcione.
+
+### Ejemplo: invocar una función Lambda AWS
+
+La siguiente definición de flujo de trabajo invoca una función Lambda AWS y registra la salida. Reemplace `12345678` con su ID de cuenta de New Relic.
+
+```yaml
+  name: lambda1
+
+  workflowInputs:
+    username:
+      type: String
+      defaultValue: "User"
+    key:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_ACCESS_KEY_ID }}"
+    access:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SECRET_ACCESS_KEY }}"
+    token:
+      type: String
+      defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SESSION_TOKEN }}"
+    region:
+      type: String
+      defaultValue: us-east-1
+
+  steps:
+    - name: invoke1
+      type: action
+      action: aws.lambda.invoke
+      version: 1
+      inputs:
+        awsAccessKeyId: ${{ .workflowInputs.key }}
+        awsSecretAccessKey: ${{ .workflowInputs.access }}
+        awsSessionToken: ${{ .workflowInputs.token }}
+        region: ${{ .workflowInputs.region }}
+        functionName: hello-you
+        payload:
+          user: ${{ .workflowInputs.username }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'The lambda function message output is:${{ .steps.invoke1.outputs.payload.body }}'
+```
+
+Para iniciar este flujo de trabajo, emplee la siguiente mutación de NerdGraph. Antes de ejecutar esta mutación, cerciorar de almacenar sus credenciales de AWS empleando la mutación `secretsManagementCreateSecret`. Para obtener más información, consulte [Introducción a la gestión de secretos](/docs/apis/nerdgraph/examples/nerdgraph-secrets-management).
+
+```graphql
+mutation {
+  workflowAutomationStartWorkflowRun(
+    # Specify the account where the workflow is defined
+    scope: { type: ACCOUNT id: "12345678" }
+
+    # Reference the workflow definition by name
+    definition: { name: "lambda1" }
+
+    # Provide input values for the workflow
+    workflowInputs: [
+      {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+      {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+      {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+      {key: "region" value:"us-east-2"}
+      {key: "username" value: "Julien"}
+    ]
+  ) {
+    runId
+  }
+}
+```
+
+**Explicación del parámetro:**
+
+* `scope`: El ID de la cuenta donde se almacena la definición de su flujo de trabajo
+* `definition`: El nombre del flujo de trabajo a ejecutar (debe coincidir con el campo `name` de la definición de su flujo de trabajo).
+* `workflowInputs`: pares de valores principales que anulan los valores predeterminados en la sección `workflowInputs` de su definición de flujo de trabajo
+
+La mutación devuelve un `runId` (por ejemplo, `7bd25287-2af8-42e1-b783-80f4e760a40b`). Emplee este ID para consultar los logs y ver la salida:
+
+<img title="Workflow automation logs" alt="Workflow automation logs showing the Lambda function output" src="/images/autoflow-all-logs-2.webp" />
+
+## Horario de trabajo [#scheduled]
+
+Programe el flujo de trabajo para que se ejecute automáticamente en momentos específicos empleando la [APICreateSchedule](/docs/workflow-automation/workflow-automation-apis). El flujo de trabajo programado ejecuta tareas recurrentes sin intervención manual.
+
+**Cuándo programar el flujo de trabajo:**
+
+* revisiones médicas periódicas
+* Procesamiento periódico de datos
+* Reportes diarios/semanales
+* ventanas de mantenimiento programado
+* Copias de seguridad o limpiezas recurrentes
+
+### Referencia de expresión Cron
+
+Los horarios usan expresiones cron para definir cuándo se ejecuta el flujo de trabajo. Formato: `minute hour day month weekday`
+
+| **Patrón**     | **Descripción**                         | **Ejemplo de caso de uso**              |
+| -------------- | --------------------------------------- | --------------------------------------- |
+| `0 9 * * *`    | Todos los días a las 9:00 AM            | controles de salud matutinos diarios    |
+| `0 9 * * 1-5`  | Todos los días laborables a las 9:00 AM | Operaciones del día comercial           |
+| `0 */6 * * *`  | Cada 6 horas                            | Operaciones de sincronización regulares |
+| `0 0 1 * *`    | Primer día del mes a medianoche         | Reportes mensuales                      |
+| `*/15 * * * *` | Cada 15 minutos                         | Encuestas frecuentes                    |
+| `0 0 * * 0`    | Todos los domingos a medianoche         | Tareas de limpieza semanales            |
+
+<Callout variant="tip">
+  **Sintaxis de Cron:** `*` significa &quot;cada&quot;, `/` significa &quot;cada n-ésimo&quot;, `-` significa &quot;rango&quot;. Ejemplo: `0 9 * * 1-5` = En el minuto 0, hora 9, todos los días, todos los meses, de lunes a viernes.
+</Callout>
+
+### Ejemplo: Programar un chequeo médico diario
+
+El siguiente ejemplo programa el flujo de trabajo `lambda1` para que se ejecute todos los días a las 9 AM, hora del este:
+
+```graphql
+mutation {
+  workflowAutomationCreateSchedule(
+    # Specify the account where the workflow is defined
+    scope: { type: ACCOUNT id: "12345678" }
+
+    # Reference the workflow definition by name
+    definition: { name: "lambda1" }
+
+    # Configure the schedule
+    schedule: {
+      # Cron expression: minute hour day month weekday
+      # "0 9 * * *" = every day at 9:00 AM
+      cronExpression: "0 9 * * *"
+
+      # Timezone for the schedule
+      timezone: "America/New_York"
+
+      # Optional: Schedule name for identification
+      name: "daily-lambda-health-check"
+
+      # Optional: Add a description
+      description: "Runs Lambda health check every morning at 9 AM"
+    }
+
+    # Provide input values for the workflow
+    workflowInputs: [
+      {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+      {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+      {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+      {key: "region" value:"us-east-2"}
+      {key: "username" value: "HealthCheckBot"}
+    ]
+  ) {
+    scheduleId
+  }
+}
+```
+
+**Lo que recibes a cambio:**
+
+* `scheduleId`Identificador único del horario (empléelo para actualizar o eliminar el horario posteriormente).
+
+### Gestionar horarios
+
+Luego de crear un horario:
+
+* **Ver programaciones activas**: Consulte todas las ejecuciones programadas en el [dashboardflujo de trabajo.](/docs/workflow-automation/create-a-workflow-automation/managing-workflow#monitor-runs)
+* **Programación de actualizaciones**: Emplee la API UpdateSchedule para cambiar la frecuencia o las entradas.
+* **Eliminar programación**: Emplee la API DeleteSchedule para detener las ejecuciones recurrentes.
+
+Para obtener documentación API completa, consulte [API de automatización de flujo de trabajo](/docs/workflow-automation/workflow-automation-apis).
+
+## Próximos pasos
+
+¡Tu flujo de trabajo está funcionando! Esto es lo que debes hacer a continuación:
+
+**Monitorear y gestionar:**
+
+* **[Gestionar el flujo de trabajo](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)**: Ver el historial de ejecución, consultar los logs y solucionar problemas.
+* **[Solucionar problemas de flujo de trabajo](/docs/workflow-automation/troubleshooting)**: resolver problemas comunes de ejecución
+
+**Optimizar para la producción:**
+
+* **[mejores prácticas](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: Manejo de errores, rendimiento y patrones de confiabilidad
+* **[Límites del flujo de trabajo](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: Comprenda los límites de tiempo de espera y las restricciones.
+
+**Amplíe su flujo de trabajo:**
+
+* **[Catálogo de acciones](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)**: explora todas las integraciones disponibles.
+* **[API de automatización de flujo de trabajo](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api)**: gestión programática del flujo de trabajo

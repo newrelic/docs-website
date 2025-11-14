@@ -1,0 +1,137 @@
+---
+title: Résoudre les problèmes courants
+metaDescription: Learn how to diagnose and resolve common problems with Agent Control.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Ce document couvre les étapes à suivre pour résoudre les problèmes courants lors de l’installation ou de l’utilisation d’Agent Control.
+
+## Activer la logging de débogage
+
+Pour diagnostiquer les erreurs pendant le processus d&apos;installation, vous pouvez augmenter le niveau de log pour Agent Control en ajoutant le paramètre suivant dans votre fichier `values-newrelic.yaml` :
+
+```yaml
+agent-control-deployment:
+  config:
+    agentControl:
+      content:  
+        log:
+          level: trace
+```
+
+* **Niveau de log par défaut :** `info`.
+* **Autres niveaux de log pris en charge :** `debug` et `trace`.
+* **Collecteur de logs OTel :** pour activer les logs de débogage dans le collecteur OpenTelemetry, ajoutez `verboseLog: true`.
+
+Pour inspecter les logs de contrôle de l&apos;agent, exécutez la commande suivante, en remplaçant `agent-control-***` par le nom de votre pod de contrôle de l&apos;agent :
+
+```shell
+kubectl logs agent-control-*** -n agent-control
+```
+
+## Point de terminaison d&apos;état
+
+Agent Control expose un point de terminaison d&apos;état local que vous pouvez utiliser pour vérifier l&apos;état d&apos;Agent Control et de ses agents gérés. Ce point de terminaison est activé par défaut sur le port `52100`. Suivez ces étapes pour interroger l’état cluster :
+
+Transférer un port local vers le pod de contrôle de l&apos;agent principal :
+
+```shell
+kubectl port-forward <pod-name> 51200:51200
+```
+
+Demander le statut de l&apos;agent :
+
+```shell
+curl localhost:51200/status
+```
+
+## Helm de la sortie du gouvernail
+
+Agent Control nécessite des informations d&apos;authentification valides pour se connecter en toute sécurité au contrôle de la flotte. Initialement, ces informations d&apos;identification sont générées automatiquement via l&apos;interface utilisateur d&apos;installation d&apos;Agent Control et sont représentées par les champs `identityClientId` et `identityClientSecret` dans le fichier de valeurs.
+
+Pour des raisons de sécurité, les informations d&apos;identification nécessaires à l&apos;installation d&apos;Agent Control expirent après 12 heures. Si l&apos;installation échoue avec le message d&apos;erreur ci-dessous, suivez ces étapes de dépannage :
+
+```shell
+Error: UPGRADE FAILED: pre-upgrade hooks failed: job failed: BackoffLimitExceeded
+```
+
+Vérifiez les logs du travail Kubernetes responsable de la configuration de l&apos;identité du système Agent Control.
+
+Tout d’abord, identifiez le pod du travail :
+
+```shell
+kubectl describe job agent-control-system-identity -n <your-namespace>
+```
+
+Dans la section événement, recherchez les entrées pour le pod spécifique, comme suit :
+
+```shell
+Events:
+      Type     Reason                Age   From            Message
+      ----     ------                ----  ----            -------
+      Normal   SuccessfulCreate      88s   job-controller  Created pod: agent-control-system-identity-installer-jr6cg
+      Normal   SuccessfulCreate      73s   job-controller  Created pod: agent-control-system-identity-installer-wnx2v
+      Normal   SuccessfulCreate      50s   job-controller  Created pod: agent-control-system-identity-installer-8zsqd
+      Normal   SuccessfulCreate      7s    job-controller  Created pod: agent-control-system-identity-installer-btqh7
+      Warning  BackoffLimitExceeded  1s    job-controller  Job has reached the specified backoff limit
+```
+
+Afficher les logs du pod défaillant :
+
+```shell
+kubectl logs <pod-name> -n <your-namespace>
+```
+
+Exemple:
+
+```shell
+kubectl logs agent-control-system-identity-installer-btqh7 -n newrelic
+```
+
+Après avoir examiné les logs, réessayez l&apos;installation à l&apos;aide Helm tout en monitorant les messages d&apos;erreur spécifiques et en vérifiant les logs pour détecter d&apos;éventuels problèmes. Vous trouverez ci-dessous quelques problèmes connus et comment les interpréter :
+
+* **IdentitéClientId non valide :** `Error getting system identity auth token. The API endpoint returned 404: Failed to find Identity: <identityClientId-value>`
+* **IdentitéClientSecret non valide :** `Error getting system identity auth token. The API endpoint returned 400: Bad client secret.`
+* **Identité expirée :** `Error getting system identity auth token. The API endpoint returned 400: Expired client secret.`
+* **Autorisations requises manquantes :** `Failed to create a New Relic System Identity for Fleet Control communication authentication. Please verify that your User Key is valid and that your Account Organization has the necessary permissions to create a System Identity: Exception while fetching data (/create) : Not authorized to perform this action or the entity is not found.`
+
+## Licence New Relic non valide
+
+Si vous voyez un message d&apos;erreur comme celui ci-dessous dans le log OpenTelemetry du de déploiement du collecteur pod, cela peut indiquer une clé de licence New Relic invalide. Cela empêche le collecteur de pouvoir exporter les données télémétriques vers New Relic :
+
+```shell
+2024-06-13T13:46:05.898Z error exporterhelper/retry_sender.go:126 Exporting failed. The error is not retryable. Dropping data. {"kind": "exporter", "data_type": "metrics", "name": "otlphttp/newrelic", "error": "Permanent error: error exporting items, request to https://otlp.nr-dat ││ go.opentelemetry.io/collector/exporter/exporterhelper.(*retrySender).send
+```
+
+### Solution
+
+Confirmez que vous utilisez une clé de licence New Relic valide dans votre configuration.
+
+## Pods de collecteur OTel non créés
+
+Si aucun pod Collecteur OTel n&apos;est créé, il peut y avoir un problème avec la définition de ressource personnalisée (CRD) HelmRelease.
+
+Vérifiez l&apos;état de la sortie Helm :
+
+```shell
+kubectl get helmrelease open-telemetry -n agent-control
+```
+
+Une sortie réussie et saine doit afficher `READY: True` et `STATUS: InstallSucceeded`.
+
+Si la sortie a échoué, les champs `STATUS` et `READY` indiqueront le problème. Selon le type d’erreur, le problème racine peut ne pas être entièrement reflété dans le champ d’état. Pour obtenir plus de détails, utilisez `kubectl` pour décrire la ressource HelmRelease :
+
+```shell
+kubectl describe helmrelease open-telemetry -n agent-control
+```
+
+## Support supplémentaire
+
+Si vous rencontrez des problèmes non traités dans cette section, contactez [le support New Relic](https://support.newrelic.com) pour obtenir de l&apos;aide.

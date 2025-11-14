@@ -1,0 +1,374 @@
+---
+title: Solucionar problemas de automatización de flujo de trabajo
+tags:
+  - workflow automation
+  - troubleshooting
+  - workflow errors
+metaDescription: 'Common issues and solutions for Workflow Automation including AWS credentials, workflow execution, and dashboard problems.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Esta página proporciona soluciones a problemas comunes que puede encontrar al usar la automatización de flujo de trabajo. Para obtener ayuda adicional, consulte el [foro de soporte de New Relic](https://discuss.newrelic.com/) o póngase en contacto con [el soporte de New Relic](https://support.newrelic.com/).
+
+## Credenciales y autenticación de AWS
+
+<CollapserGroup>
+  <Collapser id="access-denied-errors" title="Errores de acceso denegado">
+    **Problema:** Su flujo de trabajo falla con un error de autorización de AWS.
+
+    **Soluciones:**
+
+    1. **Verifique su ID de cuenta:** Verifique que empleó `253490767857` (no `754728514883`) en la política de confianza. El ID de cuenta de integración en la nube (`754728514883`) es diferente del ID de cuenta de automatización de flujo de trabajo.
+    2. **Verificar ID externo:** Confirme que el ID externo en su política de confianza coincide exactamente con el ID de su cuenta de New Relic (que se encuentra en [la configuración de la cuenta](/docs/accounts/accounts-billing/account-structure/account-id)).
+    3. **Revisa las licencias:** Cerciórate de que tu rol o usuario de IAM tenga las licencias específicas de AWS que requiere tu flujo de trabajo. Consulta la tabla de [licencias de AWS necesarios](/docs/workflow-automation/setup-and-configuration/set-up-aws-credentials#required-aws-permissions).
+    4. **Prueba con la CLI de AWS:** Ejecuta `aws sts assume-role` localmente para verificar que el rol sea asumible:
+       ```bash
+       aws sts assume-role \
+       --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicWorkflowAutomationRole" \
+       --role-session-name "TestSession" \
+       --external-id "YOUR_NR_ACCOUNT_ID"
+       ```
+  </Collapser>
+</CollapserGroup>
+
+### &quot; tokenno válido&quot; o credenciales caducadas
+
+**Problema:** el flujo de trabajo falla con errores de vencimiento token.
+
+**Soluciones:**
+
+1. **Para el token de sesión:** compruebe la timestampde expiración; el token de sesión suele durar entre 1 y 12 horas. Genera nuevos antes de que caduquen usando:
+   ```bash
+   aws sts assume-role \
+     --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/YOUR_ROLE" \
+     --role-session-name "WorkflowAutomationSession"
+   ```
+2. **Para las claves de acceso:** Verifique que tanto el ID de la clave de acceso como la clave de acceso secreta estén almacenados correctamente en el administrador de secretos. Vuelva a comprobar los valores en [el explorador GraphiQL de NerdGraph](https://one.newrelic.com/nerdgraph-graphiql).
+3. **Verifique la sintaxis de los secretos:** cerciorar de usar el formato `${{ :secrets:keyName }}`, no `${{ secrets.keyName }}`. El prefijo de dos puntos (`:secrets:`) es obligatorio.
+
+### No encuentro mi rol ARN
+
+**Problema:** Necesitas el ARN pero no puedes localizarlo en AWS.
+
+**Solución:**
+
+1. Inicia sesión en la [consola de AWS IAM](https://console.aws.amazon.com/iam/)
+2. Selecciona **Roles** en el menú de navegación.
+3. Busque el nombre de su rol (ej., `NewRelicWorkflowAutomationRole`)
+4. Seleccione el rol; el ARN aparece en la sección Resumen.
+5. El formato ARN es: `arn:aws:iam::<YOUR_AWS_ACCOUNT>:role/<ROLE_NAME>`
+
+### flujo de trabajo no puede acceder a recursos específicos AWS
+
+**Problema:** Tu rol tiene licencias, pero el flujo de trabajo aún no puede acceder a ciertos recursos.
+
+**Soluciones:**
+
+1. **Licencias a nivel de recurso:** Compruebe si su política de IAM restringe el acceso a ARN de recursos específicos. Es posible que necesite agregar un comodín (`*`) para realizar pruebas y luego restringirlo a recursos específicos.
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": "ec2:DescribeInstances",
+     "Resource": "*"  // Change from specific ARN to * for testing
+   }
+   ```
+2. **Políticas de control de servicios (SCP):** Si se encuentra en una organización de AWS, las SCP podrían bloquear ciertas acciones. Póngase en contacto con su administrador de AWS para revisar las políticas de la organización.
+3. **Error de región:** cerciorar de que sus licencias de IAM especifiquen la región correcta de AWS donde se encuentran sus recursos. Actualiza el parámetro `awsRegion` del flujo de trabajo para que coincida con la ubicación de tu recurso.
+
+## Problemas de ejecución del flujo de trabajo
+
+### Referencia de resolución rápida de problemas
+
+Emplee esta tabla para un diagnóstico rápido de problemas comunes en el flujo de trabajo:
+
+| **Síntoma**                                                          | **Controlar**                                                       | **Solución**                                                                            |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| El flujo de trabajo falla en un paso específico.                     | Consulte los logs de ejecución para ver el mensaje de error.        | Corrija la configuración, las credenciales o los datos de entrada para esa acción.      |
+| El flujo de trabajo se ejecuta, pero produce resultados incorrectos. | Verificar el paso de datos entre pasos                              | Verificar la sintaxis de la plantilla `${{ .steps.name.outputs.field }}`                |
+| El flujo de trabajo programado no se ejecuta.                        | Revisa el historial de ejecución para ver las ejecuciones omitidas. | Verificar la configuración de la programación y el estado del flujo de trabajo (Activo) |
+| El flujo de trabajo agota el tiempo de espera.                       | Comprobar duración de la ejecución                                  | Reducir la frecuencia de las votaciones o dividirlos en flujos de trabajo más pequeños  |
+| Los cambios no surten efecto.                                        | Consulta el historial de versiones                                  | Actualizar las ejecuciones programadas para usar la nueva versión                       |
+
+Para obtener instrucciones detalladas sobre cómo ver los logs y el historial de ejecución, consulte [Monitorear las ejecuciones del flujo de trabajo](/docs/workflow-automation/create-a-workflow-automation/managing-workflow#monitor-runs).
+
+### El flujo de trabajo se muestra con el estado &quot;Fallido&quot;.
+
+**Problema:** Aparece un flujo de trabajo con el estado Fallido en el dashboard.
+
+**Soluciones:**
+
+1. **Consulta el historial de ejecución**:
+
+   * Vaya a **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+   * Haz clic en el nombre del flujo de trabajo
+   * Consulta **Run history** para ver qué ejecución falló.
+
+2. **Revisar los logs de ejecución**:
+
+   * Haz clic en **View logs** de la ejecución fallida para identificar la acción específica que falló.
+   * Busque el mensaje de error que indique la causa raíz.
+
+3. **Causas comunes**:
+
+   * **Credenciales no válidas**: token caducado, sintaxis de secretos incorrecta o claves secretas erróneas.
+   * **Licencias faltantes**: Licencias insuficientes AWS IAM, ámbitos token de bots de Slack o acceso a API
+   * **Cambios en los recursos objetivo**: Se eliminaron instancias EC2, se eliminaron canales de Slack o se renombró la base de datos.
+   * **Se superaron los límites de frecuenciaAPI **: Demasiadas requests a servicios externos (AWS, Slack, etc.).
+   * **Tiempos de espera de la red**: Las API externas tardan demasiado en responder.
+
+4. **Solucionar y volver a ejecutar**: Luego de resolver el problema, active manualmente el flujo de trabajo empleando la [API StartWorkflowRun](/docs/workflow-automation/workflow-automation-apis/start-workflow-run) para verificar que funciona.
+
+### La ejecución del flujo de trabajo tarda demasiado.
+
+**Problema:** La ejecución del flujo de trabajo excede la duración o el tiempo de espera esperados.
+
+**Soluciones:**
+
+1. **Revisar la secuencia de acciones**: Consultar los logs para identificar las acciones lentas. Busque acciones con tiempos de ejecución superiores a 30 segundos.
+
+2. **Optimizar consultas**: Si emplea consultas NRQL, optimícelas para obtener un mejor rendimiento:
+
+   * Agrega rangos de tiempo específicos en lugar de consultar todos los datos.
+   * Emplee `LIMIT` para reducir el tamaño del conjunto de resultados
+   * Filtrar tempranamente con cláusulas `WHERE`
+
+3. **Compruebe las API externas**: Las respuestas lentas de los servicios integrados (AWS, Slack) pueden retrasar la ejecución. Pruebe el tiempo de respuesta API por separado.
+
+4. **Considere los límites del flujo de trabajo**: revise [los límites del flujo de trabajo](/docs/workflow-automation/limitations-and-faq/workflow-limits) para las restricciones de tiempo de espera (normalmente 15 minutos por flujo de trabajo).
+
+5. **Divida el flujo de trabajo más pequeño**: divida el flujo de trabajo complejo en automatizaciones más pequeñas y enfocadas que puedan ejecutar en paralelo.
+
+### Los cambios en el flujo de trabajo no surten efecto.
+
+**Problema:** Editaste un flujo de trabajo, pero los cambios no se aplican cuando se ejecuta.
+
+**Soluciones:**
+
+1. **Verifique que almacenó**: Compruebe que hizo clic en **Save** luego de editar la configuración del flujo de trabajo.
+
+2. **Comprueba la versión**:
+
+   * Ir a los detalles del flujo de trabajo
+   * Haz clic en la pestaña **Version history**.
+   * Cerciórate de que tus últimos cambios aparezcan como una nueva versión.
+   * Verifique que esta versión esté marcada como activa.
+
+3. **Actualizar ejecuciones programadas**: Si el flujo de trabajo se ejecuta según una programación, actualice la programación para usar la nueva versión:
+
+   * Vaya a **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+   * Encuentra carreras programadas
+   * Actualiza el cronograma para que haga referencia a la nueva versión del flujo de trabajo.
+
+4. **Borrar caché**: El almacenamiento en caché Browser podría mostrar una configuración antigua; actualice la página manualmente (Ctrl+Shift+R o Cmd+Shift+R).
+
+## Problemas con dashboard de flujo de trabajo
+
+### No puedo encontrar un flujo de trabajo en el dashboard
+
+**Problema:** Un flujo de trabajo que creaste no aparece en la lista dashboard.
+
+**Soluciones:**
+
+1. **Comprobar filtros**:
+
+   * Haz clic en el menú desplegable del filtro.
+   * Seleccione &quot;Todos&quot; para los filtros de estado
+   * Limpiar la barra de búsqueda
+
+2. **Verificar cuenta**: Confirme que inició sesión en la cuenta correcta de New Relic donde se creó el flujo de trabajo. Comprueba el selector de cuentas en la esquina superior derecha.
+
+3. **Verificar licencias**: cerciorar de que su rol de usuario tenga acceso para ver el flujo de trabajo. Contacta con tu administrador de New Relic si necesitas licencias de acceso al flujo de trabajo.
+
+4. **Actualiza la página**: El almacenamiento en caché Browser a veces puede ocultar los cambios recientes. Prueba a realizar una actualización completa (Ctrl+Shift+R o Cmd+Shift+R).
+
+### No se puede eliminar un flujo de trabajo
+
+**Problema:** La opción Eliminar aparece deshabilitada o la eliminación falla.
+
+**Soluciones:**
+
+1. **Verificar licencias**: Verifique que su rol de usuario tenga licencias de eliminación para flujo de trabajo. Si es necesario, póngase en contacto con el administrador de su cuenta.
+
+2. **Detener ejecuciones programadas**: Cancele cualquier ejecución programada activa antes de eliminarla:
+
+   * Navegue hasta los detalles del flujo de trabajo
+   * Ve a la pestaña **Scheduled runs**
+   * Cancela todos los horarios activos
+
+3. **Comprobar dependencia**: Algunos flujos de trabajo no se pueden eliminar si otras automatizaciones dependen de ellos. Comprobar si el flujo de trabajo es referenciado por:
+
+   * Otro flujo de trabajo que lo llama
+   * política de alertas que lo desencadenan
+   * Sistemas externos que lo inician mediante API
+
+4. **Contacta con el soporte**: Si el problema persiste luego de intentar lo anterior, contacta con [el soporte de New Relic](https://support.newrelic.com/) para obtener ayuda.
+
+## Problemas específicos de integración
+
+### La notificación de holgura no aparece
+
+**Problema:** El flujo de trabajo se completa correctamente, pero los mensajes de Slack no aparecen.
+
+**Soluciones:**
+
+1. **Verifique el ID del canal**: cerciorar de usar el **ID** del canal de Slack (por ejemplo, `C01234ABCD`), no el nombre del canal. Encuentra el ID en Slack:
+
+   * Haz clic derecho en el nombre del canal
+   * Seleccionar **View channel details**.
+   * Copia el ID del canal que aparece en la parte inferior.
+
+2. **Comprobar licencias del bot**: Verifique que su bot de Slack tenga las siguientes licencias:
+
+   * `chat:write` - Publicar mensajes
+   * `channels:read` - Ver canales públicos
+   * `groups:read` - Ver canales privados (si corresponde)
+
+3. **Verificar que el bot esté en el canal**: Agregar el bot al canal objetivo:
+
+   * Escriba `/invite @YourBotName` en el canal
+   * Confirma que el bot aparece en la lista de miembros
+
+4. **Comprobar token en secretos**: Verifique que el token de Slack almacenado en el administrador de secretos sea correcto y no caducó.
+
+### Las operaciones de AWS Systems Manager fallan.
+
+**Problema:** Los documentos o comandos de automatización de SSM no se ejecutan.
+
+**Soluciones:**
+
+1. **Verifique las licencias de SSM**: Cerciorar de que el rol de IAM tenga estas licencias:
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": [
+       "ssm:CreateDocument",
+       "ssm:DeleteDocument",
+       "ssm:StartAutomationExecution",
+       "ssm:GetAutomationExecution"
+     ],
+     "Resource": "*"
+   }
+   ```
+2. **Comprobar agente SSM**: Verifique que las instancias EC2 de destino tengan el agente SSM instalado y en ejecución:
+   ```bash
+   aws ssm describe-instance-information --region us-east-1
+   ```
+3. **Verificar perfil de instancia**: Las instancias EC2 necesitan un perfil de instancia IAM con licencias SSM para ejecutar comandos.
+4. **Comprobar que el documento existe**: Si emplea un documento SSM existente, verifique que exista en su cuenta y región de AWS.
+
+## Problemas específicos de la plantilla
+
+### No se encontró el GUID de la entidad.
+
+**Problema:** Las plantillas fallan con errores `Entity not found`.
+
+**Soluciones:**
+
+1. **Encuentra el GUID de entidad correcto**:
+
+   * Ve a la página del recurso monitorear en New Relic.
+   * Comprueba la URL o los metadatos de la entidad para obtener el GUID.
+   * Emplee [la búsqueda de entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#find) para localizar entidades
+
+2. **Verifica que la entidad exista en la cuenta correcta**: Confirma que estás empleando la entidad de la misma cuenta donde se desarrolla el flujo de trabajo.
+
+3. **Confirmar datos de reportes de la entidad**: Compruebe que la entidad muestre ****reciente; es posible que se eliminó una entidad obsoleta.
+
+4. **Para entidad AWS **: Cerciorar de que [la integración](/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations) esté activa
+
+<Callout variant="tip">
+  **Los GUID de entidad son específicos de cada cuenta.** Mover el flujo de trabajo entre cuentas requiere actualizar todos los GUID de la entidad.
+</Callout>
+
+### La consulta NRQL no devuelve resultados
+
+**Problema:** Las plantillas que emplean NRQL consultan completamente pero devuelven conjuntos de datos vacíos.
+
+**Soluciones:**
+
+1. **Prueba la consulta primero**: Emplea [el generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) para validar la consulta antes de agregarla a las plantillas.
+
+2. **Verifique el tipo de datos y los nombres de los eventos**:
+
+   * Use `FROM Transaction`, no `FROM Transactions`
+   * Comprobar que los nombres de los atributos coincidan exactamente (distinguiendo entre mayúsculas y minúsculas)
+
+3. **Ajustar rangos de tiempo**: Para datos dispersos, ampliar la ventana de tiempo:
+
+   * Agregue `SINCE 1 hour ago` para datos recientes
+   * Emplee `SINCE 1 day ago` para tendencias
+
+4. **Simplifica y prueba de forma incremental**: comienza con una consulta básica y agrega filtros uno a la vez.
+
+5. **Comprobar [la sintaxis NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)**: Verificar que la estructura de la consulta cumpla con los requisitos NRQL.
+
+### Falla el despliegue de la plantilla
+
+**Problema:** La plantilla no se despliega o muestra errores durante el despliegue.
+
+**Soluciones:**
+
+1. **Verifique todos los datos requeridos**: Cerciorar de completar todos los campos obligatorios (credenciales, GUID, consulta).
+2. **Verificar formato de credenciales**: Los secretos deben usar el formato `${{ :secrets:keyName }}` con el prefijo de dos puntos.
+3. **Prueba las credenciales de forma independiente**: Antes de implementar, prueba las credenciales AWS con la CLI AWS y el token de Slack en APIde Slack.
+4. **Revisa los requisitos de la plantilla**: Cada plantilla enumera requisitos previos específicos; verifica que se cumplan todos.
+5. **Compruebe si hay caracteres especiales**: Algunos campos (nombres de canales, consulta) pueden presentar problemas con caracteres especiales; emplee caracteres alfanuméricos siempre que sea posible.
+
+### Aprobación flujo de trabajo no responde
+
+**Problema:** Las plantillas que requieren aprobación de Slack (reversión de API Gateway, cambio de tamaño de EC2) no detectan reacciones.
+
+**Soluciones:**
+
+1. **Verificar los ámbitos token del bot**:
+
+   * `reactions:read` - Requerido para detectar reacciones de emojis
+   * `chat:write` - Obligatorio publicar mensajes de aprobación
+
+2. **Formato de reacción**: Emplee el emoji exacto especificado en el flujo de trabajo (normalmente 👍 para aprobar, 👎 para rechazar).
+
+3. **Verifique la configuración de tiempo de espera**: requests de aprobación caducan luego del tiempo de espera configurado (normalmente de 5 a 10 minutos).
+
+4. **Cerciórate de que el bot pueda leer los mensajes**: El bot debe estar en el canal y tener licencia para leer el historial de mensajes.
+
+5. **Prueba con aprobación simple**: Crea un flujo de trabajo de prueba con solo lógica de aprobación para aislar el problema.
+
+### Problemas de administración de instancias EC2
+
+**Problema:** La plantilla EC2 no puede redimensionar ni gestionar la instancia.
+
+**Soluciones:**
+
+1. **Verifique [CloudWatch Metric Streams](/install/aws-cloudwatch/) esté configurado**: Requerido para las métricas de EC2 en tiempo real.
+2. **Marque [la integración de monitoreo EC2](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-ec2-monitoring-integration/#activate) activa**: garantiza que los datos de la instancia fluyan a New Relic
+3. **Confirmar estado de la instancia**: la instancia debe estar en estado `running` o `stopped` ; los estados de transición (pendiente, deteniendo) provocan fallos.
+4. **Verifique la compatibilidad del tipo de instancia**: no todos los tipos de instancia admiten todas las operaciones de cambio de tamaño; consulte [la documentación del tipo de instanciaAWS](https://aws.amazon.com/ec2/instance-types/)
+5. **Comprobar licencias de inicio/parada**: el rol de IAM necesita `ec2:StopInstances` y `ec2:StartInstances` además de `ec2:ModifyInstanceAttribute`
+
+### La plantilla de análisis JSON no registra los datos.
+
+**Problema:** La plantilla de análisis JSON se ejecuta correctamente, pero no aparecen datos en los logs New Relic.
+
+**Soluciones:**
+
+1. **Verificar extremos de API**: Pruebe la URL de la página de estado en un navegador; cerciorar de que devuelve un JSON válido.
+2. **Comprobar la estructura JSON**: La plantilla espera un formato específico; verificar que los campos de estado del componente coincidan con la estructura esperada.
+3. **Revisar los filtros de log**: Cerciorar de que la acción de registro emplee el tipo de evento y el atributo correctos.
+4. **Prueba con un extremo simple**: Usa un extremo JSON básico (como `https://httpbin.org/json`) para verificar que la mecánica de plantillas funciona.
+5. **Comprobar licencias de la cuenta**: Verificar que el flujo de trabajo tenga licencia para escribir logs en New Relic.
+
+## Próximos pasos
+
+Si sigues teniendo problemas luego de probar estas soluciones:
+
+* **[Foro de la comunidad de automatización de flujos de trabajo](https://discuss.newrelic.com/)**: Haz preguntas y obtén ayuda de otros usuarios.
+* **[Soporte de New Relic](https://support.newrelic.com/)**: Contacta con soporte para problemas específicos de tu cuenta.
+* **[flujo de trabajo mejores prácticas](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: Aprenda patrones para un flujo de trabajo confiable
+* **[Límites del flujo de trabajo](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: Comprender las restricciones y cuotas del sistema.

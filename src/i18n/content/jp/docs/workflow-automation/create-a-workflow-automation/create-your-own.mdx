@@ -1,0 +1,721 @@
+---
+title: 独自のワークフローを作成する
+tags:
+  - workflow automation
+  - create your own workflow
+  - build a workflow using New Relic
+metaDescription: Build custom workflows from scratch using drag-and-drop actions. Learn by example with a real-world EC2 automation scenario.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+テンプレートがニーズに合わない場合は、 [「Create Your Own」を](https://onenr.io/0OQM47KgxjG)使用してカスタムワークフローを構築できます。ドラッグ アンド ドロップ インターフェイスを使用して[、アクション カタログ](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)のアクションをプロセスに一致する自動化に連結します。
+
+## このガイドの使い方
+
+このガイドでは、概念と完全な例を使用してワークフローを構築する方法を説明します。学習パスを選択してください:
+
+* **まずコアコンセプトを学ぶ**→[コアコンセプト](#core-concepts)と[ワークフローパターン](#workflow-patterns)を読んで基礎を理解し、それを応用する
+
+* **例に従ってください**→[例のウォークスルー](#example-walkthrough)にジャンプして、EC2 自動サイズ変更ワークフローを段階的に構築します
+
+* **参考パターン**→ 独自のワークフローを構築する際のクイックリファレンスとして[ワークフローパターン](#workflow-patterns)セクションを使用してください
+
+  <Callout variant="tip">
+    **ワークフローは初めてですか?**コアコンセプトから始めて、例に従ってください。EC2 ワークフローは、実際のシナリオにおけるすべての主要パターンを示します。
+  </Callout>
+
+## カスタムワークフローを構築する理由は何ですか?
+
+独自のワークフローを構築して、次のことを実現します。
+
+* テンプレートがサポートしていない**独自のビジネスロジックを実装する**
+* 標準テンプレートを超えて**複数のシステムを統合**
+* 条件分岐で**複雑な決定を処理する**
+* **チームの承認と通知のプロセスに合わせる**
+
+## コアコンセプト [#core-concepts]
+
+構築する前に、次の基本事項を理解してください。
+
+<table>
+  <thead>
+    <tr>
+      <th width={225}>
+        **コンセプト**
+      </th>
+
+      <th>
+        **何をするのか**
+      </th>
+
+      <th>
+        **例**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        入力と秘密
+      </td>
+
+      <td>
+        認証情報と設定に関する問題
+      </td>
+
+      <td>
+        `${{ :secrets:awsKeyId }}` 資格情報の場合は`${{ .inputs.region }}`、構成の場合は 。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アクション（ Play ）
+      </td>
+
+      <td>
+        事前構築された統合 ( AWS 、Slack、データベース、API)
+      </td>
+
+      <td>
+        `aws.ec2.stopInstances`ワークフローキャンバスにドラッグします
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        データフロー
+      </td>
+
+      <td>
+        ステップ間で出力を渡す
+      </td>
+
+      <td>
+        `${{ .steps.getAlert.outputs.entityGuid }}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        スイッチ
+      </td>
+
+      <td>
+        条件に応じて異なるパスを作成する
+      </td>
+
+      <td>
+        `CPU > 90%` vs. `70-90%` vs. によるルート `< 70%`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ループ
+      </td>
+
+      <td>
+        リストを処理するか完了をポーリングする
+      </td>
+
+      <td>
+        コレクションを反復処理するには、 `type: loop` `for`および`in`と一緒に使用します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        範囲
+      </td>
+
+      <td>
+        ループ関数の反復回数を定義するための必須フィールド
+      </td>
+
+      <td>
+        `${{ range(1, 6) }}`を使用して5回ループします
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        待って
+      </td>
+
+      <td>
+        指定された期間または条件が満たされるまでワークフローの実行を一時停止します
+      </td>
+
+      <td>
+        `type: wait`と`seconds: 60`を組み合わせて60秒遅らせる
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        停止
+      </td>
+
+      <td>
+        ワークフロー実行を終了する
+      </td>
+
+      <td>
+        検証失敗またはキャンセル後にワークフローを終了します
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  **実践で学ぶ:**それぞれの概念は、[例のウォークスルー](#example-walkthrough)で説明されています。実際のワークフローで、入力、スイッチ、ループ、承認ゲートが連携して動作する様子を確認できます。
+</Callout>
+
+エラー処理パターンの詳細については、 [「ベストプラクティス」](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#error-handling)を参照してください。
+
+## クイックスタート [#quick-start]
+
+最初のワークフローを 5 つのステップで構築します。
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**に移動し、**[Create Your Own](https://onenr.io/0OQM47KgxjG) \[独自の作成を]**選択します
+2. 認証情報 (シークレット マネージャーから: `${{ :secrets:keyName }}` )、設定 (リージョン、インスタンスタイプ)、およびランタイム データ (アカウント ID、集計 ID) の定義
+3. [カタログ](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)からアクションをドラッグし、 `${{ .steps.stepName.outputs.field }}`構文で接続してデータを渡します
+4. 条件分岐用のスイッチ、リストやポーリングの処理用のループ、人間の決定のための承認ゲートを挿入します。
+5. 各セクションの後に実行してエラーを早期に発見し、ワークフローを[開始またはスケジュールします。](/docs/workflow-automation/create-a-workflow-automation/start-schedule)
+
+<Callout variant="tip">
+  3 つのステップから始めて、徹底的にテストしてから拡張します。機能する 5 ステップのワークフローは、機能しない 20 ステップのワークフローよりも優れています。
+</Callout>
+
+## 主要なワークフローパターン [#workflow-patterns]
+
+4 つの基本パターンで、ほとんどの自動化シナリオに対応します。各パターンについては、以下の[例のチュートリアル](#example-walkthrough)で説明します。
+
+### スイッチを使った条件分岐
+
+**次の場合にスイッチを使用します:**結果はデータに基づいて変化します (閾値チェック、 API応答、ユーザーの決定)
+
+**キー構文:**
+
+```yaml
+- name: hasCompleted
+  type: switch
+  switch:
+    - condition: "${{ .steps.waitForCompletion.outputs.automationExecutionStatus == 'Failed' }}"
+      next: displayError
+    - condition: "${{ .steps.waitForCompletion.outputs.automationExecutionStatus == 'Success' }}"
+      next: displaySuccess
+  next: displayUnexpected  # Default path when no condition matches
+```
+
+**実際のアクションをご覧ください:**[チームの対応の処理](#handle-team-response)と[検証およびクリーンアップの](#verify-and-clean-up)セクションでは、Slack の反応と AWS SSM のステータスに基づいてスイッチのルーティングが表示されます。
+
+### リストを処理するためのループ
+
+**ループを使用するのは、複数のアイテムを処理する場合やアクションを繰り返す場合です。**
+
+**キー構文:**
+
+```yaml
+# Send progress updates using range loop
+- name: progressLoop
+  type: loop
+  for:
+    in: "${{ [range(1; 5)] }}"  # Loop 5 times
+    steps:
+      - name: wait
+        type: wait
+        seconds: 10
+      - name: progressMessage
+        type: action
+        action: slack.chat.postMessage
+        version: 1
+        inputs:
+          channel: "${{ .workflowInputs.channel }}"
+          text: "Resizing in progress..."
+```
+
+**実際に動作しているところをご覧ください:**[サイズ変更セクションを実行すると、](#execute-the-resize)ステータスの更新に`progressLoop`が使用されます。
+
+### 承認ゲートと待機
+
+**承認ゲートを使用するのは、破壊的な操作やコンプライアンスの承認の前に人間の判断が必要な場合です**。
+
+**キー構文:**
+
+```yaml
+- name: requestApproval
+  type: action
+  action: slack.chat.postMessage
+  version: 1
+  inputs:
+    channel: "#approvals"
+    text: "Approve? React with :thumbsup: or :thumbsdown:"
+
+- name: getReactions
+  type: action
+  action: slack.chat.getReactions
+  version: 1
+  inputs:
+    token: "${{ .workflowInputs.slackToken }}"
+    channelID: "${{ .steps.requestApproval.outputs.channelID }}"
+    threadTs: "${{ .steps.requestApproval.outputs.threadTs }}"
+    timeout: 300  # Wait 5 minutes for reaction
+
+- name: checkApproval
+  type: switch
+  switch:
+    - condition: '${{ .steps.getReactions.outputs.reactions | any(.name == "+1") }}'
+      next: handleApproval
+    - condition: '${{ .steps.getReactions.outputs.reactions | any(.name == "-1") }}'
+      next: handleRejection
+```
+
+**単純な遅延の場合:**
+
+```yaml
+- name: waitBeforeRetry
+  type: wait
+  seconds: 60  # Wait 60 seconds before continuing
+```
+
+**実際の手順をご覧ください:**[リクエスト チーム承認](#request-team-approval)セクションでは、完全な Slack 承認ワークフローが実装されます。
+
+### ステップ間でのデータの受け渡し
+
+**データ受け渡しは次の場合に使用します:** 1 つのステップの出力が別のステップの入力になる場合 (すべてのワークフローの基礎)
+
+**キー構文:**
+
+```yaml
+# Reference previous step outputs
+awsRegion: "${{ .inputs.region }}"
+instanceId: "${{ .steps.getAlert.outputs.data.entity.instanceId }}"
+```
+
+**実際に動作を確認してください。**すべてのセクションでデータの受け渡しが示され、各ステップは前の結果に基づいて構築されます。
+
+<Callout variant="tip">
+  **完全なパターン例が必要ですか?**エラー処理、再試行、複雑な統合などの追加のパターンについては[、ワークフローの例を](/docs/workflow-automation/workflow-examples)参照してください。
+</Callout>
+
+## ウォークスルーの例: 承認による EC2 の自動サイズ変更 [#example-walkthrough]
+
+この完全な例では、Slack 経由でチームの承認を得た後、CPU が急増したときに EC2 インスタンスのサイズを自動的に変更するワークフローを構築する方法を示します。 実際のシナリオでのデータ収集、条件付きロジック、外部統合、およびエラー処理を示します。
+
+<Callout variant="tip">
+  **ワークフローは初めてですか?**この例では、AWS、Slack、承認ロジックを使用します。始めたばかりの場合は、まず[Slack にレポートを送信して](/docs/workflow-automation/create-a-workflow-automation/use-a-template#send-report-to-slack)みてください。
+</Callout>
+
+### 前提条件 [#prerequisites]
+
+このワークフローを構築する前に、次のものを用意してください。
+
+* **AWS** : EC2 および Systems Manager の権限を持つ認証情報
+* **Slack** : 通知用のボットトークンとチャンネル
+* **New Relic** : アラート条件監視 EC2 CPU
+* **シークレット マネージャー**: 構成済み ([シークレット管理を](/docs/infrastructure/host-integrations/installation/secrets-management/)参照)
+
+### ワークフローの概要 [#workflow-overview]
+
+**大まかなフロー:**
+
+1. **データを収集する**: New Relicから集計とインスタンスの詳細を取得します
+2. **承認リクエスト**: Slack メッセージを送信し、チームの応答を待ちます
+3. **サイズ変更の実行**: AWS Systems Manager を使用して EC2 インスタンスのサイズを変更します
+4. **検証とクリーンアップ**: 結果を確認し、チームに通知し、一時的なリソースを削除します
+
+この例では、カスタム ワークフローで使用する主要なパターン (API のクエリ、条件分岐、外部統合、ポーリング ループ、エラー処理) を示します。
+
+### ワークフロー入力 [#workflow-inputs]
+
+<Callout variant="tip">
+  **概念を理解するために読んでいる場合は飛ばしてください。**この表は、このワークフローで使用される 12 の問題の詳細を示しています。 ビルド時に参照することはできますが、フローを理解するために必須ではありません。
+</Callout>
+
+このワークフローには、入力として資格情報、設定、およびランタイム コンテキストが必要です。 機密値は、 `${{ :secrets:keyName }}`構文を使用してシークレット マネージャーから取得されます。
+
+**入力カテゴリ:**
+
+* **認証**: シークレットマネージャーからの AWS および Slack の認証情報
+* **まとめコンテキスト**: New Relicからのアカウント ID と問題 ID
+* **設定**: リージョン、インスタンスタイプ、タイムゾーン、Slackチャンネル
+
+<CollapserGroup>
+  <Collapser title="入力リファレンス">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            **問題の名前**
+          </th>
+
+          <th>
+            **タイプ**
+          </th>
+
+          <th>
+            **デフォルト値**
+          </th>
+
+          <th>
+            **説明**
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `awsAccessKeyId`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `${{ :secrets:awsAccessKeyId }}`
+          </td>
+
+          <td>
+            AWSサービスで認証するためにシークレット マネージャーから取得したAWSアクセス キー ID。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsSecretAccessKey`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `${{ :secrets:awsSecretAccessKey }}`
+          </td>
+
+          <td>
+            シークレット マネージャーから取得した AWS シークレット アクセス キー。アクセスキーIDとペアになります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsSessionToken`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `${{ :secrets:awsSessionToken }}`
+          </td>
+
+          <td>
+            一時的な AWS 認証情報のセッショントークン (オプション、IAM ロールで使用)。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `slackToken`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `${{ :secrets:slackToken }}`
+          </td>
+
+          <td>
+            Slack でメッセージを投稿したり反応を読んだりするためのボット トークン。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `accountId`
+          </td>
+
+          <td>
+            Int
+          </td>
+
+          <td>
+            必須
+          </td>
+
+          <td>
+            New Relic アカウント ID。集計詳細およびエンティティ データのクエリに使用されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `issueId`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            必須
+          </td>
+
+          <td>
+            このワークフローをトリガーしたNew Relic集計の課題 ID。 ワークフローが累計から実行されるときに自動的に提供されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsRegion`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `us-east-2`
+          </td>
+
+          <td>
+            EC2 インスタンスが実行されるAWSリージョン (例: `us-east-1` 、 `us-west-2` 、 `eu-west-1` )。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `InstanceType`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `t4g.nano`
+          </td>
+
+          <td>
+            目標 EC2 サイズ変更用インスタンスタイプ。 パフォーマンスのニーズと予算に基づいて選択してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestampUnit`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `MILLISECONDS`
+          </td>
+
+          <td>
+            積算タイムスタンプの時間単位。 通常は`MILLISECONDS`または`SECONDS`です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timezoneId`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `America/Los_Angeles`
+          </td>
+
+          <td>
+            Slack メッセージで一括アクティベーション時間を表示するためのタイムゾーン (例: `America/New_York` 、 `Europe/London` 、 `Asia/Tokyo` )。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pattern`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            `MM-dd-yyyy HH:mm`
+          </td>
+
+          <td>
+            タイムスタンプを表示するための日付/時刻形式パターン。Java SimpleDateFormat パターンを使用します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `channel`
+          </td>
+
+          <td>
+            弦
+          </td>
+
+          <td>
+            必須
+          </td>
+
+          <td>
+            通知が投稿される Slack チャンネル ID (名前ではありません)。Slack のチャンネル詳細でこれを見つけてください。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## ワークフローを段階的に構築する [#step-by-step-workflow]
+
+それでは、ワークフローの各部分を構築してみましょう。各ステップには、追加する特定のアクションと、それらが示すワークフロー パターンが含まれます。
+
+<Steps>
+  <Step>
+    ### まとまったコンテキストを収集する [#gather-alert-context]
+
+    アクションを実行する前に、API とデータベースをクエリします。これにより、完全なコンテキストが確保されます。
+
+    ワークフローは、次の 3 つのアクションを使用して、集計および EC2 インスタンス情報を収集します。
+
+    * **`getAlertDetails`** : NerdGraph API ( New RelicのGraphQL API ) を呼び出して、アクティブ化時刻、条件名、影響を受けるエンティティなどの細分メタデータを取得します。
+
+    * **`activatedDateTime`** : Slack メッセージのタイムスタンプを「01-24-2025 14:30」のような読み取り可能な形式に変換します。
+
+    * **`impactedEC2Instance`** : NRDB ( New Relicデータベース) を使用して EC2 インスタンス ID と現在のタイプを見つけます。
+
+      <img title="Initial data gathering steps" alt="Workflow diagram showing three steps: getAlertDetails queries NerdGraph API, activatedDateTime converts timestamp, and impactedEC2Instance retrieves instance details from NRDB" src="/images/initial-data-gathering.webp" />
+
+    **これが重要な理由:**これらの詳細がなければ、意味のある Slack メッセージを作成したり、適切な EC2 インスタンスをターゲットにしたりすることはできません。
+  </Step>
+
+  <Step>
+    ### チームの承認をリクエスト [#request-team-approval]
+
+    人間の意思決定ポイントのために、Slack、PagerDuty、ServiceNow などのコラボレーション ツールに接続します。
+
+    ワークフローは詳細を Slack に送信し、応答を待ちます。
+
+    * **`IssueDetected`** : 集計の詳細、現在のインスタンスタイプ、および提案されたサイズ変更を Slack に投稿します。 チームに`:+1:` (承認) または`:-1:` (キャンセル) で反応するよう求めます。
+
+    * **`GetUserReaction`** : 反応を待つために 5 分 (300 秒) 間一時停止します。
+
+    * **`checkQuery` (スイッチ)** : 反応に基づいたルート:
+
+      * **`:+1:`** → サイズ変更を開始
+      * **`:-1:`** → ワークフローを停止
+      * **その他**→ 有効な反応のプロンプト、ループバック
+
+      <img title="User approval process steps" alt="Workflow diagram showing user approval process: IssueDetected posts Slack message, GetUserReaction waits for response, checkQuery evaluates reactions with three conditions for approval, cancellation, or unexpected responses" src="/images/user-approval-process.webp" />
+
+    <Callout variant="tip">
+      **よくある問題:**チャンネル名ではなく、Slack チャンネル**ID** ( `C01234ABCD` ) を使用してください。Slack のチャンネル詳細で見つけてください。詳細については[トラブルシューティング](#common-issues)を参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ### チームの対応を処理する [#handle-team-response]
+
+    スイッチを使用して、データ値またはユーザー入力に基づいて異なるパスを作成します。
+
+    ワークフローは反応に基づいて分岐します。
+
+    * **`unexpectedReaction`** : 有効な反応を説明し、再度待機するためにループします。
+    * **`gotCancelReaction`** : キャンセルを確認し、完了までスキップします。インフラストラクチャの変更はありません。
+    * **`gotYesReaction`** : 承認を確認し、サイズ変更に進みます。
+
+    <Callout variant="tip">
+      **承認ゲート パターン:**リスクのある変更の前に人間の判断が必要な場合は、このようなスイッチを使用します。このパターンは、Slack の反応、PagerDuty の確認、電子メールの応答、またはカスタム Webhook で機能します。
+    </Callout>
+  </Step>
+
+  <Step>
+    ### サイズ変更を実行する [#execute-the-resize]
+
+    重複した操作を防ぐために、一意のトークンを使用します。ループを使用して、長時間実行される操作のステータスを確認します。
+
+    ワークフローは、AWS Systems Manager (SSM) を通じてインスタンスのサイズを変更します。
+
+    * **`createSsmDocument`** : インスタンスを停止し、タイプを変更して再起動する SSM 自動化ドキュメントを作成します。
+    * **`generateIdempotencyToken`** : 一意の UUID を作成します。ワークフローが 2 回実行された場合に、重複したサイズ変更を防止します。
+    * **`startResizing`** : インスタンス ID と新しいタイプを使用して SSM ドキュメントを実行します。
+    * **`progressLoop` (ループ)** : Slack の更新を 10 秒ごとに投稿します (合計 5 回)。
+    * **`waitForCompletion`** : 2 分間のタイムアウトで SSM ステータスをポーリングします。
+
+    <Callout variant="important">
+      **SSM を使用する理由**Systems Manager は、エラー処理、状態検証、CloudTrail 監査ログを提供します。直接 EC2 APIコールよりも優れています。
+    </Callout>
+
+    <Callout variant="tip">
+      **一般的な問題:** AWS 認証情報に`ec2:StopInstances` 、 `ec2:ModifyInstanceAttribute` 、 `ec2:StartInstances` 、および`ssm:*`権限があることを確認します。権限が不足している場合は、何も表示されずに失敗します。
+    </Callout>
+  </Step>
+
+  <Step>
+    ### 検証とクリーンアップ [#verify-and-clean-up]
+
+    失敗を計画し、結果に関係なく一時的なリソースをクリーンアップします。
+
+    ワークフローは結果をチェックし、一時リソースを削除します。
+
+    * **`hasCompleted` (スイッチ)** : SSM ステータス (成功/失敗/タイムアウト) に応じて分岐します。
+    * **`displaySuccess`** : New Relicに成功をログします。
+    * **`sendSuccessMessage`** : Slack で完了を確認します。
+    * **`displayError`** : トラブルシューティングのエラー詳細をログに記録します。
+    * **`displayUnexpected`** : 異常な状態 (手動キャンセルなど) をログに記録します。
+    * **`cleanupSsmDocument`** : 一時 SSM ドキュメントを削除します。
+    * **`sendSSMCleanMessage`** : Slack でクリーンアップを確認します。
+    * **`workflowCompleted`** : 最終完了メッセージ (成功またはキャンセルの場合に実行されます)。
+
+    <Callout variant="tip">
+      * **常に掃除をしてください。**前のステップが失敗した場合でもクリーンアップが実行されるようにワークフローを構成します。これにより、リソースの漏洩や予期しない AWS 料金の発生を防ぐことができます。
+      * **一般的な問題:** SSM がタイムアウトしても、EC2 インスタンスは依然として状態間で遷移している可能性があります。 再実行する前に、 AWS Console実際のインスタンスのステータスを確認してください。
+    </Callout>
+  </Step>
+</Steps>
+
+## 次のステップ
+
+### 実行と管理
+
+* **[ワークフローの開始とスケジュール](/docs/workflow-automation/create-a-workflow-automation/start-schedule)**: 手動でトリガーするか、自動的にスケジュールします。
+* **[ワークフローの管理](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)**: ワークフローを編集、バージョン管理、複製、または非アクティブ化します。
+
+### 改善する
+
+* **[ベストプラクティス](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: エラー処理、シークレット管理、パフォーマンス、テスト。
+* **[アクション カタログ](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)**: AWS、Azure、GCP、HTTP、データ変換。
+* **[ワークフローの例](/docs/workflow-automation/workflow-examples)**: より現実的な自動化シナリオ。
+
+### 規模
+
+* **[ワークフロー自動化 API](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api)** : インフラストラクチャをコードとして API 経由でデプロイします。
+* **[ワークフローの制限](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: タイムアウト、アクションの制限、ペイロードの制約。

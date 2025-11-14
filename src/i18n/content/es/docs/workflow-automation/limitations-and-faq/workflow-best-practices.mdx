@@ -1,0 +1,326 @@
+---
+title: flujo de trabajo Automatización mejores prácticas
+tags:
+  - Workflow Automation
+  - workflow
+  - best practices
+  - workflow automation best practices
+metaDescription: 'Build reliable, maintainable workflows that handle errors gracefully and scale with your operations.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="avance">
+  Todavía estamos trabajando en esta característica, ¡pero nos encantaría que la probaras!
+
+  Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Crea flujos de trabajo confiables que gestionen los errores de forma eficaz, protejan los datos confidenciales y se adapten a tus operaciones. Sigue estos patrones para crear automatizaciones mantenibles.
+
+## Diseño enfocado al flujo de trabajo.
+
+Mantenga el flujo de trabajo enfocado en una sola responsabilidad. Agrupa las acciones relacionadas, pero evita combinar tareas no relacionadas.
+
+### Un flujo de trabajo, un propósito
+
+**Hacer**: Crear un flujo de trabajo separado para respuesta a incidentes y mantenimiento programado. **No**: combine el cambio de tamaño de EC2, las copias de seguridad de la base de datos y la notificación de Slack en un solo flujo de trabajo.
+
+### Reutilizar flujo de trabajo con parámetro
+
+Emplee el parámetro de entrada para hacer que el flujo de trabajo sea reutilizable en todos los entornos en lugar de duplicar el flujo de trabajo.
+
+**Ejemplo**: Un EC2 redimensiona el flujo de trabajo con región y parámetro de tipo de instancia:
+
+```yaml
+inputs:
+  awsRegion: us-east-1
+  instanceType: t3.medium
+  instanceId: i-1234567890abcdef0
+```
+
+Esto reemplaza la creación de un flujo de trabajo separado para cada región o tipo de instancia.
+
+### Combinar acciones relacionadas
+
+Acciones relacionadas que deben ejecutar juntas:
+
+* **Hacer**: consultar detalles de alerta, formatear mensaje, enviar a Slack en un flujo de trabajo
+* **No**: crear un flujo de trabajo separado para &quot;consulta alerta&quot;, &quot;formatear mensaje&quot;, &quot;enviar a Slack&quot;
+
+## Manejar errores
+
+Incluya siempre el manejo de errores para las llamadas a API externas y las operaciones críticas.
+
+### Agregar acciones de respaldo
+
+Cuando los pasos críticos puedan fallar, agrega acciones de respaldo que notifiquen a tu equipo.
+
+**Ejemplo**: Enviar notificación de Slack incluso si falla un paso usando `ignoreErrors`:
+
+```yaml
+- name: sendNotification
+  type: action
+  action: aws.execute.api
+  version: 1
+  ignoreErrors: true
+  inputs:
+    service: sqs
+    api: send_message
+    parameters:
+      MessageBody: "Rollback notification"
+      QueueUrl: "${{ .workflowInputs.queueUrl }}"
+
+- name: logResult
+  type: action
+  action: newrelic.ingest.sendLogs
+  version: 1
+  inputs:
+    logs:
+      - message: "Notification sent: ${{ .steps.sendNotification.outputs.success }}"
+```
+
+Emplee `ignoreErrors: true` para continuar la ejecución del flujo de trabajo incluso si falla un paso.
+
+### Establezca tiempos de espera adecuados.
+
+Establezca tiempos de espera para API de llamadas externas para evitar que el flujo de trabajo se cuelgue:
+
+* API de llamada AWS : 30-60 segundos
+* consulta de la base de datos: 10-30 segundos
+* requests HTTP: 15-30 segundos
+* Mensajes de Slack: 10 segundos
+
+### Registrar errores para la resolución de problemas
+
+Incluya estos detalles en los logs de errores:
+
+* Acción que fracasó
+* parámetro de entrada
+* mensaje de error del servicio
+* Timestamp
+
+## Credenciales seguras
+
+Almacena todos los valores confidenciales en el administrador de secretos de New Relic. Nunca incluya credenciales codificadas directamente en las definiciones de flujo de trabajo.
+
+### Emplee el administrador de secretos
+
+Almacena las credenciales AWS, el token API y las contraseñas:
+
+```graphql
+mutation {
+  secretsManagementCreateSecret(
+    scope: {type: ACCOUNT id: "YOUR_NR_ACCOUNT_ID"}
+    namespace: "aws"
+    key: "awsAccessKeyId"
+    description: "AWS Access Key ID for workflow automation"
+    value: "YOUR_AWS_ACCESS_KEY_ID"
+  ) {
+    key
+  }
+}
+```
+
+Secretos de referencia: `${{ :secrets:awsAccessKeyId }}`
+
+### Rote las credenciales de manera regular
+
+Si se emplean claves de acceso de usuario de IAM:
+
+* Rotar cada 90 días como mínimo
+* Configura recordatorios en el calendario
+* Prueba las nuevas credenciales antes de eliminar las antiguas.
+
+**Recomendación**: Emplee roles de IAM en su lugar; estos rotan automáticamente.
+
+### Emplear licencias de mínimo privilegio
+
+Conceder solo las licencias necesarias. Comience con licencias de solo lectura y agregue licencias de escritura solo cuando sea necesario.
+
+**Ejemplo de política de AWS IAM** para SQS:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "sqs:SendMessage",
+  "Resource": "arn:aws:sqs:us-west-2:123456789012:my-queue"
+}
+```
+
+Esto restringe el acceso a una cola específica.
+
+## Prueba antes de la producción
+
+Pruebe el flujo de trabajo en un entorno de no producción antes de implementarlo en producción.
+
+### Duplicado para pruebas
+
+Crear versiones de prueba del flujo de trabajo de producción:
+
+1. Navegue a **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+2. Busque el flujo de trabajo y haga clic en el menú de más opciones.
+3. Seleccionar **Duplicate**
+4. Actualiza las credenciales para usar las cuentas de prueba.
+5. Prueba con recursos que no sean de producción
+
+### Escenarios de fallo de prueba
+
+Verificar flujo de trabajo manejar fallas:
+
+* ¿Qué ocurre si la API de AWS no está disponible?
+* ¿Qué ocurre si Slack está caído?
+* ¿Qué ocurre si las credenciales caducan?
+* ¿Qué ocurre si un recurso necesario no existe?
+
+### Verificar integración
+
+Antes de programar, active manualmente el flujo de trabajo y verifique:
+
+* Las acciones de AWS se ejecutan correctamente
+* Los mensajes de Slack aparecen en los canales correctos.
+* Las puertas de aprobación esperan respuestas
+* El manejo de errores funciona como se esperaba.
+
+## Optimizar el rendimiento
+
+Crea flujos de trabajo eficientes que se ejecuten rápidamente.
+
+### Consulta una vez, reutiliza los resultados
+
+Almacena los resultados de la consulta y haz referencia a ellos varias veces:
+
+```yaml
+- name: getAlertDetails
+  action: newrelic.nerdgraph.execute
+
+- name: sendToSlack
+  inputs:
+    text: "${{ .steps.getAlertDetails.outputs.data }}"
+
+- name: updateJira
+  inputs:
+    body: "${{ .steps.getAlertDetails.outputs.data }}"
+```
+
+**No**: consulte los detalles de alerta por separado para Slack y Jira.
+
+## Monitorear y mantener
+
+Monitorear periódicamente la ejecución del flujo de trabajo y mantener actualizado el flujo de trabajo.
+
+### Revisar el historial de ejecución semanalmente
+
+Revisión de las carreras de flujo de trabajo:
+
+1. Navegue a **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+2. Seleccione el flujo de trabajo
+3. Hacer clic en **Run history**
+4. Busque ejecuciones fallidas o tiempos de ejecución cada vez mayores.
+
+### Configurar alertas de fallos
+
+Configurar alertas para fallos en el flujo de trabajo:
+
+1. Crear condición de alerta para fallos en la ejecución del flujo de trabajo
+2. Enviar notificación al canal principal del equipo.
+3. Incluya el nombre del flujo de trabajo y los detalles del error.
+
+### Revisar flujo de trabajo trimestralmente
+
+Configura recordatorios recurrentes en tu calendario para:
+
+* Eliminar el flujo de trabajo no empleado
+* Actualizar credenciales caducadas
+* Verifique que los servicios integrados no cambiaron sus API.
+* Escenarios de fallo de prueba
+* Documentación actualizada
+
+## Flujo de documentos de trabajo
+
+Haga que el flujo de trabajo sea fácil de entender.
+
+### Emplee nombres descriptivos
+
+* **Ejecutar**: &quot;Redimensionamiento automático de EC2 para alertas de alto uso de CPU&quot;
+* **No**: &quot;flujo de trabajo 1&quot; o &quot;EC2 Automation&quot;
+
+### Escriba descripciones claras
+
+Explica qué, cuándo y quién:
+
+```
+Automatically resizes EC2 instances when CPU exceeds 90% for 10 minutes.
+Requires approval via Slack before executing changes.
+Owner: DevOps Team (devops@example.com)
+Last updated: 2025-01-26
+```
+
+### Agrega comentarios para la lógica compleja.
+
+Cuando emplee lógica condicional o bucles, explique la lógica:
+
+```yaml
+- name: checkCPU
+  # Query CPU for last 10 minutes to avoid false positives
+  type: action
+  action: newrelic.nerdgraph.execute
+  version: 1
+
+- name: decideAction
+  # If CPU > 90%: resize, 70-90%: warn, < 70%: no action
+  type: switch
+  switch:
+    - condition: "${{ .steps.checkCPU.outputs.result > 90 }}"
+      next: resizeInstance
+    - condition: "${{ .steps.checkCPU.outputs.result > 70 }}"
+      next: sendWarning
+  next: noAction
+```
+
+## Seguridad
+
+Proteger el flujo de trabajo y los recursos a los que acceden.
+
+### Emplee puertas de aprobación para operaciones destructivas
+
+Requerir aprobación humana antes de:
+
+* Eliminando recursos
+* Reducción de los servicios de producción
+* Retrocediendo despliegue
+* Modificar las licencias de IAM
+
+### cambios en el flujo de trabajo de auditoría
+
+Emplee el historial de versiones para realizar un seguimiento de los cambios:
+
+1. Ir a los detalles del flujo de trabajo
+2. Hacer clic en **Version history**
+3. Revisa los cambios y quién los realizó.
+
+### Restringir el acceso al flujo de trabajo
+
+Cerciorar de que solo los miembros autorizados del equipo puedan editar el flujo de trabajo:
+
+1. Revisar el rol de usuario en la configuración de la cuenta
+2. Limitar las licencias de edición al equipo de DevOps
+3. Emplee cuentas separadas para producción y pruebas.
+
+## Próximos pasos
+
+**Comprender los límites:**
+
+* **[Límites del flujo de trabajo](/docs/workflow-automation/limitations-and-faq/workflow-limits)** : restricciones de tiempo de espera, acción y carga útil
+
+**Solucionar problemas:**
+
+* **[Resolución de problemas](/docs/workflow-automation/troubleshooting)** - Soluciones a problemas comunes
+
+**Ver ejemplos:**
+
+* **[Ejemplos de flujo de trabajo](/docs/workflow-automation/workflow-examples)** : escenarios de automatización del mundo real
+
+**Gestionar el flujo de trabajo:**
+
+* **[Gestión del flujo de trabajo](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)** : editar, duplicar y monitorear el flujo de trabajo
