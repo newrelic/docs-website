@@ -18,7 +18,7 @@ We're excited to introduce **Scheduled Search and Reporting (Preview)**. This ne
 * **Multiple formats:** Get your query results as an attached **CSV** or **JSON** file, ready for reporting or analysis.
 * **Centralized management:** View, edit, and manage all your scheduled searches from a single page in the Administration UI.
 
-![Setting up Scheduled Search Notifications](/static/images/nrql_scheduled-query_-set-up-notification.webp "Setting up Scheduled Search Notifications")
+![Setting up Scheduled Search Notifications](/images/nrql_scheduled-query_-set-up-notification.webp "Setting up Scheduled Search Notifications")
 
 <figcaption>Set up your email notification, schedule, and output format (CSV or JSON).</figcaption>
 
