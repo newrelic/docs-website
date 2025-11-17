@@ -1,7 +1,7 @@
 ---
 title: 'Fine Grained Access for Logs'
 summary: 'Restrict user access to specific log data partitions for better security and compliance.'
-releaseDate: '2025-10-29'
+releaseDate: '2025-11-04'
 learnMoreLink: 'https://docs.newrelic.com/es/docs/accounts/accounts-billing/new-relic-one-user-management/data-access-control/'
 getStartedLink: 'https://docs.newrelic.com/es/docs/accounts/accounts-billing/new-relic-one-user-management/data-access-control/#create-policies'
 ---
@@ -20,7 +20,7 @@ With Fine Grained Access control for Logs, you create policies that define exact
 
 This enables you to restrict logs access to only the data a user should need. When a user belongs to multiple grants for an account, any deny policy will always override an allow policy.
 
-![A screenshot that shows how to add a data access policy](/static/images/add-data-policy.webp "A screenshot that shows how to add a data access policy.")
+![A screenshot that shows how to add a data access policy](/images/add-data-policy.webp "A screenshot that shows how to add a data access policy.")
 
 <figcaption>Create policies to allow or deny access to specific log partitions from the Access Management UI.</figcaption>
 
