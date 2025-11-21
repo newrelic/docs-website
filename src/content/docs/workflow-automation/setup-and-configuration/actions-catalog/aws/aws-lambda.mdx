@@ -105,8 +105,7 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
                     <td>Optional</td>
                     <td>Map</td>
                     <td>
-                    `payload:              
-    user: R2-D2`
+                    `payload:              user: R2-D2`
                     </td>
                 </tr>
                 <tr>
@@ -117,16 +116,6 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
                 </tr>
             </tbody>
         </table>
-
-      <Callout variant="important">
-        - **Action Timeout**: This action has a maximum 1-minute(60-second) timeout for synchronous invocations
-        - **Long-Running Functions**: For functions that may run longer than 1 minute, you must use the Event InvocationType. This invokes the function asynchronously. You can then use other actions (like aws.cloudwatch.getLogEvents or checking an SQS/SNS callback) to get the result.
-          - `InvocationType` is critical:
-            - `RequestResponse` (default): Invokes the function synchronously. The action waits for the function to complete and returns the response.
-            - `Event`: Invokes the function asynchronously. The action returns a success status immediately without waiting for the code to finish.
-          - `ClientContext` is for advanced use cases and the provided String must be Base64-encoded
-          - Any additional API parameters not listed above can be passed in the `parameters` map. To support a wide range of inputs, the `parameters` map accepts any optional argument available in the official boto3 API documentation. This allows you to dynamically construct requests by adding multiple fields.
-      </Callout>
     </TabsPageItem>
 
     <TabsPageItem id="awslambdaoutputs">
@@ -140,60 +129,156 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
       </thead>
       <tbody>
           <tr>
-              <td>**response**</td>
-              <td>object</td>
+              <td>**payload**</td>
+              <td>Map</td>
               <td>
-    ```yaml
-    [{"success":true,"response":{"StatusCode":200,"ExecutedVersion":"$LATEST","Payload":{"statusCode":200,"body":"\"Hello userName\""}}}]
+  ```yaml
+    {
+      statusCode=200.0,
+      body=\"Hello R2-D2!\"
+    }
     ```
-          <p>
-            Response syntax can be referred to [invoke - Boto3 documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/lambda/client/invoke.html)
-          </p>
               </td>
+          </tr>
+          <tr>
+              <td>**statusCode**</td>
+              <td>Int</td>
+              <td>`statusCode: 200`</td>
+          </tr>
+          <tr>
+              <td>**executedVersion**</td>
+              <td>String</td>
+              <td>`executedVersion: "$LATEST"`</td>
+          </tr>
+          <tr>
+              <td>**functionError**</td>
+              <td>String</td>
+              <td>`functionError: "Unhandled::Error occurred"`</td>
           </tr>
           <tr>
               <td>**success**</td>
               <td>Boolean</td>
-              <td>`success: true | false`</td>
+              <td>`Status of the request`</td>
           </tr>
           <tr>
               <td>**errorMessage**</td>
               <td>String</td>
-              <td>`"errorMessage": "ValidationException: 1 validation error detected"`</td>
+              <td>`Failure reason as message`</td>
           </tr>
       </tbody>
     </table>
+
+    <Callout variant="important">
+        - In action input at least one of the AWS Credentials (short, long, role) should be provided, where role take precedence over the others.
+        - In action input, if `awsAccessKeyId` and `awsSecretAccessKey` are to be provided make sure they are static credentials of an IAM user.
+        - If session credentials are to be used, `awsAccessKeyId`, `awsSecretAccessKey` and `awsSessionToken` must be passed to action input.
+        - The credential owner must have the `lambda:InvokeFunction` IAM permission to invoke the lambda function passed in the action input.
+        - The selectors to get the only specified parameters as output.
+      </Callout>
   </TabsPageItem>
 
   <TabsPageItem id="awslambdaexample">
   <table>
     <thead>
         <tr>
-          <th>Workflow example</th>
+          <th>Workflow definition</th>
+          <th>Inputs</th>
+          <th>Outputs</th>
+          <th>Outputs when selectors are provided</th>
       </tr>
   </thead>
   <tbody>
       <tr>
           <td>
   ```yaml
-      name: lambda-invoke-function-test
-      description: 'Invokes a Lambda function with a payload'
+      name: LambdaTest
+
       workflowInputs:
-        arnRole:
+        region:
           type: String
+        functionName:
+          type: String
+        payload:
+          type: Map
+          defaultValue: {}
+
       steps:
-        - name: aws_lambda_invoke_1
+        - name: awsLambda
           type: action
           action: aws.lambda.invoke
-          version: '1'
+          version: 1
           inputs:
-            awsRoleArn: ${{ .workflowInputs.arnRole }}
-            region: us-east-1
-            functionName: my-lambda-processor
-          payload: '{"orderId": "12345", "amount": 99.99}'
-          next: end
+            region: ${{ .workflowInputs.region }}
+            functionName: ${{ .workflowInputs.functionName }}
+            awsAccessKeyId: ${{ :secrets:awsAccessKeyId }}
+            awsSecretAccessKey: ${{ :secrets:awsSecretAccessKey }}
+            awsSessionToken: ${{ :secrets:awsSessionToken }}
+            payload: ${{ .workflowInputs.payload }}
+            selectors: ${{ .workflowInputs.selectors }}
+        
+        - name: logOutput
+          type: action
+          action: newrelic.instrumentation.log
+          version: 1
+          inputs:
+            message: 'The lambda function message output is:${{ .steps.awsLambda.outputs.payload.body }}'
+            licenseKey: '${{ :secrets:STAGING_NEW_RELIC_LICENSE_KEY }}'
   ```
           </td>
+          <td>
+  ```yaml
+      {
+        "inputs": [
+              {
+                  "key": "region"
+                  "value": "\"us-east-2\""
+              },
+              {
+                  "key": "functionName"
+                  "value": "\"hello-you\""
+              },
+              {
+                  "key": "payload"
+                  "value": "{\"user\":\"R2-D2\"}"
+              },
+              {
+                  "key": "selectors"
+                  "value": "[{\"name\": \"payload\", \"expression\": \".payload\"}]"
+              }
+        ]
+      }
+  ```
+          </td>
+          <td>
+  ```yaml
+      Success case:
+        {
+          success: true
+          executedVersion=$LATEST, 
+          statusCode=200, 
+          payload={
+            statusCode=200.0, 
+            body=\"Hello R2-D2\"
+          }
+        }
+
+      Failure case:
+        {
+          "errorMessage": "Invalid format",
+          "success": false
+        }
+    ```
+            </td>
+            <td>
+  ```yaml
+        {
+          payload={
+            statusCode=200.0, 
+            body=\"Hello R2-D2\"
+          }
+        }
+    ```
+            </td>
         </tr>
     </tbody>
   </table>
@@ -204,7 +289,7 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
 
     <Collapser
         id="aws.lambda.updateFunctionConfiguration"
-        title="Update function configuration"
+        title="Update the configuration of a specific Lambda function."
     >
 
   Modifies the configuration of a specific AWS Lambda function. Provide only the parameters you want to change.
@@ -395,7 +480,7 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
 
     <Collapser
         id="aws.lambda.getFunction"
-        title="Get function"
+        title="Describe a specific Lambda function in an AWS account"
     >
 
   Retrieves the configuration details, code location, and other metadata for a specific AWS Lambda function.
@@ -565,7 +650,7 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
 
     <Collapser
         id="aws.lambda.listAliases"
-        title="List aliases"
+        title="List the aliases for a specific Lambda function."
     >
   Returns a list of aliases for a specific AWS Lambda function. Aliases are pointers to function versions.
 
@@ -675,7 +760,7 @@ See [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/s
       </table>
 
       <Callout variant="important">
-        - **Pagination**: Use the Marker and MaxItems inputs to paginate through a large number of aliases.
+        - **Pagination**: Use the `Marker` and `MaxItems` inputs to paginate through a large number of aliases.
         - To support a wide range of inputs, the `parameters` map accepts any optional argument available. This allows you to dynamically construct requests by adding multiple fields.
       </Callout>
     </TabsPageItem>
