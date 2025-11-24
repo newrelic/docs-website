@@ -1,0 +1,836 @@
+---
+title: ドロップルールからPipeline cloudルールに移行する
+tags:
+  - Data Management
+  - Migration
+  - Drop Rules
+  - Pipeline Control
+  - Terraform
+  - GitOps
+metaDescription: Migrate your NRQL drop rules to Pipeline cloud rules using Terraform with GitOps (CI/CD) or on your local machine.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="important">
+  2025 年 5 月 21 日以降、新規顧客はNRQLドロップ ルールを使用できなくなります。 [NRQL ドロップ ルールは 2026 年 1 月 7 日に終了します](/eol/2025/05/drop-rule-filter)。
+
+  データ削除ルールを引き続き管理するには、 [Pipeline クラウド ルール](/docs/new-relic-control/pipeline-control/cloud-rules-api)に移行します。
+</Callout>
+
+[`newrelic_nrql_drop_rule`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/nrql_drop_rule)リソースを使用して Terraform 経由で NRQL ドロップ ルールを管理している場合は、それらを[`newrelic_pipeline_cloud_rule`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/pipeline_cloud_rule)リソースに移行する必要があります。New Relic は基礎となるドロップ ルールをすでに移行していますが、Terraform は独自の状態ファイルを維持し、明示的に構成したリソースのみを認識します。Terraform はこれらを 2 つの完全に異なるリソース タイプとして扱うため、 Pipeline cloudルールを Terraform の状態にインポートし、古いドロップ ルール リソースを削除する必要があります。
+
+## 移行アプローチ [#migration-approaches]
+
+このガイドでは、Terraform でNRQLドロップ ルールをPipeline cloudルールに移行する 2 つの方法について説明します。
+
+* ネイティブ Terraform コマンド: `terraform import` 、 `terraform plan` 、および`terraform state rm`コマンドを使用する標準の Terraform ワークフロー。
+
+* New Relic CLI 自動化ツール: New Relic は、ネイティブ Terraform ワークフローを自動化する CLI ツールを提供しており、次の 2 つのバージョンがあります。
+
+  * GitOps (CI/CD): Terraform の状態がワークスペースから直接アクセスできない (通常はリモート バックエンドに保存される) CI/CD ツールを使用するチーム向け。
+  * ローカル Terraform: ローカルまたはリモート バックエンドにある Terraform 状態ファイルを直接読み取ることができる Terraform コマンドを実行するチーム向けです。
+
+手作業とエラーの可能性を大幅に削減できるため、New Relic の自動化ツールを使用することをお勧めします。ただし、完全な制御を希望する場合や特定の要件がある場合は、ネイティブの Terraform コマンド アプローチに従うことができます。
+
+## ネイティブの Terraform コマンドを使用して移行する [#native-terraform]
+
+このセクションでは、ネイティブ Terraform コマンドを使用して`newrelic_nrql_drop_rule`リソースから`newrelic_pipeline_cloud_rule`リソースに移行するための標準の Terraform ワークフローについて説明します。このセクションのすべてのコマンドは、ドロップ ルール設定が配置されている Terraform 作業ディレクトリから実行する必要があります。
+
+### 前提条件 [#native-prerequisites]
+
+* **Terraform または OpenTofu v1.5 以上:**このバージョンでは、 `import`ブロック 機能が導入され、リソース設定を手動で記述する必要がなくなり、移行プロセスがより効率的になりました。
+* **New Relic Terraform Provider v3.73.0 以上:**この推奨バージョンでは、 `newrelic_pipeline_cloud_rule`リソースと`newrelic_nrql_drop_rule`リソースの`pipeline_cloud_rule_entity_id`属性 (2025 年 9 月にリリースされた v3.68.0 で追加) を使用して、Terraform 経由でPipeline cloudルールを管理するためのサポートが拡張され、スムーズな移行プロセスを保証するための重要なバグ修正が含まれています。
+
+### 移行の手順 [#native-steps]
+
+<Steps>
+  <Step>
+    #### Pipeline cloudルールIDを取得する [#get-pipeline-cloud-rule-ids]
+
+    Terraform 作業ディレクトリで New Relic Terraform Provider を v3.73.0 以上にアップグレードしてから、 `terraform apply`を実行して既存の`newrelic_nrql_drop_rule`リソースを更新します。この操作では、 New Relicによって自動的に作成された対応するPipeline cloudルールの ID を含む`pipeline_cloud_rule_entity_id`プロパティを追加して、Terraform の状態を更新します。
+
+    <Callout title="注記">
+      より安全な操作を行うには、 `-refresh-only`フラグを使用してインフラストラクチャを変更せずに状態を更新するか、 `-target`を使用して操作を特定のドロップ ルール リソースに制限します。
+    </Callout>
+
+    Terraform 作業ディレクトリに移動し、次のいずれかのコマンドを実行します。
+
+    ```bash
+      # Apply to update state with pipeline_cloud_rule_entity_id
+      terraform apply
+
+      # Safer: use refresh-only to see changes without modifying infrastructure
+      terraform apply -refresh-only
+
+      # Targeted: limit operation to specific drop rule resources
+      terraform apply -refresh-only -target=newrelic_nrql_drop_rule.foo
+    ```
+
+    上記のコマンドのいずれかを実行すると、各ドロップ ルールに対して`pipeline_cloud_rule_entity_id`が使用可能になります。次のステップで使用するために ID を手元に置いておきます。
+
+    ```hcl
+    # Example: Get the Pipeline cloud rule ID for a drop rule
+    newrelic_nrql_drop_rule.foo.pipeline_cloud_rule_entity_id
+    ```
+  </Step>
+
+  <Step>
+    #### Pipeline cloudルールをTerraform状態にインポートする [#import-pipeline-cloud-rules]
+
+    Terraform 作業ディレクトリに新しい`.tf`ファイル (たとえば、 `import_pipeline_rules.tf` ) を作成します。このファイルでは、移行するドロップ ルールごとにインポート ブロックを追加します。前の手順の`pipeline_cloud_rule_entity_id`値を使用します。
+
+    ```hcl
+    # import_pipeline_rules.tf
+    # Create import block using the pipeline_cloud_rule_entity_id from state
+    import {
+      to = newrelic_pipeline_cloud_rule.foo
+      # Reference the ID from the drop rule resource
+      id = newrelic_nrql_drop_rule.foo.pipeline_cloud_rule_entity_id
+
+      # Or use the actual value from your state
+      # id = "MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZjgtYmFmNy03MjU3LWE3M2MtZWY5OTkxYTQxMjgy"
+    }
+    ```
+
+    次に、Terraform 作業ディレクトリから Terraform コマンドを実行して設定を生成し、インポートします。
+
+    ```bash
+    # Generate Pipeline cloud rule configuration automatically
+    terraform plan -generate-config-out=generated_pipeline_rules.tf
+
+    # Apply to import the Pipeline cloud rules
+    terraform apply
+    ```
+  </Step>
+
+  <Step>
+    #### Terraform 状態から古いドロップルールリソースを削除します。 [#remove-old-drop-rules]
+
+    Pipeline cloudルールを正常にインポートした後、 `terraform state rm`コマンドを使用して、Terraform 状態から`newrelic_nrql_drop_rule`リソースへのすべての参照を削除する必要があります。
+
+    ```bash
+    terraform state rm newrelic_nrql_drop_rule.foo
+    ```
+
+    これにより、New Relic からは削除されずに、Terraform 状態からドロップ ルールが削除されます。
+
+    <Callout variant="tip">
+      また、Terraform の[`removed`ブロック](https://developer.hashicorp.com/terraform/language/block/removed)( **Terraform v1.7 以降**で使用可能) を使用して、設定ファイル内で宣言的に状態からリソースを削除することもできます。
+    </Callout>
+  </Step>
+
+  <Step>
+    #### Terraform 設定をクリーンアップする [#clean-up-terraform-configuration]
+
+    Terraform 状態からドロップ ルールを削除した後、Terraform 設定ファイルからすべての`newrelic_nrql_drop_rule`リソース ブロックをコメントアウトし、これらのドロップ ルールに依存する補助リソースをすべて削除する必要があります。
+
+    次に、 `terraform plan`を実行して移行を確認します。
+
+    ```bash
+    terraform plan
+    ```
+
+    移行が成功した場合、出力には「変更なし」と表示されます。
+  </Step>
+</Steps>
+
+## New Relicの自動化ツールで移行する [#automation-tools]
+
+上記のネイティブ Terraform 移行ワークフローを簡素化するために、New Relic はインポートと状態管理を処理する CLI 自動化ツールを提供しています。これらのツールは、同じ基礎となる Terraform 操作 (インポート、計画、適用、状態の削除) を自動化しますが、手作業は大幅に少なくなります。
+
+### 前提条件 [#automation-prerequisites]
+
+* **Terraform または OpenTofu v1.5 以上:**自動移行アプローチに必要です。
+
+* **New Relic Terraform Provider v3.73.0 以上:**この推奨バージョンでは、 `newrelic_pipeline_cloud_rule`リソースと`newrelic_nrql_drop_rule`リソースの`pipeline_cloud_rule_entity_id`属性 (2025 年 9 月にリリースされた v3.68.0 で追加) を使用して、Terraform 経由でPipeline cloudルールを管理するためのサポートが拡張され、スムーズな移行プロセスを保証するための重要なバグ修正が含まれています。
+
+* **New Relic CLI:**自動移行コマンドを実行するために必要です。
+
+* **環境変数:**
+
+  * `NEW_RELIC_API_KEY` - 適切な権限を持つNew RelicユーザーAPIキー。
+  * `NEW_RELIC_ACCOUNT_ID` - ドロップ ルールが配置されている New Relic アカウント ID。
+  * `NEW_RELIC_REGION` (オプション) - アカウントの地域に基づいて「US」または「EU」に設定します (デフォルトは「US」)。
+
+### アプローチを選択する [#choose-approach]
+
+<CollapserGroup>
+  <Collapser id="gitops-cicd" title="GitOps (CI/CD) の使用">
+    GitOps の自動化プロセスでは、状態ファイルに簡単にアクセスできない CI/CD 環境向けに設計された 3 フェーズのアプローチを使用します。これらのフェーズにより、新しいPipeline Cloud Rule ID の安全な抽出、設定ファイルの生成、パイプライン内の状態のインポートとクリーンアップが確実に実行されます。
+
+    <CollapserGroup>
+      <Collapser id="gitops-step1" title="フェーズ 1: CI/CD からドロップ ルールを識別してエクスポートする">
+        このフェーズでは、既存のドロップ ルールを識別し、その考えを構造化された JSON データとしてエクスポートする検証スクリプトをCI/CD Terraform 設定に追加します。
+
+        <Callout variant="important">
+          この手順は、一度に 1 つのワークスペース (一度に 1 つの Terraform 状態ファイル) に適用されます。ドロップ ルールが設定されたワークスペースが複数ある場合は、ワークスペースごとにこのプロセスを繰り返します。
+        </Callout>
+
+        <Steps>
+          <Step>
+            #### 検証スクリプトをダウンロードして追加する [#add-validation-script]
+
+            [New Relic Terraform Provider GitHub リポジトリ](https://github.com/newrelic/terraform-provider-newrelic/blob/main/examples/drop_rule_migration_ci/outputs.tf)から`outputs.tf`ファイルをダウンロードし、CI/CD Terraform ワークスペースに追加します。
+
+            このスクリプトは、ドロップ ルール リソースの検証および抽出システムを提供し、移行手順で使用するために JSON 形式で ID を出力します。
+          </Step>
+
+          <Step>
+            #### ドロップルールの種類に応じてスクリプトを構成する [#configure-drop-rule-types]
+
+            スクリプトは、次の 2 種類のドロップ ルールをサポートしています。
+
+            * **スタンドアロンドロップルール**: `newrelic_nrql_drop_rule`リソースは設定で直接定義されています (モジュールにラップされていません)
+            * **モジュラードロップルール**: Terraform モジュール内にラップされた`newrelic_nrql_drop_rule`のリソース
+
+            追加した`outputs.tf`ファイルで、 `locals`ブロックに適切なフラグを設定して、ドロップ ルール タイプの処理を有効にします。
+
+            ```hcl
+            locals {
+              # Enable for standalone drop rules
+              enable_standalone_drop_rules = true
+
+              # Enable for modular drop rules
+              enable_modular_drop_rules = false
+            }
+            ```
+
+            スタンドアロンのドロップ ルールがある場合は、 `enable_standalone_drop_rules`を`true`に設定します。モジュラードロップルールがある場合は、 `enable_modular_drop_rules`を`true`に設定します。両方のタイプがある場合は、両方を有効にできます。
+          </Step>
+
+          <Step>
+            #### スタンドアロンのドロップルールを追加します（該当する場合） [#add-standalone-rules]
+
+            スタンドアロンのドロップ ルールがあり、前の手順で有効にした場合は、Terraform 設定ですべてのスタンドアロン`newrelic_nrql_drop_rule`リソースを識別します。
+
+            たとえば、Terraform 設定に次のスタンドアロン ドロップ ルールがあるとします。
+
+            ```hcl
+            resource "newrelic_nrql_drop_rule" "drop_debug_logs" {
+              account_id  = var.new_relic_account_id
+              description = "Filters out debug level logs"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE level = 'debug'"
+            }
+
+            resource "newrelic_nrql_drop_rule" "drop_health_checks" {
+              account_id  = var.new_relic_account_id
+              description = "Removes health check logs"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE endpoint = '/health'"
+            }
+
+            resource "newrelic_nrql_drop_rule" "drop_pii_data" {
+              account_id  = var.new_relic_account_id
+              description = "Filters out PII data"
+              action      = "drop_data"
+              nrql        = "SELECT * FROM Log WHERE contains(message, 'SSN')"
+            }
+            ```
+
+            各リソースについて、リソース識別子と完全なリソース参照をメモする必要があります。たとえば、リソース`newrelic_nrql_drop_rule.drop_debug_logs`の場合:
+
+            * リソース識別子は `drop_debug_logs`
+            * 完全なリソース参照は `newrelic_nrql_drop_rule.drop_debug_logs`
+
+            `outputs.tf`ファイルで、指定されたスタンドアロン ドロップ ルール セクションの`standalone_rules`リストに次のリソースを追加します。
+
+            ```hcl
+            # Configure standalone drop rules here
+            standalone_rules = local.enable_standalone_drop_rules ? [
+              {
+                name     = "drop_debug_logs"
+                resource = newrelic_nrql_drop_rule.drop_debug_logs
+              },
+              {
+                name     = "drop_health_checks"
+                resource = newrelic_nrql_drop_rule.drop_health_checks
+              },
+              {
+                name     = "drop_pii_data"
+                resource = newrelic_nrql_drop_rule.drop_pii_data
+              }
+            ] : []
+            ```
+
+            <Callout title="注記">
+              `name`フィールドはリソース識別子と一致する必要があり、 `resource`フィールドは完全なリソース参照と一致する必要があります。`count`または`for_each`メタ引数を使用して作成されたドロップ ルール リソースの場合は、リソース識別子 (たとえば、 `newrelic_nrql_drop_rule.drop_health_checks[0]`または`newrelic_nrql_drop_rule.drop_health_checks["key_1"]` ) を明示的にインデックスします。CI/CD 環境で状態アクセス権がある場合は、次の bash コマンドを使用してリスト形式を自動的に生成できます (これは実験的なものであり、特定の状態構造に基づいて調整が必要になる場合があります)。
+
+              ```bash
+              terraform state list | \
+                grep 'newrelic_nrql_drop_rule' | \
+                grep -v '^module\.' | \
+                sed -E \
+                  -e '/\.([^[]+)\["/ s/^.*\.([^[]+)\["([^"]+)"\].*$/  {\n    name     = "\1_\2"\n    resource = &\n  },/' \
+                  -e 't' \
+                  -e '/\.([^[]+)\[[0-9]/ s/^.*\.([^[]+)\[([0-9]+)\].*$/  {\n    name     = "\1_\2"\n    resource = &\n  },/' \
+                  -e 't' \
+                  -e 's/^.*\.([^ ]+)$/  {\n    name     = "\1"\n    resource = &\n  },/'
+              ```
+
+              `terraform`コマンドは、Terraform ラッパーまたは同等の GitOps ツールに置き換える必要がある場合があります。
+            </Callout>
+          </Step>
+
+          <Step>
+            #### モジュラードロップルールを追加します（該当する場合） [#add-modular-rules]
+
+            モジュラー ドロップ ルールがあり、手順 2 で有効にした場合は、モジュールをスクリプトに追加する前に、モジュールが`all_rules`属性をエクスポートしていることを確認する必要があります。
+
+            **前提条件**: モジュールは、モジュールによって管理されるすべての`newrelic_nrql_drop_rule`リソースへの参照を保持する属性`all_rules`をエクスポートする必要があります。
+
+            /* たとえば、モジュールに同じ3つのドロップルールリソースが含まれている場合: ```hcl resource &quot;newrelic_nrql_drop_rule&quot; &quot;drop_debug_logs&quot; { account_id = var.new_relic_account_iddescription = &quot;デバッグレベルログを除外します&quot; action = &quot;drop_data&quot; NRQL = &quot;SELECT * FROM ログ WHERE level = &apos;debug&apos;&quot; } resource &quot;newrelic_nrql_drop_rule&quot; &quot;drop_health_checks&quot; { account_id = var.new_relic_account_id description = &quot;ヘルスチェックログを削除&quot; action = &quot;drop_data&quot; NRQL = &quot;SELECT * FROM FROM WHERE エンドポイント = &apos;/health&apos;&quot; } resource &quot;newrelic_nrql_drop_rule&quot; &quot;drop_pii_data&quot; { account_id = var.new_relic_account_id description = &quot;PIIデータをフィルタリングします&quot; action = &quot;drop_data&quot; NRQL = &quot;SELECT * FROM ログ WHERE contains(message, &apos;SSN&apos;)&quot; } ``` */
+
+            上記の手順で説明したのと同じ 3 つのドロップ ルールがある場合は、次の出力をモジュールに追加します。
+
+            ```hcl
+            output "all_rules" {
+              description = "A map of all drop rule resource objects created by this module."
+              value = {
+                debug_logs    = newrelic_nrql_drop_rule.drop_debug_logs
+                health_checks = newrelic_nrql_drop_rule.drop_health_checks
+                pii_data      = newrelic_nrql_drop_rule.drop_pii_data
+              }
+            }
+            ```
+
+            次に、 `outputs.tf`ファイルで、指定されたモジュラー ドロップ ルール セクションの`_modular_rules_raw`リストにモジュールを追加します。
+
+            ```hcl
+            # Configure modular drop rules here
+            _modular_rules_raw = local.enable_modular_drop_rules ? [
+              {
+                name     = "production_drop_rules"
+                resource = module.drop_rules["production_drop_rules"].all_rules
+              }
+            ] : []
+            ```
+
+            <Callout title="注記">
+              CI/CD 環境で状態アクセス権がある場合は、次の bash コマンドを使用して、モジュラー ルールのリスト形式を自動的に生成できます (これは実験的なものであり、状態構造に基づいて調整が必要になる場合があります)。
+
+              ```bash
+              terraform state list | \
+                grep '^module\..*newrelic_nrql_drop_rule' | \
+                sed -E 's/(\.newrelic_nrql_drop_rule.*)//' | \
+                sort -u | \
+                sed -E 's/^module\.([^[]+)\["([^"]+)"\]$/  {\n    name     = "\2"\n    resource = module.\1\["\2"].all_rules\n  },/'
+              ```
+
+              `terraform`コマンドは、Terraform ラッパーまたは同等の GitOps ツールに置き換える必要がある場合があります。
+            </Callout>
+          </Step>
+
+          <Step>
+            #### terraform planを実行する [#run-terraform-plan]
+
+            CI/CD 環境で、次のコマンドを実行します。
+
+            ```bash
+            terraform plan
+            ```
+
+            計画が成功した場合、出力に成功メッセージが表示されます。
+
+            ```
+            Changes to Outputs:
+              + a_validation_success = "✅ All listed resources export pipeline_cloud_rule_entity_id"
+            ```
+
+            これにより、すべてのドロップ ルール リソースが正しく構成され、 `pipeline_cloud_rule_entity_id`属性がエクスポートされることが確認されます。これで、 `terraform apply`実行に進むことができます。
+
+            次のような検証エラーが表示された場合:
+
+            ```
+            Changes to Outputs:
+              + validation_errors = [
+                  + "❌ Drop rule 'drop_debug_logs' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                  + "❌ Drop rule 'drop_health_checks' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                  + "❌ Drop rule 'drop_pii_data' does not export `pipeline_cloud_rule_entity_id` or it is null",
+                ]
+            ```
+
+            これは、New Relic Terraform Provider &gt;= v3.73.0 を使用していないことを意味します。Terraform 設定でプロバイダーのバージョンを v3.73.0 以上にアップグレードしてから、 `terraform plan`再度実行してください。
+          </Step>
+
+          <Step>
+            #### terraform applyを実行する [#run-terraform-apply]
+
+            計画の出力に成功メッセージが表示されていることを確認したら、次を実行します。
+
+            ```bash
+            terraform apply
+            ```
+
+            適用が正常に完了すると、次のような出力が表示されます。
+
+            ```
+            Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+            Outputs:
+
+            a_validation_success = "✅ All listed resources export pipeline_cloud_rule_entity_id"
+            experimental_drop_rule_resource_ids = "{\"drop_rule_resource_ids\":[{\"id\":\"3806526:106878882\",\"name\":\"drop_debug_logs\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"},{\"id\":\"3806526:106878883\",\"name\":\"drop_health_checks\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"},{\"id\":\"3806526:106878884\",\"name\":\"drop_pii_data\",\"pipeline_cloud_rule_entity_id\":\"MzgwNjUyNnxORVVMS...\"}]}"
+            experimental_drop_rule_resource_ids_formatted = <<EOT
+            {
+              "drop_rule_resource_ids": [
+                {
+                  "name": "drop_debug_logs",
+                  "id": "3806526:106878882",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_health_checks",
+                  "id": "3806526:106878883",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_pii_data",
+                  "id": "3806526:106878884",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                }
+              ]
+            }
+            EOT
+            ```
+          </Step>
+
+          <Step>
+            #### JSON出力をコピーする [#copy-json-output]
+
+            `experimental_drop_rule_resource_ids_formatted`出力から JSON 文字列全体をコピーします。フェーズ 2 ではこれが必要になります。
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser id="gitops-step2" title="フェーズ 2: Pipeline cloudルール設定をローカルで生成する">
+        このフェーズでは、 New Relic CLI を使用して、フェーズ 1 の JSON 出力に基づいて、 Pipeline cloudルールの Terraform 設定ファイルを自動的に生成します。
+
+        <Steps>
+          <Step>
+            #### 必要な環境変数を設定する [#set-environment-variables]
+
+            CLI コマンドを実行する前に、必要な環境変数が設定されていることを確認してください。
+
+            ```bash
+            export NEW_RELIC_API_KEY="your-api-key"
+            export NEW_RELIC_ACCOUNT_ID="your-account-id"
+            export NEW_RELIC_REGION="US"  # Optional, defaults to 'US'
+            ```
+          </Step>
+
+          <Step>
+            #### JSON出力をファイルに保存する [#save-json-output]
+
+            Terraform ワークスペース ディレクトリに JSON ファイル (例: `drop_rules.json` ) を作成し、フェーズ 1 からの JSON 出力を貼り付けます。
+
+            ```json
+            {
+              "drop_rule_resource_ids": [
+                {
+                  "name": "drop_debug_logs",
+                  "id": "3806526:106878882",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_health_checks",
+                  "id": "3806526:106878883",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                },
+                {
+                  "name": "drop_pii_data",
+                  "id": "3806526:106878884",
+                  "pipeline_cloud_rule_entity_id": "MzgwNjUyNnxORVVMS..."
+                }
+              ]
+            }
+            ```
+          </Step>
+
+          <Step>
+            #### New Relic CLI移行コマンドを実行する [#run-new-relic-cli-migration]
+
+            Terraform ワークスペース ディレクトリに移動して、次のコマンドを実行します。
+
+            ```bash
+            newrelic migrate nrqldroprules tf-importgen-ci --file drop_rules.json
+            ```
+
+            <Callout variant="tip">
+              簡単にするために、JSON ファイルが存在する Terraform ワークスペース ディレクトリでこのコマンドを直接実行し、個別の`--workspacePath`を指定する必要がないようにすることをお勧めします。
+            </Callout>
+
+            **コマンド:**
+
+            <table>
+              <thead>
+                <tr>
+                  <th style={{width: "200px"}}>
+                    パラメータ
+                  </th>
+
+                  <th>
+                    タイプ
+                  </th>
+
+                  <th>
+                    説明
+                  </th>
+
+                  <th>
+                    必須
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr>
+                  <td>
+                    \- ファイル
+                  </td>
+
+                  <td>
+                    弦
+                  </td>
+
+                  <td>
+                    ステップ 1 のドロップ ルール マッピングを含む JSON ファイルへのパス。
+
+                    <InlineCode>
+                      \--file
+                    </InlineCode>
+
+                    または
+
+                    <InlineCode>
+                      \--json
+                    </InlineCode>
+
+                    いずれかを指定する必要がありますが、両方を指定することはできません。
+                  </td>
+
+                  <td>
+                    はい*
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>
+                    \--json
+                  </td>
+
+                  <td>
+                    弦
+                  </td>
+
+                  <td>
+                    ドロップ ルール マッピングを含む JSON 文字列。
+
+                    <InlineCode>
+                      \--file
+                    </InlineCode>
+
+                    の代替。
+                  </td>
+
+                  <td>
+                    はい*
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>
+                    \--ワークスペースパス
+                  </td>
+
+                  <td>
+                    弦
+                  </td>
+
+                  <td>
+                    Terraform ワークスペースへのパス。省略した場合は現在のディレクトリがデフォルトになります。
+                  </td>
+
+                  <td>
+                    いいえ
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>
+                    \- 豆腐
+                  </td>
+
+                  <td>
+                    ブール値
+                  </td>
+
+                  <td>
+                    Terraform の代わりに OpenTofu を使用している場合に使用します。
+                  </td>
+
+                  <td>
+                    いいえ
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            **`--json`を使用した例:**
+
+            ファイルを作成したくない場合は、JSON 文字列を直接渡すことができます。
+
+            ```bash
+            newrelic migrate nrqldroprules tf-importgen-ci \
+              --json '{"drop_rule_resource_ids":[{"name":"drop_debug_logs","id":"3806526:106878882","pipeline_cloud_rule_entity_id":"MzgwNjUyNnxORVVMS..."}]}'
+            ```
+          </Step>
+
+          /* &lt;Step&gt; #### コマンドの実行内容を理解する [#understand-command-execution] `tf-importgen-ci` コマンドは、次のアクションを自動的に実行します。 - 入力 と環境変数を検証します - 環境と入力データ間のアカウント ID の一貫性を確認します - Terraform/OpenTofu インストレーションとバージョンを検証します (v1.5+ が必要) - ワークスペース ディレクトリを作成または検証します - プロバイダー設定 (`provider.tf`) を生成します - インポート ブロック (`imports.tf`) を生成します - Terraform/OpenTofu ワークスペースを初期化します - `terraform plan` を実行してPipeline cloudルール設定 (`pcrs.tf`) を生成します - すべての設定ファイルをフォーマットします - フェーズ 3 の推奨事項を提供します (状態から古いドロップ ルールを削除します) &lt;Callout variant=&quot;important&quot;&gt; **アカウント ID の検証:** このコマンドは、JSON データ内のアカウント ID が `NEW_RELIC_ACCOUNT_ID` 環境変数と一致することを自動的に検証します。不一致が検出されると、インポートの失敗の可能性に関する警告が表示されます。&lt;/Callout&gt; &lt;Callout title=&quot;注記&quot;&gt; **重複するリソース名:** 入力データ内に重複するリソース名が見つかった場合、コマンドはランダムなアルファベットのサフィックスを追加して重複するリソース名を自動的に解決し、リソース定義が一意になるようにします。&lt;/Callout&gt; &lt;/Step&gt; */
+
+          <Step>
+            #### 生成されたファイルを確認する [#review-generated-files]
+
+            CLI コマンドは、ワークスペースに 3 つの Terraform 設定ファイルを生成します。
+
+            * **`provider.tf` :**バージョン制約のある Terraform およびNew Relicプロバイダーの設定。
+            * **`imports.tf` :** New Relic内の既存のPipeline cloudルールに新しいリソースをリンクするブロックをインポートします。
+            * **`pcrs.tf` :** Pipeline cloudルールのリソース定義 (コマンド実行中に自動生成されます)。
+
+            このコマンドは、フェーズ 3 で使用する、Terraform 状態から古いドロップ ルールを削除するための推奨事項も表示します。
+
+            /* **生成された設定の例:** ```hcl # provider.tf terraform { required_providers { newrelic = { source = &quot;newrelic/newrelic&quot; version = &quot;~&gt; 3.68.0&quot; } } } # imports.tf インポート { to = newrelic_pipeline_cloud_rule.drop_debug_logsid = &quot;3806526:MzgwNjUyNnxORVVMS...&quot; } インポート { to = newrelic_pipeline_cloud_rule.drop_health_checksid = &quot;3806526:MzgwNjUyNnxORVVMS...&quot; } インポート { to = newrelic_pipeline_cloud_rule.drop_pii_dataid = &quot;3806526:MzgwNjUyNnxORVVMS...&quot; } # pcrs.tf (コマンド実行中に自動生成) resource &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_debug_logs&quot; { account_id = 3806526 description = &quot;デバッグ レベルのログを除外します&quot; action = &quot;drop&quot; NRQL = &quot;SELECT * FROM Log WHERE level = &apos;debug&apos;&quot; } resource &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_health_checks&quot; { account_id = 3806526 description = &quot;ヘルスチェックログを削除&quot; action = &quot;drop&quot; NRQL = &quot;SELECT * FROM Log WHERE endpoint = &apos;/health&apos;&quot; } resource &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_pii_data&quot; { account_id = 3806526 description = &quot;PIIデータをフィルタリングします&quot; action = &quot;drop&quot; NRQL = &quot;SELECT * FROM ログ WHERE contains(message, &apos;SSN&apos;)&quot; } ``` */
+          </Step>
+
+          <Step>
+            #### 生成した設定をコミットしてプッシュする [#commit-push-generated-configuration]
+
+            生成された Terraform ファイルを Git リポジトリに追加します。
+
+            ```bash
+            git add .
+            git commit -m "Add Pipeline cloud rule migration configuration"
+            git push origin your-branch-name
+            ```
+
+            これによりCI/CDパイプラインがフェーズ 3 の変更を処理するようになります。
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser id="gitops-step3" title="フェーズ3: CI/CD環境にPipeline cloudルールをインポートする">
+        このフェーズでは、 CI/CDパイプラインはフェーズ 2 でプッシュした変更を処理し、 Pipeline cloudルールを Terraform 状態にインポートし、古いドロップ ルール リソースを削除します。
+
+        <Steps>
+          <Step>
+            #### Terraformプランを確認する [#review-terraform-plan]
+
+            変更をプッシュすると、 CI/CDパイプラインが自動的にトリガーされ、プルリクエストにプラン コメントが投稿されます。 計画の出力には次の内容が表示されます。
+
+            * **インポート中のリソース:** 3 つの`newrelic_pipeline_cloud_rule`リソース
+            * **プラン概要:** `Plan: 3 to import, 0 to add, 0 to change, 0 to destroy`
+
+            /* Terraformプランの出力例: ```diff Terraformは次のアクションを実行します: # newrelic_pipeline_cloud_rule.drop_debug_logsがインポートされます resource &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_debug_logs&quot; { account_id = 3806526 description = &quot;Filters out debug level log from honban environment to reduce data volume&quot; id = &quot;MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZjgtYmFmNy03MjU3LWE3M2MtZWY5OTkxYTQxMjgy&quot; name = &quot; NRQLドロップルールID: 106878882 作成者: ユーザーID: 1004672904 作成場所: 2025-09-15T10:43:13.122888Z&quot; NRQL = &quot;DELETE FROM `log` WHERE ((`level` = &apos;debug&apos;) AND (`environment` = &apos;production&apos;))&quot; } # newrelic_pipeline_cloud_rule.drop_health_checks がインポートされます resource &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_health_checks&quot; { account_id = 3806526 description = &quot;MyCustomEventデータからuserEmailとuserName属性を削除します&quot; id = &quot;MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ0Yy03NDM5LWJhNDYtZjI4MTg0ODc5YmE2&quot; name = &quot; NRQLドロップルールID: 106878884 作成者 ユーザー ID: 1004672904 作成日: 2025-09-15T10:45:47.049993Z&quot; NRQL = &quot;DELETE `userEmail`, `userName` FROM `MyCustomEvent`&quot; } # newrelic_pipeline_cloud_rule.drop_pii_data になりますインポートされたリソース &quot;newrelic_pipeline_cloud_rule&quot; &quot;drop_pii_data&quot; { account_id = 3806526 description = &quot;メトリクス集計からcontainerIdプロパティを除外します&quot; id = &quot;MzgwNjUyNnxOR0VQfFBJUEVMSU5FX0NMT1VEX1JVTEV8MDE5OTRjZmItMTQ4Ni03MDI4LWJlMDktZmYzOTM2NWQ4ODUw&quot; name = &quot; NRQLドロップ ルール ID: 106878885、作成者: ユーザー ID: 1004672904、作成日時: 2025-09-15T10:45:47.060296Z&quot; NRQL = &quot;DELETE `containerId` FROM `MetricAggregate`&quot; } プラン: インポート 3、追加 0、変更 0、破棄 0。 ``` */
+          </Step>
+
+          <Step>
+            #### 変更を適用する [#apply-changes]
+
+            計画を確認し、正しいことを確認したら、プルリクエストにコメントしてください。
+
+            ```bash
+            terraform apply
+            ```
+
+            CI/CDパイプラインは Terraform 適用を実行し、 Pipeline cloudルールを Terraform 状態にインポートします。
+
+            適用出力のサンプル:
+
+            ```
+            newrelic_pipeline_cloud_rule.drop_health_checks: Importing...
+            newrelic_pipeline_cloud_rule.drop_health_checks: Import complete
+            newrelic_pipeline_cloud_rule.drop_debug_logs: Importing...
+            newrelic_pipeline_cloud_rule.drop_debug_logs: Import complete
+            newrelic_pipeline_cloud_rule.drop_pii_data: Importing...
+            newrelic_pipeline_cloud_rule.drop_pii_data: Import complete
+
+            Apply complete! Resources: 3 imported, 0 added, 0 changed, 0 destroyed.
+            ```
+          </Step>
+
+          <Step>
+            #### 状態から古いドロップルールをクリーンアップする [#clean-up-drop-rules]
+
+            インポートが正常に完了したら、Terraform 状態から古い`newrelic_nrql_drop_rule`リソースを削除する必要があります。フェーズ 2 の CLI 出力で提供されている推奨事項を使用します。
+
+            CI/CD 環境またはローカルで、古いドロップ ルールごとに`terraform state rm`コマンドを実行します。
+
+            ```bash
+            terraform state rm newrelic_nrql_drop_rule.drop_debug_logs
+            terraform state rm newrelic_nrql_drop_rule.drop_health_checks
+            terraform state rm newrelic_nrql_drop_rule.drop_pii_data
+            ```
+
+            <Callout title="注記">
+              これらのコマンドは、New Relic からリソースを削除せずに、Terraform 状態からリソースを削除します。古いドロップ ルールは、サポート終了日 (2026 年 1 月 7 日) に New Relic から最終的に削除されますが、この手順の後は Terraform によって管理されなくなります。
+            </Callout>
+          </Step>
+
+          <Step>
+            #### 移行を確認する [#verify-migration]
+
+            状態をクリーンアップした後:
+
+            * 出力をチェックして、すべてのインポートが正常に完了したことを確認します。
+            * New Relic UIで、 Pipeline cloudルールがまだアクティブで機能していることを確認します。
+            * `terraform plan`を実行して、保留中の変更がないことを確認します (出力には「変更なし」と表示されます)。
+            * 古いドロップ ルールが`terraform state list`に表示されなくなったことを確認します。
+          </Step>
+
+          <Step>
+            #### プルリクエストをマージする [#merge-pull-request]
+
+            検証が完了したら、プルリクエストをマージして移行を完了します。 Terraform 設定では、 NRQLドロップ ルールではなく、 Pipeline cloudルールを管理するようになりました。
+          </Step>
+        </Steps>
+      </Collapser>
+    </CollapserGroup>
+
+    GitOps アプローチのトラブルシューティングのヘルプについては、検証スクリプトの問題については[フェーズ 1 のトラブルシューティング ガイド](https://github.com/newrelic/terraform-provider-newrelic/blob/main/examples/drop_rule_migration_ci/README.md#troubleshooting)、CLI およびインポートの問題については[フェーズ 2/3 のトラブルシューティング ガイド](https://github.com/newrelic/newrelic-cli/blob/main/internal/migrate/tf_importgen_ci_guide.md#common-issues-and-troubleshooting)を参照してください。
+  </Collapser>
+
+  <Collapser id="local-terraform" title="ローカルTerraformの使用">
+    ローカル自動化プロセスは、状態ファイルに簡単にアクセスできるという事実を活用して、状態を自動的に更新し、新しいルールを生成してインポートし、非推奨のリソースをクリーンアップするという 3 つの連続したステップに合理化されています。
+
+    <CollapserGroup>
+      <Collapser id="local-step1" title="1. Pipeline cloudルールを使用して Terraform の状態を更新する">
+        このステップでは、 New Relic CLI を使用して、Terraform ワークスペース内のすべてのドロップ ルールを自動的に識別し、対応するPipeline cloudマッピングで Terraform の状態を更新します。
+
+        <Steps>
+          <Step>
+            #### Terraformワークスペースに移動する [#navigate-terraform-workspace]
+
+            ターミナルを開き、 `newrelic_nrql_drop_rule`リソースを含む Terraform 設定ファイルを含むディレクトリに移動します。
+
+            ```bash
+            cd /path/to/your/terraform/workspace
+            ```
+          </Step>
+
+          <Step>
+            #### New Relic CLI 更新コマンドを実行する [#run-new-relic-cli-update]
+
+            次のコマンドを実行して、Terraform の状態を更新します。
+
+            ```bash
+            newrelic migrate nrqldroprules tf-update
+            ```
+
+            このコマンドは自動的に次の操作を実行します。
+
+            * Terraform ワークスペースをスキャンして、すべての`newrelic_nrql_drop_rule`リソースを識別します。
+            * これらのリソースに対して`terraform plan`および`terraform apply`操作を実行します。
+            * 各ドロップ ルールの`pipeline_cloud_rule_entity_id`属性を使用して、Terraform 状態ファイルを更新します。
+          </Step>
+
+          <Step>
+            #### 状態の更新を確認する [#verify-state-update]
+
+            コマンドが完了すると、Terraform 状態ファイルにドロップ ルールとPipeline cloudルール間のマッピングが含まれるようになります。 これは、自分の状態を確認することで確認できます。
+
+            ```bash
+            terraform show -json | grep pipeline_cloud_rule_entity_id
+            ```
+
+            出力には、各ドロップ ルールの`pipeline_cloud_rule_entity_id`値が表示されます。これにより、状態ファイルが正常に更新されたことが確認されます。次のステップで、CLI はこれらの値を自動的に読み取ります。
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser id="local-step2" title="2. Pipeline cloudルールを生成してインポートする">
+        <Steps>
+          <Step>
+            #### New Relic CLIのインポート生成コマンドを実行する [#run-new-relic-cli-import-generation]
+
+            Terraform ワークスペース ディレクトリで、次のコマンドを実行します。
+
+            ```bash
+            newrelic migrate nrqldroprules tf-importgen
+            ```
+
+            このコマンドは自動的に次の操作を実行します。
+
+            * ドロップ ルール リソースに`pipeline_cloud_rule_entity_id`値が含まれていることを検証します。
+            * 各Pipeline cloudルールのインポート ブロックを生成します。
+            * `terraform plan -generate-config-out=generated_pipeline_rules.tf`を実行してPipeline cloudルール設定を作成します。
+            * `terraform apply`を実行して、 Pipeline cloudルールを Terraform 状態にインポートします。
+
+            <Callout variant="tip">
+              オプション:
+
+              * `--tofu`: Terraform の代わりに OpenTofu を使用している場合に使用します
+              * `--fileName`: インポートブロックのカスタムファイル名を指定します（デフォルトでは、インポートブロックはターミナルに出力されます）
+              * `--workspacePath`: 別の Terraform ワークスペース パスを指定します (デフォルトは現在のディレクトリ)
+            </Callout>
+          </Step>
+
+          <Step>
+            #### インポート結果を確認する [#review-import-results]
+
+            コマンドが正常に完了すると、 Pipeline cloudルールが Terraform 状態にインポートされます。 このコマンドは、 `terraform plan -generate-config-out`によって作成されたPipeline cloudルール リソース定義を含む`generated_pipeline_rules.tf`ファイルを生成します。
+          </Step>
+        </Steps>
+      </Collapser>
+
+      <Collapser id="local-step3" title="3. Terraformの状態から古いドロップルールを削除する">
+        この手順では、New Relic CLI を使用して、Terraform 状態から古い NRQL ドロップ ルール リソースを安全に削除します。このコマンドは、Terraform 管理からのみそれらを削除します。実際のドロップ ルールは、サポート終了日 (2026 年 1 月 7 日) に New Relic から最終的に削除されます。
+
+        <Steps>
+          <Step>
+            #### New Relic CLIのdelistコマンドを実行する [#run-delist-command]
+
+            Terraform ワークスペース ディレクトリで、次のコマンドを実行します。
+
+            ```bash
+            newrelic migrate nrqldroprules tf-delist
+            ```
+
+            このコマンド:
+
+            * リソースが状態からのみ削除されることを確認する安全警告を表示します
+            * Terraform 状態からすべての`newrelic_nrql_drop_rule`リソースを削除します
+            * Terraform 設定ファイルをクリーンアップするための手順を説明します。
+          </Step>
+
+          <Step>
+            #### Terraform 設定をクリーンアップする [#clean-up-configuration]
+
+            delist コマンドが完了したら、Terraform 設定ファイルが再作成されないように、コメントアウトするか、すべての`newrelic_nrql_drop_rule`リソース ブロックを削除する必要があります。
+          </Step>
+
+          <Step>
+            #### 移行を確認する [#verify-migration]
+
+            設定ファイルをクリーンアップした後、移行を確認します。
+
+            ```bash
+            # Confirm Pipeline cloud rules are in state
+            terraform state list | grep pipeline_cloud_rule
+
+            # Confirm old drop rules are removed from state
+            terraform state list | grep nrql_drop_rule
+
+            # Verify no pending changes
+            terraform plan
+            ```
+
+            成功した場合、 `terraform plan`は「変更なし」と表示されます。
+          </Step>
+        </Steps>
+      </Collapser>
+    </CollapserGroup>
+
+    ローカル Terraform アプローチのトラブルシューティングのヘルプについては、CLI コマンドとインポートの問題に関する[ローカル Terraform トラブルシューティング ガイドを](https://github.com/newrelic/newrelic-cli/blob/main/internal/migrate/tf_importgen_guide.md#common-issues-and-troubleshooting)参照してください。
+  </Collapser>
+</CollapserGroup>
