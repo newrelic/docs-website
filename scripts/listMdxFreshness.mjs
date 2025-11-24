@@ -34,8 +34,8 @@ function daysBetween(iso) {
   return (now - then) / (1000 * 60 * 60 * 24);
 }
 
-function yearsBetween(iso) {
-  return daysBetween(iso) / 365; 
+function monthsBetween(iso) {
+  return daysBetween(iso) / 30;
 }
 
 function main() {
@@ -53,8 +53,8 @@ function main() {
     if (processed % 500 === 0) console.log(`Processed ${processed} files...`);
     if (!iso) continue; // skip if no commit
     const ageDays = daysBetween(iso);
-    const ageYears = yearsBetween(iso);
-    rows.push({ path: f, lastCommit: iso, ageDays, ageYears });
+    const ageMonths = monthsBetween(iso);
+    rows.push({ path: f, lastCommit: iso, ageDays, ageMonths });
   }
   console.log(`Collected commit data for ${rows.length} files`);
 
@@ -64,21 +64,22 @@ function main() {
 
   // Grouping buckets
   const buckets = [
-    { label: '3+ years', filter: r => r.ageYears >= 3 },
-    { label: '2-3 years', filter: r => r.ageYears >= 2 && r.ageYears < 3 },
-    { label: '1-2 years', filter: r => r.ageYears >= 1 && r.ageYears < 2 },
-    { label: '0-1 year', filter: r => r.ageYears < 1 },
+    { label: '24+ months', filter: r => r.ageMonths >= 24 },
+    { label: '18-24 months', filter: r => r.ageMonths >= 18 && r.ageMonths < 24 },
+    { label: '12-18 months', filter: r => r.ageMonths >= 12 && r.ageMonths < 18 },
+    { label: '6-12 months', filter: r => r.ageMonths >= 6 && r.ageMonths < 12 },
+    { label: '0-6 months', filter: r => r.ageMonths < 6 },
   ];
 
   function renderTable(sectionRows) {
     if (sectionRows.length === 0) return '_No files_';
-    const header = ['Path','Last Commit','Age (years)','Age (days)'];
+    const header = ['Path','Last Commit','Age (months)','Age (days)'];
     const lines = [
       `| ${header.join(' | ')} |`,
       `| ${header.map(()=> '---').join(' | ')} |`
     ];
     for (const r of sectionRows) {
-      lines.push(`| ${r.path} | ${r.lastCommit} | ${r.ageYears.toFixed(2)} | ${r.ageDays.toFixed(0)} |`);
+      lines.push(`| ${r.path} | ${r.lastCommit} | ${r.ageMonths.toFixed(1)} | ${r.ageDays.toFixed(0)} |`);
     }
     return lines.join('\n');
   }
