@@ -129,7 +129,90 @@ jobs:
       - name: Initialize Dependencies
         uses: dcarbone/install-jq-action@v2
 
+      - name: Check for Ongoing Deployments
+        id: check_ongoing_deployment
+        env:
+          NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "════════════════════════════════════════════════════════════════"
+          echo "🔎 Checking for existing Netlify deployments..."
+          echo "════════════════════════════════════════════════════════════════"
+
+          gh_api_url=$(echo ${{ github.event.issue.pull_request.url || github.event.pull_request.url }} | sed 's/https:\/\/api.github.com\///')
+          gh_api_response=$(gh api $gh_api_url)
+          branch_name=$(echo $gh_api_response | jq -r .head.ref)
+          pr_number=$(echo $gh_api_response | jq -r .number)
+
+          echo "  🔖 Branch: $branch_name"
+
+          DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_TOKEN" \
+            "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?branch=$branch_name")
+
+          ONGOING_DEPLOY=$(echo "$DEPLOYS" | jq -r \
+            '[.[] | select(.state == "building" or .state == "enqueued" or .state == "processing")] | sort_by(.created_at) | reverse | .[0]')
+
+          if [ -n "$ONGOING_DEPLOY" ] && [ "$ONGOING_DEPLOY" != "null" ]; then
+            DEPLOY_ID=$(echo "$ONGOING_DEPLOY" | jq -r '.id')
+            COMMIT_REF=$(echo "$ONGOING_DEPLOY" | jq -r '.commit_ref')
+            BUILD_URL="https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID"
+            
+            echo "ongoing_deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+            echo "ongoing_commit_ref=$COMMIT_REF" >> $GITHUB_OUTPUT
+            echo "ongoing_build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+            echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+            
+            echo ""
+            echo "🛑 Found an ongoing deployment: $DEPLOY_ID"
+            echo "   Commit: $COMMIT_REF"
+            echo "   Halting workflow."
+            exit 0
+          else
+            echo "✅ No ongoing deployments found for this branch."
+          fi
+        
+      - name: Post Comment for Ongoing Deployment
+        if: steps.check_ongoing_deployment.outputs.ongoing_deploy_id
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ steps.check_ongoing_deployment.outputs.pr_number }}';
+            const deployId = '${{ steps.check_ongoing_deployment.outputs.ongoing_deploy_id }}';
+            const commitRef = '${{ steps.check_ongoing_deployment.outputs.ongoing_commit_ref }}';
+            const buildUrl = '${{ steps.check_ongoing_deployment.outputs.ongoing_build_url }}';
+            const shortCommit = commitRef.substring(0, 7);
+            const repo = '${{ github.repository }}';
+            const commitLink = `[\`${shortCommit}\`](https://github.com/${repo}/commit/${commitRef})`;
+
+            const body = `### ⏳ A Netlify Deployment is Already in Progress
+
+            An existing deployment for this branch is currently running. Please wait for it to complete before starting a new one.
+
+            - **Ongoing Deploy ID:** \`${deployId}\`
+            - **Triggered by Commit:** ${commitLink}
+            - **Monitor Progress:** [View Deployment](${buildUrl})
+
+            Once the previous deployment is finished, you can trigger a new build by commenting \`netlify build\` on this PR.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(prNumber),
+              body
+            });
+            
+            console.log('✅ Commented on PR about the ongoing deployment.');
+
+      - name: Stop Workflow if Deployment is Ongoing
+        if: steps.check_ongoing_deployment.outputs.ongoing_deploy_id
+        run: |
+          echo "🛑 Workflow stopped because an existing deployment is in progress."
+          exit 1
+
       - name: Trigger Netlify Deployment
+        if: ${{ !steps.check_ongoing_deployment.outputs.ongoing_deploy_id }}
         id: netlify_build
         env: 
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -607,9 +690,9 @@ jobs:
             - **Deploy ID:** \`${{ steps.check_status.outputs.deploy_id }}\`
             - **Netlify Deployment:** [View Deployment Log](https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys/${{ steps.check_status.outputs.deploy_id }})
             - **GitHub Actions Job:** [View Job Log](${jobUrl})
-            - **Error Message:** \`\`\`
+            - **Error Message:** 
+            
             ${errorMessage}
-            \`\`\`
 
             ### 🛠️ Required Actions:
             1.  **Review the error message and Netlify log carefully.**
