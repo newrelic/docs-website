@@ -129,6 +129,56 @@ jobs:
       - name: Initialize Dependencies
         uses: dcarbone/install-jq-action@v2
 
+      - name: Validate Netlify Credentials
+        id: validate_netlify_token
+        env:
+          NETLIFY_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          echo "🧪 Validating Netlify API token..."
+          http_status=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $NETLIFY_TOKEN" https://api.netlify.com/api/v1/user)
+          
+          if [ "$http_status" -eq 401 ]; then
+            echo "::error::Netlify API token is invalid or has expired."
+            echo "is_invalid=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Netlify API token is valid."
+            echo "is_invalid=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Comment for Invalid Token
+        if: steps.validate_netlify_token.outputs.is_invalid == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prUrl = '${{ github.event.issue.pull_request.url || github.event.pull_request.url }}';
+            const prNumber = prUrl.split('/').pop();
+            const updateIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hourCycle: 'h23' });
+            
+            const body = `### 🚨 Action Required: Netlify API Token Expired
+            (Logged at: ${updateIST} IST)
+
+            Dear *Docs Engineering* team, the \`NETLIFY_AUTH_TOKEN\` used by this workflow is **invalid or has expired**. All Netlify deployment previews are blocked until a new token is provided.
+
+            **To fix this:**
+            1.  Generate a new Personal Access Token in your Netlify User Settings.
+            2.  Update the \`NETLIFY_AUTH_TOKEN\` repository secret with the new value.
+
+            This workflow will remain blocked until the credentials are updated.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(prNumber),
+              body
+            });
+
+      - name: Halt Workflow for Invalid Token
+        if: steps.validate_netlify_token.outputs.is_invalid == 'true'
+        run: |
+          echo "🛑 Halting workflow due to invalid Netlify token."
+          exit 1
+
       - name: Check for Ongoing Deployments
         id: check_ongoing_deployment
         env:
