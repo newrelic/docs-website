@@ -1,0 +1,163 @@
+---
+title: Kubernetes APM 자동 연결에 ย 확장 추가
+tags:
+  - Integrations
+  - Kubernetes integration
+  - APM auto-attach
+  - Java agent
+  - Java extensions
+metaDescription: Learn how to add Java extension modules when using Kubernetes APM auto-attach for enhanced Java application monitoring.
+freshnessValidatedDate: '2024-11-06T00:00:00.000Z'
+translationType: machine
+---
+
+[Kubernetes APM 자동 연결을](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/) 사용하는 경우, 특정 배터리에 대한 모니터링 기능을 향상하기 위해 확장 모듈을 추가하거나 기본 클러스터 서버 범위에서 다루지 않는 프레임을 사용할 수 있습니다.
+
+이 가이드에서는 ☐ 확장 기능을 사용하여 사용자 정의 docker 이미지를 만들고 이를 Kubernetes APM 자동 연결과 통합하는 방법을 보여줍니다.
+
+## 시작하기 전에 [#before-begin]
+
+Java 확장 기능을 추가하기 전에 다음 사항을 확인하세요.
+
+* [Kubernetes APM 자동 연결](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/) 설치 및 구성
+* 사용자 정의 이미지 빌드를 위해 docker가 설치됨
+* 컨테이너 레지스트리(도커 허브, ECR, GCR 등)에 대한 액세스
+* 레지스트리에 이미지를 푸시할 수 있는 권한
+* 필요한 [기타 확장 모듈](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/) 에 대한 지식
+
+## 개요 [#overview]
+
+이 과정은 세 가지 주요 단계로 구성됩니다.
+
+1. 원하는 확장자를 사용하여 `newrelic/newrelic-java-init:latest` 을 기반으로 사용자 지정 도커 이미지를 만듭니다.
+2. 이미지를 빌드하고 컨테이너 레지스트리에 푸시합니다.
+3. 새 이미지를 사용하려면 Kubernetes 측정, 로그를 업데이트하세요.
+
+## 확장자를 사용하여 사용자 정의 도커 이미지 만들기 [#create-docker-image]
+
+<Steps>
+  <Step>
+    ### Dockerfile 만들기
+
+    원래 뉴렐릭 자바 init 이미지를 확장하고 원하는 확장 기능을 추가하는 새로운 `Dockerfile` 을 만듭니다. Kotlin 코루틴 확장 기능을 사용하는 예는 다음과 같습니다.
+
+    ```dockerfile
+    # Start from the original New Relic Java init image
+    FROM newrelic/newrelic-java-init:latest
+
+    # Create the extensions directory in the root
+    RUN mkdir -p /extensions
+
+    # Example: Add Kotlin coroutines instrumentation
+    # Download the latest version and extract to extensions directory
+    RUN VERSION=$(wget -q -O - https://api.github.com/repos/newrelic/newrelic-java-kotlin-coroutines/releases/latest | \
+        awk '/tag_name/{gsub(/,|"/,"",$2);print$2}') && \
+        wget -qO /tmp/kotlin-coroutines-instrumentation.zip \
+        "https://github.com/newrelic/newrelic-java-kotlin-coroutines/releases/download/$VERSION/kotlin-coroutines-instrumentation-$VERSION.zip" && \
+        unzip -j /tmp/kotlin-coroutines-instrumentation.zip "*.jar" -d /extensions && \
+        rm /tmp/kotlin-coroutines-instrumentation.zip
+    ```
+
+    <Callout variant="tip">
+      Kotlin 코루틴 예제를 필요한 특정 확장 기능으로 바꾸세요. 사용 가능한 확장 기능은 [☐ 확장 모듈 설명서](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/) 에서 찾을 수 있습니다.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Docker 이미지 빌드
+
+    로컬에서 사용자 정의 이미지를 빌드하세요.
+
+    ```bash
+    docker build -t your-registry/{Your-Image-Name}
+    ```
+
+    `your-registry/{Your-Image-Name}` 실제 컨테이너 레지스트리 경로 및 이미지 이름으로 바꾸세요(예: `mycompany/newrelic-java-init-custom`).
+  </Step>
+
+  <Step>
+    ### 컨테이너 레지스트리에 푸시
+
+    이미지를 컨테이너 레지스트리에 푸시합니다.
+
+    ```bash
+      docker push your-registry/{Your-Image-Name}
+    ```
+  </Step>
+</Steps>
+
+## Kubernetes 측정 업데이트 [#update-instrumentation]
+
+<Steps>
+  <Step>
+    ### 측정, 리소스 수정
+
+    기존 측정, 계측 사용자 정의 리소스(CR)를 업데이트하여 새 이미지를 사용합니다. 다음은 `instrumentation-java.yaml` 의 예입니다.
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: your-registry/{Your-Image-Name}
+
+    ```
+  </Step>
+
+  <Step>
+    ### 업데이트된 측정값을 적용합니다.
+
+    클러스터에 업데이트된 측정을 적용합니다.
+
+    ```bash
+      kubectl apply -f instrumentation-java.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### 영향을 받은 워크로드를 다시 시작하세요.
+
+    확장 기능이 포함된 새로운 init 컨테이너를 선택하려면 특수한 기능을 다시 시작하세요.
+
+    * 특정 구현을 다시 시작하려면 배포:
+
+      ```bash
+        # Restart a specific deployment
+        kubectl rollout restart deployment/my-java-deployment
+      ```
+
+    * 모든 구현을 다시 시작하려면 지우스페이스에 배포하세요.
+
+      ```bash
+        # Or restart all deployments in a namespace
+        kubectl rollout restart deployments -n my-namespace
+      ```
+  </Step>
+</Steps>
+
+## 문제점 해결 [#troubleshooting]
+
+### 확장 프로그램이 로드되지 않음
+
+확장 프로그램이 로드되지 않는 경우:
+
+1. 사용자 지정 이미지에 확장 디렉토리가 있는지 확인하세요.
+
+   ```bash
+     docker run --rm your-registry/{Your-Image-Name} ls -la /extensions
+   ```
+
+2. 파일 권한을 확인하여 확장 JAR 파일을 읽을 수 있는지 확인하세요.
+
+3. 에이전트 초기화 중에 발생한 오류 메시지를 확인하려면 init 컨테이너 로그를 검토하세요.
+
+## 추가 리소스 [#additional-resources]
+
+* [이후 확장 모듈 문서](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/)
+* [Kubernetes APM 자동 연결](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/)
+* [자바 에이전트 구성](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [사용자 정의 측정](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation/)
