@@ -155,6 +155,14 @@ export default {
         wrapChildren: false,
       }),
   },
+  dnt: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
   CONTRIBUTOR_NOTE: {
     // this pulls this component out of translated files
     // there should never be anything to deserialize
