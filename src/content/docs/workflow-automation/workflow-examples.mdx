@@ -1,0 +1,257 @@
+---
+title: Workflow examples
+tags:
+  - workflow automation
+  - workflow
+  - automation
+  - examples
+metaDescription: "Common workflow automation scenarios and examples for incident response, infrastructure management, and integrations."
+freshnessValidatedDate: never
+---
+
+This page shows common automation scenarios you can build with Workflow Automation. Use these examples as starting points for your own workflows, or explore the [template library](/docs/workflow-automation/create-a-workflow-automation/use-a-template) for ready-to-deploy solutions.
+
+## Incident response and remediation
+
+### API gateway rollback
+
+Revert API gateway configs to a previous state so you can fix errors and misconfigurations.
+
+**What this workflow does:**
+- Detects recent deployments related to an issue using New Relic change tracking
+- Sends Slack notifications with approval buttons (:+1: or :-1:)
+- After approval, creates an AWS Systems Manager document to automate the rollback
+- Rolls back the API Gateway integration to the previous Lambda version
+- Creates a new deployment to apply the rollback
+- Sends success or failure notifications to Slack
+- Cleans up the SSM document after completion
+
+**Requirements:**
+- AWS credentials with permissions for API Gateway and Systems Manager
+- A configured Slack app for receiving notifications and approvals
+- New Relic entity monitoring with change tracking
+
+**Key actions**: `newrelic.nerdgraph.execute`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`
+
+### EC2 instance management
+
+Automate provisioning, scaling, and termination of EC2 instances for optimal performance and cost.
+
+**What this workflow does:**
+- Receives high CPU utilization alerts from New Relic
+- Retrieves alert details and identifies the impacted EC2 instance
+- Sends Slack notification with instance details and requests approval for resizing
+- After approval, creates an SSM document to automate instance resizing
+- Stops the instance, modifies the instance type, and restarts it
+- Sends progress updates to Slack during the resizing process
+- Waits for completion and sends success or failure status
+- Cleans up the SSM document and sends final confirmation
+
+**Requirements:**
+- AWS credentials with permissions for EC2 and Systems Manager
+- An active New Relic alert condition for EC2 metrics
+- A configured Slack app for receiving notifications and approvals
+
+**Key actions**: `newrelic.nerdgraph.execute`, `newrelic.nrdb.query`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`, `utils.datetime.fromEpoch`, `utils.uuid.generate`
+
+### Deployment rollback
+
+Rollback deployment if entity becomes unhealthy and notify with either AWS SQS or HTTP.
+
+**What this workflow does:**
+- Monitors an entity's alert severity for a specified duration (default 30 minutes)
+- Checks entity health every minute
+- If entity becomes CRITICAL or WARNING, logs the unhealthy status
+- Sends rollback notifications via AWS SQS (if configured) with entity details
+- Sends rollback notifications via HTTP webhook (if configured)
+- If entity remains healthy for the full duration, logs success
+- Stops monitoring if entity is not found
+
+**Requirements:**
+- New Relic entity with alert severity monitoring
+- (Optional) AWS SQS queue and role to receive rollback notifications
+- (Optional) HTTP endpoint to receive rollback notification
+
+**Key actions**: `newrelic.nerdgraph.execute`, `newrelic.ingest.sendLogs`, `aws.execute.api` (sqs.send_message), `http.post`
+
+## Data processing and reporting
+
+### Send a report to Slack
+
+Send a NRQL query output as a CSV file on Slack.
+
+**What this workflow does:**
+- Executes a NRQL query against specified New Relic account(s)
+- Generates a CSV file from the query results
+- Posts the CSV file to a specified Slack channel with a message
+
+**Requirements:**
+- A New Relic credential and a functional NRQL query
+- A configured Slack app with a token and a target channel
+
+**Key actions**: `newrelic.nrdb.query`, `utils.transform.toCSV`, `slack.chat.postMessage`
+
+### JSON Parsing
+
+Parses the New Relic public status API JSON (HTTP) and optionally logs operational and non-operational components.
+
+**What this workflow does:**
+- Fetches JSON data from the New Relic status API
+- Extracts and categorizes components by their operational status
+- Conditionally logs operational components (if enabled)
+- Conditionally logs non-operational components (if enabled)
+- Handles HTTP errors and logs error messages
+
+**Requirements:**
+- Access to the New Relic status API (summary.json)
+- Permissions to send logs via newrelic.ingest.sendLogs
+
+**Key actions**: `http.get`, `newrelic.ingest.sendLogs`
+
+## Available template workflows
+
+The templates listed above are available directly in the New Relic Workflow Automation UI. To access them:
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+2. Click **Create workflow**
+3. Select **Use a template**
+4. Browse the template library and choose a workflow that matches your use case
+
+Each template includes:
+- Pre-configured workflow steps and logic
+- Example input parameters
+- Required credentials and integrations
+- Documentation of expected outcomes
+
+You can use templates as-is or customize them to fit your specific requirements.
+
+## Passing data between steps
+
+All workflows can reference outputs from previous steps using template syntax. This allows you to chain together actions and build complex automation logic.
+
+### Basic data passing
+
+This example queries alert issues from New Relic and sends notifications to Slack for each active issue.
+
+```yaml
+name: alertSlack
+description: "query Alert Issues and send notifications to Slack"
+
+workflowInputs:
+  accountId:
+    type: Int
+
+steps:
+  - name: getAlert
+    type: action
+    action: newrelic.nerdgraph.execute
+    version: 1
+    inputs:
+      graphql: |
+        query GetAlertIssues($accountId: Int!) {
+          actor {
+            account(id: $accountId) {
+              aiIssues {
+                issues(filter: {states: ACTIVATED}) {
+                  issues {
+                    issueId
+                    priority
+                    state
+                    title
+                  }
+                }
+              }
+            }
+          }
+        }
+      variables:
+        accountId: ${{ .workflowInputs.accountId }}
+
+  - name: loopStep
+    type: loop
+    for:
+      in: ${{ .steps.getAlert.outputs.data.actor.account.aiIssues.issues.issues }}
+      steps:
+        - name: sendToSlack
+          type: action
+          action: slack.chat.postMessage
+          version: 1
+          inputs:
+            token: ${{ :secrets:your_slack_token }}
+            channel: incident-channel
+            text: >
+              issueId: ${{ .steps.loopStep.loop.element.issueId }}
+              priority: ${{ .steps.loopStep.loop.element.priority }}
+              state: ${{ .steps.loopStep.loop.element.state }}
+              title: ${{ .steps.loopStep.loop.element.title | tostring }}
+```
+
+### Using data in loops
+
+```yaml
+steps:
+  - name: listInstances
+    type: action
+    action: aws.ec2.describeInstances
+    version: 1
+    inputs:
+      filters:
+        - name: "tag:Environment"
+          values: ["production"]
+
+  - name: checkEachInstance
+    type: loop
+    for:
+      in: "${{ .steps.listInstances.outputs.reservations }}"
+      steps:
+        - name: getInstanceMetrics
+          type: action
+          action: newrelic.nerdgraph.execute
+          version: 1
+          inputs:
+            query: "SELECT average(cpuPercent) FROM SystemSample WHERE instanceId = '${{ .steps.checkEachInstance.loop.element.instanceId }}'"
+```
+
+### Conditional logic with data
+
+```yaml
+steps:
+  - name: checkCPU
+    type: action
+    action: newrelic.nerdgraph.execute
+    version: 1
+    # ... query configuration
+
+  - name: decideAction
+    type: switch
+    switch:
+      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 90 }}"
+        next: resizeInstance
+      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 70 }}"
+        next: sendWarning
+    next: normalOperation
+
+  - name: resizeInstance
+    type: action
+    action: aws.ec2.modifyInstanceAttribute
+    version: 1
+    # ... resize configuration
+
+  - name: sendWarning
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    # ... warning message
+
+  - name: normalOperation
+    type: action
+    action: newrelic.ingest.sendLogs
+    version: 1
+    # ... log normal status
+```
+
+## What's next
+
+- **[Troubleshooting](/docs/workflow-automation/troubleshooting)**: Fix credential errors, integration issues, and workflow failures.
+- **[Best practices](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: Error handling, performance optimization, testing strategies.
+- **[Workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: Understand timeouts, rate limits, and constraints.
