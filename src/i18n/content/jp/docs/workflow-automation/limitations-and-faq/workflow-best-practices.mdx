@@ -1,0 +1,313 @@
+---
+title: ワークフロー自動化のベストプラクティス
+tags:
+  - Workflow Automation
+  - workflow
+  - best practices
+  - workflow automation best practices
+metaDescription: 'Build reliable, maintainable workflows that handle errors gracefully and scale with your operations.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+エラーを適切に処理し、機密データを保護し、運用に合わせて拡張できる信頼性の高いワークフローを構築します。保守可能な自動化を作成するには、これらのパターンに従ってください。
+
+## デザイン重視のワークフロー
+
+ワークフローを単一の責任に集中させます。関連するアクションをグループ化しますが、無関係なタスクを組み合わせることは避けます。
+
+### 1つのワークフロー、1つの目的
+
+**実行**: インシデント対応と定期メンテナンス用に別々のワークフローを作成します。**しないでください**: EC2 のサイズ変更、データベースのバックアップ、Slack 通知を 1 つのワークフローに組み合わせます。
+
+### 問題のあるワークフローを再利用する
+
+input を使用して、ワークフローを複製するのではなく、環境間でワークフローを再利用できるようにします。
+
+**例**: リージョンとインスタンスタイプを使用した 1 つの EC2 サイズ変更ワークフロー:
+
+```yaml
+inputs:
+  awsRegion: us-east-1
+  instanceType: t3.medium
+  instanceId: i-1234567890abcdef0
+```
+
+これは、リージョンまたはインスタンスタイプごとに個別のワークフローを作成することに代わるものです。
+
+### 関連するアクションを組み合わせる
+
+一緒に実行する必要がある関連アクションをグループ化します。
+
+* **Do** : まとめ詳細、メッセージのフォーマット、1 つのワークフローで Slack に送信
+* **してはいけないこと**: 「金額集計」、「メッセージのフォーマット」、「Slack への送信」のワークフローを別に作成する
+
+## エラーを処理する
+
+外部API呼び出しと重要な操作に対するエラー処理を常に含めます。
+
+### フォールバックアクションを追加する
+
+重要なステップが失敗する可能性がある場合は、チームに通知するフォールバック アクションを追加します。
+
+**例**: `ignoreErrors`を使用してステップが失敗した場合でも Slack 通知を送信します。
+
+```yaml
+- name: sendNotification
+  type: action
+  action: aws.execute.api
+  version: 1
+  ignoreErrors: true
+  inputs:
+    service: sqs
+    api: send_message
+    parameters:
+      MessageBody: "Rollback notification"
+      QueueUrl: "${{ .workflowInputs.queueUrl }}"
+
+- name: logResult
+  type: action
+  action: newrelic.ingest.sendLogs
+  version: 1
+  inputs:
+    logs:
+      - message: "Notification sent: ${{ .steps.sendNotification.outputs.success }}"
+```
+
+ステップが失敗した場合でもワークフローの実行を続行するには、 `ignoreErrors: true`を使用します。
+
+### 適切なタイムアウトを設定する
+
+ワークフローがハングしないように、外部APIコールのタイムアウトを設定します。
+
+* AWS APIコール: 30～60秒
+* データベースクエリ: 10～30秒
+* HTTP requests : 15～30秒
+* Slackメッセージ: 10秒
+
+### トラブルシューティングのためにエラーをログに記録する
+
+エラー ログに次の詳細を含めます。
+
+* 失敗したアクション
+* 入力
+* サービスからのエラーメッセージ
+* タイムスタンプ
+
+## 認証情報の保護
+
+すべての機密値を New Relic のシークレット マネージャーに保存します。ワークフロー定義に資格情報をハードコードしないでください。
+
+### シークレットマネージャーを使用する
+
+AWS 認証情報、API トークン、パスワードを保存します。
+
+```graphql
+mutation {
+  secretsManagementCreateSecret(
+    scope: {type: ACCOUNT id: "YOUR_NR_ACCOUNT_ID"}
+    namespace: "aws"
+    key: "awsAccessKeyId"
+    description: "AWS Access Key ID for workflow automation"
+    value: "YOUR_AWS_ACCESS_KEY_ID"
+  ) {
+    key
+  }
+}
+```
+
+参照秘密: `${{ :secrets:awsAccessKeyId }}`
+
+### 資格情報を定期的にローテーションする
+
+IAM ユーザー アクセス キーを使用する場合:
+
+* 最低90日ごとにローテーションする
+* カレンダーのリマインダーを設定する
+* 古い資格情報を削除する前に新しい資格情報をテストしてください
+
+**推奨**: 代わりに IAM ロールを使用します。ロールは自動的にローテーションされます。
+
+### 最小限の権限を使用する
+
+必要な権限のみを付与します。最初は読み取り専用で、必要な場合にのみ書き込み権限を追加します。
+
+SQS の**AWS IAM ポリシーの例**:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "sqs:SendMessage",
+  "Resource": "arn:aws:sqs:us-west-2:123456789012:my-queue"
+}
+```
+
+これにより、特定の 1 つのキューへのアクセスが制限されます。
+
+## 生産前にテストする
+
+本番環境にデプロイする前に、本番環境以外の環境でワークフローをテストします。
+
+### テスト用に複製
+
+本番ワークフローのテスト バージョンを作成します。
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**に移動します
+2. ワークフローを見つけて、その他のオプションメニューをクリックします
+3. **Duplicate** \[複製を]選択
+4. テストアカウントを使用するには資格情報を更新してください
+5. 非本番環境のリソースでテストする
+
+### テスト失敗シナリオ
+
+ワークフローが失敗を処理することを確認します。
+
+* AWS API が利用できない場合はどうなりますか?
+* Slack がダウンしたらどうなりますか?
+* 資格情報の有効期限が切れた場合はどうなりますか?
+* 必要なリソースが存在しない場合はどうなりますか?
+
+### 統合の検証
+
+スケジュールを設定する前に、ワークフローを手動でトリガーして次の点を確認します。
+
+* AWSアクションが正常に実行されました
+* Slackのメッセージは正しいチャンネルに表示されます
+* 承認ゲートは応答を待つ
+* エラー処理は期待通りに動作します
+
+## パフォーマンスを最適化する
+
+迅速に実行される効率的なワークフローを構築します。
+
+### 一度クエリを実行して結果を再利用する
+
+クエリ結果を保存し、複数回参照します。
+
+```yaml
+- name: getAlertDetails
+  action: newrelic.nerdgraph.execute
+
+- name: sendToSlack
+  inputs:
+    text: "${{ .steps.getAlertDetails.outputs.data }}"
+
+- name: updateJira
+  inputs:
+    body: "${{ .steps.getAlertDetails.outputs.data }}"
+```
+
+**禁止事項**: Slack と Jira について個別に詳細をまとめます。
+
+## 監視し、維持する
+
+ワークフローの実行を定期的に監視し、ワークフローを最新の状態に保ちます。
+
+### 実行履歴を毎週チェックする
+
+ワークフロー実行の確認:
+
+1. **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**に移動します
+2. ワークフローを選択
+3. **Run history** \[実行履歴を]クリック
+4. 失敗した実行や実行時間の増加を探す
+
+### 障害アラートを設定する
+
+ワークフローの失敗に関するアラートを構成します。
+
+1. ワークフロー実行失敗のアラート条件を作成する
+2. チームのメインチャンネルに通知を送信する
+3. ワークフロー名とエラーの詳細を含める
+
+### 四半期ごとにワークフローを確認する
+
+定期的なカレンダーリマインダーを次のように設定します:
+
+* 未使用のワークフローを削除する
+* 期限切れの資格情報を更新する
+* 統合されたサービスがAPIを変更していないことを確認する
+* テスト失敗シナリオ
+* ドキュメントの更新
+
+## ドキュメントワークフロー
+
+ワークフローをわかりやすくします。
+
+### 分かりやすい名前を使用する
+
+* **実行**: 「高 CPU アラートに対する EC2 の自動サイズ変更」
+* **しないでください**:「ワークフロー 1」または「EC2 オートメーション」
+
+### 明確な説明を書く
+
+何を、いつ、誰が行ったかを説明します。
+
+```
+Automatically resizes EC2 instances when CPU exceeds 90% for 10 minutes.
+Requires approval via Slack before executing changes.
+Owner: DevOps Team (devops@example.com)
+Last updated: 2025-01-26
+```
+
+### 複雑なロジックにコメントを追加する
+
+条件付きロジックまたはループを使用する場合は、ロジックを説明します。
+
+```yaml
+- name: checkCPU
+  # Query CPU for last 10 minutes to avoid false positives
+  type: action
+  action: newrelic.nerdgraph.execute
+  version: 1
+
+- name: decideAction
+  # If CPU > 90%: resize, 70-90%: warn, < 70%: no action
+  type: switch
+  switch:
+    - condition: "${{ .steps.checkCPU.outputs.result > 90 }}"
+      next: resizeInstance
+    - condition: "${{ .steps.checkCPU.outputs.result > 70 }}"
+      next: sendWarning
+  next: noAction
+```
+
+## セキュリティ
+
+ワークフローとそれがアクセスするリソースを保護します。
+
+### 破壊的な操作には承認ゲートを使用する
+
+次の場合は事前に人間の承認が必要です:
+
+* リソースの削除
+* 生産サービスの縮小
+* デプロイメントのロールバック
+* IAM権限の変更
+
+### 監査ワークフローの変更
+
+変更を追跡するにはバージョン履歴を使用します。
+
+1. ワークフローの詳細へ
+2. **Version history** \[バージョン履歴]をクリック
+3. 変更内容と変更者を確認する
+
+### ワークフローアクセスを制限する
+
+承認されたチーム メンバーのみがワークフローを編集できるようにします。
+
+1. アカウント設定でユーザーロールを確認する
+2. 編集権限をDevOpsチームに制限する
+3. 本番環境とテスト環境で別々のアカウントを使用する
+
+## 次のステップ
+
+* **[ワークフローの制限](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: タイムアウト、レート制限、制約を理解します。
+* **[ワークフロー API](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api)** : CI/CDインテグレーションのためにワークフローをプログラムで管理します。

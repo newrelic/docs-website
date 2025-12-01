@@ -1,0 +1,313 @@
+---
+title: Automatisation du workflow bonnes pratiques
+tags:
+  - Workflow Automation
+  - workflow
+  - best practices
+  - workflow automation best practices
+metaDescription: 'Build reliable, maintainable workflows that handle errors gracefully and scale with your operations.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Mettez en place un workflow fiable qui gère les erreurs avec élégance, protège les données sensibles et s&apos;adapte à la croissance de vos opérations. Suivez ces modèles pour créer des automatisations faciles à maintenir.
+
+## Workflow axé sur la conception
+
+Veillez à ce que le workflow soit concentré sur une seule responsabilité. Regroupez les actions similaires, mais évitez de combiner des tâches sans rapport.
+
+### Un seul workflow, un seul objectif
+
+**À faire**: Créer un workflow distinct pour la réponse aux incidents et la maintenance planifiée. **À ne pas faire**: Combiner le redimensionnement EC2, les sauvegardes de données de base et les notifications Slack dans un seul workflow.
+
+### Réutiliser le workflow avec des paramètres
+
+Utilisez des paramètres d&apos;entrée pour rendre le workflow réutilisable dans différents environnements au lieu de le dupliquer.
+
+**Exemple**: Un workflow de redimensionnement EC2 avec paramètres de région et de type d&apos;instance :
+
+```yaml
+inputs:
+  awsRegion: us-east-1
+  instanceType: t3.medium
+  instanceId: i-1234567890abcdef0
+```
+
+Cela remplace la création d&apos;un workflow distinct pour chaque région ou instance de type d&apos;.
+
+### Combiner les actions connexes
+
+Actions de groupe connexes qui doivent être exécutées ensemble :
+
+* **Effectuer**: demander les détails de l&apos;alerte, formater le message, l&apos;envoyer à Slack en une seule workflow
+* **À éviter**: Créer un workflow distinct pour « demander une alerte », « formater le message », « envoyer sur Slack ».
+
+## Gérer les erreurs
+
+Incluez toujours la gestion des erreurs pour les appels d&apos;API externes et les opérations critiques.
+
+### Ajouter des actions de repli
+
+Lorsque des étapes critiques peuvent échouer, prévoyez des actions de repli qui informent votre équipe.
+
+**Exemple**: Envoyer une notification Slack même si une étape échoue en utilisant `ignoreErrors`:
+
+```yaml
+- name: sendNotification
+  type: action
+  action: aws.execute.api
+  version: 1
+  ignoreErrors: true
+  inputs:
+    service: sqs
+    api: send_message
+    parameters:
+      MessageBody: "Rollback notification"
+      QueueUrl: "${{ .workflowInputs.queueUrl }}"
+
+- name: logResult
+  type: action
+  action: newrelic.ingest.sendLogs
+  version: 1
+  inputs:
+    logs:
+      - message: "Notification sent: ${{ .steps.sendNotification.outputs.success }}"
+```
+
+Utilisez `ignoreErrors: true` pour poursuivre l&apos;exécution workflow même si une étape échoue.
+
+### Définissez des délais d&apos;expiration appropriés
+
+Définissez des délais d&apos;attente pour les appels d&apos;API externes afin d&apos;éviter le blocage du workflow :
+
+* Appel d&apos;API AWS : 30 à 60 secondes
+* requête de base de données : 10-30 secondes
+* requests HTTP : 15 à 30 secondes
+* Messages Slack : 10 secondes
+
+### Les logs des erreurs pour le dépannage
+
+Veuillez inclure ces détails dans les logs des erreurs :
+
+* Action qui a échoué
+* Paramètres d&apos;entrée
+* message d&apos;erreur du service
+* horodatage
+
+## Identifiants sécurisés
+
+Stockez toutes les données sensibles dans le gestionnaire de secrets de New Relic. Ne jamais intégrer en dur les informations d&apos;identification dans les définitions workflow.
+
+### Utiliser le gestionnaire de secrets
+
+Stockez les identifiants AWS, les jetons API et les mots de passe :
+
+```graphql
+mutation {
+  secretsManagementCreateSecret(
+    scope: {type: ACCOUNT id: "YOUR_NR_ACCOUNT_ID"}
+    namespace: "aws"
+    key: "awsAccessKeyId"
+    description: "AWS Access Key ID for workflow automation"
+    value: "YOUR_AWS_ACCESS_KEY_ID"
+  ) {
+    key
+  }
+}
+```
+
+Secrets de référence : `${{ :secrets:awsAccessKeyId }}`
+
+### Renouvelez régulièrement vos identifiants.
+
+Si vous utilisez des clés d&apos;accès utilisateur IAM :
+
+* Rotation tous les 90 jours minimum
+* Configurer des rappels dans le calendrier
+* Testez les nouveaux identifiants avant de supprimer les anciens.
+
+**Recommandation**: Utilisez plutôt les rôles IAM — ils sont automatiquement renouvelés.
+
+### Utiliser les permissions minimales
+
+N&apos;accordez que les autorisations requises. Commencez par un accès en lecture seule, n&apos;ajoutez les autorisations d&apos;écriture qu&apos;en cas de besoin.
+
+**Exemple de stratégie AWS IAM** pour SQS :
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "sqs:SendMessage",
+  "Resource": "arn:aws:sqs:us-west-2:123456789012:my-queue"
+}
+```
+
+Cela limite l&apos;accès à une file d&apos;attente spécifique.
+
+## Test avant production
+
+Tester le workflow en environnement hors production avant de le déployer en production.
+
+### Duplicata pour les tests
+
+Créer des versions de test du workflow de production :
+
+1. Accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+2. Trouvez le workflow et cliquez sur le menu « Plus d&apos;options ».
+3. Sélectionner **Duplicate**
+4. Mettez à jour vos identifiants pour utiliser les comptes de test.
+5. Test avec des ressources hors production
+
+### Scénarios d&apos;échec des tests
+
+Vérifier les échecs de gestion du workflow :
+
+* Que se passe-t-il si l&apos;API AWS est indisponible ?
+* Que se passe-t-il si Slack est hors service ?
+* Que se passe-t-il si les identifiants expirent ?
+* Que se passe-t-il si une ressource requise n&apos;existe pas ?
+
+### Vérifier l&apos;intégration
+
+Avant de planifier, déclenchez manuellement le workflow et vérifiez :
+
+* Les actions AWS s&apos;exécutent avec succès
+* Les messages Slack apparaissent dans les canaux appropriés.
+* Les barrières d&apos;approbation attendent des réponses.
+* La gestion des erreurs fonctionne comme prévu
+
+## Optimiser les performances
+
+Mettez en place un workflow efficace qui s&apos;exécute rapidement.
+
+### Une seule requête, réutilisation des résultats
+
+Stockez les résultats de la requête et consultez-les à plusieurs reprises :
+
+```yaml
+- name: getAlertDetails
+  action: newrelic.nerdgraph.execute
+
+- name: sendToSlack
+  inputs:
+    text: "${{ .steps.getAlertDetails.outputs.data }}"
+
+- name: updateJira
+  inputs:
+    body: "${{ .steps.getAlertDetails.outputs.data }}"
+```
+
+**À éviter**: demander les détails des alertes séparément pour Slack et Jira.
+
+## Monitorer et maintenir
+
+Monitorez régulièrement l&apos;exécution workflow et maintenez-le à jour.
+
+### Vérifier l&apos;historique d&apos;exécution chaque semaine
+
+Exécution workflow de révision :
+
+1. Accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+2. Sélectionnez le workflow
+3. Cliquez sur **Run history**
+4. Recherchez les échecs d&apos;exécution ou les temps d&apos;exécution croissants.
+
+### Configurer les alertes de panne
+
+Configurer les alertes en cas d&apos;échec workflow :
+
+1. Créer une condition d&apos;alerte pour les échecs d&apos;exécution workflow
+2. Envoyer une notification au canal principal de l&apos;équipe
+3. Inclure le nom workflow et les détails de l&apos;erreur
+
+### Examiner le workflow trimestriellement
+
+Configurez des rappels récurrents dans votre calendrier :
+
+* Supprimer le workflow inutilisé
+* Mettre à jour les informations d&apos;identification expirantes
+* Vérifiez que les API des services intégrés n&apos;ont pas été modifiées.
+* Scénarios d&apos;échec des tests
+* Mise à jour de la documentation
+
+## Workflow documentaire
+
+Simplifiez le workflow.
+
+### Utilisez des noms descriptifs
+
+* **Faites**: « Redimensionnement automatique des instances EC2 en cas d&apos;alertes de forte utilisation du processeur »
+* **À éviter**: « workflow 1 » ou « EC2 Automation ».
+
+### Rédigez des descriptions claires
+
+Expliquez quoi, quand et qui :
+
+```
+Automatically resizes EC2 instances when CPU exceeds 90% for 10 minutes.
+Requires approval via Slack before executing changes.
+Owner: DevOps Team (devops@example.com)
+Last updated: 2025-01-26
+```
+
+### Ajoutez des commentaires pour les logiques complexes
+
+Lorsque vous utilisez une logique conditionnelle ou des boucles, expliquez la logique :
+
+```yaml
+- name: checkCPU
+  # Query CPU for last 10 minutes to avoid false positives
+  type: action
+  action: newrelic.nerdgraph.execute
+  version: 1
+
+- name: decideAction
+  # If CPU > 90%: resize, 70-90%: warn, < 70%: no action
+  type: switch
+  switch:
+    - condition: "${{ .steps.checkCPU.outputs.result > 90 }}"
+      next: resizeInstance
+    - condition: "${{ .steps.checkCPU.outputs.result > 70 }}"
+      next: sendWarning
+  next: noAction
+```
+
+## Sécurité
+
+Protéger les workflows et les ressources auxquelles ils accèdent.
+
+### Utiliser des mécanismes d&apos;approbation pour les opérations destructives
+
+Exiger une approbation humaine avant :
+
+* Suppression des ressources
+* Réduction des services de production
+* Retour à l&apos;application
+* Modification des autorisations IAM
+
+### modifications workflow d&apos;audit
+
+Utilisez l&apos;historique des versions pour suivre les modifications :
+
+1. Accéder aux détails workflow
+2. Cliquez sur **Version history**
+3. Examiner les modifications et leurs auteurs
+
+### Restreindre l&apos;accès workflow
+
+Assurez-vous que seuls les membres autorisés de l&apos;équipe puissent modifier le workflow :
+
+1. Vérifier le rôle d&apos;utilisateur dans les paramètres du compte
+2. Limiter les autorisations de modification à l&apos;équipe DevOps
+3. Utilisez des comptes distincts pour la production et les tests.
+
+## Et ensuite ?
+
+* **[Limites du workflow](/docs/workflow-automation/limitations-and-faq/workflow-limits)** : Comprendre les délais d’expiration, les limites de débit et les contraintes.
+* **[API de workflow](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api)** : Gérez le workflow par programmation pour l&apos;intégration CI/CD (intégration et livraison continue).
