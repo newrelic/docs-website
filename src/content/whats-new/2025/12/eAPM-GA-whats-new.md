@@ -26,9 +26,11 @@ With eAPM and eBPF network metrics, we aim to solve these problems by unificatio
 * Continuous Service Discovery: Automatically maps your application services and lights up your APM UI.
 * Segmented linking: Transaction now supports multiple segments for deeper APM visibility
 
+![eAPM detecting database with segment linking](./images/eAPM-detect-database-calls.jpg "eAPM detecting database with segment linking")
 ## Introducing eBPF Network Metrics (Public Preview)
 
 Dive deep into application communication with rich network behavior insights. This capability delivers granular TCP and DNS telemetry - handshake latency, retransmissions, DNS failures - captured from the Linux kernel. Correlated with your application telemetry, this unified view helps engineers pinpoint root causes faster, improve reliability, and avoid the cost and complexity of multiple monitoring tools.
 
 This capability is complementary to APM. It works independently of your APM instrumentation method to give you a complete picture of your application's network communication health.
 
+![eBPF Network Metrics augments application performance monitoring](./images/enpm-latency.png "eBPF Network Metrics augments application performance monitoring")
