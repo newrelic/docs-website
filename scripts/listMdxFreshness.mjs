@@ -62,63 +62,48 @@ function main() {
   rows.sort((a,b) => b.ageDays - a.ageDays);
   console.log('Sorted files by age (descending)');
 
-  // Grouping buckets
-  const buckets = [
-    { label: '24+ months', filter: r => r.ageMonths >= 24 },
-    { label: '18-24 months', filter: r => r.ageMonths >= 18 && r.ageMonths < 24 },
-    { label: '12-18 months', filter: r => r.ageMonths >= 12 && r.ageMonths < 18 },
-    { label: '6-12 months', filter: r => r.ageMonths >= 6 && r.ageMonths < 12 },
-    { label: '0-6 months', filter: r => r.ageMonths < 6 },
-  ];
+  // Determine age bucket for each row
+  function getAgeBucket(ageMonths) {
+    if (ageMonths >= 24) return '24+ months';
+    if (ageMonths >= 18) return '18-24 months';
+    if (ageMonths >= 12) return '12-18 months';
+    if (ageMonths >= 6) return '6-12 months';
+    return '0-6 months';
+  }
 
-  function renderTable(sectionRows) {
-    if (sectionRows.length === 0) return '_No files_';
-    const header = ['Path','Last Commit','Age (months)','Age (days)'];
-    const lines = [
-      `| ${header.join(' | ')} |`,
-      `| ${header.map(()=> '---').join(' | ')} |`
-    ];
-    for (const r of sectionRows) {
-      lines.push(`| ${r.path} | ${r.lastCommit} | ${r.ageMonths.toFixed(1)} | ${r.ageDays.toFixed(0)} |`);
+  // Escape CSV field if needed (contains comma, quote, or newline)
+  function escapeCSV(field) {
+    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+      return `"${field.replace(/"/g, '""')}"`;
     }
-    return lines.join('\n');
+    return field;
   }
 
-  const summaryCounts = buckets.map(b => ({ label: b.label, count: rows.filter(b.filter).length }));
+  // Generate CSV output
+  const csvLines = [];
+  csvLines.push('Path,Last Commit,Age (months),Age (days),Age Bucket');
 
-  const out = [];
-  out.push('# MDX Report');
-  out.push('');
-
-  out.push(`Generated: ${new Date().toISOString()}`);
-  out.push('');
-
-  out.push('## Summary by Age Bucket');
-  out.push('');
-
-  out.push('| Age Bucket | File Count |');
-  out.push('| --- | ---: |');
-  for (const sc of summaryCounts) {
-    out.push(`| ${sc.label} | ${sc.count} |`);
+  for (const r of rows) {
+    const bucket = getAgeBucket(r.ageMonths);
+    const line = [
+      escapeCSV(r.path),
+      r.lastCommit,
+      r.ageMonths.toFixed(1),
+      r.ageDays.toFixed(0),
+      bucket
+    ].join(',');
+    csvLines.push(line);
   }
-  out.push('');
 
-  for (const b of buckets) {
-    const sectionRows = rows.filter(b.filter);
-    out.push(`## ${b.label}`);
-    out.push('');
-    out.push(renderTable(sectionRows));
-    out.push('');
-  }
-  const outputTxt = out.join('\n');
+  const outputCSV = csvLines.join('\n');
   const outArg = process.argv.find(a => a.startsWith('--out='));
-  const outPath = outArg ? outArg.split('=')[1] : 'mdx-freshness.txt';
+  const outPath = outArg ? outArg.split('=')[1] : 'mdx-freshness.csv';
   try {
-    writeFileSync(outPath, outputTxt, 'utf8');
+    writeFileSync(outPath, outputCSV, 'utf8');
     console.log(`Wrote report to ${outPath}`);
   } catch (e) {
     console.log('Failed writing file, falling back to stdout');
-    console.log(outputTxt);
+    console.log(outputCSV);
   }
   console.log('Done');
 }
