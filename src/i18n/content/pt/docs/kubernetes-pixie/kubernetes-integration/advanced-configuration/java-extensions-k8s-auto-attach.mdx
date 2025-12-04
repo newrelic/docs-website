@@ -1,0 +1,163 @@
+---
+title: Adicionar extensões Java ao recurso de Kubernetes APM auto-attach
+tags:
+  - Integrations
+  - Kubernetes integration
+  - APM auto-attach
+  - Java agent
+  - Java extensions
+metaDescription: Learn how to add Java extension modules when using Kubernetes APM auto-attach for enhanced Java application monitoring.
+freshnessValidatedDate: '2024-11-06T00:00:00.000Z'
+translationType: machine
+---
+
+Ao usar [o recurso de anexação Kubernetes APM auto-attach](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/), você pode adicionar módulos de extensão Java para aprimorar os recursos de monitoramento de bibliotecas ou frameworks específicos não cobertos pela instrumentação de agente Java padrão.
+
+Este guia mostra como criar uma imagem Docker personalizada com extensões Java e integrá-la com o recurso de Kubernetes APM auto-attach.
+
+## Antes de você começar [#before-begin]
+
+Antes de adicionar extensões Java, certifique-se de ter:
+
+* [Kubernetes APM auto-attach](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/) instalado e configurado
+* Docker instalado para criar imagens personalizadas.
+* Acesso a um registro de contêiner (Docker Hub, ECR, GCR, etc.)
+* Permissão para enviar imagens para o registro
+* Conhecimento de quais [módulos de extensão Java](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/) você precisa.
+
+## Visão geral [#overview]
+
+O processo envolve três etapas principais:
+
+1. Crie uma imagem Docker personalizada com base em `newrelic/newrelic-java-init:latest` e com as extensões desejadas.
+2. Crie e envie a imagem para o seu registro de conteúdo.
+3. Atualize sua instrumentação do Kubernetes para usar a nova imagem.
+
+## Crie uma imagem Docker personalizada com extensões. [#create-docker-image]
+
+<Steps>
+  <Step>
+    ### Crie um Dockerfile
+
+    Crie um novo `Dockerfile` que estenda a imagem de inicialização Java original do New Relic e adicione as extensões desejadas. Aqui está um exemplo usando a extensão de corrotinas do Kotlin:
+
+    ```dockerfile
+    # Start from the original New Relic Java init image
+    FROM newrelic/newrelic-java-init:latest
+
+    # Create the extensions directory in the root
+    RUN mkdir -p /extensions
+
+    # Example: Add Kotlin coroutines instrumentation
+    # Download the latest version and extract to extensions directory
+    RUN VERSION=$(wget -q -O - https://api.github.com/repos/newrelic/newrelic-java-kotlin-coroutines/releases/latest | \
+        awk '/tag_name/{gsub(/,|"/,"",$2);print$2}') && \
+        wget -qO /tmp/kotlin-coroutines-instrumentation.zip \
+        "https://github.com/newrelic/newrelic-java-kotlin-coroutines/releases/download/$VERSION/kotlin-coroutines-instrumentation-$VERSION.zip" && \
+        unzip -j /tmp/kotlin-coroutines-instrumentation.zip "*.jar" -d /extensions && \
+        rm /tmp/kotlin-coroutines-instrumentation.zip
+    ```
+
+    <Callout variant="tip">
+      Substitua o exemplo de corrotinas Kotlin pelas extensões específicas que você precisa. Você pode encontrar as extensões disponíveis na [documentação dos módulos de extensão do Java](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/).
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Crie a imagem Docker.
+
+    Crie sua imagem personalizada localmente:
+
+    ```bash
+    docker build -t your-registry/{Your-Image-Name}
+    ```
+
+    Substitua `your-registry/{Your-Image-Name}` pelo caminho real do registro do contêiner e pelo nome da imagem, por exemplo, `mycompany/newrelic-java-init-custom`.
+  </Step>
+
+  <Step>
+    ### Enviar para o registro
+
+    Envie a imagem para o seu registro de arquivos:
+
+    ```bash
+      docker push your-registry/{Your-Image-Name}
+    ```
+  </Step>
+</Steps>
+
+## Atualizar instrumentação do Kubernetes [#update-instrumentation]
+
+<Steps>
+  <Step>
+    ### Modificar o recurso de instrumentação
+
+    Atualize seu recurso personalizado (CR) de instrumentação existente para usar a nova imagem. Aqui está um exemplo `instrumentation-java.yaml`:
+
+    ```yaml
+    apiVersion: newrelic.com/v1beta2
+    kind: Instrumentation
+    metadata:
+      name: newrelic-instrumentation-java
+      namespace: newrelic
+    spec:
+      agent:
+        language: java
+        image: your-registry/{Your-Image-Name}
+
+    ```
+  </Step>
+
+  <Step>
+    ### Aplique a instrumentação atualizada.
+
+    Aplique a instrumentação atualizada ao seu cluster:
+
+    ```bash
+      kubectl apply -f instrumentation-java.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### Reiniciar a carga de trabalho afetada
+
+    Reinicie seu aplicativo Java para que o novo contexto de inicialização com as extensões seja aplicado:
+
+    * Para reiniciar uma implantação específica:
+
+      ```bash
+        # Restart a specific deployment
+        kubectl rollout restart deployment/my-java-deployment
+      ```
+
+    * Para reiniciar toda implantação em um namespace:
+
+      ```bash
+        # Or restart all deployments in a namespace
+        kubectl rollout restart deployments -n my-namespace
+      ```
+  </Step>
+</Steps>
+
+## Resolução de problemas [#troubleshooting]
+
+### As extensões não estão carregando.
+
+Se as extensões não estiverem carregando:
+
+1. Verifique se o diretório de extensões existe na sua imagem personalizada:
+
+   ```bash
+     docker run --rm your-registry/{Your-Image-Name} ls -la /extensions
+   ```
+
+2. Verifique as permissões de arquivo para garantir que os arquivos com extensão JAR sejam legíveis.
+
+3. Revise os logs do contêiner init em busca de qualquer mensagem de erro durante a inicialização do agente.
+
+## Recursos adicionais [#additional-resources]
+
+* [Documentação dos módulos de extensão Java](/docs/apm/agents/java-agent/instrumentation/extension-additional-instrumentation-modules/)
+* [Anexação automática do Kubernetes APM](/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/)
+* [Configuração do agente Java](/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/)
+* [instrumentação personalizada para Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation/)
