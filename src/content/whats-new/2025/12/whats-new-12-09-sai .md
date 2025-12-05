@@ -20,5 +20,4 @@ These new features provide crucial context and collaboration tools:
 
 These capabilities are included in New Relic’s Advanced Compute innovations. Billing is usage-based, optimizing spend by removing static license fees.
 
-Want to know more? Check out our [webpage for more information](https://docs.newrelic.com/docs/sai-webpage-link) and our [documentation]().
 Want to know more? Check out our [webpage for more information](https://newrelic.com/platform/service-architecture-intelligence) and our [documentation](https://docs.newrelic.com/docs/service-architecture-intelligence/github-integration/).
