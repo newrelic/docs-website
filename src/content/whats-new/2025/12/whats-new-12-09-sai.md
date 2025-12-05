@@ -12,7 +12,7 @@ New Relic announces the general availability of **New Relic Teams**, **Scorecard
 
 These new features provide crucial context and collaboration tools:
 
-* **New Relic Teams** connect ownership information for interdependent services and facilitate collaboration across the enterprise.
+* **New Relic Teams** connect ownership information for interdependent resources in the tech stack and facilitate collaboration across the enterprise.
 * **New Relic Scorecards** help define, track, improve, and standardize engineering best practices that scale team performance.
 * **New Relic Catalogs** provide an inventory of services, APIs, repositories, infrastructure, and components in a customer's digital environment, establishing a central system of record with crucial context for each service.
 * **New Relic Maps** provides a dynamic, visual representation of your complex software systems, enabling you to understand dependencies, troubleshoot issues faster, and improve collaboration.
