@@ -1,7 +1,7 @@
 ---
 title: 'New Relic Teams, Scorecards, Catalogs, Maps, and SAI GitHub integration now GA'
 summary: 'New features are now generally available to enhance IT team productivity and scale team performance.'
-releaseDate: '2025-12-05'
+releaseDate: '2025-12-09'
 learnMoreLink: 'https://docs.newrelic.com/docs/service-architecture-intelligence/github-integration/'
 getStartedLink: 'https://newrelic.com/platform/service-architecture-intelligence'
 ---
