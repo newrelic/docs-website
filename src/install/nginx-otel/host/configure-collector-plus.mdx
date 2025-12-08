@@ -1,0 +1,72 @@
+---
+headingText: Configure the collector for NGINX metrics
+componentType: default
+---
+
+Create or replace `/etc/otelcol-contrib/config.yaml` with the configuration below. This scrapes metrics from the NGINX Prometheus exporter and sends them to New Relic over OTLP.
+
+**Note:** You'll need to install and run the [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter) alongside your NGINX Plus instance to expose HTTP API metrics in Prometheus format.
+
+- Update the `targets` value to match your Prometheus exporter host and port (default is `127.0.0.1:9113`).
+- Update the `nginx.server.endpoint` value to match your API status path and port.
+- Update the `nginx.deployment.name` value to with a unique name to identify this NGINX server in New Relic.
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: nginx-plus
+          scrape_interval: 30s
+          static_configs:
+            - targets:
+                - 127.0.0.1:9113
+processors:
+  batch:
+    send_batch_size: 1024
+    timeout: 30s
+  filter/nginx_metrics:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - nginxplus_.*
+  resource/nginx:
+    attributes:
+      - key: nginx.server.endpoint
+        value: <API_ENDPOINT>
+        action: insert
+      - key: nginx.deployment.name
+        value: <DEPLOYMENT_NAME>
+        action: insert
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+  transform/nginx:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+      - context: resource
+        statements:
+          - delete_key(attributes, "service.name")
+exporters:
+  otlphttp/newrelic:
+    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEWRELIC_LICENSE_KEY}
+    compression: gzip
+service:
+  pipelines:
+    metrics/nginx:
+      receivers: [prometheus]
+      processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx]
+      exporters: [otlphttp/newrelic]
+```
+
+Save the file and ensure the `otelcol-contrib` system user can read it.
