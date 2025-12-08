@@ -1,0 +1,162 @@
+---
+title: ファイル記述子の制限を超えました
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Performance
+  - Troubleshooting
+metaDescription: How to resolve file descriptor limit issues with the eBPF agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 問題
+
+eBPF エージェント ログに次のエラー メッセージが表示されます。
+
+```
+The number of used file descriptors (820) is above the threshold (819). This may cause issues with attaching uprobes. Consider increasing the process FD limit
+```
+
+このエラーは、eBPF エージェントが使用できるファイル記述子の最大数に達したことを示します。これにより、アプリケーションを適切に監視できなくなる可能性があります。
+
+## 解決
+
+eBPF エージェント サービスまたはポッドのファイル記述子の制限を増やす必要があります。
+
+### Linux ホストの場合:
+
+エージェント サービスの制限を高く設定するには、 `systemd`オーバーライド メカニズムを使用します。
+
+1. ファイル記述子の制限を一時的に増やします。
+
+   ```bash
+   ulimit -n 4096
+   ```
+
+2. `/etc/security/limits.conf`で永続的な変更を編集するには、次のコマンドを実行します。
+
+   ```bash
+   sudo nano /etc/security/limits.conf
+   ```
+
+   次の行を追加します。
+
+   ```
+      * soft nofile 4096
+      * hard nofile 8192
+   ```
+
+3. eBPF エージェントを再起動します。
+
+   ```bash
+      sudo systemctl restart newrelic-ebpf-agent
+   ```
+
+4. 新しい制限を確認します。
+
+   ```bash
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+   ```
+
+### Kubernetesの場合:
+
+1. Helm デプロイメントに使用される`values.yaml`ファイルを編集します。
+
+   ```yaml
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
+   ```
+
+2. 変更を適用します。
+
+   ```bash
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
+   ```
+
+3. ポッドが再起動し、実行状態になっていることを確認します。
+
+   ```bash
+      kubectl get pods -n newrelic -w
+   ```
+
+### 代替ソリューション
+
+リソース制限を増やすことが不可能な場合は、エージェントが監視する範囲を制限することで、エージェントのファイル記述子の使用量を減らすことができます。
+
+1. ネームスペースまたはサービスをフィルタリングして監視範囲を縮小します。
+
+   * **Linux ホスト**(`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`) の場合:
+
+     ```bash
+        # Exclude specific processes or entities
+        DROP_DATA_FOR_ENTITY="process1,process2"
+     ```
+
+   * **Kubernetes** (`values.yaml`) の場合:
+
+     ```yaml
+        # Exclude namespaces or services
+        dropDataForNamespaces: ["kube-system", "monitoring"]
+        dropDataServiceNameRegex: "kube-dns|system-service"
+     ```
+
+2. 特定のプロトコル監視を無効にしてプローブの数を減らします。
+
+   * **Linux ホストの場合:**
+
+     ```bash
+        PROTOCOLS_MYSQL_ENABLED="false"
+        PROTOCOLS_MONGODB_ENABLED="false"
+     ```
+
+   * **Kubernetesの場合:**
+
+     ```yaml
+        protocols:
+        mysql:
+           enabled: false
+        mongodb:
+           enabled: false
+     ```
+
+### 検証
+
+1. エージェント ログにエラーが表示されなくなったことを確認します。
+
+   * **Linux ホストの場合:**
+
+     ```bash
+        sudo journalctl -u newrelic-ebpf-agent -f
+     ```
+
+   * **Kubernetesの場合:**
+
+     ```bash
+        kubectl logs -f <ebpf-agent-pod> -n newrelic
+     ```
+
+2. ログ内の起動メッセージを探して、エージェントが正常に機能していることを確認します。
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
+   ```
+
+3. `instrumentation.name = nr_ebpf`を使用してエンティティをフィルタリングし、データが New Relic UI に流れていることを確認します。
+
+### 追加メモ
+
+* ファイル記述子制限エラーは、実行中のプロセスやサービスが多数ある環境でよく発生します。
+* 各モニター プロセス/サービスには、eBPF プローブ接続用のファイル記述子が必要です。
+* デフォルトのシステム制限 (多くの場合 1024) は、大規模な開発には不十分な場合があります。
+* 制限を 4096 に増やすことは、通常、ほとんどのユースケースでは安全かつ十分です。
