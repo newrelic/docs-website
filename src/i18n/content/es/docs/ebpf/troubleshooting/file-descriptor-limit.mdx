@@ -1,0 +1,162 @@
+---
+title: Se excedió el límite del descriptor de archivo
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Performance
+  - Troubleshooting
+metaDescription: How to resolve file descriptor limit issues with the eBPF agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Verá el siguiente mensaje de error en los logs del agente eBPF:
+
+```
+The number of used file descriptors (820) is above the threshold (819). This may cause issues with attaching uprobes. Consider increasing the process FD limit
+```
+
+Este error indica que el agente eBPF alcanzó el número máximo de descriptores de archivos que puede usar, lo que puede impedirle monitorear correctamente su aplicación.
+
+## Solución
+
+Debe aumentar el límite del descriptor de archivo para el servicio o pod del agente eBPF.
+
+### Para hosts Linux:
+
+Emplee el mecanismo de anulación `systemd` para establecer un límite más alto para el servicio del agente.
+
+1. Aumente temporalmente el límite del descriptor de archivo:
+
+   ```bash
+   ulimit -n 4096
+   ```
+
+2. Ejecute el siguiente comando para editar el cambio persistente en `/etc/security/limits.conf`:
+
+   ```bash
+   sudo nano /etc/security/limits.conf
+   ```
+
+   Agrega las siguientes líneas:
+
+   ```
+      * soft nofile 4096
+      * hard nofile 8192
+   ```
+
+3. Resetear el agente eBPF:
+
+   ```bash
+      sudo systemctl restart newrelic-ebpf-agent
+   ```
+
+4. Verificar el nuevo límite:
+
+   ```bash
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+   ```
+
+### Para Kubernetes:
+
+1. Edite el archivo `values.yaml` empleado para la implementación Helm :
+
+   ```yaml
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
+   ```
+
+2. Aplicar los cambios:
+
+   ```bash
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
+   ```
+
+3. Verifique que el pod se resetear y se encuentre en estado de ejecución:
+
+   ```bash
+      kubectl get pods -n newrelic -w
+   ```
+
+### Soluciones alternativas
+
+Si no es posible aumentar los límites de recursos, puede reducir el uso del descriptor de archivos del agente limitando el alcance de lo que monitorea.
+
+1. Reducir el alcance del monitoreo filtrando espacios de nombres o servicios:
+
+   * **Para hosts Linux** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`):
+
+     ```bash
+        # Exclude specific processes or entities
+        DROP_DATA_FOR_ENTITY="process1,process2"
+     ```
+
+   * **Para Kubernetes** (`values.yaml`):
+
+     ```yaml
+        # Exclude namespaces or services
+        dropDataForNamespaces: ["kube-system", "monitoring"]
+        dropDataServiceNameRegex: "kube-dns|system-service"
+     ```
+
+2. Deshabilite el protocolo de monitoreo específico para reducir el número de sondas:
+
+   * **Para hosts Linux:**
+
+     ```bash
+        PROTOCOLS_MYSQL_ENABLED="false"
+        PROTOCOLS_MONGODB_ENABLED="false"
+     ```
+
+   * **Para Kubernetes:**
+
+     ```yaml
+        protocols:
+        mysql:
+           enabled: false
+        mongodb:
+           enabled: false
+     ```
+
+### Verificación
+
+1. Compruebe que el error ya no aparece en los logs del agente:
+
+   * **Para hosts Linux:**
+
+     ```bash
+        sudo journalctl -u newrelic-ebpf-agent -f
+     ```
+
+   * **Para Kubernetes:**
+
+     ```bash
+        kubectl logs -f <ebpf-agent-pod> -n newrelic
+     ```
+
+2. Confirme que el agente esté funcionando normalmente buscando el mensaje de inicio en los logs:
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
+   ```
+
+3. Verifique que los datos fluyan a UI New Relic filtrando la entidad con `instrumentation.name = nr_ebpf`.
+
+### Notas adicionales
+
+* El error de límite del descriptor de archivo es más común en entornos con muchos procesos o servicios en ejecución.
+* Cada proceso/servicio monitoreado requiere descriptores de archivos para la conexión de la sonda eBPF.
+* El límite del sistema predeterminado (generalmente 1024) puede ser insuficiente para una implementación a gran escala.
+* Aumentar el límite a 4096 generalmente es seguro y suficiente para la mayoría de los casos de uso.
