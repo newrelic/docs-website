@@ -16,6 +16,7 @@ These new features provide crucial context and collaboration tools:
 * **New Relic Scorecards** help define, track, improve, and standardize engineering best practices that scale team performance.
 * **New Relic Catalogs** provide an inventory of services, APIs, repositories, infrastructure, and components in a customer's digital environment, establishing a central system of record with crucial context for each service.
 * **New Relic Maps** provides a dynamic, visual representation of your complex software systems, enabling you to understand dependencies, troubleshoot issues faster, and improve collaboration.
+* **Entities & Relationships via NRQL** simplifies your analysis by treating entities and relationships as queryable data within NRDB. This eliminates the need for complex cross-platform joins, allowing you to easily correlate system context with telemetry to resolve issues faster.
 * The **New Relic SAI integration with GitHub** allows users to import essential data on teams, team members, repos, owners, and pull request (PR) metadata directly into New Relic. This reduces configuration setup time for Teams, Scorecards, Catalogs, and other New Relic platform innovations.
 
 These capabilities are included in New Relic’s Advanced Compute innovations. Billing is usage-based, optimizing spend by removing static license fees.
