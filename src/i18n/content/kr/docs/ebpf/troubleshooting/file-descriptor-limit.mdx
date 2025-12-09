@@ -1,0 +1,162 @@
+---
+title: 파일 설명자 제한을 초과했습니다.
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Performance
+  - Troubleshooting
+metaDescription: How to resolve file descriptor limit issues with the eBPF agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 문제
+
+eBPF 에이전트 로그에 다음과 같은 오류 메시지가 표시됩니다.
+
+```
+The number of used file descriptors (820) is above the threshold (819). This may cause issues with attaching uprobes. Consider increasing the process FD limit
+```
+
+이 오류는 eBPF 에이전트가 사용할 수 있는 최대 파일 설명자 수에 도달했음을 나타내며, 이로 인해 애플리케이션을 제대로 모니터링하지 못할 수 있습니다.
+
+## 해결책
+
+eBPF 에이전트 서비스 또는 파드에 대한 파일 설명자 제한을 늘려야 합니다.
+
+### Linux 호스트의 경우:
+
+`systemd` 재정의 메커니즘을 사용하여 에이전트 서비스에 대한 더 높은 한도를 설정합니다.
+
+1. 파일 설명자 제한을 일시적으로 늘립니다.
+
+   ```bash
+   ulimit -n 4096
+   ```
+
+2. `/etc/security/limits.conf` 에서 영구적으로 변경 사항을 편집하려면 다음 명령을 실행하세요.
+
+   ```bash
+   sudo nano /etc/security/limits.conf
+   ```
+
+   다음 줄을 추가합니다.
+
+   ```
+      * soft nofile 4096
+      * hard nofile 8192
+   ```
+
+3. eBPF 에이전트를 다시 시작합니다.
+
+   ```bash
+      sudo systemctl restart newrelic-ebpf-agent
+   ```
+
+4. 새로운 한도를 확인하세요.
+
+   ```bash
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+   ```
+
+### Kubernetes 의 경우:
+
+1. Helm 구현, 배포에 사용되는 `values.yaml` 파일을 편집합니다.
+
+   ```yaml
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
+   ```
+
+2. 변경 사항을 적용합니다.
+
+   ```bash
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
+   ```
+
+3. 파드가 다시 시작되고 실행 상태인지 확인하세요.
+
+   ```bash
+      kubectl get pods -n newrelic -w
+   ```
+
+### 대체 솔루션
+
+리소스 한도를 늘리는 것이 불가능한 경우, 모니터링 범위를 제한하여 에이전트의 파일 설명자 사용량을 줄일 수 있습니다.
+
+1. 네임스페이스나 서비스를 필터링하여 모니터링 범위를 줄입니다.
+
+   * **Linux 호스트** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`)의 경우:
+
+     ```bash
+        # Exclude specific processes or entities
+        DROP_DATA_FOR_ENTITY="process1,process2"
+     ```
+
+   * **Kubernetes** (`values.yaml`)의 경우:
+
+     ```yaml
+        # Exclude namespaces or services
+        dropDataForNamespaces: ["kube-system", "monitoring"]
+        dropDataServiceNameRegex: "kube-dns|system-service"
+     ```
+
+2. 프로브 수를 줄이려면 특정 프로토콜 모니터링을 비활성화하세요.
+
+   * **Linux 호스트의 경우:**
+
+     ```bash
+        PROTOCOLS_MYSQL_ENABLED="false"
+        PROTOCOLS_MONGODB_ENABLED="false"
+     ```
+
+   * **Kubernetes 의 경우:**
+
+     ```yaml
+        protocols:
+        mysql:
+           enabled: false
+        mongodb:
+           enabled: false
+     ```
+
+### 확인
+
+1. 에이전트 로그에 오류가 더 이상 나타나지 않는지 확인하세요.
+
+   * **Linux 호스트의 경우:**
+
+     ```bash
+        sudo journalctl -u newrelic-ebpf-agent -f
+     ```
+
+   * **Kubernetes 의 경우:**
+
+     ```bash
+        kubectl logs -f <ebpf-agent-pod> -n newrelic
+     ```
+
+2. 로그에서 시작 메시지를 찾아 에이전트가 정상적으로 작동하는지 확인하세요.
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
+   ```
+
+3. `instrumentation.name = nr_ebpf` 으로 필터링하여 데이터가 뉴렐릭 UI 로 흐르는지 확인하세요.
+
+### 추가 참고 사항
+
+* 파일 설명자 제한 오류는 실행 중인 프로세스나 서비스가 많은 환경에서 더 흔하게 발생합니다.
+* 모니터링되는 각 프로세스/서비스에는 eBPF 프로브 첨부를 위한 파일 설명자가 필요합니다.
+* 기본 시스템 제한(종종 1024)은 대규모 구현, 배포에 부족할 수 있습니다.
+* 일반적으로 제한을 4096으로 늘리는 것은 대부분의 사용 사례에 안전하고 충분합니다.
