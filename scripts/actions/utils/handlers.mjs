@@ -139,7 +139,8 @@ export default {
   },
   DocTile: {
     deserialize: deserializeComponent,
-    serialize: serializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, { tagName: 'div', textAttributes: ['title'] }),
   },
   DocTiles: {
     deserialize: deserializeComponent,
@@ -422,6 +423,42 @@ export default {
     serialize: (state, node) =>
       serializeComponent(state, node, {
         tagName: 'td',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  p: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'p',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  ul: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'ul',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  ol: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'ol',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  li: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'li',
         wrapChildren: false,
         identifyComponent: false,
       }),

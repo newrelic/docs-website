@@ -1,0 +1,708 @@
+---
+title: Créez votre propre workflow
+tags:
+  - workflow automation
+  - create your own workflow
+  - build a workflow using New Relic
+metaDescription: Build custom workflows from scratch using drag-and-drop actions. Learn by example with a real-world EC2 automation scenario.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout title="Aperçu">
+  Nous travaillons toujours sur cette fonctionnalité, mais nous aimerions que vous l&apos;essayiez !
+
+  Cette fonctionnalité est actuellement fournie dans le cadre d&apos;un programme d&apos;aperçu conformément à nos [politiques de pré-sortie](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+Lorsque les modèles ne correspondent pas à vos besoins, l&apos;option [Create Your Own](https://onenr.io/0OQM47KgxjG) vous permet de concevoir un workflow personnalisé. Utilisez l&apos;interface glisser-déposer pour enchaîner les actions du [catalogue d&apos;actions](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog) et créer une automatisation correspondant à votre processus.
+
+## Comment utiliser ce guide
+
+Ce guide vous montre comment construire un workflow à l&apos;aide de concepts et d&apos;un exemple complet. Choisissez votre parcours d&apos;apprentissage :
+
+* **Apprenez d&apos;abord les concepts fondamentaux** → Lisez [les concepts fondamentaux](#core-concepts) et [les modèles de workflow](#workflow-patterns) pour comprendre les bases, puis appliquez-les.
+
+* **Suivez l&apos;exemple** → Accédez à [la procédure pas à pas](#example-walkthrough) pour créer un workflow de redimensionnement automatique EC2.
+
+* **Modèles de référence** → Utilisez la section [relative aux modèles de workflow](#workflow-patterns) comme référence rapide lors de la création de votre propre workflow.
+
+  <Callout variant="tip">
+    **Vous débutez dans le monde du workflow ?** Commencez par les concepts de base, puis suivez l&apos;exemple. Le workflow EC2 illustre tous les modèles clés dans un scénario réel.
+  </Callout>
+
+## Pourquoi créer un workflow personnalisé ?
+
+Créez votre propre workflow pour :
+
+* **Implémenter une logique métier unique** que les modèles ne prennent pas en charge
+* **Intégrez plusieurs systèmes** au-delà des modèles standards
+* **Gérer les décisions complexes** grâce à la branchement conditionnel
+* **Alignez vos processus d&apos;approbation et de notification avec ceux de votre équipe**.
+
+## Concepts de base [#core-concepts]
+
+Comprenez ces principes fondamentaux avant de construire :
+
+<table>
+  <thead>
+    <tr>
+      <th width={225}>
+        **Concept**
+      </th>
+
+      <th>
+        **Ce que cela fait**
+      </th>
+
+      <th>
+        **Exemple**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Entrées et secrets
+      </td>
+
+      <td>
+        Paramètres d&apos;identification et de configuration
+      </td>
+
+      <td>
+        `${{ :secrets:awsKeyId }}` pour les informations d&apos;identification, `${{ .inputs.region }}` pour la configuration.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Actions (Play)
+      </td>
+
+      <td>
+        Intégration pré-construite (AWS, Slack, base de données, API)
+      </td>
+
+      <td>
+        Faites glisser `aws.ec2.stopInstances` dans le canevas workflow
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Flux de données
+      </td>
+
+      <td>
+        Transmettez les sorties entre les étapes
+      </td>
+
+      <td>
+        `${{ .steps.getAlert.outputs.entityGuid }}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Interrupteurs
+      </td>
+
+      <td>
+        Créez différents chemins en fonction des conditions
+      </td>
+
+      <td>
+        Itinéraire par `CPU > 90%` vs. `70-90%` vs. `< 70%`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Boucles
+      </td>
+
+      <td>
+        Listes de processus ou sondage pour l&apos;achèvement
+      </td>
+
+      <td>
+        Utilisez `type: loop` avec `for` et `in` pour itérer sur les collections
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Gamme
+      </td>
+
+      <td>
+        Champ obligatoire pour les fonctions de boucle afin de définir le nombre d&apos;itérations
+      </td>
+
+      <td>
+        Utilisez `${{ range(1, 6) }}` pour boucler 5 fois.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Attendez
+      </td>
+
+      <td>
+        Suspend l&apos;exécution workflow pendant une durée spécifiée ou jusqu&apos;à ce qu&apos;une condition soit remplie.
+      </td>
+
+      <td>
+        Utilisez `type: wait` avec `seconds: 60` pour retarder de 60 secondes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Arrêt
+      </td>
+
+      <td>
+        Interrompre l&apos;exécution workflow
+      </td>
+
+      <td>
+        workflow est interrompu en cas d&apos;échec de validation ou d&apos;annulation.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  **Apprenez en pratiquant :** chaque concept est démontré dans l’ [exemple de démonstration](#example-walkthrough). Vous verrez des entrées, des commutateurs, des boucles et des portes d&apos;approbation fonctionner ensemble dans un workflow réel.
+</Callout>
+
+Pour des modèles détaillés de gestion des erreurs, voir [bonnes pratiques](/docs/workflow-automation/limitations-and-faq/workflow-best-practices#error-handling).
+
+## Démarrage rapide [#quick-start]
+
+Créez votre premier workflow en cinq étapes :
+
+1. Accédez à **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation** et sélectionnez **[Create Your Own](https://onenr.io/0OQM47KgxjG)**
+2. Définir les paramètres pour les informations d&apos;identification (à partir du gestionnaire de secrets : `${{ :secrets:keyName }}`), configuration (régions, type d&apos;instance) et les données d&apos;exécution (identifiants de compte, identifiants d&apos;alerte).
+3. Faites glisser les actions depuis le [catalogue](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog) et reliez-les avec la syntaxe `${{ .steps.stepName.outputs.field }}` pour transmettre les données.
+4. Intégrez des commutateurs pour les branchements conditionnels, des boucles pour le traitement de listes ou l&apos;interrogation, et des portes d&apos;approbation pour les décisions humaines.
+5. Exécutez ce script après chaque section pour détecter les erreurs au plus tôt, puis [démarrez ou planifiez](/docs/workflow-automation/create-a-workflow-automation/start-schedule) votre workflow.
+
+<Callout variant="tip">
+  Commencez par 3 étapes, testez minutieusement, puis développez-les. Un workflow fonctionnel en 5 étapes vaut mieux qu&apos;un workflow défaillant en 20 étapes.
+</Callout>
+
+## Modèles workflow clés [#workflow-patterns]
+
+Quatre modèles essentiels permettent de couvrir la plupart des scénarios d&apos;automatisation. Chaque modèle est illustré dans l&apos; [exemple](#example-walkthrough) ci-dessous.
+
+### Branchement conditionnel avec commutateurs
+
+**Utilisez des commutateurs lorsque :** les résultats varient en fonction des données (vérifications de seuil, réponses d’API, décisions de l’utilisateur).
+
+**Syntaxe clé :**
+
+```yaml
+- name: hasCompleted
+  type: switch
+  switch:
+    - condition: "${{ .steps.waitForCompletion.outputs.automationExecutionStatus == 'Failed' }}"
+      next: displayError
+    - condition: "${{ .steps.waitForCompletion.outputs.automationExecutionStatus == 'Success' }}"
+      next: displaySuccess
+  next: displayUnexpected  # Default path when no condition matches
+```
+
+**Voyez-le en action :** les sections [de gestion des réponses de l’équipe](#handle-team-response), [de vérification et de nettoyage](#verify-and-clean-up) montrent le routage des commutateurs en fonction des réactions Slack et de l’état d’AWS SSM.
+
+### Boucles pour le traitement des listes
+
+**Utilisez les boucles lorsque** vous traitez plusieurs éléments ou répétez des actions.
+
+**Syntaxe clé :**
+
+```yaml
+# Send progress updates using range loop
+- name: progressLoop
+  type: loop
+  for:
+    in: "${{ [range(1; 5)] }}"  # Loop 5 times
+    steps:
+      - name: wait
+        type: wait
+        seconds: 10
+      - name: progressMessage
+        type: action
+        action: slack.chat.postMessage
+        version: 1
+        inputs:
+          channel: "${{ .workflowInputs.channel }}"
+          text: "Resizing in progress..."
+```
+
+**Voyez-le en action :** [la section d’exécution de redimensionnement](#execute-the-resize) utilise `progressLoop` pour les mises à jour d’état.
+
+### Portails d&apos;approbation et attente
+
+**Utilisez des points de contrôle d&apos;approbation lorsque :** un jugement humain est nécessaire avant des opérations destructives ou une validation de conformité est requise
+
+**Syntaxe clé :**
+
+```yaml
+- name: requestApproval
+  type: action
+  action: slack.chat.postMessage
+  version: 1
+  inputs:
+    channel: "#approvals"
+    text: "Approve? React with :thumbsup: or :thumbsdown:"
+
+- name: getReactions
+  type: action
+  action: slack.chat.getReactions
+  version: 1
+  inputs:
+    token: "${{ .workflowInputs.slackToken }}"
+    channelID: "${{ .steps.requestApproval.outputs.channelID }}"
+    threadTs: "${{ .steps.requestApproval.outputs.threadTs }}"
+    timeout: 300  # Wait 5 minutes for reaction
+
+- name: checkApproval
+  type: switch
+  switch:
+    - condition: '${{ .steps.getReactions.outputs.reactions | any(.name == "+1") }}'
+      next: handleApproval
+    - condition: '${{ .steps.getReactions.outputs.reactions | any(.name == "-1") }}'
+      next: handleRejection
+```
+
+**Pour les retards simples :**
+
+```yaml
+- name: waitBeforeRetry
+  type: wait
+  seconds: 60  # Wait 60 seconds before continuing
+```
+
+**Voyez-le en action :** la section [« Demander l’approbation de l’équipe »](#request-team-approval) implémente workflow d’approbation Slack complet.
+
+### Transmission de données entre les étapes
+
+**Utilisez le passage de données lorsque :** la sortie d&apos;une étape devient l&apos;entrée d&apos;une autre (la base de tout workflow).
+
+**Syntaxe clé :**
+
+```yaml
+# Reference previous step outputs
+awsRegion: "${{ .inputs.region }}"
+instanceId: "${{ .steps.getAlert.outputs.data.entity.instanceId }}"
+```
+
+**Voyez-le en action :** toutes les sections illustrent le transfert de données ; chaque étape s’appuie sur les résultats précédents.
+
+<Callout variant="tip">
+  **Vous souhaitez des exemples de motifs complets ?** Consultez [les exemples de workflow](/docs/workflow-automation/workflow-examples) pour découvrir d&apos;autres modèles, notamment la gestion des erreurs, les nouvelles tentatives et l&apos;intégration complexe.
+</Callout>
+
+## Exemple de procédure pas à pas : redimensionnement automatique des instances EC2 avec approbation [#example-walkthrough]
+
+Cet exemple complet montre comment créer un workflow qui redimensionne automatiquement les instances EC2 en cas de pics d&apos;utilisation du processeur, après avoir obtenu l&apos;approbation de l&apos;équipe via Slack. Il illustre la collecte de données, la logique conditionnelle, l&apos;intégration externe et la gestion des erreurs dans un scénario réel.
+
+<Callout variant="tip">
+  **Vous débutez dans le monde du workflow ?** Cet exemple utilise AWS, Slack et une logique d&apos;approbation. Si vous débutez, essayez d&apos;abord [d&apos;envoyer le rapport sur Slack](/docs/workflow-automation/create-a-workflow-automation/use-a-template#send-report-to-slack).
+</Callout>
+
+### Prérequis [#prerequisites]
+
+Avant de mettre en place ce workflow, assurez-vous d&apos;avoir :
+
+* **AWS**: Identifiants avec autorisations EC2 et système Manager
+* **Slack**: Bot Jeton et canal de notification
+* **New Relic**: état d&apos;alerte monitoring du processeur EC2
+* **Gestionnaire de secrets**: configuré (voir [gestion des secrets](/docs/infrastructure/host-integrations/installation/secrets-management/))
+
+### aperçu du flux de travail [#workflow-overview]
+
+**Flux de haut niveau :**
+
+1. **Collecte de données**: Récupérer les détails de l&apos;alerte et de l&apos;instance auprès de New Relic
+2. **Demande d&apos;approbation**: Envoyer un message Slack, attendre la réponse de l&apos;équipe
+3. **Exécuter le redimensionnement**: Utilisez AWS Systems Manager pour redimensionner instanceEC2.
+4. **Vérification et nettoyage**: Vérifier les résultats, informer l&apos;équipe, supprimer les ressources temporaires
+
+Cet exemple illustre les principaux modèles que vous utiliserez dans un workflow personnalisé : interrogation d’API, branchement conditionnel, intégration externe, boucles d’interrogation et gestion des erreurs.
+
+### Entrées du workflow [#workflow-inputs]
+
+<Callout variant="tip">
+  **Passez cette section si vous cherchez à comprendre les concepts.** Ce tableau détaille les 12 paramètres utilisés par ce workflow. Vous pouvez vous y référer lors de la construction, mais ce n&apos;est pas indispensable pour comprendre le flux.
+</Callout>
+
+Ce workflow nécessite comme entrées des informations d&apos;identification, configuration et un contexte d&apos;exécution. Les valeurs sensibles proviennent du gestionnaire de secrets utilisant la syntaxe `${{ :secrets:keyName }}`.
+
+**Catégories d&apos;entrée :**
+
+* **Authentification**: identifiants AWS et Slack provenant du gestionnaire de secrets
+* **Contexte de l&apos;alerte**: ID du compte et ID du problème provenant de New Relic
+* **Configuration**: Région, type d&apos;instance, fuseau horaire, canal Slack
+
+<CollapserGroup>
+  <Collapser title="Référence d'entrée">
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            **Nom du paramètre**
+          </th>
+
+          <th>
+            **Type**
+          </th>
+
+          <th>
+            **Valeur par défaut**
+          </th>
+
+          <th>
+            **Description**
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `awsAccessKeyId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `${{ :secrets:awsAccessKeyId }}`
+          </td>
+
+          <td>
+            ID de clé d&apos;accès AWS récupéré depuis le gestionnaire de secrets pour l&apos;authentification auprès des services AWS.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsSecretAccessKey`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `${{ :secrets:awsSecretAccessKey }}`
+          </td>
+
+          <td>
+            Clé d&apos;accès secrète AWS récupérée depuis le gestionnaire de secrets. Paires avec l&apos;ID de clé d&apos;accès.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsSessionToken`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `${{ :secrets:awsSessionToken }}`
+          </td>
+
+          <td>
+            Jeton de session pour les informations d&apos;identification AWS temporaires (facultatif, utilisé avec les rôles IAM).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `slackToken`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `${{ :secrets:slackToken }}`
+          </td>
+
+          <td>
+            Bot Jeton permettant de publier des messages et de lire les réactions sur Slack.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `accountId`
+          </td>
+
+          <td>
+            Int
+          </td>
+
+          <td>
+            Requis
+          </td>
+
+          <td>
+            Votre identifiant de compte New Relic. Utilisé pour interroger les détails des alertes et les données des entités.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `issueId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Requis
+          </td>
+
+          <td>
+            L&apos;identifiant du problème de l&apos;alerte New Relic qui a déclenché ce workflow. Fourni automatiquement lorsque le workflow s&apos;exécute à partir d&apos;une alerte.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `awsRegion`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `us-east-2`
+          </td>
+
+          <td>
+            région AWS dans laquelle votre instanceEC2 s&apos;exécute (par exemple, `us-east-1`, `us-west-2`, `eu-west-1`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `InstanceType`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `t4g.nano`
+          </td>
+
+          <td>
+            instance cible EC2 de type d&apos;instance à redimensionner. Choisissez en fonction de vos besoins en matière de performance et de votre budget.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timestampUnit`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `MILLISECONDS`
+          </td>
+
+          <td>
+            Unité de temps pour l&apos;horodatage de l&apos;alerte. Généralement `MILLISECONDS` ou `SECONDS`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `timezoneId`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `America/Los_Angeles`
+          </td>
+
+          <td>
+            Fuseau horaire pour l&apos;affichage de l&apos;heure d&apos;activation de l&apos;alerte dans les messages Slack (par exemple, `America/New_York`, `Europe/London`, `Asia/Tokyo`).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `pattern`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            `MM-dd-yyyy HH:mm`
+          </td>
+
+          <td>
+            Modèle de format de date/heure pour l&apos;affichage de l&apos;horodatage. Utilise les modèles SimpleDateFormat de Java.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `channel`
+          </td>
+
+          <td>
+            Chaîne
+          </td>
+
+          <td>
+            Requis
+          </td>
+
+          <td>
+            Identifiant (et non nom) du canal Slack où les notifications sont publiées. Vous trouverez cela dans les détails du canal Slack.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Élaborez le workflow étape par étape [#step-by-step-workflow]
+
+Passons maintenant en revue chaque partie du workflow. Chaque étape comprend les actions spécifiques à ajouter et les modèles workflow qu&apos;elles illustrent.
+
+<Steps>
+  <Step>
+    ### Recueillir le contexte de l&apos;alerte [#gather-alert-context]
+
+    Requêtes API et base de données avant d&apos;agir. Cela vous assure d&apos;avoir un contexte complet.
+
+    Le workflow collecte les informations relatives aux alertes et aux instanceEC2 à l&apos;aide de trois actions :
+
+    * **`getAlertDetails`**: appelle l&apos;API NerdGraph (API GraphQL de New Relic) pour récupérer les métadonnées des alertes : heure d&apos;activation, nom de la condition et entité affectée.
+
+    * **`activatedDateTime`**: Convertit l&apos;horodatage en un format lisible comme « 01-24-2025 14:30 » pour les messages Slack.
+
+    * **`impactedEC2Instance`**: requête NRDB (New Relic base de données) pour trouver l&apos;ID EC2 et le type actuel de instance.
+
+      <img title="Initial data gathering steps" alt="Workflow diagram showing three steps: getAlertDetails queries NerdGraph API, activatedDateTime converts timestamp, and impactedEC2Instance retrieves instance details from NRDB" src="/images/initial-data-gathering.webp" />
+
+    **Pourquoi c&apos;est important :** sans ces détails, vous ne pouvez pas construire de messages Slack significatifs ni cibler la bonne instanceEC2.
+  </Step>
+
+  <Step>
+    ### Demander l&apos;approbation de l&apos;équipe [#request-team-approval]
+
+    Connectez-vous à des outils de collaboration comme Slack, PagerDuty ou ServiceNow pour les points de décision humains.
+
+    Le workflow envoie les détails à Slack et attend une réponse :
+
+    * **`IssueDetected`**: Publie les détails de l&apos;alerte, le type actuel d&apos;instance et le redimensionnement proposé vers Slack. Demande à l&apos;équipe de réagir avec `:+1:` (approuver) ou `:-1:` (annuler).
+
+    * **`GetUserReaction`**: Pause de 5 minutes (300 secondes) en attendant une réaction.
+
+    * **`checkQuery` (Interrupteur)**: Routes basées sur la réaction :
+
+      * **`:+1:`** → Commencer le redimensionnement
+      * **`:-1:`** → Arrêter workflow
+      * **Autre** → invite à une réaction valide, retour en arrière
+
+      <img title="User approval process steps" alt="Workflow diagram showing user approval process: IssueDetected posts Slack message, GetUserReaction waits for response, checkQuery evaluates reactions with three conditions for approval, cancellation, or unexpected responses" src="/images/user-approval-process.webp" />
+
+    <Callout variant="tip">
+      **Problème courant :** utilisez **l’ID** du canal Slack (`C01234ABCD`), et non le nom du canal. Vous le trouverez dans les détails du canal Slack. Consultez [la section dépannage](#common-issues) pour plus d&apos;informations.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Gérer la réponse de l&apos;équipe [#handle-team-response]
+
+    Utilisez des commutateurs pour créer différents chemins en fonction des valeurs des données ou des entrées de l&apos;utilisateur.
+
+    Le workflow se ramifie en fonction de la réaction :
+
+    * **`unexpectedReaction`**: Explique les réactions valides et revient en arrière pour attendre à nouveau.
+    * **`gotCancelReaction`**: Confirme l&apos;annulation, passe à la fin. Aucun changement d&apos;infrastructure.
+    * **`gotYesReaction`**: Confirme l&apos;approbation, procède au redimensionnement.
+
+    <Callout variant="tip">
+      **Modèle de contrôle d&apos;approbation :** Utilisez ce type de mécanisme lorsque vous avez besoin d&apos;un jugement humain avant d&apos;entreprendre des changements risqués. Ce modèle fonctionne avec les réactions Slack, les accusés de réception PagerDuty, les réponses par e-mail ou les webhooks personnalisés.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Exécutez le redimensionnement [#execute-the-resize]
+
+    Utilisez un jeton unique pour éviter les opérations en double. Utilisez des boucles pour vérifier l&apos;état des opérations de longue durée.
+
+    Le workflow redimensionne l&apos; instance via AWS Systems Manager (SSM) :
+
+    * **`createSsmDocument`**: Crée un document d&apos;automatisation SSM qui arrête l&apos;instance, modifie le type et la redémarre.
+    * **`generateIdempotencyToken`**: Crée un UUID unique. Empêche les redimensionnements en double si le workflow s&apos;exécute deux fois.
+    * **`startResizing`**: Exécute le document SSM avec l&apos;ID d&apos; instance et le nouveau type.
+    * **`progressLoop` (Boucle)**: Publie les mises à jour Slack toutes les 10 secondes (5 fois au total).
+    * **`waitForCompletion`**: Interroge l&apos;état du SSM avec un délai d&apos;expiration de 2 minutes.
+
+    <Callout variant="important">
+      **Pourquoi SSM ?** Système Manager assure la gestion des erreurs, la vérification de l’état et les logs d’audit CloudTrail. Mieux qu&apos;un appel d&apos;API EC2 direct.
+    </Callout>
+
+    <Callout variant="tip">
+      **Problème courant :** assurez-vous que les informations d’identification AWS disposent des autorisations `ec2:StopInstances`, `ec2:ModifyInstanceAttribute`, `ec2:StartInstances` et `ssm:*`. Les autorisations manquantes entraînent une erreur silencieuse.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Vérifier et nettoyer [#verify-and-clean-up]
+
+    Prévoyez les échecs et nettoyez les ressources temporaires, quel que soit le résultat.
+
+    Le workflow vérifie les résultats et supprime les ressources temporaires :
+
+    * **`hasCompleted` (Switch)**: Branches sur l&apos;état SSM (succès/échec/délai d&apos;attente dépassé).
+    * **`displaySuccess`**: enregistrer le succès dans New Relic.
+    * **`sendSuccessMessage`**: Confirme la fin de la tâche dans Slack.
+    * **`displayError`**: enregiste les détails de l&apos;erreur pour le dépannage.
+    * **`displayUnexpected`**: consigner les états inhabituels (annulation manuelle, etc.).
+    * **`cleanupSsmDocument`**: Supprime le document SSM temporaire.
+    * **`sendSSMCleanMessage`**: Confirme le nettoyage dans Slack.
+    * **`workflowCompleted`**: Message de fin de série (exécute pour réussir ou annuler).
+
+    <Callout variant="tip">
+      * **Toujours nettoyer.** Structurez le workflow de manière à ce que le nettoyage s&apos;exécute même si les étapes précédentes échouent. Cela permet d&apos;éviter les fuites de ressources et les frais AWS inattendus.
+      * **Problème courant :** si le SSM expire, l’ instanceEC2 peut encore être en transition entre deux états. Consultez AWS Console pour vérifier l&apos;état actuel instance avant de relancer l&apos;opération.
+    </Callout>
+  </Step>
+</Steps>
+
+## Et ensuite ?
+
+* **[Démarrer et planifier des workflows](/docs/workflow-automation/create-a-workflow-automation/start-schedule)**: Déclencher manuellement ou planifier automatiquement.
+* **[Gérer les workflows](/docs/workflow-automation/create-a-workflow-automation/managing-workflow)** : modifier, dupliquer et monitorer l’historique d’exécution.

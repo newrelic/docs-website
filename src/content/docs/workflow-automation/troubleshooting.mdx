@@ -1,0 +1,309 @@
+---
+title: Troubleshoot Workflow Automation
+tags:
+  - workflow automation
+  - troubleshooting
+  - workflow errors
+metaDescription: "Common issues and solutions for Workflow Automation including AWS credentials, workflow execution, and dashboard problems."
+freshnessValidatedDate: never
+---
+
+<Callout title="preview">
+  We're still working on this feature, but we'd love for you to try it out!
+
+  This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+This page provides solutions to common issues you might encounter when using Workflow Automation. For additional support, see the [New Relic Support Forum](https://discuss.newrelic.com/) or contact [New Relic Support](https://support.newrelic.com/).
+
+## AWS credentials and authentication
+
+<CollapserGroup>
+    <Collapser
+        id="access-denied-errors"
+        title="Access denied errors"
+    >
+      **Problem:** Your workflow fails with an AWS authorization error.
+
+      **Solutions:**
+      1. **Check your account ID:** Verify you used `253490767857` (not `754728514883`) in the trust policy. The cloud integrations account ID (`754728514883`) is different from the workflow automation account ID.
+      2. **Verify external ID:** Confirm the external ID in your trust policy matches your New Relic account ID exactly (found in [Account settings](/docs/accounts/accounts-billing/account-structure/account-id)).
+      3. **Review permissions:** Ensure your IAM role or user has the specific AWS permissions your workflow requires. Check the [Required AWS permissions](/docs/workflow-automation/setup-and-configuration/set-up-aws-credentials#required-aws-permissions) table.
+      4. **Test with AWS CLI:** Run `aws sts assume-role` locally to verify the role is assumable:
+         ```bash
+         aws sts assume-role \
+         --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/NewRelicWorkflowAutomationRole" \
+         --role-session-name "TestSession" \
+         --external-id "YOUR_NR_ACCOUNT_ID"
+         ```
+    </Collapser>
+</CollapserGroup>
+
+### "Invalid token" or expired credentials
+
+**Problem:** Workflows fail with token expiration errors.
+
+**Solutions:**
+1. **For session tokens:** Check the expiration timestamp—session tokens typically last 1-12 hours. Generate new ones before they expire using:
+   ```bash
+   aws sts assume-role \
+     --role-arn "arn:aws:iam::YOUR_ACCOUNT:role/YOUR_ROLE" \
+     --role-session-name "WorkflowAutomationSession"
+   ```
+2. **For access keys:** Verify both the Access Key ID and Secret Access Key are correctly stored in [secrets manager](/docs/workflow-automation/limitations-and-faq/workflow-best-practices/#secure-credentials). Re-check the values in [NerdGraph GraphiQL explorer](https://one.newrelic.com/nerdgraph-graphiql).
+3. **Check secrets syntax:** Ensure you're using `${{ :secrets:keyName }}` format, not `${{ secrets.keyName }}`. The colon prefix (`:secrets:`) is required.
+
+### Can't find my role ARN
+
+**Problem:** You need the ARN but can't locate it in AWS.
+
+**Solution:**
+1. Sign in to the [AWS IAM Console](https://console.aws.amazon.com/iam/)
+2. Choose **Roles** from the navigation
+3. Search for your role name (e.g., `NewRelicWorkflowAutomationRole`)
+4. Select the role—the ARN appears in the Summary section
+5. The ARN format is: `arn:aws:iam::<YOUR_AWS_ACCOUNT>:role/<ROLE_NAME>`
+
+### Workflows can't access specific AWS resources
+
+**Problem:** Your role has permissions, but workflows still can't access certain resources.
+
+**Solutions:**
+1. **Resource-level permissions:** Check if your IAM policy restricts access to specific resource ARNs. You may need to add wildcard (`*`) for testing, then lock down to specific resources.
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": "ec2:DescribeInstances",
+     "Resource": "*"  // Change from specific ARN to * for testing
+   }
+   ```
+2. **Service control policies (SCPs):** If you're in an AWS Organization, SCPs might block certain actions. Contact your AWS administrator to review organization policies.
+3. **Region mismatch:** Ensure your IAM permissions specify the correct AWS region where your resources exist. Update the workflow's `awsRegion` parameter to match your resource location.
+
+## Workflow execution issues
+
+### Quick troubleshooting reference
+
+Use this table for fast diagnosis of common workflow problems:
+
+| **Symptom** | **Check** | **Solution** |
+|------------|-----------|--------------|
+| Workflow fails at a specific step | View execution logs for error messages | Fix configuration, credentials, or input data for that action |
+| Workflow runs but produces wrong results | Check data passing between steps | Verify template syntax `${{ .steps.name.outputs.field }}` |
+| Scheduled workflow doesn't run | Check run history for skipped executions | Verify schedule configuration and workflow status (Active) |
+| Workflow times out | Check execution duration | Reduce polling frequency or split into smaller workflows |
+| Changes don't take effect | Check version history | Update scheduled runs to use the new version |
+
+For detailed instructions on viewing logs and execution history, see [Monitor workflow runs](/docs/workflow-automation/create-a-workflow-automation/managing-workflow#monitor-runs).
+
+### Workflow shows as "Failed" status
+
+**Problem:** A workflow appears with Failed status in the dashboard.
+
+**Solutions:**
+1. **Check the run history**:
+   - Go to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+   - Click the workflow name
+   - View **Run history** to see which execution failed
+2. **Review execution logs**:
+   - Click **View logs** on the failed run to identify the specific action that failed
+   - Look for error messages that indicate the root cause
+3. **Common causes**:
+   - **Invalid credentials**: Expired tokens, incorrect secrets syntax, or wrong secret keys
+   - **Missing permissions**: Insufficient AWS IAM permissions, Slack bot token scopes, or API access
+   - **Changes to target resources**: Deleted EC2 instances, removed Slack channels, or renamed databases
+   - **API rate limits exceeded**: Too many requests to external services (AWS, Slack, etc.)
+   - **Network timeouts**: External APIs taking too long to respond
+4. **Fix and rerun**: After resolving the issue, manually trigger the workflow using the [StartWorkflowRun API](/docs/workflow-automation/workflow-automation-apis/start-workflow-run) to verify it works.
+
+### Workflow execution takes too long
+
+**Problem:** Workflow runs exceed expected duration or timeout.
+
+**Solutions:**
+1. **Review action sequence**: Check logs to identify slow actions. Look for actions with execution times > 30 seconds.
+2. **Optimize queries**: If using NRQL queries, optimize them for better performance:
+   - Add specific time ranges instead of querying all data
+   - Use `LIMIT` to reduce result set size
+   - Filter early with `WHERE` clauses
+3. **Check external APIs**: Slow responses from integrated services (AWS, Slack) can delay execution. Test API response times separately.
+4. **Consider workflow limits**: Review [workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits) for timeout constraints (typically 15 minutes per workflow).
+5. **Break into smaller workflows**: Split complex workflows into smaller, focused automations that can run in parallel.
+
+### Changes to workflow don't take effect
+
+**Problem:** You edited a workflow but the changes don't apply when it runs.
+
+**Solutions:**
+1. **Verify you saved**: Check that you clicked **Save** after editing the workflow configuration.
+2. **Check the version**:
+   - Go to workflow details
+   - Click **Version history** tab
+   - Ensure your latest changes appear as a new version
+   - Verify this version is marked as active
+3. **Update scheduled runs**: If the workflow runs on a schedule, update the schedule to use the new version:
+   - Go to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+   - Find scheduled runs
+   - Update the schedule to reference the new workflow version
+4. **Clear cache**: Browser caching might show old configuration—hard refresh the page (Ctrl+Shift+R or Cmd+Shift+R).
+
+## Workflow dashboard issues
+
+### Can't find a workflow in the dashboard
+
+**Problem:** A workflow you created doesn't appear in the dashboard list.
+
+**Solutions:**
+1. **Check filters**:
+   - Click the filter dropdown
+   - Select "All" for status filters
+   - Clear the search bar
+2. **Verify account**: Confirm you're logged into the correct New Relic account where the workflow was created. Check the account selector in the top-right corner.
+3. **Check permissions**: Ensure your user role has access to view workflows. Contact your New Relic admin if you need workflow access permissions.
+4. **Refresh the page**: Browser caching can sometimes hide recent changes. Try a hard refresh (Ctrl+Shift+R or Cmd+Shift+R).
+
+### Cannot delete a workflow
+
+**Problem:** Delete option is grayed out or deletion fails.
+
+**Solutions:**
+1. **Check permissions**: Verify your user role has delete permissions for workflows. Contact your account admin if needed.
+2. **Stop scheduled runs**: Cancel any active scheduled runs before deleting:
+   - Navigate to the workflow details
+   - Go to **Scheduled runs** tab
+   - Cancel all active schedules
+3. **Check dependencies**: Some workflows cannot be deleted if other automations depend on them. Check if the workflow is referenced by:
+   - Other workflows that call it
+   - Alert policies that trigger it
+   - External systems that start it via API
+4. **Contact support**: If the issue persists after trying the above, contact [New Relic Support](https://support.newrelic.com/) for assistance.
+
+## Integration-specific issues
+
+### Slack notifications not appearing
+
+**Problem:** Workflow completes successfully but Slack messages don't appear.
+
+**Solutions:**
+1. **Verify channel ID**: Ensure you're using the Slack channel **ID** (e.g., `C01234ABCD`), not the channel name. Find the ID in Slack:
+   - Right-click the channel name
+   - Select **View channel details**
+   - Copy the Channel ID at the bottom
+2. **Check bot permissions**: Verify your Slack bot has the following scopes:
+   - `chat:write` - Post messages
+   - `channels:read` - View public channels
+   - `groups:read` - View private channels (if applicable)
+3. **Verify bot is in channel**: Add the bot to the target channel:
+   - Type `/invite @YourBotName` in the channel
+   - Confirm the bot appears in the member list
+4. **Check token in secrets**: Verify the Slack token stored in [secrets manager](/docs/workflow-automation/limitations-and-faq/workflow-best-practices/#secure-credentials) is correct and hasn't expired.
+
+### AWS Systems Manager operations fail
+
+**Problem:** SSM automation documents or commands fail to execute.
+
+**Solutions:**
+1. **Verify SSM permissions**: Ensure the IAM role has these permissions:
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": [
+       "ssm:CreateDocument",
+       "ssm:DeleteDocument",
+       "ssm:StartAutomationExecution",
+       "ssm:GetAutomationExecution"
+     ],
+     "Resource": "*"
+   }
+   ```
+2. **Check SSM agent**: Verify the target EC2 instances have the SSM agent installed and running:
+   ```bash
+   aws ssm describe-instance-information --region us-east-1
+   ```
+3. **Verify instance profile**: EC2 instances need an IAM instance profile with SSM permissions to execute commands.
+4. **Check document exists**: If using an existing SSM document, verify it exists in your AWS account and region.
+
+## Template-specific issues
+
+### Entity GUID not found
+
+**Problem:** Templates fail with `Entity not found` errors.
+
+**Solutions:**
+1. **Find correct entity GUID**:
+   - Go to the monitored resource page in New Relic
+   - Check the URL or entity metadata for the GUID
+   - Use [entity search](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#find) to locate entities
+2. **Verify entity exists in correct account**: Confirm you're using the entity from the same account where the workflow is deployed
+3. **Confirm entity reporting data**: Check that the entity shows **Last seen** recently—stale entities may have been removed
+4. **For AWS entities**: Ensure [integrations](/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations) are active
+
+<Callout variant="tip">
+  **Entity GUIDs are account-specific.** Moving workflows between accounts requires updating all entity GUIDs.
+</Callout>
+
+### NRQL query returns no results
+
+**Problem:** Templates using NRQL queries complete but return empty datasets.
+
+**Solutions:**
+1. **Test queries first**: Use [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) to validate queries before adding to templates
+2. **Verify data type and event names**:
+   - Use `FROM Transaction`, not `FROM Transactions`
+   - Check attribute names are exact matches (case-sensitive)
+3. **Adjust time ranges**: For sparse data, expand the time window:
+   - Add `SINCE 1 hour ago` for recent data
+   - Use `SINCE 1 day ago` for trends
+4. **Simplify and test incrementally**: Start with basic query, add filters one at a time
+5. **Check [NRQL syntax](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)**: Verify query structure matches NRQL requirements
+
+### Template deployment fails
+
+**Problem:** Template won't deploy or shows errors during deployment.
+
+**Solutions:**
+1. **Check all required inputs**: Ensure you've filled in all mandatory fields (credentials, GUIDs, queries)
+2. **Verify credential format**: Secrets must use `${{ :secrets:keyName }}` format with the colon prefix
+3. **Test credentials independently**: Before deploying, test AWS credentials with AWS CLI and Slack tokens in Slack API
+4. **Review template requirements**: Each template lists specific prerequisites—verify all are met
+5. **Check for special characters**: Some fields (channel names, queries) may fail with special characters—use alphanumeric where possible
+
+### Approval workflows not responding
+
+**Problem:** Templates requiring Slack approval (API Gateway rollback, EC2 resize) don't detect reactions.
+
+**Solutions:**
+1. **Verify bot token scopes**:
+   - `reactions:read` - Required to detect emoji reactions
+   - `chat:write` - Required to post approval messages
+2. **Check reaction format**: Use the exact emoji specified in the workflow (typically 👍 for approve, 👎 for deny)
+3. **Verify timeout settings**: Approval requests expire after configured timeout (usually 5-10 minutes)
+4. **Ensure bot can read messages**: Bot must be in the channel and have permission to read message history
+5. **Test with simple approval**: Create a test workflow with just approval logic to isolate the issue
+
+### EC2 instance management issues
+
+**Problem:** EC2 template fails to resize or manage instances.
+
+**Solutions:**
+1. **Verify [CloudWatch Metric Streams](/install/aws-cloudwatch/) configured**: Required for real-time EC2 metrics
+2. **Check [EC2 monitoring integration](/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-ec2-monitoring-integration/#activate) active**: Ensures instance data flows to New Relic
+3. **Confirm instance state**: Instances must be in `running` or `stopped` state—transitional states (pending, stopping) cause failures
+4. **Verify instance type compatibility**: Not all instance types support all resize operations—check [AWS instance type documentation](https://aws.amazon.com/ec2/instance-types/)
+5. **Check stop/start permissions**: IAM role needs `ec2:StopInstances` and `ec2:StartInstances` in addition to `ec2:ModifyInstanceAttribute`
+
+### JSON parsing template not logging data
+
+**Problem:** JSON parsing template runs successfully but no data appears in New Relic logs.
+
+**Solutions:**
+1. **Verify API endpoint**: Test the status page URL in a browser—ensure it returns valid JSON
+2. **Check JSON structure**: Template expects specific format—verify component health fields match expected structure
+3. **Review log filters**: Ensure logging action uses correct event type and attributes
+4. **Test with simple endpoint**: Use a basic JSON endpoint (like `https://httpbin.org/json`) to verify template mechanics work
+5. **Check account permissions**: Verify workflow has permission to write logs to New Relic
+
+## What's next
+
+- **[Best practices](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: Error handling, performance optimization, testing strategies.
+- **[Workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: Understand timeouts, rate limits, and constraints.

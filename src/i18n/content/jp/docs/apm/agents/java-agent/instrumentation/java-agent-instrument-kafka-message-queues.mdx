@@ -9,7 +9,7 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-New Relic Java エージェントは、 [Kafka](https://kafka.apache.org/documentation/)&amp;apos;s Java clients library からデータを自動的に収集します。Kafka は大量のデータを生成する高性能なメッセージングシステムであるため、アプリの特定のスループットやユースケースに合わせてエージェントをカスタマイズすることができます。
+New Relic Java エージェントは、 [Kafka](https://kafka.apache.org/documentation/)&apos;s Java clients library からデータを自動的に収集します。Kafka は大量のデータを生成する高性能なメッセージングシステムであるため、アプリの特定のスループットやユースケースに合わせてエージェントをカスタマイズすることができます。
 
 このドキュメントでは、次の Kafka データ タイプを収集および表示する方法について説明します。
 
@@ -104,7 +104,7 @@ Kafkaのイベント収集を有効にするには
 3. [イベント エクスプローラー](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data)を使用して、 `KafkaMetrics`イベント タイプにある Kafka イベントを表示します。または、 [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql)を使用してイベントを直接クエリします。例えば：
 
    ```sql
-   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   SELECT average('producer-metrics.record-send-rate') FROM KafkaMetrics SINCE 30 minutes ago TIMESERIES
    ```
 
    Kafka ストリーム メトリクスをクエリする場合は、 `KafkaStreamsMetrics` イベント タイプを使用してストリーム固有のメトリクスにアクセスします。
@@ -202,12 +202,34 @@ Kafkaから分散型トレースを収集する。
         enabled: true
       ```
 
-    * 以下を設定ファイルに追加して、Kafka固有の分散型トレーシング機能を有効にします。
+    * 以下を構成ファイルに追加して、一般的な Kafka 固有のディストリビューティッド（分散）トレーシング機能を有効にします。
 
       ```yml
       class_transformer:
         com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
           enabled: true
+      ```
+
+    * エージェント バージョン`8.21`以降で spring-kafka 計装を有効にします。
+
+      <Callout variant="important">
+        これにより、取り込みとメモリ使用量が急増する可能性があるため、無効になっています。
+      </Callout>
+
+      ```yml
+      class_transformer:
+        com.newrelic.instrumentation.spring-kafka-2.2.0:
+          enabled: true
+      ```
+
+    * エージェント バージョン`8.21`以降の Kafka のバッチ呼び出しに対してディストリビューティッド（分散）トレーシングを有効にします。 (トランザクションはメッセージから 1 つの親トレースのみを受け入れることができるため、バッチ呼び出しディストリビューティッド（分散）トレーシングはデフォルトで無効になっています):
+
+      ```yml
+      kafka:
+        spans:
+          distributed_trace: 
+            consume_many:
+              enabled: true
       ```
   </Collapser>
 
@@ -230,7 +252,9 @@ Kafkaから分散型トレースを収集する。
   </Collapser>
 
   <Collapser id="instrument-kafka-consumer" title="3.Kafkaコンシューマーのインストゥルメント">
-    Kafka コンシューマーを計測するには、メッセージの処理中にトランザクションを開始する必要があります。エージェントは、分散トレース ペイロード ヘッダーを`newrelic`キーまたは W3C の`traceparent`および`tracestate`キーの下に保存します。ヘッダーを取得し、New Relic トランザクション API を呼び出してペイロードを受け入れます。
+    ### シナリオ 1: Kafka クライアントで手動計装を使用する
+
+    手動インスタンス化によって Kafka 消費者を計量するには、メッセージの処理中にトランザクションを開始する必要があります。 エージェントは、ディストリビューティッド（分散）トレーシング ペイロード ヘッダーを`newrelic`キーまたは W3C の`traceparent`と`tracestate`キーの下に保存します。 ヘッダーを取得し、New Relic トランザクション API を呼び出してペイロードを受け入れます。
 
     例えば：
 
@@ -261,6 +285,37 @@ Kafkaから分散型トレースを収集する。
 
       // Accept distributed tracing headers to link this request to the originating request
       NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+
+    ### シナリオ 2: Kafka クライアントに対する自動インストゥルメンテーションの使用
+
+    これはエージェント バージョン`8.21`以上にのみ適用されます。自動インストゥルメンテーションを活用して、kafka 消費者のディストリビューティッド（分散）トレーシングを読み取ることもできます。 これは、トランザクションを開始し、トランザクションの発生時に Consumer の`poll(...)`メソッドを呼び出すことによって実現されます。
+
+    これはデフォルトでは無効になっています。これは、消費者ポーリングがデフォルトで複数のメッセージを受け入れ、トランザクションが持つことができる親トレースが 1 つだけであるため、読み取られるメッセージは 1 つだけになるためです。
+
+    Kafka 消費者投票のディストリビューティッド（分散）トレーシングの自動受け入れを有効にするには、ステップ 1 に示すように、バッチ呼び出しに対してディストリビューティッド（分散）トレーシングを有効にする必要があります。
+
+    インストゥルメントで行われた kafka 消費者投票の例:
+
+    ```java
+    @Trace(dispatcher = true)
+    private void consumeMessage(KafkaConsumer<String, String> consumer) {
+      final ConsumerRecords<String, String> records = consumer.poll(1000);
+      // Process your records ....
+    }
+    ```
+
+    ### シナリオ3: Spring Kafkaの使用
+
+    Spring Kafka を使用している場合、エージェント バージョン `8.21.0` 以降を使用している場合、 `@KafkaListener`でインストゥルメントされたメソッドに対して自動インストゥルメンテーションを有効にすることができ 。 これにより、トランザクションが作成され、消費者向けにディストリビューティッド（分散）トレーシングが自動承認されます。 Kafka は高スループットのプラットフォームであるため、過剰な取り込みとメモリのオーバーヘッドを防ぐために無効になっています。手順 1 に示されている構成を使用して、spring-kafka インストルメンテーションを有効にできます。
+
+    例：
+
+    ```java
+    @KafkaListener(id = "foo", topics = "myTopic", clientIdPrefix = "myClientId")
+    public void listen(String data) {
+      ...
     }
     ```
 

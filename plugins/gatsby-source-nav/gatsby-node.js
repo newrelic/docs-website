@@ -183,21 +183,65 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
     id: createNodeId('release-notes'),
     title: 'Release Notes',
     pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
-      subjects.map((subject) => {
-        const landingPage = landingPages.find(
-          (page) => page.frontmatter.subject === subject
+         // Map through each unique subject to build its navigation structure
+      subjects.map(subject => {
+        // Find the landing page for the current subject (assuming it has no category in frontmatter)
+        const subjectLandingPage = landingPages.find(
+          (page) => page.frontmatter.subject === subject && !page.frontmatter.category
         );
+
+        // Filter posts that belong to the current subject
+        const postsForCurrentSubject = posts.filter(post => post.frontmatter.subject === subject);
+
+        // Separate uncategorized posts (no 'category' in frontmatter)
+        const uncategorizedPosts = postsForCurrentSubject.filter(
+          (post) => !post.frontmatter.category
+        );
+
+        // Separate categorized posts (have 'category' in frontmatter)
+        const categorizedPosts = postsForCurrentSubject.filter(
+          (post) => post.frontmatter.category
+        );
+
+        // Get unique and sorted categories ONLY from categorized posts for this subject
+        const uniqueCategoriesForSubject = [...new Set(categorizedPosts.map(p => p.frontmatter.category))]
+          .filter(Boolean) // Ensure no null/undefined categories
+          .sort((a, b) => a.toLowerCase().replace(/\W/, '').localeCompare(b.toLowerCase().replace(/\W/, '')));
 
         return {
           title: subject,
-          url: landingPage && landingPage.fields.slug,
+          url: subjectLandingPage && subjectLandingPage.fields.slug,
           pages: [
+            // Overview page for the specific subject
             {
               title: subject + ' overview',
-              url: landingPage && landingPage.fields.slug,
+              url: subjectLandingPage && subjectLandingPage.fields.slug,
             },
-          ].concat(
-            formatReleaseNotePosts(filterBySubject(subject, posts)).slice(0, 10)
+          ]
+          .concat(
+            // Add uncategorized posts directly under the subject overview, limited to 10
+            formatReleaseNotePosts(uncategorizedPosts).slice(0, 10)
+          )
+          .concat(
+            // Map through each actual category within the current subject
+            uniqueCategoriesForSubject.map(category => {
+              // Find a landing page for the current category (optional: if you have category-specific index.mdx files)
+              const categoryLandingPage = landingPages.find(
+                (page) => page.frontmatter.subject === subject && page.frontmatter.category === category
+              );
+
+              // Filter posts that belong to the current subject and specific category
+              const filteredPostsForCategory = categorizedPosts.filter(
+                (post) => post.frontmatter.category === category
+              );
+
+              return {
+                title: category,
+                url: categoryLandingPage && categoryLandingPage.fields.slug, // URL for category landing page, if it exists
+                // Limit to the latest 10 posts within each category
+                pages: formatReleaseNotePosts(filteredPostsForCategory).slice(0, 10),
+              };
+            })
           ),
         };
       })
