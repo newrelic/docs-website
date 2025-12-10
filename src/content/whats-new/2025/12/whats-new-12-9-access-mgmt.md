@@ -18,7 +18,7 @@ This update removes the need to navigate the "Edit group" modal, providing a str
 
 You can now create all role types directly from the **Roles** tab. This update brings full management capabilities into the user interface, giving you a comprehensive visual builder for your permissions.
 
-When creating a role, you can easily toggle between setting a role scope for the Organization, specific Accounts, or single entities. Today, you can only create entity-scoped access grants for your New Relic fleets. We will continue to enable more entity-scoped access grants for finer-grained access control of your assets. This new experience will give you fine-grained control over your entities without leaving the administration section. 
+When creating a role, you can easily toggle between setting a role scope for the organization, specific accounts, or single entities. Today, you can only create entity-scoped access grants for your New Relic fleets. We will continue to enable more entity-scoped access grants for finer-grained access control of your assets. This new experience will give you fine-grained control over your entities without leaving the administration section.
 
 ## General interface improvements
 
