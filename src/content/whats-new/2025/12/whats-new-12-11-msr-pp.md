@@ -11,7 +11,7 @@ We are excited to announce the Public Preview of Mobile Session Replay. This new
 
 Mobile Session Replay provides a visual reproduction of user interactions within your mobile application. Unlike standard crash reporting, it allows you to review high-fidelity replays that are perfectly synced to detailed telemetry data, giving you a complete picture of the user journey alongside the technical performance data.
 
-![Mobile Session Replay](/images/mobile_session_replay.png "Mobile Session Replay")
+![Mobile Session Replay](/images/mobile_session_replay.webp "Mobile Session Replay")
 
 ## Why Mobile Session Replay?
 
