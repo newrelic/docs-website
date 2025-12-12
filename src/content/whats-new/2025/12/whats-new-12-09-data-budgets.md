@@ -21,4 +21,4 @@ This update allows you to monitor your observability spend effectively, ensure c
 
 Empower your engineering teams to leverage observability tools effectively while maintaining financial predictability!
 
-Want to know more? Check out our [Data Budgets Documentation](https://docs.newrelic.com/docs/service-architecture-intelligence/github-integration/).
+Want to know more? Check out our [Data Budgets Documentation](https://docs.newrelic.com/docs/data-apis/manage-data/data-ingest-budgets/).
