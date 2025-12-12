@@ -124,6 +124,99 @@ steps:
           expression: '.response.MessageId'
 ```
 
+## Complex NRQL alerting
+
+Handle complex NRQL queries that standard alerts can't support, such as comparing data across time windows or applying custom logic before triggering notifications.
+
+**What this workflow does:**
+- Executes two NRQL queries comparing different time windows (10 minutes ago until 5 minutes ago vs last 5 minutes)
+- Compares query results to detect if count increased
+- Uses a switch step to conditionally send notifications only when new events are detected
+- Sends email notification with query results and CSV attachment
+- Can be scheduled to run every 10 minutes for continuous monitoring
+
+**Requirements:**
+- New Relic account with data to query
+- Email destination configured in New Relic (see [Send notifications from workflows](/docs/workflow-automation/setup-and-configuration/create-destinations))
+- Workflow scheduled using [CreateSchedule API](/docs/workflow-automation/workflow-automation-apis/create-schedule)
+
+**Key actions**: `newrelic.nrdb.query`, `newrelic.notification.sendEmail`
+
+**Use case**: This pattern is useful when standard New Relic alerts can't handle your requirements, such as:
+- Comparing metrics across multiple time windows
+- Applying custom mathematical operations on query results
+- Triggering only when specific thresholds or patterns are detected
+- Combining data from multiple queries with conditional logic
+
+```yaml
+name: Complex_Alert_Workflow
+description: 'Compares NRQL results across time windows and sends alerts when new events are detected'
+
+workflowInputs:
+  destinationId:
+    type: String
+  query:
+    type: String
+    defaultValue: 'FROM Span SELECT count(*)'
+
+steps:
+  - name: query1
+    type: action
+    action: newrelic.nrdb.query
+    version: 1
+    inputs:
+      query: "${{ .workflowInputs.query }} SINCE 10 minutes ago UNTIL 5 minutes ago"
+      accountIds:
+        - 7401815
+      selectors:
+        - name: length
+          expression: '[ .results[] | length ]'
+        - name: count
+          expression: '[ .results[0].count ]'
+
+  - name: query2
+    type: action
+    action: newrelic.nrdb.query
+    version: 1
+    inputs:
+      query: "${{ .workflowInputs.query }} SINCE 5 minutes ago"
+      accountIds:
+        - 7401815
+      selectors:
+        - name: length
+          expression: '[ .results[] | length ]'
+        - name: count
+          expression: '[ .results[0].count ]'
+
+  - name: CheckForNewEvents
+    type: switch
+    switch:
+      - condition: >-
+          ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) > 0 }}
+        next: sendEmail
+    next: end
+
+  - name: sendEmail
+    type: action
+    action: newrelic.notification.sendEmail
+    version: 1
+    inputs:
+      destinationId: ${{ .workflowInputs.destinationId }}
+      subject: Hello there!
+      message: >-
+        More spans incoming!!!
+        There are --- ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) }} ---
+        new Spans that were ingested in the last 5 minutes
+      attachments:
+        - type: QUERY
+          query: ${{ .workflowInputs.query }} SINCE 5 minutes ago
+          format: CSV
+          filename: span_count.csv
+    next: end
+```
+
+**To schedule this workflow**, use the [CreateSchedule API](/docs/workflow-automation/create-a-workflow-automation/start-schedule#scheduled) with a cron expression like `*/10 * * * *` (every 10 minutes). Remember that the minimum scheduling interval is 10 minutes. See [workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits) for details.
+
 ## Send a report to Slack
 
 Send a NRQL query output as a CSV file on Slack.
