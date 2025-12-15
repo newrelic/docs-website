@@ -1,7 +1,7 @@
 ---
 title: 'Introducing Transaction 360: Unified, transaction-centric observability is here'
 summary: 'Streamline troubleshooting with a unified view of components, telemetry, and change data'
-releaseDate: '2025–12–15'
+releaseDate: '2025-12-15'
 learnMoreLink: 'https://newrelic.com/platform/transaction-360'
 getStartedLink: 'https://docs.newrelic.com/docs/apm/transactions/workload-performance-monitoring/introduction/'
 ---
