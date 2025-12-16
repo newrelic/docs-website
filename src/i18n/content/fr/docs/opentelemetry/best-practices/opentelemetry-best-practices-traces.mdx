@@ -262,6 +262,669 @@ New Relic mappe les étendues OTLP au type de données `Span` . Le tableau ci-de
 
 Consultez [les types d&apos;attributs OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#otlp-attribute-types) pour plus de détails sur les types d&apos;attributs pris en charge par le point de terminaison OTLP de New Relic et [les limites d&apos;attributs OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) pour plus de détails sur la validation effectuée sur l&apos;attribut.
 
-## Prise en charge des liens Span [#span-links-support]
+## Liens de span [#span-links]
 
-[Les liens d&apos;extension](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) OpenTelemetry ne sont actuellement pas pris en charge par New Relic.
+New Relic prend en charge les [liens de span](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) OpenTelemetry, qui vous permettent de créer des relations de causalité entre les spans qui n&apos;ont pas de connexion parent-enfant directe. Les liens de span sont essentiels pour comprendre les traces distribuées qui sont divisées sur des limites asynchrones telles que les files d&apos;attente de messages, les flux d&apos;événements et les systèmes de traitement par lots.
+
+### Quand utiliser les liens de span [#when-to-use]
+
+Utilisez les liens de span dans les scénarios suivants :
+
+* <DNT>**Message queue producers and consumers**</DNT>: Lier un span consommateur au span producteur lors du traitement des messages provenant de files d&apos;attente telles que AWS SQS, RabbitMQ ou Kafka.
+* <DNT>**Fan-in patterns**</DNT>: Lier plusieurs traces de producteurs à une seule trace de consommateur qui agrège leurs sorties.
+* <DNT>**Batch processing**</DNT>: Lier les spans qui traitent les messages par lots à leurs traces d&apos;origine individuelles.
+* <DNT>**Long-running workflows**</DNT>: Connecter les spans à travers les étapes du flux de travail qui dépassent les limites de durée de trace normales.
+
+### Implémentation des liens de span [#implementing-span-links]
+
+Pour implémenter les liens de span dans votre instrumentation OpenTelemetry, vous devez :
+
+1. Extraire le contexte de trace du message ou de l&apos;événement entrant
+2. Créer un lien de span lors du démarrage d&apos;un nouveau span dans le consommateur
+3. S&apos;assurer que le contexte de trace est propagé via votre infrastructure de messagerie
+
+Les exemples suivants montrent comment implémenter les liens de span dans différents langages :
+
+<CollapserGroup>
+  <Collapser id="python-span-links" title="Python">
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.trace import Link, SpanContext, TraceFlags
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+    tracer = trace.get_tracer(__name__)
+    propagator = TraceContextTextMapPropagator()
+
+    # Producer: Publishing a message with trace context
+    def publish_message(queue, message_body):
+        with tracer.start_as_current_span("publish_message") as span:
+            # Prepare message with trace context headers
+            carrier = {}
+            propagator.inject(carrier)
+
+            # Add carrier headers to your message metadata
+            message = {
+                'body': message_body,
+                'headers': carrier
+            }
+
+            queue.publish(message)
+            span.set_attribute("messaging.destination", queue.name)
+            span.set_attribute("messaging.system", "custom_queue")
+
+    # Consumer: Processing a message with span link
+    def process_message(message):
+        # Extract trace context from message headers
+        carrier = message.get('headers', {})
+        ctx = propagator.extract(carrier)
+
+        # Get the span context from the extracted context
+        span_context = trace.get_current_span(ctx).get_span_context()
+
+        # Create a new span with a link to the producer span
+        links = []
+        if span_context.is_valid:
+            links = [Link(span_context)]
+
+        with tracer.start_as_current_span(
+            "process_message",
+            links=links
+        ) as span:
+            # Process the message
+            result = handle_message(message['body'])
+
+            span.set_attribute("messaging.system", "custom_queue")
+            span.set_attribute("messaging.operation", "process")
+
+            return result
+    ```
+
+    Pour AWS SQS en particulier :
+
+    ```python
+    import boto3
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+    sqs = boto3.client('sqs')
+    propagator = TraceContextTextMapPropagator()
+
+    # Publishing to SQS
+    def send_sqs_message(queue_url, message_body):
+        with tracer.start_as_current_span("sqs_publish") as span:
+            carrier = {}
+            propagator.inject(carrier)
+
+            # SQS message attributes for trace context
+            message_attributes = {
+                'traceparent': {
+                    'StringValue': carrier.get('traceparent', ''),
+                    'DataType': 'String'
+                }
+            }
+
+            if 'tracestate' in carrier:
+                message_attributes['tracestate'] = {
+                    'StringValue': carrier['tracestate'],
+                    'DataType': 'String'
+                }
+
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=message_body,
+                MessageAttributes=message_attributes
+            )
+
+    # Consuming from SQS
+    def process_sqs_message(message):
+        # Extract trace context from SQS message attributes
+        carrier = {}
+        if 'MessageAttributes' in message:
+            attrs = message['MessageAttributes']
+            if 'traceparent' in attrs:
+                carrier['traceparent'] = attrs['traceparent']['StringValue']
+            if 'tracestate' in attrs:
+                carrier['tracestate'] = attrs['tracestate']['StringValue']
+
+        ctx = propagator.extract(carrier)
+        span_context = trace.get_current_span(ctx).get_span_context()
+
+        links = [Link(span_context)] if span_context.is_valid else []
+
+        with tracer.start_as_current_span(
+            "sqs_process",
+            links=links
+        ) as span:
+            # Process message
+            body = message['Body']
+            return handle_message(body)
+    ```
+  </Collapser>
+
+  <Collapser id="java-span-links" title="Java">
+    ```java
+    import io.opentelemetry.api.trace.Span;
+    import io.opentelemetry.api.trace.SpanBuilder;
+    import io.opentelemetry.api.trace.SpanContext;
+    import io.opentelemetry.api.trace.Tracer;
+    import io.opentelemetry.context.Context;
+    import io.opentelemetry.context.propagation.TextMapGetter;
+    import io.opentelemetry.context.propagation.TextMapPropagator;
+    import io.opentelemetry.context.propagation.TextMapSetter;
+
+    public class MessageProcessor {
+        private final Tracer tracer;
+        private final TextMapPropagator propagator;
+
+        // Producer: Publishing a message with trace context
+        public void publishMessage(Queue queue, String messageBody) {
+            Span span = tracer.spanBuilder("publish_message")
+                .startSpan();
+
+            try (var scope = span.makeCurrent()) {
+                // Inject trace context into message headers
+                Map<String, String> headers = new HashMap<>();
+                propagator.inject(Context.current(), headers,
+                    (carrier, key, value) -> carrier.put(key, value));
+
+                Message message = new Message(messageBody, headers);
+                queue.publish(message);
+
+                span.setAttribute("messaging.destination", queue.getName());
+                span.setAttribute("messaging.system", "custom_queue");
+            } finally {
+                span.end();
+            }
+        }
+
+        // Consumer: Processing a message with span link
+        public void processMessage(Message message) {
+            // Extract trace context from message headers
+            Context extractedContext = propagator.extract(
+                Context.current(),
+                message.getHeaders(),
+                (carrier, key) -> carrier.get(key)
+            );
+
+            // Get the span context from extracted context
+            SpanContext producerSpanContext = Span.fromContext(extractedContext)
+                .getSpanContext();
+
+            // Create span with link to producer
+            SpanBuilder spanBuilder = tracer.spanBuilder("process_message");
+
+            if (producerSpanContext.isValid()) {
+                spanBuilder.addLink(producerSpanContext);
+            }
+
+            Span span = spanBuilder.startSpan();
+
+            try (var scope = span.makeCurrent()) {
+                handleMessage(message.getBody());
+
+                span.setAttribute("messaging.system", "custom_queue");
+                span.setAttribute("messaging.operation", "process");
+            } finally {
+                span.end();
+            }
+        }
+
+        // AWS SQS example
+        public void processSQSMessage(
+            software.amazon.awssdk.services.sqs.model.Message sqsMessage
+        ) {
+            Map<String, String> carrier = new HashMap<>();
+
+            // Extract trace context from SQS message attributes
+            sqsMessage.messageAttributes().forEach((key, value) -> {
+                if (key.equals("traceparent") || key.equals("tracestate")) {
+                    carrier.put(key, value.stringValue());
+                }
+            });
+
+            Context extractedContext = propagator.extract(
+                Context.current(),
+                carrier,
+                (c, k) -> c.get(k)
+            );
+
+            SpanContext producerSpanContext = Span.fromContext(extractedContext)
+                .getSpanContext();
+
+            SpanBuilder spanBuilder = tracer.spanBuilder("sqs_process");
+
+            if (producerSpanContext.isValid()) {
+                spanBuilder.addLink(producerSpanContext);
+            }
+
+            Span span = spanBuilder.startSpan();
+
+            try (var scope = span.makeCurrent()) {
+                handleMessage(sqsMessage.body());
+                span.setAttribute("messaging.system", "AmazonSQS");
+            } finally {
+                span.end();
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="nodejs-span-links" title="Node.js">
+    ```javascript
+    const { trace, context, SpanKind } = require('@opentelemetry/api');
+    const { W3CTraceContextPropagator } = require('@opentelemetry/core');
+
+    const tracer = trace.getTracer('message-processor');
+    const propagator = new W3CTraceContextPropagator();
+
+    // Producer: Publishing a message with trace context
+    async function publishMessage(queue, messageBody) {
+      const span = tracer.startSpan('publish_message', {
+        kind: SpanKind.PRODUCER
+      });
+
+      return context.with(trace.setSpan(context.active(), span), async () => {
+        try {
+          // Inject trace context into message headers
+          const carrier = {};
+          propagator.inject(
+            context.active(),
+            carrier,
+            {
+              set: (carrier, key, value) => {
+                carrier[key] = value;
+              }
+            }
+          );
+
+          const message = {
+            body: messageBody,
+            headers: carrier
+          };
+
+          await queue.publish(message);
+
+          span.setAttribute('messaging.destination', queue.name);
+          span.setAttribute('messaging.system', 'custom_queue');
+        } finally {
+          span.end();
+        }
+      });
+    }
+
+    // Consumer: Processing a message with span link
+    async function processMessage(message) {
+      // Extract trace context from message headers
+      const extractedContext = propagator.extract(
+        context.active(),
+        message.headers || {},
+        {
+          get: (carrier, key) => carrier[key]
+        }
+      );
+
+      // Get the span context from extracted context
+      const producerSpan = trace.getSpan(extractedContext);
+      const producerSpanContext = producerSpan?.spanContext();
+
+      // Create span with link
+      const links = [];
+      if (producerSpanContext && trace.isSpanContextValid(producerSpanContext)) {
+        links.push({
+          context: producerSpanContext
+        });
+      }
+
+      const span = tracer.startSpan(
+        'process_message',
+        {
+          kind: SpanKind.CONSUMER,
+          links: links
+        }
+      );
+
+      return context.with(trace.setSpan(context.active(), span), async () => {
+        try {
+          await handleMessage(message.body);
+
+          span.setAttribute('messaging.system', 'custom_queue');
+          span.setAttribute('messaging.operation', 'process');
+        } finally {
+          span.end();
+        }
+      });
+    }
+
+    // AWS SQS example using AWS SDK v3
+    const { SQSClient, SendMessageCommand, ReceiveMessageCommand } = require('@aws-sdk/client-sqs');
+
+    async function sendSQSMessage(queueUrl, messageBody) {
+      const span = tracer.startSpan('sqs_publish');
+
+      return context.with(trace.setSpan(context.active(), span), async () => {
+        try {
+          const carrier = {};
+          propagator.inject(context.active(), carrier, {
+            set: (c, k, v) => { c[k] = v; }
+          });
+
+          const messageAttributes = {
+            traceparent: {
+              StringValue: carrier.traceparent || '',
+              DataType: 'String'
+            }
+          };
+
+          if (carrier.tracestate) {
+            messageAttributes.tracestate = {
+              StringValue: carrier.tracestate,
+              DataType: 'String'
+            };
+          }
+
+          const client = new SQSClient({});
+          await client.send(new SendMessageCommand({
+            QueueUrl: queueUrl,
+            MessageBody: messageBody,
+            MessageAttributes: messageAttributes
+          }));
+        } finally {
+          span.end();
+        }
+      });
+    }
+
+    async function processSQSMessage(message) {
+      const carrier = {};
+
+      if (message.MessageAttributes) {
+        if (message.MessageAttributes.traceparent) {
+          carrier.traceparent = message.MessageAttributes.traceparent.StringValue;
+        }
+        if (message.MessageAttributes.tracestate) {
+          carrier.tracestate = message.MessageAttributes.tracestate.StringValue;
+        }
+      }
+
+      const extractedContext = propagator.extract(context.active(), carrier, {
+        get: (c, k) => c[k]
+      });
+
+      const producerSpanContext = trace.getSpan(extractedContext)?.spanContext();
+      const links = producerSpanContext && trace.isSpanContextValid(producerSpanContext)
+        ? [{ context: producerSpanContext }]
+        : [];
+
+      const span = tracer.startSpan('sqs_process', { links });
+
+      return context.with(trace.setSpan(context.active(), span), async () => {
+        try {
+          await handleMessage(message.Body);
+          span.setAttribute('messaging.system', 'AmazonSQS');
+        } finally {
+          span.end();
+        }
+      });
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="go-span-links" title="Go">
+    ```go
+    package main
+
+    import (
+        "context"
+        "go.opentelemetry.io/otel"
+        "go.opentelemetry.io/otel/attribute"
+        "go.opentelemetry.io/otel/propagation"
+        "go.opentelemetry.io/otel/trace"
+    )
+
+    var (
+        tracer     = otel.Tracer("message-processor")
+        propagator = propagation.TraceContext{}
+    )
+
+    // Producer: Publishing a message with trace context
+    func publishMessage(ctx context.Context, queue Queue, messageBody string) error {
+        ctx, span := tracer.Start(ctx, "publish_message")
+        defer span.End()
+
+        // Inject trace context into message headers
+        carrier := propagation.MapCarrier{}
+        propagator.Inject(ctx, carrier)
+
+        message := Message{
+            Body:    messageBody,
+            Headers: map[string]string(carrier),
+        }
+
+        err := queue.Publish(message)
+
+        span.SetAttributes(
+            attribute.String("messaging.destination", queue.Name()),
+            attribute.String("messaging.system", "custom_queue"),
+        )
+
+        return err
+    }
+
+    // Consumer: Processing a message with span link
+    func processMessage(ctx context.Context, message Message) error {
+        // Extract trace context from message headers
+        carrier := propagation.MapCarrier(message.Headers)
+        extractedCtx := propagator.Extract(ctx, carrier)
+
+        // Get the span context from extracted context
+        producerSpanContext := trace.SpanContextFromContext(extractedCtx)
+
+        // Create span with link
+        var links []trace.Link
+        if producerSpanContext.IsValid() {
+            links = []trace.Link{
+                {
+                    SpanContext: producerSpanContext,
+                },
+            }
+        }
+
+        ctx, span := tracer.Start(
+            ctx,
+            "process_message",
+            trace.WithLinks(links...),
+        )
+        defer span.End()
+
+        err := handleMessage(message.Body)
+
+        span.SetAttributes(
+            attribute.String("messaging.system", "custom_queue"),
+            attribute.String("messaging.operation", "process"),
+        )
+
+        return err
+    }
+
+    // AWS SQS example
+    func processSQSMessage(ctx context.Context, sqsMessage *sqs.Message) error {
+        // Extract trace context from SQS message attributes
+        carrier := propagation.MapCarrier{}
+
+        if sqsMessage.MessageAttributes != nil {
+            if tp, ok := sqsMessage.MessageAttributes["traceparent"]; ok {
+                carrier["traceparent"] = *tp.StringValue
+            }
+            if ts, ok := sqsMessage.MessageAttributes["tracestate"]; ok {
+                carrier["tracestate"] = *ts.StringValue
+            }
+        }
+
+        extractedCtx := propagator.Extract(ctx, carrier)
+        producerSpanContext := trace.SpanContextFromContext(extractedCtx)
+
+        var links []trace.Link
+        if producerSpanContext.IsValid() {
+            links = []trace.Link{
+                {SpanContext: producerSpanContext},
+            }
+        }
+
+        ctx, span := tracer.Start(
+            ctx,
+            "sqs_process",
+            trace.WithLinks(links...),
+        )
+        defer span.End()
+
+        err := handleMessage(*sqsMessage.Body)
+
+        span.SetAttributes(
+            attribute.String("messaging.system", "AmazonSQS"),
+        )
+
+        return err
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="dotnet-span-links" title=".NET">
+    ```csharp
+    using System.Diagnostics;
+    using OpenTelemetry;
+    using OpenTelemetry.Context.Propagation;
+
+    public class MessageProcessor
+    {
+        private static readonly ActivitySource ActivitySource = new("MessageProcessor");
+        private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
+
+        // Producer: Publishing a message with trace context
+        public async Task PublishMessage(IQueue queue, string messageBody)
+        {
+            using var activity = ActivitySource.StartActivity("publish_message", ActivityKind.Producer);
+
+            // Inject trace context into message headers
+            var carrier = new Dictionary<string, string>();
+            Propagator.Inject(
+                new PropagationContext(activity.Context, Baggage.Current),
+                carrier,
+                (c, key, value) => c[key] = value
+            );
+
+            var message = new Message
+            {
+                Body = messageBody,
+                Headers = carrier
+            };
+
+            await queue.PublishAsync(message);
+
+            activity?.SetTag("messaging.destination", queue.Name);
+            activity?.SetTag("messaging.system", "custom_queue");
+        }
+
+        // Consumer: Processing a message with span link
+        public async Task ProcessMessage(Message message)
+        {
+            // Extract trace context from message headers
+            var propagationContext = Propagator.Extract(
+                default,
+                message.Headers ?? new Dictionary<string, string>(),
+                (carrier, key) => carrier.TryGetValue(key, out var value) ? new[] { value } : Array.Empty<string>()
+            );
+
+            var producerContext = propagationContext.ActivityContext;
+
+            // Create span with link
+            var links = new List<ActivityLink>();
+            if (producerContext != default)
+            {
+                links.Add(new ActivityLink(producerContext));
+            }
+
+            using var activity = ActivitySource.StartActivity(
+                "process_message",
+                ActivityKind.Consumer,
+                parentContext: default,
+                links: links
+            );
+
+            await HandleMessage(message.Body);
+
+            activity?.SetTag("messaging.system", "custom_queue");
+            activity?.SetTag("messaging.operation", "process");
+        }
+
+        // AWS SQS example
+        public async Task ProcessSQSMessage(Amazon.SQS.Model.Message sqsMessage)
+        {
+            // Extract trace context from SQS message attributes
+            var carrier = new Dictionary<string, string>();
+
+            if (sqsMessage.MessageAttributes != null)
+            {
+                if (sqsMessage.MessageAttributes.TryGetValue("traceparent", out var tp))
+                {
+                    carrier["traceparent"] = tp.StringValue;
+                }
+                if (sqsMessage.MessageAttributes.TryGetValue("tracestate", out var ts))
+                {
+                    carrier["tracestate"] = ts.StringValue;
+                }
+            }
+
+            var propagationContext = Propagator.Extract(
+                default,
+                carrier,
+                (c, key) => c.TryGetValue(key, out var value) ? new[] { value } : Array.Empty<string>()
+            );
+
+            var links = new List<ActivityLink>();
+            if (propagationContext.ActivityContext != default)
+            {
+                links.Add(new ActivityLink(propagationContext.ActivityContext));
+            }
+
+            using var activity = ActivitySource.StartActivity(
+                "sqs_process",
+                ActivityKind.Consumer,
+                parentContext: default,
+                links: links
+            );
+
+            await HandleMessage(sqsMessage.Body);
+
+            activity?.SetTag("messaging.system", "AmazonSQS");
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Meilleures pratiques pour les liens de span [#span-links-best-practices]
+
+Lors de l&apos;implémentation des liens de span, suivez ces meilleures pratiques :
+
+1. <DNT>**Always propagate trace context**</DNT>: Assurez-vous que le contexte de trace W3C (en-têtes `traceparent` et `tracestate`) est inclus dans les en-têtes ou les métadonnées des messages.
+
+2. <DNT>**Validate span context**</DNT>: Vérifiez toujours si le contexte de span extrait est valide avant de créer un lien de span. Les contextes non valides ne doivent pas créer de liens.
+
+3. <DNT>**Use appropriate span kinds**</DNT>: Définissez `PRODUCER` kind pour les spans de publication de messages et `CONSUMER` kind pour les spans de traitement de messages.
+
+4. <DNT>**Add messaging attributes**</DNT>: Incluez des conventions sémantiques pour les systèmes de messagerie (tels que `messaging.system`, `messaging.destination`, `messaging.operation`) pour fournir un contexte.
+
+5. <DNT>**Consider sampling**</DNT>: Les deux traces liées doivent être échantillonnées pour apparaître dans New Relic. : Ajustez les stratégies d&apos;échantillonnage pour les flux de travail critiques qui utilisent des liens de span.
+
+6. <DNT>**Handle batch processing carefully**</DNT>: Lors du traitement des messages par lots, créez des liens de span individuels pour chaque message afin de maintenir la traçabilité.
+
+### Affichage des liens de span dans New Relic [#viewing-span-links]
+
+Une fois que vous avez implémenté les liens de span dans votre instrumentation, vous pouvez les afficher et les parcourir dans l&apos;interface utilisateur de New Relic :
+
+1. Accédez à la [page des détails de la trace](/docs/distributed-tracing/ui-data/trace-details/#span-links) pour une trace
+2. Recherchez le badge des liens de span dans la barre de filtre indiquant le nombre de spans avec des liens
+3. Sélectionnez un span avec des liens pour afficher l&apos;onglet <DNT>**Span links**</DNT> dans le volet des détails du span
+4. Cliquez sur les traces liées pour naviguer entre les traces associées
+
+Pour obtenir des informations détaillées sur l&apos;utilisation des liens de span dans l&apos;interface utilisateur, consultez [Comprendre les liens de span](/docs/distributed-tracing/ui-data/trace-details/#span-links).
