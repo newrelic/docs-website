@@ -1,5 +1,5 @@
 ---
-title: 'Introducing our new incident signal analysis feature for enhanced monitoring and response'
+title: 'Introducing our new alert event signal analysis feature for enhanced monitoring and response'
 summary: 'We are excited to announce the launch of a powerful new feature that will revolutionize the way you analyze signals and incidents in New Relic. This enhancement is designed to provide you with a more efficient and user-friendly experience, making it easier than ever to monitor and respond to incidents.'
 releaseDate: '2023-09-18'
 ---
