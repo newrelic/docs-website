@@ -12,16 +12,14 @@ translationType: machine
 
 Esta página muestra escenarios comunes de automatización que puede crear con la automatización de flujo de trabajo. Emplee estos ejemplos como puntos de partida para su propio flujo de trabajo, o explore la [biblioteca de plantillas](/docs/workflow-automation/create-a-workflow-automation/use-a-template) para encontrar soluciones listas para desplegar.
 
-## respuesta a incidencias y remediación
-
-### Reversión de la puerta de enlace API
+## Reversión de la puerta de enlace API
 
 Restablece la configuración de la puerta de enlace API a un estado anterior para poder corregir errores y configuraciones incorrectas.
 
 **Lo que hace este flujo de trabajo:**
 
 * Detecta implementaciones recientes relacionadas con un problema usando el seguimiento de cambios New Relic
-* Envía notificaciones de Slack con botones de aprobación (:+1: o :-1:)
+* Envía notificaciones de Slack con botones de aprobación `(:+1: or :-1:)`
 * Tras la aprobación, se crea un documento de AWS Systems Manager para automatizar la reversión.
 * Revierte la integración de API Gateway a la versión anterior de Lambda
 * Crea un nuevo despliegue para aplicar la reversión.
@@ -36,19 +34,19 @@ Restablece la configuración de la puerta de enlace API a un estado anterior par
 
 **Acciones clave**: `newrelic.nerdgraph.execute`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`
 
-### gestión de instancias EC2
+## gestión de instancias EC2
 
 Automatice el aprovisionamiento, el escalado y la finalización de instancias EC2 para obtener un rendimiento y un costo óptimos.
 
 **Lo que hace este flujo de trabajo:**
 
-* Recibe alertas de alto uso de CPU de New Relic
-* Recupera los detalles de la alerta e identifica las instancias EC2 afectadas.
-* Envía una notificación de Slack con los detalles de la instancia y requests aprobación para el cambio de tamaño.
-* Tras su aprobación, se crea un documento SSM para automatizar el redimensionamiento de la instancia.
+* Recibe alertas de alta utilización de CPU de New Relic.
+* Recupera detalles de alerta e identifica las instancias EC2 afectadas.
+* Envía una notificación de Slack con detalles de la instancia y requests aprobación para cambiar el tamaño.
+* Luego de la aprobación, crea un documento SSM para automatizar el cambio de tamaño de la instancia.
 * Detiene la instancia, modifica el tipo de instancia y la resetear.
 * Envía actualizaciones de progreso a Slack durante el proceso de cambio de tamaño.
-* Espera a que se complete la operación y envía un estado de éxito o de fallo.
+* Espera la finalización y envía el estado de éxito o fracaso.
 * Limpia el documento SSM y envía la confirmación final.
 
 **Requisitos:**
@@ -59,7 +57,7 @@ Automatice el aprovisionamiento, el escalado y la finalización de instancias EC
 
 **Acciones clave**: `newrelic.nerdgraph.execute`, `newrelic.nrdb.query`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`, `utils.datetime.fromEpoch`, `utils.uuid.generate`
 
-### despliegue rollback
+## despliegue rollback
 
 Revertir el despliegue si la entidad deja de estar en buen estado y notificar mediante AWS SQS o HTTP.
 
@@ -79,17 +77,165 @@ Revertir el despliegue si la entidad deja de estar en buen estado y notificar me
 * (Opcional) Cola y rol AWS SQS para recibir la notificación de reversión
 * (Opcional) Extremo HTTP para recibir notificación de reversión
 
-**Acciones clave**: `newrelic.nerdgraph.execute`, `newrelic.ingest.sendLogs`, `aws.execute.api` (sqs.send\_message), `http.post`
+**Acciones clave**: `newrelic.nerdgraph.execute`, `newrelic.ingest.sendLogs`, `aws.execute.api`, `(sqs.send_message)`, `http.post`
 
-## procesamiento de datos y elaboración de reportes
+## Mensajería de AWS SQS
 
-### Enviar un reporte a Slack
+Envía mensajes a una cola de AWS SQS para su procesamiento posterior o sistemas de notificación.
+
+**Lo que hace este flujo de trabajo:**
+
+* Envía un mensaje a una cola SQS especificada
+* Emplea la autenticación de roles de AWS IAM para un acceso seguro
+* Devuelve el ID del mensaje y el estado de éxito para la verificación.
+
+**Requisitos:**
+
+* Credenciales de AWS con licencia `sqs:SendMessage`
+* URL de la cola SQS
+* Rol de IAM configurado para la automatización del flujo de trabajo (consulte [Configurar credenciales de AWS](/docs/workflow-automation/setup-and-configuration/set-up-aws-credentials))
+
+**Acciones clave**: `aws.execute.api`, `(sqs.send_message)`
+
+```yaml
+  name: aws_execute_api_sqs_example
+
+  workflowInputs:
+    awsRoleArn:
+      type: String
+    awsRegion:
+      type: String
+      defaultValue: us-west-2
+    awsQueueUrl:
+      type: String
+
+  steps:
+    - name: sendSqsMessage
+      type: action
+      action: aws.execute.api
+      version: 1
+      inputs:
+        awsRoleArn: ${{ .workflowInputs.awsRoleArn }}
+        region: ${{ .workflowInputs.awsRegion }}
+        service: sqs
+        api: send_message
+        parameters:
+          QueueUrl: "${{ .workflowInputs.awsQueueUrl }}"
+          MessageBody: |
+            {
+              "message": "deployment is bad",
+              "status": "not good"
+            }
+        selectors:
+          - name: success
+            expression: '.success'
+          - name: messageId
+            expression: '.response.MessageId'
+```
+
+## Alerta NRQL compleja
+
+Manejar consultas NRQL complejas que las alertas estándar no pueden soportar, como comparar datos entre ventanas de tiempo o aplicar lógica personalizada antes de activar la notificación.
+
+**Lo que hace este flujo de trabajo:**
+
+* Ejecuta dos consultas NRQL comparando diferentes ventanas de tiempo (hace 10 minutos hasta hace 5 minutos vs últimos 5 minutos)
+* Compara los resultados de la consulta para detectar si el recuento aumentó
+* Emplea un paso de conmutación para enviar notificaciones condicionalmente solo cuando se detectan nuevos eventos
+* Envía una notificación por email con los resultados de la consulta y un archivo CSV adjunto.
+* Se puede programar para que se ejecute cada 10 minutos para un monitoreo continuo.
+
+**Requisitos:**
+
+* Cuenta New Relic con datos para consultar
+* Destino de email configurado en New Relic (ver [Enviar notificación desde flujo de trabajo](/docs/workflow-automation/setup-and-configuration/create-destinations))
+* flujo de trabajo programado usando [CreateSchedule API](/docs/workflow-automation/workflow-automation-apis/create-schedule)
+
+**Acciones clave**: `newrelic.nrdb.query`, `newrelic.notification.sendEmail`
+
+**Caso de uso**: Este patrón es útil cuando las alertas estándar de New Relic no pueden satisfacer sus necesidades, como por ejemplo:
+
+* Comparación de métricas en múltiples ventanas de tiempo
+* Aplicación de operaciones matemáticas personalizadas a los resultados de consulta
+* Se activa solo cuando se detectan patrones o umbrales específicos
+* Combinando datos de múltiples consultas con lógica condicional
+
+```yaml
+  name: Complex_Alert_Workflow
+  description: 'Compares NRQL results across time windows and sends alerts when new events are detected'
+
+  workflowInputs:
+    destinationId:
+      type: String
+    query:
+      type: String
+      defaultValue: 'FROM Span SELECT count(*)'
+
+  steps:
+    - name: query1
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "${{ .workflowInputs.query }} SINCE 10 minutes ago UNTIL 5 minutes ago"
+        accountIds:
+          - 7401815
+        selectors:
+          - name: length
+            expression: '[ .results[] | length ]'
+          - name: count
+            expression: '[ .results[0].count ]'
+
+    - name: query2
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "${{ .workflowInputs.query }} SINCE 5 minutes ago"
+        accountIds:
+          - 7401815
+        selectors:
+          - name: length
+            expression: '[ .results[] | length ]'
+          - name: count
+            expression: '[ .results[0].count ]'
+
+    - name: CheckForNewEvents
+      type: switch
+      switch:
+        - condition: >-
+            ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) > 0 }}
+          next: sendEmail
+      next: end
+
+    - name: sendEmail
+      type: action
+      action: newrelic.notification.sendEmail
+      version: 1
+      inputs:
+        destinationId: ${{ .workflowInputs.destinationId }}
+        subject: Hello there!
+        message: >-
+          More spans incoming!!!
+          There are --- ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) }} ---
+          new Spans that were ingested in the last 5 minutes
+        attachments:
+          - type: QUERY
+            query: ${{ .workflowInputs.query }} SINCE 5 minutes ago
+            format: CSV
+            filename: span_count.csv
+      next: end
+```
+
+**Para programar este flujo de trabajo**, emplee la [API CreateSchedule](/docs/workflow-automation/create-a-workflow-automation/start-schedule#scheduled) con una expresión cron como `*/10 * * * *` (cada 10 minutos). Recuerde que el intervalo mínimo de programación es de 10 minutos. Consulte [los límites del flujo de trabajo](/docs/workflow-automation/limitations-and-faq/workflow-limits) para obtener más detalles.
+
+## Enviar un reporte a Slack
 
 Envía el resultado de una consulta NRQL como archivo CSV en Slack.
 
 **Lo que hace este flujo de trabajo:**
 
-* Ejecuta una consulta NRQL en la(s) cuenta(s) de New Relic especificada(s).
+* Ejecuta una consulta NRQL contra la cuenta New Relic especificada
 * Genera un archivo CSV a partir de los resultados de la consulta.
 * Publica el archivo CSV en un canal de Slack específico con un mensaje
 
@@ -100,7 +246,7 @@ Envía el resultado de una consulta NRQL como archivo CSV en Slack.
 
 **Acciones clave**: `newrelic.nrdb.query`, `utils.transform.toCSV`, `slack.chat.postMessage`
 
-### Análisis de JSON
+## Análisis de JSON
 
 Analiza el JSON de la API de estado público de New Relic (HTTP) y, opcionalmente, registra los componentes operativos y no operativos.
 
@@ -114,16 +260,172 @@ Analiza el JSON de la API de estado público de New Relic (HTTP) y, opcionalment
 
 **Requisitos:**
 
-* Acceso a la API de estado de New Relic (summary.json)
+* Acceso a la API de estado de New Relic (`summary.json`)
 * Licencias para enviar logs a través de newrelic.ingest.sendLogs
 
 **Acciones clave**: `http.get`, `newrelic.ingest.sendLogs`
+
+## Sondeo y logging de API REST
+
+Sondea una API REST, recorre los resultados y registra los datos en New Relic.
+
+<Callout variant="important">
+  No es necesario emplear selectores si desea la carga útil completa. La mayoría de las herramientas de flujo de trabajo le permiten hacer referencia directamente al objeto de respuesta completo.
+</Callout>
+
+### GET simple y log
+
+Para un caso de uso básico de sondeo de una API y registro de la respuesta completa:
+
+**Lo que hace este flujo de trabajo:**
+
+* Disparador: Programe (por ejemplo, cada 5 minutos) o puede usar Ejecutar para manualmente
+
+* Paso de solicitud HTTP:
+
+  * Método: GET
+  * URL: [https://pokeapi.co/api/v2/pokemon](https://pokeapi.co/api/v2/pokemon)
+  * Almacenar el cuerpo completo de la respuesta en una variable (por ejemplo, `{{.http_response}}`)
+
+* Paso de registro/creación de evento:
+
+  * Envíe el `{{.http_response.body}}` completo como carga útil
+  * No se necesitan selectores: solo pase el JSON sin procesar
+
+### API REST con bucles y selectores
+
+Este ejemplo recopila todos los resultados de una API, los recorre, realiza llamadas HTTP individuales y registra los datos extraídos.
+
+**Lo que hace este flujo de trabajo:**
+
+* Obtiene todos los resultados de una APIREST
+* Recorre cada resultado en la respuesta.
+* Realiza una llamada API individual para cada elemento empleando datos del bucle
+* Extrae campos específicos de cada respuesta empleando selectores
+* Registra los datos extraídos en New Relic con atributo personalizado
+
+**Requisitos:**
+
+* Acceso a una APIREST extrema
+* Licencias para enviar logs a través de `newrelic.ingest.sendLogs`
+
+**Acciones clave**: `http.get`, `newrelic.ingest.sendLogs`
+
+```yaml
+  name: pokemon_workflow
+  description: ''
+  steps:
+    - name: get_all_pokemons
+      type: action
+      action: http.get
+      version: '1'
+      inputs:
+        url: https://pokeapi.co/api/v2/pokemon
+        selectors:
+          - name: pokemons
+            expression: .responseBody | fromjson.results
+    - name: pokemon_loop
+      type: loop
+      for:
+        in: ${{ .steps.get_all_pokemons.outputs.pokemons }}
+        steps:
+          - name: get_individual_pokemon
+            type: action
+            action: http.get
+            version: '1'
+            inputs:
+              url: ${{ .steps.pokemon_loop.loop.element.url }}
+              selectors:
+                - name: pokemon_name
+                  expression: .responseBody | fromjson.name
+                - name: pokemon_id
+                  expression: .responseBody | fromjson.id
+                - name: pokemon_stats
+                  expression: .responseBody | fromjson.stats
+          - name: log_pokemon_info
+            type: action
+            action: newrelic.ingest.sendLogs
+            version: '1'
+            inputs:
+              logs:
+                - message: >-
+                    Pokemon name is: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_name}}, Id: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_id}}
+                  attributes:
+                    pokemon_stats: ${{ .steps.get_individual_pokemon.outputs.pokemon_stats}}
+            next: continue
+      next: end
+```
+
+### Conversión de API REST a CSV
+
+Este ejemplo ilustra el uso de la respuesta completa sin selectores, la conversión de datos de API a CSV y su uso compartido a través de Slack.
+
+**Lo que hace este flujo de trabajo:**
+
+* Obtiene datos de hora actual de la API de hora mundial según la entrada de zona horaria
+* Convierte la respuesta JSON completa al formato CSV
+* Registra los datos CSV en New Relic
+* Publica el archivo CSV en un canal de Slack
+
+**Requisitos:**
+
+* Acceso a una APIREST extrema
+* Licencias para enviar logs a través de newrelic.ingest.sendLogs
+* Una aplicación de Slack configurada con un token y un canal objetivo
+
+**Acciones clave**: `http.get`, `utils.transform.toCSV`, `newrelic.ingest.sendLogs`, `slack.chat.postMessage`
+
+```yaml
+  name: jsontocsv
+
+  workflowInputs:
+    timezone:
+      type: String
+      defaultValue: 'America/Los_Angeles'
+
+  steps:
+    - name: getCurrentTime
+      type: action
+      action: http.get
+      version: 1
+      inputs:
+        url: 'https://worldtimeapi.org/api/timezone/${{ .workflowInputs.timezone }}'
+
+    - name: csv1
+      type: action
+      action: utils.transform.toCSV
+      version: 1
+      inputs:
+        json: ${{ .steps.getCurrentTime.outputs.responseBody }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'CSV: ${{ .steps.csv1.outputs.csv }}'
+
+    - name: postCsv
+      type: action
+      action: slack.chat.postMessage
+      version: 1
+      inputs:
+        channel: test-channel-workflow
+        text: "Current Date details"
+        attachment:
+          filename: 'file.csv'
+          content: ${{ .steps.csv1.outputs.csv }}
+        token: ${{ :secrets:dn_staging_slack_token }}
+```
 
 ## Plantilla disponible flujo de trabajo
 
 Las plantillas enumeradas anteriormente están disponibles directamente en la UI de automatización de flujo de trabajo New Relic. Para acceder a ellos:
 
-1. Vaya a **[one.newrelic.com](https://one.newrelic.com) &gt; All Capabilities &gt; Workflow Automation**
+1. Vaya a **All Capabilities &gt; Workflow Automation**
 2. Haz clic en **Create workflow**
 3. Seleccione **Use a template**
 4. Explore la biblioteca de plantillas y elija un flujo de trabajo que se ajuste a su caso de uso.
@@ -141,125 +443,279 @@ Puede emplear las plantillas tal cual o personalizarlas para adaptarlas a sus ne
 
 Todos los flujos de trabajo pueden hacer referencia a los resultados de pasos anteriores empleando sintaxis de plantillas. Esto te permite encadenar acciones y construir una lógica de automatización compleja.
 
+### Uso de entradas de flujo de trabajo
+
+Puede emplear la sintaxis `${{ .workflowInputs.variableName }}` para pasar valores dinámicos en tiempo de ejecución. Esta sintaxis funciona en URL de extremo y otros campos de entrada.
+
+**Ejemplo:**
+
+```json
+  {
+    "inputs": [
+      {
+        "key": "urlParams",
+        "value": "{\"filter\": \"active\"}"
+      },
+      {
+        "key": "headers",
+        "value": "{\"Api-Key\": \"your-api-key\"}"
+      }
+    ]
+  }
+```
+
 ### Transmisión de datos básicos
 
 Este ejemplo consulta las incidencias de New Relic y envía una notificación a Slack para cada incidencia activa.
 
 ```yaml
-name: alertSlack
-description: "query Alert Issues and send notifications to Slack"
+  name: alertSlack
+  description: "query Alert Issues and send notifications to Slack"
 
-workflowInputs:
-  accountId:
-    type: Int
+  workflowInputs:
+    accountId:
+      type: Int
 
-steps:
-  - name: getAlert
-    type: action
-    action: newrelic.nerdgraph.execute
-    version: 1
-    inputs:
-      graphql: |
-        query GetAlertIssues($accountId: Int!) {
-          actor {
-            account(id: $accountId) {
-              aiIssues {
-                issues(filter: {states: ACTIVATED}) {
-                  issues {
-                    issueId
-                    priority
-                    state
-                    title
+  steps:
+    - name: getAlert
+      type: action
+      action: newrelic.nerdgraph.execute
+      version: 1
+      inputs:
+        graphql: |
+          query GetAlertIssues($accountId: Int!) {
+            actor {
+              account(id: $accountId) {
+                aiIssues {
+                  issues(filter: {states: ACTIVATED}) {
+                    issues {
+                      issueId
+                      priority
+                      state
+                      title
+                    }
                   }
                 }
               }
             }
           }
-        }
-      variables:
-        accountId: ${{ .workflowInputs.accountId }}
+        variables:
+          accountId: ${{ .workflowInputs.accountId }}
 
-  - name: loopStep
-    type: loop
-    for:
-      in: ${{ .steps.getAlert.outputs.data.actor.account.aiIssues.issues.issues }}
-      steps:
-        - name: sendToSlack
-          type: action
-          action: slack.chat.postMessage
-          version: 1
-          inputs:
-            token: ${{ :secrets:your_slack_token }}
-            channel: incident-channel
-            text: >
-              issueId: ${{ .steps.loopStep.loop.element.issueId }}
-              priority: ${{ .steps.loopStep.loop.element.priority }}
-              state: ${{ .steps.loopStep.loop.element.state }}
-              title: ${{ .steps.loopStep.loop.element.title | tostring }}
+    - name: loopStep
+      type: loop
+      for:
+        in: ${{ .steps.getAlert.outputs.data.actor.account.aiIssues.issues.issues }}
+        steps:
+          - name: sendToSlack
+            type: action
+            action: slack.chat.postMessage
+            version: 1
+            inputs:
+              token: ${{ :secrets:your_slack_token }}
+              channel: incident-channel
+              text: >
+                issueId: ${{ .steps.loopStep.loop.element.issueId }}
+                priority: ${{ .steps.loopStep.loop.element.priority }}
+                state: ${{ .steps.loopStep.loop.element.state }}
+                title: ${{ .steps.loopStep.loop.element.title | tostring }}
 ```
 
-### Emplear datos en bucles
+### Estructura de bucle
+
+Puedes usar el bucle para iterar a través de una lista, un mapa o una colección.
+
+Un bucle itera sobre una colección dada definida por `in`. Crea automáticamente las variables de bucle `index` y `element` para cada una de sus iteraciones. Se puede acceder a estas variables de bucle dentro del bucle con [la expresión JQ](https://play.jqlang.org/) `${{ .steps.<loopStepName>.loop.element }}` o `${{ .steps.<loopStepName>.loop.index }}`.
+
+**Parámetro:**
+
+* **`for`** (Obligatorio): Señal de inicio de un bucle
+* **`in`** (Obligatorio, expresión de cadena): una expresión que debe evaluar como una colección de elementos
+* **`steps`** (Obligatorio): Pasos a ejecutar en cada iteración del bucle. Un paso puede ser cualquier tipo de paso, incluido otro bucle.
+
+**Bucle con entradas de flujo de trabajo:**
 
 ```yaml
-steps:
-  - name: listInstances
-    type: action
-    action: aws.ec2.describeInstances
-    version: 1
-    inputs:
-      filters:
-        - name: "tag:Environment"
-          values: ["production"]
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+```
 
-  - name: checkEachInstance
-    type: loop
-    for:
-      in: "${{ .steps.listInstances.outputs.reservations }}"
-      steps:
-        - name: getInstanceMetrics
-          type: action
-          action: newrelic.nerdgraph.execute
-          version: 1
-          inputs:
-            query: "SELECT average(cpuPercent) FROM SystemSample WHERE instanceId = '${{ .steps.checkEachInstance.loop.element.instanceId }}'"
+**Notas importantes:**
+
+* `for`: requerido. Este es el elemento de nivel superior que indica el comienzo de un bucle for
+* `in`: requerido. Para que se pueda iterar sobre la colección de entrada, debe ser convertible a una matriz Java.
+* `steps`: requerido. En cada iteración se ejecutarán los pasos.
+* `element` y `index` se asignan automáticamente como parte del bucle
+* `index` está basado en cero
+* El `element` puede ser un tipo complejo si tiene una colección de elementos complejos
+* Las variables creadas dentro del bucle (variables de bucle y salidas de paso) solo son accesibles dentro del bucle
+* Estas variables se borran cuando el bucle sale y serán nulas si se accede a ellas fuera del bucle.
+* Los bucles pueden acceder a variables definidas fuera del bucle.
+
+**Bucle simple sobre números enteros:**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: ${{ [range(1; 6)] }}
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+```
+
+**Bucle simple para el mapa:**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+```
+
+**Saltar dentro de un bucle:**
+
+Solo se permite saltar entre pasos con nombre que pertenezcan al mismo bucle for. No está permitido entrar o salir de un bucle for, acceder a un bucle interno/externo o alternar entre dos bucles for diferentes.
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: firstStep
+      type: action
+      action: internal.example.sayHello
+      version: '1'
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: step3  # Okay within the loop
+          - name: step2
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: '${{ .steps.step1.outputs.greeting }}'
+          - name: step3
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            next: firstStep  # Not okay, first step is not in the loop context
+```
+
+**Emplee break/continue en un bucle:**
+
+Para cambiar el flujo de un bucle for, puedes usar `next: break` o `next: continue`. Tenga en cuenta que `break` y `continue` son objetivos de salto reservados definidos implícitamente dentro de un bucle. El uso de `next: break` o `next: continue` fuera de un bucle saltará al final de los pasos del flujo de trabajo.
+
+El `end` funciona igual que `break` si se usa dentro de un bucle. Next se puede emplear tanto en pasos de conmutación como en cualquier tipo de paso.
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [range(1; 6)] }}'
+        steps:
+          - name: insideLoopStep1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: continue
+          - name: insideLoopStep2
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+    - name: loopStepAgain
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: switchStep
+            type: switch
+            switch:
+              - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
+                next: break
+          - name: insideLoopStepAgain
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: '${{ .steps.loopStepAgain.loop.element }}'
 ```
 
 ### Lógica condicional con datos
 
 ```yaml
-steps:
-  - name: checkCPU
-    type: action
-    action: newrelic.nerdgraph.execute
-    version: 1
-    # ... query configuration
+  steps:
+    - name: checkCPU
+      type: action
+      action: newrelic.nerdgraph.execute
+      version: 1
+      # ... query configuration
 
-  - name: decideAction
-    type: switch
-    switch:
-      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 90 }}"
-        next: resizeInstance
-      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 70 }}"
-        next: sendWarning
-    next: normalOperation
+    - name: decideAction
+      type: switch
+      switch:
+        - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 90 }}"
+          next: resizeInstance
+        - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 70 }}"
+          next: sendWarning
+      next: normalOperation
 
-  - name: resizeInstance
-    type: action
-    action: aws.ec2.modifyInstanceAttribute
-    version: 1
-    # ... resize configuration
+    - name: resizeInstance
+      type: action
+      action: aws.ec2.modifyInstanceAttribute
+      version: 1
+      # ... resize configuration
 
-  - name: sendWarning
-    type: action
-    action: slack.chat.postMessage
-    version: 1
-    # ... warning message
+    - name: sendWarning
+      type: action
+      action: slack.chat.postMessage
+      version: 1
+      # ... warning message
 
-  - name: normalOperation
-    type: action
-    action: newrelic.ingest.sendLogs
-    version: 1
-    # ... log normal status
+    - name: normalOperation
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      # ... log normal status
 ```
 
 ## Que sigue
