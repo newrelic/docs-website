@@ -1,0 +1,267 @@
+---
+title: 自分のキャッシュを持ち込む
+tags:
+  - Distributed tracing
+  - Infinite Tracing
+  - On-premise
+  - Redis
+  - Cache configuration
+metaDescription: Configure Redis-compatible caches for Infinite Tracing on-premise tail sampling processor to enable high-availability and distributed processing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic の Infinite Tracing Processor は、OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor)の実装です。アップストリーム機能に加えて、共有状態ストレージ用の分散キャッシュを使用することで、高度にスケーラブルな分散処理をサポートします。このドキュメントでは、サポートされているキャッシュ実装とその設定について説明します。
+
+## サポートされているキャッシュ
+
+プロセッサは、Redis 互換のキャッシュ実装をサポートします。単一インスタンスとクラスタ設定の両方で、 Redisと Valkey を使用してテストおよび検証されています。
+
+運用環境のデプロイメントでは、高可用性と拡張性を確保するためにクラスタ モード (シャード) を使用することをお勧めします。 分散キャッシュを有効にするには、 `tail_sampling`プロセッサ セクションに`distributed_cache`設定を追加します。
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://localhost:6379/0
+      password: 'local'
+    trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
+    in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
+    traces_ttl: 3600s                 # Optional: default 1 hour
+    cache_ttl: 7200s                  # Optional: default 2 hours
+    suffix: "itc"                     # Redis key prefix
+    max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
+    evaluation_interval: 1s           # Default: evaluation frequency
+    evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+    data_compression:
+      format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
+```
+
+<Callout variant="important">
+  **動作の設定**: `distributed_cache`が構成されている場合、プロセッサは状態管理に分散キャッシュを自動的に使用します。 `distributed_cache`が完全に省略された場合、コレクターは代わりにメモリ内処理を使用します。個別の`enabled`フラグはありません。
+</Callout>
+
+`address`では、標準形式を使用して有効な Redis 互換サーバー アドレスを指定する必要があります。
+
+```shell
+[output] redis[s]://[[username][:password]@][host][:port][/db-number]
+```
+
+あるいは、認証情報を`address`に直接埋め込むこともできます。
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://:yourpassword@localhost:6379/0
+```
+
+プロセッサは Go で実装されており、 [go-redis](https://github.com/redis/go-redis/tree/v9)クライアント ライブラリを使用します。
+
+## 設定パラメーター
+
+`distributed_cache`セクションは次の点をサポートしています。
+
+## 接続の問題
+
+* **`connection.address`** (必須): Redis サーバーのアドレスの形式 `redis[s]://[[username][:password]@][host][:port][/db-number]`
+* **`connection.password`** (オプション): Redis パスワード (アドレスに埋め込む代わりに使用)
+
+## トレース評価が高い
+
+* **`trace_window_expiration`** (デフォルト: 30 秒): 最後のスパンが到着してから、サンプリングの決定のためにトレースが評価されるまでの時間ウィンドウ
+* **`evaluation_interval`** (デフォルト: 1秒): プロセッサがサンプリング決定のために保留中のトレースを評価する頻度
+* **`evaluation_workers`** (デフォルト: CPU コア数): サンプリング ポリシーを評価するための並列ワーカー スレッドの数。値を大きくするとスループットは向上しますが、消費されるリソースも多くなります。
+
+## TTL と有効期限がある
+
+* **`in_flight_timeout`** (デフォルト: `trace_window_expiration`): バッチが孤立して回復されるまでに処理を継続できる最大時間
+* **`traces_ttl`** (デフォルト: 1 時間): トレーススパンデータの Redis キーの有効期限
+* **`cache_ttl`** (デフォルト: 2 時間): サンプリング決定キャッシュエントリの Redis キーの有効期限
+
+## ストレージ確保
+
+* **`max_traces_per_batch`** (デフォルト: 500): 1 回の評価サイクルで処理されるトレースの最大数。値を大きくするとスループットは向上しますが、メモリ使用量も増加します。
+
+* **`suffix`** (デフォルト: &quot;tsp&quot;): 複数のプロセッサが同じ Redis インスタンスを共有するときに衝突を回避するための Redis キーのプレフィックス
+
+* **`data_compression`** (オプション): Redis に保存されるトレースデータの圧縮設定
+
+  * **`format`** (デフォルト: なし): 圧縮形式: `none` 、 `snappy` 、 `zstd` 、または `lz4`
+
+  <Callout variant="tip">
+    **圧縮のトレードオフ**: 圧縮を有効にすると、プロセッサと Redis 間のネットワーク帯域幅が削減され、Redis のメモリ要件が低下します。ただし、圧縮すると、圧縮/解凍操作中にプロセッサ インスタンス上の CPU とメモリの使用量が増加します。
+
+    **フォーマットの推奨事項**:
+
+    * **`zstd`** : 最大圧縮率。帯域幅が制限された環境に最適ですが、解凍時の CPU オーバーヘッドが最も高くなります。
+    * **`lz4`** : 圧縮率が高く、解凍のオーバーヘッドがほとんど無視できるバランスの取れたオプション。ほとんどのデプロイメントに推奨されます。
+    * **`snappy`** : 最も高速な圧縮/解凍で CPU コストは最も低くなりますが、lz4 よりも圧縮率は低くなります
+
+    ボトルネック（ネットワーク帯域幅と Redis ストレージ vs. プロセッサ CPU の可用性）に基づいて選択します。
+  </Callout>
+
+## Redis互換キャッシュ要件
+
+プロセッサは、次のトレース データの分散ストレージとしてキャッシュを使用します。
+
+* トレースとスパン属性
+* アクティブトレースデータ
+* サンプリング決定キャッシュ
+
+プロセッサは**Lua スクリプト**を実行して、Redis キャッシュとアトミックに対話します。Redis 互換キャッシュでは、通常、Lua スクリプトのサポートはデフォルトで有効になっています。この機能を明示的に無効にしない限り、追加の設定は必要ありません。
+
+## サイズとパフォーマンス
+
+最適なパフォーマンスを得るには、Redis インスタンスのサイズを適切に設定することが重要です。上記の「サポートされているキャッシュ」の設定例を使用します。メモリ要件を計算するには、ワークロードの特性を見積もる必要があります。
+
+* **1秒あたりのスパン数**: 1秒あたり10,000スパンのスループットを想定
+* **平均スパンサイズ**: 想定サイズ 900 バイト (マーシャリングされた protobuf 形式)
+
+### メモリ推定式
+
+```
+Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
+```
+
+#### 1. トレースデータの保存
+
+トレース データは、遅延到着スパンとトレース リカバリをサポートするために、 `traces_ttl`期間全体にわたってRedisに保存されます。
+
+* **スパンごとのストレージ**: `~900 bytes` (マーシャリングされたプロトコルバッファ)
+
+* **保存期間**: `traces_ttl`によって制御されます (デフォルト: **1 時間**)
+
+* **アクティブなコレクションウィンドウ**: `trace_window_expiration`によって制御されます (デフォルト: 30 秒)
+
+* **式**： `Memory ≈ spans_per_second × traces_ttl × 900 bytes`
+
+  <Callout variant="important">
+    **アクティブ ウィンドウと完全な保持期間**: トレースは`~30-second`アクティブ ウィンドウ (`trace_window_expiration`) 中に収集されますが、1 時間`traces_ttl`期間全体にわたって Redis に保持されます。これにより、プロセッサは遅れて到着するスパンを処理し、孤立したトレースを回復できるようになります。Redis のサイズ設定では、アクティブ ウィンドウだけでなく、**保持期間全体**を考慮する必要があります。
+  </Callout>
+
+**計算例**: 1時間`traces_ttl`で10,000スパン/秒の場合:
+
+```
+10,000 spans/sec × 3600 sec × 900 bytes = 32.4 GB
+```
+
+**lz4 圧縮の場合**(25% の削減が見られました):
+
+```
+32.4 GB × 0.75 = 24.3 GB
+```
+
+注: この計算は、主なメモリの消費者を表します。実際の Redis メモリは、決定キャッシュと内部データ構造により若干大きくなる場合があります。
+
+#### 2. 決定キャッシュストレージ
+
+`distributed_cache`を使用する場合、決定キャッシュは明示的なサイズ制限なしで Redis に保存されます。代わりに、Redis はネイティブの LRU 削除ポリシー ( `maxmemory-policy`で構成) を使用してメモリを管理します。各トレース ID には約 50 バイトのストレージが必要です。
+
+* **サンプルキャッシュ**: Redis LRUエビクションによって管理
+
+* **非サンプリングキャッシュ**: Redis LRUエビクションによって管理
+
+* **トレース ID ごとの一般的なオーバーヘッド**: `~50 bytes`
+
+  <Callout variant="tip">
+    **メモリ管理**: メモリ制限に達したときに古いデシジョン キャッシュ エントリを自動的に削除できるように、 `maxmemory-policy allkeys-lru`を使用してRedisを構成します。 決定キャッシュ キーは、固定サイズ制限ではなく、TTL ベースの有効期限 ( `cache_ttl`によって制御) を使用します。
+  </Callout>
+
+#### 3. バッチ処理のオーバーヘッド
+
+* **現在のバッチ キュー**: 最小限 (ソート セット内のトレース ID + スコア)
+* **飛行中のバッチ**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
+
+**計算例**: バッチあたり 500 トレース (デフォルト)、トレースあたり平均 20 スパン:
+
+```
+500 × 20 × 900 bytes = 9 MB per batch
+```
+
+バッチ サイズは評価中のメモリ使用量に影響します。実行中のバッチ メモリは一時的なものであり、処理が完了すると解放されます。
+
+### 完全なサイズ設定の例
+
+上記の設定に基づいて、次のワークロードを設定します。
+
+* **スループット**: 10,000スパン/秒
+* **平均スパンサイズ**: 900 バイト
+* **保存期間**: 1時間 (`traces_ttl`)
+
+**圧縮なし:**
+
+| コンポーネント            | 必要なメモリ                          |
+| ------------------ | ------------------------------- |
+| トレースデータ（1時間保持）     | 32.4GB                          |
+| 決定キャッシュ            | 変数（LRU管理）                       |
+| バッチ処理              | `~10 MB`                        |
+| Redisのオーバーヘッド（25％） | `~8.1 GB`                       |
+| **合計（最小）**         | `**~40.5 GB + decision cache**` |
+
+**lz4 圧縮（25% 削減）の場合:**
+
+| コンポーネント            | 必要なメモリ                          |
+| ------------------ | ------------------------------- |
+| トレースデータ（1時間保持）     | 24.3GB                          |
+| 決定キャッシュ            | 変数（LRU管理）                       |
+| バッチ処理              | `~7 MB`                         |
+| Redisのオーバーヘッド（25％） | `~6.1 GB`                       |
+| **合計（最小）**         | `**~30.4 GB + decision cache**` |
+
+<Callout variant="important">
+  **サイズ決定のガイダンス**: 上記の計算は推定例として役立ちます。特定のワークロード特性に基づいて独自の容量計画を実行することをお勧めします。本番環境のデプロイメントについては、次のことを考慮してください。
+
+  * トラフィックの急増や一時的なオーバーヘッドに対応するために、計算された要件に加えて**10 ～ 15% の追加メモリ**をプロビジョニングする
+  * Redisクラスタモードを使用した水平スケーリング
+  * 実際のメモリ使用量を監視し、それに応じて容量を調整する
+</Callout>
+
+### パフォーマンスに関する考慮事項
+
+* **ネットワーク レイテンシ**: コレクターとRedis間の往復時間は、サンプリング スループットに直接影響します。 コレクターへの低レイテンシ ネットワーク接続を備えたデプロイRedisインスタンス。
+* **Clusterモード**: 複数のRedisノードに負荷を分散することでスループットが増加し、高可用性の展開のためのフォールト トレランスが提供されます。
+
+## データ管理とパフォーマンス
+
+<Callout variant="caution">
+  **パフォーマンスのボトルネック**: 通常、 Redisとネットワーク通信がプロセッサーのパフォーマンスの制限要因になります。 Redis キャッシュの速度と信頼性は、コレクターが適切に動作するために不可欠です。Redisインスタンスに十分なリソースがあり、コレクターへの低レイテンシ ネットワーク接続を維持していることを確認してください。
+</Callout>
+
+プロセッサは、サンプリングの決定を行う間、トレース データを一時的に Redis に保存します。最適なパフォーマンスを得るには、データの有効期限とキャッシュ削除ポリシーを理解することが重要です。
+
+## TTLと有効期限
+
+`distributed_cache`を使用する場合、TTL 設定はメモリ内プロセッサとは異なります。 データの有効期限は次のように制御されます。
+
+<Callout variant="important">
+  **インメモリ モードとの主な違い**: `distributed_cache`が構成されている場合、トレースを評価するタイミングを決定するために`trace_window_expiration`が`decision_wait`に置き換えられます。`trace_window_expiration`問題はスライディング ウィンドウを定義します。トレースに新しいスパンが到着するたびに、トレースはさらに`trace_window_expiration`期間アクティブのままになります。 この増分アプローチにより、スパンの受信を停止したトレースに比べて、アクティビティが継続しているトレースの存続期間が長くなります。
+</Callout>
+
+### TTL階層とデフォルト
+
+プロセッサはカスケード TTL 構造を使用しており、各レベルが下の層を保護します。
+
+1. **`trace_window_expiration`** (デフォルト: 30秒)
+
+   * 最後のスパンが到着してからトレースを評価するまでの待機時間を設定します
+   * スライディングウィンドウとして機能します。トレースに新しいスパンが到着するたびにリセットされます。
+   * 定義： `distributed_cache.trace_window_expiration`
+
+2. **`in_flight_timeout`** (指定されていない場合はデフォルト: `trace_window_expiration`に等しい)
+
+   * バッチが孤立しているとみなされるまでに処理できる最大時間
+   * 孤立したバッチは自動的に回復され、再キューされます
+   * 上書きできるのは `distributed_cache.in_flight_timeout`
+
+3. **`traces_ttl`** (デフォルト: 1 時間)
+
+   * トレーススパンデータのRedisキーの有効期限
+   * トレースデータが評価と回復のために十分な期間保持されることを保証する
+   * 定義： `distributed_cache.traces_ttl`
+
+4. **`cache_ttl`** (デフォルト: 2 時間)
+
+   * 決定キャッシュエントリの Redis キーの有効期限 (サンプリング済み/非サンプリング済み)
+   * 遅れて到着するスパンの重複評価を防止します
+   * 定義： `distributed_cache.cache_ttl`

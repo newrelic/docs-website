@@ -11,117 +11,405 @@ freshnessValidatedDate: never
 
 This page shows common automation scenarios you can build with Workflow Automation. Use these examples as starting points for your own workflows, or explore the [template library](/docs/workflow-automation/create-a-workflow-automation/use-a-template) for ready-to-deploy solutions.
 
-## Incident response and remediation
-
-### API gateway rollback
+## API gateway rollback
 
 Revert API gateway configs to a previous state so you can fix errors and misconfigurations.
 
 **What this workflow does:**
-- Detects recent deployments related to an issue using New Relic change tracking
-- Sends Slack notifications with approval buttons (:+1: or :-1:)
-- After approval, creates an AWS Systems Manager document to automate the rollback
-- Rolls back the API Gateway integration to the previous Lambda version
-- Creates a new deployment to apply the rollback
-- Sends success or failure notifications to Slack
-- Cleans up the SSM document after completion
+  - Detects recent deployments related to an issue using New Relic change tracking
+  - Sends Slack notifications with approval buttons `(:+1: or :-1:)`
+  - After approval, creates an AWS Systems Manager document to automate the rollback
+  - Rolls back the API Gateway integration to the previous Lambda version
+  - Creates a new deployment to apply the rollback
+  - Sends success or failure notifications to Slack
+  - Cleans up the SSM document after completion
 
 **Requirements:**
-- AWS credentials with permissions for API Gateway and Systems Manager
-- A configured Slack app for receiving notifications and approvals
-- New Relic entity monitoring with change tracking
+  - AWS credentials with permissions for API Gateway and Systems Manager
+  - A configured Slack app for receiving notifications and approvals
+  - New Relic entity monitoring with change tracking
 
 **Key actions**: `newrelic.nerdgraph.execute`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`
 
-### EC2 instance management
+## EC2 instance management
 
 Automate provisioning, scaling, and termination of EC2 instances for optimal performance and cost.
 
 **What this workflow does:**
-- Receives high CPU utilization alerts from New Relic
-- Retrieves alert details and identifies the impacted EC2 instance
-- Sends Slack notification with instance details and requests approval for resizing
-- After approval, creates an SSM document to automate instance resizing
-- Stops the instance, modifies the instance type, and restarts it
-- Sends progress updates to Slack during the resizing process
-- Waits for completion and sends success or failure status
-- Cleans up the SSM document and sends final confirmation
+  - Receives high CPU utilization alerts from New Relic.
+  - Retrieves alert details and identifies the impacted EC2 instance.
+  - Sends Slack notification with instance details and requests approval for resizing.
+  - After approval, creates an SSM document to automate instance resizing.
+  - Stops the instance, modifies the instance type, and restarts it.
+  - Sends progress updates to Slack during the resizing process.
+  - Waits for completion and sends success or failure status.
+  - Cleans up the SSM document and sends final confirmation.
 
 **Requirements:**
-- AWS credentials with permissions for EC2 and Systems Manager
-- An active New Relic alert condition for EC2 metrics
-- A configured Slack app for receiving notifications and approvals
+  - AWS credentials with permissions for EC2 and Systems Manager
+  - An active New Relic alert condition for EC2 metrics
+  - A configured Slack app for receiving notifications and approvals
 
 **Key actions**: `newrelic.nerdgraph.execute`, `newrelic.nrdb.query`, `slack.chat.postMessage`, `slack.chat.getReactions`, `aws.systemsManager.writeDocument`, `aws.systemsManager.startAutomation`, `aws.systemsManager.waitForAutomationStatus`, `aws.systemsManager.deleteDocument`, `utils.datetime.fromEpoch`, `utils.uuid.generate`
 
-### Deployment rollback
+## Deployment rollback
 
 Rollback deployment if entity becomes unhealthy and notify with either AWS SQS or HTTP.
 
 **What this workflow does:**
-- Monitors an entity's alert severity for a specified duration (default 30 minutes)
-- Checks entity health every minute
-- If entity becomes CRITICAL or WARNING, logs the unhealthy status
-- Sends rollback notifications via AWS SQS (if configured) with entity details
-- Sends rollback notifications via HTTP webhook (if configured)
-- If entity remains healthy for the full duration, logs success
-- Stops monitoring if entity is not found
+  - Monitors an entity's alert severity for a specified duration (default 30 minutes)
+  - Checks entity health every minute
+  - If entity becomes CRITICAL or WARNING, logs the unhealthy status
+  - Sends rollback notifications via AWS SQS (if configured) with entity details
+  - Sends rollback notifications via HTTP webhook (if configured)
+  - If entity remains healthy for the full duration, logs success
+  - Stops monitoring if entity is not found
 
 **Requirements:**
-- New Relic entity with alert severity monitoring
-- (Optional) AWS SQS queue and role to receive rollback notifications
-- (Optional) HTTP endpoint to receive rollback notification
+  - New Relic entity with alert severity monitoring
+  - (Optional) AWS SQS queue and role to receive rollback notifications
+  - (Optional) HTTP endpoint to receive rollback notification
 
-**Key actions**: `newrelic.nerdgraph.execute`, `newrelic.ingest.sendLogs`, `aws.execute.api` (sqs.send_message), `http.post`
+**Key actions**: `newrelic.nerdgraph.execute`, `newrelic.ingest.sendLogs`, `aws.execute.api`, `(sqs.send_message)`, `http.post`
 
-## Data processing and reporting
+## AWS SQS messaging
 
-### Send a report to Slack
+Send messages to an AWS SQS queue for downstream processing or notification systems.
+
+**What this workflow does:**
+  - Sends a message to a specified SQS queue
+  - Uses AWS IAM role authentication for secure access
+  - Returns message ID and success status for verification
+
+**Requirements:**
+  - AWS credentials with `sqs:SendMessage` permission
+  - SQS queue URL
+  - IAM role configured for workflow automation (see [Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/set-up-aws-credentials))
+
+**Key actions**: `aws.execute.api`, `(sqs.send_message)`
+
+  ```yaml
+    name: aws_execute_api_sqs_example
+
+    workflowInputs:
+      awsRoleArn:
+        type: String
+      awsRegion:
+        type: String
+        defaultValue: us-west-2
+      awsQueueUrl:
+        type: String
+
+    steps:
+      - name: sendSqsMessage
+        type: action
+        action: aws.execute.api
+        version: 1
+        inputs:
+          awsRoleArn: ${{ .workflowInputs.awsRoleArn }}
+          region: ${{ .workflowInputs.awsRegion }}
+          service: sqs
+          api: send_message
+          parameters:
+            QueueUrl: "${{ .workflowInputs.awsQueueUrl }}"
+            MessageBody: |
+              {
+                "message": "deployment is bad",
+                "status": "not good"
+              }
+          selectors:
+            - name: success
+              expression: '.success'
+            - name: messageId
+              expression: '.response.MessageId'
+  ```
+
+## Complex NRQL alerting
+
+Handle complex NRQL queries that standard alerts can't support, such as comparing data across time windows or applying custom logic before triggering notifications.
+
+**What this workflow does:**
+  - Executes two NRQL queries comparing different time windows (10 minutes ago until 5 minutes ago vs last 5 minutes)
+  - Compares query results to detect if count increased
+  - Uses a switch step to conditionally send notifications only when new events are detected
+  - Sends email notification with query results and CSV attachment
+  - Can be scheduled to run every 10 minutes for continuous monitoring
+
+**Requirements:**
+  - New Relic account with data to query
+  - Email destination configured in New Relic (see [Send notifications from workflows](/docs/workflow-automation/setup-and-configuration/create-destinations))
+  - Workflow scheduled using [CreateSchedule API](/docs/workflow-automation/workflow-automation-apis/create-schedule)
+
+**Key actions**: `newrelic.nrdb.query`, `newrelic.notification.sendEmail`
+
+**Use case**: This pattern is useful when standard New Relic alerts can't handle your requirements, such as:
+  - Comparing metrics across multiple time windows
+  - Applying custom mathematical operations on query results
+  - Triggering only when specific thresholds or patterns are detected
+  - Combining data from multiple queries with conditional logic
+
+  ```yaml
+    name: Complex_Alert_Workflow
+    description: 'Compares NRQL results across time windows and sends alerts when new events are detected'
+
+    workflowInputs:
+      destinationId:
+        type: String
+      query:
+        type: String
+        defaultValue: 'FROM Span SELECT count(*)'
+
+    steps:
+      - name: query1
+        type: action
+        action: newrelic.nrdb.query
+        version: 1
+        inputs:
+          query: "${{ .workflowInputs.query }} SINCE 10 minutes ago UNTIL 5 minutes ago"
+          accountIds:
+            - 7401815
+          selectors:
+            - name: length
+              expression: '[ .results[] | length ]'
+            - name: count
+              expression: '[ .results[0].count ]'
+
+      - name: query2
+        type: action
+        action: newrelic.nrdb.query
+        version: 1
+        inputs:
+          query: "${{ .workflowInputs.query }} SINCE 5 minutes ago"
+          accountIds:
+            - 7401815
+          selectors:
+            - name: length
+              expression: '[ .results[] | length ]'
+            - name: count
+              expression: '[ .results[0].count ]'
+
+      - name: CheckForNewEvents
+        type: switch
+        switch:
+          - condition: >-
+              ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) > 0 }}
+            next: sendEmail
+        next: end
+
+      - name: sendEmail
+        type: action
+        action: newrelic.notification.sendEmail
+        version: 1
+        inputs:
+          destinationId: ${{ .workflowInputs.destinationId }}
+          subject: Hello there!
+          message: >-
+            More spans incoming!!!
+            There are --- ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) }} ---
+            new Spans that were ingested in the last 5 minutes
+          attachments:
+            - type: QUERY
+              query: ${{ .workflowInputs.query }} SINCE 5 minutes ago
+              format: CSV
+              filename: span_count.csv
+        next: end
+  ```
+
+**To schedule this workflow**, use the [CreateSchedule API](/docs/workflow-automation/create-a-workflow-automation/start-schedule#scheduled) with a cron expression like `*/10 * * * *` (every 10 minutes). Remember that the minimum scheduling interval is 10 minutes. See [workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits) for details.
+
+## Send a report to Slack
 
 Send a NRQL query output as a CSV file on Slack.
 
 **What this workflow does:**
-- Executes a NRQL query against specified New Relic account(s)
-- Generates a CSV file from the query results
-- Posts the CSV file to a specified Slack channel with a message
+  - Executes a NRQL query against specified New Relic account
+  - Generates a CSV file from the query results
+  - Posts the CSV file to a specified Slack channel with a message
 
 **Requirements:**
-- A New Relic credential and a functional NRQL query
-- A configured Slack app with a token and a target channel
+  - A New Relic credential and a functional NRQL query
+  - A configured Slack app with a token and a target channel
 
 **Key actions**: `newrelic.nrdb.query`, `utils.transform.toCSV`, `slack.chat.postMessage`
 
-### JSON Parsing
+## JSON Parsing
 
 Parses the New Relic public status API JSON (HTTP) and optionally logs operational and non-operational components.
 
 **What this workflow does:**
-- Fetches JSON data from the New Relic status API
-- Extracts and categorizes components by their operational status
-- Conditionally logs operational components (if enabled)
-- Conditionally logs non-operational components (if enabled)
-- Handles HTTP errors and logs error messages
+  - Fetches JSON data from the New Relic status API
+  - Extracts and categorizes components by their operational status
+  - Conditionally logs operational components (if enabled)
+  - Conditionally logs non-operational components (if enabled)
+  - Handles HTTP errors and logs error messages
 
 **Requirements:**
-- Access to the New Relic status API (summary.json)
-- Permissions to send logs via newrelic.ingest.sendLogs
+  - Access to the New Relic status API (`summary.json`)
+  - Permissions to send logs via newrelic.ingest.sendLogs
 
 **Key actions**: `http.get`, `newrelic.ingest.sendLogs`
+
+## REST API polling and logging
+
+Poll a REST API endpoint, loop through results, and log data to New Relic.
+
+<Callout variant="important">
+You don't need to use selectors if you want the full payload. Most workflow tools let you reference the complete response object directly.
+</Callout>
+
+### Simple GET and log
+
+For a basic use case of polling an API and logging the full response:
+
+**What this workflow does:**
+  - Trigger: Schedule (e.g., every 5 minutes) or you can use Run for manual
+  - HTTP Request Step:
+    - Method: GET
+    - URL: https://pokeapi.co/api/v2/pokemon
+    - Save full response body to a variable (e.g., `{{.http_response}}`)
+  - Log/Create Event Step:
+    - Send the entire `{{.http_response.body}}` as the payload
+    - No selectors needed - just pass through the raw JSON
+
+### REST API with loops and selectors
+
+This example collects all results from an API, loops through them, makes individual HTTP calls, and logs extracted data.
+
+**What this workflow does:**
+  - Fetches all results from a REST API endpoint
+  - Loops through each result in the response
+  - Makes individual API calls for each item using data from the loop
+  - Extracts specific fields from each response using selectors
+  - Logs the extracted data to New Relic with custom attributes
+
+**Requirements:**
+  - Access to a REST API endpoint
+  - Permissions to send logs via `newrelic.ingest.sendLogs`
+
+**Key actions**: `http.get`, `newrelic.ingest.sendLogs`
+
+  ```yaml
+    name: pokemon_workflow
+    description: ''
+    steps:
+      - name: get_all_pokemons
+        type: action
+        action: http.get
+        version: '1'
+        inputs:
+          url: https://pokeapi.co/api/v2/pokemon
+          selectors:
+            - name: pokemons
+              expression: .responseBody | fromjson.results
+      - name: pokemon_loop
+        type: loop
+        for:
+          in: ${{ .steps.get_all_pokemons.outputs.pokemons }}
+          steps:
+            - name: get_individual_pokemon
+              type: action
+              action: http.get
+              version: '1'
+              inputs:
+                url: ${{ .steps.pokemon_loop.loop.element.url }}
+                selectors:
+                  - name: pokemon_name
+                    expression: .responseBody | fromjson.name
+                  - name: pokemon_id
+                    expression: .responseBody | fromjson.id
+                  - name: pokemon_stats
+                    expression: .responseBody | fromjson.stats
+            - name: log_pokemon_info
+              type: action
+              action: newrelic.ingest.sendLogs
+              version: '1'
+              inputs:
+                logs:
+                  - message: >-
+                      Pokemon name is: ${{
+                      .steps.get_individual_pokemon.outputs.pokemon_name}}, Id: ${{
+                      .steps.get_individual_pokemon.outputs.pokemon_id}}
+                    attributes:
+                      pokemon_stats: ${{ .steps.get_individual_pokemon.outputs.pokemon_stats}}
+              next: continue
+        next: end
+  ```
+
+### REST API to CSV conversion
+
+This example illustrates using the full response without selectors, converting API data to CSV, and sharing it via Slack.
+
+**What this workflow does:**
+  - Fetches current time data from World Time API based on timezone input
+  - Converts the full JSON response to CSV format
+  - Logs the CSV data to New Relic
+  - Posts the CSV file to a Slack channel
+
+**Requirements:**
+  - Access to a REST API endpoint
+  - Permissions to send logs via newrelic.ingest.sendLogs
+  - A configured Slack app with a token and target channel
+
+**Key actions**: `http.get`, `utils.transform.toCSV`, `newrelic.ingest.sendLogs`, `slack.chat.postMessage`
+
+  ```yaml
+    name: jsontocsv
+
+    workflowInputs:
+      timezone:
+        type: String
+        defaultValue: 'America/Los_Angeles'
+
+    steps:
+      - name: getCurrentTime
+        type: action
+        action: http.get
+        version: 1
+        inputs:
+          url: 'https://worldtimeapi.org/api/timezone/${{ .workflowInputs.timezone }}'
+
+      - name: csv1
+        type: action
+        action: utils.transform.toCSV
+        version: 1
+        inputs:
+          json: ${{ .steps.getCurrentTime.outputs.responseBody }}
+
+      - name: logOutput
+        type: action
+        action: newrelic.ingest.sendLogs
+        version: 1
+        inputs:
+          logs:
+            - message: 'CSV: ${{ .steps.csv1.outputs.csv }}'
+
+      - name: postCsv
+        type: action
+        action: slack.chat.postMessage
+        version: 1
+        inputs:
+          channel: test-channel-workflow
+          text: "Current Date details"
+          attachment:
+            filename: 'file.csv'
+            content: ${{ .steps.csv1.outputs.csv }}
+          token: ${{ :secrets:dn_staging_slack_token }}
+  ```
 
 ## Available template workflows
 
 The templates listed above are available directly in the New Relic Workflow Automation UI. To access them:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > Workflow Automation**
+1. Go to **All Capabilities > Workflow Automation**
 2. Click **Create workflow**
 3. Select **Use a template**
 4. Browse the template library and choose a workflow that matches your use case
 
 Each template includes:
-- Pre-configured workflow steps and logic
-- Example input parameters
-- Required credentials and integrations
-- Documentation of expected outcomes
+  - Pre-configured workflow steps and logic
+  - Example input parameters
+  - Required credentials and integrations
+  - Documentation of expected outcomes
 
 You can use templates as-is or customize them to fit your specific requirements.
 
@@ -129,104 +417,282 @@ You can use templates as-is or customize them to fit your specific requirements.
 
 All workflows can reference outputs from previous steps using template syntax. This allows you to chain together actions and build complex automation logic.
 
+### Using workflow inputs
+
+You can use the syntax `${{ .workflowInputs.variableName }}` to pass dynamic values at runtime. This syntax works in endpoint URLs and other input fields.
+
+**Example:**
+
+  ```json
+    {
+      "inputs": [
+        {
+          "key": "urlParams",
+          "value": "{\"filter\": \"active\"}"
+        },
+        {
+          "key": "headers",
+          "value": "{\"Api-Key\": \"your-api-key\"}"
+        }
+      ]
+    }
+  ```
+
 ### Basic data passing
 
-```yaml
-steps:
-  - name: getAlert
-    action: newrelic.nerdgraph.execute
-    inputs:
-      query: |
-        {
-          actor {
-            account(id: 123456) {
-              alerts {
-                violation(id: 789) {
-                  condition
-                  entity {
-                    name
-                    guid
+This example queries alert issues from New Relic and sends notifications to Slack for each active issue.
+
+  ```yaml
+    name: alertSlack
+    description: "query Alert Issues and send notifications to Slack"
+
+    workflowInputs:
+      accountId:
+        type: Int
+
+    steps:
+      - name: getAlert
+        type: action
+        action: newrelic.nerdgraph.execute
+        version: 1
+        inputs:
+          graphql: |
+            query GetAlertIssues($accountId: Int!) {
+              actor {
+                account(id: $accountId) {
+                  aiIssues {
+                    issues(filter: {states: ACTIVATED}) {
+                      issues {
+                        issueId
+                        priority
+                        state
+                        title
+                      }
+                    }
                   }
                 }
               }
             }
-          }
-        }
+          variables:
+            accountId: ${{ .workflowInputs.accountId }}
 
-  - name: sendToSlack
-    action: slack.chat.postMessage
-    inputs:
-      channel: "#incidents"
-      text: "Alert: ${{ .steps.getAlert.outputs.data.actor.account.alerts.violation.condition }}"
-```
+      - name: loopStep
+        type: loop
+        for:
+          in: ${{ .steps.getAlert.outputs.data.actor.account.aiIssues.issues.issues }}
+          steps:
+            - name: sendToSlack
+              type: action
+              action: slack.chat.postMessage
+              version: 1
+              inputs:
+                token: ${{ :secrets:your_slack_token }}
+                channel: incident-channel
+                text: >
+                  issueId: ${{ .steps.loopStep.loop.element.issueId }}
+                  priority: ${{ .steps.loopStep.loop.element.priority }}
+                  state: ${{ .steps.loopStep.loop.element.state }}
+                  title: ${{ .steps.loopStep.loop.element.title | tostring }}
+  ```
 
-### Using data in loops
+### Loop structure
 
-```yaml
-steps:
-  - name: listInstances
-    type: action
-    action: aws.ec2.describeInstances
-    version: 1
-    inputs:
-      filters:
-        - name: "tag:Environment"
-          values: ["production"]
+You can use the loop to iterate through a list, map, or collection.
 
-  - name: checkEachInstance
-    type: loop
-    for:
-      in: "${{ .steps.listInstances.outputs.reservations }}"
-      steps:
-        - name: getInstanceMetrics
-          type: action
-          action: newrelic.nerdgraph.execute
-          version: 1
-          inputs:
-            query: "SELECT average(cpuPercent) FROM SystemSample WHERE instanceId = '${{ .steps.checkEachInstance.loop.element.instanceId }}'"
-```
+A loop iterates over a given collection defined by `in`. It automatically create loop variables `index` and `element` for each of its iterations. These loop variables are accessible within the loop with [JQ expression](https://play.jqlang.org/) `${{ .steps.<loopStepName>.loop.element }}` or `${{ .steps.<loopStepName>.loop.index }}`.
+
+**Parameters:**
+
+  - **`for`** (Required): Signal starting of a loop
+  - **`in`** (Required, string expression): An expression that needs to be evaluated to a collection of elements
+  - **`steps`** (Required): Steps to be executed each iteration of the loop. A step can be any type of step, including another loop
+
+**Loop with workflow inputs:**
+
+  ```yaml
+    name: myWorkflow
+    steps:
+      - name: loopStep
+        type: loop
+        for:
+          in: '${{ .workflowInputs.count }}'
+          steps:
+            - name: step1
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+  ```
+
+**Important notes:**
+  - `for`: required. This is the top-level element indicating the beginning of a for loop
+  - `in`: required. For the input collection to be iterated on, it must be castable to Java Array
+  - `steps`: required. Each iteration the steps will be executed
+  - `element` and `index` are automatically assigned as part of the loop
+  - `index` is zero-based
+  - The `element` can be a complex type if you have a collection of complex elements
+  - Variables created inside the loop (loop variables and step outputs) are only accessible within the loop
+  - These variables are cleared when the loop exits and will be null if accessed outside the loop
+  - Loops can access variables defined outside the loop
+
+**Simple loop on integers:**
+
+  ```yaml
+    name: myWorkflow
+    steps:
+      - name: loopStep
+        type: loop
+        for:
+          in: ${{ [range(1; 6)] }}
+          steps:
+            - name: step1
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+  ```
+
+**Simple loop for map:**
+
+  ```yaml
+    name: myWorkflow
+    steps:
+      - name: loopStep
+        type: loop
+        for:
+          in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
+          steps:
+            - name: step1
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: 'Element: ${{ .steps.loopStep.loop.element }}, Index: ${{ .steps.loopStep.loop.index }}'
+  ```
+
+**Jump within a loop:**
+
+Only jumping between named steps belonging to the same for loop is allowed. Jumping in or out of a for loop, to an inner/outer loop, or between two different for loops, is not allowed.
+
+  ```yaml
+    name: myWorkflow
+    steps:
+      - name: firstStep
+        type: action
+        action: internal.example.sayHello
+        version: '1'
+      - name: loopStep
+        type: loop
+        for:
+          in: '${{ .workflowInputs.count }}'
+          steps:
+            - name: step1
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: '${{ .steps.loopStep.loop.element }}'
+              next: step3  # Okay within the loop
+            - name: step2
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: '${{ .steps.step1.outputs.greeting }}'
+            - name: step3
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              next: firstStep  # Not okay, first step is not in the loop context
+  ```
+
+**Use break/continue in a loop:**
+
+To change the flow of a for loop, you can use `next: break` or `next: continue`. Note that `break` and `continue` are reserved jump targets defined implicitly within a loop. Using `next: break` or `next: continue` outside of a loop will jump to the end of the workflow steps.
+
+The `end` serves as the same as `break` if it's used inside a loop. Next can be used in both switch steps or any type of step.
+
+  ```yaml
+    name: myWorkflow
+    steps:
+      - name: loopStep
+        type: loop
+        for:
+          in: '${{ [range(1; 6)] }}'
+          steps:
+            - name: insideLoopStep1
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: '${{ .steps.loopStep.loop.element }}'
+              next: continue
+            - name: insideLoopStep2
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: '${{ .steps.loopStep.loop.element }}'
+      - name: loopStepAgain
+        type: loop
+        for:
+          in: '${{ .workflowInputs.count }}'
+          steps:
+            - name: switchStep
+              type: switch
+              switch:
+                - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
+                  next: break
+            - name: insideLoopStepAgain
+              type: action
+              action: internal.example.sayHello
+              version: '1'
+              inputs:
+                name: '${{ .steps.loopStepAgain.loop.element }}'
+  ```
 
 ### Conditional logic with data
 
-```yaml
-steps:
-  - name: checkCPU
-    type: action
-    action: newrelic.nerdgraph.execute
-    version: 1
-    # ... query configuration
+  ```yaml
+    steps:
+      - name: checkCPU
+        type: action
+        action: newrelic.nerdgraph.execute
+        version: 1
+        # ... query configuration
 
-  - name: decideAction
-    type: switch
-    switch:
-      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 90 }}"
-        next: resizeInstance
-      - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 70 }}"
-        next: sendWarning
-    next: normalOperation
+      - name: decideAction
+        type: switch
+        switch:
+          - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 90 }}"
+            next: resizeInstance
+          - condition: "${{ .steps.checkCPU.outputs.data.actor.account.nrql.results[0].average > 70 }}"
+            next: sendWarning
+        next: normalOperation
 
-  - name: resizeInstance
-    type: action
-    action: aws.ec2.modifyInstanceAttribute
-    version: 1
-    # ... resize configuration
+      - name: resizeInstance
+        type: action
+        action: aws.ec2.modifyInstanceAttribute
+        version: 1
+        # ... resize configuration
 
-  - name: sendWarning
-    type: action
-    action: slack.chat.postMessage
-    version: 1
-    # ... warning message
+      - name: sendWarning
+        type: action
+        action: slack.chat.postMessage
+        version: 1
+        # ... warning message
 
-  - name: normalOperation
-    type: action
-    action: newrelic.ingest.sendLogs
-    version: 1
-    # ... log normal status
-```
+      - name: normalOperation
+        type: action
+        action: newrelic.ingest.sendLogs
+        version: 1
+        # ... log normal status
+  ```
 
-## Next steps
+## What's next
 
-- **[Create your own workflow](/docs/workflow-automation/create-a-workflow-automation/create-your-own)** - Step-by-step guide to building workflows
-- **[Actions catalog](/docs/workflow-automation/setup-and-configuration/actions-catalog/actions-catalog)** - Browse all available actions
-- **[Use a template](/docs/workflow-automation/create-a-workflow-automation/use-a-template)** - Deploy pre-built workflows
-- **[Set up AWS credentials](/docs/workflow-automation/setup-and-configuration/set-up-aws-credentials)** - Configure AWS authentication
+- **[Troubleshooting](/docs/workflow-automation/troubleshooting)**: Fix credential errors, integration issues, and workflow failures.
+- **[Best practices](/docs/workflow-automation/limitations-and-faq/workflow-best-practices)**: Error handling, performance optimization, testing strategies.
+- **[Workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits)**: Understand timeouts, rate limits, and constraints.

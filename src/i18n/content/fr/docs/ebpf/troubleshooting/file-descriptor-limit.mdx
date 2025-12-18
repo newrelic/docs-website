@@ -1,0 +1,162 @@
+---
+title: Limite de descripteurs de fichiers dépassée
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Performance
+  - Troubleshooting
+metaDescription: How to resolve file descriptor limit issues with the eBPF agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problème
+
+Vous voyez le message d&apos;erreur suivant dans les logs de votre agent eBPF :
+
+```
+The number of used file descriptors (820) is above the threshold (819). This may cause issues with attaching uprobes. Consider increasing the process FD limit
+```
+
+Cette erreur indique que l&apos;agent eBPF a atteint le nombre maximal de descripteurs de fichiers qu&apos;il est autorisé à utiliser, ce qui peut l&apos;empêcher de monitoring correctement vos applications.
+
+## Solution
+
+Vous devez augmenter la limite de descripteurs de fichiers pour le service ou le pod de l&apos;agent eBPF.
+
+### Pour les hôtes Linux :
+
+Utilisez le mécanisme de remplacement `systemd` pour définir une limite plus élevée pour le service d&apos;agent.
+
+1. Augmenter temporairement la limite des descripteurs de fichiers :
+
+   ```bash
+   ulimit -n 4096
+   ```
+
+2. Exécutez la commande suivante pour modifier la modification persistante à `/etc/security/limits.conf`:
+
+   ```bash
+   sudo nano /etc/security/limits.conf
+   ```
+
+   Ajoutez les lignes suivantes :
+
+   ```
+      * soft nofile 4096
+      * hard nofile 8192
+   ```
+
+3. Redémarrez l&apos;agent eBPF :
+
+   ```bash
+      sudo systemctl restart newrelic-ebpf-agent
+   ```
+
+4. Vérifiez la nouvelle limite :
+
+   ```bash
+      # Check current limits
+      cat /proc/$(pgrep newrelic-ebpf-agent)/limits | grep "Max open files"
+   ```
+
+### Pour Kubernetes :
+
+1. Modifiez votre fichier `values.yaml` utilisé pour le déploiement Helm :
+
+   ```yaml
+      # values.yaml
+      agent:
+      resources:
+         limits:
+            memory: "2Gi"
+      # Add security context if needed
+      securityContext:
+         capabilities:
+            add:
+            - SYS_ADMIN
+   ```
+
+2. Appliquer les modifications :
+
+   ```bash
+      helm upgrade nr-ebpf-agent newrelic/nr-ebpf-agent -n newrelic -f values.yaml
+   ```
+
+3. Vérifiez que le pod a redémarré et qu&apos;il est en état « En cours d&apos;exécution » :
+
+   ```bash
+      kubectl get pods -n newrelic -w
+   ```
+
+### Solutions alternatives
+
+S&apos;il n&apos;est pas possible d&apos;augmenter les limites de ressources, vous pouvez réduire l&apos;utilisation des descripteurs de fichiers de l&apos;agent en limitant la portée de ce qu&apos;il monitore.
+
+1. Réduisez la portée monitoring en filtrant l’espace de nommage ou les services :
+
+   * **Pour les hôtes Linux** (`/etc/newrelic-ebpf-agent/newrelic-ebpf-agent.conf`) :
+
+     ```bash
+        # Exclude specific processes or entities
+        DROP_DATA_FOR_ENTITY="process1,process2"
+     ```
+
+   * **Pour Kubernetes** (`values.yaml`) :
+
+     ```yaml
+        # Exclude namespaces or services
+        dropDataForNamespaces: ["kube-system", "monitoring"]
+        dropDataServiceNameRegex: "kube-dns|system-service"
+     ```
+
+2. Désactivez monitoring de certains protocoles pour réduire le nombre de sondes :
+
+   * **Pour les hôtes Linux :**
+
+     ```bash
+        PROTOCOLS_MYSQL_ENABLED="false"
+        PROTOCOLS_MONGODB_ENABLED="false"
+     ```
+
+   * **Pour Kubernetes :**
+
+     ```yaml
+        protocols:
+        mysql:
+           enabled: false
+        mongodb:
+           enabled: false
+     ```
+
+### Vérification
+
+1. Vérifiez que l&apos;erreur n&apos;apparaît plus dans les logs de l&apos;agent :
+
+   * **Pour les hôtes Linux :**
+
+     ```bash
+        sudo journalctl -u newrelic-ebpf-agent -f
+     ```
+
+   * **Pour Kubernetes :**
+
+     ```bash
+        kubectl logs -f <ebpf-agent-pod> -n newrelic
+     ```
+
+2. Vérifiez que l&apos;agent fonctionne normalement en recherchant le message de démarrage dans les logs :
+
+   ```
+      [STEP-7] => Successfully started the eBPF Agent.
+   ```
+
+3. Vérifiez que les données sont bien transmises à l&apos;interface utilisateur de New Relic en filtrant l&apos;entité avec `instrumentation.name = nr_ebpf`.
+
+### Notes complémentaires
+
+* L&apos;erreur de limite de descripteurs de fichiers est plus fréquente dans les environnements comportant de nombreux processus ou services en cours d&apos;exécution.
+* Chaque processus/service de monitoring nécessite des descripteurs de fichiers pour la connexion de la sonde eBPF.
+* La limite par défaut du système (souvent 1024) peut s&apos;avérer insuffisante pour une déploiement à grande échelle.
+* Augmenter la limite à 4096 est généralement sûr et suffisant pour la plupart des cas d&apos;utilisation.
