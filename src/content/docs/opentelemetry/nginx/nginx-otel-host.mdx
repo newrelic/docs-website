@@ -1,0 +1,409 @@
+---
+title: 'Monitor self-hosted NGINX with OpenTelemetry'
+metaDescription: 'Send your NGINX metrics and logs to New Relic using the OpenTelemetry Collector.'
+redirects:
+  - /docs/infrastructure/host-integrations/host-integrations-list/nginx/nginx-otel-host
+freshnessValidatedDate: never
+---
+
+Monitor your NGINX servers using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+This integration leverages the OpenTelemetry [nginxreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver) to monitor your NGINX performance metrics, connection statistics, and server health.
+
+## Step 1: Check the compatibility and requirements [#prerequisites]
+
+Before you begin, ensure you have:
+
+- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+- NGINX with the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module enabled
+- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running on a linux host
+- Network access from the linux host to:
+    - NGINX HTTP stub status endpoint
+    - Anyone of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol:~:text=HTTP-,Endpoint,-Supported%20ports) enpoint
+
+## Step 2: Configure NGINX [#configure-nginx]
+
+Configure and enable the [stub_status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module to expose metrics from your NGINX Open Source server.
+
+After updating `nginx.conf`, test and reload the service:
+
+```bash
+sudo nginx -t && sudo nginx -s reload
+```
+
+List the configuration block that exposes `stub_status`:
+
+```bash
+sudo nginx -T 2>&1 | grep -ozP "(?s:.*\s)\Klocation(?s).*stub_status" | grep -aoP "\/([^\s]+)"
+```
+
+Example output:
+
+```
+/status
+```
+If you do not see output, inspect your nginx.conf manually for a stub_status block.
+
+Use `curl` to confirm your status endpoint is reachable:
+
+```bash
+curl -I http://127.0.0.1:8080/status 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
+```
+
+Expected output:
+
+```
+HTTP/1.1 200
+```
+
+If you see a different response, troubleshoot your NGINX configuration.
+
+## Step 3: Configure the OpenTelemetry Collector [#configure-collector]
+
+In the below OpenTelemetry Collector config snippet:
+
+- Update the `nginx.deployment.name` value to with a unique name to identify this NGINX server in a New Relic account.
+- Update the `endpoint` and `nginx.server.endpoint` value to match your stub status path and port.
+
+Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
+
+```yaml
+receivers:
+  nginx:
+    metrics:
+      nginx.requests:
+        enabled: true
+      nginx.connections_accepted:
+        enabled: true
+      nginx.connections_handled:
+        enabled: true
+      nginx.connections_current:
+        enabled: true
+    endpoint: <STUB_STATUS_ENDPOINT>
+    collection_interval: 30s
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+  resource:
+    attributes:
+      - action: upsert
+        key: nginx.server.endpoint
+        value: <STUB_STATUS_ENDPOINT>
+      - action: upsert
+        key: nginx.deployment.name
+        value: <DEPLOYMENT_NAME>
+  batch:
+    timeout: 30s
+    send_batch_size: 512
+  transform/nginx_metrics:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+exporters:
+  otlphttp/newrelic:
+    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEWRELIC_LICENSE_KEY}
+service:
+  pipelines:
+    metrics:
+      receivers: [nginx]
+      processors: [resourcedetection, resource, batch, transform/nginx_metrics]
+      exporters: [otlphttp/newrelic]
+```
+
+Save the file and ensure the `otelcol-contrib` system user can read it.
+
+## Step 4: Set environment variables for the collector [#set-environment]
+
+Inject your New Relic <InlinePopover type="licenseKey"/> and OTLP endpoint into the collector service so the exporter can authenticate.
+
+1. Create a systemd override directory:
+   ```bash
+   sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+   ```
+2. Write `environment.conf` with your OTLP endpoint. Replace `YOUR_LICENSE_KEY` with the New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region. Refer to the OTLP endpoint configuration [documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) to select the right endpoint.
+
+   ```bash
+   cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+   [Service]
+   Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+   Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+   EOF
+   ```
+3. Reload systemd and restart the collector:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart otelcol-contrib.service
+   ```
+
+## Step 5: Forward NGINX logs [#forward-logs]
+
+Extend your collector configuration to include access and error logs if you want log events alongside metrics.
+
+### Configure NGINX log format
+
+Before forwarding logs, configure NGINX to use a structured log format. Refer to the [NGINX log module documentation](https://nginx.org/en/docs/http/ngx_http_log_module.html) for guidance on configuring access and error logs.
+
+### Configure the OpenTelemetry Collector for log forwarding
+
+1. Note the full paths to your NGINX access and error log files. Defaults are usually `/var/log/nginx/access.log` and `/var/log/nginx/error.log`.
+
+2. Update `/etc/otelcol-contrib/config.yaml` to add a `filelog` receiver and log pipeline:
+
+   ```yaml
+   receivers:
+     nginx:
+       # existing stub status receiver configuration
+     filelog/nginx_access_logs:
+       include:
+         - /var/log/nginx/access.log
+     filelog/nginx_error_logs:
+       include:
+         - /var/log/nginx/error.log
+
+   processors:
+     resourcedetection:
+       # existing settings
+     resource:
+       # existing settings
+     batch:
+       # existing settings
+     transform/nginx_metrics:
+       # existing settings
+     transform/nginx_access_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx")
+     transform/nginx_error_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx-error")
+
+   exporters:
+     # existing exporter setup
+
+   service:
+     pipelines:
+       metrics:
+         receivers: [nginx]
+         processors: [resourcedetection, resource, batch, transform/nginx_metrics]
+         exporters: [otlphttp/newrelic]
+       logs/nginx-access:
+         receivers: [filelog/nginx_access_logs]
+         processors: [batch, resource/nginx, transform/nginx_access_logs]
+         exporters: [otlphttp/newrelic]
+       logs/nginx-error:
+         receivers: [filelog/nginx_error_logs]
+         processors: [batch, resource/nginx, transform/nginx_error_logs]
+         exporters: [otlphttp/newrelic]
+   ```
+
+3. Grant the `otelcol-contrib` user read access to the log files:
+
+   ```bash
+   sudo usermod -a -G adm otelcol-contrib
+   sudo chmod 644 /var/log/nginx/access.log
+   sudo chmod 644 /var/log/nginx/error.log
+   ```
+
+4. Restart the collector to apply the changes:
+
+   ```bash
+   sudo systemctl restart otelcol-contrib
+   ```
+
+## Step 6: Find and use data [#find-data]
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com) > Integrations & Agents**.
+2. Select **Dashboards**, and click **NGINX OTel overview dashboard**.
+3. In the popup window, select your account.
+4. Click View dashboard, and see your NGINX data in New Relic.
+
+The NGINX metrics are attached to the `Metric` [event type](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). You can [query this data](/docs/using-new-relic/data/understand-data/query-new-relic-data) for troubleshooting purposes or to create custom charts and dashboards.
+
+## Metrics collected [#metrics]
+
+The OpenTelemetry Collector Contrib's [nginxreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver) collects the following metrics from the NGINX stub status module:
+
+<CollapserGroup>
+  <Collapser
+    id="nginx-metrics"
+    title="Metrics"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Metric
+          </th>
+          <th>
+            Description
+          </th>
+          <th>
+            Type
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            `nginx.connections_accepted`
+          </td>
+          <td>
+            The total number of accepted client connections
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.connections_handled`
+          </td>
+          <td>
+            The total number of handled connections. Generally, the parameter value is the same as nginx.connections_accepted unless some resource limits have been reached (for example, the worker_connections limit)
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.connections_current`
+          </td>
+          <td>
+            The current number of nginx connections by state
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.requests`
+          </td>
+          <td>
+            Total number of requests made to the server since it started
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="nginx-attributes"
+    title="Attributes"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Attribute
+          </th>
+          <th style={{ width: "350px" }}>
+            Description
+          </th>
+          <th>
+            Example Values
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            `state`
+          </td>
+          <td>
+            The state of a connection (applicable to `nginx.connections_current` metric)
+          </td>
+          <td>
+            `active`, `reading`, `writing`, `waiting`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.server.endpoint`
+          </td>
+          <td>
+            The NGINX stub status endpoint URL
+          </td>
+          <td>
+            `http://localhost:8080/stub_status`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.deployment.name`
+          </td>
+          <td>
+            A unique name to identify this NGINX deployment
+          </td>
+          <td>
+            `production-web-01`, `staging-api`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.display.name`
+          </td>
+          <td>
+            A display-friendly name combining "server" prefix with deployment name
+          </td>
+          <td>
+            `server:production-web-01`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `host.name`
+          </td>
+          <td>
+            The hostname of the system where NGINX is running
+          </td>
+          <td>
+            `web-server-01.example.com`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `host.id`
+          </td>
+          <td>
+            The unique identifier of the host system
+          </td>
+          <td>
+            `i-1234567890abcdef0`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `logtype`
+          </td>
+          <td>
+            The type of log being collected (applicable to logs only). Used by New Relic's built-in [parsing rules](https://docs.newrelic.com/docs/logs/ui-data/built-log-parsing-rules/#nginx)
+          </td>
+          <td>
+            `nginx` (for access logs), `nginx-error` (for error logs)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+</CollapserGroup>
+
+For more details, see the [NGINX receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/nginxreceiver/documentation.md).
