@@ -1,0 +1,878 @@
+name: rabbitmq-otel
+flows:
+  - id: rabbitmq_otel_host
+    label: On a host
+    description: Install on Linux
+    recommended: true
+    stages:
+      - id: host_prerequisites
+        label: Before you start
+        complete:
+          actionType: continue
+        steps:
+          - key: host_requirements
+            label: OTEL RabbitMQ requirements
+            content:
+              - type: paragraph
+                text: |
+                  **What you'll need:**
+                  - A RabbitMQ instance with the [management plugin](https://www.rabbitmq.com/management.html) enabled.
+                  - Shell access with sudo privileges to install and manage services.
+                  - Outbound HTTPS connectivity to New Relic's OTLP ingest endpoint.
+                  - Ability to install the OpenTelemetry Collector Contrib distribution.
+
+                  This guide uses OpenTelemetry to collect RabbitMQ metrics through:
+                  - **Kafka Metrics Receiver**: Cluster-level metrics
+                  - **JMX Receiver**: Per-broker and custom metrics
+                  - **OTel Java Agent** (optional): Producer/consumer app metrics
+      - id: host_enable_management
+        label: Enable RabbitMQ management plugin
+        complete:
+          actionType: continue
+        steps:
+          - key: rabbitmqManagementPlugin
+            label: Enable the RabbitMQ management plugin
+            content:
+              - type: paragraph
+                text: |
+                  The management plugin exposes metrics that the OpenTelemetry Collector will scrape. Enable it with:
+              - type: terminal
+                command: sudo rabbitmq-plugins enable rabbitmq_management
+              - type: paragraph
+                text: |
+                  By default, the management API is available at `http://localhost:15672`.
+          - key: setManagementEndpoint
+            label: Enter your RabbitMQ management endpoint details
+            description: Provide the hostname and port for the RabbitMQ management API.
+            content:
+              - type: textField
+                id: rabbitmqHostname
+                placeholder: localhost
+                label: RabbitMQ hostname
+              - type: textField
+                id: rabbitmqPort
+                placeholder: "15672"
+                label: RabbitMQ management port
+          - key: setCredentials
+            label: Enter RabbitMQ credentials
+            description: Provide credentials for accessing the management API.
+            content:
+              - type: textField
+                id: rabbitmqUsername
+                placeholder: admin
+                label: RabbitMQ username
+              - type: textField
+                id: rabbitmqPassword
+                placeholder: password
+                label: RabbitMQ password
+          - key: testManagementEndpoint
+            label: Confirm your management endpoint is reachable
+            description: Run this command to confirm the management API responds successfully.
+            content:
+              - type: terminal
+                command: curl -I -u ${{ state.rabbitmqUsername.value || variables.defaultRabbitmqUsername }}:${{ state.rabbitmqPassword.value || variables.defaultRabbitmqPassword }} http://${{ state.rabbitmqHostname.value || variables.defaultRabbitmqHost }}:${{ state.rabbitmqPort.value || variables.defaultRabbitmqPort }}/api/overview 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
+              - type: terminal
+                title: Expected output
+                command: HTTP/1.1 200
+                hideCopyButton: true
+      - id: host_credentials
+        label: Enter credentials
+        complete:
+          actionType: continue
+          disabled: ${{ !state.licenseKey.value }}
+        steps:
+          - key: license_key
+            label: Enter your license key
+            description: |
+              This collector uses OTLP and requires a New Relic license key.
+            content:
+              - type: apiKey
+                id: licenseKey
+                keyType: license
+      - id: host_install_collector
+        label: Install the OpenTelemetry Collector
+        complete:
+          actionType: continue
+        steps:
+          - key: select_architecture
+            label: Select your system architecture
+            content:
+              - type: optionSet
+                id: hostCollectorArch
+                prompt: Choose the CPU architecture that matches your host
+                options:
+                  - value: amd64
+                    label: AMD64 / x86_64
+                  - value: arm64
+                    label: ARM64
+          - key: install_collector
+            label: Download and install the collector
+            content:
+              - type: terminal
+                highIntent: ${{ true }}
+                environments:
+                  - label: CentOS / RHEL
+                    command: |
+                      VERSION=${{ variables.collectorVersion }}
+                      ARCH=${{ state.hostCollectorArch.value || variables.defaultCollectorArch }}
+                      sudo yum update -y
+                      sudo yum -y install wget
+                      wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${VERSION}/otelcol-contrib_${VERSION}_linux_${ARCH}.rpm
+                      sudo rpm -ivh otelcol-contrib_${VERSION}_linux_${ARCH}.rpm
+                      sudo systemctl enable --now otelcol-contrib
+                  - label: Debian / Ubuntu
+                    command: |
+                      VERSION=${{ variables.collectorVersion }}
+                      ARCH=${{ state.hostCollectorArch.value || variables.defaultCollectorArch }}
+                      sudo apt-get update
+                      sudo apt-get -y install wget
+                      wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${VERSION}/otelcol-contrib_${VERSION}_linux_${ARCH}.deb
+                      sudo dpkg -i otelcol-contrib_${VERSION}_linux_${ARCH}.deb
+                      sudo systemctl enable --now otelcol-contrib
+              - type: paragraph
+                text: |
+                  The package installs `otelcol-contrib` as a service and places configuration files under `/etc/otelcol-contrib/`.
+                  We inject your selected architecture into the download commands; if you skip the selection, we default to `amd64`.
+      - id: host_config_collector
+        label: Configure the collector
+        complete:
+          actionType: continue
+          disabled: ${{ !state.rabbitmqDeploymentName.value }}
+        steps:
+          - key: config_file
+            label: Create configuration file
+            description: Create /etc/otelcol-contrib/config.yaml with this configuration.
+            content:
+              - type: codeBlock
+                filename: config.yaml
+                language: yaml
+                text: |
+                  receivers:
+                    rabbitmq:
+                      endpoint: http://${{ state.rabbitmqHostname.value || variables.defaultRabbitmqHost }}:${{ state.rabbitmqPort.value || variables.defaultRabbitmqPort }}
+                      username: ${{ state.rabbitmqUsername.value || variables.defaultRabbitmqUsername }}
+                      password: ${{ state.rabbitmqPassword.value || variables.defaultRabbitmqPassword }}
+                      collection_interval: 30s
+                      metrics:
+                        rabbitmq.consumer.count:
+                          enabled: true
+                        rabbitmq.connection.count:
+                          enabled: true
+                        rabbitmq.queue.consumer.count:
+                          enabled: true
+                        rabbitmq.queue.count:
+                          enabled: true
+                        rabbitmq.queue.message.count:
+                          enabled: true
+                        rabbitmq.queue.message.ready:
+                          enabled: true
+                        rabbitmq.queue.message.unacknowledged:
+                          enabled: true
+
+                  processors:
+                    resourcedetection:
+                      detectors: [system]
+                      system:
+                        resource_attributes:
+                          host.name:
+                            enabled: true
+                          host.id:
+                            enabled: true
+                    resource:
+                      attributes:
+                        - action: upsert
+                          key: rabbitmq.server.endpoint
+                          value: http://${{ state.rabbitmqHostname.value || variables.defaultRabbitmqHost }}:${{ state.rabbitmqPort.value || variables.defaultRabbitmqPort }}
+                        - action: upsert
+                          key: rabbitmq.deployment.name
+                          value: ${{ state.rabbitmqDeploymentName.value }}
+                    batch:
+                      timeout: 30s
+                      send_batch_size: 512
+                    transform/rabbitmq_metrics:
+                      metric_statements:
+                        - context: resource
+                          statements:
+                            - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+
+                  exporters:
+                    otlphttp/newrelic:
+                      endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+                      headers:
+                        api-key: ${env:NEWRELIC_LICENSE_KEY}
+                      compression: gzip
+
+                  extensions:
+                    health_check:
+
+                  service:
+                    pipelines:
+                      metrics:
+                        receivers: [rabbitmq]
+                        processors: [resourcedetection, resource, batch, transform/rabbitmq_metrics]
+                        exporters: [otlphttp/newrelic]
+              - type: paragraph
+                text: |
+                  Save the file to `/etc/otelcol-contrib/config.yaml`.
+          - key: set_host_env_vars
+            label: Set environment variables
+            content:
+              - type: paragraph
+                text: |
+                  Create a systemd override file to inject the environment variables into the collector service. The OTLP endpoint varies by region—use the dropdown to select yours.
+              - type: terminal
+                command: |
+                  sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+              - type: terminal
+                regions:
+                  - region: "us"
+                    command: |
+                      cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+                      [Service]
+                      Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+                      Environment="NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }}"
+                      EOF
+                  - region: "eu"
+                    command: |
+                      cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+                      [Service]
+                      Environment="NEWRELIC_OTLP_ENDPOINT=https://eu-otlp.nr-data.net:4318"
+                      Environment="NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }}"
+                      EOF
+                  - region: "staging"
+                    command: |
+                      cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+                      [Service]
+                      Environment="NEWRELIC_OTLP_ENDPOINT=https://staging-otlp.nr-data.net:443"
+                      Environment="NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }}"
+                      EOF
+              - type: terminal
+                command: sudo systemctl daemon-reload
+          - key: restart_existing_collector
+            label: Restart the collector
+            content:
+              - type: paragraph
+                text: |
+                  Restart the systemd service to load the new configuration and environment variables.
+              - type: terminal
+                command: sudo systemctl restart otelcol-contrib.service
+      - id: host_rabbitmq_logs
+        label: (Optional) Forward RabbitMQ logs
+        description: Send RabbitMQ logs to New Relic
+        complete:
+          actionType: continue
+        steps:
+          - key: log_forwarding_overview
+            label: Configure RabbitMQ logging
+            content:
+              - type: paragraph
+                text: |
+                  RabbitMQ logs are typically written to `/var/log/rabbitmq/`. The collector configuration below will send them to New Relic.
+          - key: log_path_inputs
+            label: Enter the log file paths
+            content:
+              - type: textField
+                id: rabbitmqLogPath
+                placeholder: /var/log/rabbitmq/rabbit@hostname.log
+                label: RabbitMQ log file path
+          - key: log_config_update
+            label: Update the collector configuration
+            content:
+              - type: paragraph
+                text: |
+                  Replace `/etc/otelcol-contrib/config.yaml` with the configuration below. It keeps the RabbitMQ metrics pipeline and adds a filelog receiver so logs reach New Relic.
+              - type: codeBlock
+                filename: config.yaml
+                language: yaml
+                text: |
+                  receivers:
+                    rabbitmq:
+                      endpoint: http://${{ state.rabbitmqHostname.value || variables.defaultRabbitmqHost }}:${{ state.rabbitmqPort.value || variables.defaultRabbitmqPort }}
+                      username: ${{ state.rabbitmqUsername.value || variables.defaultRabbitmqUsername }}
+                      password: ${{ state.rabbitmqPassword.value || variables.defaultRabbitmqPassword }}
+                      collection_interval: 30s
+                      metrics:
+                        rabbitmq.consumer.count:
+                          enabled: true
+                        rabbitmq.connection.count:
+                          enabled: true
+                        rabbitmq.queue.consumer.count:
+                          enabled: true
+                        rabbitmq.queue.count:
+                          enabled: true
+                        rabbitmq.queue.message.count:
+                          enabled: true
+                        rabbitmq.queue.message.ready:
+                          enabled: true
+                        rabbitmq.queue.message.unacknowledged:
+                          enabled: true
+                    filelog:
+                      include:
+                        - ${{ (state.rabbitmqLogPath && state.rabbitmqLogPath.value) || variables.defaultRabbitmqLogPath }}
+
+                  processors:
+                    resourcedetection:
+                      detectors: [system]
+                      system:
+                        resource_attributes:
+                          host.name:
+                            enabled: true
+                          host.id:
+                            enabled: true
+                    resource:
+                      attributes:
+                        - action: upsert
+                          key: rabbitmq.server.endpoint
+                          value: http://${{ state.rabbitmqHostname.value || variables.defaultRabbitmqHost }}:${{ state.rabbitmqPort.value || variables.defaultRabbitmqPort }}
+                        - action: upsert
+                          key: rabbitmq.deployment.name
+                          value: ${{ state.rabbitmqDeploymentName.value }}
+                    batch:
+                      timeout: 30s
+                      send_batch_size: 512
+                    transform/rabbitmq_metrics:
+                      metric_statements:
+                        - context: resource
+                          statements:
+                            - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+                    transform/rabbitmq_logs:
+                      log_statements:
+                        - context: resource
+                          statements:
+                            - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+
+                  exporters:
+                    otlphttp/newrelic:
+                      endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+                      headers:
+                        api-key: ${env:NEWRELIC_LICENSE_KEY}
+                      compression: gzip
+
+                  service:
+                    pipelines:
+                      metrics:
+                        receivers: [rabbitmq]
+                        processors: [resourcedetection, resource, batch, transform/rabbitmq_metrics]
+                        exporters: [otlphttp/newrelic]
+                      logs/rabbitmq:
+                        receivers: [filelog]
+                        processors: [batch, resource, transform/rabbitmq_logs]
+                        exporters: [otlphttp/newrelic]
+          - key: log_grant_permissions
+            label: Grant log file access
+            content:
+              - type: paragraph
+                text: |
+                  The collector runs as the `otelcol-contrib` user and needs read access to the RabbitMQ log directory. Add the user to the appropriate group or adjust permissions directly.
+              - type: terminal
+                command: |
+                  sudo usermod -a -G rabbitmq otelcol-contrib
+              - type: paragraph
+                text: |
+                  Alternatively, set permissions explicitly:
+              - type: terminal
+                command: |
+                  sudo chmod 644 ${{ (state.rabbitmqLogPath && state.rabbitmqLogPath.value) || variables.defaultRabbitmqLogPath }}
+          - key: log_restart_collector
+            label: Restart the collector
+            content:
+              - type: paragraph
+                text: |
+                  Restart the service to pick up the logging changes and apply the new group membership.
+              - type: terminal
+                command: sudo systemctl restart otelcol-contrib
+      - id: host_verify_data
+        label: Test the connection
+        steps:
+          - key: host_test_connection
+            label: Test the connection
+            content:
+              - type: nerdGraphQuery
+                id: hostMetricQuery
+                query: ${{ variables.hostMetricCheckQuery }}
+                variables:
+                  accountId: ${{ global.account.id }}
+                resultPath: "actor.account.nrql.results"
+              - type: experimental__testConnection
+                id: hostTestConnection
+                useSeeYourDataButton: true
+                tests:
+                  - id: rabbitmqHostNrql
+                    label: RabbitMQ
+                    strategy: nrql
+                    inputs:
+                      query: |
+                        SELECT entity.guid
+                        FROM Metric
+                        WHERE metricName LIKE 'rabbitmq.%'
+                          AND instrumentation.provider = 'opentelemetry'
+                          AND rabbitmq.deployment.name = '${{ state.rabbitmqDeploymentName.value }}'
+                        SINCE 10 minutes ago
+                      resultPath: 'results[0].events[0]["entity.guid"]'
+                      isEntityGuid: true
+                    statusMessage:
+                      success:
+                        message: "Successfully detected RabbitMQ metrics."
+                      failure:
+                        message: "We could not detect recent RabbitMQ metrics."
+                    dataView: entityOverview
+          - key: host_troubleshooting
+            label: Troubleshooting
+            content:
+              - type: paragraph
+                text: |
+                  **If you don't see data:**
+                  - Verify the management plugin is enabled: `sudo rabbitmq-plugins list | grep management`
+                  - Check the management API responds: `curl -u user:pass http://localhost:15672/api/overview`
+                  - Review collector logs: `sudo journalctl -u otelcol-contrib -f`
+                  - Confirm the collector service is running: `sudo systemctl status otelcol-contrib`
+
+  - id: rabbitmq_otel_k8s
+    label: Kubernetes setup
+    description: Deploy with Helm
+    stages:
+      - id: k8s_prerequisites
+        label: Before you begin
+        complete:
+          actionType: continue
+        steps:
+          - key: k8s_requirements
+            label: Prerequisites
+            content:
+              - type: paragraph
+                text: |
+                  **What you'll need:**
+                  - kubectl access to the target cluster.
+                  - RabbitMQ pods with the management plugin enabled.
+                  - A ClusterIP Service exposing the RabbitMQ management API.
+                  - Helm installed locally with access to the cluster context.
+      - id: k8s_management_config
+        label: Enable the RabbitMQ management plugin
+        complete:
+          actionType: continue
+        steps:
+          - key: k8s_management_plugin
+            label: Verify management plugin
+            content:
+              - type: paragraph
+                text: |
+                  Ensure each RabbitMQ pod has the [management plugin](https://www.rabbitmq.com/management.html) enabled so the collector can scrape metrics.
+          - key: k8s_management_endpoint_port
+            label: Enter your management API port
+            description: Provide the port exposed by your RabbitMQ management API. Defaults to 15672 if left blank.
+            content:
+              - type: textField
+                id: kubRabbitmqPort
+                placeholder: "15672"
+                label: RabbitMQ management port
+          - key: k8s_credentials_input
+            label: Enter RabbitMQ credentials
+            description: Provide credentials for accessing the management API.
+            content:
+              - type: textField
+                id: kubRabbitmqUsername
+                placeholder: admin
+                label: RabbitMQ username
+              - type: textField
+                id: kubRabbitmqPassword
+                placeholder: password
+                label: RabbitMQ password
+          - key: k8s_management_verify
+            label: Confirm the endpoint responds
+            content:
+              - type: paragraph
+                text: |
+                  Use `kubectl exec` to run a quick probe against one of your RabbitMQ pods and confirm the management API returns data.
+              - type: terminal
+                command: |
+                  kubectl exec deploy/<your-rabbitmq-deployment> -- curl -I -u ${{ state.kubRabbitmqUsername.value || variables.defaultRabbitmqUsername }}:${{ state.kubRabbitmqPassword.value || variables.defaultRabbitmqPassword }} http://localhost:${{ (state.kubRabbitmqPort && state.kubRabbitmqPort.value) || variables.defaultRabbitmqPort }}/api/overview 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
+              - type: terminal
+                title: Expected output
+                command: HTTP/1.1 200
+                hideCopyButton: true
+      - id: k8s_credentials
+        label: Enter credentials
+        complete:
+          actionType: continue
+          disabled: ${{ !state.licenseKey.value }}
+        steps:
+          - key: k8s_license_key
+            label: Enter your license key
+            description: |
+              This collector uses OTLP and requires a New Relic license key.
+            content:
+              - type: apiKey
+                id: licenseKey
+                keyType: license
+      - id: k8s_configmap
+        label: Prepare Helm values
+        complete:
+          actionType: continue
+          disabled: ${{ !(state.kubeClusterName && state.kubeClusterName.value) }}
+        steps:
+          - key: k8s_metadata_inputs
+            label: Provide cluster metadata
+            content:
+              - type: textField
+                id: kubeClusterName
+                placeholder: rabbitmq-cluster
+                label: Cluster name (used for `K8S_CLUSTER_NAME`)
+                validation:
+                  required: true
+                  minLength: 2
+              - type: textField
+                id: kubeLabelAppValue
+                placeholder: rabbitmq
+                label: Value for `labels["app"]`
+                validation:
+                  required: true
+                  minLength: 2
+          - key: k8s_values_file
+            label: Save `otel-collector-values.yaml`
+            description: Copy these Helm values to `otel-collector-values.yaml`.
+            content:
+              - type: codeBlock
+                filename: otel-collector-values.yaml
+                language: yaml
+                text: |
+                  opentelemetry-collector:
+                    mode: deployment
+
+                    image:
+                      repository: otel/opentelemetry-collector-contrib
+                      pullPolicy: IfNotPresent
+
+                    command:
+                      name: otelcol-contrib
+
+                    resources:
+                      limits:
+                        cpu: 500m
+                        memory: 300Mi
+                      requests:
+                        cpu: 100m
+                        memory: 100Mi
+
+                    extraEnvs:
+                      - name: NEWRELIC_LICENSE_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-licenses
+                            key: NEWRELIC_LICENSE_KEY
+                      - name: NEWRELIC_OTLP_ENDPOINT
+                        valueFrom:
+                          secretKeyRef:
+                            name: newrelic-licenses
+                            key: NEWRELIC_OTLP_ENDPOINT
+                      - name: K8S_NODE_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: spec.nodeName
+                      - name: K8S_CLUSTER_NAME
+                        value: ${{ (state.kubeClusterName && state.kubeClusterName.value) || variables.defaultKubeClusterName }}
+                      - name: RABBITMQ_USERNAME
+                        value: ${{ (state.kubRabbitmqUsername && state.kubRabbitmqUsername.value) || variables.defaultRabbitmqUsername }}
+                      - name: RABBITMQ_PASSWORD
+                        value: ${{ (state.kubRabbitmqPassword && state.kubRabbitmqPassword.value) || variables.defaultRabbitmqPassword }}
+
+                    clusterRole:
+                      create: true
+                      rules:
+                        - apiGroups: [""]
+                          resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+                          verbs: ["get", "list", "watch"]
+                        - apiGroups: ["apps"]
+                          resources: ["replicasets"]
+                          verbs: ["get", "list", "watch"]
+                      clusterRoleBinding:
+                        name: ""
+
+                    config:
+                      extensions:
+                        health_check:
+                          endpoint: 0.0.0.0:13133
+                        k8s_observer:
+                          auth_type: serviceAccount
+                          observe_pods: true
+                          observe_nodes: true
+
+                      receivers:
+                        receiver_creator/rabbitmq:
+                          watch_observers: [k8s_observer]
+                          receivers:
+                            rabbitmq:
+                              rule: type == "pod" && labels["app"] == "${{ (state.kubeLabelAppValue && state.kubeLabelAppValue.value) || variables.defaultKubeLabelAppValue }}"
+                              config:
+                                endpoint: 'http://`endpoint`:${{ (state.kubRabbitmqPort && state.kubRabbitmqPort.value) || variables.defaultKubeRabbitmqPort }}'
+                                username: ${env:RABBITMQ_USERNAME}
+                                password: ${env:RABBITMQ_PASSWORD}
+                                metrics:
+                                  rabbitmq.consumer.count:
+                                    enabled: true
+                                  rabbitmq.connection.count:
+                                    enabled: true
+                                  rabbitmq.queue.consumer.count:
+                                    enabled: true
+                                  rabbitmq.queue.count:
+                                    enabled: true
+                                  rabbitmq.queue.message.count:
+                                    enabled: true
+                                  rabbitmq.queue.message.ready:
+                                    enabled: true
+                                  rabbitmq.queue.message.unacknowledged:
+                                    enabled: true
+                                collection_interval: 30s
+                              resource_attributes:
+                                rabbitmq.server.endpoint: 'http://`endpoint`:${{ (state.kubRabbitmqPort && state.kubRabbitmqPort.value) || variables.defaultKubeRabbitmqPort }}'
+                                rabbitmq.port: '${{ (state.kubRabbitmqPort && state.kubRabbitmqPort.value) || variables.defaultKubeRabbitmqPort }}'
+
+                      processors:
+                        batch:
+                          send_batch_size: 1024
+                          timeout: 30s
+
+                        resource/cluster:
+                          attributes:
+                            - key: k8s.cluster.name
+                              value: "${{ (state.kubeClusterName && state.kubeClusterName.value) || variables.defaultKubeClusterName }}"
+                              action: insert
+
+                        transform/rabbitmq:
+                          metric_statements:
+                            - context: resource
+                              statements:
+                                - set(attributes["rabbitmq.display.name"], Concat([
+                                    "server",
+                                    "k8s",
+                                    attributes["k8s.cluster.name"],
+                                    attributes["k8s.namespace.name"],
+                                    "pod",
+                                    attributes["k8s.pod.name"],
+                                    "rabbitmq",
+                                    attributes["rabbitmq.port"]
+                                  ], ":"))
+                                - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
+
+                      exporters:
+                        otlphttp:
+                          endpoint: "${NEWRELIC_OTLP_ENDPOINT}"
+                          headers:
+                            api-key: "${NEWRELIC_LICENSE_KEY}"
+                        debug:
+                          verbosity: detailed
+
+                      service:
+                        telemetry:
+                          logs:
+                            level: debug
+                        extensions: [health_check, k8s_observer]
+                        pipelines:
+                          metrics/rabbitmq:
+                            receivers: [receiver_creator/rabbitmq]
+                            processors: [batch, resource/cluster, transform/rabbitmq]
+                            exporters: [otlphttp, debug]
+      - id: k8s_secret
+        label: Store your license key
+        complete:
+          actionType: continue
+        steps:
+          - key: create_secret
+            label: Create a secret for the collector
+            content:
+              - type: terminal
+                regions:
+                  - region: "us"
+                    command: |
+                      kubectl create secret generic newrelic-licenses \
+                        --from-literal=NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }} \
+                        --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318 \
+                        -n ${{ variables.useKubeNamespace }}
+                  - region: "eu"
+                    command: |
+                      kubectl create secret generic newrelic-licenses \
+                        --from-literal=NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }} \
+                        --from-literal=NEWRELIC_OTLP_ENDPOINT=https://eu-otlp.nr-data.net:4318 \
+                        -n ${{ variables.useKubeNamespace }}
+                  - region: "staging"
+                    command: |
+                      kubectl create secret generic newrelic-licenses \
+                        --from-literal=NEWRELIC_LICENSE_KEY=${{ state.licenseKey.key }} \
+                        --from-literal=NEWRELIC_OTLP_ENDPOINT=https://staging-otlp.nr-data.net:443 \
+                        -n ${{ variables.useKubeNamespace }}
+              - type: terminal
+                title: Expected output
+                command: secret/newrelic-licenses created
+                hideCopyButton: true
+      - id: k8s_deployment
+        label: Deploy the collector
+        complete:
+          actionType: continue
+        steps:
+          - key: helm_install_overview
+            label: Install or upgrade with Helm
+            content:
+              - type: paragraph
+                text: |
+                  Install the OpenTelemetry Collector using the official Helm chart and the values file you created in the previous step.
+          - key: helm_add_repo
+            label: Add the Helm repository
+            content:
+              - type: terminal
+                command: |
+                  helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+              - type: terminal
+                title: Expected output
+                command: |-
+                  "open-telemetry" has been added to your repositories
+                hideCopyButton: true
+          - key: helm_update_repo
+            label: Update your local repositories
+            content:
+              - type: terminal
+                command: helm repo update
+              - type: terminal
+                title: Expected output
+                command: |-
+                  Hang tight while we grab the latest from your chart repositories...
+                  ...Successfully got an update from the "open-telemetry" chart repository
+                  Update Complete. ⎈Happy Helming!⎈
+                hideCopyButton: true
+          - key: helm_upgrade_install
+            label: Install or upgrade the collector release
+            content:
+              - type: terminal
+                command: |
+                  helm upgrade --install rabbitmq-otel-collector open-telemetry/opentelemetry-collector \
+                    --namespace ${{ variables.useKubeNamespace }} \
+                    --create-namespace \
+                    -f otel-collector-values.yaml
+              - type: terminal
+                title: Expected output
+                command: |
+                  Release "rabbitmq-otel-collector" has been upgraded. Happy Helming!
+                  NAME: rabbitmq-otel-collector
+                  LAST DEPLOYED: 2024-01-01 12:00:00.000000 -0500 CST
+                  NAMESPACE: ${{ variables.useKubeNamespace }}
+                  STATUS: deployed
+                  REVISION: 1
+                  TEST SUITE: None
+                hideCopyButton: true
+      - id: k8s_service
+        label: Verify the deployment
+        complete:
+          actionType: continue
+        steps:
+          - key: verify_pods
+            label: Check collector pods
+            content:
+              - type: terminal
+                command: |
+                  kubectl get pods -n ${{ variables.useKubeNamespace }} -l app.kubernetes.io/name=opentelemetry-collector
+              - type: terminal
+                title: Expected output
+                command: |
+                  NAME                                         READY   STATUS    RESTARTS   AGE
+                  rabbitmq-otel-collector-6d8c5c5d8d-abc12    1/1     Running   0          2m
+                hideCopyButton: true
+          - key: verify_release
+            label: Inspect Helm release
+            content:
+              - type: terminal
+                command: |
+                  helm status rabbitmq-otel-collector -n ${{ variables.useKubeNamespace }}
+              - type: terminal
+                title: Expected output
+                command: |
+                  NAME: rabbitmq-otel-collector
+                  LAST DEPLOYED: 2024-01-01 12:05:00.000000 -0500 CST
+                  NAMESPACE: ${{ variables.useKubeNamespace }}
+                  STATUS: deployed
+                  REVISION: 1
+                  TEST SUITE: None
+                hideCopyButton: true
+      - id: k8s_verify
+        label: Test the connection
+        steps:
+          - key: k8s_logs
+            label: Check collector logs
+            content:
+              - type: terminal
+                command: |
+                  kubectl logs deploy/rabbitmq-otel-collector -n ${{ variables.useKubeNamespace }} --tail=50
+          - key: k8s_test_connection
+            label: Test the connection
+            content:
+              - type: nerdGraphQuery
+                id: k8sMetricQuery
+                query: ${{ variables.kubeMetricCheckQuery }}
+                variables:
+                  accountId: ${{ global.account.id }}
+                resultPath: "actor.account.nrql.results"
+              - type: experimental__testConnection
+                id: k8sTestConnection
+                useSeeYourDataButton: true
+                tests:
+                  - id: rabbitmqK8sNrql
+                    label: RabbitMQ
+                    strategy: nrql
+                    inputs:
+                      query: |
+                        SELECT entity.guid
+                        FROM Metric
+                        WHERE metricName LIKE 'rabbitmq.%'
+                          AND instrumentation.provider = 'opentelemetry'
+                          AND k8s.cluster.name = '${{ (state.kubeClusterName && state.kubeClusterName.value) || variables.defaultKubeClusterName }}'
+                        SINCE 10 minutes ago
+                      resultPath: 'results[0].events[0]["entity.guid"]'
+                      isEntityGuid: true
+                    statusMessage:
+                      success:
+                        message: "Successfully detected RabbitMQ metrics."
+                      failure:
+                        message: "We could not detect recent RabbitMQ metrics."
+                    dataView: entityOverview
+          - key: k8s_troubleshooting
+            label: Troubleshooting
+            content:
+              - type: paragraph
+                text: |
+                  **If you don't see data:**
+                  - Verify RabbitMQ management plugin is enabled in your pods
+                  - Check collector pod logs: `kubectl logs deploy/rabbitmq-otel-collector -n ${{ variables.useKubeNamespace }}`
+                  - Confirm RabbitMQ service is accessible: `kubectl get svc -n ${{ (state.kubeNamespace && state.kubeNamespace.value) || variables.defaultKubeNamespace }}`
+                  - Test the management API from within the cluster: `kubectl exec -it <rabbitmq-pod> -- curl http://localhost:15672/api/overview`
+
+variables:
+  collectorVersion: "0.140.0"
+  defaultCollectorArch: "amd64"
+  defaultRabbitmqHost: "localhost"
+  defaultRabbitmqPort: "15672"
+  defaultRabbitmqUsername: "admin"
+  defaultRabbitmqPassword: "admin"
+  defaultRabbitmqLogPath: "/var/log/rabbitmq/rabbit@hostname.log"
+  defaultKubeNamespace: "observability"
+  defaultKubeClusterName: "rabbitmq-cluster"
+  defaultKubeRabbitmqPort: "15672"
+  defaultKubeLabelAppValue: "rabbitmq"
+  kubeOtlpEndpoint: "https://otlp.nr-data.net:4318"
+  useKubeNamespace: newrelic
+  hostMetricCheckQuery: |
+    query HostMetricSample($accountId: Int!) {
+      actor {
+        account(id: $accountId) {
+          nrql(query: "FROM Metric SELECT latest(rabbitmq_queue_count) WHERE instrumentation.provider = 'opentelemetry' AND rabbitmq.deployment.name = '${{ state.rabbitmqDeploymentName.value }}' SINCE 10 minutes ago LIMIT 1") {
+            results
+          }
+        }
+      }
+    }
+  kubeMetricCheckQuery: |
+    query KubeMetricSample($accountId: Int!) {
+      actor {
+        account(id: $accountId) {
+          nrql(query: "FROM Metric SELECT latest(rabbitmq_queue_count) WHERE instrumentation.provider = 'opentelemetry' AND k8s.cluster.name = '${{ (state.kubeClusterName && state.kubeClusterName.value) || variables.defaultKubeClusterName }}' SINCE 10 minutes ago LIMIT 1") {
+            results
+          }
+        }
+      }
+    }
