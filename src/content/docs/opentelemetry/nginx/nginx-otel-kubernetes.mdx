@@ -1,0 +1,385 @@
+---
+title: 'Monitor NGINX on Kubernetes with OpenTelemetry'
+metaDescription: 'Send your NGINX metrics from Kubernetes to New Relic using the OpenTelemetry Collector.'
+redirects:
+  - /docs/infrastructure/host-integrations/host-integrations-list/nginx/nginx-otel-kubernetes
+freshnessValidatedDate: never
+---
+
+Monitor your NGINX servers using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+This integration leverages the OpenTelemetry [nginxreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver), [receivercreator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) to monitor your NGINX performance metrics, connection statistics, and server health.
+
+<img
+  title="NGINX dashboard"
+  alt="Image of the NGINX dashboard"
+  src="/images/opentelemetry_screenshot-nginx-dashboard.webp"
+/>
+
+<figcaption>
+  Dashboard available through the [New Relic NGINX Monitor OpenTelemetry quickstart](https://newrelic.com/instant-observability/nginx-otel).
+</figcaption>
+
+## Prerequisites [#prerequisites]
+
+Before you begin, ensure you have:
+
+- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+- Enable the [HTTP stub status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) module on NGINX pod that needs to be monitored
+- Add labels `app` and `role` to each NGINX pod that needs to be monitored
+
+## Install and configure the OpenTelemetry Collector [#install-collector]
+
+Deploy the OpenTelemetry Collector to your Kubernetes cluster using Helm. The collector will automatically discover and scrape metrics from your NGINX pods.
+
+1. Create a Kubernetes secret to store your New Relic credentials. Replace `YOUR_LICENSE_KEY` and `YOUR_OTLP_ENDPOINT` with your actual values. Refer to the OTLP endpoint configuration [documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) to select the appropriate endpoint for your region.
+
+   ```bash
+   kubectl create secret generic newrelic-licenses --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY --from-literal=NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT -n newrelic --create-namespace
+   ```
+
+2. Create a `values.yaml` file to configure the OpenTelemetry Collector. Update the placeholders for your cluster name, NGINX pod labels, and stub status endpoint.
+
+   ```yaml
+   opentelemetry-collector:
+     mode: deployment
+
+     image:
+       repository: otel/opentelemetry-collector-contrib
+       pullPolicy: IfNotPresent
+
+     command:
+       name: otelcol-contrib
+
+     resources:
+       limits:
+         cpu: 500m
+         memory: 300Mi
+       requests:
+         cpu: 100m
+         memory: 100Mi
+
+     extraEnvs:
+       - name: NEWRELIC_LICENSE_KEY
+         valueFrom:
+           secretKeyRef:
+             name: newrelic-licenses
+             key: NEWRELIC_LICENSE_KEY
+       - name: NEWRELIC_OTLP_ENDPOINT
+         valueFrom:
+           secretKeyRef:
+             name: newrelic-licenses
+             key: NEWRELIC_OTLP_ENDPOINT
+       - name: K8S_NODE_NAME
+         valueFrom:
+           fieldRef:
+             fieldPath: spec.nodeName
+       - name: K8S_CLUSTER_NAME
+         value: nginx-cluster # Update with your cluster name
+
+     clusterRole:
+       create: true
+       rules:
+         - apiGroups: [""]
+           resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+           verbs: ["get", "list", "watch"]
+         - apiGroups: ["apps"]
+           resources: ["replicasets"]
+           verbs: ["get", "list", "watch"]
+       clusterRoleBinding:
+         name: ""
+
+     config:
+       extensions:
+         health_check:
+           endpoint: 0.0.0.0:13133
+         k8s_observer:
+           auth_type: serviceAccount
+           observe_pods: true
+           observe_nodes: true
+
+       receivers:
+         receiver_creator/nginx:
+           watch_observers: [k8s_observer]
+           receivers:
+             nginx:
+               rule: type == "pod" && labels["app"] == "nginx" && labels["role"] == "reverse-proxy" # Update with your labels
+               config:
+                 endpoint: 'http://`endpoint`:<stub_status_port>/status'
+                 metrics:
+                   nginx.requests:
+                     enabled: true
+                   nginx.connections_accepted:
+                     enabled: true
+                   nginx.connections_handled:
+                     enabled: true
+                   nginx.connections_current:
+                     enabled: true
+                 collection_interval: 30s
+                 resource_attributes:
+                   nginx.server.endpoint: 'http://`endpoint`:<stub_status_port>/status'
+                   nginx.port: '<stub_status_port>'
+
+       processors:
+         batch:
+           send_batch_size: 1024
+           timeout: 30s
+
+         resource/cluster:
+           attributes:
+             - key: k8s.cluster.name
+               value: "${env:K8S_CLUSTER_NAME}"
+               action: insert
+
+         transform/nginx:
+           metric_statements:
+             - context: resource
+               statements:
+                 - set(attributes["nginx.display.name"], Concat([
+                     "server",
+                     "k8s",
+                     attributes["k8s.cluster.name"],
+                     attributes["k8s.namespace.name"],
+                     "pod",
+                     attributes["k8s.pod.name"],
+                     "nginx",
+                     attributes["nginx.port"]
+                     ], ":"))
+                 - set(attributes["nginx.deployment.name"], attributes["k8s.pod.name"])
+
+       exporters:
+         otlphttp:
+           endpoint: "${env:NEWRELIC_OTLP_ENDPOINT}"
+           headers:
+             api-key: "${env:NEWRELIC_LICENSE_KEY}"
+
+       service:
+         extensions: [health_check, k8s_observer]
+         pipelines:
+           metrics/nginx:
+             receivers: [receiver_creator/nginx]
+             processors: [batch, resource/cluster, transform/nginx]
+             exporters: [otlphttp]
+   ```
+
+3. Install the [Helm chart](https://github.com/open-telemetry/opentelemetry-helm-charts) using your values.yaml file.
+
+   ```bash
+   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+   helm repo update
+   helm upgrade --install nginx-otel-collector open-telemetry/opentelemetry-collector --namespace newrelic --create-namespace -f values.yaml
+   ```
+
+4. Ensure the pods have successfully spun up.
+
+   ```bash
+   kubectl get pods -n newrelic --watch
+   ```
+
+   You should see pods with names like `nginx-otel-collector-<hash>` in a `Running` state in the `newrelic` namespace.
+
+5. Run an NRQL query in New Relic to confirm data is arriving. Replace the cluster name with the value you set in the values file:
+
+   ```sql
+   FROM Metric
+   SELECT *
+   WHERE metricName LIKE 'nginx.%'
+     AND instrumentation.provider = 'opentelemetry'
+     AND k8s.cluster.name = 'nginx-cluster'
+   SINCE 10 minutes ago
+   ```
+
+## Find and use data [#find-data]
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com) > Integrations & Agents**.
+2. Select **Dashboards**, and click **NGINX OTel overview dashboard**.
+3. In the popup window, select your account.
+4. Click View dashboard, and see your NGINX data in New Relic.
+
+The NGINX metrics are attached to the `Metric` [event type](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). You can [query this data](/docs/using-new-relic/data/understand-data/query-new-relic-data) for troubleshooting purposes or to create custom charts and dashboards.
+
+## Metrics collected [#metrics]
+
+The OpenTelemetry Collector Contrib's [nginxreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/nginxreceiver) collects the following metrics from the NGINX stub status module:
+
+<CollapserGroup>
+  <Collapser
+    id="nginx-metrics"
+    title="Metrics"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Metric
+          </th>
+          <th>
+            Description
+          </th>
+          <th>
+            Type
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            `nginx.connections_accepted`
+          </td>
+          <td>
+            The total number of accepted client connections
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.connections_handled`
+          </td>
+          <td>
+            The total number of handled connections. Generally, the parameter value is the same as nginx.connections_accepted unless some resource limits have been reached (for example, the worker_connections limit)
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.connections_current`
+          </td>
+          <td>
+            The current number of nginx connections by state
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.requests`
+          </td>
+          <td>
+            Total number of requests made to the server since it started
+          </td>
+          <td>
+            Sum
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="nginx-attributes"
+    title="Attributes"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Attribute
+          </th>
+          <th style={{ width: "350px" }}>
+            Description
+          </th>
+          <th>
+            Example Values
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            `state`
+          </td>
+          <td>
+            The state of a connection (applicable to `nginx.connections_current` metric)
+          </td>
+          <td>
+            `active`, `reading`, `writing`, `waiting`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.server.endpoint`
+          </td>
+          <td>
+            The NGINX stub status endpoint URL
+          </td>
+          <td>
+            `http://10.244.1.5:8080/status`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.port`
+          </td>
+          <td>
+            The port number where stub status is exposed
+          </td>
+          <td>
+            `8080`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `k8s.cluster.name`
+          </td>
+          <td>
+            The name of the Kubernetes cluster
+          </td>
+          <td>
+            `nginx-cluster`, `production-k8s`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `k8s.namespace.name`
+          </td>
+          <td>
+            The Kubernetes namespace where the NGINX pod is running
+          </td>
+          <td>
+            `default`, `nginx-ingress`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `k8s.pod.name`
+          </td>
+          <td>
+            The name of the Kubernetes pod running NGINX
+          </td>
+          <td>
+            `nginx-deployment-5d7b9c8f4d-abc12`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.deployment.name`
+          </td>
+          <td>
+            The deployment name (set to the pod name in Kubernetes)
+          </td>
+          <td>
+            `nginx-deployment-5d7b9c8f4d-abc12`
+          </td>
+        </tr>
+        <tr>
+          <td>
+            `nginx.display.name`
+          </td>
+          <td>
+            A display-friendly name combining cluster, namespace, and pod information
+          </td>
+          <td>
+            `server:k8s:nginx-cluster:default:pod:nginx-deployment-5d7b9c8f4d-abc12:nginx:8080`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+</CollapserGroup>
+
+For more details, see the [NGINX receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/nginxreceiver/documentation.md).
