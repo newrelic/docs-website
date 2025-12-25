@@ -1,0 +1,187 @@
+---
+title: Solucione problemas do eBPF no Kubernetes
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Kubernetes
+  - Troubleshooting
+metaDescription: Troubleshooting steps for eBPF agent issues specific to Kubernetes environments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Este guia fornece soluções para problemas comuns que você pode encontrar com o agente eBPF em um ambiente Kubernetes. Encontre seu problema na lista abaixo para obter etapas de resolução específicas.
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="descriptor-limit-exceeded" title="Limite de descritores de arquivo excedido">
+    ### Problema
+
+    Você está enfrentando problemas com o agente eBPF em seu ambiente Kubernetes, como limites de descritores de arquivo, erros de privilégio ou problemas de desempenho.
+
+    ### Solução
+
+    Se você encontrar erros de limite de descritores de arquivo, consulte nosso [guia de solução de problemas de limite de descritores de arquivo](/docs/ebpf/troubleshooting/file-descriptor-limit) dedicado para obter etapas de resolução detalhadas.
+  </Collapser>
+
+  <Collapser className="freq-link" id="privilege-and-permission-issues" title="Problemas de privilégio e permissão">
+    ### Problema
+
+    O agente eBPF não consegue iniciar devido a privilégios insuficientes.
+
+    ### Solução
+
+    1. Verifique se o DaemonSet do agente eBPF tem os privilégios necessários. O gráfico Helm deve configurar automaticamente as permissões necessárias.
+
+    2. Verifique o contexto de segurança do pod em sua implantação:
+
+       ```bash
+          kubectl describe pod <ebpf-agent-pod> -n newrelic
+       ```
+
+    3. Certifique-se de que seu cluster suporte eBPF. Verifique a versão do kernel nos nós:
+
+       ```bash
+       kubectl get nodes -o wide
+       # Kernel version should be 5.4 or later
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="performance-and-resource-issues" title="Problemas de desempenho e recursos">
+    ### Problema
+
+    Agente eBPF consumindo recursos excessivos ou causando degradação de desempenho.
+
+    ### Solução:
+
+    1. Monitore o uso de recursos:
+
+       ```bash
+          kubectl top pods -n newrelic
+       ```
+
+    2. Ajuste os limites de memória em seus valores Helm:
+
+       ```yaml
+       agent:
+       resources:
+          limits:
+             memory: "2Gi"  # Increase if needed
+          requests:
+             memory: "512Mi"
+       ```
+
+    3. Configure a filtragem de dados para reduzir a carga:
+
+       ```yaml
+       dropDataForNamespaces: ["kube-system", "monitoring"]
+       dropDataServiceNameRegex: "kube-dns|otel-collector"
+       ```
+
+    4. Limite o monitoramento de protocolo se nem todos os protocolos forem necessários:
+
+       ```yaml
+       protocols:
+       http:
+          enabled: true
+       mysql:
+          enabled: false  # Disable if not needed
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="pod-startup-and-connectivity-issues" title="Problemas de inicialização e conectividade do pod">
+    ### Problema
+
+    Pods do agente eBPF não iniciando ou incapazes de enviar dados.
+
+    ### Solução
+
+    1. Verifique o status do pod:
+
+       ```bash
+       kubectl get pods -n newrelic
+       kubectl describe pod <ebpf-agent-pod> -n newrelic
+       ```
+
+    2. Revise os logs do pod:
+
+       ```bash
+          kubectl logs <ebpf-agent-pod> -n newrelic
+       ```
+
+    3. Verifique a conectividade de rede:
+
+       ```bash
+       # Test from within the cluster
+       kubectl run test-connectivity --image=busybox --rm -it --restart=Never -- \
+       nslookup otlp.nr-data.net
+       ```
+
+    <Callout variant="important">
+      Certifique-se de que as portas 4317 e 443 estejam desbloqueadas em vários níveis:
+
+      * **NívelCluster **: Para implantação Kubernetes (por exemplo, cluster AKS), verifique se os grupos de segurança de rede do cluster permitem tráfego de saída nessas portas.
+      * **Nível de infraestrutura**: Verifique se o software de segurança (por exemplo, Microsoft Defender, firewall corporativo) não está bloqueando essas portas no nível da infraestrutura.
+
+      O bloqueio de portas pode ocorrer em ambos os níveis simultaneamente, causando problemas de conectividade mesmo que um dos níveis esteja configurado corretamente.
+    </Callout>
+
+    4. Verifique a conta de serviço e RBAC:
+
+       ```bash
+       kubectl get serviceaccount -n newrelic
+       kubectl get clusterrole,clusterrolebinding -l app.kubernetes.io/name=nr-ebpf-agent
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="kubernetes-specific-configuration-issues" title="Problemas de configuração específicos do Kubernetes">
+    ### Problema
+
+    Nomes de entidades não aparecendo corretamente ou dados não atribuídos aos serviços corretos.
+
+    ### Solução
+
+    * O agente eBPF usa objetos Kubernetes `Service` para nomear entidades. Certifique-se de que seus aplicativos tenham um serviço correspondente definido.
+
+      ```yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+      name: my-service  # This becomes the entity name
+      spec:
+      selector:
+         app: my-app
+      ```
+
+    * Se você estiver perdendo dados, certifique-se de que o namespace não esteja sendo excluído em seu `values.yaml`.
+
+      ```yaml
+      # In values.yaml
+      dropDataForNamespaces: []  # Remove namespaces you want to monitor
+      ```
+
+    * No Kubernetes, os nomes das entidades são derivados do nome do serviço Kubernetes, por exemplo, `mysql-database-service`. Em hosts ou no Docker, os nomes são uma combinação do nome do processo, seu diretório ou ID do contêiner e a porta de escuta, por exemplo, `ruby:/home/ubuntu/app:[5678]`.
+
+    ### Etapas de verificação
+
+    1. Verifique o log de inicialização bem-sucedida:
+
+       ```bash
+          kubectl logs <ebpf-agent-pod> -n newrelic | grep "STEP-7"
+       ```
+
+       Deve mostrar: `[STEP-7] => Successfully started the eBPF Agent.`
+
+    2. Verifique o fluxo de dados no New Relic:
+
+       * Na interface do usuário do New Relic, procure entidades com `instrumentation.name = nr_ebpf`.
+       * Confirme se os nomes das entidades correspondem aos nomes dos seus serviços Kubernetes.
+
+    3. Teste a conectividade do endpoint OTLP:
+
+       ```bash
+       kubectl exec -it <ebpf-agent-pod> -n newrelic -- \
+       curl -v https://otlp.nr-data.net:443
+       ```
+  </Collapser>
+</CollapserGroup>

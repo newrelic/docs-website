@@ -1,0 +1,187 @@
+---
+title: Kubernetes 上の eBPF のトラブルシューティング
+type: troubleshooting
+tags:
+  - Integrations
+  - eBPF integration
+  - Kubernetes
+  - Troubleshooting
+metaDescription: Troubleshooting steps for eBPF agent issues specific to Kubernetes environments.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このガイドでは、Kubernetes 環境の eBPF エージェントで発生する可能性のある一般的な問題の解決策を示します。具体的な解決手順については、以下のリストで問題を見つけてください。
+
+<CollapserGroup>
+  <Collapser className="freq-link" id="descriptor-limit-exceeded" title="ファイル記述子の制限を超えました">
+    ### 問題
+
+    ファイル記述子の制限、権限エラー、パフォーマンスの問題など、Kubernetes 環境の eBPF エージェントで問題が発生しています。
+
+    ### 解決
+
+    ファイル記述子制限エラーが発生した場合は、詳細な解決手順については、専用の[ファイル記述子制限トラブルシューティング ガイド](/docs/ebpf/troubleshooting/file-descriptor-limit)を参照してください。
+  </Collapser>
+
+  <Collapser className="freq-link" id="privilege-and-permission-issues" title="特権と許可の問題">
+    ### 問題
+
+    権限が不十分なため、eBPF エージェントの起動に失敗します。
+
+    ### 解決
+
+    1. eBPF エージェント DaemonSet に必要な権限があることを確認します。Helm チャートは必要な権限を自動的に構成する必要があります。
+
+    2. デプロイメント内のポッド セキュリティ コンテキストを確認します。
+
+       ```bash
+          kubectl describe pod <ebpf-agent-pod> -n newrelic
+       ```
+
+    3. クラスターが eBPF をサポートしていることを確認します。ノード上のカーネル バージョンを確認します。
+
+       ```bash
+       kubectl get nodes -o wide
+       # Kernel version should be 5.4 or later
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="performance-and-resource-issues" title="パフォーマンスとリソースの問題">
+    ### 問題
+
+    eBPF エージェントが過剰なリソースを消費したり、パフォーマンスの低下を引き起こしたりします。
+
+    ### 解決：
+
+    1. リソースの使用状況を監視します:
+
+       ```bash
+          kubectl top pods -n newrelic
+       ```
+
+    2. Helm 値のメモリ制限を調整します。
+
+       ```yaml
+       agent:
+       resources:
+          limits:
+             memory: "2Gi"  # Increase if needed
+          requests:
+             memory: "512Mi"
+       ```
+
+    3. 負荷を軽減するためにデータ フィルタリングを構成します。
+
+       ```yaml
+       dropDataForNamespaces: ["kube-system", "monitoring"]
+       dropDataServiceNameRegex: "kube-dns|otel-collector"
+       ```
+
+    4. すべてのプロトコルが必要でない場合は、プロトコルの監視を制限します。
+
+       ```yaml
+       protocols:
+       http:
+          enabled: true
+       mysql:
+          enabled: false  # Disable if not needed
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="pod-startup-and-connectivity-issues" title="ポッドの起動と接続の問題">
+    ### 問題
+
+    eBPF エージェント ポッドが起動しないか、データを送信できません。
+
+    ### 解決
+
+    1. ポッドのステータスを確認します。
+
+       ```bash
+       kubectl get pods -n newrelic
+       kubectl describe pod <ebpf-agent-pod> -n newrelic
+       ```
+
+    2. ポッドログを確認します。
+
+       ```bash
+          kubectl logs <ebpf-agent-pod> -n newrelic
+       ```
+
+    3. ネットワーク接続を確認します。
+
+       ```bash
+       # Test from within the cluster
+       kubectl run test-connectivity --image=busybox --rm -it --restart=Never -- \
+       nslookup otlp.nr-data.net
+       ```
+
+    <Callout variant="important">
+      ポート 4317 と 443 が複数のレベルでブロックされていないことを確認します。
+
+      * **Clusterレベル**: Kubernetesデプロイメント (AKS クラスターなど) の場合、クラスターのネットワーク セキュリティ グループがこれらのポートでの送信トラフィックを許可していることを確認します。
+      * **インフラストラクチャ レベル**: セキュリティ ソフトウェア (Microsoft Defender、企業ファイアウォールなど) がインフラストラクチャ レベルでこれらのポートをブロックしていないか確認します。
+
+      ポート ブロッキングは両方のレベルで同時に発生する可能性があり、1 つのレベルが適切に構成されている場合でも接続の問題が発生します。
+    </Callout>
+
+    4. サービス アカウントと RBAC を確認します。
+
+       ```bash
+       kubectl get serviceaccount -n newrelic
+       kubectl get clusterrole,clusterrolebinding -l app.kubernetes.io/name=nr-ebpf-agent
+       ```
+  </Collapser>
+
+  <Collapser className="freq-link" id="kubernetes-specific-configuration-issues" title="Kubernetes固有の設定の問題">
+    ### 問題
+
+    エンティティ名が正しく表示されないか、データが正しいサービスに属していません。
+
+    ### 解決
+
+    * eBPF エージェントは、Kubernetes `Service`オブジェクトを使用してエンティティに名前を付けます。アプリケーションに対応するサービスが定義されていることを確認します。
+
+      ```yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+      name: my-service  # This becomes the entity name
+      spec:
+      selector:
+         app: my-app
+      ```
+
+    * データが欠落している場合は、ネームスペースが`values.yaml`で除外されていないことを確認してください。
+
+      ```yaml
+      # In values.yaml
+      dropDataForNamespaces: []  # Remove namespaces you want to monitor
+      ```
+
+    * Kubernetes では、エンティティ名は Kubernetes サービス名から派生されます (例: `mysql-database-service` )。ホストまたは Docker では、名前はプロセス名、そのディレクトリまたはコンテナ ID、およびリスニング ポートの組み合わせになります (例: `ruby:/home/ubuntu/app:[5678]` )。
+
+    ### 検証手順
+
+    1. 起動成功ログを確認します:
+
+       ```bash
+          kubectl logs <ebpf-agent-pod> -n newrelic | grep "STEP-7"
+       ```
+
+       表示される内容: `[STEP-7] => Successfully started the eBPF Agent.`
+
+    2. New Relic でデータフローを検証します。
+
+       * New Relic UI で、 `instrumentation.name = nr_ebpf`を持つエンティティを探します。
+       * エンティティ名が Kubernetes サービス名と一致していることを確認します。
+
+    3. OTLP エンドポイントの接続をテストします。
+
+       ```bash
+       kubectl exec -it <ebpf-agent-pod> -n newrelic -- \
+       curl -v https://otlp.nr-data.net:443
+       ```
+  </Collapser>
+</CollapserGroup>
