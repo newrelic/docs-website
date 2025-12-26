@@ -155,6 +155,14 @@ export default {
         wrapChildren: false,
       }),
   },
+  DoNotTranslate: {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
   CONTRIBUTOR_NOTE: {
     // this pulls this component out of translated files
     // there should never be anything to deserialize
@@ -432,6 +440,15 @@ export default {
     serialize: (state, node) =>
       serializeComponent(state, node, {
         tagName: 'p',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  div:  {
+    deserialize: deserializeComponent,
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
+        tagName: 'div',
         wrapChildren: false,
         identifyComponent: false,
       }),
