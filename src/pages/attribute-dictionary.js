@@ -9,6 +9,7 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  Trans,
   ComplexFeedback,
   Table,
   useLocale,
@@ -119,7 +120,14 @@ const AttributeDictionary = ({ location }) => {
               margin-bottom: 1rem;
             `}
           >
-            <p>{t('strings.dataDictionary.intro')}</p>
+            <p>
+              <Trans
+                i18nKey="strings.dataDictionary.intro"
+                components={{
+                  1: <Link to="https://docs.newrelic.com/docs/nrql/get-started/introduction-nrql-how-nrql-works/" />,
+                }}
+              />
+            </p>
             <p>{t('strings.dataDictionary.introNot.0')}</p>
             <ul>
               <li>{t('strings.dataDictionary.introNot.1')}</li>
