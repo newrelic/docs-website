@@ -1,0 +1,281 @@
+---
+title: Instrumentación en contenedores
+metaDescription: Configure your Azure Functions with New Relic for Linux
+tags:
+  - Azure Functions
+  - Linux
+  - Instrumentation
+  - Configuration
+  - New Relic .NET Agent
+  - New Relic Python Agent
+  - New Relic Node.js Agent
+  - New Relic Azure Websites Extension
+  - Environment Variables
+  - Dockerfile
+  - Containerized Functions
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si está utilizando una función de Azure en contenedor, puede monitorear sus funciones de Azure con el agente .NET, el agente Python o el agente Node.js de New Relic. Esto le permite monitorear el rendimiento y el estado de sus funciones de Azure en tiempo real.
+
+<Steps>
+  <Step>
+    ## Requisitos previos [#begin]
+
+    * Cerciorar de que su función de Azure cumpla con nuestros [requisitos y compatibilidad](/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring).
+    * Vincula tu cuenta de Azure a New Relic. Para obtener más información, consulte [IntegraciónAzure ](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/#polling).
+  </Step>
+
+  <Step>
+    ## Configurar la monitorización Azure Functions
+
+    Puede configurar el monitoreo de Azure Functions para diferentes entornos y varias combinaciones de tiempos de ejecución y métodos de implementación. Las siguientes instrucciones detallan cómo configurar New Relic para las aplicaciones de funciones de Azure en contenedores.
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="node">Node.js</TabsBarItem> <TabsBarItem id="python">Python</TabsBarItem> <TabsBarItem id="net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="node">
+          1. Edite el archivo de su función para agregar el siguiente código en la parte superior del archivo de su aplicación:
+
+          ```dockerfile
+          ENV NEW_RELIC_LICENSE_KEY="YOUR_NEW_RELIC_LICENSE_KEY"
+          ENV NEW_RELIC_APP_NAME="YOUR_APPLICATION_NAME"
+          # ENV NEW_RELIC_HOST='staging-collector.newrelic.com'
+          # Uncomment the previous line if using staging
+          # Inject the agent in NODE_OPTIONS
+
+          ENV NODE_OPTIONS="-r newrelic"
+          # Install New Relic without bin links
+
+          ARG AGENT_VERSION=latest
+          RUN npm install newrelic@$AGENT_VERSION --no-bin-links
+          ```
+
+          2. Cree su imagen de Docket según los requisitos de su plataforma ejecutando:
+
+          ```bash
+          docker buildx build --platform=YOUR_PLATFORM_ARCHITECTURE --tag YOUR_DOCKER_ID/azurefunctionsimage:v1.0.0 --push
+          ```
+
+          <Callout variant="important">
+            Asegúrese de reemplazar `YOUR_PLATFORM_ARCHITECTURE` con la arquitectura adecuada para su función de Azure. Por ejemplo, use `linux/amd64` para Linux de 64 bits o `linux/arm64` para la arquitectura ARM.
+          </Callout>
+
+          3. Publique su imagen en el Registro de contenedor de Azure (ACR) ejecutando:
+
+             1. Autentique su Registro de contenedor de Azure:
+
+             ```bash
+             az acr login --name YOUR_CONTAINER_REGISTRY_NAME
+             ```
+
+             2. Etiquete su imagen construida localmente con el servidor de inicio de sesión de ACR ejecutando:
+
+             ```bash
+             docker tag YOUR_DOCKER_ID/azurefunctionsimage:v1.0.0 YOUR_LOGIN_SERVER/azurefunctionsimage:v1.0.0
+             ```
+
+             3. Inserte la imagen etiquetada en su ACR ejecutando:
+
+             ```bash
+             docker push YOUR_LOGIN_SERVER/azurefunctionsimage:v1.0.0
+             ```
+
+             4. Cree los recursos de Azure requeridos para su aplicación de función de Azure utilizando la [documentación de Azure.](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container-apps?tabs=acr%2Cbash&pivots=programming-language-javascript#create-supporting-azure-resources-for-your-function).
+
+             5. Cree y configure la aplicación de función de Azure utilizando la imagen que insertó en el ACR en el paso anterior. Para obtener más información, consulte la [documentación de Azure](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container-apps?tabs=acr%2Cbash&pivots=programming-language-javascript#create-and-configure-a-function-app-on-azure-with-the-image).
+
+             6. Recupere la URL de la aplicación de función de Azure después de la implementación ejecutando:
+
+             ```bash
+             az functionapp show --name YOUR_APPLICATION_NAME --resource-group NAME_OF_THE_APPS_RESOURCE_GROUP
+             ```
+        </TabsPageItem>
+
+        <TabsPageItem id="python">
+          Para instalar el agente de Python de New Relic, agregue las siguientes líneas a la etapa final de su `Dockerfile`:
+
+          ```dockerfile
+          FROM mcr.microsoft.com/azure-functions/python:4-python3.11
+
+          # These commands will not be required once the 
+          # New Relic Python Agent releases this feature
+          RUN apt-get update
+          RUN apt-get -y install git 
+
+          ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+              AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+          RUN pip install newrelic
+
+          # Install any other dependencies
+          COPY requirements.txt /
+          RUN pip install -r /requirements.txt
+          COPY . /home/site/wwwroot
+          ```
+
+          <Callout variant="tip">
+            El ejemplo anterior es para una función de Azure Python 3.11. Puede cambiar la versión de Python para que coincida con sus requisitos.
+          </Callout>
+
+          Después de haber construido la imagen de Docker, publique la imagen en Azure Container Registry. Para obtener más información, consulte la [documentación de Azure](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container?tabs=acr%2Cbash%2Cazure-cli&pivots=programming-language-python#publish-the-container-image-to-a-registry).
+        </TabsPageItem>
+
+        <TabsPageItem id="net">
+          Para instalar el agente .NET de New Relic, agregue las siguientes líneas a la etapa final de su archivo Docker:
+
+          ```dockerfile
+          # Install the latest New Relic .NET agent using the apt-get package manager
+          # To install a specific version of the .NET agent, add the version number to the apt-get install line (i.e. apt-get install -y newrelic-dotnet-agent=10.38.0)
+          RUN apt-get update && apt-get install -y wget ca-certificates gnupg \
+              && echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+              && wget https://download.newrelic.com/548C16BF.gpg \
+              && apt-key add 548C16BF.gpg \
+              && apt-get update \
+              && apt-get install -y newrelic-dotnet-agent \
+              && rm -rf /var/lib/apt/lists/*
+          ```
+
+          Cuando implementa su aplicación, el agente .NET se instala en la carpeta `/usr/local/newrelic-dotnet-agent` .
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Configurar variables de entorno
+
+    Luego de publicar la aplicación de Azure Functions, [configure las variables de entorno](/docs/serverless-function-monitoring/azure-function-monitoring/env-variables-azure):
+
+    1. Navegue a sus funciones Azure en el portal Azure .
+    2. En **Settings** , haga clic en **Environment variables** y, a continuación, haga clic en **Advanced edit** .
+    3. Según el tiempo de ejecución de su implementación, pegue los siguientes valores:
+
+    <Callout variant="important">
+      Cerciorar de agregar una coma al final de la última línea existente y actualizar su clave de licencia en la siguiente configuración.
+    </Callout>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="nodejs">Node.js</TabsBarItem> <TabsBarItem id="py">Python</TabsBarItem> <TabsBarItem id=".net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="nodejs">
+          ```json
+          {
+            "NODE_OPTIONS": "-r newrelic",
+            "NEW_RELIC_LICENSE_KEY": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "NEW_RELIC_APP_NAME": "NAME_OF_YOUR_AZURE_FUNCTION_APP"
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id="py">
+          ```json
+          {
+            "name": "PYTHON_ENABLE_WORKER_EXTENSIONS",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "FUNCTIONS_WORKER_RUNTIME",
+            "value": "python",
+            "slotSetting": false
+          }, 
+          {
+            "name": "PYTHONPATH",
+            "value": "${PYTHONPATH}:/home/site/wwwroot:/home/site/wwwroot/.python_packages/lib/site-packages",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_APP_NAME",
+            "value": "YOUR_NEW_RELIC_APP_NAME",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id=".net">
+          ```json
+          {
+            "name": "CORECLR_ENABLE_PROFILING",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_NEW_RELIC_HOME",
+            "value": "/home/site/wwwroot/newrelic",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_PROFILER",
+            "value": "{36032161-FFC0-4B61-B559-F6C5D41BAE5A}",
+            "slotSetting": false
+          }, 
+          {
+            "name": "CORECLR_PROFILER_PATH",
+            "value": "/home/site/wwwroot/newrelic/libNewRelicProfiler.so",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LOG_DIRECTORY",
+            "value": "/home/LogFiles/NewRelic",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Resetear sus funciones Azure
+
+    Luego de agregar las variables de entorno, resetear Azure Functions para aplicar los cambios.
+  </Step>
+
+  <Step>
+    ## Buscar y utilizar datos [#find-data]
+
+    Una vez que configuró su Azure Function, podrá buscar y usar los datos en la New Relic UI.
+
+    1. Vaya a [https://one.newrelic.com](https://one.newrelic.com) &gt; **APM &amp; Services**.
+
+    2. En el banner de búsqueda, establezca el criterio de búsqueda como `isAzureFunction = true`:
+
+       <img title="Azure Function Search" alt="A screenshot showing the Azure Function search" src="/images/azure_filters.webp" />
+
+    3. De la lista que se muestra, seleccione su función de Azure para ver los datos.
+  </Step>
+</Steps>
+
+## Artículos relacionados [#related-docs]
+
+<DocTiles>
+  <DocTile title="Compatibilidad y requisitos" path="/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring">
+    Requisitos para sus Azure Functions
+  </DocTile>
+
+  <DocTile title="Instrumentación de Linux" path="/docs/serverless-function-monitoring/azure-function-monitoring/linux">
+    Aprenda a configurar sus Azure Functions para Linux para monitorear en New Relic.
+  </DocTile>
+
+  <DocTile title="Instrumentación Windows" path="/docs/serverless-function-monitoring/azure-function-monitoring/windows">
+    Aprenda a configurar sus Azure Functions para Windows para monitorear en New Relic.
+  </DocTile>
+</DocTiles>
