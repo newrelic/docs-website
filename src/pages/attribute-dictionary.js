@@ -124,7 +124,9 @@ const AttributeDictionary = ({ location }) => {
               <Trans
                 i18nKey="strings.dataDictionary.intro"
                 components={{
-                  1: <Link to="https://docs.newrelic.com/docs/nrql/get-started/introduction-nrql-how-nrql-works/" />,
+                  1: (
+                    <Link to="https://docs.newrelic.com/docs/nrql/get-started/introduction-nrql-how-nrql-works/" />
+                  ),
                 }}
               />
             </p>
