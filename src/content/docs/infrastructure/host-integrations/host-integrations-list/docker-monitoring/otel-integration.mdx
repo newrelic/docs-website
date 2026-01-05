@@ -38,6 +38,7 @@ Before you begin, ensure you have:
 - Network access from the Linux host to:
   - Docker Engine socket
   - One of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) endpoints
+- For log collection: Read permissions to `/var/lib/docker/containers/` directory (typically requires root or docker group membership)
 
 ## Configure the OpenTelemetry Collector
 
@@ -105,32 +106,53 @@ Save the file and ensure the `otelcol-contrib` system user can read it.
 
 ## Optional: Collect Docker container logs
 
-You can also collect logs from your Docker containers using the OpenTelemetry [filelog receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver).
+You can also collect logs from your Docker containers using the OpenTelemetry [receiver creator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) with the [Docker observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) extension.
+
+<Callout variant="important">
+  **Requirements for log collection:**
+  - The OpenTelemetry Collector process must have read permissions to the `/var/lib/docker/containers/` directory. This typically requires running the collector as root or adding the collector user to the docker group.
+  - Container ports must be exposed for the receiver creator to discover and scrape logs from containers.
+</Callout>
 
 Add the following configuration to collect container logs:
 
 ```yaml
+extensions:
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+    use_container_labels: true
+
 receivers:
-  filelog:
-    include:
-      - /var/lib/docker/containers/*/*.log
-    include_file_path: true
-    operators:
-      - type: json_parser
-        timestamp:
-          parse_from: attributes.time
-          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
-      - type: move
-        from: attributes.log
-        to: body
-      - type: add
-        field: attributes.container_id
-        value: EXPR(attributes["log.file.path"] | split("/")[-2])
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container.id`/*.log
+          include_file_path: true
+          operators:
+            - type: json_parser
+              timestamp:
+                parse_from: attributes.time
+                layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+            - type: move
+              from: attributes.log
+              to: body
+            - type: add
+              field: attributes.container_id
+              value: "`container.id`"
+            - type: add
+              field: attributes.container_name
+              value: "`container.name`"
 
 service:
+  extensions: [docker_observer]
   pipelines:
     logs:
-      receivers: [filelog]
+      receivers: [receiver_creator]
       processors: [resourcedetection, resource/docker, batch]
       exporters: [otlphttp/newrelic]
 ```
@@ -836,11 +858,55 @@ String
 
 For more details, see the [Docker Stats receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/dockerstatsreceiver/documentation.md).
 
+## Troubleshooting [#troubleshooting]
+
+### No metrics appearing [#no-metrics]
+
+If you don't see metrics in New Relic:
+
+1. Verify the collector is running: `docker logs otel-collector`
+2. Check Docker socket permissions: `ls -l /var/run/docker.sock`
+3. Verify your New Relic license key is correct
+4. Ensure the OTLP endpoint is accessible
+
+### Permission denied errors [#permission-errors]
+
+If you see permission errors accessing Docker socket:
+
+```bash
+# On Linux, add your user to the docker group
+sudo usermod -aG docker $USER
+
+# Or run the collector with appropriate permissions
+docker run -d --user root ...
+```
+
+### No logs appearing [#no-logs]
+
+If you've configured log collection but don't see logs in New Relic:
+
+1. **Check file permissions**: Ensure the collector process has read access to `/var/lib/docker/containers/`:
+   ```bash
+   sudo chmod -R 755 /var/lib/docker/containers
+   # Or add the collector user to the docker group
+   sudo usermod -aG docker otelcol-contrib
+   ```
+
+2. **Verify container ports are exposed**: The receiver creator with Docker observer requires containers to have exposed ports to be discovered. When running containers, ensure you expose at least one port:
+   ```bash
+   # Example: expose port 8080
+   docker run --expose 80 my-container:latest
+   ```
+
+3. **Check collector logs**: Look for errors related to file access or receiver creator:
+   ```bash
+   journalctl -u otelcol-contrib -f
+   ```
+
 ## What's next?
 
 After setting up your Docker monitoring with OpenTelemetry, you can:
 
 - Create [custom queries and charts](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to analyze your container metrics
-- Set up [alerts](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts/) to notify you about performance issues
-- Explore [distributed tracing](/docs/distributed-tracing/concepts/introduction-distributed-tracing/) if you're monitoring containerized applications
-- Learn more about [OpenTelemetry in New Relic](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/)
+- Set up <InlinePopover type="alerts"/> to notify you about performance issues
+- Learn more about [OpenTelemetry in New Relic](/docs/opentelemetry/opentelemetry-introduction/)
