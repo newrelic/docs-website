@@ -1,0 +1,615 @@
+---
+title: Monitor Kubernetes-hosted RabbitMQ with OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - RabbitMQ
+  - Kubernetes
+metaDescription: "Install and configure RabbitMQ OpenTelemetry monitoring for Kubernetes."
+freshnessValidatedDate: 2024-12-24
+---
+
+Monitor RabbitMQ running in Kubernetes clusters using the OpenTelemetry Collector with automatic pod discovery. This guide walks you through deploying the collector via Helm with dynamic broker detection powered by the Kubernetes observer.
+
+<Callout variant="tip">
+  **Running RabbitMQ on Linux hosts?** See the [self-hosted installation guide](/docs/opentelemetry/integrations/rabbitmq/self-hosted) for virtual machine or bare metal deployments.
+</Callout>
+
+## Before you begin [#requirements]
+
+Before deploying the integration, ensure your environment meets these requirements:
+
+<CollapserGroup>
+  <Collapser id="k8s-reqs" title="Kubernetes cluster requirements">
+    * **Kubernetes version**: 1.19 or higher
+    * **kubectl access**: Configured with appropriate RBAC permissions to create deployments, services, and RBAC resources
+    * **Helm version**: Helm 3.x installed locally
+  </Collapser>
+
+  <Collapser id="rabbitmq-reqs" title="RabbitMQ requirements">
+    * **Management plugin**: Must be enabled on all RabbitMQ pods
+    * **Service exposure**: RabbitMQ Service must expose the management API port (default: 15672)
+    * **Pod labels**: RabbitMQ pods should have consistent labels (e.g., `app=rabbitmq`) for discovery
+    * **Credentials**: Admin user with permissions to access the management API
+  </Collapser>
+
+  <Collapser id="newrelic-reqs" title="New Relic requirements">
+    * **Account**: Active New Relic account
+    * **License key**: [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for your account
+  </Collapser>
+</CollapserGroup>
+
+## How the integration works [#architecture]
+
+This Kubernetes-native deployment provides automatic discovery and monitoring:
+
+**Key components:**
+
+* **Kubernetes Observer**: Continuously watches for RabbitMQ pods based on label selectors
+* **Receiver Creator**: Dynamically creates RabbitMQ receivers for each discovered pod
+* **Resource Attribution**: Automatically enriches metrics with Kubernetes metadata:
+  * `k8s.cluster.name` - Your cluster identifier
+  * `k8s.namespace.name` - Pod namespace
+  * `k8s.pod.name` - Individual pod name
+  * `rabbitmq.deployment.name` - Derived from pod name
+
+**Deployment model:**
+
+The collector runs as a Kubernetes Deployment (single replica) with RBAC permissions to list and watch pods across namespaces. When new RabbitMQ pods are created or existing ones are removed, the observer automatically updates the collector's configuration.
+
+<Callout variant="important">
+  The collector requires `get`, `list`, and `watch` permissions on pods to discover RabbitMQ instances automatically.
+</Callout>
+
+## Installation steps [#install]
+
+Follow these steps to deploy the OpenTelemetry Collector with RabbitMQ monitoring.
+
+### Step 1: Verify the management endpoint [#verify-endpoint]
+
+Ensure RabbitMQ pods have the management plugin enabled:
+
+```bash
+kubectl exec deploy/<your-rabbitmq-deployment> -n <rabbitmq-namespace> -- curl -I -u admin:password http://localhost:15672/api/overview
+```
+
+You should see `HTTP/1.1 200 OK` in the response.
+
+### Step 2: Create Helm values file [#helm-values]
+
+Create a file named `otel-collector-values.yaml`. This configuration uses the `receiver_creator` with `k8s_observer` to automatically discover RabbitMQ pods.
+
+Update these placeholders:
+* `my-rabbitmq-cluster`: Your Kubernetes cluster name
+* `rabbitmq`: The value of the `app` label for your RabbitMQ pods
+* `admin`/`password`: Your RabbitMQ credentials
+* `15672`: The management API port
+
+```yaml
+opentelemetry-collector:
+  mode: deployment
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    pullPolicy: IfNotPresent
+
+  command:
+    name: otelcol-contrib
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 300Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+  extraEnvs:
+    - name: NEWRELIC_LICENSE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: newrelic-licenses
+          key: NEWRELIC_LICENSE_KEY
+    - name: NEWRELIC_OTLP_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: newrelic-licenses
+          key: NEWRELIC_OTLP_ENDPOINT
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_CLUSTER_NAME
+      value: my-rabbitmq-cluster
+    - name: RABBITMQ_USERNAME
+      value: admin
+    - name: RABBITMQ_PASSWORD
+      value: password
+
+  clusterRole:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "nodes", "nodes/stats", "nodes/proxy"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["apps"]
+        resources: ["replicasets", "deployments", "statefulsets"]
+        verbs: ["get", "list", "watch"]
+    clusterRoleBinding:
+      name: ""
+
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+      k8s_observer:
+        auth_type: serviceAccount
+        observe_pods: true
+        observe_nodes: false
+
+    receivers:
+      receiver_creator/rabbitmq:
+        watch_observers: [k8s_observer]
+        receivers:
+          rabbitmq:
+            # Discover pods with label "app=rabbitmq"
+            # Adjust the label selector to match your RabbitMQ pods
+            rule: type == "pod" && labels["app"] == "rabbitmq"
+            config:
+              endpoint: 'http://`endpoint`:15672'
+              username: ${env:RABBITMQ_USERNAME}
+              password: ${env:RABBITMQ_PASSWORD}
+              collection_interval: 30s
+              metrics:
+                rabbitmq.consumer.count:
+                  enabled: true
+                rabbitmq.connection.count:
+                  enabled: true
+                rabbitmq.queue.consumer.count:
+                  enabled: true
+                rabbitmq.queue.count:
+                  enabled: true
+                rabbitmq.queue.message.count:
+                  enabled: true
+                rabbitmq.queue.message.ready:
+                  enabled: true
+                rabbitmq.queue.message.unacknowledged:
+                  enabled: true
+            resource_attributes:
+              rabbitmq.server.endpoint: 'http://`endpoint`:15672'
+              rabbitmq.port: '15672'
+
+    processors:
+      batch:
+        send_batch_size: 1024
+        timeout: 30s
+
+      resource/cluster:
+        attributes:
+          - key: k8s.cluster.name
+            value: ${env:K8S_CLUSTER_NAME}
+            action: upsert
+
+      transform/rabbitmq:
+        metric_statements:
+          - context: resource
+            statements:
+              # Create a display name combining Kubernetes metadata
+              - set(attributes["rabbitmq.display.name"], Concat([
+                  "server",
+                  "k8s",
+                  attributes["k8s.cluster.name"],
+                  attributes["k8s.namespace.name"],
+                  "pod",
+                  attributes["k8s.pod.name"],
+                  "rabbitmq",
+                  attributes["rabbitmq.port"]
+                ], ":"))
+              # Use pod name as deployment name
+              - set(attributes["rabbitmq.deployment.name"], attributes["k8s.pod.name"])
+
+    exporters:
+      otlphttp:
+        endpoint: "${NEWRELIC_OTLP_ENDPOINT}"
+        headers:
+          api-key: "${NEWRELIC_LICENSE_KEY}"
+        compression: gzip
+
+    service:
+      extensions: [health_check, k8s_observer]
+      pipelines:
+        metrics/rabbitmq:
+          receivers: [receiver_creator/rabbitmq]
+          processors: [batch, resource/cluster, transform/rabbitmq]
+          exporters: [otlphttp]
+```
+
+<Callout variant="tip">
+**Label selector customization:**
+
+If your RabbitMQ pods use different labels, update the `rule` line. For example:
+* StatefulSet pods: `type == "pod" && labels["app.kubernetes.io/name"] == "rabbitmq"`
+* Operator deployments: `type == "pod" && labels["app.kubernetes.io/component"] == "rabbitmq"`
+
+Run `kubectl get pods --show-labels -n <namespace>` to view your pod labels.
+</Callout>
+
+### Step 3: Create Kubernetes secret [#create-secret]
+
+Store your New Relic credentials in a Kubernetes secret.
+
+Choose your New Relic region:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="us">US Region</TabsBarItem>
+    <TabsBarItem id="eu">EU Region</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="us">
+
+```bash
+kubectl create secret generic newrelic-licenses \
+  --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+  --from-literal=NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318 \
+  --namespace newrelic
+```
+
+Replace `YOUR_LICENSE_KEY` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="eu">
+
+```bash
+kubectl create secret generic newrelic-licenses \
+  --from-literal=NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+  --from-literal=NEWRELIC_OTLP_ENDPOINT=https://eu-otlp.nr-data.net:4318 \
+  --namespace newrelic
+```
+
+Replace `YOUR_LICENSE_KEY` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+### Step 4: Deploy with Helm [#deploy-helm]
+
+Add the OpenTelemetry Helm repository:
+
+```bash
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+```
+
+Install or upgrade the collector:
+
+```bash
+helm upgrade --install rabbitmq-otel-collector \
+  open-telemetry/opentelemetry-collector \
+  --namespace newrelic \
+  --create-namespace \
+  --values otel-collector-values.yaml
+```
+
+The deployment creates:
+* A Deployment named `rabbitmq-otel-collector` in the `newrelic` namespace
+* A ServiceAccount with RBAC permissions to watch pods
+* ConfigMaps containing the collector configuration
+
+### Step 5: Verify the deployment and data flow [#verify]
+
+**Check that the collector pod is running:**
+
+```bash
+kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+```
+
+Expected output:
+
+```
+NAME                                         READY   STATUS    RESTARTS   AGE
+rabbitmq-otel-collector-6d8c5c5d8d-abc12    1/1     Running   0          2m
+```
+
+**View collector logs to verify pod discovery:**
+
+```bash
+kubectl logs deploy/rabbitmq-otel-collector -n newrelic --tail=50
+```
+
+Look for messages indicating successful pod discovery and metric collection:
+
+```
+INFO    k8sobserver/extension.go:150    Discovered pod  {"kind": "pod", "name": "rabbitmq-0", "namespace": "default"}
+INFO    RabbitmqReceiver                Successfully scraped rabbitmq metrics from pod rabbitmq-0
+```
+
+**Verify data is flowing to New Relic:**
+
+Wait 2-3 minutes for data to appear, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+```sql
+SELECT count(*) 
+FROM Metric 
+WHERE metricName LIKE 'rabbitmq.%' 
+  AND instrumentation.provider = 'opentelemetry' 
+  AND k8s.cluster.name = 'my-rabbitmq-cluster'
+FACET k8s.pod.name, metricName 
+SINCE 10 minutes ago
+```
+
+You should see metrics from each RabbitMQ pod with Kubernetes attributes:
+* `k8s.cluster.name` - Your cluster identifier
+* `k8s.namespace.name` - Pod namespace
+* `k8s.pod.name` - Individual pod name
+* `rabbitmq.deployment.name` - Derived from pod name
+
+<Callout variant="tip">
+  If you don't see data after 5 minutes, check the [troubleshooting section](#troubleshoot) below.
+</Callout>
+
+## Optional: Forward RabbitMQ logs to New Relic [#logs]
+
+To collect logs from RabbitMQ pods in addition to metrics, you can add a Kubernetes logs receiver to your collector configuration.
+
+<Callout variant="important">
+  Log collection requires additional RBAC permissions for the collector. The configuration below includes the necessary permissions.
+</Callout>
+
+**Update your `otel-collector-values.yaml`** to add log collection:
+
+```yaml
+opentelemetry-collector:
+  # ... existing configuration ...
+
+  config:
+    # ... existing extensions and receivers ...
+
+    receivers:
+      receiver_creator/rabbitmq:
+        # ... existing rabbitmq receiver ...
+
+      # Add Kubernetes logs receiver
+      k8scluster:
+        auth_type: serviceAccount
+        collection_interval: 10s
+
+    processors:
+      # ... existing processors ...
+
+      k8sattributes:
+        auth_type: "serviceAccount"
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+            - k8s.node.name
+          labels:
+            - tag_name: app
+              key: app
+              from: pod
+
+      transform/rabbitmq_logs:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], "rabbitmq")
+
+    service:
+      # ... existing extensions and pipelines ...
+
+      pipelines:
+        metrics/rabbitmq:
+          # ... existing metrics pipeline ...
+
+        logs/rabbitmq:
+          receivers: [k8scluster]
+          processors: [k8sattributes, batch, transform/rabbitmq_logs]
+          exporters: [otlphttp]
+```
+
+After updating, apply the changes:
+
+```bash
+helm upgrade rabbitmq-otel-collector \
+  open-telemetry/opentelemetry-collector \
+  --namespace newrelic \
+  --values otel-collector-values.yaml
+```
+
+Verify logs are being collected:
+
+```sql
+SELECT count(*) 
+FROM Log 
+WHERE service.name = 'rabbitmq'
+  AND k8s.cluster.name = 'my-rabbitmq-cluster'
+SINCE 10 minutes ago
+FACET k8s.pod.name
+```
+
+## Troubleshooting common issues [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="no-data" title="No data appearing in New Relic">
+    If metrics aren't appearing in New Relic after deployment:
+
+    **1. Verify RabbitMQ management plugin is enabled:**
+    ```bash
+    kubectl exec <rabbitmq-pod> -n <namespace> -- rabbitmq-plugins list | grep management
+    ```
+    You should see `[E*] rabbitmq_management` indicating it's enabled.
+
+    **2. Check collector pod logs:**
+    ```bash
+    kubectl logs deploy/rabbitmq-otel-collector -n newrelic --tail=100
+    ```
+    Look for:
+    * Pod discovery messages
+    * Authentication errors (incorrect credentials)
+    * Connection errors (network issues)
+    * Parsing errors (configuration problems)
+
+    **3. Verify RabbitMQ service is accessible:**
+    ```bash
+    kubectl get svc -n <rabbitmq-namespace>
+    ```
+    Ensure there's a service exposing port 15672.
+
+    **4. Test management API from within the cluster:**
+    ```bash
+    kubectl run test-pod --image=curlimages/curl:latest --rm -it --restart=Never -- \
+      curl -I -u admin:password http://<rabbitmq-service>.<namespace>.svc.cluster.local:15672/api/overview
+    ```
+    Should return `HTTP/1.1 200 OK`.
+
+    **5. Check RBAC permissions:**
+    ```bash
+    kubectl auth can-i list pods --as=system:serviceaccount:newrelic:rabbitmq-otel-collector -n <rabbitmq-namespace>
+    ```
+    Should return `yes`. If not, verify the ClusterRole and ClusterRoleBinding.
+  </Collapser>
+
+  <Collapser id="pod-discovery" title="Pod discovery not working">
+    If the collector isn't discovering RabbitMQ pods automatically:
+
+    **1. Verify label selector matches your pods:**
+    ```bash
+    kubectl get pods --show-labels -n <rabbitmq-namespace>
+    ```
+    Compare the labels with the `rule` in your Helm values file.
+
+    **2. Check k8s_observer logs:**
+    ```bash
+    kubectl logs deploy/rabbitmq-otel-collector -n newrelic | grep k8sobserver
+    ```
+    Look for messages about discovered pods.
+
+    **3. Test the label selector:**
+    ```bash
+    kubectl get pods -l app=rabbitmq --all-namespaces
+    ```
+    This should list your RabbitMQ pods. If empty, your label selector is incorrect.
+
+    **4. Verify ClusterRole permissions:**
+    ```bash
+    kubectl describe clusterrole rabbitmq-otel-collector
+    ```
+    Ensure it has `get`, `list`, and `watch` permissions on pods.
+
+    **Common label patterns:**
+    * Standard deployments: `app=rabbitmq`
+    * StatefulSets: `app.kubernetes.io/name=rabbitmq`
+    * Operators: `app.kubernetes.io/component=rabbitmq`
+  </Collapser>
+
+  <Collapser id="connection-errors" title="Connection errors">
+    If you see connection errors in the collector logs:
+
+    **Check service endpoints:**
+    ```bash
+    kubectl get endpoints -n <rabbitmq-namespace>
+    ```
+    Verify that endpoints exist for your RabbitMQ service.
+
+    **Verify network policies:**  
+    Ensure network policies allow traffic from the `newrelic` namespace to your RabbitMQ namespace.
+
+    **Test connectivity:**
+    ```bash
+    kubectl run test-pod --image=curlimages/curl:latest --rm -it --restart=Never -n newrelic -- \
+      curl http://<rabbitmq-service>.<namespace>.svc.cluster.local:15672/api/overview
+    ```
+
+    **Check DNS resolution:**
+    ```bash
+    kubectl run test-pod --image=busybox:latest --rm -it --restart=Never -n newrelic -- \
+      nslookup <rabbitmq-service>.<namespace>.svc.cluster.local
+    ```
+  </Collapser>
+
+  <Collapser id="high-cardinality" title="High cardinality warnings">
+    If you see high cardinality warnings in New Relic:
+
+    **Filter to specific queues:**  
+    If monitoring many queues, consider filtering to only critical ones.
+
+    **Increase collection interval:**
+    ```yaml
+    receivers:
+      receiver_creator/rabbitmq:
+        receivers:
+          rabbitmq:
+            config:
+              collection_interval: 60s  # Increased from 30s
+    ```
+
+    **Use metric aggregation:**  
+    Configure the batch processor to aggregate metrics before export.
+
+    **Disable less critical metrics:**  
+    Comment out metrics you don't need in the receiver configuration.
+  </Collapser>
+
+  <Collapser id="collector-crashes" title="Collector pod crashing or restarting">
+    If the collector pod is crashing:
+
+    **Check resource limits:**
+    ```bash
+    kubectl describe pod -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
+    ```
+    Look for OOMKilled status. If so, increase memory limits:
+    ```yaml
+    resources:
+      limits:
+        memory: 512Mi  # Increased from 300Mi
+    ```
+
+    **Review crash logs:**
+    ```bash
+    kubectl logs -n newrelic -l app.kubernetes.io/name=opentelemetry-collector --previous
+    ```
+
+    **Check configuration syntax:**  
+    Ensure your YAML configuration is valid and properly indented.
+  </Collapser>
+</CollapserGroup>
+
+* Use more specific label selectors to monitor only production pods
+* Filter specific queues by name instead of monitoring all queues
+* Increase the `collection_interval` to reduce data points
+* Consider using metric aggregation in the collector
+
+### Authentication failures
+
+If you see `401 Unauthorized` errors:
+
+* Verify credentials in the Helm values match your RabbitMQ setup
+* Check that the RabbitMQ user has administrator privileges:
+  ```bash
+  kubectl exec <rabbitmq-pod> -n <namespace> -- rabbitmqctl list_users
+  ```
+
+* Ensure credentials don't contain special characters that need escaping
+
+## What's next? [#whats-next]
+
+<DocTiles>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/integrations/rabbitmq/metrics-reference">
+    Complete list of metrics with NRQL query examples
+  </DocTile>
+  <DocTile title="Create alerts" path="/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts">
+    Set up alerts for queue depths and pod health
+  </DocTile>
+  <DocTile title="Build dashboards" path="/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards">
+    Create custom dashboards to visualize your RabbitMQ metrics
+  </DocTile>
+</DocTiles>
