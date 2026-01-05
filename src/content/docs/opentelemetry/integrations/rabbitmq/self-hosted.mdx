@@ -1,0 +1,524 @@
+---
+title: Monitor self-hosted RabbitMQ with OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - RabbitMQ
+metaDescription: "Install and configure RabbitMQ OpenTelemetry monitoring for Linux hosts."
+freshnessValidatedDate: 2024-12-24
+---
+
+Monitor RabbitMQ running on Linux hosts by installing and configuring the OpenTelemetry Collector. This comprehensive guide walks you through installation, configuration, and verification for Debian, Ubuntu, RHEL, and CentOS systems.
+
+<Callout variant="tip">
+  **Running RabbitMQ on Kubernetes?** See the [Kubernetes installation guide](/docs/opentelemetry/integrations/rabbitmq/kubernetes) for Helm-based deployment.
+</Callout>
+
+## Before you begin [#requirements]
+
+Before installing the integration, ensure your environment meets these requirements:
+
+<CollapserGroup>
+  <Collapser id="rabbitmq-reqs" title="RabbitMQ requirements">
+    * **Version**: RabbitMQ 3.8 or higher
+    * **Management plugin**: Must be enabled to expose the metrics API
+    * **User account**: Admin user with permissions to access the management API
+  </Collapser>
+
+  <Collapser id="system-reqs" title="System requirements">
+    * **Operating system**: Debian, Ubuntu, RHEL, or CentOS
+    * **Shell access**: User with sudo privileges
+    * **Network**: Outbound HTTPS connectivity to New Relic's OTLP endpoints (`otlp.nr-data.net:4318` or `eu-otlp.nr-data.net:4318`)
+    * **Resources**: Minimum 512MB RAM and 1 CPU core available for the collector
+  </Collapser>
+
+  <Collapser id="newrelic-reqs" title="New Relic requirements">
+    * **Account**: Active New Relic account
+    * **License key**: [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key) for your account
+  </Collapser>
+
+  <Collapser id="software-reqs" title="Software requirements">
+    * **OpenTelemetry Collector**: Contrib version 0.140.0 or higher
+    * **System packages**: `wget`, `systemd` (usually pre-installed)
+  </Collapser>
+</CollapserGroup>
+
+## Installation steps [#install]
+
+Follow these steps in order to set up monitoring for your self-hosted RabbitMQ instance.
+
+### Step 1: Enable the RabbitMQ management plugin [#enable-plugin]
+
+The management plugin exposes the API that the OpenTelemetry Collector scrapes:
+
+```bash
+sudo rabbitmq-plugins enable rabbitmq_management
+```
+
+Verify it's working:
+
+```bash
+curl -I -u admin:password http://localhost:15672/api/overview
+```
+
+You should see `HTTP/1.1 200 OK` in the response.
+
+### Step 2: Install the OpenTelemetry Collector [#install-collector]
+
+Choose your Linux distribution:
+
+<CollapserGroup>
+  <Collapser id="debian-ubuntu" title="Debian / Ubuntu">
+```bash
+VERSION="0.140.0"
+ARCH="amd64"  # Use "arm64" for ARM systems
+
+sudo apt-get update
+sudo apt-get -y install wget systemd
+wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${VERSION}/otelcol-contrib_${VERSION}_linux_${ARCH}.deb
+sudo dpkg -i otelcol-contrib_${VERSION}_linux_${ARCH}.deb
+```
+
+The package installs:
+* Binary: `/usr/bin/otelcol-contrib`
+* Config directory: `/etc/otelcol-contrib/`
+* Systemd service: `otelcol-contrib.service`
+
+Enable and start the service:
+
+```bash
+sudo systemctl enable otelcol-contrib
+sudo systemctl start otelcol-contrib
+```
+
+  </Collapser>
+
+  <Collapser id="rhel-centos" title="RHEL / CentOS">
+```bash
+VERSION="0.140.0"
+ARCH="amd64"  # Use "arm64" for ARM systems
+
+sudo yum update -y
+sudo yum -y install wget systemd
+wget https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${VERSION}/otelcol-contrib_${VERSION}_linux_${ARCH}.rpm
+sudo rpm -ivh otelcol-contrib_${VERSION}_linux_${ARCH}.rpm
+```
+
+The package installs:
+* Binary: `/usr/bin/otelcol-contrib`
+* Config directory: `/etc/otelcol-contrib/`
+* Systemd service: `otelcol-contrib.service`
+
+Enable and start the service:
+
+```bash
+sudo systemctl enable otelcol-contrib
+sudo systemctl start otelcol-contrib
+```
+
+  </Collapser>
+</CollapserGroup>
+
+### Step 3: Configure the collector [#configure]
+
+Create or replace `/etc/otelcol-contrib/config.yaml`:
+
+```yaml
+receivers:
+  rabbitmq:
+    endpoint: http://localhost:15672
+    username: admin
+    password: password
+    collection_interval: 30s
+    metrics:
+      rabbitmq.consumer.count:
+        enabled: true
+      rabbitmq.connection.count:
+        enabled: true
+      rabbitmq.queue.consumer.count:
+        enabled: true
+      rabbitmq.queue.count:
+        enabled: true
+      rabbitmq.queue.message.count:
+        enabled: true
+      rabbitmq.queue.message.ready:
+        enabled: true
+      rabbitmq.queue.message.unacknowledged:
+        enabled: true
+
+processors:
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  resource:
+    attributes:
+      - action: upsert
+        key: rabbitmq.server.endpoint
+        value: http://localhost:15672
+      - action: upsert
+        key: rabbitmq.deployment.name
+        value: my-rabbitmq-server
+
+  batch:
+    timeout: 30s
+    send_batch_size: 512
+
+  transform/rabbitmq_metrics:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+
+exporters:
+  otlphttp/newrelic:
+    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEWRELIC_LICENSE_KEY}
+    compression: gzip
+
+extensions:
+  health_check:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [rabbitmq]
+      processors: [resourcedetection, resource, batch, transform/rabbitmq_metrics]
+      exporters: [otlphttp/newrelic]
+```
+
+Update these values in the configuration:
+
+* `endpoint`: Your RabbitMQ management API URL (default: `http://localhost:15672`)
+* `username` and `password`: Your RabbitMQ credentials
+* `rabbitmq.deployment.name`: A unique name for this RabbitMQ instance
+* `collection_interval`: How often to scrape metrics (default: 30 seconds)
+
+### Step 4: Set environment variables [#env-vars]
+
+Create a systemd override file for environment variables:
+
+```bash
+sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+```
+
+Choose your New Relic region:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="us">US Region</TabsBarItem>
+    <TabsBarItem id="eu">EU Region</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="us">
+
+```bash
+cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+[Service]
+Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+EOF
+```
+
+Replace `YOUR_LICENSE_KEY` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+
+    </TabsPageItem>
+
+    <TabsPageItem id="eu">
+
+```bash
+cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+[Service]
+Environment="NEWRELIC_OTLP_ENDPOINT=https://eu-otlp.nr-data.net:4318"
+Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+EOF
+```
+
+Replace `YOUR_LICENSE_KEY` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+Reload systemd and restart the collector:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart otelcol-contrib
+```
+
+### Step 5: Verify data is flowing to New Relic [#verify]
+
+**Check the service status:**
+
+```bash
+sudo systemctl status otelcol-contrib
+```
+
+You should see `active (running)` in the output.
+
+**View recent logs:**
+
+```bash
+sudo journalctl -u otelcol-contrib -n 50 --no-pager
+```
+
+Look for messages indicating successful metric collection:
+
+```
+INFO    RabbitmqReceiver        Successfully scraped rabbitmq metrics
+```
+
+**Verify metrics in New Relic:**
+
+Wait 2-3 minutes for data to appear, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
+
+```sql
+SELECT count(*) 
+FROM Metric 
+WHERE metricName LIKE 'rabbitmq.%' 
+  AND instrumentation.provider = 'opentelemetry' 
+  AND rabbitmq.deployment.name = 'my-rabbitmq-server'
+FACET metricName 
+SINCE 10 minutes ago
+```
+
+You should see metric names like:
+* `rabbitmq.queue.count` - Number of queues
+* `rabbitmq.queue.message.count` - Total messages across queues
+* `rabbitmq.connection.count` - Active connections
+* `rabbitmq.consumer.count` - Active consumers
+
+<Callout variant="tip">
+  If you don't see data after 5 minutes, check the [troubleshooting section](#troubleshoot) below.
+</Callout>
+
+## Optional: Forward RabbitMQ logs to New Relic [#logs]
+
+In addition to metrics, you can forward RabbitMQ application logs to New Relic for comprehensive observability. This helps correlate issues across metrics and logs.
+
+<Callout variant="important">
+  Log forwarding requires additional configuration and system permissions. Ensure you have the necessary access before proceeding.
+</Callout>
+
+**Update `/etc/otelcol-contrib/config.yaml`** to add the filelog receiver:
+
+```yaml
+receivers:
+  rabbitmq:
+    # ... existing rabbitmq config ...
+
+  filelog:
+    include:
+      - /var/log/rabbitmq/*.log
+    operators:
+      - type: regex_parser
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \[(?P<level>\w+)\] (?P<message>.*)$'
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%d %H:%M:%S.%f'
+      - type: severity_parser
+        parse_from: attributes.level
+        mapping:
+          info: [info, INFO]
+          warn: [warning, WARNING, warn, WARN]
+          error: [error, ERROR, err, ERR]
+          fatal: [critical, CRITICAL]
+
+processors:
+  # ... existing processors ...
+
+  transform/rabbitmq_logs:
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["rabbitmq.display.name"], Concat(["server", attributes["rabbitmq.deployment.name"]], ":"))
+          - set(attributes["service.name"], "rabbitmq")
+
+service:
+  pipelines:
+    metrics:
+      receivers: [rabbitmq]
+      processors: [resourcedetection, resource, batch, transform/rabbitmq_metrics]
+      exporters: [otlphttp/newrelic]
+
+    logs/rabbitmq:
+      receivers: [filelog]
+      processors: [batch, resource, transform/rabbitmq_logs]
+      exporters: [otlphttp/newrelic]
+```
+
+Grant the collector permission to read logs. Choose one method:
+
+**Add to rabbitmq group:**
+```bash
+sudo usermod -a -G rabbitmq otelcol-contrib
+```
+
+**Or set file permissions:**
+```bash
+sudo chmod 644 /var/log/rabbitmq/*.log
+```
+
+Restart the collector:
+
+```bash
+sudo systemctl restart otelcol-contrib
+```
+
+Verify logs are being collected in New Relic:
+
+```sql
+SELECT count(*) 
+FROM Log 
+WHERE service.name = 'rabbitmq'
+  AND rabbitmq.deployment.name = 'my-rabbitmq-server'
+SINCE 10 minutes ago
+```
+
+## Troubleshooting common issues [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser id="no-data" title="No data appearing in New Relic">
+    If you don't see metrics in New Relic after installation:
+
+    **1. Verify the management plugin is enabled:**
+    ```bash
+    sudo rabbitmq-plugins list | grep management
+    ```
+    You should see `[E*] rabbitmq_management` indicating it's enabled and running.
+
+    **2. Test the management API:**
+    ```bash
+    curl -u admin:password http://localhost:15672/api/overview
+    ```
+    This should return JSON data about your RabbitMQ instance. If not, the management plugin isn't working correctly.
+
+    **3. Check collector logs for errors:**
+    ```bash
+    sudo journalctl -u otelcol-contrib -f
+    ```
+    Look for:
+    * Authentication errors (incorrect username/password)
+    * Connection timeouts (network issues)
+    * Parsing errors (configuration syntax problems)
+
+    **4. Verify the collector service is running:**
+    ```bash
+    sudo systemctl status otelcol-contrib
+    ```
+    Should show `active (running)`. If not, check logs for why it failed to start.
+
+    **5. Check your license key:**
+    ```bash
+    sudo cat /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+    ```
+    Ensure `NEWRELIC_LICENSE_KEY` is set correctly and has no extra spaces or quotes.
+  </Collapser>
+
+  <Collapser id="connection-refused" title="Connection refused errors">
+    If you see `connection refused` in the collector logs:
+
+    **Verify RabbitMQ is listening on port 15672:**
+    ```bash
+    sudo netstat -tlnp | grep 15672
+    ```
+    You should see RabbitMQ listening. If not, the management plugin isn't enabled or isn't binding to the expected port.
+
+    **Check firewall rules:**
+    ```bash
+    sudo iptables -L -n | grep 15672
+    ```
+    Ensure no firewall rules are blocking port 15672.
+
+    **Verify endpoint configuration:**  
+    Ensure the `endpoint` in `/etc/otelcol-contrib/config.yaml` matches your RabbitMQ setup (hostname, port).
+  </Collapser>
+
+  <Collapser id="auth-failures" title="Authentication failures (401 Unauthorized)">
+    If you see `401 Unauthorized` errors:
+
+    **Verify credentials:**  
+    Check that the username and password in `/etc/otelcol-contrib/config.yaml` match your RabbitMQ user.
+
+    **Ensure administrator privileges:**
+    ```bash
+    sudo rabbitmqctl list_users
+    ```
+    Your user should have the `[administrator]` tag. If not, grant admin privileges:
+    ```bash
+    sudo rabbitmqctl set_user_tags your-username administrator
+    ```
+  </Collapser>
+
+  <Collapser id="high-memory" title="High memory or CPU usage">
+    If the collector consumes excessive resources:
+
+    **Reduce batch size:**  
+    In the `batch` processor, reduce `send_batch_size` from 512 to 256 or lower.
+
+    **Increase collection interval:**  
+    Change `collection_interval` from 30s to 60s or longer to scrape less frequently.
+
+    **Disable unnecessary metrics:**  
+    Comment out metrics you don't need in the `rabbitmq` receiver configuration.
+
+    Example:
+    ```yaml
+    receivers:
+      rabbitmq:
+        collection_interval: 60s  # Increased
+        metrics:
+          rabbitmq.queue.message.count:
+            enabled: true
+          # Disable less critical metrics
+          # rabbitmq.queue.count:
+          #   enabled: false
+    ```
+  </Collapser>
+
+  <Collapser id="log-permissions" title="Permission denied for logs">
+    If you see permission errors when collecting logs:
+
+    **Test file access:**
+    ```bash
+    sudo -u otelcol-contrib cat /var/log/rabbitmq/rabbit@$(hostname).log
+    ```
+    If this fails, the collector user can't read the log files.
+
+    **Check file permissions:**
+    ```bash
+    ls -la /var/log/rabbitmq/
+    ```
+
+    **Fix permissions:**  
+    Add the collector user to the rabbitmq group:
+    ```bash
+    sudo usermod -a -G rabbitmq otelcol-contrib
+    sudo systemctl restart otelcol-contrib
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## What's next? [#whats-next]
+
+<DocTiles>
+  <DocTile title="Metrics reference" path="/docs/opentelemetry/integrations/rabbitmq/metrics-reference">
+    Complete list of metrics with NRQL query examples
+  </DocTile>
+  <DocTile title="Create alerts" path="/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts">
+    Set up alerts for queue depths and message backlogs
+  </DocTile>
+  <DocTile title="Build dashboards" path="/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards">
+    Create custom dashboards to visualize your RabbitMQ metrics
+  </DocTile>
+</DocTiles>
