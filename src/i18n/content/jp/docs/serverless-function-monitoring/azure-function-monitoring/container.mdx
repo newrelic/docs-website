@@ -1,0 +1,281 @@
+---
+title: コンテナ化されたインストゥルメンテーション
+metaDescription: Configure your Azure Functions with New Relic for Linux
+tags:
+  - Azure Functions
+  - Linux
+  - Instrumentation
+  - Configuration
+  - New Relic .NET Agent
+  - New Relic Python Agent
+  - New Relic Node.js Agent
+  - New Relic Azure Websites Extension
+  - Environment Variables
+  - Dockerfile
+  - Containerized Functions
+freshnessValidatedDate: never
+translationType: machine
+---
+
+コンテナー化されたAzure関数を使用している場合は、 New Relic .NET エージェント、 Pythonエージェント、またはNode.jsエージェントを使用してAzure Functions監視できます。 これによりAzure Functionsのパフォーマンスと正常性を監視できるようになります。
+
+<Steps>
+  <Step>
+    ## 前提条件 [#begin]
+
+    * Azure Function が[互換性と要件](/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring)を満たしていることを確認します。
+    * Azure アカウントを New Relic にリンクします。詳細については、 [Azureインテグレーション」](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-functions-monitoring-integration/#polling)を参照してください。
+  </Step>
+
+  <Step>
+    ## Azure Functions の監視を構成する
+
+    さまざまな環境や、ランタイムとデプロイメント方法のさまざまな組み合わせに対して、Azure Functions の監視を構成できます。次の手順では、コンテナー化された Azure Function Apps 用に New Relic を構成する方法について詳しく説明します。
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="node">Node.js</TabsBarItem> <TabsBarItem id="python">Python</TabsBarItem> <TabsBarItem id="net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="node">
+          1. 関数ファイルを編集して、アプリケーション ファイルの先頭に次のコードを追加します。
+
+          ```dockerfile
+          ENV NEW_RELIC_LICENSE_KEY="YOUR_NEW_RELIC_LICENSE_KEY"
+          ENV NEW_RELIC_APP_NAME="YOUR_APPLICATION_NAME"
+          # ENV NEW_RELIC_HOST='staging-collector.newrelic.com'
+          # Uncomment the previous line if using staging
+          # Inject the agent in NODE_OPTIONS
+
+          ENV NODE_OPTIONS="-r newrelic"
+          # Install New Relic without bin links
+
+          ARG AGENT_VERSION=latest
+          RUN npm install newrelic@$AGENT_VERSION --no-bin-links
+          ```
+
+          2. 次のコマンドを実行して、プラットフォームの要件に従って Docket イメージをビルドします。
+
+          ```bash
+          docker buildx build --platform=YOUR_PLATFORM_ARCHITECTURE --tag YOUR_DOCKER_ID/azurefunctionsimage:v1.0.0 --push
+          ```
+
+          <Callout variant="important">
+            `YOUR_PLATFORM_ARCHITECTURE` Azure関数の適切なアーキテクチャーに置き換えてください。 たとえば、64 ビット Linux の場合は`linux/amd64` 、ARM アーキテクチャーの場合は`linux/arm64`を使用します。
+          </Callout>
+
+          3. 次のコマンドを実行して、イメージをAzureコンテナー レジストリ (ACR) に発行します。
+
+             1. Azureコンテナ レジストリを認証します。
+
+             ```bash
+             az acr login --name YOUR_CONTAINER_REGISTRY_NAME
+             ```
+
+             2. 次のコマンドを実行して、ローカルにビルドしたイメージに ACR ログイン サーバーをタグ付けします。
+
+             ```bash
+             docker tag YOUR_DOCKER_ID/azurefunctionsimage:v1.0.0 YOUR_LOGIN_SERVER/azurefunctionsimage:v1.0.0
+             ```
+
+             3. 次のコマンドを実行して、タグ付けされたイメージを ACR にプッシュします。
+
+             ```bash
+             docker push YOUR_LOGIN_SERVER/azurefunctionsimage:v1.0.0
+             ```
+
+             4. [Azure ドキュメント](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container-apps?tabs=acr%2Cbash&pivots=programming-language-javascript#create-supporting-azure-resources-for-your-function)を使用して、Azure Function App に必要な Azure リソースを作成します。
+
+             5. 前の手順で ACR にプッシュしたイメージを使用して、Azure Function App を作成して構成します。詳細については、 [Azure のドキュメント](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container-apps?tabs=acr%2Cbash&pivots=programming-language-javascript#create-and-configure-a-function-app-on-azure-with-the-image)を参照してください。
+
+             6. 次のコマンドを実行して、プロイメント後のAzure Function App URL を取得します。
+
+             ```bash
+             az functionapp show --name YOUR_APPLICATION_NAME --resource-group NAME_OF_THE_APPS_RESOURCE_GROUP
+             ```
+        </TabsPageItem>
+
+        <TabsPageItem id="python">
+          New Relic Python エージェントをインストールするには、 `Dockerfile`の最終ステージに次の行を追加します。
+
+          ```dockerfile
+          FROM mcr.microsoft.com/azure-functions/python:4-python3.11
+
+          # These commands will not be required once the 
+          # New Relic Python Agent releases this feature
+          RUN apt-get update
+          RUN apt-get -y install git 
+
+          ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+              AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+          RUN pip install newrelic
+
+          # Install any other dependencies
+          COPY requirements.txt /
+          RUN pip install -r /requirements.txt
+          COPY . /home/site/wwwroot
+          ```
+
+          <Callout variant="tip">
+            上記の例は、Python 3.11 Azure 関数用です。要件に合わせて Python のバージョンを変更できます。
+          </Callout>
+
+          Dockerイメージを構築したら、そのイメージをAzureコンテナー レジストリに公開します。 詳細については、 [Azure のドキュメント](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deploy-container?tabs=acr%2Cbash%2Cazure-cli&pivots=programming-language-python#publish-the-container-image-to-a-registry)を参照してください。
+        </TabsPageItem>
+
+        <TabsPageItem id="net">
+          New Relic .NET エージェントをインストールするには、Docker ファイルの最終段階に次の行を追加します。
+
+          ```dockerfile
+          # Install the latest New Relic .NET agent using the apt-get package manager
+          # To install a specific version of the .NET agent, add the version number to the apt-get install line (i.e. apt-get install -y newrelic-dotnet-agent=10.38.0)
+          RUN apt-get update && apt-get install -y wget ca-certificates gnupg \
+              && echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+              && wget https://download.newrelic.com/548C16BF.gpg \
+              && apt-key add 548C16BF.gpg \
+              && apt-get update \
+              && apt-get install -y newrelic-dotnet-agent \
+              && rm -rf /var/lib/apt/lists/*
+          ```
+
+          アプリケーションをデプロイすると、.NET エージェントが`/usr/local/newrelic-dotnet-agent`フォルダーにインストールされます。
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## 環境変数を設定する
+
+    Azure Function アプリを公開したら、[環境変数を構成します](/docs/serverless-function-monitoring/azure-function-monitoring/env-variables-azure)。
+
+    1. AzureポータルでAzure Functions に移動します。
+    2. **Settings** \[設定] で**Environment variables** \[環境変数]をクリックし、 **Advanced edit** \[詳細編集]をクリックします。
+    3. デプロイメント ランタイムに基づいて、次の値を貼り付けます。
+
+    <Callout variant="important">
+      既存の最後の行の末尾に必ずカンマを追加し、次の設定でライセンスキーを更新してください。
+    </Callout>
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="nodejs">Node.js</TabsBarItem> <TabsBarItem id="py">Python</TabsBarItem> <TabsBarItem id=".net">.NET</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="nodejs">
+          ```json
+          {
+            "NODE_OPTIONS": "-r newrelic",
+            "NEW_RELIC_LICENSE_KEY": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "NEW_RELIC_APP_NAME": "NAME_OF_YOUR_AZURE_FUNCTION_APP"
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id="py">
+          ```json
+          {
+            "name": "PYTHON_ENABLE_WORKER_EXTENSIONS",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "FUNCTIONS_WORKER_RUNTIME",
+            "value": "python",
+            "slotSetting": false
+          }, 
+          {
+            "name": "PYTHONPATH",
+            "value": "${PYTHONPATH}:/home/site/wwwroot:/home/site/wwwroot/.python_packages/lib/site-packages",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_APP_NAME",
+            "value": "YOUR_NEW_RELIC_APP_NAME",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+
+        <TabsPageItem id=".net">
+          ```json
+          {
+            "name": "CORECLR_ENABLE_PROFILING",
+            "value": "1",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_NEW_RELIC_HOME",
+            "value": "/home/site/wwwroot/newrelic",
+            "slotSetting": false
+          },
+          {
+            "name": "CORECLR_PROFILER",
+            "value": "{36032161-FFC0-4B61-B559-F6C5D41BAE5A}",
+            "slotSetting": false
+          }, 
+          {
+            "name": "CORECLR_PROFILER_PATH",
+            "value": "/home/site/wwwroot/newrelic/libNewRelicProfiler.so",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LOG_DIRECTORY",
+            "value": "/home/LogFiles/NewRelic",
+            "slotSetting": false
+          },
+          {
+            "name": "NEW_RELIC_LICENSE_KEY",
+            "value": "YOUR_NEW_RELIC_LICENSE_KEY",
+            "slotSetting": false
+          }
+          ```
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ## Azure Functionsを再起動します
+
+    環境変数を追加したら、 Azure Functions を再起動して変更を適用します。
+  </Step>
+
+  <Step>
+    ## データを見つけて使用する [#find-data]
+
+    Azure 関数を構成したら、New Relic UI でデータを検索して使用できるようになります。
+
+    1. [https://one.newrelic.com](https://one.newrelic.com) &gt; **APM &amp; Services**に移動します。
+
+    2. 検索バナーで、検索条件を`isAzureFunction = true`として設定します。
+
+       <img title="Azure Function Search" alt="A screenshot showing the Azure Function search" src="/images/azure_filters.webp" />
+
+    3. 表示されたリストから、データを表示する Azure 関数を選択します。
+  </Step>
+</Steps>
+
+## 関連記事 [#related-docs]
+
+<DocTiles>
+  <DocTile title="互換性と要件" path="/docs/serverless-function-monitoring/azure-function-monitoring/compatibility-requirement-azure-monitoring">
+    Azure Functions の要件
+  </DocTile>
+
+  <DocTile title="Linux計装" path="/docs/serverless-function-monitoring/azure-function-monitoring/linux">
+    Azure Functions for Linux をNew Relicで監視できるようにセットアップする方法について説明します。
+  </DocTile>
+
+  <DocTile title="Windows計装" path="/docs/serverless-function-monitoring/azure-function-monitoring/windows">
+    Azure Functions for Windowsをセットアップして、 New Relicで監視する方法を学びます。
+  </DocTile>
+</DocTiles>
