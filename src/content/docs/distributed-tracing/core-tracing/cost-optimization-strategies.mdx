@@ -1,0 +1,449 @@
+---
+title: Optimize distributed tracing costs
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Core Tracing
+  - Cost optimization
+metaDescription: Use Core Tracing to reduce distributed tracing costs by 30-70% while maintaining critical system visibility.
+freshnessValidatedDate: never
+---
+
+Core Tracing gives you precise control over distributed tracing costs through configurable data volume and granularity settings. This guide shows you how to strategically reduce costs while keeping the visibility you need for troubleshooting and monitoring.
+
+## Understand your tracing costs [#understand-costs]
+
+Distributed tracing costs come from two main factors:
+
+### Ingest costs
+
+You're charged for the data volume (GB) of span data ingested. Span data includes:
+* Number of spans (affected by [minimal spans tracing](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing))
+* Size of each span (affected by [low-granularity tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing))
+* Sampling rate (affected by [adaptive sampling configuration](/docs/distributed-tracing/core-tracing/configure-adaptive-sampling-rate))
+
+### Compute (CCU) costs
+
+Querying and visualizing trace data consumes compute units. While Core Tracing primarily addresses ingest costs, reducing data volume can also improve query performance.
+
+### Measure your baseline
+
+Before optimizing, establish your current costs:
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily Span GB'
+FROM Span
+SINCE 1 day ago
+```
+
+This gives you a starting point to measure improvement against.
+
+## Cost reduction strategies [#strategies]
+
+Core Tracing offers four strategies you can use individually or in combination:
+
+### Strategy 1: Low-granularity tracing for non-critical services
+
+**What it does:** Reduces span size by limiting attributes
+**Typical savings:** 30-45% reduction in ingest volume
+**Best for:** Supporting services, internal APIs, background workers
+
+Use [LGT](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) on services where you need connectivity data but not detailed metadata. You'll still see service-to-service calls in your flow maps and traces, just with fewer attributes per span.
+
+**Example scenario:**
+You have 50 microservices. The 15 most critical handle customer transactions. The other 35 are supporting services (auth, notifications, logging, etc.).
+
+* Keep full DT on 15 critical services
+* Enable LGT on 35 supporting services
+* **Result:** ~25% overall cost reduction
+
+### Strategy 2: Minimal spans tracing across all services
+
+**What it does:** Reduces number of spans by filtering span types
+**Typical savings:** 50-70% reduction in span count
+**Best for:** Services with deep call stacks, high-throughput services
+
+Use [MST](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to eliminate in-process spans while keeping entry and exit spans. This dramatically reduces span volume without losing service-to-service visibility.
+
+**Example scenario:**
+Your Java services generate 5-10 in-process spans per request, but you rarely drill into that level of detail.
+
+* Enable MST ("entry and exit only" mode) on all services
+* **Result:** ~55% cost reduction
+
+### Strategy 3: Combined MST + LGT for maximum reduction
+
+**What it does:** Reduces both span count and span size
+**Typical savings:** 60-80% reduction in total data volume
+**Best for:** Large deployments, cost-critical situations, non-production environments
+
+Combine MST and LGT on services where you only need the "big picture" connectivity.
+
+**Example scenario:**
+You have extensive staging and development environments that mirror production.
+
+* Production: Full DT on critical services, MST on others
+* Staging: MST + LGT on all services
+* Development: MST + LGT on all services
+* **Result:** ~70% reduction in non-production costs
+
+### Strategy 4: Adjust adaptive sampling rates
+
+**What it does:** Controls how many traces are sampled per minute
+**Typical savings:** 10-30% depending on adjustment
+**Best for:** Fine-tuning after implementing MST/LGT
+
+Lower sampling rates on services that don't require high trace capture rates.
+
+**Example scenario:**
+Your services use the default 10 traces/minute, but you find that 5 traces/minute provides adequate coverage.
+
+* Reduce sampling to 5 traces/minute on non-critical services
+* **Result:** Additional 10-15% reduction on top of MST/LGT savings
+
+## Service prioritization framework [#prioritization]
+
+Not all services need the same level of tracing detail. Use this framework to decide which Core Tracing configuration to apply:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Service category
+      </th>
+      <th>
+        Recommended configuration
+      </th>
+      <th>
+        Rationale
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **Business-critical**
+
+        Customer-facing transactions, payment processing, checkout flows
+      </td>
+      <td>
+        Full distributed tracing (no Core Tracing)
+      </td>
+      <td>
+        Keep maximum detail for troubleshooting customer-impacting issues. Cost is justified by business importance.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Important services**
+
+        Core APIs, authentication, main business logic
+      </td>
+      <td>
+        MST only (entry and exit spans)
+      </td>
+      <td>
+        Maintain service-to-service visibility while reducing span volume. You can still see the flow, just without internal method details.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Supporting services**
+
+        Logging, metrics, notifications, caching
+      </td>
+      <td>
+        MST + LGT
+      </td>
+      <td>
+        Need connectivity data for complete traces, but rarely need detailed attributes. Maximum cost reduction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Internal tools**
+
+        Admin panels, dashboards, reporting
+      </td>
+      <td>
+        MST + LGT + reduced sampling
+      </td>
+      <td>
+        Low usage, low priority. Minimal tracing provides adequate visibility at lowest cost.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Non-production**
+
+        Development, staging, QA environments
+      </td>
+      <td>
+        MST + LGT
+      </td>
+      <td>
+        Need to test trace propagation but don't need production-level detail. Significant savings opportunity.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Create your service inventory
+
+Map your services to these categories:
+
+1. List all services currently sending distributed tracing data
+2. Categorize each service using the framework above
+3. Note current span volume per service:
+   ```sql
+   SELECT count(*) as 'Span Count'
+   FROM Span
+   FACET entity.name
+   SINCE 1 day ago
+   ```
+4. Prioritize configuration rollout starting with supporting services (lowest risk)
+
+## Calculate your potential savings [#calculate]
+
+Use this approach to estimate savings before implementing:
+
+### Step 1: Measure current ingest
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB',
+       (bytecountestimate() / 1e9) * 30 as 'Monthly GB'
+FROM Span
+SINCE 1 day ago
+```
+
+### Step 2: Estimate reduction by configuration
+
+Break down by service category and apply reduction percentages:
+
+```sql
+SELECT
+  bytecountestimate() / 1e9 as 'Daily GB',
+  CASE
+    WHEN entity.name IN ('critical-service-1', 'critical-service-2')
+      THEN 'Full DT'
+    WHEN entity.name IN ('important-api-1', 'important-api-2')
+      THEN 'MST only (-55%)'
+    ELSE 'MST + LGT (-70%)'
+  END as 'Configuration'
+FROM Span
+FACET entity.name
+SINCE 1 day ago
+```
+
+### Step 3: Calculate expected cost
+
+Example calculation:
+
+| Current state | After Core Tracing |
+|---------------|-------------------|
+| 100 GB/day baseline | |
+| 20 GB (20%): Critical services keep full DT | 20 GB (no change) |
+| 30 GB (30%): Important services use MST | 13.5 GB (55% reduction) |
+| 50 GB (50%): Supporting services use MST + LGT | 15 GB (70% reduction) |
+| **Total: 100 GB/day** | **Total: 48.5 GB/day** |
+
+**Result:** 51.5% overall cost reduction
+
+## Rollout approach [#rollout]
+
+Implement Core Tracing gradually to minimize risk:
+
+### Phase 1: Baseline and planning (Week 1)
+
+1. Measure current ingest volume and costs
+2. Categorize all services using the prioritization framework
+3. Identify 2-3 low-risk services for pilot (supporting services ideal)
+4. Document current troubleshooting workflows that rely on detailed spans
+
+### Phase 2: Pilot deployment (Weeks 2-3)
+
+1. Enable Core Tracing on pilot services:
+   * Week 2: LGT only on 2-3 services
+   * Week 3: Add MST to those services
+2. Monitor daily ingest volume:
+   ```sql
+   SELECT bytecountestimate() / 1e9 as 'Daily GB'
+   FROM Span
+   WHERE entity.name IN ('pilot-service-1', 'pilot-service-2')
+   SINCE 1 day ago
+   TIMESERIES
+   ```
+3. Verify trace completeness in UI
+4. Confirm Dynamic Flow Maps still show all connections
+5. Gather feedback from team
+
+### Phase 3: Expand to supporting services (Weeks 4-6)
+
+1. Apply MST + LGT to all supporting services
+2. Monitor aggregate impact on costs
+3. Address any issues discovered
+4. Document lessons learned
+
+### Phase 4: Optimize important services (Weeks 7-9)
+
+1. Apply MST (without LGT) to important services
+2. Verify troubleshooting workflows still work
+3. Fine-tune configurations based on actual usage
+
+### Phase 5: Continuous optimization (Ongoing)
+
+1. Review configurations quarterly
+2. Adjust as service priorities change
+3. Monitor for new services to configure
+4. Track cost savings over time
+
+<Callout variant="tip">
+  Don't rush the rollout. Taking 2-3 months to implement Core Tracing carefully is better than rushing and losing critical visibility.
+</Callout>
+
+## Track your cost impact [#track]
+
+Monitor the effectiveness of your Core Tracing implementation:
+
+### Daily ingest tracking
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB'
+FROM Span
+FACET CASES (
+  WHERE nr.lowGranularity IS NULL as 'Full DT',
+  WHERE nr.lowGranularity = true as 'LGT'
+)
+SINCE 7 days ago
+TIMESERIES 1 day
+```
+
+### Span count by configuration
+
+```sql
+SELECT count(*) as 'Span Count'
+FROM Span
+FACET entity.name, nr.lowGranularity
+SINCE 1 day ago
+```
+
+### Cost savings dashboard
+
+Create a dashboard with these charts:
+
+1. **Total ingest over time:** Track overall GB/day trend
+2. **Ingest by configuration type:** Compare Full DT vs LGT vs MST
+3. **Span count by service:** Identify high-volume services
+4. **Cost reduction percentage:** Calculate savings vs baseline
+
+Example query for cost reduction:
+
+```sql
+SELECT
+  (bytecountestimate() / 1e9) as 'Current GB',
+  (bytecountestimate() / 1e9) / YOUR_BASELINE_GB * 100 as '% of Baseline'
+FROM Span
+SINCE 1 day ago
+```
+
+## Balance cost and visibility [#balance]
+
+Core Tracing is about smart trade-offs, not blind cost-cutting. Follow these principles:
+
+### What not to sacrifice
+
+* **Error visibility:** Always capture errors, even with MST + LGT
+* **Critical paths:** Keep full DT on customer-facing transactions
+* **Regulatory requirements:** Some industries require detailed audit trails
+* **Active incidents:** Temporarily increase detail when troubleshooting
+
+### Warning signs you've over-optimized
+
+Watch for these indicators that you've gone too far:
+
+1. **Troubleshooting time increases:** Teams struggle to diagnose issues
+2. **Incomplete traces:** Services missing from trace visualizations
+3. **Team complaints:** Engineers request "more detail" frequently
+4. **Failed root cause analysis:** Can't determine cause of incidents
+
+If you see these signs, dial back Core Tracing on affected services.
+
+### Adjust configurations dynamically
+
+You can change Core Tracing settings anytime:
+
+* **During incidents:** Temporarily switch to full DT for affected services
+* **After deployments:** Increase detail for 24-48 hours post-deploy
+* **During peak seasons:** Keep more detail during high-traffic periods
+
+Remember: the agent configuration can be updated and will take effect after restart. Plan configuration changes during maintenance windows when possible.
+
+## Real-world cost optimization examples [#examples]
+
+### Example 1: E-commerce platform (150 services)
+
+**Situation:**
+* 150 microservices
+* $12,000/month distributed tracing costs
+* Needed to reduce by ~50%
+
+**Approach:**
+* Full DT: 10 customer-facing services (checkout, payment, cart)
+* MST only: 30 core services (inventory, pricing, search)
+* MST + LGT: 110 supporting services (logging, notifications, analytics)
+
+**Results:**
+* Reduced ingest from 450 GB/day to 210 GB/day (53% reduction)
+* Saved ~$6,300/month
+* Maintained full visibility on critical customer paths
+
+### Example 2: SaaS startup (25 services)
+
+**Situation:**
+* 25 services
+* Limited budget, new to distributed tracing
+* Wanted coverage without high costs
+
+**Approach:**
+* Started with LGT on all 25 services
+* After 2 months, upgraded 5 core services to full DT
+* Kept LGT on 20 supporting services
+
+**Results:**
+* Light-weight entry into distributed tracing
+* Complete service map on day one
+* Gradual increase in detail as value proven
+
+### Example 3: Enterprise (500+ services)
+
+**Situation:**
+* 500+ microservices
+* Non-production environments mirroring production
+* Production DT costs acceptable, but dev/staging was wasteful
+
+**Approach:**
+* Production: Tiered strategy (Full DT / MST / MST+LGT by priority)
+* Staging: MST + LGT on all services
+* Development: MST + LGT + reduced sampling
+
+**Results:**
+* 75% reduction in non-production costs
+* Production costs down 35%
+* Complete traces in all environments
+
+## What's next [#whats-next]
+
+Ready to optimize your costs?
+
+1. [Configure minimal spans tracing](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to reduce span volume
+2. [Configure low-granularity tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) to reduce span size
+3. [Review use cases](/docs/distributed-tracing/core-tracing/use-cases-examples) for more real-world scenarios
+
+<Callout variant="tip">
+  Need help planning your Core Tracing strategy? Contact your New Relic account team or [New Relic Support](https://support.newrelic.com) for guidance.
+</Callout>
