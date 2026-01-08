@@ -8,7 +8,7 @@ freshnessValidatedDate: never
 
 This guide provides complete setup instructions for monitoring self-hosted NGINX with OpenTelemetry. Follow these steps to configure your NGINX server, OpenTelemetry Collector, and New Relic integration.
 
-<Callout variant="important">
+{/* <Callout variant="important">
   **Before you start**: Review the [NGINX OpenTelemetry overview](/docs/opentelemetry/nginx/nginx-otel-overview/) to understand what you'll monitor and the benefits of this integration.
 
   **Other NGINX monitoring options:**
@@ -18,7 +18,7 @@ This guide provides complete setup instructions for monitoring self-hosted NGINX
 
 <Callout variant="tip">
 **Setup time**: approximately 20 minutes | **Skill level**: Intermediate (requires basic Linux/NGINX knowledge)
-</Callout>
+</Callout> */}
 
 ## Before you begin [#prerequisites]
 
@@ -33,19 +33,19 @@ Before you start, ensure you have:
 
 ### Verify your setup
 
-**Check NGINX status module:**
+Check NGINX status module:
 ```bash
 nginx -V 2>&1 | grep -o with-http_stub_status_module
 ```
 Expected output: `with-http_stub_status_module`
 
-**Check OpenTelemetry Collector:**
+Check OpenTelemetry Collector:
 ```bash
 otelcol-contrib --version
 ```
 Expected output: Version information (minimum v0.88.0 required)
 
-**Test network connectivity:**
+Test network connectivity:
 ```bash
 # For US region
 curl -I https://otlp.nr-data.net:443
@@ -81,24 +81,24 @@ server {
 
 ### Apply the configuration
 
-1. **Test your NGINX configuration:**
+1. Test your NGINX configuration:
    ```bash
    sudo nginx -t
    ```
 
-2. **If the test passes, reload NGINX:**
+2. If the test passes, reload NGINX:
    ```bash
    sudo nginx -s reload
    ```
 
 ### Verify stub status is working
 
-**Test the endpoint:**
+Test the endpoint:
 ```bash
 curl http://127.0.0.1:8080/nginx_status
 ```
 
-**Expected output:**
+Expected output:
 ```
 Active connections: 1
 server accepts handled requests
@@ -106,14 +106,14 @@ server accepts handled requests
 Reading: 0 Writing: 1 Waiting: 0
 ```
 
-**Test the HTTP response:**
+Test the HTTP response:
 ```bash
 curl -I http://127.0.0.1:8080/nginx_status
 ```
 
 Expected output: Should start with `HTTP/1.1 200 OK`
 
-### Troubleshooting
+### Troubleshooting stub status configuration
 
 <CollapserGroup>
   <Collapser id="troubleshoot-404" title="Getting 404 Not Found">
@@ -154,26 +154,35 @@ Configure the OpenTelemetry Collector to scrape metrics from your NGINX stub sta
 
 ### Understanding the configuration
 
-The OpenTelemetry Collector uses three main components:
-- **Receivers**: Collect metrics from NGINX
-- **Processors**: Add metadata and batch metrics for efficient sending
-- **Exporters**: Send processed metrics to New Relic
+The OpenTelemetry Collector uses three main components for NGINX monitoring:
 
-### Update the Collector configuration
+- **Receivers** - Connect to your NGINX stub status endpoint every 30 seconds to collect metrics
+- **Processors** - Add server identification and batch metrics for efficient transmission
+- **Exporters** - Send the processed metrics to your New Relic account via OTLP
 
-Edit your Collector configuration file (typically `/etc/otelcol-contrib/config.yaml`):
+### Prepare your environment
+
+Before editing the configuration, you'll need two key pieces of information:
+
+1. **Your stub status URL** - From Step 1 (default: `http://127.0.0.1:8080/nginx_status`)
+2. **A unique deployment name** - Choose a name that identifies this specific NGINX server (e.g., `production-web-01`, `staging-api`, `prod-lb-01`)
+
+The deployment name will appear in New Relic dashboards and helps you identify specific servers when you have multiple NGINX instances.
+
+### Backup and edit the Collector configuration
 
 <Callout variant="important">
 **Before editing:** Back up your existing configuration: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
 </Callout>
 
-Add this configuration to your existing file (merge with any existing sections):
+Edit your Collector configuration file (typically `/etc/otelcol-contrib/config.yaml`) and add the following sections. If you already have receivers, processors, or exporters sections, merge these with your existing configuration:
 
+**1. Configure the NGINX receiver:**
 ```yaml
 receivers:
   nginx:
-    endpoint: http://127.0.0.1:8080/nginx_status  # Match your stub status URL
-    collection_interval: 30s                      # Collect metrics every 30 seconds
+    endpoint: http://127.0.0.1:8080/nginx_status  # Replace with your stub status URL
+    collection_interval: 30s                      # How often to collect metrics
     metrics:
       nginx.requests:
         enabled: true
@@ -183,7 +192,10 @@ receivers:
         enabled: true
       nginx.connections_current:
         enabled: true
+```
 
+**2. Configure processors for metadata and batching:**
+```yaml
 processors:
   # Detect system information (hostname, etc.)
   resourcedetection:
@@ -195,14 +207,14 @@ processors:
         host.id:
           enabled: true
 
-  # Add NGINX-specific resource attributes
+  # Add NGINX-specific identification
   resource:
     attributes:
       - key: nginx.server.endpoint
-        value: "http://127.0.0.1:8080/nginx_status"  # Your endpoint
+        value: "http://127.0.0.1:8080/nginx_status"  # Replace with your endpoint
         action: upsert
       - key: nginx.deployment.name
-        value: "production-web-01"                    # Unique server name
+        value: "production-web-01"                    # Replace with your server name
         action: upsert
 
   # Batch metrics for efficient sending
@@ -216,14 +228,20 @@ processors:
       - context: resource
         statements:
           - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+```
 
+**3. Configure the New Relic exporter:**
+```yaml
 exporters:
   # Send metrics to New Relic via OTLP
   otlphttp/newrelic:
     endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
     headers:
       api-key: ${env:NEWRELIC_LICENSE_KEY}
+```
 
+**4. Connect everything with a pipeline:**
+```yaml
 service:
   pipelines:
     metrics:
@@ -232,115 +250,196 @@ service:
       exporters: [otlphttp/newrelic]
 ```
 
-### Customize for your environment
+### Customize the configuration
 
-**Replace these placeholders:**
+**Replace these values in the configuration above:**
 
-1. **Endpoint URL**: Update `http://127.0.0.1:8080/nginx_status` to match your stub status configuration
-2. **Deployment name**: Change `production-web-01` to a unique identifier for this NGINX server (e.g., `staging-api`, `prod-lb-01`)
+1. **Endpoint URL**: Change `http://127.0.0.1:8080/nginx_status` to match your stub status configuration from Step 1
+2. **Deployment name**: Replace `production-web-01` with a unique identifier for this NGINX server
 
-**Why the deployment name matters:**
-- It helps identify specific servers in New Relic dashboards
-- Must be unique within your New Relic account
-- Used for filtering and alerting
+**Choosing a good deployment name:**
+- Use descriptive names like `production-web-01`, `staging-api`, or `prod-lb-01`
+- Must be unique across all your NGINX servers in New Relic
+- This name will appear in dashboards and help you identify specific servers
+- Keep it short but meaningful for easy filtering and alerting
 
 ### Validate the configuration
 
-**Test the configuration syntax:**
-```bash
-sudo otelcol-contrib --config /etc/otelcol-contrib/config.yaml --dry-run
-```
+1. **Test the configuration syntax:**
+   ```bash
+   sudo otelcol-contrib --config /etc/otelcol-contrib/config.yaml --dry-run
+   ```
+   Expected output: "Configuration validation successful" (no errors)
 
-Expected output: Configuration validation successful (no errors)
+2. **Set correct file permissions:**
+   ```bash
+   sudo chown otelcol-contrib:otelcol-contrib /etc/otelcol-contrib/config.yaml
+   sudo chmod 644 /etc/otelcol-contrib/config.yaml
+   ```
 
-**Check file permissions:**
-```bash
-sudo chown otelcol-contrib:otelcol-contrib /etc/otelcol-contrib/config.yaml
-sudo chmod 644 /etc/otelcol-contrib/config.yaml
-```
+### Troubleshooting configuration issues
 
-## Step 3: Configure authentication [#set-environment]
+<CollapserGroup>
+  <Collapser id="troubleshoot-yaml-syntax" title="YAML syntax errors">
+    **Problem:** `--dry-run` shows syntax errors
 
-Set up secure authentication so the OpenTelemetry Collector can send data to your New Relic account.
+    **Solutions:**
+    - Check YAML indentation (use spaces, not tabs)
+    - Ensure all quotes are properly closed
+    - Verify colons have spaces after them: `key: value` not `key:value`
+    - Use online YAML validators to check syntax
+  </Collapser>
 
-### Why use environment variables?
+  <Collapser id="troubleshoot-merge-config" title="Merging with existing configuration">
+    **Problem:** You already have a Collector configuration
 
-Environment variables keep your credentials secure by:
-- Avoiding hardcoded secrets in configuration files
-- Preventing accidental exposure in version control
-- Making credential rotation easier
+    **Solutions:**
+    - Add the `nginx` receiver to your existing `receivers:` section
+    - Add the processors to your existing `processors:` section
+    - Create a new pipeline or modify an existing metrics pipeline
+    - Don't duplicate section headers - merge content under existing ones
+  </Collapser>
+</CollapserGroup>
 
-### Set up your credentials
+## Step 3: Set up authentication [#set-environment]
 
-**1. Create a systemd override directory:**
-```bash
-sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-```
+Configure secure authentication so the OpenTelemetry Collector can send data to your New Relic account. This step sets up environment variables to keep your credentials secure.
 
-**2. Get your New Relic credentials:**
+### Get your New Relic credentials
 
-- **License Key**: Go to [one.newrelic.com](https://one.newrelic.com) → API Keys → "Ingest - License" → Show key
-- **OTLP Endpoint**: Choose based on your region:
-  - **US**: `https://otlp.nr-data.net:4318`
-  - **EU**: `https://otlp.eu01.nr-data.net:4318`
+Before configuring authentication, gather these two pieces of information:
 
-**3. Create the environment configuration:**
-```bash
-cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
-[Service]
-Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
-Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
-EOF
-```
+**1. Your License Key:**
+- Go to [one.newrelic.com](https://one.newrelic.com) → **API Keys**
+- Find "Ingest - License" section → Click **Show key**
+- Copy the license key (starts with "NRAK-...")
 
-**Replace `YOUR_LICENSE_KEY_HERE`** with your actual license key from step 2.
+**2. Your OTLP Endpoint (choose your region):**
+- **US region**: `https://otlp.nr-data.net:4318`
+- **EU region**: `https://otlp.eu01.nr-data.net:4318`
 
-### Apply the configuration and start collecting data
+<Callout variant="tip">
+**Why environment variables?** They keep credentials secure by avoiding hardcoded secrets in configuration files and preventing accidental exposure in version control.
+</Callout>
 
-**4. Reload systemd and restart the Collector:**
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart otelcol-contrib.service
-```
+### Configure the credentials
 
-**5. Verify the Collector is running:**
-```bash
-sudo systemctl status otelcol-contrib.service
-```
+1. **Create a systemd override directory:**
+   ```bash
+   sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+   ```
 
-Expected output: `Active: active (running)` with no recent errors.
+2. **Create the environment configuration file:**
+   ```bash
+   cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+   [Service]
+   Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+   Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+   EOF
+   ```
+
+3. **Update the configuration with your credentials:**
+   - Replace `https://otlp.nr-data.net:4318` with your region's endpoint
+   - Replace `YOUR_LICENSE_KEY_HERE` with your actual license key from above
+
+## Step 4: Start monitoring [#start-monitoring]
+
+Now that everything is configured, start the OpenTelemetry Collector and verify that data is flowing to New Relic.
+
+### Start the Collector
+
+1. **Apply the configuration changes:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart otelcol-contrib.service
+   ```
+
+2. **Verify the service is running:**
+   ```bash
+   sudo systemctl status otelcol-contrib.service
+   ```
+   Expected output: `Active: active (running)` with no recent errors
 
 ### Verify data collection
 
-**6. Check Collector logs for successful startup:**
-```bash
-sudo journalctl -u otelcol-contrib.service -n 20
-```
+3. **Check startup logs:**
+   ```bash
+   sudo journalctl -u otelcol-contrib.service -n 20
+   ```
 
-**Look for these positive indicators:**
-- `"Everything is ready. Begin running and processing data."`
-- No authentication errors (401/403)
-- No connection errors to NGINX endpoint
+   **Look for these success indicators:**
+   - ✅ `"Everything is ready. Begin running and processing data."`
+   - ✅ `"Scraping metrics"` - Successfully collecting from NGINX
+   - ✅ `"Exporting metrics"` - Successfully sending to New Relic
 
-**Common log messages and what they mean:**
-- ✅ `"Scraping metrics"` - Successfully collecting from NGINX
-- ✅ `"Exporting metrics"` - Successfully sending to New Relic
-- ❌ `"connection refused"` - Can't reach NGINX (check stub status config)
-- ❌ `"401 Unauthorized"` - License key issue (verify credentials)
+4. **Generate test traffic (to create metrics):**
+   ```bash
+   # Make a few requests to your NGINX server
+   curl http://localhost
+   curl http://localhost/test
+   curl http://localhost/api
+   ```
 
-## Step 4: (Optional) Forward NGINX logs [#forward-logs]
+5. **Wait 2-3 minutes** for initial data to appear in New Relic, then check your dashboard.
+
+### Troubleshooting startup issues
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-service-failed" title="Service shows 'failed' or 'inactive'">
+    **Check for configuration errors:**
+    ```bash
+    sudo journalctl -u otelcol-contrib.service -n 50
+    ```
+
+    **Common causes:**
+    - YAML syntax errors in configuration
+    - Missing or incorrect environment variables
+    - File permission issues
+    - Invalid endpoint URLs
+  </Collapser>
+
+  <Collapser id="troubleshoot-auth-errors" title="Authentication errors (401/403)">
+    **Verify your credentials:**
+    ```bash
+    # Check environment variables are set
+    sudo systemctl show otelcol-contrib.service -p Environment
+
+    # Test manual authentication
+    curl -H "api-key: YOUR_LICENSE_KEY" https://otlp.nr-data.net:4318/v1/metrics
+    ```
+
+    **Solutions:**
+    - Verify license key is complete and correct
+    - Ensure endpoint URL matches your New Relic region
+    - Check for extra spaces or characters in environment file
+  </Collapser>
+
+  <Collapser id="troubleshoot-nginx-connection" title="Cannot connect to NGINX">
+    **Problem:** Logs show "connection refused" to NGINX endpoint
+
+    **Verify NGINX connectivity:**
+    ```bash
+    # Test stub status endpoint
+    curl http://127.0.0.1:8080/nginx_status
+
+    # Check if NGINX is listening
+    sudo netstat -tlnp | grep :8080
+    ```
+
+    **Solutions:**
+    - Ensure NGINX stub status configuration is correct
+    - Verify endpoint URL in Collector matches NGINX config
+    - Check firewall isn't blocking the connection
+  </Collapser>
+</CollapserGroup>
+
+## Step 5: (Optional) Forward NGINX logs [#forward-logs]
 
 In addition to metrics, you can send NGINX access and error logs to New Relic for comprehensive monitoring and troubleshooting.
 
-### Benefits of log forwarding
-
-**Why forward logs:**
-- **Detailed debugging**: See specific requests causing issues
-- **Security monitoring**: Detect suspicious access patterns
-- **Performance analysis**: Correlate slow requests with metrics
-- **Compliance**: Maintain audit trails
-
+<Callout variant="tip">
 **Skip this step if:** You only need basic NGINX metrics and don't require detailed request logs.
+</Callout>
 
 ### Configure structured logging in NGINX
 
@@ -490,268 +589,93 @@ curl http://localhost
   </Collapser>
 </CollapserGroup>
 
-## View your NGINX data in New Relic [#find-data]
+## View your data in New Relic [#find-data]
 
-Once your setup is complete and data is flowing, you can view your NGINX metrics and logs in New Relic dashboards and create custom alerts.
+Once your setup is complete and data is flowing, you can access your NGINX metrics in New Relic dashboards and create custom alerts.
 
-### Access the pre-built NGINX dashboard
+**Quick start:** Go to [one.newrelic.com](https://one.newrelic.com) → **Add Data** → Search "NGINX OTel" → **View dashboard**
 
-**Method 1: Through Integrations & Agents**
-1. Go to [one.newrelic.com](https://one.newrelic.com) → **Integrations & Agents**
-2. Click **Dashboards**
-3. Find and click **NGINX OTel overview dashboard**
-4. Select your account and click **View dashboard**
+For complete instructions on accessing dashboards, querying data with NRQL, and creating alerts, see [Find and query your NGINX data](/docs/opentelemetry/nginx/Find-and-query-your-data/).
 
-**Method 2: Through Infrastructure monitoring**
-1. Go to [one.newrelic.com](https://one.newrelic.com) → **Infrastructure**
-2. Click **On-host integrations**
-3. Search for your NGINX server by deployment name (e.g., `production-web-01`)
-4. Click on your server to see detailed metrics
+## Troubleshooting [#troubleshooting]
 
-### Understanding your NGINX dashboard
-
-The dashboard provides several key views:
-
-**Request Performance:**
-- Requests per second over time
-- Average response times
-- HTTP status code distribution
-- Request throughput trends
-
-**Connection Metrics:**
-- Active connections count
-- Connection states (reading, writing, waiting)
-- Connection acceptance and handling rates
-- Connection efficiency (handled vs accepted)
-
-**Server Health:**
-- Overall server status
-- Error rates and patterns
-- Resource utilization indicators
-- Performance trends over time
-
-### Query your data with NRQL
-
-You can create custom queries to analyze your NGINX data:
-
-**Example queries:**
-
-```sql
--- View request rate over time
-FROM Metric SELECT rate(sum(nginx.requests), 1 minute)
-WHERE nginx.deployment.name = 'production-web-01'
-TIMESERIES
-
--- Check connection states
-FROM Metric SELECT latest(nginx.connections_current)
-WHERE nginx.deployment.name = 'production-web-01'
-FACET state
-
--- Analyze log patterns (if log forwarding enabled)
-FROM Log SELECT count(*)
-WHERE service.name = 'nginx'
-FACET status SINCE 1 hour ago
-```
-
-### Create alerts for NGINX monitoring
-
-Set up proactive alerts to be notified of issues:
-
-**1. High connection count alert:**
-- Go to **Alerts & AI** → **Alert Conditions** → **New alert condition**
-- Choose **NRQL** and enter:
-```sql
-FROM Metric SELECT latest(nginx.connections_current)
-WHERE state = 'active' AND nginx.deployment.name = 'YOUR_DEPLOYMENT_NAME'
-```
-
-**2. High error rate alert:**
-- Monitor HTTP 5xx errors from logs:
-```sql
-FROM Log SELECT percentage(count(*), WHERE status >= 500)
-WHERE service.name = 'nginx' AND nginx.deployment.name = 'YOUR_DEPLOYMENT_NAME'
-```
-
-**3. Low request rate alert:**
-- Detect traffic drops:
-```sql
-FROM Metric SELECT rate(sum(nginx.requests), 1 minute)
-WHERE nginx.deployment.name = 'YOUR_DEPLOYMENT_NAME'
-```
-
-### Troubleshooting data visibility
-
-**If you don't see data:**
-
-1. **Wait 2-5 minutes** - Initial data ingestion can take a few minutes
-2. **Check the time range** - Ensure you're looking at recent data
-3. **Verify deployment name** - Use the exact name from your Collector config
-4. **Check for data with NRQL:**
-   ```sql
-   FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
-   ```
-
-**If data appears intermittent:**
-
-1. **Check Collector logs** for errors:
-   ```bash
-   sudo journalctl -u otelcol-contrib -n 50
-   ```
-2. **Verify NGINX is generating traffic** - Test with `curl http://localhost`
-3. **Check authentication** - Ensure license key and endpoint are correct
-
-## Troubleshooting common issues [#troubleshooting]
-
-### Collector service issues
+If you encounter issues during setup, use this troubleshooting guide to diagnose and resolve common problems.
 
 <CollapserGroup>
-  <Collapser id="troubleshoot-collector-start" title="Collector won't start">
-    **Symptoms:** `sudo systemctl status otelcol-contrib` shows failed or inactive
+  <Collapser id="troubleshoot-no-data-newrelic" title="No data appears in New Relic">
+    **Step-by-step diagnosis:**
 
+    1. **Verify NGINX stub status works:**
+       ```bash
+       curl http://127.0.0.1:8080/nginx_status
+       ```
+       Should return connection statistics.
+
+    2. **Check Collector service is running:**
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       ```
+       Should show "active (running)".
+
+    3. **Review Collector logs for errors:**
+       ```bash
+       sudo journalctl -u otelcol-contrib -n 50 | grep -i "error\|nginx"
+       ```
+
+    4. **Verify authentication:**
+       ```bash
+       sudo systemctl show otelcol-contrib.service -p Environment
+       ```
+       Ensure NEWRELIC_LICENSE_KEY and NEWRELIC_OTLP_ENDPOINT are set.
+
+    5. **Wait 2-5 minutes** - Initial data ingestion can take time.
+  </Collapser>
+
+  <Collapser id="troubleshoot-collector-wont-start" title="Collector service won't start">
     **Check configuration syntax:**
     ```bash
     sudo otelcol-contrib --config /etc/otelcol-contrib/config.yaml --dry-run
     ```
 
     **Common causes:**
-    - YAML syntax errors (check indentation)
-    - Invalid endpoint URLs
+    - YAML syntax errors (check indentation with spaces, not tabs)
+    - Invalid endpoint URLs in configuration
     - Missing environment variables
     - File permission issues
 
-    **Solution:** Review error messages and fix configuration issues
+    **Fix and restart:**
+    ```bash
+    sudo systemctl restart otelcol-contrib.service
+    ```
   </Collapser>
 
-  <Collapser id="troubleshoot-auth-errors" title="Authentication errors (401/403)">
-    **Symptoms:** Collector logs show "401 Unauthorized" or "403 Forbidden"
-
-    **Verify credentials:**
+  <Collapser id="troubleshoot-authentication" title="Authentication errors (401/403)">
+    **Verify your credentials:**
     ```bash
-    # Check environment variables are set
-    sudo systemctl show otelcol-contrib.service -p Environment
-
     # Test manual authentication
     curl -H "api-key: YOUR_LICENSE_KEY" https://otlp.nr-data.net:4318/v1/metrics
     ```
 
     **Solutions:**
-    - Verify license key is correct and complete
-    - Ensure OTLP endpoint matches your region
-    - Check for extra spaces or characters in credentials
+    - Ensure license key is complete and correct (starts with "NRAK-")
+    - Verify OTLP endpoint matches your New Relic region
+    - Check for extra spaces in environment configuration file
   </Collapser>
 
-  <Collapser id="troubleshoot-nginx-connection" title="Can't connect to NGINX">
-    **Symptoms:** Collector logs show "connection refused" to NGINX endpoint
-
-    **Verify NGINX connectivity:**
+  <Collapser id="troubleshoot-nginx-connectivity" title="Can't connect to NGINX">
+    **Test NGINX connectivity:**
     ```bash
-    # Test the stub status endpoint
+    # Test stub status endpoint
     curl http://127.0.0.1:8080/nginx_status
 
-    # Check if NGINX is listening on the port
+    # Check if NGINX is listening
     sudo netstat -tlnp | grep :8080
     ```
 
     **Solutions:**
-    - Ensure NGINX stub status is configured correctly
-    - Verify the endpoint URL in Collector config matches NGINX config
+    - Ensure NGINX stub status configuration is correct
+    - Verify endpoint URL in Collector config matches NGINX config
     - Check firewall rules aren't blocking the connection
-  </Collapser>
-</CollapserGroup>
-
-### Data collection issues
-
-<CollapserGroup>
-  <Collapser id="troubleshoot-no-data" title="No metrics appear in New Relic">
-    **Step-by-step diagnosis:**
-
-    1. **Verify stub status works:**
-       ```bash
-       curl http://127.0.0.1:8080/nginx_status
-       ```
-       Should return connection statistics.
-
-    2. **Check Collector is running:**
-       ```bash
-       sudo systemctl status otelcol-contrib.service
-       ```
-       Should show "active (running)".
-
-    3. **Review Collector logs:**
-       ```bash
-       sudo journalctl -u otelcol-contrib -n 50 | grep -i "error\|nginx"
-       ```
-       Look for error messages.
-
-    4. **Test authentication:**
-       ```bash
-       # Check environment variables
-       sudo systemctl show otelcol-contrib.service -p Environment
-       ```
-
-    5. **Wait and check again** - Initial data can take 2-5 minutes to appear
-  </Collapser>
-
-  <Collapser id="troubleshoot-partial-data" title="Some metrics missing">
-    **Check metric enablement:**
-    ```bash
-    # Review your Collector configuration
-    sudo grep -A10 "metrics:" /etc/otelcol-contrib/config.yaml
-    ```
-
-    **Verify all metrics are enabled:**
-    ```yaml
-    metrics:
-      nginx.requests:
-        enabled: true
-      nginx.connections_accepted:
-        enabled: true
-      nginx.connections_handled:
-        enabled: true
-      nginx.connections_current:
-        enabled: true
-    ```
-
-    **Restart Collector after changes:**
-    ```bash
-    sudo systemctl restart otelcol-contrib.service
-    ```
-  </Collapser>
-</CollapserGroup>
-
-### Log forwarding issues
-
-<CollapserGroup>
-  <Collapser id="troubleshoot-log-permissions" title="Log file permission errors">
-    **Symptoms:** Collector logs show "permission denied" for log files
-
-    **Fix permissions:**
-    ```bash
-    # Add collector to adm group
-    sudo usermod -a -G adm otelcol-contrib
-
-    # Ensure log files are readable
-    sudo chmod 644 /var/log/nginx/access.log
-    sudo chmod 644 /var/log/nginx/error.log
-
-    # Restart collector
-    sudo systemctl restart otelcol-contrib.service
-    ```
-  </Collapser>
-
-  <Collapser id="troubleshoot-json-parsing" title="JSON parsing errors">
-    **Symptoms:** Logs appear in New Relic but aren't structured properly
-
-    **Test JSON format:**
-    ```bash
-    # Check if logs are valid JSON
-    sudo tail -1 /var/log/nginx/access.log | jq .
-    ```
-
-    **Fix common JSON issues:**
-    - Ensure proper escaping in NGINX log format
-    - Check for missing commas in JSON structure
-    - Verify quotes are properly escaped
   </Collapser>
 </CollapserGroup>
 
