@@ -385,29 +385,27 @@ In addition to metrics, you can send NGINX [access and error logs](https://docs.
       filelog/nginx_access:
         include:
           - /var/log/nginx/access.log
-        start_at: beginning
-        operators:
-          - type: json_parser
-            parse_from: attributes.message
-          - type: move
-            from: attributes.message
-            to: body
 
       filelog/nginx_error:
         include:
           - /var/log/nginx/error.log
-        start_at: beginning
 
     processors:
       # Your existing processors...
 
       # Add log processor
-      transform/nginx_logs:
+      transform/nginx_access_logs:
         log_statements:
-          - context: resource
-            statements:
-              - set(attributes["service.name"], "nginx")
-              - set(attributes["nginx.deployment.name"], "production-web-01")  # Match your deployment name
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx")
+      transform/nginx_error_logs:
+        log_statements:
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx-error")
 
     service:
       pipelines:
@@ -420,12 +418,12 @@ In addition to metrics, you can send NGINX [access and error logs](https://docs.
         # Add log pipelines
         logs/nginx-access:
           receivers: [filelog/nginx_access]
-          processors: [resource, batch, transform/nginx_logs]
+          processors: [resource, batch, transform/nginx_access_logs]
           exporters: [otlphttp/newrelic]
 
         logs/nginx-error:
           receivers: [filelog/nginx_error]
-          processors: [resource, batch, transform/nginx_logs]
+          processors: [resource, batch, transform/nginx_error_logs]
           exporters: [otlphttp/newrelic]
     ```
   </Collapser>
@@ -444,15 +442,6 @@ In addition to metrics, you can send NGINX [access and error logs](https://docs.
     **Restart the Collector:**
     ```bash
     sudo systemctl restart otelcol-contrib.service
-    ```
-
-    **Verify log forwarding is working:**
-    ```bash
-    # Generate test traffic
-    curl http://localhost
-
-    # Check if logs appear in New Relic (may take 1-2 minutes)
-    # Go to one.newrelic.com → Logs → Search for: service.name:"nginx"
     ```
   </Collapser>
 </CollapserGroup>
@@ -491,24 +480,6 @@ If you encounter issues during setup, use this troubleshooting guide to diagnose
     - Check firewall rules if applicable
   </Collapser>
 
-  <Collapser id="troubleshoot-collector-config" title="Collector configuration issues">
-    **YAML syntax errors:**
-    ```bash
-    sudo otelcol-contrib --config /etc/otelcol-contrib/config.yaml --dry-run
-    ```
-
-    **Common fixes:**
-    - Use spaces for indentation, not tabs
-    - Ensure all quotes are properly closed
-    - Verify colons have spaces after them: `key: value` not `key:value`
-    - Use online YAML validators to check syntax
-
-    **Merging with existing configuration:**
-    - Add the `nginx` receiver to your existing `receivers:` section
-    - Add processors to your existing `processors:` section
-    - Don't duplicate section headers - merge content under existing ones
-  </Collapser>
-
   <Collapser id="troubleshoot-collector-service" title="Collector service won't start">
     **Check service status:**
     ```bash
@@ -521,29 +492,12 @@ If you encounter issues during setup, use this troubleshooting guide to diagnose
     - **Missing environment variables** - Verify credentials are set in environment file
     - **File permission issues** - Run `sudo chown otelcol-contrib:otelcol-contrib /etc/otelcol-contrib/config.yaml`
     - **Invalid endpoint URLs** - Check NGINX endpoint and New Relic OTLP endpoint
+    - **Missing component configurations** - Ensure all receivers, processors, and exporters referenced in the service pipelines section are actually defined in their respective configuration sections above
 
     **Restart after fixes:**
     ```bash
     sudo systemctl restart otelcol-contrib.service
     ```
-  </Collapser>
-
-  <Collapser id="troubleshoot-authentication" title="Authentication errors (401/403)">
-    **Verify credentials are set:**
-    ```bash
-    sudo systemctl show otelcol-contrib.service -p Environment
-    ```
-
-    **Test authentication manually:**
-    ```bash
-    curl -H "api-key: YOUR_LICENSE_KEY" https://otlp.nr-data.net:4318/v1/metrics
-    ```
-
-    **Solutions:**
-    - Ensure license key is complete and correct (starts with "NRAK-")
-    - Verify OTLP endpoint matches your New Relic region (US vs EU)
-    - Check for extra spaces or characters in environment configuration file
-    - Reload systemd after credential changes: `sudo systemctl daemon-reload`
   </Collapser>
 
   <Collapser id="troubleshoot-no-data" title="No data appears in New Relic">
@@ -560,21 +514,9 @@ If you encounter issues during setup, use this troubleshooting guide to diagnose
        sudo systemctl status otelcol-contrib.service
        sudo journalctl -u otelcol-contrib -n 20
        ```
+       The logs will provide detailed context if there are any configuration or runtime issues with the OpenTelemetry Collector.
 
-    3. **Generate test traffic:**
-       ```bash
-       curl http://localhost
-       curl http://localhost/test
-       ```
-
-    4. **Verify authentication and endpoints:**
-       ```bash
-       sudo systemctl show otelcol-contrib.service -p Environment
-       ```
-
-    5. **Wait 2-5 minutes** - Initial data ingestion can take time.
-
-    6. **Check for data with NRQL:**
+    3. **Check for data with NRQL:**
        ```sql
        FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
        ```
@@ -586,22 +528,9 @@ If you encounter issues during setup, use this troubleshooting guide to diagnose
     # Check Collector logs for file errors
     sudo journalctl -u otelcol-contrib -f | grep -i "filelog\|error"
     ```
-
     **Common issues:**
     - **File permission errors** - Add collector to adm group: `sudo usermod -a -G adm otelcol-contrib`
     - **Wrong file paths** - Verify log file locations in your config
-    - **Log rotation** - NGINX may have rotated logs, restart collector
-
-    **JSON parsing errors:**
-    ```bash
-    # Test if logs are valid JSON
-    sudo tail -1 /var/log/nginx/access.log | jq .
-    ```
-
-    **Fix JSON issues:**
-    - Ensure proper escaping in NGINX log format
-    - Check for missing commas in JSON structure
-    - Restart NGINX after JSON format changes
   </Collapser>
 </CollapserGroup>
 
@@ -609,10 +538,8 @@ If you encounter issues during setup, use this troubleshooting guide to diagnose
 
 If you continue experiencing issues:
 
-1. Check the [OpenTelemetry Collector documentation](https://opentelemetry.io/docs/collector/)
-2. Review [New Relic's OpenTelemetry best practices](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
-3. Search the [New Relic Explorers Hub](https://discuss.newrelic.com/) for similar issues
-4. Contact New Relic support with your configuration and error logs
+1. Review [New Relic's OpenTelemetry best practices](/docs/opentelemetry/best-practices/opentelemetry-otlp/)
+2. Search the [New Relic Explorers Hub](https://discuss.newrelic.com/) for similar issues
 
 ## Next steps [#next-steps]
 
@@ -625,5 +552,4 @@ If you continue experiencing issues:
 **Explore related monitoring:**
 - [Monitor NGINX Plus with OpenTelemetry](/docs/opentelemetry/nginx-plus/nginx-plus-otel/) - For commercial NGINX Plus deployments
 - [Monitor NGINX on Kubernetes](/docs/opentelemetry/nginx/nginx-otel-kubernetes/) - For containerized environments
-- [OpenTelemetry best practices](/docs/opentelemetry/best-practices/opentelemetry-otlp/) - Optimize your OpenTelemetry setup
 
