@@ -42,30 +42,36 @@ Before you begin, ensure you have:
 
 ## Configure the OpenTelemetry Collector
 
-In the OpenTelemetry Collector configuration below:
-
-- Update the `docker.deployment.name` value with a unique name to identify this Docker host in your New Relic account.
-- Update the `endpoint` value if your Docker socket is at a different location.
-
-Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
+Update the `endpoint` value if your Docker socket is at a different location. Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
 
 ```yaml
 receivers:
+  # Docker Stats Receiver - collects container metrics
   docker_stats:
     endpoint: unix:///var/run/docker.sock
-    collection_interval: 10s
-    timeout: 10s
+    collection_interval: 15s
+    timeout: 5s
+    api_version: "1.25"
+    # Most metrics required for New Relic UI are enabled by default:
+    # CPU: container.cpu.usage.total, container.cpu.utilization
+    # Memory: container.memory.usage.total, container.memory.percent
+    # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
+    #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
+    # Storage: container.blockio.io_service_bytes_recursive
+    #
+    # The following metrics need to be explicitly enabled:
     metrics:
-      container.cpu.utilization:
+      # Required for New Relic UI
+      container.pids.count:
         enabled: true
-      container.cpu.usage.percpu:
-        enabled: false
-      container.network.io.usage.tx_dropped:
+      # Additional network error metrics
+      container.network.io.usage.tx_errors:
         enabled: true
-      container.network.io.usage.rx_dropped:
+      container.network.io.usage.rx_errors:
         enabled: true
 
 processors:
+  # Resource detection - adds host metadata
   resourcedetection:
     detectors: [system, docker]
     system:
@@ -74,31 +80,31 @@ processors:
           enabled: true
         host.id:
           enabled: true
-  resource/docker:
-    attributes:
-      - action: upsert
-        key: docker.deployment.name
-        value: <DEPLOYMENT_NAME>
+
+  # Batch processor - optimizes data transmission
   batch:
     timeout: 30s
     send_batch_size: 512
-  transform/docker_metrics:
-    metric_statements:
-      - context: resource
-        statements:
-          - set(attributes["docker.display.name"], Concat(["host", attributes["docker.deployment.name"]], ":"))
 
 exporters:
+  # New Relic OTLP Exporter
   otlphttp/newrelic:
     endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
     headers:
       api-key: ${env:NEWRELIC_LICENSE_KEY}
+    compression: gzip
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
 
 service:
   pipelines:
     metrics:
       receivers: [docker_stats]
-      processors: [resourcedetection, resource/docker, batch, transform/docker_metrics]
+      processors: [resourcedetection, batch]
       exporters: [otlphttp/newrelic]
 ```
 
@@ -118,12 +124,14 @@ Add the following configuration to collect container logs:
 
 ```yaml
 extensions:
+  # Docker observer - discovers running containers
   docker_observer:
     endpoint: unix:///var/run/docker.sock
     use_hostname_if_present: true
     use_container_labels: true
 
 receivers:
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
   receiver_creator:
     watch_observers: [docker_observer]
     receivers:
@@ -148,12 +156,20 @@ receivers:
               field: attributes.container_name
               value: "`container.name`"
 
+processors:
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
 service:
   extensions: [docker_observer]
   pipelines:
     logs:
       receivers: [receiver_creator]
-      processors: [resourcedetection, resource/docker, batch]
+      processors: [resourcedetection, resource/docker, attributes/logs, batch]
       exporters: [otlphttp/newrelic]
 ```
 
@@ -170,7 +186,7 @@ sudo systemctl restart otelcol-contrib
 After a few minutes, you should start seeing data in New Relic:
 
 1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**.
-2. Search for your Docker host using the `docker.deployment.name` you configured.
+2. Search for your Docker host by hostname or container name.
 3. Click your entity to view Docker container metrics and details.
 4. Explore the **Summary** page to see performance metrics, resource usage, and container health.
 
@@ -909,4 +925,5 @@ After setting up your Docker monitoring with OpenTelemetry, you can:
 
 - Create [custom queries and charts](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to analyze your container metrics
 - Set up <InlinePopover type="alerts"/> to notify you about performance issues
+- Explore additional [Docker OpenTelemetry configuration examples](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/docker) in the New Relic OpenTelemetry examples repository
 - Learn more about [OpenTelemetry in New Relic](/docs/opentelemetry/opentelemetry-introduction/)
