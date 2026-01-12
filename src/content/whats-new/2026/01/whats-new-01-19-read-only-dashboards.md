@@ -1,6 +1,6 @@
 ---
 title: "Dashboard operations for read-only users"
-summary: "The standard New Relic read-only role is being adjusted for dashboard management. Users with this role currently have the ability to create, edit, and delete dashboards. To properly reflect the intended limitations and expectations of a read-only role, these permissions will no longer be available."
+summary: "The standard New Relic read-only role is being adjusted for dashboard management. Users with this role currently have the ability to create, edit, and delete dashboards. To reflect the intended limitations and expectations of a read-only role, these permissions will no longer be available."
 releaseDate: "2026-01-19"
 ---
 
@@ -28,7 +28,7 @@ To configure continued access:
 
 !["New dashboards capabilities"](/images/dashboard_capabilities.webp "New dashboards capabilities") 
  
-Note on permissions: These new role-based access controls (RBAC) work alongside existing dashboard-level permissions. For example, a user with the **Modify** role capability still cannot edit a specific dashboard that has been individually set to "read-only" at the dashboard level.
+Note on permissions: These new role-based access controls (RBAC) work alongside existing dashboard-level permissions. For example, a user with the **Modify** role capability still can't edit a specific dashboard that has been individually set to **read-only** at the dashboard level.
 
 ## Key dates
 
