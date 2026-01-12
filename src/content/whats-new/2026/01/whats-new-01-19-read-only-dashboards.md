@@ -1,7 +1,7 @@
 ---
-title: 'Dashboard operations for read-only users'
-summary: 'The standard New Relic read-only role is being adjusted for dashboard management. Users with this role currently have the ability to create, edit, and delete dashboards. To properly reflect the intended limitations and expectations of a read-only role, these permissions will no longer be available.'
-releaseDate: '2026-01-19'
+title: "Dashboard operations for read-only users"
+summary: "The standard New Relic read-only role is being adjusted for dashboard management. Users with this role currently have the ability to create, edit, and delete dashboards. To properly reflect the intended limitations and expectations of a read-only role, these permissions will no longer be available."
+releaseDate: "2026-01-19"
 ---
 
 ## Why it's changing
