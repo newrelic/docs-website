@@ -1,0 +1,1176 @@
+---
+title: Docker container monitoring with OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+  - Containers
+metaDescription: Monitor Docker containers using OpenTelemetry Collector with seamless integration into New Relic.
+freshnessValidatedDate: 2024-12-23
+---
+
+Monitor your Docker containers using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+
+This integration leverages the OpenTelemetry [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver) to monitor your Docker container performance metrics, resource usage, and health.
+
+<img
+  title="Docker OTel dashboard"
+  alt="Screenshot showing Docker monitoring dashboard with CPU utilization, memory usage, and container metrics"
+  src="/images/docker-otel.webp"
+/>
+
+<figcaption>
+  After setting up Docker monitoring with OpenTelemetry, you can view your container metrics in New Relic.
+</figcaption>
+
+<Callout variant="important">
+  **Supported operating systems:** This integration currently supports Linux hosts only. Windows and darwin is not supported at this time. Please refer to the official documentation for the [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver)
+</Callout>
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+- Docker Engine (API version 1.25+) installed and running
+- Access to the Docker socket (typically `/var/run/docker.sock`)
+- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running on a Linux host
+- Network access from the Linux host to:
+  - Docker Engine socket
+  - One of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) endpoints
+- For log collection: Read permissions to `/var/lib/docker/containers/` directory (typically requires root or docker group membership)
+
+## Configure the OpenTelemetry Collector
+
+Update the `endpoint` value if your Docker socket is at a different location. Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
+
+```yaml
+receivers:
+  # Docker Stats Receiver - collects container metrics
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 15s
+    timeout: 5s
+    api_version: "1.25"
+    # Most metrics required for New Relic UI are enabled by default:
+    # CPU: container.cpu.usage.total, container.cpu.utilization
+    # Memory: container.memory.usage.total, container.memory.percent
+    # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
+    #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
+    # Storage: container.blockio.io_service_bytes_recursive
+    #
+    # The following metrics need to be explicitly enabled:
+    metrics:
+      # Required for New Relic UI
+      container.pids.count:
+        enabled: true
+      # Additional network error metrics
+      container.network.io.usage.tx_errors:
+        enabled: true
+      container.network.io.usage.rx_errors:
+        enabled: true
+
+processors:
+  # Resource detection - adds host metadata
+  resourcedetection:
+    detectors: [system, docker]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+
+  # Batch processor - optimizes data transmission
+  batch:
+    timeout: 30s
+    send_batch_size: 512
+
+exporters:
+  # New Relic OTLP Exporter
+  otlphttp/newrelic:
+    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEWRELIC_LICENSE_KEY}
+    compression: gzip
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    metrics:
+      receivers: [docker_stats]
+      processors: [resourcedetection, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+Save the file and ensure the `otelcol-contrib` system user can read it.
+
+## Optional: Collect Docker container logs
+
+You can also collect logs from your Docker containers using the OpenTelemetry [receiver creator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) with the [Docker observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) extension.
+
+<Callout variant="important">
+  **Requirements for log collection:**
+  - The OpenTelemetry Collector process must have read permissions to the `/var/lib/docker/containers/` directory. This typically requires running the collector as root or adding the collector user to the docker group.
+  - Container ports must be exposed for the receiver creator to discover and scrape logs from containers.
+</Callout>
+
+Add the following configuration to collect container logs:
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+    use_container_labels: true
+
+receivers:
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+    logs:
+      receivers: [receiver_creator]
+      processors: [resourcedetection, resource/docker, attributes/logs, batch]
+      exporters: [otlphttp/newrelic]
+```
+
+## Restart the collector
+
+Restart the OpenTelemetry Collector to apply the new configuration:
+
+```bash
+sudo systemctl restart otelcol-contrib
+```
+
+## View your data in New Relic
+
+After a few minutes, you should start seeing data in New Relic:
+
+1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**.
+2. Search for your Docker host by hostname or container name.
+3. Click your entity to view Docker container metrics and details.
+4. Explore the **Summary** page to see performance metrics, resource usage, and container health.
+
+The Docker container metrics are attached to the `Metric` [event type](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). You can [query this data](/docs/using-new-relic/data/understand-data/query-new-relic-data) for troubleshooting purposes or to create custom charts and dashboards.
+
+## Metrics collected
+
+The OpenTelemetry Collector Contrib's [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver) collects the following metrics from the Docker Stats API:
+
+<CollapserGroup>
+<Collapser
+id="docker-metrics"
+title="Metrics"
+>
+<table>
+<thead>
+<tr>
+<th style={{ width: "350px" }}>
+Metric
+</th>
+<th>
+Description
+</th>
+<th>
+Type
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+`container.blockio.io_merged_recursive`
+</td>
+<td>
+Number of bios/requests merged into requests belonging to this cgroup and its descendant cgroups
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_queued_recursive`
+</td>
+<td>
+Number of requests queued up for this cgroup and its descendant cgroups
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_service_bytes_recursive`
+</td>
+<td>
+Number of bytes transferred to/from the disk by the group and descendant groups
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_service_time_recursive`
+</td>
+<td>
+Total amount of time in nanoseconds between request dispatch and request completion for the IOs done by this cgroup and descendant cgroups
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_serviced_recursive`
+</td>
+<td>
+Number of IOs (bio) issued to the disk by the group and descendant groups
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_time_recursive`
+</td>
+<td>
+Disk time allocated to cgroup (and descendant cgroups) per device in milliseconds
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.blockio.io_wait_time_recursive`
+</td>
+<td>
+Total amount of time the IOs for this cgroup (and descendant cgroups) spent waiting in the scheduler queues for service
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.usage.kernelmode`
+</td>
+<td>
+CPU kernel mode usage
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.usage.percpu`
+</td>
+<td>
+Per-core CPU usage by the container (disabled by default)
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.usage.system`
+</td>
+<td>
+System CPU usage
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.usage.total`
+</td>
+<td>
+Total CPU time consumed by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.usage.usermode`
+</td>
+<td>
+CPU user mode usage
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.percent`
+</td>
+<td>
+Percent of CPU used by the container (deprecated, use container.cpu.utilization instead)
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.utilization`
+</td>
+<td>
+Percent of CPU used by the container
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.throttling_data.periods`
+</td>
+<td>
+Number of periods with throttling active
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.throttling_data.throttled_periods`
+</td>
+<td>
+Number of periods when the container hit its throttling limit
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.throttling_data.throttled_time`
+</td>
+<td>
+Aggregate time the container was throttled
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.limit`
+</td>
+<td>
+CPU limit set for the container
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.logical.count`
+</td>
+<td>
+Number of cores available to the container
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.shares`
+</td>
+<td>
+CPU shares allocated to the container
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.cpu.cores.used`
+</td>
+<td>
+Number of CPU cores used by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.usage.limit`
+</td>
+<td>
+Memory usage limit
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.usage.max`
+</td>
+<td>
+Maximum memory usage
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.usage.total`
+</td>
+<td>
+Memory usage of the container. This excludes the cache
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.percent`
+</td>
+<td>
+Percentage of memory used
+</td>
+<td>
+Gauge
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.active_anon`
+</td>
+<td>
+Amount of memory used in anonymous mappings such as brk(), sbrk(), and mmap(MAP_ANONYMOUS) that are actively used
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.active_file`
+</td>
+<td>
+Amount of cache memory used by files that are actively used
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.anon`
+</td>
+<td>
+Amount of memory used in anonymous mappings (pages not backed by files)
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.cache`
+</td>
+<td>
+The amount of memory used by the processes of this control group that can be associated with a block on a block device
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.dirty`
+</td>
+<td>
+Bytes that are waiting to get written back to the disk, from this cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.fails`
+</td>
+<td>
+Number of times memory limit was hit
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.file`
+</td>
+<td>
+Amount of memory used by files (file cache)
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.hierarchical_memory_limit`
+</td>
+<td>
+The max amount of physical memory that the cgroup can use
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.hierarchical_memsw_limit`
+</td>
+<td>
+The max amount of RAM + swap that the cgroup can use
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.inactive_anon`
+</td>
+<td>
+Amount of memory used in anonymous mappings such as brk(), sbrk(), and mmap(MAP_ANONYMOUS) that are not actively used
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.inactive_file`
+</td>
+<td>
+Amount of cache memory used by files that are not actively used
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.mapped_file`
+</td>
+<td>
+Indicates the amount of memory mapped by the processes in the control group
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.pgfault`
+</td>
+<td>
+Indicate the number of times that a process of the cgroup triggered a page fault
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.pgmajfault`
+</td>
+<td>
+Indicate the number of times that a process of the cgroup triggered a major fault
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.pgpgin`
+</td>
+<td>
+Number of pages read from disk by the cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.pgpgout`
+</td>
+<td>
+Number of pages written to disk by the cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.rss`
+</td>
+<td>
+The amount of memory that doesn't correspond to anything on disk: stacks, heaps, and anonymous memory maps
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.rss_huge`
+</td>
+<td>
+Number of bytes of anonymous transparent hugepages in this cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.unevictable`
+</td>
+<td>
+The amount of memory that cannot be reclaimed
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.memory.writeback`
+</td>
+<td>
+Number of bytes of file/anon cache that are queued for syncing to disk in this cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.rx_bytes`
+</td>
+<td>
+Bytes received by the container via its network interface
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.rx_dropped`
+</td>
+<td>
+Number of received packets dropped by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.rx_errors`
+</td>
+<td>
+Received errors by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.rx_packets`
+</td>
+<td>
+Packets received by the container via its network interface
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.tx_bytes`
+</td>
+<td>
+Bytes sent by the container via its network interface
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.tx_dropped`
+</td>
+<td>
+Number of sent packets dropped by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.tx_errors`
+</td>
+<td>
+Transmission errors by the container
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.network.io.usage.tx_packets`
+</td>
+<td>
+Packets sent by the container via its network interface
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.pids.count`
+</td>
+<td>
+Number of PIDs in the container's cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.pids.limit`
+</td>
+<td>
+Maximum number of PIDs in the container's cgroup
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.restarts`
+</td>
+<td>
+Number of times the container has been restarted
+</td>
+<td>
+Sum
+</td>
+</tr>
+<tr>
+<td>
+`container.uptime`
+</td>
+<td>
+Time elapsed since container started
+</td>
+<td>
+Gauge
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+<Collapser
+id="docker-attributes"
+title="Attributes"
+>
+<table>
+<thead>
+<tr>
+<th style={{ width: "350px" }}>
+Attribute
+</th>
+<th>
+Description
+</th>
+<th>
+Values
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+`collector.name`
+</td>
+<td>
+Custom attribute for collector identification (if configured in your collector)
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`container.hostname`
+</td>
+<td>
+The hostname of the container
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`container.id`
+</td>
+<td>
+The full container ID
+</td>
+<td>
+String (64-character hex)
+</td>
+</tr>
+<tr>
+<td>
+`container.image.name`
+</td>
+<td>
+Name of the container image
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`container.name`
+</td>
+<td>
+Container name
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`container.runtime`
+</td>
+<td>
+Container runtime
+</td>
+<td>
+`docker`
+</td>
+</tr>
+<tr>
+<td>
+`deployment.environment`
+</td>
+<td>
+Deployment environment identifier (if configured in your collector)
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`description`
+</td>
+<td>
+Description of the metric
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`device_major`
+</td>
+<td>
+Device major number (for block I/O metrics)
+</td>
+<td>
+Integer
+</td>
+</tr>
+<tr>
+<td>
+`device_minor`
+</td>
+<td>
+Device minor number (for block I/O metrics)
+</td>
+<td>
+Integer
+</td>
+</tr>
+<tr>
+<td>
+`entity.guid`
+</td>
+<td>
+New Relic entity GUID for the container
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`entity.name`
+</td>
+<td>
+New Relic entity name (typically the container name)
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`entity.type`
+</td>
+<td>
+New Relic entity type
+</td>
+<td>
+`CONTAINER`
+</td>
+</tr>
+<tr>
+<td>
+`instrumentation.provider`
+</td>
+<td>
+Instrumentation provider identifier
+</td>
+<td>
+`opentelemetry`
+</td>
+</tr>
+<tr>
+<td>
+`interface`
+</td>
+<td>
+Network interface name (for network metrics)
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`newrelic.source`
+</td>
+<td>
+Source of the metric in New Relic
+</td>
+<td>
+`api.metrics.otlp`
+</td>
+</tr>
+<tr>
+<td>
+`nr.entity_type`
+</td>
+<td>
+New Relic entity type for entity correlation
+</td>
+<td>
+`CONTAINER`
+</td>
+</tr>
+<tr>
+<td>
+`operation`
+</td>
+<td>
+Type of block I/O operation
+</td>
+<td>
+`read`, `write`
+</td>
+</tr>
+<tr>
+<td>
+`otel.library.name`
+</td>
+<td>
+OpenTelemetry library/receiver name
+</td>
+<td>
+`github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver`
+</td>
+</tr>
+<tr>
+<td>
+`otel.library.version`
+</td>
+<td>
+OpenTelemetry library version
+</td>
+<td>
+String (e.g., `0.142.0`)
+</td>
+</tr>
+<tr>
+<td>
+`service.name`
+</td>
+<td>
+Service name configured in the collector
+</td>
+<td>
+String
+</td>
+</tr>
+<tr>
+<td>
+`telemetry.sdk.name`
+</td>
+<td>
+Telemetry SDK identifier
+</td>
+<td>
+`opentelemetry`
+</td>
+</tr>
+<tr>
+<td>
+`unit`
+</td>
+<td>
+Unit of measurement for the metric
+</td>
+<td>
+String (e.g., `{cpus}`, `By`, `1`)
+</td>
+</tr>
+</tbody>
+</table>
+</Collapser>
+
+</CollapserGroup>
+
+For more details, see the [Docker Stats receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/dockerstatsreceiver/documentation.md).
+
+## Troubleshooting [#troubleshooting]
+
+### No metrics appearing [#no-metrics]
+
+If you don't see metrics in New Relic:
+
+1. Verify the collector is running: `docker logs otel-collector`
+2. Check Docker socket permissions: `ls -l /var/run/docker.sock`
+3. Verify your New Relic license key is correct
+4. Ensure the OTLP endpoint is accessible
+
+### Permission denied errors [#permission-errors]
+
+If you see permission errors accessing Docker socket:
+
+```bash
+# On Linux, add your user to the docker group
+sudo usermod -aG docker $USER
+
+# Or run the collector with appropriate permissions
+docker run -d --user root ...
+```
+
+### No logs appearing [#no-logs]
+
+If you've configured log collection but don't see logs in New Relic:
+
+1. **Check file permissions**: Ensure the collector process has read access to `/var/lib/docker/containers/`:
+   ```bash
+   sudo chmod -R 755 /var/lib/docker/containers
+   # Or add the collector user to the docker group
+   sudo usermod -aG docker otelcol-contrib
+   ```
+
+2. **Verify container ports are exposed**: The receiver creator with Docker observer requires containers to have exposed ports to be discovered. When running containers, ensure you expose at least one port:
+   ```bash
+   # Example: expose port 8080
+   docker run --expose 80 my-container:latest
+   ```
+
+3. **Check collector logs**: Look for errors related to file access or receiver creator:
+   ```bash
+   journalctl -u otelcol-contrib -f
+   ```
+
+## What's next?
+
+After setting up your Docker monitoring with OpenTelemetry, you can:
+
+- Create [custom queries and charts](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to analyze your container metrics
+- Set up <InlinePopover type="alerts"/> to notify you about performance issues
+- Explore additional [Docker OpenTelemetry configuration examples](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/docker) in the New Relic OpenTelemetry examples repository
+- Learn more about [OpenTelemetry in New Relic](/docs/opentelemetry/opentelemetry-introduction/)
