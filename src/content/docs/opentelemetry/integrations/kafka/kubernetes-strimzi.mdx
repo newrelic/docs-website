@@ -1,0 +1,1172 @@
+---
+title: Monitor Kafka on Kubernetes (Strimzi) with OpenTelemetry
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Kafka
+  - Kubernetes
+  - Strimzi
+metaDescription: "Deploy OpenTelemetry Collector on Kubernetes to monitor Kafka clusters managed by Strimzi operator."
+freshnessValidatedDate: never
+---
+
+Monitor your Kafka cluster running on Kubernetes with Strimzi operator by deploying the OpenTelemetry Collector. The collector automatically discovers Kafka broker pods and collects comprehensive metrics.
+
+## Before you begin [#prerequisites]
+
+Ensure you have:
+* A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+* Kubernetes cluster with kubectl access
+* Kafka deployed via [Strimzi operator](https://strimzi.io/) with JMX enabled
+
+#### Enable JMX in Strimzi Kafka
+
+Ensure your Kafka cluster has JMX enabled in the Strimzi Kafka resource:
+
+```yaml
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: my-cluster
+  namespace: kafka
+spec:
+  kafka:
+    jmxOptions: {}  # Enables JMX with default settings
+    # ...other broker configuration
+```
+
+### Step 1: Create namespace [#create-namespace]
+
+Create a dedicated namespace for the OpenTelemetry Collector (or use your existing Kafka namespace):
+
+```bash
+kubectl create namespace kafka
+```
+
+### Step 2: Create secret with license key [#create-secret]
+
+Store your New Relic license key as a Kubernetes secret:
+
+```bash
+kubectl create secret generic nr-license-key \
+  --from-literal=NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY \
+  -n kafka
+```
+
+Replace `YOUR_LICENSE_KEY` with your actual New Relic license key.
+
+### Step 3: Deploy OpenTelemetry Collector [#deploy-collector]
+
+#### 3.1 Build custom collector image [#build-image]
+
+Create a custom OpenTelemetry Collector image with Java runtime and JMX scraper.
+
+<Callout variant="important">
+  **Version Compatibility**: This guide uses JMX Scraper 1.52.0 and OpenTelemetry Collector 0.143.1. Older collector versions may not include this scraper's hash in their compatibility list. For best results, use the latest versions as shown in this guide.
+
+  <CollapserGroup>
+    <Collapser
+      id="version-compatibility-details"
+      title="Verify your collector supports this JMX Scraper version"
+    >
+      **Check for latest versions**:
+      - OpenTelemetry Collector: Visit [OpenTelemetry Collector releases](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest)
+      - JMX Scraper: Check [OpenTelemetry Java Contrib releases](https://github.com/open-telemetry/opentelemetry-java-contrib/releases/latest)
+      
+      **Verify version compatibility**:
+      1. Check the [supported_jars.go](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/jmxreceiver/supported_jars.go) file for your collector version
+      2. Verify JMX Scraper 1.52.0 is listed in the `jmxScraperVersions` map with its SHA256 hash
+      3. If not listed, update to the latest OpenTelemetry Collector version
+    </Collapser>
+  </CollapserGroup>
+
+  **Target Architecture**: Refer to the [OpenTelemetry Collector releases](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest) page to find the correct binary for your system architecture (e.g., `linux_amd64`, `linux_arm64`, `darwin_amd64`). Update the `TARGETARCH` variable in the Dockerfile accordingly.
+</Callout>
+
+Save as `Dockerfile`:
+
+```dockerfile
+# Multi-stage build for OpenTelemetry Collector with Java support for JMX receiver
+# This image bundles the OTEL Collector with Java 17 runtime and JMX scraper JAR
+
+FROM alpine:latest as prep
+
+# OpenTelemetry Collector Binary
+ARG OTEL_VERSION=0.143.1
+ARG TARGETARCH=linux_amd64
+ADD "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol-contrib_${OTEL_VERSION}_${TARGETARCH}.tar.gz" /otelcontribcol
+RUN tar -zxvf /otelcontribcol
+
+# JMX Scraper JAR (for JMX receiver with YAML-based configuration)
+ARG JMX_SCRAPER_JAR_VERSION=1.52.0
+ADD https://github.com/open-telemetry/opentelemetry-java-contrib/releases/download/v${JMX_SCRAPER_JAR_VERSION}/opentelemetry-jmx-scraper.jar /opt/opentelemetry-jmx-scraper.jar
+
+# Set permissions for nonroot user (uid 65532)
+ARG USER_UID=65532
+RUN chown ${USER_UID} /opt/opentelemetry-jmx-scraper.jar
+
+# Final minimal image with Java runtime
+FROM openjdk:17-jre-slim
+
+COPY --from=prep /opt/opentelemetry-jmx-scraper.jar /opt/opentelemetry-jmx-scraper.jar
+COPY --from=prep /otelcol-contrib /otelcol-contrib
+
+EXPOSE 4317 4318 8888
+ENTRYPOINT ["/otelcol-contrib"]
+CMD ["--config", "/conf/otel-agent-config.yaml"]
+```
+
+Build and push the image:
+
+```bash
+docker build -t your-registry/otel-collector-kafka:latest .
+docker push your-registry/otel-collector-kafka:latest
+```
+
+#### 3.2 Create JMX custom metrics ConfigMap [#jmx-configmap]
+
+First, create a ConfigMap with custom JMX metrics configuration. Save as `jmx-kafka-config.yaml`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jmx-kafka-config
+  namespace: kafka
+data:
+  jmx-kafka-config.yaml: |
+    ---
+    rules:
+      # Per-topic custom metrics using custom MBean commands
+      - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+        mapping:
+          Count:
+            metric: kafka.prod.msg.count
+            type: counter
+            desc: The number of messages in per topic
+            unit: "{message}"
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+          direction: const(in)
+        mapping:
+          Count:
+            metric: kafka.topic.io
+            type: counter
+            desc: The bytes received or sent per topic
+            unit: By
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+          direction: const(out)
+        mapping:
+          Count:
+            metric: kafka.topic.io
+            type: counter
+            desc: The bytes received or sent per topic
+            unit: By
+
+      # Cluster-level metrics using controller-based MBeans
+      - bean: kafka.controller:type=KafkaController,name=GlobalTopicCount
+        mapping:
+          Value:
+            metric: kafka.cluster.topic.count
+            type: gauge
+            desc: The total number of global topics in the cluster
+            unit: "{topic}"
+
+      - bean: kafka.controller:type=KafkaController,name=GlobalPartitionCount
+        mapping:
+          Value:
+            metric: kafka.cluster.partition.count
+            type: gauge
+            desc: The total number of global partitions in the cluster
+            unit: "{partition}"
+
+      - bean: kafka.controller:type=KafkaController,name=FencedBrokerCount
+        mapping:
+          Value:
+            metric: kafka.broker.fenced.count
+            type: gauge
+            desc: The number of fenced brokers in the cluster
+            unit: "{broker}"
+
+      - bean: kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount
+        mapping:
+          Value:
+            metric: kafka.partition.non_preferred_leader
+            type: gauge
+            desc: The count of topic partitions for which the leader is not the preferred leader
+            unit: "{partition}"
+
+      # Broker-level metrics using ReplicaManager MBeans
+      - bean: kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
+        mapping:
+          Value:
+            metric: kafka.partition.under_min_isr
+            type: gauge
+            desc: The number of partitions where the number of in-sync replicas is less than the minimum
+            unit: "{partition}"
+
+      # Broker uptime metric using JVM Runtime
+      - bean: java.lang:type=Runtime
+        mapping:
+          Uptime:
+            metric: kafka.broker.uptime
+            type: gauge
+            desc: Broker uptime in milliseconds
+            unit: ms
+
+      # Leader count per broker
+      - bean: kafka.server:type=ReplicaManager,name=LeaderCount
+        mapping:
+          Value:
+            metric: kafka.broker.leader.count
+            type: gauge
+            desc: Number of partitions for which this broker is the leader
+            unit: "{partition}"
+
+      # JVM metrics
+      - bean: java.lang:type=GarbageCollector,name=*
+        mapping:
+          CollectionCount:
+            metric: jvm.gc.collections.count
+            type: counter
+            unit: "{collection}"
+            desc: total number of collections that have occurred
+            metricAttribute:
+              name: param(name)
+          CollectionTime:
+            metric: jvm.gc.collections.elapsed
+            type: counter
+            unit: ms
+            desc: the approximate accumulated collection elapsed time in milliseconds
+            metricAttribute:
+              name: param(name)
+
+      - bean: java.lang:type=Memory
+        unit: By
+        prefix: jvm.memory.
+        dropNegativeValues: true
+        mapping:
+          HeapMemoryUsage.committed:
+            metric: heap.committed
+            desc: current heap usage
+            type: gauge
+          HeapMemoryUsage.max:
+            metric: heap.max
+            desc: current heap usage
+            type: gauge
+          HeapMemoryUsage.used:
+            metric: heap.used
+            desc: current heap usage
+            type: gauge
+
+      - bean: java.lang:type=Threading
+        mapping:
+          ThreadCount:
+            metric: jvm.thread.count
+            type: gauge
+            unit: "{thread}"
+            desc: Total thread count (Kafka typical range 100-300 threads)
+
+      - bean: java.lang:type=OperatingSystem
+        prefix: jvm.
+        dropNegativeValues: true
+        mapping:
+          SystemLoadAverage:
+            metric: system.cpu.load_1m
+            type: gauge
+            unit: "{run_queue_item}"
+            desc: System load average (1 minute) - alert if > CPU count
+          AvailableProcessors:
+            metric: cpu.count
+            type: gauge
+            unit: "{cpu}"
+            desc: Number of processors available
+          ProcessCpuLoad:
+            metric: cpu.recent_utilization
+            type: gauge
+            unit: '1'
+            desc: Recent CPU utilization for JVM process (0.0 to 1.0)
+          SystemCpuLoad:
+            metric: system.cpu.utilization
+            type: gauge
+            unit: '1'
+            desc: Recent CPU utilization for whole system (0.0 to 1.0)
+          OpenFileDescriptorCount:
+            metric: file_descriptor.count
+            type: gauge
+            unit: "{file_descriptor}"
+            desc: Number of open file descriptors - alert if > 80% of ulimit
+
+      - bean: java.lang:type=ClassLoading
+        mapping:
+          LoadedClassCount:
+            metric: jvm.class.count
+            type: gauge
+            unit: "{class}"
+            desc: Currently loaded class count
+
+      - bean: java.lang:type=MemoryPool,name=*
+        type: gauge
+        unit: By
+        metricAttribute:
+          name: param(name)
+        mapping:
+          Usage.used:
+            metric: jvm.memory.pool.used
+            desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
+          Usage.max:
+            metric: jvm.memory.pool.max
+            desc: Maximum memory pool size
+          CollectionUsage.used:
+            metric: jvm.memory.pool.used_after_last_gc
+            desc: Memory used after last GC (shows retained memory baseline)
+```
+
+<Callout variant="tip">
+  **Customize metrics collection**: You can scrape additional Kafka metrics by adding custom MBean rules to the `kafka-jmx-config.yaml` file:
+  
+  - Learn the [basic syntax for JMX metrics rules](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/jmx-metrics#basic-syntax)
+  - Find available MBean names in the [Kafka monitoring documentation](https://kafka.apache.org/41/operations/monitoring/)
+  
+  This allows you to collect any JMX metric exposed by Kafka brokers based on your specific monitoring needs.
+</Callout>
+
+Apply the JMX ConfigMap:
+
+```bash
+kubectl apply -f jmx-kafka-config.yaml
+```
+
+#### 3.3 Create collector ConfigMap [#collector-configmap]
+
+Create a ConfigMap with the OpenTelemetry Collector configuration. Save as `otel-kafka-config.yaml`:
+
+```yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: kafka
+  labels:
+    app: otel-collector
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      # Kafka cluster-level metrics (runs once per OTEL collector)
+      kafkametrics/cluster:
+        brokers:
+          - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+        protocol_version: 2.8.0
+        scrapers:
+          - brokers
+          - topics
+          - consumers
+        collection_interval: 30s
+        metrics:
+          kafka.topic.min_insync_replicas:
+            enabled: true
+          kafka.topic.replication_factor:
+            enabled: true
+          kafka.partition.replicas:
+            enabled: false
+          kafka.partition.oldest_offset:
+            enabled: false
+          kafka.partition.current_offset:
+            enabled: false
+
+      # Receiver creator for dynamic per-broker JMX receivers
+      receiver_creator:
+        watch_observers: [k8s_observer]
+        receivers:
+          # JMX receiver template (created per discovered broker pod)
+          jmx:
+            rule: type == "pod" && labels["strimzi.io/kind"] == "Kafka" && labels["strimzi.io/cluster"] == "my-cluster" && labels["strimzi.io/name"] == "my-cluster-kafka"
+            config:
+              endpoint: 'service:jmx:rmi:///jndi/rmi://`endpoint`:9999/jmxrmi'
+              jar_path: /opt/opentelemetry-jmx-scraper.jar
+              target_system: kafka
+              jmx_configs: /conf-jmx/jmx-kafka-config.yaml
+              collection_interval: 30s
+              # Set dynamic resource attributes from discovered pod
+              resource_attributes:
+                broker.endpoint: '`endpoint`'
+
+    exporters:
+      otlp:
+        endpoint: https://otlp.nr-data.net:4317
+        tls:
+          insecure: false
+        sending_queue:
+          num_consumers: 12
+          queue_size: 5000
+        retry_on_failure:
+          enabled: true
+        headers:
+          api-key: ${NEW_RELIC_LICENSE_KEY}
+
+    processors:
+      # Batch processor for efficiency
+      batch/aggregation:
+        send_batch_size: 1024
+        timeout: 30s
+
+      # Memory limiter to prevent OOM
+      memory_limiter:
+        limit_percentage: 80
+        spike_limit_percentage: 30
+        check_interval: 1s
+
+      # Detect system resources
+      resourcedetection:
+        detectors: [env, docker, system]
+        timeout: 5s
+        override: false
+
+      # Add Kafka cluster metadata
+      resource/kafka_metadata:
+        attributes:
+          - key: kafka.cluster.name
+            value: my-cluster
+            action: upsert
+    
+
+      # Extract Kubernetes attributes
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.namespace.name
+            - k8s.node.name
+          labels:
+            - tag_name: strimzi.cluster
+              key: strimzi.io/cluster
+              from: pod
+            - tag_name: strimzi.kind
+              key: strimzi.io/kind
+              from: pod
+
+      # Transform metrics for New Relic UI
+      transform:
+        metric_statements:
+          - context: metric
+            statements:
+              # Clean up descriptions and units
+              - set(description, "") where description != ""
+              - set(unit, "") where unit != ""
+
+          - context: resource
+            statements:
+              # Extract broker.id from k8s.pod.name: my-cluster-kafka-0 -> 0 (supports multi-digit)
+              - set(attributes["broker.id"], ExtractPatterns(attributes["k8s.pod.name"], ".*-(?P<broker_id>\\d+)$")["broker_id"]) where attributes["k8s.pod.name"] != nil
+
+      # Remove broker.id for cluster-level metrics
+      transform/remove_broker_id:
+        metric_statements:
+          - context: resource
+            statements:
+              - delete_key(attributes, "broker.id")
+              - delete_key(attributes, "broker.endpoint")
+              - delete_key(attributes, "k8s.pod.name")
+
+      # Topic sum aggregation for replicas_in_sync
+      metricstransform/kafka_topic_sum_aggregation:
+        transforms:
+          - include: kafka.partition.replicas_in_sync
+            action: insert
+            new_name: kafka.partition.replicas_in_sync.total
+            operations:
+              - action: aggregate_labels
+                label_set: [ topic ]
+                aggregation_type: sum
+
+      # Filter to include only cluster-level metrics
+      filter/include_cluster_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - "kafka\\.partition\\.offline"
+              - "kafka\\.(leader|unclean)\\.election\\.rate"
+              - "kafka\\.partition\\.non_preferred_leader"
+              - "kafka\\.broker\\.fenced\\.count"
+              - "kafka\\.cluster\\.partition\\.count"
+              - "kafka\\.cluster\\.topic\\.count"
+
+      # Filter to exclude cluster-level metrics from broker pipeline
+      filter/exclude_cluster_metrics:
+        metrics:
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "kafka\\.partition\\.offline"
+              - "kafka\\.(leader|unclean)\\.election\\.rate"
+              - "kafka\\.partition\\.non_preferred_leader"
+              - "kafka\\.broker\\.fenced\\.count"
+              - "kafka\\.cluster\\.partition\\.count"
+              - "kafka\\.cluster\\.topic\\.count"
+
+      # Convert cumulative metrics to delta for New Relic
+      cumulativetodelta:
+
+    extensions:
+      # K8s observer extension
+      k8s_observer:
+        auth_type: serviceAccount
+        observe_pods: true
+        observe_nodes: false
+
+    service:
+      extensions: [k8s_observer]
+
+      pipelines:
+        # Per-broker metrics pipeline (with broker.id)
+        metrics/broker:
+          receivers:
+            - receiver_creator
+            - kafkametrics/cluster
+          processors:
+            - memory_limiter
+            - resourcedetection
+            - resource/kafka_metadata
+            - k8sattributes
+            - filter/exclude_cluster_metrics
+            - transform
+            - metricstransform/kafka_topic_sum_aggregation
+            - cumulativetodelta
+            - batch/aggregation
+          exporters: [otlp]
+
+        # Cluster-level metrics pipeline (without broker.id, aggregated)
+        metrics/cluster:
+          receivers:
+            - receiver_creator
+          processors:
+            - memory_limiter
+            - resourcedetection
+            - resource/kafka_metadata
+            - k8sattributes
+            - filter/include_cluster_metrics
+            - transform/remove_broker_id
+            - metricstransform/kafka_topic_sum_aggregation
+            - cumulativetodelta
+            - batch/aggregation
+          exporters: [otlp]
+```
+
+**Configuration notes:**
+* Replace `my-cluster-kafka-bootstrap` with your Strimzi Kafka service name
+* Replace `my-cluster` in the `rule` and `kafka.cluster.name` with your cluster name
+* Update the namespace if different from `kafka`
+* **OTLP endpoint**: Uses `https://otlp.nr-data.net:4317` (US region) or `https://otlp.eu01.nr-data.net:4317` (EU region). See [Configure your OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) for other regions
+* The `receiver_creator` automatically discovers Kafka broker pods using Strimzi labels
+
+<CollapserGroup>
+  <Collapser
+    id="additional-receiver-docs"
+    title="Additional receiver documentation"
+  >
+    For advanced configuration options, refer to these receiver documentation pages:
+    
+    * [Receiver creator documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) - Dynamic receiver discovery options
+    * [Kafka metrics receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - Additional Kafka metrics configuration
+    * [JMX receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/jmxreceiver) - JMX receiver configuration options
+  </Collapser>
+</CollapserGroup>
+
+Apply the ConfigMap:
+
+```bash
+kubectl apply -f otel-kafka-config.yaml
+```
+
+#### 3.4 Deploy the collector [#deploy-deployment]
+
+Create the deployment. Save as `otel-collector-deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      serviceAccountName: otel-collector
+      containers:
+      - name: otel-collector
+        image: your-registry/otel-collector-kafka:latest
+        env:
+          - name: NEW_RELIC_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: nr-license-key
+                key: NEW_RELIC_LICENSE_KEY
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        volumeMounts:
+        - name: vol-kafka-test-cluster
+          mountPath: /conf
+        - name: jmx-config
+          mountPath: /conf-jmx
+        ports:
+        - containerPort: 4317  # OTLP gRPC
+        - containerPort: 4318  # OTLP HTTP
+        - containerPort: 8888  # Metrics
+      volumes:
+      - name: vol-kafka-test-cluster
+        configMap:
+          name: otel-collector-config
+          items:
+          - key: otel-collector-config.yaml
+            path: otel-agent-config.yaml
+      - name: jmx-config
+        configMap:
+          name: jmx-kafka-config
+          items:
+          - key: jmx-kafka-config.yaml
+            path: jmx-kafka-config.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: kafka
+roleRef:
+  kind: ClusterRole
+  name: otel-collector
+  apiGroup: rbac.authorization.k8s.io
+```
+
+**Resource configuration:**
+* The resource limits above are suitable for medium-sized Kafka clusters (5-10 brokers, 20-100 topics)
+
+Apply the deployment:
+
+```bash
+kubectl apply -f otel-collector-deployment.yaml
+```
+
+Verify the collector is running:
+
+```bash
+kubectl get pods -n kafka -l app=otel-collector
+kubectl logs -n kafka -l app=otel-collector -f
+```
+
+### Step 4: (Optional) Instrument producer or consumer applications [#instrument-apps]
+
+To collect application-level telemetry from Kafka producer and consumer applications running in Kubernetes, instrument them with the [OpenTelemetry Java Agent](https://opentelemetry.io/docs/zero-code/java/agent/getting-started/).
+
+#### Instrument your Kafka application
+
+To instrument your Kafka producer or consumer applications, add the OpenTelemetry Java Agent to your existing deployment:
+
+1. **Download the Java agent**: Add an init container to download the agent JAR:
+
+   ```yaml
+   initContainers:
+   - name: download-otel-agent
+     image: busybox:latest
+     command:
+       - sh
+       - -c
+       - |
+         wget -O /otel/opentelemetry-javaagent.jar \
+           https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+     volumeMounts:
+       - name: otel-agent
+         mountPath: /otel
+   ```
+
+2. **Configure the Java agent**: Add environment variables to your application container:
+
+   ```yaml
+   env:
+     - name: JAVA_TOOL_OPTIONS
+       value: >-
+         -javaagent:/otel/opentelemetry-javaagent.jar
+         -Dotel.service.name="kafka-producer"
+         -Dotel.resource.attributes="kafka.cluster.name=my-cluster"
+         -Dotel.exporter.otlp.endpoint="http://localhost:4317"
+         -Dotel.exporter.otlp.protocol="grpc"
+         -Dotel.metrics.exporter="otlp"
+         -Dotel.traces.exporter="otlp"
+         -Dotel.logs.exporter="otlp"
+         -Dotel.instrumentation.kafka.experimental-span-attributes="true"
+         -Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled="true"
+         -Dotel.instrumentation.kafka.producer-propagation.enabled="true"
+         -Dotel.instrumentation.kafka.enabled="true"
+   volumeMounts:
+     - name: otel-agent
+       mountPath: /otel
+   ```
+
+3. **Add the volume**: Include the volume definition:
+
+   ```yaml
+   volumes:
+     - name: otel-agent
+       emptyDir: {}
+   ```
+
+Replace:
+* `kafka-producer` with a unique name for your application
+* `my-cluster` with your Kafka cluster name
+
+<Callout variant="tip">
+  The configuration above sends telemetry to an OpenTelemetry Collector running on localhost:4317. Deploy your own collector with this configuration:
+
+  ```yaml
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+  exporters:
+    otlp/newrelic:
+      endpoint: https://otlp.nr-data.net:4317
+      headers:
+        api-key: "${NEW_RELIC_LICENSE_KEY}"
+      compression: gzip
+      timeout: 30s
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      metrics:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      logs:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+  ```
+
+  This allows you to customize processing, add filters, or route to multiple backends. For other endpoint configurations, see [Configure your OTLP endpoint](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+</Callout>
+
+The Java Agent provides [out-of-the-box Kafka instrumentation](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) with zero code changes, capturing:
+* Request latencies
+* Throughput metrics
+* Error rates
+* Distributed traces
+
+For advanced configuration, see the [Kafka instrumentation documentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/kafka).
+
+### Step 5: (Optional) Forward Kafka broker logs [#forward-logs]
+
+To collect Kafka broker logs from your Kubernetes pods and send them to New Relic, configure the file log receiver in your OpenTelemetry Collector.
+
+<CollapserGroup>
+  <Collapser
+    id="configure-log-collection"
+    title="Configure log collection"
+  >
+    Update your collector ConfigMap to add the file log receiver. Add this to the `receivers` section:
+
+    ```yaml
+    receivers:
+      # ... existing receivers (receiver_creator, kafkametrics/cluster) ...
+      
+      # File log receiver for Kafka broker logs
+      filelog/kafka_broker:
+        include:
+          - ${env:HOME}/logs/kafka-broker-1.log
+        start_at: end
+        multiline:
+          line_start_pattern: '^\['
+        resource:
+          broker.id: "1"  # Adjust based on your broker setup
+    ```
+
+    Add a logs pipeline in the `service` section:
+
+    ```yaml
+    service:
+      pipelines:
+        # ... existing pipelines (metrics/broker, metrics/cluster) ...
+        
+        # Logs pipeline for Kafka broker logs
+        logs/brokers:
+          receivers: [filelog/kafka_broker]
+          processors: [batch/aggregation, resourcedetection, resource/kafka_metadata]
+          exporters: [otlp]
+    ```
+
+    **Configuration notes:**
+    * Update the `include` path pattern to match your Kafka log file locations
+    * Adjust `broker.id` to match your broker identifier
+    * The `multiline` pattern assumes logs start with `[` - adjust if your log format differs
+    * For complete configuration options and advanced patterns, see the [filelog receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver)
+
+    Apply the updated configuration:
+
+    ```bash
+    kubectl apply -f otel-collector-config.yaml
+    kubectl rollout restart deployment -n kafka otel-collector
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-logs-in-new-relic"
+    title="Find your logs in New Relic"
+  >
+    Your Kafka broker logs will appear in two places:
+    * **Broker entities**: Navigate to the Kafka broker entity in New Relic to see logs correlated with that specific broker
+    * **Logs UI**: Query all Kafka logs using the [Logs UI](/docs/logs/ui-data/use-logs-ui/) with filters like `kafka.cluster.name = 'my-cluster'`
+
+    You can also query your logs with NRQL:
+
+    ```sql
+    FROM Log SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Find your data [#find-data]
+
+After a few minutes, your Kafka metrics should appear in New Relic. See [Find your data](/docs/opentelemetry/integrations/kafka/find-and-query-data) for detailed instructions on exploring your Kafka metrics across different views in the New Relic UI.
+
+You can also query your data with NRQL:
+
+```sql
+FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
+```
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="enable-debug-logging"
+    title="Enable debug logging"
+  >
+    **Enable collector debug logs**: Add detailed logging to troubleshoot configuration issues
+
+    Edit your collector ConfigMap:
+    ```bash
+    kubectl edit configmap -n kafka otel-collector-config
+    ```
+
+    Add the telemetry section under `service:` in the `otel-collector-config.yaml` data:
+    ```yaml
+    service:
+      telemetry:
+        logs:
+          level: "debug"  # Enable detailed collector internal logs
+      extensions: [k8s_observer]
+      pipelines:
+        # ... existing pipelines ...
+    ```
+
+    Save and exit. The collector will automatically reload the configuration.
+
+    **Add debug exporter**: View metrics in collector logs before sending to New Relic
+    
+    Add to your ConfigMap:
+    ```yaml
+    exporters:
+      debug:
+        verbosity: detailed
+        sampling_initial: 5        # Log first 5 metrics
+        sampling_thereafter: 200   # Then log every 200th metric
+
+      otlp/newrelic:
+        endpoint: https://otlp.nr-data.net:4317
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        compression: gzip
+        timeout: 30s
+
+    service:
+      pipelines:
+        metrics/brokers-cluster-topics:
+          receivers: [receiver_creator, kafkametrics/cluster]
+          processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+          exporters: [debug, otlp/newrelic]  # Add debug exporter
+    ```
+
+    Then restart the collector and check logs:
+    ```bash
+    # Restart collector
+    kubectl rollout restart deployment -n kafka otel-collector
+
+    # View logs with metric output
+    kubectl logs -n kafka -l app=otel-collector -f
+    ```
+
+    **Important**: Remove the debug exporter in production to avoid log overflow.
+  </Collapser>
+
+  <Collapser
+    id="collector-pod-not-starting"
+    title="Collector pod not starting"
+  >
+    **Check pod status and events**:
+    ```bash
+    # Check pod status
+    kubectl get pods -n kafka -l app=otel-collector
+
+    # View detailed pod description
+    kubectl describe pod -n kafka -l app=otel-collector
+
+    # Check recent logs
+    kubectl logs -n kafka -l app=otel-collector --previous --tail=50
+    ```
+
+    **Common issues and solutions**:
+
+    **Missing JMX scraper**: Ensure the init container successfully downloaded the JAR
+    ```bash
+    # Check init container logs
+    kubectl logs -n kafka -l app=otel-collector -c download-jmx-scraper
+    ```
+
+    **Invalid configuration**: Validate the ConfigMap YAML syntax
+    ```bash
+    # Check ConfigMap contents
+    kubectl get configmap -n kafka otel-kafka-config -o yaml
+
+    # Validate YAML syntax
+    kubectl get configmap -n kafka otel-kafka-config -o yaml | kubectl apply --dry-run=client -f -
+    ```
+
+    **RBAC permissions**: Verify the ServiceAccount has proper ClusterRole bindings
+    ```bash
+    # Check ServiceAccount
+    kubectl get serviceaccount -n kafka otel-collector
+
+    # Check ClusterRoleBinding
+    kubectl get clusterrolebinding otel-collector-binding -o yaml
+    ```
+
+    **Resource constraints**: Check if pod is being OOMKilled or resource-limited
+    ```bash
+    # Check resource usage
+    kubectl top pods -n kafka -l app=otel-collector
+
+    # Check for resource limits
+    kubectl describe pod -n kafka -l app=otel-collector | grep -A 5 "Limits\|Requests"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="no-jmx-metrics"
+    title="No JMX metrics collected"
+  >
+    **Verify JMX is enabled**: Check your Strimzi Kafka resource has JMX configured
+    ```bash
+    # Check Kafka resource configuration
+    kubectl get kafka -n kafka -o yaml | grep -A 5 jmxOptions
+    ```
+
+    **Check pod labels**: Ensure Kafka pods have the correct labels for discovery
+    ```bash
+    # Verify Kafka pod labels
+    kubectl get pods -n kafka -l strimzi.io/kind=Kafka --show-labels
+
+    # Check if receiver_creator can discover pods
+    kubectl logs -n kafka -l app=otel-collector | grep "discovered"
+    ```
+
+    **Review observer logs**: Look for pod discovery messages in collector logs
+    ```bash
+    # Filter for k8s observer logs
+    kubectl logs -n kafka -l app=otel-collector | grep -i "observer\|discovery"
+    ```
+
+    **Test JMX connectivity**: Verify network connectivity to Kafka brokers
+    ```bash
+    # Get Kafka broker pod IPs
+    kubectl get pods -n kafka -l strimzi.io/kind=Kafka -o wide
+
+    # Test JMX port connectivity from collector pod
+    kubectl exec -it -n kafka deployment/otel-collector -- sh -c "nc -zv <kafka-broker-pod-ip> 9999"
+
+    # Check if JMX port is listening on Kafka pods
+    kubectl exec -it -n kafka <kafka-pod-name> -- netstat -tlnp | grep :9999
+    ```
+
+    **Validate receiver configuration**: Check if JMX receiver is properly configured
+    ```bash
+    # Check collector configuration
+    kubectl logs -n kafka -l app=otel-collector | grep -i "jmx\|kafka"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="high-memory-usage"
+    title="High memory usage"
+  >
+    **Monitor resource usage**:
+    ```bash
+    # Check current memory usage
+    kubectl top pods -n kafka -l app=otel-collector
+
+    # Watch memory usage over time
+    watch kubectl top pods -n kafka -l app=otel-collector
+    ```
+
+    **Reduce monitored topics**: Limit collection to essential topics only
+    ```bash
+    # Update ConfigMap to filter topics
+    kubectl patch configmap -n kafka otel-kafka-config --patch '
+    data:
+      config.yaml: |
+        # Add topic filtering to kafkametrics receiver
+        kafkametrics/cluster:
+          topic_match: "^(important-topic-1|important-topic-2)$"
+    '
+    ```
+
+    **Increase collection intervals**: Reduce collection frequency
+    ```yaml
+    # In your ConfigMap, update intervals:
+    receivers:
+      kafkametrics/cluster:
+        collection_interval: 45s  # Increase from 30s to 45s
+      receiver_creator:
+        receivers:
+          jmx:
+            config:
+              collection_interval: 45s  # Increase from 30s to 45s (max 59s supported)
+    ```
+
+    **Optimize batch processing**: Adjust batch processor settings
+    ```yaml
+    # In your ConfigMap:
+    processors:
+      batch/aggregation:
+        timeout: 30s
+        send_batch_size: 512  # Reduce from 1024
+    ```
+
+    **Set memory limits**: Add resource limits to prevent OOM
+    ```bash
+    # Update deployment with memory limits
+    kubectl patch deployment -n kafka otel-collector --patch '
+    spec:
+      template:
+        spec:
+          containers:
+          - name: otel-collector
+            resources:
+              limits:
+                memory: "512Mi"
+              requests:
+                memory: "256Mi"
+    '
+    ```
+
+    **Restart collector after changes**:
+    ```bash
+    kubectl rollout restart deployment -n kafka otel-collector
+    ```
+  </Collapser>
+
+  <Collapser
+    id="jmx-subprocess-error"
+    title="JMX receiver subprocess error"
+  >
+    **Error message in logs**:
+    ```
+    error subprocess/subprocess.go:XXX subprocess died
+    otelcol.component.id: "jmx/kafka_broker-X"
+    error: "unexpected shutdown: exit status 1"
+    ```
+
+    **Check JMX collection interval**: The JMX receiver with JMX scraper only supports collection intervals up to 59 seconds
+    
+    Update your ConfigMap:
+    ```yaml
+    receivers:
+      receiver_creator:
+        receivers:
+          jmx:
+            config:
+              jar_path: /opt/opentelemetry/opentelemetry-jmx-scraper.jar
+              target_system: kafka
+              collection_interval: 59s  # Must be 59s or less, NOT 60s or higher
+              jmx_configs: /etc/otel/jmx-kafka-config.yaml
+    ```
+
+    **Verify JMX scraper was downloaded**:
+    ```bash
+    # Check init container logs
+    kubectl logs -n kafka -l app=otel-collector -c download-jmx-scraper
+
+    # Verify file exists in running pod
+    kubectl exec -it -n kafka deployment/otel-collector -- ls -lh /opt/opentelemetry/opentelemetry-jmx-scraper.jar
+    ```
+
+    **Check Java is available**: The JMX scraper requires Java runtime
+    ```bash
+    # Check Java in collector pod
+    kubectl exec -it -n kafka deployment/otel-collector -- java -version
+    ```
+
+    **Verify JMX endpoint is accessible**: Test connectivity from collector to Kafka broker
+    ```bash
+    # Get Kafka broker pod IP
+    kubectl get pods -n kafka -l strimzi.io/kind=Kafka -o wide
+
+    # Test JMX port from collector pod
+    kubectl exec -it -n kafka deployment/otel-collector -- timeout 5 sh -c "</dev/tcp/<kafka-broker-pod-ip>/9999" && echo "JMX accessible" || echo "JMX not accessible"
+    ```
+
+    **Check collector logs for detailed errors**:
+    ```bash
+    # View recent logs
+    kubectl logs -n kafka -l app=otel-collector --tail=100 | grep -i "jmx\|error"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Next steps [#next-steps]
+
+* **[Explore Kafka metrics](/docs/opentelemetry/integrations/kafka/metrics-reference)** - View the complete metrics reference
+* **[Create custom dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)** - Build visualizations for your Kafka data
+* **[Set up alerts](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting)** - Monitor critical metrics like consumer lag and under-replicated partitions
