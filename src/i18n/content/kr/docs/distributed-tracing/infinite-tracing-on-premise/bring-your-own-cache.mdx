@@ -1,0 +1,267 @@
+---
+title: 캐시를 직접 가져오세요
+tags:
+  - Distributed tracing
+  - Infinite Tracing
+  - On-premise
+  - Redis
+  - Cache configuration
+metaDescription: Configure Redis-compatible caches for Infinite Tracing on-premise tail sampling processor to enable high-availability and distributed processing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+뉴렐릭의 Infinite Tracing Processor는 OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor) 의 구현입니다. 업스트림 기능 외에도 공유 상태 저장을 위한 분산 캐시를 사용하여 확장성이 뛰어난 분산 처리를 지원합니다. 이 문서에서는 지원되는 캐시 구현과 해당 설정에 대해 설명합니다.
+
+## 지원되는 캐시
+
+프로세서는 모든 Redis 호환 캐시 구현을 지원합니다. 단일 인스턴스 및 클러스터 설정 모두에서 레디스와 Valkey를 사용하여 테스트되고 검증되었습니다.
+
+프로덕션 구현, 배포의 경우 고가용성 및 확장성을 보장하기 위해 클러스터 모드(sharded)를 사용하는 것이 좋습니다. 분산 캐싱을 활성화하려면 `tail_sampling` 프로세서 섹션에 `distributed_cache` 설정을 추가하세요.
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://localhost:6379/0
+      password: 'local'
+    trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
+    in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
+    traces_ttl: 3600s                 # Optional: default 1 hour
+    cache_ttl: 7200s                  # Optional: default 2 hours
+    suffix: "itc"                     # Redis key prefix
+    max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
+    evaluation_interval: 1s           # Default: evaluation frequency
+    evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+    data_compression:
+      format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
+```
+
+<Callout variant="important">
+  **설정 동작**: `distributed_cache` 이 구성되면 프로세서는 상태 관리를 위해 자동으로 분산 캐시를 사용합니다. `distributed_cache` 완전히 생략되면 수집기는 대신 메모리 내 처리를 사용합니다. 별도의 `enabled` 플래그가 없습니다.
+</Callout>
+
+`address` 코드는 표준 형식을 사용하여 유효한 Redis 호환 서버 주소를 지정해야 합니다.
+
+```shell
+[output] redis[s]://[[username][:password]@][host][:port][/db-number]
+```
+
+또는 `address` 포럼에 직접 자격 증명을 포함할 수 있습니다.
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://:yourpassword@localhost:6379/0
+```
+
+프로세서는 Go로 구현되었으며 [go-redis](https://github.com/redis/go-redis/tree/v9) 클라이언트 라이브러리를 사용합니다.
+
+## 구성 매개변수
+
+`distributed_cache` 섹션에서는 다음과 같은 보고서를 지원합니다.
+
+## 연결을 검증합니다.
+
+* **`connection.address`** (필수): 형식에 따른 레디스 서버 주소 `redis[s]://[[username][:password]@][host][:port][/db-number]`
+* **`connection.password`** (선택 사항): 레디스 비밀번호 (주소에 내장하는 것의 대안)
+
+## 트레이스 평가 방법,
+
+* **`trace_window_expiration`** (기본값: 30초): 샘플링 결정을 위해 트레이스가 평가되기 전 마지막 스팬이 도착한 후의 시간 창
+* **`evaluation_interval`** (기본값: 1초): 프로세서가 샘플링 결정을 위해 보류 중인 트레이스를 평가하는 빈도
+* **`evaluation_workers`** (기본값: CPU 코어 수): 샘플링 정책을 평가하기 위한 병렬 작업자 스레드 수입니다. 값이 높을수록 처리량은 늘어나지만 리소스 소모도 커집니다.
+
+## TTL 및 만료에 대해
+
+* **`in_flight_timeout`** (기본값: `trace_window_expiration` 과 동일): 배치가 고아로 간주되어 복구되기 전에 처리 중인 상태를 유지할 수 있는 최대 시간
+* **`traces_ttl`** (기본값: 1시간): 트레이스 스팬 데이터의 레디스 키 만료 시간
+* **`cache_ttl`** (기본값: 2시간): 샘플링 결정 캐시 항목에 대한 레디스 키 만료 시간
+
+## 스토리지 기준,
+
+* **`max_traces_per_batch`** (기본값: 500): 단일 평가 주기에서 처리되는 최대 트레이스 수입니다. 값이 높을수록 처리량은 향상되지만 메모리 사용량은 늘어납니다.
+
+* **`suffix`** (기본값: &quot;tsp&quot;): 여러 프로세서가 동일한 레디스를 공유할 때 충돌을 방지하기 위한 레디스 키의 접두사
+
+* **`data_compression`** (선택 사항): 레디스에 저장된 트레이스 데이터에 대한 압축 설정
+
+  * **`format`** (기본값: 없음): 압축 형식: `none`, `snappy`, `zstd` 또는 `lz4`
+
+  <Callout variant="tip">
+    **압축 트레이드오프**: 압축을 활성화하면 프로세서와 REDIS 간의 네트워크 대역폭이 줄어들고 REDIS 메모리 요구 사항이 낮아집니다. 그러나 압축은 압축/압축 해제 작업 중에 프로세서 인스턴스의 CPU 및 메모리 사용량을 증가시킵니다.
+
+    **형식 권장 사항**:
+
+    * **`zstd`**: 최대 압축 비율, 대역폭이 제한된 환경에 가장 적합하지만 압축 해제 중 CPU 오버헤드가 가장 높습니다.
+    * **`lz4`**: 압축률이 우수하고 압축 해제 오버헤드가 거의 무시할 수 있는 균형 잡힌 옵션입니다. 대부분의 구현 및 배포에 권장됩니다.
+    * **`snappy`**: CPU 비용이 가장 낮고 압축/압축 해제 속도가 가장 빠르지만 lz4보다 압축 비율이 낮습니다.
+
+    네트워크 대역폭과 레디스 스토리지, 프로세서 CPU 가용성 등 병목현상, 병목지점에 따라 선택하세요.
+  </Callout>
+
+## Redis 호환 캐시 요구 사항
+
+프로세서는 다음 트레이스 데이터에 대한 분산 저장소로 캐시를 사용합니다.
+
+* 트레이스 및 스팬 속성
+* 액티브 트레이스 데이터
+* 샘플링 결정 캐시
+
+프로세서는 **Lua 펼쳐보기를** 실행하여 레디스 캐시와 원자적으로 상호작용합니다. Lua 스크립트 지원은 일반적으로 Redis 호환 캐시에서 기본적으로 활성화됩니다. 이 기능을 명시적으로 비활성화하지 않는 한 추가 설정은 필요하지 않습니다.
+
+## 크기 및 성능
+
+최적의 성능을 위해서는 적절한 크기 조정이 매우 중요합니다. 위의 &quot;지원되는 캐시&quot;에서 설정 예를 사용하세요. 메모리 요구 사항을 계산하려면 워크로드 특성을 추정해야 합니다.
+
+* **초당 스팬 수**: 초당 10,000 스팬의 가정 처리량
+* **평균 스팬 크기**: 900바이트로 가정된 크기(마샬링된 protobuf 형식)
+
+### 메모리 추정 공식
+
+```
+Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
+```
+
+#### 1. 트레이스 데이터 저장
+
+트레이스 데이터는 늦게 도착하는 스팬과 트레이스 복구를 지원하기 위해 전체 `traces_ttl` 기간 동안 레디스에 저장됩니다.
+
+* **스팬당 저장소**: `~900 bytes` (마샬링된 protobuf)
+
+* **저장 기간**: `traces_ttl` 에 의해 제어됨(기본값: **1시간**)
+
+* **활성 수집 창**: `trace_window_expiration` 에 의해 제어됨(기본값: 30초)
+
+* **공식**: `Memory ≈ spans_per_second × traces_ttl × 900 bytes`
+
+  <Callout variant="important">
+    **활성 창 대 전체 보존**: 트레이스는 `~30-second` 활성 창(`trace_window_expiration`) 동안 수집되지만 전체 1시간 `traces_ttl` 기간 동안 트레이스에 지속됩니다. 이를 통해 프로세서는 늦게 도착한 스팬을 처리하고 버려진 트레이스를 복구할 수 있습니다. 여성용 사이즈는 활성 기간뿐만 아니라 **전체 보관 기간** 을 고려해야 합니다.
+  </Callout>
+
+**계산 예시**: 1시간 `traces_ttl` 으로 초당 10,000개의 스팬에서:
+
+```
+10,000 spans/sec × 3600 sec × 900 bytes = 32.4 GB
+```
+
+**lz4 압축을 사용하면** (25% 감소가 관찰됨):
+
+```
+32.4 GB × 0.75 = 24.3 GB
+```
+
+참고: 이 계산은 기본 메모리 소비자를 나타냅니다. 실제 LEDS 메모리는 결정 캐시와 내부 데이터 구조로 인해 약간 더 높을 수 있습니다.
+
+#### 2. 의사결정 캐시 저장
+
+`distributed_cache` 사용하면 결정 캐시는 명시적 크기 제한 없이 LEDS에 저장됩니다. 대신, REDIS는 기본 LRU 퇴거 정책( `maxmemory-policy` 통해 구성됨)을 사용하여 메모리를 관리합니다. 각 트레이스 ID에는 약 50바이트의 저장 공간이 필요합니다.
+
+* **샘플링된 캐시**: 레디스 LRU 제거에 의해 관리됨
+
+* **샘플링되지 않은 캐시**: 레디스 LRU 제거에 의해 관리됨
+
+* **트레이스 ID당 일반적인 오버헤드**: `~50 bytes`
+
+  <Callout variant="tip">
+    **메모리 관리**: 메모리 제한에 도달하면 오래된 결정 캐시 항목을 자동으로 제거할 수 있도록 `maxmemory-policy allkeys-lru` 으로 LEDS를 구성합니다. 결정 캐시 키는 고정 크기 제한 대신 TTL 기반 만료( `cache_ttl` 에 의해 제어됨)를 사용합니다.
+  </Callout>
+
+#### 3. 일괄 처리 오버헤드
+
+* **현재 배치 대기열**: 최소(트레이스 ID + 정렬된 세트의 점수)
+* **기내 배치**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
+
+**계산 예시**: 배치당 500 트레이스(기본값), 트레이당 평균 20 스팬:
+
+```
+500 × 20 × 900 bytes = 9 MB per batch
+```
+
+배치 크기는 평가 중의 메모리 사용량에 영향을 미칩니다. 진행 중인 배치 메모리는 일시적이며 처리가 완료되면 해제됩니다.
+
+### 전체 크기 예시
+
+위의 설정을 기반으로 다음과 같은 워크로드 모범 사례를 제시합니다.
+
+* **처리량**: 10,000 스팬/초
+* **평균 스팬 크기**: 900바이트
+* **보관기간**: 1시간 (`traces_ttl`)
+
+**압축 없이:**
+
+| 요소               | 필요한 메모리                         |
+| ---------------- | ------------------------------- |
+| 트레이스 데이터(1시간 보존) | 32.4GB                          |
+| 결정 캐시            | 변수(LRU 관리)                      |
+| 일괄 처리            | `~10 MB`                        |
+| 레디스 오버헤드 (25%)   | `~8.1 GB`                       |
+| **총(최소)**        | `**~40.5 GB + decision cache**` |
+
+**lz4 압축(25% 감소):**
+
+| 요소               | 필요한 메모리                         |
+| ---------------- | ------------------------------- |
+| 트레이스 데이터(1시간 보존) | 24.3GB                          |
+| 결정 캐시            | 변수(LRU 관리)                      |
+| 일괄 처리            | `~7 MB`                         |
+| 레디스 오버헤드 (25%)   | `~6.1 GB`                       |
+| **총(최소)**        | `**~30.4 GB + decision cache**` |
+
+<Callout variant="important">
+  **사이즈 안내**: 위의 계산은 추정 예시로 제공됩니다. 귀하의 특정 특성에 따라 직접 용량 계획을 수행하는 것이 좋습니다. 생산 구현, 배포의 경우 다음을 고려하십시오.
+
+  * 계산된 요구 사항 외에 **10-15% 추가 메모리를** 프로비저닝하여 트래픽 급증 및 일시적인 오버헤드를 수용합니다.
+  * 수평 확장을 위해 레디스 클러스터 모드 사용
+  * 실제 메모리 사용량을 모니터링하고 이에 따라 용량을 조정합니다.
+</Callout>
+
+### 성능 고려 사항
+
+* **네트워크 지연시간**: 수집기와 레디스 간의 왕복 시간은 샘플링 처리량에 직접적인 영향을 미칩니다. 수집기에 대한 저지연시간 네트워크 연결성을 통해 구현하다, 배포하다 제외됩니다.
+* **Cluster 모드**: 여러 레디스 노드에 로드를 분산하면 처리량이 증가하고 고가용성 구현에 대한 내결함성을 제공합니다.
+
+## 데이터 관리 및 성능
+
+<Callout variant="caution">
+  **성능 병목 현상, 병목지점**: 레디스와 네트워크 통신은 일반적으로 프로세서 성능을 제한하는 요소입니다. 적절한 수집기 작동을 위해서는 LEGOS 캐시의 속도와 안정성이 필수적입니다. 귀하의 레디스 제외에 충분한 리소스가 있는지 확인하고 수집기에 대한 낮은 시간의 네트워크 연결을 유지하십시오.
+</Callout>
+
+프로세서는 샘플링 결정을 내리는 동안 트레이스 데이터를 레디스에 임시로 저장합니다. 최적의 성능을 위해서는 데이터 만료 및 캐시 제거 정책을 이해하는 것이 중요합니다.
+
+## TTL 및 만료
+
+`distributed_cache` 사용할 때 TTL 설정은 메모리 내 프로세서와 다릅니다. 다음과 같은 방법으로 데이터 만료를 제어합니다.
+
+<Callout variant="important">
+  **메모리 내 모드와의 주요 차이점**: `distributed_cache` 구성된 경우 `trace_window_expiration` `decision_wait` 대체하여 트레이가 평가되는 시기를 결정합니다. `trace_window_expiration` 파장은 슬라이딩 창을 정의합니다. 트레이스에 대한 새 범위가 도착할 때마다 트레이스는 또 다른 `trace_window_expiration` 기간 동안 활성 상태를 유지합니다. 이러한 점진적인 접근 방식을 통해 지속적인 활동을 하는 트레이스가 수신을 중단한 트레이스보다 더 오랫동안 활성화됩니다.
+</Callout>
+
+### TTL 계층 구조 및 기본값
+
+프로세서는 계단식 TTL 구조를 사용하며, 각 레벨은 아래 레이어에 대한 보호 기능을 제공합니다.
+
+1. **`trace_window_expiration`** (기본값: 30초)
+
+   * 마지막 스팬이 도착한 후 트레이스를 평가하기 전에 대기할 시간을 구성합니다.
+   * 슬라이딩 창 역할을 합니다. 트레이에 대한 새 스팬이 도착할 때마다 재설정됩니다.
+   * 를 통해 정의됨 `distributed_cache.trace_window_expiration`
+
+2. **`in_flight_timeout`** (기본값: 지정하지 않으면 `trace_window_expiration` 과 동일)
+
+   * 배치가 고아로 간주되기 전에 처리될 수 있는 최대 시간
+   * 고아 배치는 자동으로 복구되어 다시 대기열에 추가됩니다.
+   * 다음을 통해 재정의할 수 있습니다. `distributed_cache.in_flight_timeout`
+
+3. **`traces_ttl`** (기본값: 1시간)
+
+   * 트레이스 스팬 데이터에 대한 레디스 키 만료
+   * 트레이스 데이터가 평가 및 복구에 충분히 오랫동안 유지되도록 보장합니다.
+   * 를 통해 정의됨 `distributed_cache.traces_ttl`
+
+4. **`cache_ttl`** (기본값: 2시간)
+
+   * 결정 캐시 항목(샘플링/비샘플링)에 대한 레디스 키 만료
+   * 늦게 도착한 기간에 대한 중복 평가를 방지합니다.
+   * 를 통해 정의됨 `distributed_cache.cache_ttl`

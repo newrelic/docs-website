@@ -1,0 +1,267 @@
+---
+title: Trae tu propio caché
+tags:
+  - Distributed tracing
+  - Infinite Tracing
+  - On-premise
+  - Redis
+  - Cache configuration
+metaDescription: Configure Redis-compatible caches for Infinite Tracing on-premise tail sampling processor to enable high-availability and distributed processing
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El procesador de seguimiento infinito de New Relic es una implementación del [procesador de ejemplificación de cola](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor) Collector OpenTelemetry. Además de la característica upstream, admite un procesamiento distribuido altamente escalable mediante el uso de un caché distribuido para el almacenamiento de estado compartido. Esta documentación describe las implementaciones de caché compatibles y su configuración.
+
+## Cachés compatibles
+
+El procesador admite cualquier implementación de caché compatible con Redis. Se probó y validado con Redis y Valkey tanto en configuraciones de instancia única como de clúster.
+
+Para la implementación de producción, recomendamos emplear el modo clúster (sharded) para garantizar alta disponibilidad y escalabilidad. Para habilitar el almacenamiento en caché distribuido, agregue la configuración `distributed_cache` a la sección del procesador `tail_sampling` :
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://localhost:6379/0
+      password: 'local'
+    trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
+    in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
+    traces_ttl: 3600s                 # Optional: default 1 hour
+    cache_ttl: 7200s                  # Optional: default 2 hours
+    suffix: "itc"                     # Redis key prefix
+    max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
+    evaluation_interval: 1s           # Default: evaluation frequency
+    evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+    data_compression:
+      format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
+```
+
+<Callout variant="important">
+  **Comportamiento de configuración**: cuando se configura `distributed_cache`, el procesador emplea automáticamente la memoria caché distribuida para la gestión del estado. Si se omite `distributed_cache` por completo, el recolector empleará en su lugar el procesamiento en memoria. No hay una bandera `enabled` separada.
+</Callout>
+
+El parámetro `address` debe especificar una dirección de servidor válida compatible con Redis empleando el formato estándar:
+
+```shell
+[output] redis[s]://[[username][:password]@][host][:port][/db-number]
+```
+
+Alternativamente, puede insertar credenciales directamente en el parámetro `address` :
+
+```yaml
+tail_sampling:
+  distributed_cache:
+    connection:
+      address: redis://:yourpassword@localhost:6379/0
+```
+
+El procesador está implementado en Go y emplea la biblioteca cliente [go-redis](https://github.com/redis/go-redis/tree/v9).
+
+## Parámetro de configuración
+
+La sección `distributed_cache` admite los siguientes parámetros:
+
+## Conexión de parámetro
+
+* **`connection.address`** (obligatorio): Dirección del servidor Redis en formato `redis[s]://[[username][:password]@][host][:port][/db-number]`
+* **`connection.password`** (opcional): contraseña de Redis (alternativa a incrustarla en la dirección)
+
+## parámetro de evaluación de traza
+
+* **`trace_window_expiration`** (valor predeterminado: 30 s): ventana de tiempo después de que llega el último lapso antes de que se evalúe una traza para tomar decisiones de ejemplificación
+* **`evaluation_interval`** (predeterminado: 1 s): Con qué frecuencia el procesador evalúa los trazas pendientes para las decisiones de ejemplificación
+* **`evaluation_workers`** (predeterminado: número de núcleos de CPU): número de subprocesos de trabajo paralelos para evaluar políticas de ejemplificación. Los valores más altos aumentan el rendimiento pero consumen más recursos.
+
+## Parámetros de TTL y expiración
+
+* **`in_flight_timeout`** (valor predeterminado: igual a `trace_window_expiration`): tiempo máximo que un lote puede permanecer en procesamiento antes de considerar huérfano y recuperar
+* **`traces_ttl`** (valor predeterminado: 1 hora): tiempo de expiración de la clave Redis para los datos de intervalo de Traza
+* **`cache_ttl`** (valor predeterminado: 2 horas): tiempo de expiración de la clave de Redis para la ejemplificación de entradas de caché de decisiones
+
+## Cetro de almacenamiento
+
+* **`max_traces_per_batch`** (predeterminado: 500): Número máximo de trazas procesadas en un solo ciclo de evaluación. Los valores más altos mejoran el rendimiento pero aumentan el uso de memoria.
+
+* **`suffix`** (predeterminado: &quot;tsp&quot;): prefijo para claves de Redis para evitar colisiones cuando varios procesadores comparten la misma instancia de Redis
+
+* **`data_compression`** (opcional): Configuración de compresión para datos de traza almacenados en Redis
+
+  * **`format`** (predeterminado: ninguno): Formato de compresión: `none`, `snappy`, `zstd` o `lz4`
+
+  <Callout variant="tip">
+    **Beneficios de la compresión**: habilitar la compresión reduce el ancho de banda de la red entre el procesador y Redis y disminuye los requisitos de memoria de Redis. Sin embargo, la compresión aumenta el uso de CPU y memoria en la instancia del procesador durante las operaciones de compresión/descompresión.
+
+    **Recomendaciones de formato**:
+
+    * **`zstd`**: Relación de compresión máxima, ideal para entornos con restricciones de ancho de banda, pero con la mayor sobrecarga de CPU durante la descompresión
+    * **`lz4`**: Opción equilibrada con buena compresión y sobrecarga de descompresión casi insignificante; recomendada para la mayoría de las implementaciones
+    * **`snappy`**: Compresión/descompresión más rápida con el menor costo de CPU, pero índices de compresión más bajos que lz4
+
+    Elija en función de su cuello de botella: ancho de banda de red y almacenamiento Redis frente a disponibilidad de CPU del procesador.
+  </Callout>
+
+## Requisitos de caché compatibles con Redis
+
+El procesador emplea la caché como almacenamiento distribuido para los siguientes datos traza:
+
+* traza y span atributo
+* Datos de traza activos
+* Caché de decisiones de ejemplificación
+
+El procesador ejecuta **el script Lua** para interactuar con el caché Redis de forma atómica. La compatibilidad script Lua normalmente está habilitada de forma predeterminada en los cachés compatibles con Redis. No se requiere ninguna configuración adicional a menos que desactivó explícitamente esta función.
+
+## Dimensionamiento y rendimiento
+
+El tamaño adecuado de la instancia de Redis es fundamental para lograr un rendimiento óptimo. Emplee el ejemplo de configuración de “Cachés compatibles” más arriba. Para calcular los requisitos de memoria, debe estimar las características de su carga de trabajo:
+
+* **Intervalos por segundo**: rendimiento asumido de 10 000 intervalos/seg.
+* **Tamaño de intervalo promedio**: tamaño asumido de 900 bytes (formato protobuf serializado)
+
+### Fórmula de estimación de memoria
+
+```
+Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
+```
+
+#### 1. almacenamiento de datos traza
+
+Los datos de traza se almacenan en Redis durante todo el periodo `traces_ttl` para respaldar los tramos de llegada tardía y la recuperación de traza:
+
+* **Almacenamiento por tramo**: `~900 bytes` (protobuf serializado)
+
+* **Duración del almacenamiento**: controlada por `traces_ttl` (predeterminado: **1 hora**)
+
+* **Ventana de recopilación activa**: controlada por `trace_window_expiration` (predeterminado: 30 s)
+
+* **Fórmula**: `Memory ≈ spans_per_second × traces_ttl × 900 bytes`
+
+  <Callout variant="important">
+    **Ventana activa vs. retención completa**: los datos se recopilan durante una ventana activa `~30-second` (`trace_window_expiration`), pero persisten en Redis durante el periodo completo de 1 hora `traces_ttl`. Esto permite que el procesador gestione tramos que llegan tarde y recupere trazas huérfanas. El tamaño de Redis debe tener en cuenta el **periodo de retención completo**, no solo la ventana activa.
+  </Callout>
+
+**Ejemplo de cálculo**: A 10 000 intervalos/segundo con 1 hora `traces_ttl`:
+
+```
+10,000 spans/sec × 3600 sec × 900 bytes = 32.4 GB
+```
+
+**Con compresión lz4** (observamos una reducción del 25%):
+
+```
+32.4 GB × 0.75 = 24.3 GB
+```
+
+Nota: Este cálculo representa el consumidor principal de memoria. La memoria Redis real puede ser ligeramente mayor debido a los cachés de decisiones y las estructuras de datos internas.
+
+#### 2. Almacenamiento en caché de decisiones
+
+Al emplear `distributed_cache`, los cachés de decisiones se almacenan en Redis sin límites de tamaño explícitos. En su lugar, Redis emplea su política de desalojo LRU nativa (configurada a través de `maxmemory-policy`) para gestionar la memoria. Cada ID de traza requiere aproximadamente 50 bytes de almacenamiento:
+
+* **Caché muestreada**: gestionada por Redis LRU eviction
+
+* **Caché no muestreada**: gestionada por el desalojo de LRU de Redis
+
+* **Gastos generales típicos por ID de traza**: `~50 bytes`
+
+  <Callout variant="tip">
+    **Gestión de memoria**: configure Redis con `maxmemory-policy allkeys-lru` para permitir el desalojo automático de entradas de caché de decisiones antiguas cuando se alcanzan los límites de memoria. Las claves de caché de decisiones emplean una expiración basada en TTL (controlada por `cache_ttl`) en lugar de límites de tamaño fijos.
+  </Callout>
+
+#### 3. Gastos generales de procesamiento por lotes
+
+* **Cola de lotes actual**: Mínima (ID de traza + puntajes en el conjunto ordenado)
+* **Lotes en vuelo**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
+
+**Ejemplo de cálculo**: 500 trazas por lote (predeterminado) con 20 tramos por traza en promedio:
+
+```
+500 × 20 × 900 bytes = 9 MB per batch
+```
+
+El tamaño del lote afecta el uso de memoria durante la evaluación. La memoria por lotes en vuelo es temporal y se libera una vez finalizado el procesamiento.
+
+### Ejemplo de dimensionamiento completo
+
+Basado en la configuración anterior con el siguiente parámetro de carga de trabajo:
+
+* **Rendimiento**: 10.000 tramos/segundo
+* **Tamaño de tramo promedio**: 900 bytes
+* **Periodo de almacenamiento**: 1 hora (`traces_ttl`)
+
+**Sin compresión:**
+
+| Componente                        | memoria requerida               |
+| --------------------------------- | ------------------------------- |
+| datos traza (retención de 1 hora) | 32,4 GB                         |
+| Cachés de decisiones              | Variable (gestionada por LRU)   |
+| Procesamiento por lotes           | `~10 MB`                        |
+| Gastos generales de Redis (25%)   | `~8.1 GB`                       |
+| **Total (mínimo)**                | `**~40.5 GB + decision cache**` |
+
+**Con compresión lz4 (reducción del 25%):**
+
+| Componente                        | memoria requerida               |
+| --------------------------------- | ------------------------------- |
+| datos traza (retención de 1 hora) | 24,3 GB                         |
+| Cachés de decisiones              | Variable (gestionada por LRU)   |
+| Procesamiento por lotes           | `~7 MB`                         |
+| Gastos generales de Redis (25%)   | `~6.1 GB`                       |
+| **Total (mínimo)**                | `**~30.4 GB + decision cache**` |
+
+<Callout variant="important">
+  **Guía de tamaño**: Los cálculos anteriores sirven como ejemplo de estimación. Le recomendamos que realice su propia planeación de capacidad en función de las características específicas de su carga de trabajo. Para la implementación de producción, considere:
+
+  * Aprovisionamiento de **entre un 10% y un 15% de memoria adicional** más allá de los requisitos calculados para dar cabida a picos de tráfico y sobrecarga transitoria
+  * Uso del modo de clúster de Redis para escalamiento horizontal
+  * Monitorear el uso real de la memoria y ajustar la capacidad en consecuencia
+</Callout>
+
+### Consideraciones de rendimiento
+
+* **Latencia de la red**: el tiempo de ida y vuelta entre el recolector y Redis afecta directamente el rendimiento de la ejemplificación. desplegar Redis instancia con conectividad de red de baja latencia al recolector.
+* **ModoCluster **: la distribución de la carga entre múltiples nodos Redis aumenta el rendimiento y proporciona tolerancia a fallas para una implementación de alta disponibilidad.
+
+## Gestión de datos y rendimiento
+
+<Callout variant="caution">
+  **rendimiento cuello de botella**: Redis y la comunicación de red suelen ser los factores limitantes para el rendimiento del procesador. La velocidad y confiabilidad de su caché Redis son esenciales para el correcto funcionamiento del recolector. Cerciorar de que su instancia Redis tenga recursos suficientes y mantenga una conectividad de red de baja latencia con el recolector.
+</Callout>
+
+El procesador almacena datos de traza temporalmente en Redis mientras toma decisiones de ejemplificación. Comprender las políticas de expiración de datos y de desalojo de caché es fundamental para lograr un rendimiento óptimo.
+
+## TTL y vencimiento
+
+Cuando se emplea `distributed_cache`, la configuración TTL difiere del procesador en memoria. El siguiente parámetro controla la caducidad de los datos:
+
+<Callout variant="important">
+  **Diferencia clave con el modo en memoria**: cuando se configura `distributed_cache`, `trace_window_expiration` reemplaza `decision_wait` para determinar cuándo se evalúan los trazas. El parámetro `trace_window_expiration` define una ventana deslizante: cada vez que llegan nuevos tramos para una traza, la traza permanece activa durante otro periodo `trace_window_expiration`. Este enfoque incremental permite que los traza con actividad en curso permanezcan activos por más tiempo que aquellos que dejaron de recibirlos.
+</Callout>
+
+### Jerarquía TTL y valores predeterminados
+
+El procesador emplea una estructura TTL en cascada, donde cada nivel proporciona protección a la capa inferior:
+
+1. **`trace_window_expiration`** (predeterminado: 30 s)
+
+   * Configura cuánto tiempo esperar después de que llega el último tramo antes de evaluar una traza
+   * Actúa como una ventana deslizante: se resetear cada vez que llegan nuevos tramos para una traza
+   * Definido mediante `distributed_cache.trace_window_expiration`
+
+2. **`in_flight_timeout`** (predeterminado: es igual a `trace_window_expiration` si no se especifica)
+
+   * Tiempo máximo que se puede procesar un lote antes de que se considere huérfano
+   * Los lotes huérfanos se recuperan automáticamente y se vuelven a poner en cola.
+   * Se puede anular mediante `distributed_cache.in_flight_timeout`
+
+3. **`traces_ttl`** (predeterminado: 1 hora)
+
+   * Vencimiento de la clave Redis para los datos de Traza Span
+   * Garantiza que los datos de traza persistan el tiempo suficiente para su evaluación y recuperación.
+   * Definido mediante `distributed_cache.traces_ttl`
+
+4. **`cache_ttl`** (predeterminado: 2 horas)
+
+   * Caducidad de la clave de Redis para entradas de caché de decisiones (muestreadas/no muestreadas)
+   * Evita la evaluación duplicada de tramos que llegan tarde
+   * Definido mediante `distributed_cache.cache_ttl`
