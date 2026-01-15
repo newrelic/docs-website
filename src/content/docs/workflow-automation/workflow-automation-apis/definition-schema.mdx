@@ -14,9 +14,144 @@ freshnessValidatedDate: never
   This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-## Schema
+## Overview
 
-Workflow definitions are written in YAML. Keys use a `camelCase` naming convention.
+A workflow definition describes the automated process to be executed. Workflow definitions are written in YAML using a `camelCase` naming convention. Each workflow consists of:
+
+- **Schema properties**: Basic information (name, description, inputs)
+- **Steps**: The sequence of actions to perform
+- **Expressions**: Dynamic values using jq syntax
+- **Secrets**: Secure credential references
+
+## Foundational concepts
+
+Before building workflows, understand these core concepts used throughout workflow definitions.
+
+### Expression strings [#expression-strings]
+
+  Several properties accept string values with embedded expressions that are evaluated during workflow execution, enabling dynamic values in workflow definitions.
+
+  Expression strings can contain one or more expressions, each enclosed within double curly braces. The content within the braces is evaluated using [jq](https://jqlang.org/manual/), which provides powerful capabilities to access and operate on values.
+
+  **Example**:
+
+  Get the length of a workflow input string:
+
+  `${{ .workflowInputs.myString | length }}`
+
+  To validate and test your expressions, use the [JQ Playground](https://play.jqlang.org/).
+
+### Expression properties [#expression-properties]
+
+A number of properties can be accessed with expressions. These properties live in a `scope` object, so expressions must start with a period `(.)` to access those properties of the scope object.
+
+The available properties are:
+
+- `workflowInputs` - Object containing the inputs passed to the workflow on start.
+
+**Example**:
+
+`${{ .workflowInputs.myInput }}`
+
+    - `steps` - Object containing a property for each step in the workflow
+    - `steps.<stepName>` - Object containing properties for a specific step
+    - `steps.<stepName>.outputs` - Object containing result properties, specific to the step or action.
+
+    **Example**: `${{ .steps.myStep.outputs.myResult }}`
+
+### Expression evaluation results [#expression-evaluation-results]
+
+  A single jq expression can evaluate to any JSON type. However, the final result of an expression string depends on whether the string contains only the expression or additional content.
+
+  **Single expression (preserves JSON type)**:
+
+    If an expression string consists of only one expression with no surrounding content, it evaluates to the jq expression's result while maintaining its original JSON type. For example, `${{ .workflowInputs.myArray }}` evaluates to an array. This is useful for passing complex data structures within a workflow.
+
+  **Multiple expressions or mixed content (converts to string)**:
+
+    If an expression string contains content other than a single expression, it evaluates to a string result. This occurs when an expression has content before or after it, or when the string has multiple expressions within it. Each expression within the string is evaluated and converted to a string representation.
+
+  <Callout variant="important">
+    When a jq expression is evaluated to null, a null node is returned. For example the expression `${{ .workflowInputs.missingInput }}` returns null if `missingInput` is not given as workflow input.
+  </Callout>
+
+**Example**:
+
+Lets assume `myArray` has a value of `[1, 2, 3]`.
+
+<table>
+  <thead>
+    <tr>
+      <th>Expression string</th>
+      <th>Result data</th>
+      <th>Result type</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`${{ .workflowInputs.myArray }}`</td>
+      <td>`[1, 2, 3]`</td>
+      <td>Array of numbers</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray | length }}`</td>
+      <td>3</td>
+      <td>Number</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray | length > 0 }}`</td>
+      <td>True</td>
+      <td>Boolean</td>
+    </tr>
+    <tr>
+      <td>`Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`</td>
+      <td>`"Input is not empty: true"`</td>
+      <td>String</td>
+    </tr>
+    <tr>
+      <td>`${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`</td>
+      <td>`"has length 3"`</td>
+      <td>String</td>
+    </tr>
+  </tbody>
+</table>
+
+### Expression safe pattern [#expression-safe-pattern]
+
+Properties that can be used in expressions must conform to: `^[A-Za-z_][A-Za-z0-9_]*$`
+
+### Secret references [#secret-references]
+
+Secret values can be used in actions via reference strings that specify the name of a secret to look up in the Secrets Service. To reference a secret in a workflow definition, use the syntax:
+  - `${{ :secrets:<SECRET_NAME> }}` for a secret not in a `namespace`
+  - `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` for a secret in a `namespace`
+  - `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` for a secret in scope and namespace. scope accepts only `ACCOUNT` or `ORGANIZATION` for now.
+
+An expression string can contain a mix of secret references and JQ expressions `and/or` multiple secret references.
+
+**Examples**:
+
+  ```yaml
+    steps:
+    - name: mySecretStep
+      type: action
+      action: newrelic.instrumentation.log
+      inputs:
+        message: My message
+        licenseKey: ${{ :secrets:<SECRET_NAME> }}
+  ```
+
+  ```yaml
+    steps:
+      - name: bearer_auth
+        type: action
+        action: utils.http.post
+        inputs:
+          headers:
+            Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
+  ```
+
+## Schema structure
 
 ### Schema properties
 
@@ -148,6 +283,50 @@ Workflow definitions are written in YAML. Keys use a `camelCase` naming conventi
             - name: datetime
               expression: '.responseBody | fromjson.datetime'
   ```
+
+### Validation types [#validation-types]
+
+<table>
+  <thead>
+    <tr>
+      <th>Validation type</th>
+      <th>Property</th>
+      <th>Required or Optional</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>**`regex`**</td>
+      <td>`validations[*].pattern`</td>
+      <td>Required</td>
+      <td>String</td>
+      <td>Validates the workflow input value against the provided regex pattern.</td>
+    </tr>
+    <tr>
+      <td>**`maxIntValue`**</td>
+      <td>`validations[*].maxValue`</td>
+      <td>Required</td>
+      <td>Integer</td>
+      <td>Validates that the workflow input value should be less than the provided maxValue.</td>
+    </tr>
+    <tr>
+      <td>**`minIntValue`**</td>
+      <td>`validations[*].minValue`</td>
+      <td>Required</td>
+      <td>Integer</td>
+      <td>Validates that the workflow input value should be greater than the provided minValue.</td>
+    </tr>
+    <tr>
+      <td>**`maxLength`**</td>
+      <td>`validations[*].length`</td>
+      <td>Required</td>
+      <td>Integer</td>
+      <td>Validates the maximum length of workflow input strings and Collections (`Array, Set, Map, etc.`).</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Steps [#steps]
 
@@ -290,34 +469,33 @@ Workflow definitions are written in YAML. Keys use a `camelCase` naming conventi
 
 ### Loop [#loop]
 
-A loop will iterate over a given collection defined by `in` and create loop variables `index` and `element` for each of its iteration.  These loop variables are accessible within the loop only with expression `${{ .steps.<loopStepName>.loop.element }}` or `${{ .steps.<loopStepName>.loop.index }`
+A loop iterates over collections (lists, maps, arrays) and automatically creates `index` and `element` variables for each iteration. These loop variables are accessible only within the loop using `${{ .steps.<loopStepName>.loop.element }}` or `${{ .steps.<loopStepName>.loop.index }}`
 
-For more details:
+**Properties:**
 
-<CollapserGroup>
-    <Collapser
-        id="moreforloop"
-        title="Loop to iterate through a list, map, or collection"
-    >
+  - **`steps[*].for`** (Required)
+    - **Type**: Constant
+    - **Description**: Signals the start of a loop
 
-    You can use the `loop` to iterate through a list, map, or collection.
+  - **`steps[*].in`** (Required)
+    - **Type**: String (expression)
+    - **Description**: Expression that evaluates to a collection of elements
 
-    A loop iterates over a given collection defined by `in`. It will automatically create a loop variables `index` and `element` for each of its iterations. These loop variables are accessible within the loop with JQ expression `${{ .steps.<loopStepName>.loop.element }}` or `${{ .steps.<loopStepName>.loop.index }}`
+  - **`steps[*].steps`** (Required)
+    - **Description**: Steps executed each iteration. Can include any step type, including nested loops.
 
-      - `for` (Required)
-        - **Type**: Constant
-        - **Description**: Signal starting of a loop.
+<Callout variant="important">
+  - **for:** (required). This is the top-level element indicating the beginning of a for loop.
+  - **in:** (required). For the input collection to be iterated on, it must be castable to Java Array.
+  - **steps:** (required). Each iteration the steps will be executed.
+  - **element** and **index** are automatically assigned as part of the loop.
+  - `index` is zero-based, `element` can be a complex type if you have a collection of complex elements.
+  - Variables created inside the loop (loop variables and step outputs) are only accessible within the loop
+  - These variables are cleared when the loop exits and will be null if accessed outside the loop
+  - Loops can access variables defined outside the loop
+</Callout>
 
-      - `in` (Required)
-        - **Type**: String (expression)
-        - **Description**: An expression that needs to be evaluated to a collection of elements.
-
-      - `steps` (Required)
-        - **Description**: Steps to be executed each iteration of the loop. A step can be any type of step, including another loop.
-
-    **Examples**: 
-    
-    The following shows how to execute the loop `workflowInputs`. Note, that the result must be a type of collection.
+**Example: Basic loop**
 
       ```yaml
         name: myWorkflow
@@ -334,19 +512,8 @@ For more details:
                   inputs:
                     name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
       ```
-      <Callout variant="important">
-        - `for`: (required). This is the top-level element indicating the beginning of a for loop.
-        - `in`: (required). For the input collection to be iterated on, it must be castable to Java Array.
-        - `steps`: (required). Each iteration the steps will be executed.
-        - `element` and `index` are automatically assigned as part of the loop.
-        - `index` is zero-based.
-        - `element` can be a complex type if you have a collection of complex elements.
-        - Variables created inside the loop (loop variables and step outputs) are only accessible within the loop
-        - These variables are cleared when the loop exits and will be null if accessed outside the loop
-        - Loops can access variables defined outside the loop
-      </Callout>
 
-    **Simple for loop on integers**
+**Example: Loop on integers**
 
       ```yaml
         name: myWorkflow
@@ -364,7 +531,7 @@ For more details:
                     name: 'Element: ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element : [1, 2, 3, 4, 5] , Index : [0, 1, 2, 3, 4]
       ```
 
-    **Simple loop for map**
+    **Example: Loop on map**
 
       ```yaml
         name: myWorkflow
@@ -382,9 +549,9 @@ For more details:
                     name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element: [{ "key1": "val1" }, { "key2": "val2"}] , Index : [0, 1]
       ```
 
-    **Jump within a loop**
+    **Example: Jump within a loop**
 
-    Jump between named steps belonging to the same for loop is allowed. Jumping in or out of a for loop, to an inner or outer loop, or between two different for loops, is not allowed.
+    Jumping between steps within the same loop is allowed. Jumping in/out of loops, between different loops, or to parent/child loops is not allowed.
 
       ```yaml
         name: myWorkflow
@@ -418,12 +585,9 @@ For more details:
                   next: firstStep                            # Not okay, first step is not in the loop context
       ```
 
-    **Use break or continue in a loop**
+    **Example: Break and continue**
 
-    To change the flow of a for loop, you can use `next: break` or `next: continue`. Note that `break` and `continue` are reserved jump targets defined implicitly within a loop. Using use `next: break` or `next: continue` outside of a loop will jump to the end of the workflow steps.
-
-        - The `end` serves as the same as `break` if it's used inside a loop
-        - Next can be used in both switch steps or any type of step.
+    Use `next: break` or `next: continue` to control loop flow. These are reserved keywords within loops. Outside loops, they jump to workflow end. Note: `end` behaves like `break` inside loops.
 
       ```yaml
         name: myWorkflow
@@ -463,21 +627,8 @@ For more details:
                   inputs:
                     name: '${{ .steps.loopStepAgain.loop.element }}'
       ```
-    </Collapser>
-</CollapserGroup>
 
-    - **`steps[*].for`** (Required)
-      - **Type**: Constant
-      - **Description**: Signal starting of a loop
-
-    - **`steps[*].in`** (Required)
-        - **Type**: string (expression)
-        - **Description**: An expression that need to evaluate to a collection of elements.
-
-      - **`steps[*].steps`** (Optional)
-        - **Description**: Steps to be executed each iteration of the loop. See definition for steps above.
-
-  **Example**:
+**Simple example:**
 
   ```yaml
     name: myWorkflow
@@ -643,177 +794,7 @@ A step that defines variables for use throughout the workflow. This step assigns
       - The inputs are a map of variable names and their assigned values. When secret references are assigned to variables, they remain as secret references and are not converted to their actual values. However, other expressions (such as workflow inputs) are evaluated and converted to their actual values.
     - Allowed input types: `Integer`, `Double`, `Boolean`, `String`, `Array`, `Map`
 
-## Validation types [#validation-types]
-
-<table>
-  <thead>
-    <tr>
-      <th>Validation type</th>
-      <th>Property</th>
-      <th>Required or Optional</th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>**`regex`**</td>
-      <td>`validations[*].pattern`</td>
-      <td>Required</td>
-      <td>String</td>
-      <td>Validates the workflow input value against the provided regex pattern.</td>
-    </tr>
-    <tr>
-      <td>**`maxIntValue`**</td>
-      <td>`validations[*].maxValue`</td>
-      <td>Required</td>
-      <td>Integer</td>
-      <td>Validates that the workflow input value should be less than the provided maxValue.</td>
-    </tr>
-    <tr>
-      <td>**`minIntValue`**</td>
-      <td>`validations[*].minValue`</td>
-      <td>Required</td>
-      <td>Integer</td>
-      <td>Validates that the workflow input value should be greater than the provided minValue.</td>
-    </tr>
-    <tr>
-      <td>**`maxLength`**</td>
-      <td>`validations[*].length`</td>
-      <td>Required</td>
-      <td>Integer</td>
-      <td>Validates the maximum length of workflow input strings and Collections (`Array, Set, Map, etc.`).</td>
-    </tr>
-  </tbody>
-</table>
-
-## Shared types [#shared-types]
-
-### Expression strings [#expression-strings]
-
-  Several properties accept string values with embedded expressions that are evaluated during workflow execution, enabling dynamic values in workflow definitions.
-
-  Expression strings can contain one or more expressions, each enclosed within double curly braces. The content within the braces is evaluated using [jq](https://jqlang.org/manual/), which provides powerful capabilities to access and operate on values.
-
-  **Example**: 
-
-  Get the length of a workflow input string: 
-  
-  `${{ .workflowInputs.myString | length }}`
-
-  To validate and test your expressions, use the [JQ Playground](https://play.jqlang.org/).
-
-### Expression properties [#expression-properties]
-
-A number of properties can be accessed with expressions. These properties live in a `scope` object, so expressions must start with a period `(.)` to access those properties of the scope object.
-
-The available properties are:
-
-- `workflowInputs` - Object containing the inputs passed to the workflow on start.
-
-**Example**: 
-
-`${{ .workflowInputs.myInput }}`
-
-    - `steps` - Object containing a property for each step in the workflow
-    - `steps.<stepName>` - Object containing properties for a specific step
-    - `steps.<stepName>.outputs` - Object containing result properties, specific to the step or action.
-          
-    **Example**: `${{ .steps.myStep.outputs.myResult }}`
-
-### Expression evaluation results [#expression-evaluation-results]
-
-  A single jq expression can evaluate to any JSON type. However, the final result of an expression string depends on whether the string contains only the expression or additional content.
-
-  **Single expression (preserves JSON type)**:
-    
-    If an expression string consists of only one expression with no surrounding content, it evaluates to the jq expression's result while maintaining its original JSON type. For example, `${{ .workflowInputs.myArray }}` evaluates to an array. This is useful for passing complex data structures within a workflow.
-
-  **Multiple expressions or mixed content (converts to string)**:
-    
-    If an expression string contains content other than a single expression, it evaluates to a string result. This occurs when an expression has content before or after it, or when the string has multiple expressions within it. Each expression within the string is evaluated and converted to a string representation.
-
-  <Callout variant="important">
-    When a jq expression is evaluated to null, a null node is returned. For example the expression `${{ .workflowInputs.missingInput }}` returns null if `missingInput` is not given as workflow input.
-  </Callout>
-
-**Example**:
-
-Lets assume `myArray` has a value of `[1, 2, 3]`.
-
-<table>
-  <thead>
-    <tr>
-      <th>Expression string</th>
-      <th>Result data</th>
-      <th>Result type</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>`${{ .workflowInputs.myArray }}`</td>
-      <td>`[1, 2, 3]`</td>
-      <td>Array of numbers</td>
-    </tr>
-    <tr>
-      <td>`${{ .workflowInputs.myArray | length }}`</td>
-      <td>3</td>
-      <td>Number</td>
-    </tr>
-    <tr>
-      <td>`${{ .workflowInputs.myArray | length > 0 }}`</td>
-      <td>True</td>
-      <td>Boolean</td>
-    </tr>
-    <tr>
-      <td>`Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`</td>
-      <td>`"Input is not empty: true"`</td>
-      <td>String</td>
-    </tr>
-    <tr>
-      <td>`${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`</td>
-      <td>`"has length 3"`</td>
-      <td>String</td>
-    </tr>
-  </tbody>
-</table>
-
-### Expression safe pattern [#expression-safe-pattern]
-
-Properties that can be used in expressions must conform to: `^[A-Za-z_][A-Za-z0-9_]*$`
-
-### Secret references [#secret-references]
-
-Secret values can be used in actions via reference strings that specify the name of a secret to look up in the Secrets Service. To reference a secret in a workflow definition, use the syntax:
-  - `${{ :secrets:<SECRET_NAME> }}` for a secret not in a `namespace`
-  - `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` for a secret in a `namespace`
-  - `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` for a secret in scope and namespace. scope accepts only `ACCOUNT` or `ORGANIZATION` for now.
-
-An expression string can contain a mix of secret references and JQ expressions `and/or` multiple secret references.
-
-**Examples**:
-
-  ```yaml
-    steps:
-    - name: mySecretStep
-      type: action
-      action: newrelic.instrumentation.log
-      inputs:
-        message: My message
-        licenseKey: ${{ :secrets:<SECRET_NAME> }}
-  ```
-
-  ```yaml
-    steps:
-      - name: bearer_auth
-        type: action
-        action: utils.http.post
-        inputs:
-          headers:
-            Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
-  ```
-
-## Examples [#examples]
+## Complete example [#examples]
 
 ### Calendar demo
 
