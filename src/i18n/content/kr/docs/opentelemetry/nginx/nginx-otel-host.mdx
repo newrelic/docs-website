@@ -1,0 +1,576 @@
+---
+title: OpenTelemetry를 사용하여 자체 호스팅 NGINX를 모니터링하세요
+metaDescription: 'Complete step-by-step guide to configure NGINX monitoring with OpenTelemetry. Includes prerequisites, configuration, environment setup, and troubleshooting.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이 가이드는 OpenTelemetry를 사용하여 자체 호스팅 NGINX를 모니터링하기 위한 전체 설정 지침을 제공합니다. NGINX 서버, OpenTelemetry Collector 및 뉴릭 통합을 구성하려면 다음 단계를 따르십시오.
+
+/\* &lt;Callout variant=&quot;important&quot;&gt; \*\*시작하기 전에\*\*: \[NGINX OpenTelemetry 개요]\(/docs/OpenTelemetry/nginx/nginx-otel-overview/)를 검토하여 무엇을 이해해야 하는지, 그리고 이 통합의 이점을 이해하십시오. \*\*기타 NGINX 모니터링 옵션:\*\* - \*\*NGINX Plus\*\*를 모니터링하려면 \[모니터 NGINX Plus with OpenTelemetry]\(/docs/OpenTelemetry/nginx-plus/nginx-plus-otel/)를 참조하세요. - \*\* Kubernetes의 NGINX\*\*를 모니터링하려면 \[ OpenTelemetry 사용하는 Kubernetes 의 모니터 NGINX]\(/docs/OpenTelemetry/nginx/nginx-otel-Kubernetes/)를 참조하세요. &lt;/Callout&gt; &lt;Callout variant=&quot;tip&quot;&gt; \*\*설정 시간\*\*: 약 20분 | \*\*기술 수준\*\*: 중급 (기본적인 Linux/NGINX 지식 필요) &lt;/Callout&gt; \*/
+
+## 시작하기 전에 [#prerequisites]
+
+시작하기 전에 다음 사항을 확인하세요:
+
+* [뉴렐릭 계정](https://newrelic.com/signup)<InlinePopover type="licenseKey" />
+
+* [HTTP 스텁 상태](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) 모듈이 활성화된 NGINX
+
+* Linux 호스트에 [OpenTelemetry Collector Contrib이](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) 설치 및 실행 중입니다.
+
+* Linux 호스트에서 네트워크 액세스 대상:
+
+  * NGINX HTTP 스텁 상태 엔드포인트
+  * 뉴렐릭의 [OTLP 엔드포인트](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+### 설정을 확인하세요
+
+NGINX 상태 확인 모듈:
+
+```bash
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+```
+
+예상 출력: `with-http_stub_status_module`
+
+OpenTelemetry Collector를 확인하세요:
+
+```bash
+otelcol-contrib --version
+```
+
+예상 출력: 버전 정보 (최소 버전 0.88.0 필요)
+
+네트워크 연결 상태를 테스트하세요:
+
+```bash
+# For US region
+curl -I https://otlp.nr-data.net:443
+```
+
+예상 출력: HTTP 응답 헤더 (연결 거부 안 됨)
+
+<Callout variant="tip">
+  검증 단계에서 오류가 발생하면 누락된 구성 요소를 설치한 후 계속 진행하십시오. Collector 설치에 도움이 필요하신가요? [OpenTelemetry Collector 설치 가이드를](https://github.com/open-telemetry/opentelemetry-collector-contrib) 확인하세요.
+</Callout>
+
+## 1단계: NGINX 스텁 상태 구성 [#configure-nginx]
+
+NGINX 서버에서 메트릭을 노출하도록 [stub\_status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html) 모듈을 구성하십시오. 이 모듈은 OpenTelemetry가 수집할 기본 성능 통계를 제공합니다.
+
+<CollapserGroup>
+  <Collapser id="step1-add-config" title="스텁 상태 설정 추가">
+    다음 구성을 NGINX 설정 파일(`/etc/nginx/nginx.conf`)에 추가하세요.
+
+    ```nginx
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location /nginx_status {
+            stub_status on;
+            access_log off;        # Don't log monitoring requests
+            allow 127.0.0.1;       # Only allow localhost access
+            allow ::1;             # Allow IPv6 localhost
+            deny all;              # Deny all other access
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="step1-apply-config" title="설정 적용">
+    1. NGINX 설정을 테스트하세요:
+
+       ```bash
+       sudo nginx -t
+       ```
+
+    2. 테스트가 통과되면 NGINX를 다시 로드합니다.
+
+       ```bash
+       sudo nginx -s reload
+       ```
+  </Collapser>
+
+  <Collapser id="step1-verify" title="스텁 상태가 제대로 작동하는지 확인하십시오.">
+    엔드포인트를 테스트하세요:
+
+    ```bash
+    curl http://127.0.0.1:8080/nginx_status
+    ```
+
+    예상 출력:
+
+    ```
+    Active connections: 1
+    server accepts handled requests
+     16 16 16
+    Reading: 0 Writing: 1 Waiting: 0
+    ```
+
+    HTTP 응답을 테스트하세요:
+
+    ```bash
+    curl -I http://127.0.0.1:8080/nginx_status
+    ```
+
+    예상 출력: 로 시작해야 합니다 `HTTP/1.1 200 OK`
+  </Collapser>
+</CollapserGroup>
+
+## 2단계: OpenTelemetry Collector 구성 [#configure-collector]
+
+NGINX 스텁 상태 엔드포인트에서 지표를 스크랩하여 뉴렐릭으로 보내도록 OpenTelemetry Collector 구성합니다.
+
+<CollapserGroup>
+  <Collapser id="step2-understanding" title="설정 이해">
+    OpenTelemetry Collector는 NGINX 모니터링을 위해 세 가지 주요 구성 요소를 사용합니다.
+
+    * **수신기** - NGINX 스텁 상태 엔드포인트에 연결하여 메트릭을 수집합니다.
+    * **프로세서** - 효율적인 전송을 위해 서버 식별 및 배치 메트릭을 추가합니다.
+    * **수출업체** - 처리된 제품을 OTLP HTTP를 통해 뉴렐릭 계정으로 전송하세요
+  </Collapser>
+
+  <Collapser id="step2-prepare" title="환경을 준비하세요">
+    설정을 수정하기 전에 두 가지 핵심 정보가 필요합니다.
+
+    1. **스텁 상태 URL - 1단계에서 가져온 URL** (기본값: `http://127.0.0.1:8080/nginx_status`)
+    2. **고유한 구현, 배포 이름** - 이 특정 NGINX 서버를 식별하는 이름을 선택하십시오(예: `production-web-01`, `staging-api`, `prod-lb-01`).
+
+    구현, 배포 이름은 뉴렐릭 대시보드에 표시되며 여러 NGINX가 있을 때 특정 서버를 식별하는 데 도움이 됩니다.
+  </Collapser>
+
+  <Collapser id="step2-configuration" title="Collector 설정 추가">
+    <Callout variant="important">
+      **편집하기 전에:** 기존 설정을 백업하세요. `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+    </Callout>
+
+    Collector 설정 파일(일반적으로 `/etc/otelcol-contrib/config.yaml`)을 편집하고 다음 섹션을 추가하세요. 이미 수신자, 처리자 또는 수출자 섹션이 있는 경우 기존 설정과 병합하십시오.
+
+    **1. NGINX 수신기를 구성합니다.**
+
+    ```yaml
+    receivers:
+      nginx:
+        endpoint: http://127.0.0.1:8080/nginx_status  # Replace with your stub status URL
+        collection_interval: 30s                      # How often to collect metrics
+        metrics:
+          nginx.requests:
+            enabled: true
+          nginx.connections_accepted:
+            enabled: true
+          nginx.connections_handled:
+            enabled: true
+          nginx.connections_current:
+            enabled: true
+    ```
+
+    **2. 메타데이터 및 배치 처리를 위한 프로세서를 구성합니다.**
+
+    ```yaml
+    processors:
+      # Detect system information (hostname, etc.)
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name:
+              enabled: true
+            host.id:
+              enabled: true
+
+      # Add NGINX-specific identification
+      resource:
+        attributes:
+          - key: nginx.server.endpoint
+            value: "http://127.0.0.1:8080/nginx_status"  # Replace with your endpoint
+            action: upsert
+          - key: nginx.deployment.name
+            value: "production-web-01"                    # Replace with your server name
+            action: upsert
+
+      # Batch metrics for efficient sending
+      batch:
+        timeout: 30s
+        send_batch_size: 1024
+
+      # Transform metrics for better display in New Relic
+      transform/nginx_metrics:
+        metric_statements:
+          - context: resource
+            statements:
+              # Customize the display name as needed for your New Relic dashboard
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+    ```
+
+    **3. 뉴렐릭 익스포터를 구성합니다.**
+
+    ```yaml
+    exporters:
+      # Send metrics to New Relic via OTLP
+      otlphttp/newrelic:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+    ```
+
+    **4. 모든 것을 파이프라인으로 연결하세요:**
+
+    ```yaml
+    service:
+      pipelines:
+        metrics:
+          receivers: [nginx]
+          processors: [resourcedetection, resource, batch, transform/nginx_metrics]
+          exporters: [otlphttp/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="step2-customize" title="설정을 사용자 지정하세요">
+    **위 설정에서 다음 값을 바꾸십시오.**
+
+    1. **엔드포인트 URL**: 1단계의 스텁 상태 설정과 일치하도록 `http://127.0.0.1:8080/nginx_status` 변경합니다.
+    2. **구현, 배포 이름**: `production-web-01` 이 NGINX 서버에 대한 고유한 개체로 대체합니다.
+
+    **좋은 구현, 배포 이름 선택:**
+
+    * `production-web-01`, `staging-api` 또는 같은 기술 이름을 사용하세요. `prod-lb-01`
+    * 뉴렐릭 계정 내의 모든 NGINX 서버에서 고유해야 합니다.
+    * 이 이름은 대시보드에 표시되어 특정 서버를 식별하는 데 도움이 됩니다.
+    * 필터링 및 알림 기능을 쉽게 활용하려면 간결하면서도 의미 있는 내용을 작성하세요.
+  </Collapser>
+</CollapserGroup>
+
+## 3단계: 인증 설정 [#set-environment]
+
+OpenTelemetry Collector 뉴릭 계정으로 데이터를 전송할 수 있도록 보안 인증을 구성하십시오. 이 단계에서는 자격 증명을 안전하게 보호하기 위한 환경 변수를 설정합니다.
+
+<CollapserGroup>
+  <Collapser id="step3-get-credentials" title="뉴렐릭 자격증을 취득하세요">
+    인증을 구성하기 전에 다음 두 가지 정보를 수집하십시오.
+
+    1. \*\*라이선스 키:\*\*
+
+       * [one.newrelic.com](https://one.newrelic.com) → **API Keys**이동하세요.
+       * &quot;Ingest - License &quot; \[수집 - 라이선스] 섹션을 찾은 다음 **Show key** \[키 표시]를클릭합니다.
+       * 라이선스 키(&quot;NRAK-...&quot;로 시작)를 복사하세요.
+
+    2. \*\* OTLP 엔드포인트:\*\* 귀하의 뉴렐릭 지역에 적합한 엔드포인트를 사용하세요. 해당 지역에 대해 지원되는 엔드포인트 및 포트의 전체 목록은 [엔드포인트, 포트 및 프로토콜 구성을](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요. 예를 들어:
+
+       * **미국 지역**: `https://otlp.nr-data.net:4318`
+       * **EU 지역**: `https://otlp.eu01.nr-data.net:4318`
+  </Collapser>
+
+  <Collapser id="step3-configure-credentials" title="자격 증명을 구성하세요">
+    1. **systemd 오버라이드 디렉터리를 생성합니다.**
+
+       ```bash
+       sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+       ```
+
+    2. **환경 설정 파일을 생성합니다.**
+
+       ```bash
+       cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+       [Service]
+       Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+       Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+       EOF
+       ```
+
+    3. **자격 증명을 사용하여 설정을 업데이트하세요.**
+
+       * `https://otlp.nr-data.net:4318` 해당 지역의 엔드포인트로 바꾸세요.
+       * 위의 `YOUR_LICENSE_KEY_HERE` 실제 라이선스 키로 바꾸세요.
+  </Collapser>
+</CollapserGroup>
+
+## 4단계: 모니터링 시작 [#start-monitoring]
+
+이제 모든 설정이 완료되었으므로 OpenTelemetry Collector 시작하고 데이터가 뉴렐릭으로 제대로 전송되는지 확인하십시오.
+
+<CollapserGroup>
+  <Collapser id="step4-start-collector" title="Collector시작하세요">
+    1. **설정 변경 사항을 적용합니다.**
+
+       ```bash
+       sudo systemctl daemon-reload
+       sudo systemctl restart otelcol-contrib.service
+       ```
+
+    2. **서비스가 실행 중인지 확인하십시오.**
+
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       ```
+
+       예상 출력: `Active: active (running)` (최근 오류 없음)
+  </Collapser>
+
+  <Collapser id="step4-verify-data" title="데이터 수집 확인">
+    3. **시작 로그를 확인하세요:**
+
+       ```bash
+       sudo journalctl -u otelcol-contrib.service -n 20
+       ```
+
+       **다음과 같은 성공 지표를 살펴보세요:**
+
+       * ✅ `"Everything is ready. Begin running and processing data."`
+       * ✅ `"Scraping metrics"` - NGINX에서 성공적으로 수집했습니다.
+       * ✅ `"Exporting metrics"` - 뉴렐릭에게 성공적으로 전송되었습니다
+
+    4. **테스트 트래픽 생성(생성하기 위해):**
+
+       ```bash
+       # Make a few requests to your NGINX server
+       curl http://localhost
+       ```
+
+    5. 뉴렐릭에 초기 데이터가 나타날 때까지 기다린 후 [NGINX에 접속하여](/docs/opentelemetry/nginx/find-and-query-your-data#find-data) 데이터 수집을 확인하십시오.
+  </Collapser>
+</CollapserGroup>
+
+## 5단계: (선택 사항) NGINX 로그 전달 [#forward-logs]
+
+지표 외에도 포괄적인 모니터링 및 문제 해결, 해결을 위해 NGINX [액세스 및 오류 로그를](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) 뉴렐릭으로 보낼 수 있습니다. 이러한 로그는 [핵심 NGINX 지표를](/docs/opentelemetry/nginx/nginx-otel-metrics-reference#core-metrics) 보완하고 자세한 요청 수준 인사이트를 제공합니다.
+
+<Callout variant="tip">
+  **다음과 같은 경우에는 이 단계를 건너뛰세요.** 기본적인 NGINX 메트릭만 필요하고 자세한 요청 로그가 필요하지 않은 경우.
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="step5-configure-nginx-logs" title="NGINX에서 구조화된 로깅을 구성합니다.">
+    먼저, NGINX가 구문 분석 및 쿼리가 더 쉬운 JSON 형식의 로그를 출력하도록 구성합니다.
+
+    **NGINX 설정에 다음을 추가하세요(`/etc/nginx/nginx.conf`):**
+
+    ```nginx
+    http {
+        # JSON log format for better parsing
+        log_format json_combined escape=json
+        '{'
+          '"time":"$time_local",'
+          '"remote_addr":"$remote_addr",'
+          '"request":"$request",'
+          '"status":$status,'
+          '"bytes_sent":$body_bytes_sent,'
+          '"request_time":$request_time,'
+          '"referer":"$http_referer",'
+          '"user_agent":"$http_user_agent"'
+        '}';
+
+        # Use the JSON format for access logs
+        access_log /var/log/nginx/access.log json_combined;
+        error_log /var/log/nginx/error.log warn;
+
+        # Your existing configuration...
+    }
+    ```
+
+    **변경 사항을 적용하려면 NGINX를 다시 시작하십시오.**
+
+    ```bash
+    sudo nginx -t && sudo nginx -s reload
+    ```
+  </Collapser>
+
+  <Collapser id="step5-configure-collector-logs" title="로그 포워딩을 위한 Collector 구성">
+    **다음 섹션을 `/etc/otelcol-contrib/config.yaml` 에 추가하세요:**
+
+    ```yaml
+    receivers:
+      # Your existing nginx receiver...
+      nginx:
+        # existing configuration...
+
+      # Add log receivers
+      filelog/nginx_access:
+        include:
+          - /var/log/nginx/access.log
+
+      filelog/nginx_error:
+        include:
+          - /var/log/nginx/error.log
+
+    processors:
+      # Your existing processors...
+
+      # Add log processor
+      transform/nginx_access_logs:
+        log_statements:
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx")
+      transform/nginx_error_logs:
+        log_statements:
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx-error")
+
+    service:
+      pipelines:
+        # Your existing metrics pipeline...
+        metrics:
+          receivers: [nginx]
+          processors: [resourcedetection, resource, batch, transform/nginx_metrics]
+          exporters: [otlphttp/newrelic]
+
+        # Add log pipelines
+        logs/nginx-access:
+          receivers: [filelog/nginx_access]
+          processors: [resource, batch, transform/nginx_access_logs]
+          exporters: [otlphttp/newrelic]
+
+        logs/nginx-error:
+          receivers: [filelog/nginx_error]
+          processors: [resource, batch, transform/nginx_error_logs]
+          exporters: [otlphttp/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="step5-permissions-apply" title="권한을 설정하고 구성을 적용합니다.">
+    **Collector가 NGINX 로그 파일을 읽을 수 있도록 허용합니다.**
+
+    ```bash
+    # Add collector user to adm group (has read access to logs)
+    sudo usermod -a -G adm otelcol-contrib
+
+    # Ensure log files are readable
+    sudo chmod 644 /var/log/nginx/access.log
+    sudo chmod 644 /var/log/nginx/error.log
+    ```
+
+    **Collector 다시 시작하세요:**
+
+    ```bash
+    sudo systemctl restart otelcol-contrib.service
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## New Relic에서 데이터 보기 [#find-data]
+
+설정이 완료되고 데이터가 흐르고 나면 뉴렐릭 대시보드에서 NGINX 지표에 액세스하여 사용자 정의 알림을 생성할 수 있습니다.
+
+대시보드 액세스, NRQL을 사용한 데이터 쿼리 및 알림 생성에 대한 전체 지침은 [NGINX 데이터 찾기 및 쿼리를](/docs/opentelemetry/nginx/find-and-query-your-data) 참조하세요.
+
+## 문제점 해결 [#troubleshooting]
+
+설치 중에 문제가 발생하면 이 문제 진단 및 해결 가이드를 사용하여 일반적인 문제를 진단하고 해결하십시오.
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-nginx-stub-status" title="NGINX 스텁 상태 문제">
+    **404 Not Found 오류 발생:**
+
+    ```bash
+    curl http://127.0.0.1:8080/nginx_status
+    ```
+
+    **해결책:**
+
+    * 위치 경로가 요청 URL과 일치하는지 확인하십시오.
+    * 설정이 올바른 서버 블록에 추가되었는지 확인하십시오.
+    * 설정이 로드되었는지 확인하려면 `sudo nginx -T | grep -A5 nginx_status` 실행하세요.
+
+    **403 Forbidden 오류 발생:**
+
+    * 로컬호스트(127.0.0.1)에서 테스트하고 있는지 확인하십시오.
+    * NGINX 설정에서 `allow`/`deny` 지시문을 확인하세요.
+    * 다른 접근 제한으로 인해 요청이 차단되지 않았는지 확인하십시오.
+
+    **연결이 거부되었습니다:**
+
+    * NGINX가 실행 중인지 확인하세요: `sudo systemctl status nginx`
+    * 8080번 포트가 차단되지 않았는지 확인하십시오. `sudo netstat -tlnp | grep :8080`
+    * 해당되는 경우 방화벽 규칙을 확인하십시오.
+  </Collapser>
+
+  <Collapser id="troubleshoot-collector-service" title="Collector 서비스가 시작되지 않습니다">
+    **서비스 상태를 확인하세요:**
+
+    ```bash
+    sudo systemctl status otelcol-contrib.service
+    sudo journalctl -u otelcol-contrib.service -n 50
+    ```
+
+    **일반적인 원인 및 해결 방법:**
+
+    * **YAML 구문 오류** - 들여쓰기 및 구문 문제 수정
+    * **환경 변수가 누락되었습니다** - 환경 파일에 자격 증명이 설정되어 있는지 확인하십시오.
+    * **파일 권한 문제** - 실행 `sudo chown otelcol-contrib:otelcol-contrib /etc/otelcol-contrib/config.yaml`
+    * **잘못된 조각포인트 URL** - NGINX 조각포인트 및 뉴렐릭 OTLP 조각포인트를 확인하세요.
+    * **누락된 구성 요소 설정** - 서비스 파이프라인 섹션에 참조된 모든 수신자, 처리자 및 수출자가 위의 각 설정 섹션에 실제로 정의되어 있는지 확인하십시오.
+
+    **수정 후 재시작:**
+
+    ```bash
+    sudo systemctl restart otelcol-contrib.service
+    ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-data" title="뉴렐릭에는 데이터가 나타나지 않습니다.">
+    **단계별 진단:**
+
+    1. **NGINX 스텁 상태가 제대로 작동하는지 확인하십시오.**
+
+       ```bash
+       curl http://127.0.0.1:8080/nginx_status
+       ```
+
+       연결 통계를 반환해야 합니다.
+
+    2. **Check Collector가 정상적으로 작동 중입니다.**
+
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       sudo journalctl -u otelcol-contrib -n 20
+       ```
+
+       로그에는 OpenTelemetry Collector 에 설정이나 런타임 문제가 발생할 경우 자세한 컨텍스트 정보가 제공됩니다.
+
+    3. **NRQL을 사용하여 데이터를 확인하십시오.**
+
+       ```sql
+       FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
+       ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-log-forwarding" title="로그 포워딩 문제">
+    **뉴렐릭에 로그인이 표시되지 않습니다:**
+
+    ```bash
+    # Check Collector logs for file errors
+    sudo journalctl -u otelcol-contrib -f | grep -i "filelog\|error"
+    ```
+
+    **일반적인 문제점:**
+
+    * **파일 권한 오류** - 수집기를 adm 그룹에 추가하세요: `sudo usermod -a -G adm otelcol-contrib`
+    * **잘못된 파일 경로** - 구성 파일에서 로그 파일 위치를 확인하세요
+  </Collapser>
+</CollapserGroup>
+
+### 도움을 받으세요
+
+문제가 계속 발생하는 경우:
+
+1. [뉴렐릭의 OpenTelemetry 모범 사례를](/docs/opentelemetry/best-practices/opentelemetry-otlp/)검토하세요.
+2. [뉴렐릭 익스플로러 허브에서](https://discuss.newrelic.com/) 유사한 문제를 검색해 보세요.
+
+## 다음 단계 [#next-steps]
+
+**데이터에 대해 자세히 알아보세요:**
+
+* [NGINX 데이터 찾기 및 쿼리](/docs/opentelemetry/nginx/find-and-query-your-data/) - 대시보드에 액세스하고 사용자 정의 쿼리를 생성하고 알림 설정
+* [NGINX OpenTelemetry 메트릭 및 속성 참조](/docs/opentelemetry/nginx/nginx-otel-metrics-reference/) - 설명과 예제를 포함한 전체 메트릭 참조
+* [NGINX OpenTelemetry 개요](/docs/opentelemetry/nginx/nginx-otel-overview/) - 수집되는 메트릭, 속성 및 사용 사례 이해하기
+* [NGINX 리시버 문서](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/nginxreceiver/documentation.md) - 기술 세부 정보 및 고급 설정
+
+**관련 모니터링 정보를 살펴보세요:**
+
+* [OpenTelemetry사용하여 NGINX Plus 모니터링](/docs/opentelemetry/nginx-plus/nginx-plus-otel/) - 상업용 NGINX Plus 구현, 배포
+* [Kubernetes 환경에서 NGINX 모니터링](/docs/opentelemetry/nginx/nginx-otel-kubernetes/) - 컨테이너화된 환경용
