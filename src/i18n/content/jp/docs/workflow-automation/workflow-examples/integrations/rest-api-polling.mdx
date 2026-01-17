@@ -1,0 +1,163 @@
+---
+title: REST APIポーリングとログ記録
+tags:
+  - workflow automation
+  - workflow
+  - rest api
+  - polling
+metaDescription: 'Poll REST API endpoints, loop through results, and log data to New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+REST APIエンドポイントをポーリングし、結果をループし、データをNew Relicにログ記録します。
+
+<Callout variant="important">
+  完全なペイロードの場合、セレクターはオプションです。ほとんどのワークフロー ツールは、直接的な応答オブジェクト参照をサポートしています。
+</Callout>
+
+## シンプルなGETとログ
+
+基本的な API ポーリングと完全な応答ログ:
+
+**このワークフローの機能:**
+
+* スケジュール（例：5分ごと）または手動実行によるトリガー
+
+* HTTP リクエストステップ:
+
+  * メソッド: GET
+  * URL: [https://pokeapi.co/api/v2/pokemon](https://pokeapi.co/api/v2/pokemon)
+  * レスポンス本文を変数に保存します（例: `{{.http_response}}` ）。
+
+* イベントのログ/作成手順:
+
+  * `{{.http_response.body}}`全体をペイロードとして送信
+  * セレクターは不要です。生のJSONをパススルーします。
+
+## ループとセレクターを使用したREST API
+
+REST API からすべての結果を取得し、項目をループし、個別の呼び出しを行い、抽出されたデータをログに記録します。
+
+**要件:** API アクセスおよびログ取り込み権限。
+
+**このワークフローの機能:**
+
+* REST APIエンドポイントからすべての結果を取得する
+* 各応答結果をループする
+* ループデータを使用してアイテムごとに個別のAPIコールを作成する
+* セレクタを使用して特定のフィールドを抽出する
+* カスタムアトリビュートを使用して抽出されたデータをNew Relicにログ記録します
+
+**キーアクション**: `http.get` 、 `newrelic.ingest.sendLogs`
+
+```yaml
+  name: pokemon_workflow
+  description: ''
+  steps:
+    - name: get_all_pokemons
+      type: action
+      action: http.get
+      version: '1'
+      inputs:
+        url: https://pokeapi.co/api/v2/pokemon
+        selectors:
+          - name: pokemons
+            expression: .responseBody | fromjson.results
+    - name: pokemon_loop
+      type: loop
+      for:
+        in: ${{ .steps.get_all_pokemons.outputs.pokemons }}
+        steps:
+          - name: get_individual_pokemon
+            type: action
+            action: http.get
+            version: '1'
+            inputs:
+              url: ${{ .steps.pokemon_loop.loop.element.url }}
+              selectors:
+                - name: pokemon_name
+                  expression: .responseBody | fromjson.name
+                - name: pokemon_id
+                  expression: .responseBody | fromjson.id
+                - name: pokemon_stats
+                  expression: .responseBody | fromjson.stats
+          - name: log_pokemon_info
+            type: action
+            action: newrelic.ingest.sendLogs
+            version: '1'
+            inputs:
+              logs:
+                - message: >-
+                    Pokemon name is: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_name}}, Id: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_id}}
+                  attributes:
+                    pokemon_stats: ${{ .steps.get_individual_pokemon.outputs.pokemon_stats}}
+            next: continue
+      next: end
+```
+
+## REST APIからCSVへの変換
+
+API データを取得し、JSON を CSV に変換し、New Relic にログを記録して、Slack 経由で共有します。
+
+**要件:** API アクセスとシークレット内の Slack トークン。
+
+**このワークフローの機能:**
+
+* タイムゾーン別にWorld Time APIから時間データを取得する
+* JSONレスポンスをCSVに変換する
+* CSV をNew Relicにログ記録する
+* SlackチャンネルにCSVを投稿する
+
+**キーアクション**: `http.get` 、 `utils.transform.toCSV` 、 `newrelic.ingest.sendLogs` 、 `slack.chat.postMessage`
+
+```yaml
+  name: jsontocsv
+
+  workflowInputs:
+    timezone:
+      type: String
+      defaultValue: 'America/Los_Angeles'
+
+  steps:
+    - name: getCurrentTime
+      type: action
+      action: http.get
+      version: 1
+      inputs:
+        url: 'https://worldtimeapi.org/api/timezone/${{ .workflowInputs.timezone }}'
+
+    - name: csv1
+      type: action
+      action: utils.transform.toCSV
+      version: 1
+      inputs:
+        json: ${{ .steps.getCurrentTime.outputs.responseBody }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'CSV: ${{ .steps.csv1.outputs.csv }}'
+
+    - name: postCsv
+      type: action
+      action: slack.chat.postMessage
+      version: 1
+      inputs:
+        channel: test-channel-workflow
+        text: "Current Date details"
+        attachment:
+          filename: 'file.csv'
+          content: ${{ .steps.csv1.outputs.csv }}
+        token: ${{ :secrets:dn_staging_slack_token }}
+```
+
+## 次のステップ
+
+* **[高度なワークフロー](/docs/workflow-automation/workflow-examples/advanced/nrql-alerting)**:複雑な自動化パターン
+* **[ループ](/docs/workflow-automation/workflow-examples/basic-patterns/loops)**: ループパターンの詳細

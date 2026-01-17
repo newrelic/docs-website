@@ -1,0 +1,118 @@
+---
+title: 루비 에이전트 9.x에서 10.x로 마이그레이션 가이드
+tags:
+  - Agents
+  - Ruby agent
+  - Getting started
+freshnessValidatedDate: never
+translationType: machine
+---
+
+이 가이드에서는 루비 기기 9.x 시리즈와 10.x 시리즈 간의 주요 변경 사항 및 성공적인 마이그레이션 방법을 다룹니다.
+
+## 요약 [#summary]
+
+버전 10.0의 주요 변경 사항은 다음과 같습니다.
+
+* [루비 2.4 및 2.5 버전에 대한 지원을 제거했습니다.](#ruby_2425)
+* [크로스 로그 추적(CAT) 및 관련 API를 제거했습니다.](#cat_removal)
+* [에이전트를 통한 구현, 배포에 대한 지원이 제거되었습니다.](#removed_record_deployments)
+* [`NewRelic::Agent::SqlSampler#notice_sql` API를 제거하고 `NewRelic::Agent::Datastores` API를 간소화했습니다.](#removed_and_simplified_apis)
+* [Puma 버전 &apos;&lt;&apos; 3.9.0에 대한 지원이 제거되었습니다.](#puma_version_removal)
+* [실험적 기능을 설정할 수 있는 보안 정책(CSP)을 제거했습니다.](#csp_removal)
+* [ActiveJob 메트릭 및 세그먼트의 이름이 변경되었습니다.](#activejob_rename)
+* [`bin/newrelic` 명령어의 이름을 변경했습니다. `bin/newrelic_rpm`](#renamed_cli_command)
+
+자세한 내용은 [10.0 마일스톤](https://github.com/newrelic/newrelic-ruby-agent/milestone/119?closed=1) 을 참조하세요.
+
+이러한 획기적인 변화와 더불어 몇 가지 다른 개선 사항도 포함되어 있습니다. 자세한 내용은 [변경 로그](https://github.com/newrelic/newrelic-ruby-agent/blob/main/CHANGELOG.md#v1000) 를 참조하세요.
+
+## 루비 2.4 및 2.5 버전에 대한 지원을 제거했습니다. [#ruby\_2425][#ruby_2425]
+
+루비 2.4 및 2.5는 더 이상 루비 에이전트에서 지원되지 않습니다. 루비 에이전트 최신 버전을 계속 사용하시려면 루비 2.6.0 이상으로 업데이트해주세요.
+
+뉴렐릭은 루비 언어 개발팀에서 공식적으로 지원하는 유지보수 기간이 끝난 후에도 특정 구형 루비 버전에 대한 지원을 계속 제공합니다. 예를 들어, 2026년 3월 31일 현재 루비 팀에서 지원하는 가장 오래된 루비 버전은 버전 3.3이지만, 루비 에이전트 버전 10.0에서는 루비 버전 2.6 이상이 계속 지원됩니다. 루비 버전의 공식 루비 팀 지원에 대한 자세한 내용은 [루비 유지 관리 분기 를](https://www.ruby-lang.org/en/downloads/branches/) 참조하세요.
+
+## 크로스 로그 추적(CAT) 및 관련 API를 제거했습니다. [#cat\_removal][#cat_removal]
+
+CAT(잡잡 추적)이 제거되어 [횡령 추적이](/docs/distributed-tracing/concepts/introduction-distributed-tracing/) 가능해졌습니다. CAT은 APM간의 트랜잭션을 연결하기 위해 뉴 굿즈 관련 헤더를 사용했으며, 반면에 CAT은 W3C Trace Context 채택했습니다. 분산 추적을 활성화하려면 구성 옵션 `distributed_tracing.enabled` `true` 로 설정하십시오.
+
+```yaml
+distributed_tracing.enabled: true
+```
+
+설정 옵션 `cross_application_tracer.enabled` 이 다음 공개 API 메서드와 함께 제거되었습니다.
+
+| CAT API가 제거되었습니다.                                                                | 분산 추적 교체                                                               | 문맥                                                    |
+| :------------------------------------------------------------------------------- | :--------------------------------------------------------------------- | :---------------------------------------------------- |
+| `NewRelic::Agent::External.process_request_metadata`                             | `NewRelic::Agent::DistributedTracing.accept_distributed_trace_headers` | 수신 요청에서 W3C Trace Context 헤더를 읽어 서비스를 업스트림 추적에 연결합니다. |
+| `NewRelic::Agent::External.get_response_metadata`                                | 동등한 것은 필요하지 않습니다.                                                      | 응답 메타데이터는 더 이상 사용되지 않으며, 연결은 요청의 W3C 헤더를 통해 처리됩니다.    |
+| `NewRelic::Agent::Transaction::ExternalRequestSegment#process_response_metadata` | 동등한 것은 필요하지 않습니다.                                                      | 응답 기반 처리 방식이 제거되고 요청 헤더 전파 방식이 채택되었습니다.               |
+| `NewRelic::Agent::Transaction::ExternalRequestSegment#get_request_metadata`      | `NewRelic::Agent::DistributedTracing.insert_distributed_trace_headers` | W3C Trace Context 헤더를 생성하여 발신 요청 헤더에 추가합니다.           |
+| `NewRelic::Agent::Transaction::ExternalRequestSegment#read_response_headers`     | 동등한 것은 필요하지 않습니다.                                                      | 트랜스 링크는 응답 헤더를 읽을 필요가 없습니다.                           |
+
+[분산 추적 API](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent/DistributedTracing) 사용에 대해 자세히 알아보세요.
+
+## 에이전트를 통한 구현, 배포에 대한 지원이 제거되었습니다. [#removed\_record\_deployments][#removed_record_deployments]
+
+에이전트는 더 이상 Capistrano 레시피 또는 `newrelic deployments` CLI 명령을 사용하여 구현 구현, 배포 정보를 보내는 기능을 지원하지 않습니다. 변경 사항 및 구현, 뉴렐릭 배포를 추적하려면 사용 가능한 옵션 목록에 대한 [변경 추적](/docs/change-tracking/change-tracking-introduction/) 가이드를 참조하세요.
+
+## `NewRelic::Agent::SqlSampler#notice_sql` 제거하고 간소화했습니다. `NewRelic::Agent::Datastores` [#removed\_and\_simplified\_apis][#removed_and_simplified_apis]
+
+### NewRelic::에이전트::SqlSampler#notice\_sql 메서드를 제거했습니다.
+
+`NewRelic::Agent::SqlSampler#notice_sql` 메서드가 제거되었습니다. SQL 쿼리를 추적하려면 `NewRelic::Agent::Datastores.notice_sql` 메서드를 사용해야 합니다.
+
+### 다양한 `NewRelic::Agent::Datastores` API에서 사용되지 않는 인수를 제거했습니다.
+
+몇몇 `NewRelic::Agent::Datastores` API는 중복 인수를 제거하여 간소화되었습니다. 타이밍(`elapsed`) 및 메트릭 범위 정보는 현재 세그먼트에서 자동으로 파생됩니다.
+
+다음 API가 업데이트되었습니다.
+
+| 기존 API                                                                             | 새로운 API                                                   | 변화                                                  |
+| :--------------------------------------------------------------------------------- | :-------------------------------------------------------- | :-------------------------------------------------- |
+| `NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)`            | `NewRelic::Agent::Datastores.notice_sql(query)`           | `scoped_metric` 및 `elapsed` 인수를 제거했습니다.             |
+| `NewRelic::Agent::Datastores.notice_statement(statement, elapsed)`                 | `NewRelic::Agent::Datastores.notice_statement(statement)` | `elapsed` 인수를 제거했습니다.                               |
+| `NewRelic::Agent::Datastores.wrap(...) do \|result, scoped_metric, elapsed_time\|` | `NewRelic::Agent::Datastores.wrap(...) do \|result\|`     | 콜백 블록 인자에서 `scoped_metric` 과 `elapsed_time` 제거했습니다. |
+
+## Puma 버전 &apos;&lt;&apos;에 대한 지원이 제거되었습니다. [#puma\_version\_removal][#puma_version_removal]
+
+현재 지원되는 Puma의 최소 버전은 3.9.0 이상입니다. Puma를 사용하는 경우 에이전트를 업그레이드하기 전에 버전 3.9.0 이상으로 업그레이드하십시오.
+
+## 실험적 기능을 설정할 수 있는 보안 정책(CSP)을 제거했습니다. [#csp\_removal][#csp_removal]
+
+설정 가능한 보안 정책(CSP)이라는 실험적 기능은 더 이상 지원되지 않으며 제거되었습니다. 해당 기기의 기본 보안 설정은 APM 데이터에 대한 보안을 [자동으로](/docs/apm/new-relic-apm/getting-started/apm-agent-data-security/) 제공하지만, [고보안 모드를](/docs/apm/agents/manage-apm-agents/configuration/high-security-mode/) 사용하면 뉴렐릭이 수신하는 정보를 더욱 제한할 수 있습니다.
+
+## ActiveJob 메트릭 및 세그먼트의 이름이 변경되었습니다. [#activejob\_rename][#activejob_rename]
+
+ActiveJob 메트릭 및 세그먼트가 업데이트되어 보다 구체적인 보고를 위해 작업 클래스 이름이 포함되었습니다. 새로운 형식을 반영하도록 ActiveJob 지표 및 세그먼트를 쿼리하는 모든 사용자 정의 대시보드 및 NRQL 알림을 업데이트합니다.
+
+이전 형식:
+
+```ruby
+"Ruby/ActiveJob/#{QueueName}/#{Method}" # metrics
+"ActiveJob/#{Adapter}/Queue/#{Event}/Named/#{JobQueueName}" # segments
+```
+
+새로운 형식:
+
+```ruby
+"Ruby/ActiveJob/#{QueueName}/#{JobClassName}/#{Method}" # metrics
+"ActiveJob/#{Adapter}/Queue/#{Event}/Named/#{JobQueueName}/#{JobClassName}" # segments
+```
+
+## `bin/newrelic` 명령어의 이름을 변경했습니다. `bin/newrelic_rpm` [#renamed\_cli\_command][#renamed_cli_command]
+
+에이전트 CLI의 실행 파일 이름이 `bin/newrelic` 에서 `bin/newrelic_rpm` 로 변경되었습니다. 이번 변경으로 독립 실행형 뉴렐릭 CLI 도구와의 이름 충돌 문제가 해결되었습니다.
+
+이전 명령어:
+
+```bash
+bin/newrelic install
+```
+
+새로운 명령어:
+
+```bash
+bin/newrelic_rpm install
+```

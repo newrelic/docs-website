@@ -15,9 +15,198 @@ translationType: machine
   Esta característica se proporciona actualmente como parte de un programa de vista previa de conformidad con nuestras [políticas de prelanzamiento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
 </Callout>
 
-## Esquema
+## Descripción general
 
-Las definiciones de flujo de trabajo se escriben en YAML. Las claves emplean una convención de nomenclatura `camelCase`.
+Una definición de flujo de trabajo describe el proceso automatizado que se va a ejecutar. Las definiciones de flujo de trabajo se escriben en YAML utilizando una convención de nomenclatura `camelCase`. Cada flujo de trabajo consta de:
+
+* **Propiedades del esquema**: Información básica (nombre, descripción, entradas)
+* **Pasos**: La secuencia de acciones a realizar
+* **Expresiones**: Valores dinámicos utilizando la sintaxis jq
+* **Secretos**: Referencias de credenciales seguras
+
+## Conceptos fundamentales
+
+Antes de construir flujos de trabajo, comprenda estos conceptos básicos utilizados en las definiciones de flujo de trabajo.
+
+### Cadenas de expresión [#expression-strings]
+
+Varias propiedades aceptan valores de cadena con expresiones integradas que se evalúan durante la ejecución del flujo de trabajo, lo que permite valores dinámicos en las definiciones del flujo de trabajo.
+
+Las cadenas de expresión pueden contener una o más expresiones, cada una encerrada entre llaves dobles. El contenido dentro de las llaves se evalúa empleando [jq](https://jqlang.org/manual/), que proporciona poderosas capacidades para acceder y operar con valores.
+
+**Ejemplo**:
+
+Obtener la longitud de una cadena de entrada de flujo de trabajo:
+
+`${{ .workflowInputs.myString | length }}`
+
+Para validar y probar sus expresiones, emplee [JQ Playground](https://play.jqlang.org/).
+
+### Propiedades de expresión [#expression-properties]
+
+Se puede acceder a varias propiedades con expresiones. Estas propiedades viven en un objeto `scope`, por lo que las expresiones deben comenzar con un punto `(.)` para acceder a esas propiedades del objeto de alcance.
+
+Las propiedades disponibles son:
+
+* `workflowInputs` - Objeto que contiene las entradas pasadas al flujo de trabajo al inicio.
+
+**Ejemplo**:
+
+`${{ .workflowInputs.myInput }}`
+
+* `steps` - Objeto que contiene una propiedad para cada paso del flujo de trabajo
+* `steps.<stepName>` - Objeto que contiene propiedades para un paso específico
+* `steps.<stepName>.outputs` - Objeto que contiene propiedades de resultado, específicas del paso o acción.
+
+**Ejemplo**: `${{ .steps.myStep.outputs.myResult }}`
+
+### Resultados de la evaluación de la expresión [#expression-evaluation-results]
+
+Una sola expresión jq puede evaluar cualquier tipo JSON. Sin embargo, el resultado final de una cadena de expresión depende de si la cadena contiene solo la expresión o contenido adicional.
+
+**Expresión única (conserva el tipo JSON)**:
+
+Si una cadena de expresión consta de una sola expresión sin contenido circundante, se evalúa como el resultado de la expresión jq mientras mantiene su tipo JSON original. Por ejemplo, `${{ .workflowInputs.myArray }}` se evalúa como una matriz. Esto es útil para pasar estructuras de datos complejas dentro de un flujo de trabajo.
+
+**Expresiones múltiples o contenido mixto (se convierte en cadena)**:
+
+Si una cadena de expresión contiene contenido distinto a una única expresión, se evalúa como resultado una cadena. Esto ocurre cuando una expresión tiene contenido antes o luego de ella, o cuando la cadena tiene múltiples expresiones dentro de ella. Cada expresión dentro de la cadena se evalúa y se convierte en una representación de cadena.
+
+<Callout variant="important">
+  Cuando una expresión jq se evalúa como nula, se devuelve un nodo nulo. Por ejemplo, la expresión `${{ .workflowInputs.missingInput }}` devuelve nulo si no se proporciona `missingInput` como entrada del flujo de trabajo.
+</Callout>
+
+**Ejemplo**:
+
+Supongamos que `myArray` tiene un valor de `[1, 2, 3]`.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Cadena de expresión
+      </th>
+
+      <th>
+        Datos de resultados
+      </th>
+
+      <th>
+        Tipo de resultado
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray }}`
+      </td>
+
+      <td>
+        `[1, 2, 3]`
+      </td>
+
+      <td>
+        matriz de números
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray | length }}`
+      </td>
+
+      <td>
+        3
+      </td>
+
+      <td>
+        Número
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray | length > 0 }}`
+      </td>
+
+      <td>
+        Verdadero
+      </td>
+
+      <td>
+        Booleano
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`
+      </td>
+
+      <td>
+        `"Input is not empty: true"`
+      </td>
+
+      <td>
+        Cadena
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`
+      </td>
+
+      <td>
+        `"has length 3"`
+      </td>
+
+      <td>
+        Cadena
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Patrón seguro de expresión [#expression-safe-pattern]
+
+Las propiedades que se pueden emplear en expresiones deben cumplir con: `^[A-Za-z_][A-Za-z0-9_]*$`
+
+### Referencias secretas [#secret-references]
+
+Los valores secretos se pueden usar en acciones a través de cadenas de referencia que especifican el nombre de un secreto que se buscará en el Servicio de Secretos. Para hacer referencia a un secreto en una definición de flujo de trabajo, emplee la siguiente sintaxis:
+
+* `${{ :secrets:<SECRET_NAME> }}` para un secreto que no está en un `namespace`
+* `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` para un secreto en un `namespace`
+* `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` para un secreto en el alcance y namespace. El alcance solo acepta `ACCOUNT` o `ORGANIZATION` por ahora.
+
+Una cadena de expresión puede contener una combinación de referencias secretas y expresiones JQ `and/or` múltiples referencias secretas.
+
+**Ejemplos**:
+
+```yaml
+  steps:
+  - name: mySecretStep
+    type: action
+    action: newrelic.instrumentation.log
+    inputs:
+      message: My message
+      licenseKey: ${{ :secrets:<SECRET_NAME> }}
+```
+
+```yaml
+  steps:
+    - name: bearer_auth
+      type: action
+      action: utils.http.post
+      inputs:
+        headers:
+          Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
+```
+
+## Estructura del esquema
 
 ### Propiedades del esquema
 
@@ -255,6 +444,128 @@ Las definiciones de flujo de trabajo se escriben en YAML. Las claves emplean una
           - name: datetime
             expression: '.responseBody | fromjson.datetime'
 ```
+
+### Tipos de validación [#validation-types]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Tipo de validación
+      </th>
+
+      <th>
+        Propiedad
+      </th>
+
+      <th>
+        Obligatorio u opcional
+      </th>
+
+      <th>
+        Tipo
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **`regex`**
+      </td>
+
+      <td>
+        `validations[*].pattern`
+      </td>
+
+      <td>
+        Requerido
+      </td>
+
+      <td>
+        Cadena
+      </td>
+
+      <td>
+        Valida el valor de entrada del flujo de trabajo contra el patrón de expresión regular proporcionado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`maxIntValue`**
+      </td>
+
+      <td>
+        `validations[*].maxValue`
+      </td>
+
+      <td>
+        Requerido
+      </td>
+
+      <td>
+        Entero
+      </td>
+
+      <td>
+        Valida que el valor de entrada del flujo de trabajo debe ser menor que el valor máximo proporcionado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`minIntValue`**
+      </td>
+
+      <td>
+        `validations[*].minValue`
+      </td>
+
+      <td>
+        Requerido
+      </td>
+
+      <td>
+        Entero
+      </td>
+
+      <td>
+        Valida que el valor de entrada del flujo de trabajo debe ser mayor que el valor mínimo proporcionado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`maxLength`**
+      </td>
+
+      <td>
+        `validations[*].length`
+      </td>
+
+      <td>
+        Requerido
+      </td>
+
+      <td>
+        Entero
+      </td>
+
+      <td>
+        Valida la longitud máxima de las cadenas de entrada del flujo de trabajo y las colecciones (
+
+        `Array, Set, Map, etc.`
+
+        ).
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## Pasos [#steps]
 
@@ -564,198 +875,169 @@ Un paso que ejecuta una acción específica. Consulte el [catálogo de acciones]
 
 ### Bucle [#loop]
 
-Un bucle iterará sobre una colección dada definida por `in` y creará variables de bucle `index` y `element` para cada una de sus iteraciones. Estas variables de bucle son accesibles dentro del bucle solo con la expresión `${{ .steps.<loopStepName>.loop.element }}` o `${{ .steps.<loopStepName>.loop.index }`
+Un bucle itera sobre colecciones (listas, mapas, arrays) y crea automáticamente las variables `index` y `element` para cada iteración. Estas variables de bucle son accesibles solo dentro del bucle usando `${{ .steps.<loopStepName>.loop.element }}` o `${{ .steps.<loopStepName>.loop.index }}`
 
-Para más detalles:
-
-<CollapserGroup>
-  <Collapser id="moreforloop" title="Bucle para iterar a través de una lista, mapa o colección">
-    Puede emplear `loop` para iterar a través de una lista, un mapa o una colección.
-
-    Un bucle itera sobre una colección dada definida por `in`. Creará automáticamente un bucle de variables `index` y `element` para cada una de sus iteraciones. Se puede acceder a estas variables de bucle dentro del bucle con la expresión JQ `${{ .steps.<loopStepName>.loop.element }}` o `${{ .steps.<loopStepName>.loop.index }}`
-
-    * `for` (Requerido)
-
-      * **Tipo**: Constante
-      * **Descripción**: Señal de inicio de un bucle.
-
-    * `in` (Requerido)
-
-      * **Tipo**: Cadena (expresión)
-      * **Descripción**: Una expresión que debe evaluar como una colección de elementos.
-
-    * `steps` (Requerido)
-
-      * **Descripción**: Pasos a ejecutar en cada iteración del bucle. Un paso puede ser de cualquier tipo, incluyendo otro bucle.
-
-    **Ejemplos**:
-
-    A continuación se muestra cómo ejecutar el bucle `workflowInputs`. Tenga en cuenta que el resultado debe ser un tipo de colección.
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
-    ```
-
-    <Callout variant="important">
-      * `for`: (requerido). Este es el elemento de nivel superior que indica el comienzo de un bucle for.
-      * `in`: (requerido). Para que se pueda iterar sobre la colección de entrada, debe ser convertible a una matriz Java.
-      * `steps`: (requerido). En cada iteración se ejecutarán los pasos.
-      * `element` y `index` se asignan automáticamente como parte del bucle.
-      * `index` está basado en cero.
-      * `element` Puede ser un tipo complejo si tiene una colección de elementos complejos.
-      * Las variables creadas dentro del bucle (variables de bucle y salidas de paso) solo son accesibles dentro del bucle
-      * Estas variables se borran cuando el bucle sale y serán nulas si se accede a ellas fuera del bucle.
-      * Los bucles pueden acceder a variables definidas fuera del bucle.
-    </Callout>
-
-    **Bucle for simple con enteros**
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: ${{ [range(1; 6)] }}
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element: ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element : [1, 2, 3, 4, 5] , Index : [0, 1, 2, 3, 4]
-    ```
-
-    **Bucle simple para el mapa**
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element: [{ "key1": "val1" }, { "key2": "val2"}] , Index : [0, 1]
-    ```
-
-    **Saltar dentro de un bucle**
-
-    Se permite saltar entre pasos nombrados que pertenecen al mismo bucle for. No está permitido entrar o salir de un bucle for, a un bucle interno o externo, o entre dos bucles for diferentes.
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: firstStep
-          type: action
-          action: example.messaging.sayHello
-          version: '1.0.0'
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: step1
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-                next: step3                                 # Okay within the loop
-              - name: step2
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.step1.outputs.greeting }}'
-              - name: step3
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                next: firstStep                            # Not okay, first step is not in the loop context
-    ```
-
-    **Emplee break o continue en un bucle**
-
-    Para cambiar el flujo de un bucle for, puede usar `next: break` o `next: continue`. Tenga en cuenta que `break` y `continue` son objetivos de salto reservados definidos implícitamente dentro de un bucle. El uso de `next: break` o `next: continue` fuera de un bucle saltará al final de los pasos del flujo de trabajo.
-
-    * El `end` funciona igual que `break` si se usa dentro de un bucle.
-    * Next se puede emplear tanto en pasos de conmutación como en cualquier tipo de paso.
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ [range(1; 6)] }}'
-            steps:
-              - name: insideLoopStep1
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-                next: continue
-              - name: insideLoopStep2
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-        - name: loopStepAgain
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: switchStep
-                type: switch
-                switch:
-                  - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
-                    next: break
-              - name: insideLoopStepAgain
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStepAgain.loop.element }}'
-    ```
-  </Collapser>
-</CollapserGroup>
+**Propiedades:**
 
 * **`steps[*].for`** (Obligatorio)
 
   * **Tipo**: Constante
-  * **Descripción**: Señal de inicio de un bucle
+  * **Descripción**: Señala el inicio de un bucle
 
 * **`steps[*].in`** (Obligatorio)
 
-  * **Tipo**: cadena (expresión)
+  * **Tipo**: Cadena (expresión)
+  * **Descripción**: Expresión que se evalúa como una colección de elementos
 
-  * **Descripción**: Una expresión que debe evaluar como una colección de elementos.
+* **`steps[*].steps`** (Obligatorio)
 
-  * **`steps[*].steps`** (Opcional)
+  * **Descripción**: Pasos ejecutados en cada iteración. Puede incluir cualquier tipo de paso, incluidos los bucles anidados.
 
-    * **Descripción**: Pasos a ejecutar en cada iteración del bucle. Consulte la definición para ver los pasos anteriores.
+<Callout variant="important">
+  * **for:** (requerido). Este es el elemento de nivel superior que indica el comienzo de un bucle for.
+  * **in:** (requerido). Para que la colección de entrada se itere, debe ser convertible a una matriz de Java.
+  * **pasos:** (requerido). En cada iteración se ejecutarán los pasos.
+  * **elemento** e **índice** se asignan automáticamente como parte del bucle.
+  * `index` es de base cero, `element` puede ser un tipo complejo si tiene una colección de elementos complejos.
+  * Las variables creadas dentro del bucle (variables de bucle y salidas de paso) solo son accesibles dentro del bucle
+  * Estas variables se borran cuando el bucle sale y serán nulas si se accede a ellas fuera del bucle.
+  * Los bucles pueden acceder a variables definidas fuera del bucle.
+</Callout>
 
-**Ejemplo**:
+**Ejemplo: Bucle básico**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
+```
+
+**Ejemplo: Bucle en enteros**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: ${{ [range(1; 6)] }}
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element: ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element : [1, 2, 3, 4, 5] , Index : [0, 1, 2, 3, 4]
+```
+
+**Ejemplo: Bucle en mapa**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element: [{ "key1": "val1" }, { "key2": "val2"}] , Index : [0, 1]
+```
+
+**Ejemplo: Saltar dentro de un bucle**
+
+Se permite saltar entre pasos dentro del mismo bucle. No se permite saltar dentro/fuera de bucles, entre diferentes bucles o a bucles padre/hijo.
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: firstStep
+      type: action
+      action: example.messaging.sayHello
+      version: '1.0.0'
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: step3                                 # Okay within the loop
+          - name: step2
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.step1.outputs.greeting }}'
+          - name: step3
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            next: firstStep                            # Not okay, first step is not in the loop context
+```
+
+**Ejemplo: Break y continue**
+
+Utilice `next: break` o `next: continue` para controlar el flujo del bucle. Estas son palabras clave reservadas dentro de los bucles. Fuera de los bucles, saltan al final del flujo de trabajo. Nota: `end` se comporta como `break` dentro de los bucles.
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [range(1; 6)] }}'
+        steps:
+          - name: insideLoopStep1
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: continue
+          - name: insideLoopStep2
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+    - name: loopStepAgain
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: switchStep
+            type: switch
+            switch:
+              - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
+                next: break
+          - name: insideLoopStepAgain
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStepAgain.loop.element }}'
+```
+
+**Ejemplo sencillo:**
 
 ```yaml
   name: myWorkflow
@@ -930,309 +1212,7 @@ Un paso que define variables para usar durante todo el flujo de trabajo. Este pa
     * Las entradas son un mapa de nombres de variables y sus valores asignados. Cuando se asignan referencias secretas a variables, permanecen como referencias secretas y no se convierten a sus valores reales. Sin embargo, otras expresiones (como las entradas del flujo de trabajo) se evalúan y se convierten a sus valores reales.
   * Tipos de entrada permitidos: `Integer`, `Double`, `Boolean`, `String`, `Array`, `Map`
 
-## Tipos de validación [#validation-types]
-
-<table>
-  <thead>
-    <tr>
-      <th>
-        Tipo de validación
-      </th>
-
-      <th>
-        Propiedad
-      </th>
-
-      <th>
-        Obligatorio u opcional
-      </th>
-
-      <th>
-        Tipo
-      </th>
-
-      <th>
-        Descripción
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr>
-      <td>
-        **`regex`**
-      </td>
-
-      <td>
-        `validations[*].pattern`
-      </td>
-
-      <td>
-        Requerido
-      </td>
-
-      <td>
-        Cadena
-      </td>
-
-      <td>
-        Valida el valor de entrada del flujo de trabajo contra el patrón de expresión regular proporcionado.
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`maxIntValue`**
-      </td>
-
-      <td>
-        `validations[*].maxValue`
-      </td>
-
-      <td>
-        Requerido
-      </td>
-
-      <td>
-        Entero
-      </td>
-
-      <td>
-        Valida que el valor de entrada del flujo de trabajo debe ser menor que el valor máximo proporcionado.
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`minIntValue`**
-      </td>
-
-      <td>
-        `validations[*].minValue`
-      </td>
-
-      <td>
-        Requerido
-      </td>
-
-      <td>
-        Entero
-      </td>
-
-      <td>
-        Valida que el valor de entrada del flujo de trabajo debe ser mayor que el valor mínimo proporcionado.
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`maxLength`**
-      </td>
-
-      <td>
-        `validations[*].length`
-      </td>
-
-      <td>
-        Requerido
-      </td>
-
-      <td>
-        Entero
-      </td>
-
-      <td>
-        Valida la longitud máxima de las cadenas de entrada del flujo de trabajo y las colecciones (
-
-        `Array, Set, Map, etc.`
-
-        ).
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## Tipos compartidos [#shared-types]
-
-### Cadenas de expresión [#expression-strings]
-
-Varias propiedades aceptan valores de cadena con expresiones integradas que se evalúan durante la ejecución del flujo de trabajo, lo que permite valores dinámicos en las definiciones del flujo de trabajo.
-
-Las cadenas de expresión pueden contener una o más expresiones, cada una encerrada entre llaves dobles. El contenido dentro de las llaves se evalúa empleando [jq](https://jqlang.org/manual/), que proporciona poderosas capacidades para acceder y operar con valores.
-
-**Ejemplo**:
-
-Obtener la longitud de una cadena de entrada de flujo de trabajo:
-
-`${{ .workflowInputs.myString | length }}`
-
-Para validar y probar sus expresiones, emplee [JQ Playground](https://play.jqlang.org/).
-
-### Propiedades de expresión [#expression-properties]
-
-Se puede acceder a varias propiedades con expresiones. Estas propiedades viven en un objeto `scope`, por lo que las expresiones deben comenzar con un punto `(.)` para acceder a esas propiedades del objeto de alcance.
-
-Las propiedades disponibles son:
-
-* `workflowInputs` - Objeto que contiene las entradas pasadas al flujo de trabajo al inicio.
-
-**Ejemplo**:
-
-`${{ .workflowInputs.myInput }}`
-
-* `steps` - Objeto que contiene una propiedad para cada paso del flujo de trabajo
-* `steps.<stepName>` - Objeto que contiene propiedades para un paso específico
-* `steps.<stepName>.outputs` - Objeto que contiene propiedades de resultado, específicas del paso o acción.
-
-**Ejemplo**: `${{ .steps.myStep.outputs.myResult }}`
-
-### Resultados de la evaluación de la expresión [#expression-evaluation-results]
-
-Una sola expresión jq puede evaluar cualquier tipo JSON. Sin embargo, el resultado final de una cadena de expresión depende de si la cadena contiene solo la expresión o contenido adicional.
-
-**Expresión única (conserva el tipo JSON)**:
-
-Si una cadena de expresión consta de una sola expresión sin contenido circundante, se evalúa como el resultado de la expresión jq mientras mantiene su tipo JSON original. Por ejemplo, `${{ .workflowInputs.myArray }}` se evalúa como una matriz. Esto es útil para pasar estructuras de datos complejas dentro de un flujo de trabajo.
-
-**Expresiones múltiples o contenido mixto (se convierte en cadena)**:
-
-Si una cadena de expresión contiene contenido distinto a una única expresión, se evalúa como resultado una cadena. Esto ocurre cuando una expresión tiene contenido antes o luego de ella, o cuando la cadena tiene múltiples expresiones dentro de ella. Cada expresión dentro de la cadena se evalúa y se convierte en una representación de cadena.
-
-<Callout variant="important">
-  Cuando una expresión jq se evalúa como nula, se devuelve un nodo nulo. Por ejemplo, la expresión `${{ .workflowInputs.missingInput }}` devuelve nulo si no se proporciona `missingInput` como entrada del flujo de trabajo.
-</Callout>
-
-**Ejemplo**:
-
-Supongamos que `myArray` tiene un valor de `[1, 2, 3]`.
-
-<table>
-  <thead>
-    <tr>
-      <th>
-        Cadena de expresión
-      </th>
-
-      <th>
-        Datos de resultados
-      </th>
-
-      <th>
-        Tipo de resultado
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray }}`
-      </td>
-
-      <td>
-        `[1, 2, 3]`
-      </td>
-
-      <td>
-        matriz de números
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray | length }}`
-      </td>
-
-      <td>
-        3
-      </td>
-
-      <td>
-        Número
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray | length > 0 }}`
-      </td>
-
-      <td>
-        Verdadero
-      </td>
-
-      <td>
-        Booleano
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`
-      </td>
-
-      <td>
-        `"Input is not empty: true"`
-      </td>
-
-      <td>
-        Cadena
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`
-      </td>
-
-      <td>
-        `"has length 3"`
-      </td>
-
-      <td>
-        Cadena
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-### Patrón seguro de expresión [#expression-safe-pattern]
-
-Las propiedades que se pueden emplear en expresiones deben cumplir con: `^[A-Za-z_][A-Za-z0-9_]*$`
-
-### Referencias secretas [#secret-references]
-
-Los valores secretos se pueden usar en acciones a través de cadenas de referencia que especifican el nombre de un secreto que se buscará en el Servicio de Secretos. Para hacer referencia a un secreto en una definición de flujo de trabajo, emplee la siguiente sintaxis:
-
-* `${{ :secrets:<SECRET_NAME> }}` para un secreto que no está en un `namespace`
-* `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` para un secreto en un `namespace`
-* `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` para un secreto en el alcance y namespace. El alcance solo acepta `ACCOUNT` o `ORGANIZATION` por ahora.
-
-Una cadena de expresión puede contener una combinación de referencias secretas y expresiones JQ `and/or` múltiples referencias secretas.
-
-**Ejemplos**:
-
-```yaml
-  steps:
-  - name: mySecretStep
-    type: action
-    action: newrelic.instrumentation.log
-    inputs:
-      message: My message
-      licenseKey: ${{ :secrets:<SECRET_NAME> }}
-```
-
-```yaml
-  steps:
-    - name: bearer_auth
-      type: action
-      action: utils.http.post
-      inputs:
-        headers:
-          Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
-```
-
-## Ejemplos [#examples]
+## Ejemplo completo [#examples]
 
 ### Demostración del calendario
 

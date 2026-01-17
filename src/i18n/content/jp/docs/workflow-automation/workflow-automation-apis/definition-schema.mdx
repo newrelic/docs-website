@@ -15,9 +15,198 @@ translationType: machine
   この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
 </Callout>
 
-## スキーマ
+## 概要
 
-ワークフロー定義は YAML で記述されます。キーは`camelCase`命名規則を使用します。
+ワークフロー定義は、実行される自動化されたプロセスを記述します。ワークフロー定義は、 `camelCase`命名規則を使用して YAML で記述されます。各ワークフローは次の要素で構成されます。
+
+* **スキーマプロパティ**: 基本情報 (名前、説明、入力)
+* **ステップ**: 実行するアクションの順序
+* **式**: jq 構文を使用した動的な値
+* **シークレット**: 安全な資格情報参照
+
+## 基礎概念
+
+ワークフローを構築する前に、ワークフローの定義全体で使用されるこれらの中心的な概念を理解してください。
+
+### 式文字列 [#expression-strings]
+
+いくつかのプロパティは、ワークフロー実行中に評価される埋め込み式を含む文字列値を受け入れ、ワークフロー定義で動的な値を有効にします。
+
+式文字列には、それぞれ二重中括弧で囲まれた 1 つ以上の式を含めることができます。中括弧内の内容は[jq](https://jqlang.org/manual/)を使用して評価され、値にアクセスして操作するための強力な機能が提供されます。
+
+**例**:
+
+ワークフロー入力文字列の長さを取得します。
+
+`${{ .workflowInputs.myString | length }}`
+
+式を検証およびテストするには、 [JQ Playground](https://play.jqlang.org/)を使用します。
+
+### 式のプロパティ [#expression-properties]
+
+式を使用して、多数のプロパティにアクセスできます。これらのプロパティは`scope`オブジェクト内に存在するため、スコープ オブジェクトのこれらのプロパティにアクセスするには、式をピリオド`(.)`で始める必要があります。
+
+利用可能なプロパティは次のとおりです。
+
+* `workflowInputs` - 開始時にワークフローに渡される入力を含むオブジェクト。
+
+**例**:
+
+`${{ .workflowInputs.myInput }}`
+
+* `steps` - ワークフローの各ステップのプロパティを含むオブジェクト
+* `steps.<stepName>` - 特定のステップのプロパティを含むオブジェクト
+* `steps.<stepName>.outputs` - ステップまたはアクションに固有の結果プロパティを含むオブジェクト。
+
+**例**: `${{ .steps.myStep.outputs.myResult }}`
+
+### 表現評価結果 [#expression-evaluation-results]
+
+単一の jq 式は任意の JSON 型に評価できます。ただし、式文字列の最終結果は、文字列に式のみが含まれているか、追加のコンテンツが含まれているかによって異なります。
+
+**単一の式（JSON 型を保持）** :
+
+式文字列が周囲のコンテンツのない 1 つの式のみで構成されている場合は、元の JSON 型を維持しながら jq 式の結果に評価されます。たとえば、 `${{ .workflowInputs.myArray }}`配列として評価されます。これは、ワークフロー内で複雑なデータ構造を渡すのに役立ちます。
+
+**複数の式または混合コンテンツ（文字列に変換されます）** :
+
+式文字列に単一の式以外のコンテンツが含まれている場合、文字列の結果に評価されます。これは、式の前後にコンテンツがある場合、または文字列内に複数の式がある場合に発生します。文字列内の各式は評価され、文字列表現に変換されます。
+
+<Callout variant="important">
+  jq 式が null と評価されると、null ノードが返されます。たとえば、式`${{ .workflowInputs.missingInput }}`は、ワークフロー入力として`missingInput`が指定されていない場合は null を返します。
+</Callout>
+
+**例**:
+
+`myArray`の値が`[1, 2, 3]`であると仮定します。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        式文字列
+      </th>
+
+      <th>
+        結果データ
+      </th>
+
+      <th>
+        結果タイプ
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray }}`
+      </td>
+
+      <td>
+        `[1, 2, 3]`
+      </td>
+
+      <td>
+        数字の配列
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray | length }}`
+      </td>
+
+      <td>
+        3
+      </td>
+
+      <td>
+        数
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray | length > 0 }}`
+      </td>
+
+      <td>
+        トゥルー
+      </td>
+
+      <td>
+        ブール値
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`
+      </td>
+
+      <td>
+        `"Input is not empty: true"`
+      </td>
+
+      <td>
+        弦
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`
+      </td>
+
+      <td>
+        `"has length 3"`
+      </td>
+
+      <td>
+        弦
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 表現安全なパターン [#expression-safe-pattern]
+
+式で使用できるプロパティは、次の条件に準拠する必要があります。 `^[A-Za-z_][A-Za-z0-9_]*$`
+
+### 秘密の参照 [#secret-references]
+
+シークレット値は、シークレット サービスで検索するシークレットの名前を指定する参照文字列を介してアクションで使用できます。ワークフロー定義でシークレットを参照するには、次の構文を使用します。
+
+* `${{ :secrets:<SECRET_NAME> }}` 秘密は `namespace`
+* `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` 秘密のために `namespace`
+* `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` スコープとネームスペースのシークレットについては。 現時点では、スコープは`ACCOUNT`または`ORGANIZATION`のみを受け入れます。
+
+式文字列には、シークレット参照と JQ 式の組み合わせ`and/or`複数のシークレット参照) を含めることができます。
+
+**例**:
+
+```yaml
+  steps:
+  - name: mySecretStep
+    type: action
+    action: newrelic.instrumentation.log
+    inputs:
+      message: My message
+      licenseKey: ${{ :secrets:<SECRET_NAME> }}
+```
+
+```yaml
+  steps:
+    - name: bearer_auth
+      type: action
+      action: utils.http.post
+      inputs:
+        headers:
+          Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
+```
+
+## スキーマ構造
 
 ### スキーマプロパティ
 
@@ -253,6 +442,128 @@ translationType: machine
           - name: datetime
             expression: '.responseBody | fromjson.datetime'
 ```
+
+### 検証の種類 [#validation-types]
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        検証タイプ
+      </th>
+
+      <th>
+        プロパティ
+      </th>
+
+      <th>
+        必須またはオプション
+      </th>
+
+      <th>
+        タイプ
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **`regex`**
+      </td>
+
+      <td>
+        `validations[*].pattern`
+      </td>
+
+      <td>
+        必須
+      </td>
+
+      <td>
+        弦
+      </td>
+
+      <td>
+        指定された正規表現パターンに対してワークフロー入力値を検証します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`maxIntValue`**
+      </td>
+
+      <td>
+        `validations[*].maxValue`
+      </td>
+
+      <td>
+        必須
+      </td>
+
+      <td>
+        整数
+      </td>
+
+      <td>
+        ワークフローの入力値が指定された maxValue より小さいことを検証します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`minIntValue`**
+      </td>
+
+      <td>
+        `validations[*].minValue`
+      </td>
+
+      <td>
+        必須
+      </td>
+
+      <td>
+        整数
+      </td>
+
+      <td>
+        ワークフローの入力値が指定された minValue よりも大きいことを検証します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **`maxLength`**
+      </td>
+
+      <td>
+        `validations[*].length`
+      </td>
+
+      <td>
+        必須
+      </td>
+
+      <td>
+        整数
+      </td>
+
+      <td>
+        ワークフロー入力文字列とコレクションの最大長を検証します (
+
+        `Array, Set, Map, etc.`
+
+        )。
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## 手順 [#steps]
 
@@ -558,198 +869,169 @@ translationType: machine
 
 ### ループ [#loop]
 
-ループは、 `in`で定義された特定のコレクションを反復処理し、反復ごとにループ変数`index`と`element`を作成します。これらのループ変数は、式`${{ .steps.<loopStepName>.loop.element }}`または `${{ .steps.<loopStepName>.loop.index }`
+ループはコレクション (リスト、マップ、配列) を反復処理し、反復ごとに`index`および`element`変数を自動的に作成します。これらのループ変数は、 `${{ .steps.<loopStepName>.loop.element }}`または `${{ .steps.<loopStepName>.loop.index }}`
 
-詳細については、以下をご覧ください。
-
-<CollapserGroup>
-  <Collapser id="moreforloop" title="リスト、マップ、コレクションを反復処理するループ">
-    `loop`を使用して、リスト、マップ、またはコレクションを反復処理できます。
-
-    ループは、 `in`で定義された特定のコレクションを反復処理します。反復ごとにループ変数`index`と`element`が自動的に作成されます。これらのループ変数は、JQ式`${{ .steps.<loopStepName>.loop.element }}`または `${{ .steps.<loopStepName>.loop.index }}`
-
-    * `for` （必須）
-
-      * **タイプ**: 定数
-      * **説明**: ループの開始を知らせます。
-
-    * `in` （必須）
-
-      * **タイプ**: 文字列 (式)
-      * **説明**: 要素のコレクションに評価する必要がある式。
-
-    * `steps` （必須）
-
-      * **説明**: ループの各反復で実行される手順。ステップは、別のループを含む任意のタイプのステップにすることができます。
-
-    **例**:
-
-    以下はループ`workflowInputs`を実行する方法を示しています。結果はコレクションの型である必要があることに注意してください。
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
-    ```
-
-    <Callout variant="important">
-      * `for`： （必須）。これは、 for ループの開始を示す最上位要素です。
-      * `in`： （必須）。反復処理する入力コレクションは、Java 配列にキャスト可能である必要があります。
-      * `steps`： （必須）。各反復ごとにステップが実行されます。
-      * `element` `index`はループの一部として自動的に割り当てられます。
-      * `index` ゼロベースです。
-      * `element` 複雑な要素のコレクションがある場合は、複合型になることがあります。
-      * ループ内で作成された変数（ループ変数とステップ出力）は、ループ内でのみアクセス可能です。
-      * これらの変数はループが終了するとクリアされ、ループ外からアクセスするとnullになります。
-      * ループはループ外で定義された変数にアクセスできる
-    </Callout>
-
-    **整数に対する単純な for ループ**
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: ${{ [range(1; 6)] }}
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element: ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element : [1, 2, 3, 4, 5] , Index : [0, 1, 2, 3, 4]
-    ```
-
-    **マップのシンプルなループ**
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
-            steps:
-              - name: step1
-                type: action
-                action: internal.example.sayHello
-                version: '1'
-                inputs:
-                  name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element: [{ "key1": "val1" }, { "key2": "val2"}] , Index : [0, 1]
-    ```
-
-    **ループ内でジャンプする**
-
-    同じ for ループに属する名前付きステップ間のジャンプが許可されます。for ループ内または外、内部または外部のループ、あるいは 2 つの異なる for ループ間のジャンプは許可されません。
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: firstStep
-          type: action
-          action: example.messaging.sayHello
-          version: '1.0.0'
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: step1
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-                next: step3                                 # Okay within the loop
-              - name: step2
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.step1.outputs.greeting }}'
-              - name: step3
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                next: firstStep                            # Not okay, first step is not in the loop context
-    ```
-
-    **ループ内でbreakまたはcontinueを使用する**
-
-    for ループのフローを変更するには、 `next: break`または`next: continue`を使用できます。`break`と`continue`ループ内で暗黙的に定義された予約済みのジャンプ ターゲットであることに注意してください。ループの外で`next: break`または`next: continue`を使用すると、ワークフロー ステップの最後にジャンプします。
-
-    * `end`はループ内で使用される場合、 `break`と同じように機能します。
-    * Next は、スイッチ ステップまたは任意のタイプのステップの両方で使用できます。
-
-    ```yaml
-      name: myWorkflow
-      steps:
-        - name: loopStep
-          type: loop
-          for:
-            in: '${{ [range(1; 6)] }}'
-            steps:
-              - name: insideLoopStep1
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-                next: continue
-              - name: insideLoopStep2
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStep.loop.element }}'
-        - name: loopStepAgain
-          type: loop
-          for:
-            in: '${{ .workflowInputs.count }}'
-            steps:
-              - name: switchStep
-                type: switch
-                switch:
-                  - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
-                    next: break
-              - name: insideLoopStepAgain
-                type: action
-                action: example.messaging.sayHello
-                version: '1.0.0'
-                inputs:
-                  name: '${{ .steps.loopStepAgain.loop.element }}'
-    ```
-  </Collapser>
-</CollapserGroup>
+**プロパティ:**
 
 * **`steps[*].for`** (必須)
 
   * **タイプ**: 定数
-  * **説明**: ループの開始を知らせる信号
+  * **説明**: ループの開始を知らせます
 
 * **`steps[*].in`** (必須)
 
   * **タイプ**: 文字列 (式)
+  * **説明**: 要素のコレクションを評価する式
 
-  * **説明**: 要素のコレクションとして評価する必要がある式。
+* **`steps[*].steps`** (必須)
 
-  * **`steps[*].steps`** (オプション)
+  * **説明**: 各反復で実行される手順。ネストされたループを含む任意のステップ タイプを含めることができます。
 
-    * **説明**: ループの各反復で実行される手順。上記の手順については定義を参照してください。
+<Callout variant="important">
+  * **対象:** (必須)。これは、 for ループの開始を示す最上位要素です。
+  * **in:** (必須)。反復処理する入力コレクションは、Java 配列にキャスト可能である必要があります。
+  * **手順:** (必須)。各反復ごとにステップが実行されます。
+  * **要素**と**インデックス**はループの一部として自動的に割り当てられます。
+  * `index` ゼロベースですが、複合要素のコレクションがある場合は、 `element`複合型になることがあります。
+  * ループ内で作成された変数（ループ変数とステップ出力）は、ループ内でのみアクセス可能です。
+  * これらの変数はループが終了するとクリアされ、ループ外からアクセスするとnullになります。
+  * ループはループ外で定義された変数にアクセスできる
+</Callout>
 
-**例**:
+**例: 基本的なループ**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}' # not exist outside of this loop
+```
+
+**例: 整数のループ**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: ${{ [range(1; 6)] }}
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element: ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element : [1, 2, 3, 4, 5] , Index : [0, 1, 2, 3, 4]
+```
+
+**例: マップ上のループ**
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [ { "key1": "val1" }, { "key2": "val2"} ] }}'
+        steps:
+          - name: step1
+            type: action
+            action: internal.example.sayHello
+            version: '1'
+            inputs:
+              name: 'Element : ${{ .steps.loopStep.loop.element }} , Index : ${{ .steps.loopStep.loop.index }}'  # Element: [{ "key1": "val1" }, { "key2": "val2"}] , Index : [0, 1]
+```
+
+**例: ループ内でのジャンプ**
+
+同じループ内のステップ間のジャンプは許可されます。ループ内/ループ外、異なるループ間、または親/子ループへのジャンプは許可されません。
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: firstStep
+      type: action
+      action: example.messaging.sayHello
+      version: '1.0.0'
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: step1
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: step3                                 # Okay within the loop
+          - name: step2
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.step1.outputs.greeting }}'
+          - name: step3
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            next: firstStep                            # Not okay, first step is not in the loop context
+```
+
+**例: 中断して続行**
+
+ループフローを制御するには、 `next: break`または`next: continue`を使用します。これらはループ内の予約キーワードです。ループ外では、ワークフローの終了にジャンプします。注意: `end`ループ内では`break`のように動作します。
+
+```yaml
+  name: myWorkflow
+  steps:
+    - name: loopStep
+      type: loop
+      for:
+        in: '${{ [range(1; 6)] }}'
+        steps:
+          - name: insideLoopStep1
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+            next: continue
+          - name: insideLoopStep2
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStep.loop.element }}'
+    - name: loopStepAgain
+      type: loop
+      for:
+        in: '${{ .workflowInputs.count }}'
+        steps:
+          - name: switchStep
+            type: switch
+            switch:
+              - condition: '${{ .steps.loopStepAgain.loop.index >= 0 }}'
+                next: break
+          - name: insideLoopStepAgain
+            type: action
+            action: example.messaging.sayHello
+            version: '1.0.0'
+            inputs:
+              name: '${{ .steps.loopStepAgain.loop.element }}'
+```
+
+**簡単な例:**
 
 ```yaml
   name: myWorkflow
@@ -924,309 +1206,7 @@ translationType: machine
     * 入力は変数名とそれに割り当てられた値のマップです。秘密参照が変数に割り当てられると、秘密参照のままとなり、実際の値に変換されません。ただし、他の式 (ワークフロー入力など) は評価され、実際の値に変換されます。
   * 許可される入力タイプ: `Integer` 、 `Double` 、 `Boolean` 、 `String` 、 `Array` 、 `Map`
 
-## 検証の種類 [#validation-types]
-
-<table>
-  <thead>
-    <tr>
-      <th>
-        検証タイプ
-      </th>
-
-      <th>
-        プロパティ
-      </th>
-
-      <th>
-        必須またはオプション
-      </th>
-
-      <th>
-        タイプ
-      </th>
-
-      <th>
-        説明
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr>
-      <td>
-        **`regex`**
-      </td>
-
-      <td>
-        `validations[*].pattern`
-      </td>
-
-      <td>
-        必須
-      </td>
-
-      <td>
-        弦
-      </td>
-
-      <td>
-        指定された正規表現パターンに対してワークフロー入力値を検証します。
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`maxIntValue`**
-      </td>
-
-      <td>
-        `validations[*].maxValue`
-      </td>
-
-      <td>
-        必須
-      </td>
-
-      <td>
-        整数
-      </td>
-
-      <td>
-        ワークフローの入力値が指定された maxValue より小さいことを検証します。
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`minIntValue`**
-      </td>
-
-      <td>
-        `validations[*].minValue`
-      </td>
-
-      <td>
-        必須
-      </td>
-
-      <td>
-        整数
-      </td>
-
-      <td>
-        ワークフローの入力値が指定された minValue よりも大きいことを検証します。
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        **`maxLength`**
-      </td>
-
-      <td>
-        `validations[*].length`
-      </td>
-
-      <td>
-        必須
-      </td>
-
-      <td>
-        整数
-      </td>
-
-      <td>
-        ワークフロー入力文字列とコレクションの最大長を検証します (
-
-        `Array, Set, Map, etc.`
-
-        )。
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## 共有型 [#shared-types]
-
-### 式文字列 [#expression-strings]
-
-いくつかのプロパティは、ワークフロー実行中に評価される埋め込み式を含む文字列値を受け入れ、ワークフロー定義で動的な値を有効にします。
-
-式文字列には、それぞれ二重中括弧で囲まれた 1 つ以上の式を含めることができます。中括弧内の内容は[jq](https://jqlang.org/manual/)を使用して評価され、値にアクセスして操作するための強力な機能が提供されます。
-
-**例**:
-
-ワークフロー入力文字列の長さを取得します。
-
-`${{ .workflowInputs.myString | length }}`
-
-式を検証およびテストするには、 [JQ Playground](https://play.jqlang.org/)を使用します。
-
-### 式のプロパティ [#expression-properties]
-
-式を使用して、多数のプロパティにアクセスできます。これらのプロパティは`scope`オブジェクト内に存在するため、スコープ オブジェクトのこれらのプロパティにアクセスするには、式をピリオド`(.)`で始める必要があります。
-
-利用可能なプロパティは次のとおりです。
-
-* `workflowInputs` - 開始時にワークフローに渡される入力を含むオブジェクト。
-
-**例**:
-
-`${{ .workflowInputs.myInput }}`
-
-* `steps` - ワークフローの各ステップのプロパティを含むオブジェクト
-* `steps.<stepName>` - 特定のステップのプロパティを含むオブジェクト
-* `steps.<stepName>.outputs` - ステップまたはアクションに固有の結果プロパティを含むオブジェクト。
-
-**例**: `${{ .steps.myStep.outputs.myResult }}`
-
-### 表現評価結果 [#expression-evaluation-results]
-
-単一の jq 式は任意の JSON 型に評価できます。ただし、式文字列の最終結果は、文字列に式のみが含まれているか、追加のコンテンツが含まれているかによって異なります。
-
-**単一の式（JSON 型を保持）** :
-
-式文字列が周囲のコンテンツのない 1 つの式のみで構成されている場合は、元の JSON 型を維持しながら jq 式の結果に評価されます。たとえば、 `${{ .workflowInputs.myArray }}`配列として評価されます。これは、ワークフロー内で複雑なデータ構造を渡すのに役立ちます。
-
-**複数の式または混合コンテンツ（文字列に変換されます）** :
-
-式文字列に単一の式以外のコンテンツが含まれている場合、文字列の結果に評価されます。これは、式の前後にコンテンツがある場合、または文字列内に複数の式がある場合に発生します。文字列内の各式は評価され、文字列表現に変換されます。
-
-<Callout variant="important">
-  jq 式が null と評価されると、null ノードが返されます。たとえば、式`${{ .workflowInputs.missingInput }}`は、ワークフロー入力として`missingInput`が指定されていない場合は null を返します。
-</Callout>
-
-**例**:
-
-`myArray`の値が`[1, 2, 3]`であると仮定します。
-
-<table>
-  <thead>
-    <tr>
-      <th>
-        式文字列
-      </th>
-
-      <th>
-        結果データ
-      </th>
-
-      <th>
-        結果タイプ
-      </th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray }}`
-      </td>
-
-      <td>
-        `[1, 2, 3]`
-      </td>
-
-      <td>
-        数字の配列
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray | length }}`
-      </td>
-
-      <td>
-        3
-      </td>
-
-      <td>
-        数
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray | length > 0 }}`
-      </td>
-
-      <td>
-        トゥルー
-      </td>
-
-      <td>
-        ブール値
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `Input is not empty: ${{ .workflowInputs.myArray | length > 0 }}`
-      </td>
-
-      <td>
-        `"Input is not empty: true"`
-      </td>
-
-      <td>
-        弦
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `${{ .workflowInputs.myArray }} has length ${{ .workflowInputs.myArray | length }}`
-      </td>
-
-      <td>
-        `"has length 3"`
-      </td>
-
-      <td>
-        弦
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-### 表現安全なパターン [#expression-safe-pattern]
-
-式で使用できるプロパティは、次の条件に準拠する必要があります。 `^[A-Za-z_][A-Za-z0-9_]*$`
-
-### 秘密の参照 [#secret-references]
-
-シークレット値は、シークレット サービスで検索するシークレットの名前を指定する参照文字列を介してアクションで使用できます。ワークフロー定義でシークレットを参照するには、次の構文を使用します。
-
-* `${{ :secrets:<SECRET_NAME> }}` 秘密は `namespace`
-* `${{ :secrets:<NAMESPACE>:<SECRET_NAME> }}` 秘密のために `namespace`
-* `${{ :secrets:<SCOPE>:<NAMESPACE>:<SECRET_NAME> }}` スコープとネームスペースのシークレットについては。 現時点では、スコープは`ACCOUNT`または`ORGANIZATION`のみを受け入れます。
-
-式文字列には、シークレット参照と JQ 式の組み合わせ`and/or`複数のシークレット参照) を含めることができます。
-
-**例**:
-
-```yaml
-  steps:
-  - name: mySecretStep
-    type: action
-    action: newrelic.instrumentation.log
-    inputs:
-      message: My message
-      licenseKey: ${{ :secrets:<SECRET_NAME> }}
-```
-
-```yaml
-  steps:
-    - name: bearer_auth
-      type: action
-      action: utils.http.post
-      inputs:
-        headers:
-          Authorization: Bearer ${{ :secrets:<SECRET_NAME> }}
-```
-
-## 例 [#examples]
+## 完全な例 [#examples]
 
 ### カレンダーのデモ
 

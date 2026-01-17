@@ -1,0 +1,102 @@
+---
+title: 복잡한 NRQL 알림
+tags:
+  - workflow automation
+  - workflow
+  - nrql
+  - alerting
+metaDescription: Compare NRQL results across time windows to detect anomalies standard alerts can't catch.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+표준 알림으로는 포착할 수 없는 이상 징후를 감지하기 위해 시간 범위별로 NRQL 결과를 비교합니다.
+
+**요구 사항:**
+
+* New Relic 계정
+* 이메일 대상([알림 보내기](/docs/workflow-automation/setup-and-configuration/create-destinations) 참조)
+* [CreateSchedule API를](/docs/workflow-automation/workflow-automation-apis/create-schedule) 통해 일정을 예약하세요.
+
+**주요 작업**: `newrelic.nrdb.query`, `newrelic.notification.sendEmail`
+
+**사용 사례**: 다음과 같은 경우 표준 알림이 요구 사항을 충족할 수 없을 때 이 패턴을 사용하십시오.
+
+* 여러 시간대에 걸쳐 비교
+* 쿼리 결과에 사용자 지정 수학 연산 적용
+* 특정 확률, 한계 또는 패턴이 감지될 때만 트리거됩니다.
+* 조건부 논리를 사용하여 여러 쿼리의 데이터를 결합합니다.
+
+```yaml
+  name: Complex_Alert_Workflow
+  description: 'Compares NRQL results across time windows and sends alerts when new events are detected'
+
+  workflowInputs:
+    destinationId:
+      type: String
+    query:
+      type: String
+      defaultValue: 'FROM Span SELECT count(*)'
+
+  steps:
+    - name: query1
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "${{ .workflowInputs.query }} SINCE 10 minutes ago UNTIL 5 minutes ago"
+        accountIds:
+          - 7401815
+        selectors:
+          - name: length
+            expression: '[ .results[] | length ]'
+          - name: count
+            expression: '[ .results[0].count ]'
+
+    - name: query2
+      type: action
+      action: newrelic.nrdb.query
+      version: 1
+      inputs:
+        query: "${{ .workflowInputs.query }} SINCE 5 minutes ago"
+        accountIds:
+          - 7401815
+        selectors:
+          - name: length
+            expression: '[ .results[] | length ]'
+          - name: count
+            expression: '[ .results[0].count ]'
+
+    - name: CheckForNewEvents
+      type: switch
+      switch:
+        - condition: >-
+            ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) > 0 }}
+          next: sendEmail
+      next: end
+
+    - name: sendEmail
+      type: action
+      action: newrelic.notification.sendEmail
+      version: 1
+      inputs:
+        destinationId: ${{ .workflowInputs.destinationId }}
+        subject: Hello there!
+        message: >-
+          More spans incoming!!!
+          There are --- ${{ (.steps.query2.outputs.count - .steps.query1.outputs.count) }} ---
+          new Spans that were ingested in the last 5 minutes
+        attachments:
+          - type: QUERY
+            query: ${{ .workflowInputs.query }} SINCE 5 minutes ago
+            format: CSV
+            filename: span_count.csv
+      next: end
+```
+
+**일정을 예약하려면** cron 표현식 `*/10 * * * *` (10분마다)과 함께 [CreateSchedule API를](/docs/workflow-automation/create-a-workflow-automation/start-schedule#scheduled) 사용하십시오. 최소 간격은 10분입니다. 자세한 내용은 [워크플로우 제한을](/docs/workflow-automation/limitations-and-faq/workflow-limits) 참조하세요.
+
+## 무엇 향후 계획
+
+* **[구현, 배포 롤백](/docs/workflow-automation/workflow-examples/advanced/deployment-rollback)**: 자동화된 구현, 배포 모니터링
+* **[EC2 관리](/docs/workflow-automation/workflow-examples/advanced/ec2-management)**: 인프라 자동화
