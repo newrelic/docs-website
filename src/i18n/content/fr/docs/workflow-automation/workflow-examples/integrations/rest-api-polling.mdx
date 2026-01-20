@@ -1,0 +1,163 @@
+---
+title: Interrogation et logging de l'API REST
+tags:
+  - workflow automation
+  - workflow
+  - rest api
+  - polling
+metaDescription: 'Poll REST API endpoints, loop through results, and log data to New Relic.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Interrogez un point de terminaison d&apos;API REST, parcourez les résultats et enregistrez les données dans New Relic.
+
+<Callout variant="important">
+  Les sélecteurs sont facultatifs pour les charges utiles complètes. La plupart des outils de workflow prennent en charge les références directes aux objets de réponse.
+</Callout>
+
+## GET simple et log
+
+Interrogation d&apos;API de base et logging complet des réponses :
+
+**Ce que fait ce workflow :**
+
+* Déclenchement via une planification (par exemple, toutes les 5 minutes) ou une exécution manuelle
+
+* Étape de requête HTTP :
+
+  * Méthode : GET
+  * URL : [https://pokeapi.co/api/v2/pokemon](https://pokeapi.co/api/v2/pokemon)
+  * Enregistrer le corps de la réponse dans une variable (par exemple, `{{.http_response}}`)
+
+* Étape d&apos;enregistrement/création d&apos;événement :
+
+  * Envoyer l&apos;intégralité de `{{.http_response.body}}` en tant que charge utile
+  * Aucun sélecteur requis : transmettre le JSON brut
+
+## API REST avec boucles et sélecteurs
+
+Récupérer tous les résultats de l’API REST, parcourir les éléments, effectuer des appels individuels et enregistrer les données extraites.
+
+**Exigences :** Accès à l&apos;API et autorisations d&apos;ingestion des logs.
+
+**Ce que fait ce workflow :**
+
+* Récupérer tous les résultats du point de terminaison de l&apos;API REST
+* Parcourir chaque résultat de réponse
+* Effectuer des appels d&apos;API individuels par élément à l&apos;aide des données de la boucle
+* Extraire des champs spécifiques en utilisant des sélecteurs
+* Enregistrer les données extraites dans New Relic avec des attributs personnalisés
+
+**Actions clés**: `http.get`, `newrelic.ingest.sendLogs`
+
+```yaml
+  name: pokemon_workflow
+  description: ''
+  steps:
+    - name: get_all_pokemons
+      type: action
+      action: http.get
+      version: '1'
+      inputs:
+        url: https://pokeapi.co/api/v2/pokemon
+        selectors:
+          - name: pokemons
+            expression: .responseBody | fromjson.results
+    - name: pokemon_loop
+      type: loop
+      for:
+        in: ${{ .steps.get_all_pokemons.outputs.pokemons }}
+        steps:
+          - name: get_individual_pokemon
+            type: action
+            action: http.get
+            version: '1'
+            inputs:
+              url: ${{ .steps.pokemon_loop.loop.element.url }}
+              selectors:
+                - name: pokemon_name
+                  expression: .responseBody | fromjson.name
+                - name: pokemon_id
+                  expression: .responseBody | fromjson.id
+                - name: pokemon_stats
+                  expression: .responseBody | fromjson.stats
+          - name: log_pokemon_info
+            type: action
+            action: newrelic.ingest.sendLogs
+            version: '1'
+            inputs:
+              logs:
+                - message: >-
+                    Pokemon name is: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_name}}, Id: ${{
+                    .steps.get_individual_pokemon.outputs.pokemon_id}}
+                  attributes:
+                    pokemon_stats: ${{ .steps.get_individual_pokemon.outputs.pokemon_stats}}
+            next: continue
+      next: end
+```
+
+## Conversion API REST vers CSV
+
+Récupérer les données de l&apos;API, convertir le JSON en CSV, enregistrer dans New Relic et partager via Slack.
+
+**Exigences :** Accès API et jeton Slack dans les secrets.
+
+**Ce que fait ce workflow :**
+
+* Récupérer les données temporelles de l&apos;API World Time par fuseau horaire
+* Convertir la réponse JSON en CSV
+* Logger CSV vers New Relic
+* Publier un fichier CSV sur le canal Slack
+
+**Actions clés**: `http.get`, `utils.transform.toCSV`, `newrelic.ingest.sendLogs`, `slack.chat.postMessage`
+
+```yaml
+  name: jsontocsv
+
+  workflowInputs:
+    timezone:
+      type: String
+      defaultValue: 'America/Los_Angeles'
+
+  steps:
+    - name: getCurrentTime
+      type: action
+      action: http.get
+      version: 1
+      inputs:
+        url: 'https://worldtimeapi.org/api/timezone/${{ .workflowInputs.timezone }}'
+
+    - name: csv1
+      type: action
+      action: utils.transform.toCSV
+      version: 1
+      inputs:
+        json: ${{ .steps.getCurrentTime.outputs.responseBody }}
+
+    - name: logOutput
+      type: action
+      action: newrelic.ingest.sendLogs
+      version: 1
+      inputs:
+        logs:
+          - message: 'CSV: ${{ .steps.csv1.outputs.csv }}'
+
+    - name: postCsv
+      type: action
+      action: slack.chat.postMessage
+      version: 1
+      inputs:
+        channel: test-channel-workflow
+        text: "Current Date details"
+        attachment:
+          filename: 'file.csv'
+          content: ${{ .steps.csv1.outputs.csv }}
+        token: ${{ :secrets:dn_staging_slack_token }}
+```
+
+## Et ensuite ?
+
+* **[Workflows avancés](/docs/workflow-automation/workflow-examples/advanced/nrql-alerting)**: modèles d&apos;automatisation complexes
+* **[Boucles](/docs/workflow-automation/workflow-examples/basic-patterns/loops)**: En savoir plus sur les modèles de boucles
