@@ -42,7 +42,7 @@ Additionally, we're introducing enhanced Slack commands for incident management:
 
 ## Actions to take
 
-**None.** These updates are purely cosmetic and will be applied automatically to your workspace. Your existing alert conditions, workflows, and account permissions will continue to function without interruption.
+**None.** Your existing alert conditions, workflows, and account permissions will continue to function without interruption.
 
 ## Key dates
 
