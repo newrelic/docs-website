@@ -209,19 +209,25 @@ The `rate_limiter` option controls backpressure behavior when the concurrent tra
 | `ingestion_buffer_size` | int | `10000` | Capacity of the shared ingestion channel for buffering incoming traces |
 | `ingestion_channel_timeout` | duration | `500ms` | Maximum time to wait when sending traces to the ingestion channel. If exceeded, traces are dropped |
 | `ingestion_response_timeout` | duration | `10s` | Maximum time to wait for a worker to process and respond. Prevents indefinite blocking if workers are stuck |
+| `hashing_strategy` | string | `rendezvous` | Hashing algorithm for partition selection. Options: `rendezvous` (recommended, 3x faster) or `consistent` |
 
 **Ingestion architecture:**
 
 The processor uses a shared channel with configurable workers for trace ingestion:
 1. Incoming traces are sent to a shared buffered channel
 2. Multiple workers pull from the channel and route traces to appropriate partitions
-3. Workers hash trace IDs to determine partition assignment
+3. Workers hash trace IDs using the configured hashing strategy to determine partition assignment
 
 **Configuration guidelines:**
 - **Buffer Size**: Should absorb traffic bursts. Recommended: 10k-60k traces
 - **Workers**: Number of concurrent goroutines processing traces. Typically 1-2 workers per partition is optimal
 - **Channel Timeout**: How long to wait if buffer is full. Short timeout (500ms) fails fast on saturation
 - **Response Timeout**: Protects against stuck workers. Default: 10s is appropriate for normal Redis operations
+- **Hashing Strategy**: Algorithm for determining trace partition assignment
+  - **`rendezvous`** (default): Provides superior load distribution for 2-99 partitions. Best choice for typical deployments.
+  - **`consistent`**: Maintains performance when using 100+ partitions where rendezvous becomes slow. Trades slightly less optimal load distribution for better performance at scale.
+  - Both strategies ensure the same trace always maps to the same partition (deterministic)
+  - Choose rendezvous for better load distribution (up to 99 partitions), consistent for performance at scale (100+)
 
 ### Core configuration (applies to Redis mode)
 
@@ -283,6 +289,7 @@ processors:
       ingestion_buffer_size: 40000     # 40k trace buffer
       ingestion_channel_timeout: 500ms
       ingestion_response_timeout: 10s
+      hashing_strategy: rendezvous     # default, best for <100 partitions
 
     # Sampling policies
     policies:
@@ -528,9 +535,13 @@ A **partition** is a logical shard of trace data in Redis that enables parallel 
 
 **Key concepts:**
 - Each partition maintains its own pending traces queue in Redis
-- Traces are assigned to partitions using **consistent hashing** on the trace ID
+- Traces are assigned to partitions using a configurable **hashing strategy** (rendezvous or consistent) on the trace ID
 - Each partition can be processed independently and concurrently
 - Partitions enable both **vertical scaling** (more CPU cores) and **horizontal scaling** (more collector instances)
+
+  <Callout variant="caution">
+    **Important**: Changing the number of partitions when there's a cluster already running will cause data loss, since traces cannot be located anymore with a different partition count.
+  </Callout>
 
 ### How partitioning works
 
@@ -538,10 +549,10 @@ A **partition** is a logical shard of trace data in Redis that enables parallel 
 Incoming Traces
       |
       v
-┌─────────────────────────┐
-│  Consistent Hash Ring   │  trace_id → hash % partitions
-│  (based on trace ID)    │
-└─────────────────────────┘
+┌─────────────────────────────┐
+│  Hashing Strategy           │  trace_id → rendezvous or consistent hash
+│  (rendezvous by default)    │
+└─────────────────────────────┘
       |
       ├──────────┬──────────┬──────────┐
       v          v          v          v
@@ -565,10 +576,48 @@ Incoming Traces
 ```
 
 **Flow:**
-1. **Ingestion**: Trace ID is hashed to determine partition (e.g., `hash(trace_id) % 4 = 2` → Partition 2)
+1. **Ingestion**: Trace ID is hashed using the configured hashing strategy to determine partition assignment
 2. **Storage**: Trace data stored in Redis under partition-specific keys
-3. **Evaluation**: Worker assigned to Partition 2 pulls and evaluates traces
+3. **Evaluation**: Worker assigned to that partition pulls and evaluates traces
 4. **Concurrency**: All partition workers run in parallel, processing different traces simultaneously
+
+### Hashing strategy
+
+The processor supports two hashing algorithms for partition selection. The choice depends on the number of partitions:
+
+| Strategy | Load Distribution | Performance | Best For |
+|----------|-------------------|-------------|----------|
+| **`rendezvous`** (default) | Superior load balancing | Fast for up to 99 partitions | **Standard deployments (2-99 partitions)** - best load distribution for typical production workloads |
+| **`consistent`** | Good distribution | Maintains performance with 100+ partitions | **Very large scale (100+ partitions)** - preserves performance when rendezvous becomes slow |
+
+**Key characteristics:**
+- Both strategies are deterministic - the same trace always maps to the same partition
+- Rendezvous provides better load distribution but becomes slow with 100+ partitions
+- Consistent hashing maintains performance at high partition counts (100+)
+- Choose based on partition count: rendezvous for better distribution (2-99), consistent for performance at scale (100+)
+
+**Standard configuration (most deployments):**
+
+```yaml
+distributed_cache:
+  hashing_strategy: rendezvous  # default, best load distribution for 2-99 partitions
+  partitions: 8
+```
+
+**Very large scale configuration (100+ partitions):**
+
+```yaml
+distributed_cache:
+  hashing_strategy: consistent  # maintains performance with 100+ partitions
+  partitions: 200
+```
+
+  <Callout variant="important">
+    **Choosing the right strategy**:
+    - **Rendezvous** (default): Use for deployments with up to 99 partitions. Provides superior load distribution for the vast majority of production workloads.
+    - **Consistent**: Use when scaling to 100+ partitions where rendezvous becomes slow. Trades slightly less optimal distribution for maintained performance at scale.
+    - **Important**: Once chosen, changing strategies requires clearing existing data as traces will map to different partitions.
+  </Callout>
 
 ### Partition configuration parameters
 
