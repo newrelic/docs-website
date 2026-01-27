@@ -1,18 +1,26 @@
 ---
-title: "UI enhancement: Simplifying terminology to 'Alert events'"
-summary: "Effective February 16th, 2026, New Relic will rename 'Incidents' to 'Alert events' across the platform UI to enhance clarity and align with standard industry nomenclature. These updates are purely cosmetic and will be applied automatically to your workspace."
+title: Nomenclature changes - "Incidents" are now "Alert events"
+summary: Effective February 16th, 2026, New Relic will rename 'Incidents' to 'Alert events' across the platform UI to enhance clarity and align with standard industry nomenclature.
 releaseDate: "2026-01-23"
 ---
 
-Effective **February 16th, 2026**, New Relic will rename "Incidents" to "Alert events" across the platform UI to enhance clarity and align with standard industry nomenclature.
+## Key Information for Users
 
-## Why it's changing
+**Action Required:** None. These updates are purely cosmetic and will be applied automatically to your workspace.
 
-This shift supports a streamlined flow: individual Alert events are correlated into Issues, which can then be triaged to determine if they warrant a formal Incident response. This evolution ensures our platform remains intuitive and consistent with the industry's direction, providing you with a clearer path from initial signal to resolution.
+**Operational Continuity:** Your existing alert conditions, workflows, and account permissions will continue to function without interruption.
+
+**Visual Update:** Starting 16th February 2026, all visual references to "Incidents" within the New Relic UI will transition to "Alert events."
+
+## Background
+
+This shift supports a streamlined flow: individual **Alert events** are correlated into **Issues**, which can then be triaged to determine if they warrant a formal Incident response. This evolution ensures our platform remains intuitive and consistent with the industry's direction, providing you with a clearer path from initial signal to resolution.
 
 Soon we will be introducing the formal concept of an Incident on the New Relic platform, which will round out the three-part flow and align our platform terminology with common ITSM practices as we develop more incident management and response features. By aligning our language across the platform, we are making it easier for you to navigate and manage your operational health and identify real problems faster.
 
 ## What's changing
+
+**Updated terminology**
 
 We are updating naming across the following areas to ensure a unified and simplified experience and pave the way for more incident management features on the New Relic platform:
 
@@ -27,23 +35,3 @@ We are updating naming across the following areas to ensure a unified and simpli
 * **Admin panel**: Access management roles and account-level privileges will be updated from "Incident" to "Alert event" for better clarity.
 
 * **Issue page**: All visual references on the Issue details page and associated views will be renamed to "Alert events."
-
-Additionally, we're introducing enhanced Slack commands for incident management:
-
-* `/nr inc` - Start a new incident and become the incident commander from any channel, or update details of an existing incident.
-* `/nr sev {severity_level}` - Set or update the incident severity quickly.
-* `/nr timeline` or `/nr tl` - Add a quick update to the Upboard timeline, akin to posting a status with the 911 status command.
-* `/nr summary` - Request an incident summary from the NR AI assistant to save precious time reading the whole thread.
-* `/nr ic me` - Take the Incident Commander role.
-* `/nr cm me` - Take the Communication Manager role.
-* `/nr resolve` - Mark the incident as resolved.
-* `/nr help` - See the bot command output.
-* `/nr retro` - Generate Retrospective document. Retro can be generated once the incident is resolved.
-
-## Actions to take
-
-**None.** Your existing alert conditions, workflows, and account permissions will continue to function without interruption.
-
-## Key dates
-
-- **February 16th, 2026**: All visual references to "Incidents" within the New Relic UI will transition to "Alert events."
