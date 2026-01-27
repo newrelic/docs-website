@@ -1,6 +1,6 @@
 ---
 title: Nomenclature changes - "Incidents" are now "Alert events"
-summary: Effective February 16th, 2026, New Relic will rename 'Incidents' to 'Alert events' across the platform UI to enhance clarity and align with standard industry nomenclature.
+summary: Effective February 16th, 2026, New Relic will rename "Incidents" to "Alert events" across the platform UI to enhance clarity and align with standard industry nomenclature.
 releaseDate: "2026-01-27"
 ---
 
