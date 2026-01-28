@@ -1,199 +1,82 @@
 ---
-title: Docker container monitoring with OpenTelemetry
+title: Docker container metrics reference
 tags:
   - Integrations
   - OpenTelemetry
   - Docker
-  - Containers
-metaDescription: Monitor Docker containers using OpenTelemetry Collector with seamless integration into New Relic.
+  - Metrics
+metaDescription: "Complete reference of Docker container metrics collected by OpenTelemetry, including descriptions, types, and alerting recommendations."
 freshnessValidatedDate: never
 ---
 
-Monitor your Docker containers using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+This page provides a comprehensive reference for all Docker container metrics collected by the OpenTelemetry [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver). Use this reference to understand what data is available, create custom queries, and set up effective alerts for your containerized applications.
 
-This integration leverages the OpenTelemetry [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver) to monitor your Docker container performance metrics, resource usage, and health.
+## Key metrics for monitoring [#key-metrics]
 
-<img
-  title="Docker OTel dashboard"
-  alt="Screenshot showing Docker monitoring dashboard with CPU utilization, memory usage, and container metrics"
-  src="/images/docker-otel.webp"
-/>
+While the Docker Stats receiver collects extensive metrics, these are the most important ones for monitoring container health and performance:
 
-<figcaption>
-  After setting up Docker monitoring with OpenTelemetry, you can view your container metrics in New Relic.
-</figcaption>
+### Essential CPU metrics
+- **`container.cpu.utilization`** - Percentage of CPU used by the container (most important for alerting)
+- **`container.cpu.usage.total`** - Total CPU time consumed (useful for trend analysis)
+- **`container.cpu.throttling_data.throttled_periods`** - Container hitting CPU limits (indicates resource constraints)
 
-<Callout variant="important">
-  **Supported operating systems:** This integration currently supports Linux hosts only. Windows and darwin is not supported at this time. Please refer to the official documentation for the [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver)
+### Critical memory metrics
+- **`container.memory.percent`** - Percentage of memory used (key for resource monitoring)
+- **`container.memory.usage.total`** - Current memory usage excluding cache
+- **`container.memory.fails`** - Memory allocation failures (critical alert condition)
+
+### Important network metrics
+- **`container.network.io.usage.rx_bytes`** / **`container.network.io.usage.tx_bytes`** - Network throughput
+- **`container.network.io.usage.rx_errors`** / **`container.network.io.usage.tx_errors`** - Network errors
+
+### Essential operational metrics
+- **`container.pids.count`** - Number of processes in the container
+- **`container.restarts`** - Container restart count (stability indicator)
+- **`container.uptime`** - Time since container started
+
+## Alerting recommendations [#alerting]
+
+Set up alerts for these critical thresholds:
+
+| Metric | Alert Condition | Suggested Threshold | Severity |
+|--------|----------------|-------------------|----------|
+| `container.cpu.utilization` | High CPU usage | > 85% for 5 minutes | Warning |
+| `container.cpu.utilization` | Critical CPU usage | > 95% for 2 minutes | Critical |
+| `container.memory.percent` | High memory usage | > 90% for 5 minutes | Warning |
+| `container.memory.percent` | Critical memory usage | > 95% for 2 minutes | Critical |
+| `container.memory.fails` | Memory allocation failures | > 0 | Critical |
+| `container.restarts` | Frequent restarts | > 5 in 1 hour | Warning |
+| `container.pids.count` | Process count spike | > 1000 (adjust per app) | Warning |
+| `container.network.io.usage.rx_errors` | Network errors | > 100 per minute | Warning |
+| `container.cpu.throttling_data.throttled_periods` | CPU throttling | > 0 | Info |
+
+<Callout variant="tip">
+**NRQL Alert Examples:**
+
+CPU utilization alert:
+```sql
+SELECT average(container.cpu.utilization) FROM Metric WHERE container.name LIKE '%your-app%' FACET container.name
+```
+
+Memory usage alert:
+```sql
+SELECT average(container.memory.percent) FROM Metric WHERE container.name LIKE '%your-app%' FACET container.name
+```
+
+Container restart detection:
+```sql
+SELECT latest(container.restarts) - earliest(container.restarts) FROM Metric WHERE container.name LIKE '%your-app%' FACET container.name SINCE 1 hour ago
+```
 </Callout>
 
-## Prerequisites
-
-Before you begin, ensure you have:
-
-- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
-- Docker Engine (API version 1.25+) installed and running
-- Access to the Docker socket (typically `/var/run/docker.sock`)
-- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running on a Linux host
-- Network access from the Linux host to:
-  - Docker Engine socket
-  - One of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) endpoints
-- For log collection: Read permissions to `/var/lib/docker/containers/` directory (typically requires root or docker group membership)
-
-## Configure the OpenTelemetry Collector
-
-Update the `endpoint` value if your Docker socket is at a different location. Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
-
-```yaml
-receivers:
-  # Docker Stats Receiver - collects container metrics
-  docker_stats:
-    endpoint: unix:///var/run/docker.sock
-    collection_interval: 15s
-    timeout: 5s
-    api_version: "1.25"
-    # Most metrics required for New Relic UI are enabled by default:
-    # CPU: container.cpu.usage.total, container.cpu.utilization
-    # Memory: container.memory.usage.total, container.memory.percent
-    # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
-    #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
-    # Storage: container.blockio.io_service_bytes_recursive
-    #
-    # The following metrics need to be explicitly enabled:
-    metrics:
-      # Required for New Relic UI
-      container.pids.count:
-        enabled: true
-      # Additional network error metrics
-      container.network.io.usage.tx_errors:
-        enabled: true
-      container.network.io.usage.rx_errors:
-        enabled: true
-
-processors:
-  # Resource detection - adds host metadata
-  resourcedetection:
-    detectors: [system, docker]
-    system:
-      resource_attributes:
-        host.name:
-          enabled: true
-        host.id:
-          enabled: true
-
-  # Batch processor - optimizes data transmission
-  batch:
-    timeout: 30s
-    send_batch_size: 512
-
-exporters:
-  # New Relic OTLP Exporter
-  otlphttp/newrelic:
-    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
-    headers:
-      api-key: ${env:NEWRELIC_LICENSE_KEY}
-    compression: gzip
-    timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-service:
-  pipelines:
-    metrics:
-      receivers: [docker_stats]
-      processors: [resourcedetection, batch]
-      exporters: [otlphttp/newrelic]
-```
-
-Save the file and ensure the `otelcol-contrib` system user can read it.
-
-## Optional: Collect Docker container logs
-
-You can also collect logs from your Docker containers using the OpenTelemetry [receiver creator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) with the [Docker observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) extension.
-
-<Callout variant="important">
-  **Requirements for log collection:**
-  - The OpenTelemetry Collector process must have read permissions to the `/var/lib/docker/containers/` directory. This typically requires running the collector as root or adding the collector user to the docker group.
-  - Container ports must be exposed for the receiver creator to discover and scrape logs from containers.
-</Callout>
-
-Add the following configuration to collect container logs:
-
-```yaml
-extensions:
-  # Docker observer - discovers running containers
-  docker_observer:
-    endpoint: unix:///var/run/docker.sock
-    use_hostname_if_present: true
-    use_container_labels: true
-
-receivers:
-  # Receiver creator - dynamically creates filelog receivers for discovered containers
-  receiver_creator:
-    watch_observers: [docker_observer]
-    receivers:
-      filelog:
-        rule: type == "container"
-        config:
-          include:
-            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
-          poll_interval: 200ms
-          start_at: end
-          include_file_name: false
-          include_file_path: false
-          operators:
-            - id: container-parser
-              type: container
-              format: docker
-              add_metadata_from_filepath: false
-
-processors:
-  # Add entity type attribute for logs (required for New Relic entity correlation)
-  attributes/logs:
-    actions:
-      - key: nr.entity_type
-        value: CONTAINER
-        action: upsert
-
-service:
-  extensions: [docker_observer]
-  pipelines:
-    logs:
-      receivers: [receiver_creator]
-      processors: [resourcedetection, resource/docker, attributes/logs, batch]
-      exporters: [otlphttp/newrelic]
-```
-
-## Restart the collector
-
-Restart the OpenTelemetry Collector to apply the new configuration:
-
-```bash
-sudo systemctl restart otelcol-contrib
-```
-
-## View your data in New Relic
-
-After a few minutes, you should start seeing data in New Relic:
-
-1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > All entities**.
-2. Search for your Docker host by hostname or container name.
-3. Click your entity to view Docker container metrics and details.
-4. Explore the **Summary** page to see performance metrics, resource usage, and container health.
-
-The Docker container metrics are attached to the `Metric` [event type](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic). You can [query this data](/docs/using-new-relic/data/understand-data/query-new-relic-data) for troubleshooting purposes or to create custom charts and dashboards.
-
-## Metrics collected
+## Complete metrics reference [#metrics-reference]
 
 The OpenTelemetry Collector Contrib's [dockerstatsreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver) collects the following metrics from the Docker Stats API:
 
 <CollapserGroup>
 <Collapser
 id="docker-metrics"
-title="Metrics"
+title="Container metrics"
 >
 <table>
 <thead>
@@ -843,7 +726,7 @@ Gauge
 
 <Collapser
 id="docker-attributes"
-title="Attributes"
+title="Container attributes"
 >
 <table>
 <thead>
@@ -1119,58 +1002,57 @@ String (e.g., `{cpus}`, `By`, `1`)
 
 </CollapserGroup>
 
-For more details, see the [Docker Stats receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/dockerstatsreceiver/documentation.md).
+## Understanding metric types [#metric-types]
 
-## Troubleshooting [#troubleshooting]
+Docker metrics use different measurement types:
 
-### No metrics appearing [#no-metrics]
+- **Sum**: Cumulative values that increase over time (e.g., total CPU time, bytes transferred)
+- **Gauge**: Point-in-time values that can go up or down (e.g., current memory usage, CPU percentage)
 
-If you don't see metrics in New Relic:
+<Callout variant="important">
+**Rate calculations**: For Sum metrics, use NRQL's `rate()` function to calculate per-second rates:
 
-1. Verify the collector is running: `docker logs otel-collector`
-2. Check Docker socket permissions: `ls -l /var/run/docker.sock`
-3. Verify your New Relic license key is correct
-4. Ensure the OTLP endpoint is accessible
+```sql
+SELECT rate(sum(container.network.io.usage.rx_bytes), 1 second) AS 'Bytes received/sec'
+FROM Metric WHERE container.name = 'your-container'
+FACET container.name TIMESERIES
+```
+</Callout>
 
-### Permission denied errors [#permission-errors]
+## Metric collection configuration [#configuration]
 
-If you see permission errors accessing Docker socket:
+Some metrics require explicit enablement in your collector configuration:
 
-```bash
-# On Linux, add your user to the docker group
-sudo usermod -aG docker $USER
-
-# Or run the collector with appropriate permissions
-docker run -d --user root ...
+```yaml
+docker_stats:
+  metrics:
+    # Required for New Relic UI
+    container.pids.count:
+      enabled: true
+    # Network error metrics (useful for troubleshooting)
+    container.network.io.usage.tx_errors:
+      enabled: true
+    container.network.io.usage.rx_errors:
+      enabled: true
+    # Per-CPU metrics (high cardinality - use carefully)
+    container.cpu.usage.percpu:
+      enabled: false  # Keep disabled unless needed
 ```
 
-### No logs appearing [#no-logs]
+## Resource optimization [#optimization]
 
-If you've configured log collection but don't see logs in New Relic:
+For high-container-count environments, consider these optimizations:
 
-1. **Check file permissions**: Ensure the collector process has read access to `/var/lib/docker/containers/`:
-   ```bash
-   sudo chmod -R 755 /var/lib/docker/containers
-   # Or add the collector user to the docker group
-   sudo usermod -aG docker otelcol-contrib
-   ```
+- **Disable high-cardinality metrics**: Turn off `container.cpu.usage.percpu` unless needed
+- **Adjust collection frequency**: Increase `collection_interval` from 15s to 30s or 60s
+- **Filter containers**: Use container label filtering to monitor only critical containers
 
-2. **Verify container ports are exposed**: The receiver creator with Docker observer requires containers to have exposed ports to be discovered. When running containers, ensure you expose at least one port:
-   ```bash
-   # Example: expose port 8080
-   docker run --expose 80 my-container:latest
-   ```
+For more details, see the [Docker Stats receiver documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/dockerstatsreceiver/documentation.md).
 
-3. **Check collector logs**: Look for errors related to file access or receiver creator:
-   ```bash
-   journalctl -u otelcol-contrib -f
-   ```
+## Next steps [#next-steps]
 
-## What's next?
+Now that you understand Docker metrics:
 
-After setting up your Docker monitoring with OpenTelemetry, you can:
-
-- Create [custom queries and charts](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) to analyze your container metrics
-- Set up <InlinePopover type="alerts"/> to notify you about performance issues
-- Explore additional [Docker OpenTelemetry configuration examples](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/docker) in the New Relic OpenTelemetry examples repository
-- Learn more about [OpenTelemetry in New Relic](/docs/opentelemetry/opentelemetry-introduction/)
+- **[Find and query your data](/docs/opentelemetry/integrations/docker-monitoring/find-and-query-data)** - Learn how to explore your Docker metrics in New Relic
+- **[Set up monitoring](/docs/opentelemetry/integrations/docker-monitoring/self-hosted)** - Configure Docker monitoring if you haven't already
+- **Create dashboards**: Build custom visualizations using the metrics in this reference
