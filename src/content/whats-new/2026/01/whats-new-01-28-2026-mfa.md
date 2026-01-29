@@ -1,8 +1,8 @@
 ---
-title: Enhance account security with multi-factor authentication
-summary: Secure your authentication domains by requiring multi-factor authentication (MFA) for all users.
-releaseDate: 2026-01-28
-learnMoreLink: https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#mfa
+title: "Enhance account security with multi-factor authentication"
+summary: "Secure your authentication domains by requiring multi-factor authentication (MFA) for all users."
+releaseDate: "2026-01-28"
+learnMoreLink: "https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/authentication-domains-saml-sso-scim-more/#mfa"
 ---
 
 Protect your data and control access to your New Relic organization by enabling multi-factor authentication (MFA). This feature allows administrators to add an essential layer of security to authentication domains, ensuring that users provide two or more verification factors to gain access.
