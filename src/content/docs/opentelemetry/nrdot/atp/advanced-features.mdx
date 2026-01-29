@@ -1,0 +1,433 @@
+---
+title: 'ATP advanced features and intelligence layers'
+metaDescription: 'Learn about ATP intelligent features including dynamic thresholds, multi-metric composite scoring, and anomaly detection.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Dynamic thresholds
+  - Anomaly detection
+  - Multi-metric scoring
+  - Intelligence
+freshnessValidatedDate: never
+---
+
+ATP includes three intelligence layers that work together to provide sophisticated, adaptive telemetry processing beyond simple threshold-based filtering.
+
+## Intelligence layers overview [#intelligence-overview]
+
+ATP's intelligent features operate in three distinct layers:
+
+1. **Dynamic thresholds**: Automatically adjust thresholds based on historical baselines
+2. **Multi-metric composite scoring**: Combine multiple metrics with configurable weights for holistic assessment
+3. **Anomaly detection**: Detect sudden metric changes and preserve anomalous data
+
+These layers work independently or together, allowing you to enable the specific intelligence features that match your monitoring requirements.
+
+## Dynamic thresholds [#dynamic-thresholds]
+
+Dynamic thresholds adapt automatically to your system's changing baseline performance, eliminating the need for manual threshold adjustments.
+
+### How dynamic thresholds work
+
+Instead of static values, ATP calculates adaptive thresholds using:
+
+- **Historical baselines**: Rolling average of past metric values
+- **Smoothing factor**: Controls how quickly thresholds adapt to changes
+- **Min/max bounds**: Prevents thresholds from becoming too restrictive or permissive
+
+### Configure dynamic thresholds
+
+Enable dynamic threshold adjustment:
+
+```yaml
+processors:
+  adaptivetelemetryprocessor:
+    # Enable dynamic threshold layer
+    enable_dynamic_thresholds: true
+    
+    # Control adaptation speed (0.0 = no change, 1.0 = immediate adaptation)
+    dynamic_smoothing_factor: 0.1
+    
+    # Set baseline static thresholds (required as starting point)
+    metric_thresholds:
+      process.cpu.utilization: 0.05
+      process.memory.utilization: 0.05
+    
+    # Define adaptation boundaries
+    min_thresholds:
+      process.cpu.utilization: 0.02    # Never go below 2% CPU
+      process.memory.utilization: 0.02  # Never go below 2% memory
+    
+    max_thresholds:
+      process.cpu.utilization: 0.30    # Never exceed 30% CPU threshold
+      process.memory.utilization: 0.30  # Never exceed 30% memory threshold
+```
+
+### Smoothing factor guidelines
+
+The smoothing factor determines adaptation speed:
+
+<table>
+  <thead>
+    <tr>
+      <th>**Factor**</th>
+      <th>**Adaptation Speed**</th>
+      <th>**Best For**</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`0.05`</td>
+      <td>Very slow</td>
+      <td>Stable production environments</td>
+    </tr>
+    <tr>
+      <td>`0.1`</td>
+      <td>Moderate (recommended)</td>
+      <td>Most environments</td>
+    </tr>
+    <tr>
+      <td>`0.2`</td>
+      <td>Fast</td>
+      <td>Development or highly variable workloads</td>
+    </tr>
+    <tr>
+      <td>`0.5+`</td>
+      <td>Very fast</td>
+      <td>Testing only (may cause instability)</td>
+    </tr>
+  </tbody>
+</table>
+
+### Monitor threshold adaptation
+
+Query threshold changes over time:
+
+```sql
+FROM Metric 
+SELECT latest(atp.dynamic_threshold_cpu) as 'Current CPU Threshold',
+       latest(atp.dynamic_threshold_memory) as 'Current Memory Threshold'
+WHERE deployment.name = 'YOUR_DEPLOYMENT_NAME'
+TIMESERIES AUTO
+SINCE 24 hours ago
+```
+
+## Multi-metric composite scoring [#multi-metric-scoring]
+
+Instead of evaluating each metric independently, composite scoring combines multiple metrics into a single score for more intelligent process assessment.
+
+### How composite scoring works
+
+ATP calculates a weighted composite score:
+
+1. **Normalize each metric** to a 0.0-1.0 scale based on thresholds
+2. **Apply configurable weights** to each metric
+3. **Calculate composite score** as weighted average
+4. **Compare against composite threshold** for filtering decisions
+
+This prevents processes from being filtered out due to temporary spikes in a single metric while still maintaining high overall resource usage.
+
+### Configure multi-metric scoring
+
+Enable composite scoring with custom weights:
+
+```yaml
+processors:
+  adaptivetelemetryprocessor:
+    # Enable multi-metric composite scoring
+    enable_multi_metric: true
+    
+    # Set composite threshold (0.0-1.0)
+    composite_threshold: 0.8
+    
+    # Configure metric weights (must sum to 1.0)
+    weights:
+      process.cpu.utilization: 0.4      # CPU gets 40% weight
+      process.memory.utilization: 0.3   # Memory gets 30% weight
+      process.disk.io: 0.2              # Disk I/O gets 20% weight
+      process.threads: 0.1              # Thread count gets 10% weight
+    
+    # Base thresholds still required for normalization
+    metric_thresholds:
+      process.cpu.utilization: 0.10
+      process.memory.utilization: 0.10
+      process.disk.io: 1048576  # 1 MB
+      process.threads: 50
+```
+
+### Weight configuration strategies
+
+Choose weights based on your monitoring priorities:
+
+**CPU-focused monitoring**:
+```yaml
+weights:
+  process.cpu.utilization: 0.6
+  process.memory.utilization: 0.3
+  process.disk.io: 0.1
+```
+
+**Memory-focused monitoring**:
+```yaml
+weights:
+  process.cpu.utilization: 0.2
+  process.memory.utilization: 0.6
+  process.disk.io: 0.2
+```
+
+**Balanced resource monitoring**:
+```yaml
+weights:
+  process.cpu.utilization: 0.25
+  process.memory.utilization: 0.25
+  process.disk.io: 0.25
+  process.network.io: 0.25
+```
+
+### Composite scoring benefits
+
+<CollapserGroup>
+  <Collapser
+    id="reduced-false-positives"
+    title="Reduced false positives"
+  >
+    **Problem**: Process filtered out due to temporary CPU spike while memory usage remains low.
+    
+    **Solution**: Composite scoring considers overall resource footprint, not just individual metrics.
+    
+    **Example**: Process with 50% CPU but only 2% memory might have composite score of 0.26 (below 0.8 threshold).
+  </Collapser>
+
+  <Collapser
+    id="better-resource-correlation"
+    title="Better resource correlation"
+  >
+    **Problem**: High I/O processes with low CPU might be missed by CPU-only filtering.
+    
+    **Solution**: Multi-metric scoring captures processes that are resource-intensive across different dimensions.
+    
+    **Example**: Database process with moderate CPU, high memory, and high disk I/O gets appropriately tracked.
+  </Collapser>
+
+  <Collapser
+    id="workload-specific-tuning"
+    title="Workload-specific tuning"
+  >
+    **Problem**: Different applications have different resource usage patterns.
+    
+    **Solution**: Adjust weights to match your application's resource profile.
+    
+    **Example**: Web servers (CPU-focused) vs. databases (memory/disk-focused) can use different weight profiles.
+  </Collapser>
+</CollapserGroup>
+
+## Anomaly detection [#anomaly-detection]
+
+Anomaly detection identifies sudden changes in resource usage patterns and ensures anomalous data is preserved regardless of threshold settings.
+
+### How anomaly detection works
+
+ATP tracks historical patterns and detects anomalies using:
+
+- **Rolling baseline**: Historical average calculated from recent data points
+- **Change detection**: Compares current values against baseline
+- **Percentage threshold**: Configurable sensitivity for anomaly detection
+- **Minimum data requirement**: Ensures sufficient history before anomaly detection
+
+### Configure anomaly detection
+
+Enable anomaly detection with custom sensitivity:
+
+```yaml
+processors:
+  adaptivetelemetryprocessor:
+    # Enable anomaly detection layer
+    enable_anomaly_detection: true
+    
+    # Number of historical data points to track for baseline
+    anomaly_history_size: 15
+    
+    # Percentage change threshold for anomaly detection
+    anomaly_change_threshold: 50.0  # 50% change triggers anomaly
+    
+    # Minimum data points required before anomaly detection starts
+    anomaly_min_data_points: 3
+    
+    # Standard thresholds still apply for non-anomalous data
+    metric_thresholds:
+      process.cpu.utilization: 0.05
+      process.memory.utilization: 0.05
+```
+
+### Anomaly detection parameters
+
+<table>
+  <thead>
+    <tr>
+      <th>**Parameter**</th>
+      <th>**Purpose**</th>
+      <th>**Recommended Values**</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`anomaly_history_size`</td>
+      <td>Historical baseline calculation</td>
+      <td>10-20 data points</td>
+    </tr>
+    <tr>
+      <td>`anomaly_change_threshold`</td>
+      <td>Sensitivity to changes</td>
+      <td>30-100% depending on environment</td>
+    </tr>
+    <tr>
+      <td>`anomaly_min_data_points`</td>
+      <td>Bootstrap period</td>
+      <td>3-5 data points</td>
+    </tr>
+  </tbody>
+</table>
+
+### Anomaly detection use cases
+
+<CollapserGroup>
+  <Collapser
+    id="performance-spikes"
+    title="Performance spikes"
+  >
+    **Scenario**: Application suddenly consumes 10x normal CPU during processing spike.
+    
+    **Without anomaly detection**: Data might be filtered if it doesn't exceed static thresholds.
+    
+    **With anomaly detection**: Sudden 1000% increase triggers anomaly preservation, ensuring visibility into the performance event.
+  </Collapser>
+
+  <Collapser
+    id="memory-leaks"
+    title="Memory leaks"
+  >
+    **Scenario**: Gradual memory increase over time in application with leak.
+    
+    **Without anomaly detection**: Gradual changes might not trigger thresholds until it's too late.
+    
+    **With anomaly detection**: Consistent upward trend gets detected and preserved for investigation.
+  </Collapser>
+
+  <Collapser
+    id="resource-contention"
+    title="Resource contention"
+  >
+    **Scenario**: Multiple processes competing for disk I/O causing unusual patterns.
+    
+    **Without anomaly detection**: Individual processes might appear normal.
+    
+    **With anomaly detection**: Unusual I/O patterns get preserved across all affected processes.
+  </Collapser>
+</CollapserGroup>
+
+## Combining intelligence layers [#combining-layers]
+
+All three intelligence layers can work together for maximum effectiveness:
+
+```yaml
+processors:
+  adaptivetelemetryprocessor:
+    # Core settings
+    storage_path: "/var/lib/nrdot-collector/adaptivetelemetry.db"
+    retention_minutes: 60  # Longer retention for intelligent processing
+    
+    # Base thresholds (required)
+    metric_thresholds:
+      process.cpu.utilization: 0.05
+      process.memory.utilization: 0.05
+      process.disk.io: 1048576
+    
+    # Layer 1: Dynamic thresholds
+    enable_dynamic_thresholds: true
+    dynamic_smoothing_factor: 0.1
+    min_thresholds:
+      process.cpu.utilization: 0.02
+      process.memory.utilization: 0.02
+    max_thresholds:
+      process.cpu.utilization: 0.20
+      process.memory.utilization: 0.20
+    
+    # Layer 2: Multi-metric composite scoring
+    enable_multi_metric: true
+    composite_threshold: 0.7  # Slightly lower when combined with other layers
+    weights:
+      process.cpu.utilization: 0.4
+      process.memory.utilization: 0.4
+      process.disk.io: 0.2
+    
+    # Layer 3: Anomaly detection
+    enable_anomaly_detection: true
+    anomaly_history_size: 20    # More history for better baselines
+    anomaly_change_threshold: 40.0  # More sensitive when other layers active
+    anomaly_min_data_points: 5
+```
+
+## Monitor intelligence layer performance [#monitor-intelligence]
+
+Track the effectiveness of each intelligence layer:
+
+### Dynamic threshold monitoring
+
+```sql
+FROM Metric 
+SELECT latest(atp.threshold_adaptations) as 'Threshold Changes',
+       average(atp.dynamic_threshold_cpu) as 'Avg CPU Threshold',
+       average(atp.dynamic_threshold_memory) as 'Avg Memory Threshold'
+WHERE deployment.name = 'YOUR_DEPLOYMENT_NAME'
+SINCE 1 day ago
+```
+
+### Multi-metric scoring analysis
+
+```sql
+FROM Metric 
+SELECT histogram(atp.composite_scores) as 'Score Distribution',
+       count(*) WHERE atp.composite_decision = 'retained' as 'Retained by Composite',
+       count(*) WHERE atp.composite_decision = 'filtered' as 'Filtered by Composite'
+WHERE deployment.name = 'YOUR_DEPLOYMENT_NAME'
+SINCE 1 hour ago
+```
+
+### Anomaly detection metrics
+
+```sql
+FROM Metric 
+SELECT count(*) WHERE atp.anomaly_detected = true as 'Anomalies Detected',
+       latest(atp.anomaly_preservation_rate) as 'Preservation Rate %',
+       max(atp.anomaly_magnitude) as 'Largest Anomaly %'
+WHERE deployment.name = 'YOUR_DEPLOYMENT_NAME'
+SINCE 1 day ago
+```
+
+## Best practices [#best-practices]
+
+### Start simple, add complexity gradually
+
+1. **Begin with static thresholds** to establish baseline behavior
+2. **Add dynamic thresholds** once you understand your workload patterns
+3. **Introduce multi-metric scoring** for complex resource relationships
+4. **Enable anomaly detection** last, after other layers are stable
+
+### Tune for your environment
+
+- **Production**: Conservative settings, slower adaptation
+- **Development**: Aggressive settings, faster adaptation
+- **Mixed workloads**: Enable all layers with moderate sensitivity
+
+### Monitor and adjust
+
+- **Review intelligence metrics weekly** to understand layer effectiveness
+- **Adjust thresholds based on data** rather than assumptions
+- **Test configuration changes** in non-production first
+
+<Callout variant="tip">
+  Intelligence layers increase ATP's CPU and memory usage slightly. Monitor collector resource consumption when enabling multiple layers.
+</Callout>
