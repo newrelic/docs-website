@@ -10,13 +10,15 @@ metaDescription: 'Configure Redis-compatible caches for Infinite Tracing on-prem
 freshnessValidatedDate: never
 ---
 
-New Relic's Infinite Tracing Processor is an implementation of the OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor). In addition to upstream features, it supports highly scalable distributed processing by using a distributed cache for shared state storage. This documentation describes the supported cache implementations and their configuration.
+New Relic's Infinite Tracing Processor is an implementation of the OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor).
+In addition to upstream features, it supports scalable and durabl distributed processing by using a distributed cache for shared state storage.
+This documentation how to configure it
 
 ## Supported caches
 
 The processor supports any Redis-compatible cache implementation. It has been tested and validated with Redis and Valkey in both single-instance and cluster configurations.
-
-For production deployments, we recommend using cluster mode (sharded) to ensure high availability and scalability. To enable distributed caching, add the `distributed_cache` configuration to your `tail_sampling` processor section:
+For production deployments, we recommend using cluster mode (sharded) to ensure high availability and scalability.
+To enable distributed caching, add the `distributed_cache` configuration to your `tail_sampling` processor section:
 
   ```yaml
   tail_sampling:
@@ -25,19 +27,13 @@ For production deployments, we recommend using cluster mode (sharded) to ensure 
         address: redis://localhost:6379/0
         password: 'local'
       trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
-      in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
-      traces_ttl: 3600s                 # Optional: default 1 hour
-      cache_ttl: 7200s                  # Optional: default 2 hours
-      suffix: "itc"                     # Redis key prefix
-      max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
-      evaluation_interval: 1s           # Default: evaluation frequency
-      evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+      processor_name: "itc"             # Nane of the processor
       data_compression:
         format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
   ```
 
   <Callout variant="important">
-    **Configuration behavior**: When `distributed_cache` is configured, the processor automatically uses the distributed cache for state management. If `distributed_cache` is omitted entirely, the collector will use in-memory processing instead. There is no separate `enabled` flag.
+    **Configuration behavior**: When `distributed_cache` is configured, the processor automatically uses the distributed cache for state management. If `distributed_cache` is omitted entirely, the collector will use in-memory processing instead.
   </Callout>
 
 The `address` parameter must specify a valid Redis-compatible server address using the standard format:
@@ -68,58 +64,6 @@ The `distributed_cache` section supports the following parameters:
 | `connection.address` | string | *required* | Redis connection string (format: `redis://host:port/db`). For cluster mode, use comma-separated addresses (e.g., `redis://node1:6379,redis://node2:6379`) |
 | `connection.password` | string | `""` | Redis password for authentication |
 
-### Redis client timeouts and connection pool
-
-All settings are optional and have defaults aligned with the 10s `ingestion_response_timeout`.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `connection.dial_timeout` | duration | `2s` | Timeout for establishing new connections to Redis |
-| `connection.read_timeout` | duration | `500ms` | Timeout for socket reads. Commands fail with timeout error if exceeded |
-| `connection.write_timeout` | duration | `500ms` | Timeout for socket writes. Commands fail with timeout error if exceeded |
-| `connection.pool_timeout` | duration | `3s` | Time to wait for connection from pool if all connections are busy |
-| `connection.pool_size` | int | `20` | Maximum number of socket connections per Redis node |
-| `connection.min_idle_conns` | int | `5` | Minimum number of idle connections to maintain for quick reuse |
-| `connection.max_idle_conns` | int | `10` | Maximum number of idle connections to keep open |
-| `connection.conn_max_idle_time` | duration | `1m` | Maximum time a connection may be idle before being closed |
-| `connection.conn_max_lifetime` | duration | `30m` | Maximum time a connection may be reused before being closed |
-| `connection.max_retries` | int | `3` | Maximum number of command retries before giving up |
-| `connection.min_retry_backoff` | duration | `100ms` | Minimum backoff between retries |
-| `connection.max_retry_backoff` | duration | `1.5s` | Maximum backoff between retries (exponential backoff capped at this value) |
-| `connection.max_redirects` | int | `5` | Maximum number of redirects to follow in cluster mode |
-
-**Timeout alignment:**
-
-The default Redis client timeouts are aligned with the `ingestion_response_timeout` (default: 10s) to ensure Redis operations complete before workers timeout:
-
-- **Worst case calculation**: `PoolTimeout(3s) + Operation(0.5s) + 3 retries × (0.5s + backoff) ≈ 7s less than 10s` ✅
-
-**Tuning guidelines:**
-- **High-latency Redis** (cross-region, VPN): Increase timeouts to 2-3x defaults (e.g., 1-1.5s read/write) and reduce `max_retries` to 2
-- **Very fast Redis** (same host/rack): Can reduce timeouts further (e.g., 250ms) for faster failure detection
-- **High throughput**: Increase `pool_size` to 30-50 to avoid connection pool exhaustion
-- **Unreliable network**: Increase `max_retries` to 5-7 and adjust backoff settings
-
-### Cluster replica options
-
-The `connection.replica` section controls cluster replica routing (cluster mode only).
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `connection.replica.read_only_replicas` | bool | `true` | Enable routing read commands to replica nodes. Default is `true` for improved scalability. Set to `false` if strong read consistency is required. |
-| `connection.replica.route_by_latency` | bool | `false` | Route commands to the closest node based on latency (automatically enables read_only_replicas) |
-| `connection.replica.route_randomly` | bool | `false` | Route commands to a random node (automatically enables read_only_replicas) |
-
-  <Callout variant="tip">
-    **Replica read benefits**: When running with a Redis cluster that has replica nodes, enabling replica reads distributes read load across both primary and replica nodes, significantly improving read throughput (2-3x) and reducing load on primary nodes.
-
-    **Important considerations**:
-    - **Replication lag**: Replicas may lag behind the primary by milliseconds to seconds
-    - **Cluster-only**: These options only work with Redis cluster deployments
-    - Read operations (`Get`, `LRange`) may be served by replica nodes
-    - Write operations (`SetNX`, `Del`, Lua scripts) always route to primary nodes
-  </Callout>
-
 ### Data compression
 
 | Parameter | Type | Default | Description |
@@ -128,12 +72,12 @@ The `connection.replica` section controls cluster replica routing (cluster mode 
 
   <Callout variant="tip">
     **Compression tradeoffs**:
-    - `none`: No CPU overhead, highest Redis memory usage
+    - `none`: No CPU overhead, highest Network and Redis memory usage
     - `snappy`: Fast compression/decompression, good compression ratio
     - `zstd`: Best compression ratio, more CPU usage
     - `lz4`: Very fast, moderate compression ratio
 
-    Choose based on your bottleneck: network bandwidth and Redis storage vs. processor CPU availability.
+    Compression is mainly aimed at reducing network traffic which is the main bottleneck of the processors when connecting to redis
   </Callout>
 
 ### Trace management
@@ -143,44 +87,12 @@ The `connection.replica` section controls cluster replica routing (cluster mode 
 | `trace_window_expiration` | duration | `30s` | How long to wait for spans before evaluating a trace |
 | `traces_ttl` | duration | `5m` | Time-to-live for trace data in Redis |
 | `cache_ttl` | duration | `30m` | Time-to-live for sampling decisions |
-| `processor_name` | string | `""` | Optional processor name for Redis keys and metrics (useful for multi-tenant deployments) |
+| `processor_name` | string | `""` | processor name for Redis keys and metrics (useful for multi-tenant deployments) |
 
 **TTL guidelines:**
 - `traces_ttl` should be long enough to handle retries and late spans
 - `cache_ttl` should be much longer than `traces_ttl` to handle late-arriving spans
 - Longer `cache_ttl` reduces duplicate evaluations but increases Redis memory usage
-
-### Retry and recovery
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_retries` | int | `2` | Maximum retry attempts for failed trace evaluations |
-| `in_flight_timeout` | duration | Same as `trace_window_expiration` | Timeout for in-flight batch processing before considered orphaned |
-| `recover_interval` | duration | `5s` | How often to check for orphaned batches |
-
-  <Callout variant="important">
-    **Orphan recovery**: Orphaned batches occur when a collector crashes mid-evaluation. The orphan recovery process re-queues these traces for evaluation by another collector instance.
-  </Callout>
-
-### Evaluation settings
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `evaluation_interval` | duration | `1s` | How often to check for traces ready for evaluation |
-| `max_traces_per_batch` | int | `1000` | Maximum number of traces to evaluate per batch |
-| `rate_limiter` | bool | `false` | Enable blocking rate limiter for concurrent trace processing |
-
-**Rate limiter:**
-
-The `rate_limiter` option controls backpressure behavior when the concurrent trace limit (`num_traces`) is reached:
-
-- **`false` (default)**: No rate limiting. The processor accepts traces without blocking, relying on Redis for storage. This is the recommended setting for most Redis deployments.
-- **`true`**: Enables a blocking rate limiter that applies backpressure when `num_traces` concurrent traces are being processed. New traces will block until a slot becomes available.
-
-**When to enable:**
-- High-memory environments where you want strict control over concurrent trace processing
-- When Redis memory is constrained and you need to limit the rate of trace ingestion
-- To prevent overwhelming downstream consumers with sudden traffic bursts
 
 ### Partitioning
 
@@ -188,18 +100,18 @@ The `rate_limiter` option controls backpressure behavior when the concurrent tra
 |-----------|------|---------|-------------|
 | `partitions` | int | `6` | Number of partitions for load distribution across Redis |
 | `partition_workers` | int | `6` | Number of concurrent evaluation workers |
-| `partition_buffer_max_traces` | int | `10000` | Maximum traces buffered per partition before flushing (2 workers per partition process in parallel) |
 
 **Partitioning benefits:**
 - Distributes load across multiple Redis key ranges
 - Enables parallel evaluation across multiple workers
 - Improves throughput in multi-collector deployments
 
-  <Callout variant="tip">
-    **Partition scaling**: A partition is a logical shard of trace data in Redis that enables parallel processing and horizontal scaling. Traces are assigned to partitions using consistent hashing on the trace ID. Each partition can be processed independently and concurrently, enabling both vertical scaling (more CPU cores) and horizontal scaling (more collector instances).
+<Callout variant="tip">
+  **Partition scaling**: A partition is a logical shard of trace data in Redis that enables horizontal scaling. Traces are assigned to partitions using a hashing algorithm on the trace ID.
 
-    **Important**: `partitions` should be at least 3x times the number of Redis nodes needed for your workload. `partition_workers` should typically be less than or equal to the number of `partitions`.
-  </Callout>
+  **Important**: `partitions` should be ideally 3x times the number of Redis nodes needed for your workload with avgerage load. `partition_workers` should typically be less than or equal to the number of `partitions`.
+</Callout>
+
 
 ### Ingestion settings
 
@@ -219,22 +131,102 @@ The processor uses a shared channel with configurable workers for trace ingestio
 3. Workers hash trace IDs using the configured hashing strategy to determine partition assignment
 
 **Configuration guidelines:**
-- **Buffer Size**: Should absorb traffic bursts. Recommended: 10k-60k traces
-- **Workers**: Number of concurrent goroutines processing traces. Typically 1-2 workers per partition is optimal
+- **Buffer Size**: Should absorb traffic bursts.
+- **Workers**: Number of concurrent goroutines processing traces.
 - **Channel Timeout**: How long to wait if buffer is full. Short timeout (500ms) fails fast on saturation
 - **Response Timeout**: Protects against stuck workers. Default: 10s is appropriate for normal Redis operations
 - **Hashing Strategy**: Algorithm for determining trace partition assignment
-  - **`rendezvous`** (default): Provides superior load distribution for 2-99 partitions. Best choice for typical deployments.
-  - **`consistent`**: Maintains performance when using 100+ partitions where rendezvous becomes slow. Trades slightly less optimal load distribution for better performance at scale.
-  - Both strategies ensure the same trace always maps to the same partition (deterministic)
-  - Choose rendezvous for better load distribution (up to 99 partitions), consistent for performance at scale (100+)
+- **`rendezvous`** (default): Provides superior load distribution for 2-99 partitions. Best choice for typical deployments.
+- **`consistent`**: Maintains performance when using 100+ partitions where rendezvous becomes slow. Trades slightly less optimal load distribution for better performance at scale.
+- Both strategies ensure the same trace always maps to the same partition (deterministic)
+- Choose rendezvous for better load distribution (up to 99 partitions), consistent for performance at scale (100+)
 
-### Core configuration (applies to Redis mode)
+
+### Evaluation settings
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `num_traces` | int | `50000` | Maximum concurrent processing traces |
+| `evaluation_interval` | duration | `1s` | How often to check for traces ready for evaluation |
+| `max_traces_per_batch` | int | `1000` | Maximum number of traces to evaluate per batch |
+| `rate_limiter` | bool | `false` | Enable blocking rate limiter for concurrent trace processing |
+| `num_traces` | int | `50000` | if rate_limiter is enabled, it uses the num_traces as max number of concurrent processing traces  |
+
+**Rate limiter:**
+
+The `rate_limiter` option controls backpressure behavior when the concurrent trace limit (`num_traces`) is reached:
+
+- **`false` (default)**: No rate limiting. The processor accepts traces without blocking, relying on Redis for storage. This is the recommended setting for most Redis deployments.
+- **`true`**: Enables a blocking rate limiter that applies backpressure when `num_traces` concurrent traces are being processed. New traces will block until a slot becomes available.
+
+**When to enable:**
+- To prevent overwhelming Redis network, cpu and/or memory
+- To prevent overwhelming downstream consumers with sudden traffic bursts
+
+### Retry and recovery
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_retries` | int | `2` | Maximum retry attempts for failed trace evaluations |
+| `in_flight_timeout` | duration | Same as `trace_window_expiration` | Timeout for in-flight batch processing before considered orphaned |
+| `recover_interval` | duration | `5s` | How often to check for orphaned batches |
+
+<Callout variant="important">
+  **Orphan recovery**: Orphaned batches occur when a collector crashes mid-evaluation. The orphan recovery process re-queues these traces for evaluation by another collector instance.
+</Callout>
+
+
+### Policy configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
 | `policies` | array | *required* | Sampling policy definitions |
+
+They follow the same rules as in the open source [tail sampling](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.137.x/processor/tailsamplingprocessor/README.md).
+
+
+### Redis client timeouts and connection pool
+
+All settings are optional and have defaults aligned with the 10s `ingestion_response_timeout`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `connection.dial_timeout` | duration | `5s` | Timeout for establishing new connections to Redis |
+| `connection.read_timeout` | duration | `3s` | Timeout for socket reads. Commands fail with timeout error if exceeded |
+| `connection.write_timeout` | duration | `3s` | Timeout for socket writes. Commands fail with timeout error if exceeded |
+| `connection.pool_timeout` | duration | `4s` | Time to wait for connection from pool if all connections are busy |
+| `connection.pool_size` | int | `10 * cores` | Base number of socket connections |
+| `connection.min_idle_conns` | int | `0` | Minimum number of idle connections which is useful when establishing new connection is slow. The idle connections are not closed by default.|
+| `connection.max_idle_conns` | int | `0` | Maximum number of connections allocated by the pool at a given time. 0 no limit |
+| `connection.conn_max_idle_time` | duration | `30m` | Maximum amount of time a connection may be idle. Should be less than server's timeout. |
+| `connection.conn_max_lifetime` | duration | `0m` |  Maximum amount of time a connection may be reused. |
+| `connection.max_retries` | int | `3` | Maximum number of command retries before giving up |
+| `connection.min_retry_backoff` | duration | `8ms` | Minimum backoff between retries |
+| `connection.max_retry_backoff` | duration | `512ms` | Maximum backoff between retries (exponential backoff capped at this value) |
+
+
+**Tuning guidelines:**
+- **High-latency Redis** (cross-region, VPN): Increase timeouts to 2-3x defaultsand reduce `max_retries` to 2
+- **Very fast Redis** (same host/rack): Can reduce timeouts further (e.g., 250ms) for faster failure detection
+- **High throughput**: Increase `pool_size` to 30-50 to avoid connection pool exhaustion
+- **Unreliable network**: Increase `max_retries` to 5-7 and adjust backoff settings
+
+### Cluster replica options
+
+The `connection.replica` section controls cluster replica routing.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `connection.replica.read_only_replicas` | bool | `true` | Enable routing read commands to replica nodes. Default is `true` for improved scalability. |
+| `connection.replica.route_by_latency` | bool | `false` | Route commands to the closest node based on latency (automatically enables read_only_replicas) |
+| `connection.replica.route_randomly` | bool | `false` | Route commands to a random node (automatically enables read_only_replicas) |
+
+<Callout variant="tip">
+  **Replica read benefits**: When running with a Redis cluster that has replica nodes, enabling replica reads distributes read load across both primary and replica nodes, significantly improving read throughput and reducing load on primary nodes.
+
+  **Important considerations**:
+  - **Cluster-only**: These options only work with Redis cluster deployments with replicas per shard
+</Callout>
+
 
 ### Complete configuration example
 
@@ -310,14 +302,6 @@ This section covers the parameters that control when traces are evaluated and ho
 
 ### Evaluation timing and frequency
 
-These parameters control when and how often the processor evaluates traces for sampling decisions:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `evaluation_interval` | duration | `1s` | How often to check for traces ready for evaluation |
-| `max_traces_per_batch` | int | `1000` | Maximum number of traces to evaluate per batch |
-| `partition_workers` | int | `6` | Number of concurrent evaluation workers processing partitions |
-
 **How evaluation works:**
 
 1. Every `evaluation_interval`, workers check for traces that have been idle for at least `trace_window_expiration`
@@ -330,8 +314,6 @@ These parameters control when and how often the processor evaluates traces for s
 - **More parallelism**: Increase `partition_workers` to match available CPU cores
 
 ### TTL and expiration
-
-The processor uses multiple TTL layers that work together to ensure traces are properly evaluated while managing Redis memory efficiently.
 
 #### How TTL works in distributed mode
 
@@ -354,21 +336,6 @@ When using `distributed_cache`, the processor implements a multi-stage TTL syste
 **Why cascading TTLs matter:**
 
 The TTL hierarchy ensures data availability throughout the trace lifecycle:
-
-- **`cache_ttl`** (longest) handles late-arriving spans hours after evaluation
-- **`traces_ttl`** (medium) provides buffer for retries and orphan recovery
-- **`trace_window_expiration`** (shortest) controls when evaluation begins
-
-Properly configured TTLs prevent data loss, duplicate evaluations, and incomplete traces while optimizing Redis memory usage.
-
-  <Callout variant="tip">
-    **Configuration principle**: Each TTL should be significantly longer than the one before it (typically 5-10x). This creates safety buffers that account for processing delays, retries, and late-arriving data.
-  </Callout>
-
-#### TTL hierarchy and defaults
-
-The processor uses a cascading TTL structure where each layer provides protection and buffer time for the layer below. Understanding these relationships is critical for reliable operation:
-
 ```
 trace_window_expiration (30s)
     ↓ [trace ready for evaluation]
@@ -379,6 +346,19 @@ traces_ttl (5m)
 cache_ttl (30m)
     ↓ [decision expires, late spans re-evaluated]
 ```
+
+- **`trace_window_expiration`** (shortest) controls when evaluation begins
+- **`in_flight_timeout`** (shortest) controls when evaluation is taking too long and it must be retried
+- **`cache_ttl`** (longest) handles late-arriving spans hours after evaluation
+- **`traces_ttl`** (medium) provides buffer for retries and orphan recovery
+
+
+Properly configured TTLs prevent data loss, duplicate evaluations, and incomplete traces while optimizing Redis memory usage.
+
+  <Callout variant="tip">
+    **Configuration principle**: Each TTL should be significantly longer than the one before it (typically 5-10x). This creates safety buffers that account for processing delays, retries, and late-arriving data.
+  </Callout>
+
 
 ##### 1. Trace collection window: `trace_window_expiration`
 
@@ -449,7 +429,6 @@ traces_ttl ≥ (30s + 30s + 2 retries × 1s) × 2 = 124s ≈ 5m ✅
 ```
 cache_ttl ≥ traces_ttl × 6
 ```
-
 **Why much longer?**
 - Late-arriving spans can arrive minutes or hours after the trace completed
 - Decision cache prevents re-evaluating traces when very late spans arrive
@@ -506,12 +485,6 @@ distributed_cache:
 ```
 
 ### Retry and recovery
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_retries` | int | `2` | Maximum retry attempts for failed trace evaluations |
-| `recover_interval` | duration | `5s` | How often to check for orphaned batches |
-
 **Orphan recovery:**
 
 Orphaned batches occur when a collector crashes mid-evaluation. The orphan recovery process runs every `recover_interval` and:
@@ -527,8 +500,6 @@ Orphaned batches occur when a collector crashes mid-evaluation. The orphan recov
 
 ## Partitioning and scaling
 
-Partitions are the key to achieving high throughput and horizontal scalability in Redis-based tail sampling. This section explains how partitions work and how to configure them for optimal performance.
-
 ### What is a partition?
 
 A **partition** is a logical shard of trace data in Redis that enables parallel processing and horizontal scaling. Think of partitions as separate queues where traces are distributed based on their trace ID.
@@ -540,7 +511,7 @@ A **partition** is a logical shard of trace data in Redis that enables parallel 
 - Partitions enable both **vertical scaling** (more CPU cores) and **horizontal scaling** (more collector instances)
 
   <Callout variant="caution">
-    **Important**: Changing the number of partitions when there's a cluster already running will cause data loss, since traces cannot be located anymore with a different partition count.
+    **Important**: Changing the number of partitions when there's a cluster already running will cause fragmented traces, since traces might be routed to another partition after the change.
   </Callout>
 
 ### How partitioning works
@@ -590,34 +561,20 @@ The processor supports two hashing algorithms for partition selection. The choic
 | **`rendezvous`** (default) | Superior load balancing | Fast for up to 99 partitions | **Standard deployments (2-99 partitions)** - best load distribution for typical production workloads |
 | **`consistent`** | Good distribution | Maintains performance with 100+ partitions | **Very large scale (100+ partitions)** - preserves performance when rendezvous becomes slow |
 
-**Key characteristics:**
-- Both strategies are deterministic - the same trace always maps to the same partition
-- Rendezvous provides better load distribution but becomes slow with 100+ partitions
-- Consistent hashing maintains performance at high partition counts (100+)
-- Choose based on partition count: rendezvous for better distribution (2-99), consistent for performance at scale (100+)
+<Callout variant="important">
+  **Key characteristics:**
+  Both strategies are deterministic - the same trace always maps to the same partition
+  Rendezvous provides better load distribution but requeries more cpu with high number of partitions
 
-**Standard configuration (most deployments):**
+  **Choosing the right strategy**:
+  - **Rendezvous** (default): Use for deployments with up to 100 partitions. Provides superior load distribution for the vast majority of production workloads.
+  - **Consistent**: Use when scaling to 100+ partitions where rendezvous becomes cpu intenside.
+</Callout>
 
-```yaml
-distributed_cache:
-  hashing_strategy: rendezvous  # default, best load distribution for 2-99 partitions
-  partitions: 8
-```
+<Callout variant="caution">
+  **Important**: Changing the hashing algorithm when there's a cluster already running will cause fragmented traces, since traces might be routed to another partition after the change.
+</Callout>
 
-**Very large scale configuration (100+ partitions):**
-
-```yaml
-distributed_cache:
-  hashing_strategy: consistent  # maintains performance with 100+ partitions
-  partitions: 200
-```
-
-  <Callout variant="important">
-    **Choosing the right strategy**:
-    - **Rendezvous** (default): Use for deployments with up to 99 partitions. Provides superior load distribution for the vast majority of production workloads.
-    - **Consistent**: Use when scaling to 100+ partitions where rendezvous becomes slow. Trades slightly less optimal distribution for maintained performance at scale.
-    - **Important**: Once chosen, changing strategies requires clearing existing data as traces will map to different partitions.
-  </Callout>
 
 ### Partition configuration parameters
 
@@ -632,7 +589,7 @@ distributed_cache:
 **Worker behavior:**
 - **8 partitions + 8 workers**: Each worker processes one partition every `evaluation_interval` ✅ Balanced
 - **8 partitions + 16 workers**: Each partition evaluated twice per interval (redundant, wastes resources)
-- **8 partitions + 4 workers**: Only half the partitions evaluated per interval (slower, but less CPU/Redis load)
+- **8 partitions + 4 workers**: Only half the partitions evaluated per interval (slower, but less Redis load)
 
 <Callout variant="tip">
   **Tuning tip**: Setting fewer workers per instance (`partition_workers < partitions`) reduces stress on Redis and the collector, useful when running many collector instances.
@@ -644,12 +601,12 @@ distributed_cache:
 | Scenario | Partitions | Partition Workers | Reasoning |
 |----------|------------|-------------------|-----------|
 | **Development** | 2-4 | 2-4 | Minimal overhead, easy debugging |
-| **Standard Production (15k spans/sec)** | 4-8 | 4-8 | Balanced parallelism and Redis key count |
-| **High Volume (moe than 100k spans/sec)** | 12-24 | 12-24 | Maximize throughput |
+| **Standard Production (15k spans/sec)** | 4-12 | 4-12 | Balanced |
+| **High Volume (moe than 100k spans/sec)** | 12-48 | 12-48 | Maximize throughput |
 
 <Callout variant="important">
   **Important sizing rules:**
-  - `partitions` should be **at least 3x the number of Redis nodes** needed for your workload
+  - `partitions` should be **at least 2x 3x the number of Redis nodes** needed for your average workload
   - `partition_workers` should typically be **≤ `partitions`**
   - **Changing partition count loses existing data** - traces cannot be located after partition count changes
 </Callout>
@@ -683,44 +640,18 @@ distributed_cache:
 ## Sizing and performance
 
   <Callout variant="caution">
-    **Critical bottlenecks**: Redis performance for tail sampling is primarily constrained by **CPU and network**, not memory. Focus your sizing and optimization efforts on:
+    **Critical bottlenecks**: Redis performance for tail sampling is primarily constrained by **Network and CPU**, not memory.
+    Focus your sizing and optimization efforts on:
     1. **Network throughput and latency** between collectors and Redis
-    2. **CPU capacity** for compression/decompression and Lua script execution
-    3. Memory capacity (typically sufficient if CPU and network are properly sized)
+    2. **CPU capacity:** Redis CPU consumption
+    3. **Memory capacity:** Typically sufficient if CPU and network are properly sized
   </Callout>
 
-Proper Redis instance sizing requires understanding your workload characteristics:
-- **Spans per second**: Example assumes 10,000 spans/sec throughput
-- **Average span size**: Example assumes 900 bytes (marshaled protobuf format)
+Example: assume the following parameters
+- **Spans per second**:  assumes 10,000 spans/sec throughput
+- **Average span size**: 900 bytes
 
-### 1. CPU requirements
-
-CPU is the primary bottleneck for Redis in tail sampling workloads due to:
-
-**Compression/decompression overhead:**
-- Every span is compressed before storage and decompressed on retrieval
-- `snappy` or `lz4`: ~5-15% CPU overhead per operation
-- `zstd`: ~15-30% CPU overhead (higher compression ratio but more CPU intensive)
-- For 10,000 spans/sec, expect **1-2 CPU cores dedicated to compression alone**
-
-**Lua script execution:**
-- Atomic batch operations use Lua scripts for consistency
-- Scripts execute on a single Redis core (Redis is single-threaded per operation)
-- High evaluation rates can saturate a single core
-- **Recommendation**: Use Redis cluster mode to distribute Lua execution across multiple nodes
-
-**CPU sizing guidelines:**
-- **Single Redis instance**: Minimum 4 vCPUs for 10,000 spans/sec with compression
-- **Redis cluster**: 3+ nodes with 4 vCPUs each for high availability and load distribution
-- **Without compression**: Reduce CPU requirements by ~30-40% but increase network and memory needs
-
-  <Callout variant="tip">
-    **Monitoring CPU**: Watch for CPU saturation (more than 80% utilization) as the first indicator of scaling needs. If CPU-bound, either add cluster nodes or reduce compression overhead.
-  </Callout>
-
-### 2. Network requirements
-
-Network bandwidth and latency directly impact sampling throughput:
+### 1. Network requirements
 
 **Bandwidth calculations:**
 
@@ -732,17 +663,27 @@ For 10,000 spans/sec at 900 bytes per span:
 With 25% compression (snappy/lz4):
 - **Compressed traffic**: `~108 Mbps` bidirectional
 
-**Network sizing guidelines:**
+**Network guidelines:**
+- **Monitor Redis Network Usage**: A typical redis instance can handle up to 1GBs, make sure to monitor the network usage
+- **Use compressiong**: It reduces the number of network traffic in exchange for cpu usage in the collectors
 - **Co-located** (same datacenter/VPC): 1 Gbps network interfaces are sufficient for most workloads
 - **Cross-region**: Expect 10-50ms latency - increase timeouts and use compression to reduce bandwidth
-- **Connection pooling**: Default `pool_size: 20` supports ~5,000-10,000 spans/sec. Increase to 30-50 for higher throughput
+- **Connection pooling**: Increase for higher throughput
+- **Use replicas**: If the cluster has read replicas, they will we used by default. Reducing network and cpu usage on master nodes
 
-  <Callout variant="important">
-    **Network is critical**: Round-trip time between collectors and Redis directly impacts end-to-end sampling latency. Deploy Redis with **low-latency network connectivity** (less than 5ms) to collectors. Use cluster mode with replica reads to distribute network load.
+
+### 2. CPU requirements
+**CPU guidelines:**
+- **Single Redis instance**: Minimum 4 vCPUs
+- **Redis cluster**: 3+ nodes with read replicas with 4 vCPUs each for high troughtput.
+- **Use replicas**: If the cluster has read replicas, they will we used by default. Reducing network and cpu usage on master nodes
+
+  <Callout variant="tip">
+    **Monitoring CPU**: Watch for CPU saturation (more than 80% utilization) as the first indicator of scaling needs. If CPU-bound, either add cluster nodes
   </Callout>
 
-### 3. Memory requirements
 
+### 3. Memory requirements
 While memory is less constrained than CPU and network, proper sizing prevents evictions and ensures data availability.
 
 #### Memory estimation formula
@@ -803,54 +744,8 @@ When using `distributed_cache`, the decision caches are stored in Redis without 
 
 Batch size impacts memory usage during evaluation. In-flight batch memory is temporary and released after processing completes.
 
-### Complete sizing example
-
-**Workload parameters:**
-- **Throughput**: 10,000 spans/second
-- **Average span size**: 900 bytes
-- **Storage period**: 1 hour (`traces_ttl`)
-- **Deployment**: Redis cluster with 3 nodes
-
-**Resource requirements:**
-
-| Resource | Without Compression | With lz4 Compression (25% reduction) |
-|----------|---------------------|--------------------------------------|
-| **CPU per node** | 2-3 vCPUs | 3-4 vCPUs (compression overhead) |
-| **Network bandwidth** | ~144 Mbps bidirectional | ~108 Mbps bidirectional |
-| **Memory (total)** | ~40.5 GB + decision cache | ~30.4 GB + decision cache |
-
-**Memory breakdown with compression:**
-
-| Component | Memory Required |
-|-----------|----------------|
-| Trace data (1-hour retention) | 24.3 GB |
-| Decision caches | Variable (LRU-managed) |
-| Batch processing | ~7 MB |
-| Redis overhead (25%) | ~6.1 GB |
-| **Total (minimum)** | **~30.4 GB + decision cache** |
-
-**Recommended Redis cluster configuration:**
-
-```yaml
-# 3-node Redis cluster (e.g., AWS cache.r6g.xlarge)
-Nodes: 3
-vCPUs per node: 4
-Memory per node: 25 GB (75 GB total cluster)
-Network: 1 Gbps or better
-Region: Co-located with collectors (5ms latency)
-```
-
-  <Callout variant="important">
-    **Sizing guidance**:
-    - **CPU-first approach**: Size for CPU requirements first, then verify memory and network adequacy
-    - **Cluster mode strongly recommended**: Distributes CPU, network, and memory load across nodes
-    - **Monitoring**: Track CPU utilization, network throughput, and memory usage to identify bottlenecks
-    - **Scaling**: If CPU-bound (more than 70% utilization), add cluster nodes. If network-bound, enable compression or add nodes
-    - **Buffer for spikes**: Provision 20-30% additional capacity beyond steady-state requirements
-  </Callout>
 
 ### Default configuration architecture
-
 The default configuration values are designed for a reference deployment supporting 1 million spans per minute (~16,000 spans/sec):
 
 **Collector deployment:**
@@ -864,7 +759,6 @@ The default configuration values are designed for a reference deployment support
 - Co-located with collectors for low-latency access
 
 This reference architecture provides a starting point for production deployments. Adjust based on your actual throughput and latency requirements.
-
 
 
 ## Metrics reference
