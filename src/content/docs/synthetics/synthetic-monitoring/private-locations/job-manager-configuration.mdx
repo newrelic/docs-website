@@ -1910,7 +1910,7 @@ This query counts the number of non-ping (heavyweight) jobs completed over the l
 ```sql
 FROM SyntheticCheck
 SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1934,7 +1934,7 @@ This query finds the unique count of heavyweight monitors.
 ```sql
 FROM SyntheticCheck
 SELECT uniqueCount(monitorId) AS 'monitor count'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1944,7 +1944,7 @@ This query finds the average execution duration of completed non-ping jobs and c
 ```sql
 FROM SyntheticCheck
 SELECT average(executionDuration)/60e3 AS 'avg job duration (m)'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1972,165 +1972,97 @@ Each runtime used by the Kubernetes and OpenShift synthetic job manager can be s
 * The `parallelism` setting controls how many pods of a particular runtime run concurrently.
 * The `completions` setting controls how many pods must complete before the `CronJob` starts another Kubernetes Job for that runtime.
 
-### How to Size Your Deployment: A Step-by-Step Guide
+### Best practices for sizing your deployment
 
-Your goal is to configure enough parallelism to handle your job load without exceeding the throughput limit of your SJM instances.
+It's often not possible to precisely calculate the needed parallelism and completions values because the average duration as seen in New Relic might not be accurate, especially if the existing private location is not working well. Follow this practical approach to dial in parallelism and completions. The equations below can be used to get ballpark values to start from.
 
-### Step 1: Estimate Your Required Workload
+**1. Estimate completions and parallelism**
 
-**Completions:** This determines how many runtime pods should complete before a new Kubernetes Job is started.
-
-First, determine your private location's average job execution duration and job rate. Use `executionDuration` as it most accurately reflects the pod's active runtime.
+Do your best to estimate the average execution duration and number of jobs per 5 minutes. This provides you with a ballpark starting point for the next step, which will involve trial and error to tune the parallelism and completions values in a working cluster. Make sure to scale them proportionally, for example, going from the defaults of 1 and 6 to 10 and 60.
 
 ```sql
--- Get average job execution duration (in seconds)
+-- Get average execution duration in minutes
 FROM SyntheticCheck
-SELECT average(executionDuration / 60e3) AS 'D_avg_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT average(executionDuration / 60e3) AS 'Avg Duration (min)'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
 $$
 Completions = \frac{5}D_{avg,m}
 $$
 
-Where $D_{avg,m}$ is your **average job execution duration in seconds**.
+Where $D_{avg,m}$ is your **average job execution duration in minutes**.
 
 **Required Parallelism:** This determines how many workers (pods) you need running concurrently to handle your 5-minute job load.
 
 ```sql
 -- Get jobs per 5 minutes
 FROM SyntheticCheck
-SELECT rate(uniqueCount(id), 5 minutes) AS 'N_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT rate(uniqueCount(id), 5 minutes) AS 'Number of monitor jobs per 5 minutes'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
 $$
-P_{req} = \frac{N_m}{Completions}
+P_{est} = \frac{N_m}{Completions}r
 $$
 
-Where $N_m$ is your **number of jobs per 5 minutes**. This $P_{req}$ value is your **target total parallelism**.
+Where $N_m$ is your **number of jobs per 5 minutes**. This $P_{est}$ value is your **estimated parallelism**.
 
-### Step 2: Check Against the Single-SJM Throughput Limit
+**2. Perform a Helm deploy**
 
-**Max Parallelism:** This determines how many workers (pods) your SJM can effectively utilize.
+Perform a Helm deploy with estimated parallelism and completions values, and your best guess for `ping-runtime.replicaCount` given the number of cpu cores per node and the number of ping monitors that need to run per minute.
 
-$$
-P_{max} \approx 15 \cdot D_{avg,m}
-$$
+**3. Monitor queue growth**
 
-This $P_{max}$ value is your **system limit for one SJM Helm deployment**.
+With the synthetic monitors configured to send jobs to the private location, check for queue growth on a timeseries line chart for `pingJobs` and `jobManagerHeavyweightJobs`.
 
-<Callout variant="tip">
-  The above queries are based on current results. If your private location does not have any results or the job manager is not performing at its best, query results may not be accurate. In that case, start with the examples in the table below and adjust until your queue is stable.
-</Callout>
+* If the `pingJobs` queue has a positive slope, increase `ping-runtime.replicaCount` and redeploy.
+* If the `jobManagerHeavyweightJobs` queue has a positive slope, increase `parallelism` and `completions` proportionally until the queue is no longer growing (negative slope).
 
-<Callout variant="tip">
-  A key consideration is that a **single SJM instance has a maximum throughput of approximately 15 heavyweight jobs per minute**. You can calculate the maximum effective parallelism ($P_{max}$) a single SJM can support before hitting this ceiling.
-</Callout>
-
-### Step 3: Compare, Configure, and Scale
-
-Compare your **required** parallelism ($P_{req}$) from Step 1 to the **maximum** parallelism ($P_{max}$) from Step 2.
-
-<DNT>
-**Scenario A:** $P_{req} \le P_{max}$
-</DNT>
-
-* **Diagnosis:** Your job load is within the limit of a single SJM instance.
-* **Action:**
-
-  1. You will deploy **one** SJM Helm release.
-  2. In your Helm chart `values.yaml`, set `parallelism` to your calculated $P_{req}$.
-  3. Set `completions` to your calculated **Completions**. For improved efficiency, this value should typically be 6-10x your `parallelism` setting.
-
-<DNT>
-**Scenario B:** $P_{req} > P_{max}$
-</DNT>
-
-* **Diagnosis:** Your job load **exceeds the \~15 jobs/minute limit** of a single SJM.
-* **Action:**
-
-  1. You must **scale out by deploying multiple, separate SJM Helm releases**.
-  2. See the **[Scaling Out with Multiple SJM Deployments](#scaling-out-with-multiple-sjm-deployments)** section below for the correct procedure.
-  3. **Do not** increase the `replicaCount` in your Helm chart.
-
-### Step 4: Monitor Your Queue
-
-After applying your changes, you must verify that your job queue is stable and not growing. A consistently growing queue means your location is still under-provisioned.
-
-Run this query to check the queue's growth rate:
+A negative slope indicates that the job manager has enough parallelism to handle the job demand. It will eventually reach zero with a negative slope.
 
 ```sql
--- Check for queue growth (a positive value means the queue is growing)
-SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'Heavyweight Queue Growth Rate (per min)'
 FROM SyntheticsPrivateLocationStatus
+SELECT average(jobManagerHeavyweightJobs) AS 'Heavyweight Queue Growth', average(pingJobs) AS 'Ping Queue Growth'
 WHERE name = 'YOUR_PRIVATE_LOCATION'
-SINCE 1 hour ago TIMESERIES
+SINCE 1 day ago TIMESERIES
 ```
 
-If the "Queue Growth Rate" is consistently positive, you need to install more SJM Helm deployments (Scenario B) or re-check your `parallelism` settings (Scenario A).
+**4. Tune based on pod running state**
 
-### Configuration Examples and Tuning
+With the queue decreasing or at zero, check for `node-api-runtime` and `node-browser-runtime` pods that are in a "running" state for 10+ minutes. This indicates that parallelism is set too high and there are more pods than needed.
 
-The `parallelism` setting directly affects how many synthetics jobs per minute can be run. Too small a value and the queue may grow. Too large a value and nodes may become resource constrained.
+To avoid wasting resources unnecessarily, decrease `parallelism` and `completions` to reduce the age of each "running" runtime pod. If targeting a Kubernets job age of 5 minutes, runtime pods should be in a running state for less than 5 minutes, meaning the pod was created, it quickly received a job to run and completed.
 
-<table>
-  <thead>
-    <tr>
-      <th style={{ width: "300px" }}>
-        Example
-      </th>
-      <th>
-        Description
-      </th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>
-        `parallelism=1`
-        `completions=1`
-      </td>
-      <td>
-        The runtime will execute 1 synthetics job per minute. After 1 job completes, the `CronJob` configuration will start a new job at the next minute. <DNT>**Throughput will be extremely limited with this configuration.**</DNT>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        `parallelism=1`
-        `completions=6`
-      </td>
-      <td>
-        The runtime will execute 1 synthetics job at a time. After the job completes, a new job will start immediately. After 6 jobs complete, the `CronJob` configuration will start a new Kubernetes Job. <DNT>**Throughput will be limited.**</DNT> A single long-running synthetics job will block the processing of any other synthetics jobs of this type.
-      </td>
-    </tr>
-    <tr>
-      <td>
-        `parallelism=3`
-        `completions=24`
-      </td>
-      <td>
-        The runtime will execute 3 synthetics jobs at once. After any of these jobs complete, a new job will start immediately. After 24 jobs complete, the `CronJob` configuration will start a new Kubernetes Job. <DNT>**Throughput is much better with this or similar configurations.**</DNT>
-      </td>
-    </tr>
-  </tbody>
-</table>
+**5. Scale out if necessary**
 
-If your `parallelism` setting is working well (keeping the queue at zero), setting a higher `completions` value (e.g., 6-10x `parallelism`) can improve efficiency by:
+If the queue is not decreasing, yet there are many pods in a "running" state for 10+ minutes, it's likely that the job manager is hitting its performance bottleneck. The next thing to do is decrease parallelism and scale out with one or more additional deployments.
 
-* Accommodating variability in job durations.
-* Reducing the number of completion cycles to minimize the "nearing the end of completions" inefficiency where the next batch can't start until the final job from the current batch completes.
+For example, with `parallelism: 100`, `completions: 600` the queue is still growing yet there are many pods in a "running" state for 10+ minutes, and the Kubernetes Job age is 20 minutes ... set `parallelism: 50`, `completions: 200` and scale horizontally (out) by adding 2 additional deployments. This yields a total of 150 parallel pods and should reduce the K8s job age to less than 20 minutes while also reducing the number of long-lived "running" pods. Aim for a K8s job age of 5-10 minutes.
 
-It's important to note that the `completions` value should not be too large or the CronJob will experience warning events like the following:
-
-```sh
-8m40s     Warning   TooManyMissedTimes   cronjob/synthetics-node-browser-runtime   too many missed start times: 101. Set or decrease .spec.startingDeadlineSeconds or check clock skew
-```
+For more information on adding deployments, see [Scaling out with multiple SJM deployments](#scaling-out-with-multiple-sjm-deployments).
 
 <Callout variant="tip">
-  New Relic is not liable for any modifications you make to the synthetics job manager files.
+  You can use the following query to help determine if you need to scale out.
+
+  **Note:** Monitors can exist in multiple sub-accounts.
+
+  ```sql
+  -- monitors per minute per SJM
+  FROM SyntheticCheck SELECT
+    round(rate(uniqueCount(id), 1 minute)/uniqueCount(minionId),0.1) AS 'heavy jobs per minute per SJM',
+    uniqueCount(minionId) AS 'number of SJMs (namespaces)',
+    round(rate(uniqueCount(id), 1 minute),0.1) AS 'heavy jobs per minute total'
+  WHERE minionContainerSystem = 'KUBERNETES' AND minionDeploymentMode = 'private' AND location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' FACET location SINCE 1 hour ago TIMESERIES
+  ```
+</Callout>
+
+<Callout variant="tip">
+  Reducing the number of K8s job cycles can also improve performance. As each cycle reaches the set number of completions, there are fewer and fewer "running" pods to take on new Synthetics jobs. For example, with completions set to 200 and parallelism set to 50, we initially have 50 running pods, but this starts to decrease as we pass 150 completions. At 199 completions, only 1 running pod remains.
+
+  Setting a larger value for completions is not a bad idea, but it can lead to warning events in K8s about `TooManyMissedTimes` for the cronjob.
 </Callout>
 
 ### Scaling out with multiple SJM deployments
@@ -2138,27 +2070,21 @@ It's important to note that the `completions` value should not be too large or t
 To scale beyond the \~15 jobs/minute throughput of a single SJM, you must install **multiple, separate SJM Helm releases**.
 
 <Callout variant="important">
-  **Do not use `replicaCount` to scale the job manager pod.** You **cannot** scale by increasing the `replicaCount` for a single Helm release. The SJM architecture requires a 1:1 relationship between a runtime pod and its parent SJM pod. If runtime pods send results back to the wrong SJM replica (e.g., through a Kubernetes service), those results will be lost.
+  Do not use replicas to scale the job manager pod. The SJM architecture requires a 1:1 relationship between a runtime pod and its parent SJM pod. If runtime pods send results back to the wrong SJM replica (e.g., through a Kubernetes service), those results will be lost. However, ping-runtime.replicaCount is okay to use.
 </Callout>
 
 The correct strategy is to deploy multiple SJM instances, each as its own Helm release. Each SJM will compete for jobs from the same private location, providing load balancing, failover protection, and an increased total job throughput.
 
-#### Simplified Scaling Strategy
+#### Horizontal Scaling Strategy
 
-Assuming $P_{req} > P_{max}$ and you need to scale out, you can simplify maintenance by treating each SJM deployment as a fixed-capacity unit.
+If you need to scale out, you can simplify maintenance by treating each SJM deployment as a fixed-capacity unit.
 
-1. **Set Max Parallelism:** For *each* SJM, set `parallelism` to the same $P_{max}$ value. This maximizes the potential throughput of each SJM.
-2. **Set Completions:** For *each* SJM, set `completions` to a fixed value as well. The $P_{req}$ formula from [Step 1](#step-1-estimate-your-required-workload) can be modified to estimate completions by substituting in the $P_{max}$ value:
+1. **Set Parallelism:** For *each* SJM, set `parallelism` to the same maximum that a single SJM can handle without creating too many long-lived "running" runtime pods. This maximizes the potential throughput of each SJM without wasting resources.
+2. **Set Completions:** For *each* SJM, set `completions` to the same fixed value as well. Adjust as needed to target a 5 minute Kubernetes job age per runtime, i.e., node-browser-runtime and node-api-runtime.
+3. **Install Releases:** Install as many separate Helm releases as you need to handle your total job demand, i.e., get the queue to zero or line chart to a negative slope.
+4. **Monitor and Add:** Monitor the private location job queue. If it starts to grow (positive slope), simply install another Helm release (e.g., `sjm-delta`) using the same fixed configuration.
 
-   $$
-   Completions = \frac{N_m}P_{max}
-   $$
-
-   Where $N_m$ is your **number of jobs per 5 minutes**. Adjust as needed after deploying to target a 5 minute Kubernetes job age per runtime, i.e., node-browser-runtime and node-api-runtime.
-3. **Install Releases:** Install as many separate Helm releases as you need to handle your total $P_{req}$. For example, if your total $P_{req}$ is 60 and you've fixed each SJM's `parallelism` at 20 ($P_{max}$ from [Step 2](#step-2-check-against-the-single-sjm-throughput-limit)), you would need **three** separate Helm deployments to meet the required job demand.
-4. **Monitor and Add:** Monitor your job queue (see [Step 4](#step-4-monitor-your-queue)). If it starts to grow, simply install another Helm release (e.g., `sjm-delta`) using the same fixed configuration.
-
-By fixing parallelism and completions to static values based on $P_{max}$, increasing or decreasing capacity becomes a simpler process of **adding or removing Helm releases**. This helps to avoid wasting cluster resources on a parallelism value that is higher than the SJM can effectively utilize.
+By fixing parallelism and completions to static values, increasing or decreasing capacity becomes a simpler process of **adding or removing Helm releases**. This helps to avoid wasting cluster resources on a parallelism value that is higher than the SJM can effectively utilize.
 
 #### Installation Example
 
