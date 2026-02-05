@@ -1,6 +1,6 @@
 ---
 title: 'Query ATP data in New Relic'
-metaDescription: 'Learn how to query Adaptive Telemetry Processor (ATP) data in New Relic using NRQL.'
+metaDescription: 'Learn how to query Adaptive Telemetry Processor (ATP) data in New Relic using NRQL to monitor process metrics, track anomalies, and measure filtering efficiency.'
 tags:
   - Open source telemetry integrations
   - OpenTelemetry
@@ -12,12 +12,8 @@ tags:
   - Infrastructure monitoring
   - Intelligent telemetry processing
   - Intelligence ATP
-redirects:
-  - /docs/opentelemetry/atp/
 freshnessValidatedDate: never
 ---
-
-
 
 <Callout title="Preview">
 We're still working on this feature, but we'd love for you to try it out!
@@ -26,4 +22,204 @@ This feature is currently provided as part of a preview pursuant to our [pre-rel
 </Callout>
 
 
-This page provides information on how to query Adaptive Telemetry Processor (ATP) data in New Relic using NRQL.
+
+ATP collects process metrics through the OpenTelemetry `hostmetricsreceiver` and enriches them with intelligent filtering metadata. You can query this data to:
+
+* Monitor process states and identify `stuck` or problematic processes
+* Track how ATP's dynamic thresholds adapt to your workload patterns
+* Measure filtering efficiency to understand data reduction effectiveness  
+* Detect anomalies and unusual process behavior
+* Set up alerts for critical process monitoring
+
+All process metrics are available under the `process.*` namespace in New Relic, with ATP-specific metadata stored in the `process.atp` field.
+
+## Process state monitoring [#process-state-monitoring]
+
+<CollapserGroup>
+  <Collapser
+    id="process-count-by-name"
+    title="Process distribution by state"
+  >
+
+This query shows you a breakdown of all processes running on your host, categorized by their execution state. It's essential for identifying `stuck` processes or resource exhaustion.
+
+```sql
+FROM Metric
+SELECT uniqueCount(process.pid) as 'Process Count'
+FACET process.state, CASES(
+  WHERE process.state = 'R' AS 'Running',
+  WHERE process.state = 'S' AS 'Sleeping (Interruptible)',
+  WHERE process.state = 'D' AS 'Uninterruptible Sleep (Disk I/O)',
+  WHERE process.state = 'Z' AS 'Zombie',
+  WHERE process.state = 'T' AS 'Stopped',
+  WHERE process.state = 'I' AS 'Idle Kernel Thread',
+  WHERE process.state = 'X' AS 'Dead',
+  WHERE process.state = 'W' AS 'Paging'
+)
+```
+
+</Collapser>
+
+</CollapserGroup>
+
+## ATP intelligence monitoring [#atp-intelligence-monitoring]
+
+<CollapserGroup>
+  <Collapser
+    id="dynamic-thresholds"
+    title="Dynamic thresholds tracking"
+  >
+
+
+This query shows you the current dynamic threshold values compared to actual process metrics, helping you understand how close processes are to triggering ATP actions.
+
+```sql
+FROM Metric
+SELECT
+  latest(numeric(jparse(`process.atp`)[threshold_details][`process.cpu.utilization`][threshold])) * 100 AS 'Process CPU Utilization',
+  latest(numeric(jparse(`process.atp`)[threshold_details][`process.memory.usage`][threshold])) AS 'Memory Usage'
+WHERE host.name = 'YOUR_HOST_NAME'
+TIMESERIES MAX
+```
+
+**How to use this query:**
+- Replace `YOUR_HOST_NAME` with your actual host name
+- You can modify the metric names in the `jparse` function to track thresholds for other metrics
+- Watch for patterns where actual values consistently approach threshold values
+
+  </Collapser>
+
+  <Collapser
+    id="filtering-efficiency"
+    title="ATP filtering efficiency"
+  >
+
+
+This query measures how effectively ATP is reducing telemetry volume while retaining critical data.
+
+```sql
+FROM Metric
+SELECT latest(numeric(jparse(`process.atp`)['filtering_summary']['efficiency_ratio'])) * 100 as 'Filtering Efficiency'
+WHERE metricName like 'process.%'
+AND `process.atp` IS NOT NULL
+```
+
+</Collapser>
+
+</CollapserGroup>
+
+
+## Anomaly detection queries [#anomaly-detection-queries]
+
+<CollapserGroup>
+  <Collapser
+    id="anomaly-overview"
+    title="Anomaly count over time"
+  >
+
+This query visualizes how frequently ATP detects anomalies across different executables, helping you identify which processes are most prone to unusual behavior.
+
+```sql
+FROM Metric
+SELECT latest(numeric(jparse(`process.atp`, 'filtering_summary.stage_hits.anomaly_detection'))) AS 'Anomaly Count'
+WHERE metricName like 'process.%'
+FACET process.executable.name
+TIMESERIES MAX
+```
+</Collapser>
+
+<Collapser
+    id="memory-usuage"
+    title="Memory usage anomalies"
+  >
+
+
+This query highlights specific processes that have experienced memory usage anomalies detected by ATP.
+
+```sql
+FROM Metric
+SELECT max(process.memory.usage) as 'Memory Usage'
+WHERE metricName = 'process.memory.usage'
+AND numeric(jparse(`process.atp`)['filtering_summary']['stage_hits']['anomaly_detection']) > 0
+AND process.atp IS NOT NULL
+FACET process.pid, process.executable.name, host.name
+TIMESERIES MAX
+```
+
+</Collapser>
+
+<Collapser
+    id="cpu-usage"
+    title="CPU usage anomalies"
+  >
+
+
+This query shows processes that have experienced CPU utilization anomalies.
+
+```sql
+FROM Metric
+SELECT max(process.cpu.utilization) * 100 as 'CPU Utilization'
+WHERE metricName like 'process.cpu.utilization'
+AND numeric(jparse(`process.atp`)['filtering_summary']['stage_hits']['anomaly_detection']) > 0
+AND process.atp IS NOT NULL
+FACET process.pid, process.executable.name, host.name
+TIMESERIES MAX
+```
+
+**Note**: You can modify these queries to monitor anomalies in any other process metric by changing the `metricName` filter.
+
+</Collapser>
+
+</CollapserGroup>
+
+
+## Performance monitoring [#performance-monitoring]
+
+<CollapserGroup>
+  <Collapser
+    id="context-switches"
+    title="Context switches per minute"
+  >
+
+
+This query tracks the rate of context switching per process. High context switch rates often indicate CPU contention or inefficient multi-threading.
+
+```sql
+SELECT rate(sum(process.context_switches), 1 minute) AS 'Context Switches/min'
+FROM Metric
+WHERE metricName = 'process.context_switches'
+FACET process.executable.name, process.pid
+TIMESERIES MAX
+```
+</Collapser>
+
+</CollapserGroup>
+
+## Setting up alerts
+
+<CollapserGroup>
+  <Collapser
+    id="data-alert"
+    title="Data gap alert"
+  >
+
+
+Use this query to create an alert that triggers when process telemetry stops flowing entirely, indicating potential agent failure or network issues. For more information to setting up alerts, see [Creating alert conditions](/docs/alerts/create-alert/create-alert-condition/alert-conditions/).
+
+```sql
+FROM Metric
+SELECT count(*)
+WHERE metricName LIKE 'process.%'
+```
+</Collapser>
+
+</CollapserGroup>
+
+## Related resources [#related-resources]
+
+<DocTiles>
+    <DocTile title="View your data" path="/docs/opentelemetry/nrdot/atp/view-data">Learn how to view the data collected by ATP in New Relic.</DocTile>
+    <DocTile title="ATP for host" path="/docs/opentelemetry/nrdot/atp/host">Learn about setting up ATP for your host environment.</DocTile>
+    <DocTile title="ATP for Kubernetes" path="/docs/opentelemetry/nrdot/atp/k8s">Learn how to set up the ATP for your Kubernetes environment.</DocTile>
+</DocTiles>
+
