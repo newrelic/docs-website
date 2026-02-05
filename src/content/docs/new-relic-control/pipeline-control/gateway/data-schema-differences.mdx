@@ -1,0 +1,250 @@
+---
+title: 'Gateway data schema differences'
+metaDescription: 'Learn about schema differences between gateway processing and NRDB, including which attributes are available at the gateway level.'
+freshnessValidatedDate: never
+---
+
+Gateway processors operate on telemetry data before it reaches New Relic, which means some attributes available in NRDB are not yet available at the gateway. Understanding these differences is critical when writing OTTL expressions for filter, transform, and sampling processors.
+
+## Why schemas differ
+
+### Data flow and enrichment
+When telemetry data flows through New Relic's platform:
+
+1. **Gateway processing** - Your gateway receives raw telemetry from agents and other sources
+2. **Enrichment** - New Relic adds attributes (like `entity.guid`, `appName`) and renames some existing attributes
+3. **Cloud rules processing** - NRQL-based cloud rules operate on enriched data
+4. **Storage** - Data is stored in NRDB with all enrichments applied
+
+### Impact on gateway processors
+
+**Gateway processors see pre-enrichment data**, which means:
+- Some attributes don't exist yet (like `entity.guid`, `appName`, `entityGuid`)
+- Attribute names may differ from what you see in NRDB
+- Filter and transform logic must account for this reduced attribute set
+
+**Cloud rules see post-enrichment data**, which means:
+- All enriched attributes are available
+- NRQL queries can reference attributes that don't exist at the gateway
+
+## Data sources
+
+The gateway receives telemetry from:
+- [New Relic APM agents](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration) (multiple languages supported)
+- New Relic Infrastructure agent
+- OpenTelemetry collectors
+- New Relic APIs (Events API, Logs API, Traces API, Metrics API)
+- Other OTLP-compatible sources
+
+<Callout variant="important">
+Refer to [agent configuration documentation](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration) to verify which agents and versions are supported for gateway deployment.
+</Callout>
+
+All data arrives as complex, multi-nested JSON with numerous attributes.
+
+## Writing OTTL expressions for gateway processors
+
+### Attribute availability
+
+When writing OTTL filter conditions or transform statements:
+
+**Available attributes:**
+- Core telemetry attributes sent by agents/collectors
+- Attributes your instrumentation adds directly
+- Standard OTLP attributes (like `span_id`, `trace_id`, `severity.number`)
+
+**Unavailable attributes (added during enrichment):**
+- `entity.guid`, `entityGuid`
+- `appId`, `appName`
+- `host` (in most cases)
+- `realAgentId`
+- Various NR-specific metadata attributes
+
+See the [attribute reference table](#attribute-reference-by-data-type) below for complete details.
+
+### Best practices
+
+**Test with actual data:**
+Use your gateway's monitoring data to verify which attributes exist in your telemetry before writing complex filters.
+
+**Use available attributes:**
+```yaml
+# ✓ Works - span_id exists in raw telemetry
+filter/Spans:
+  config:
+    spans:
+      - 'span_id == "abc123"'
+
+# ✗ May not work - entity.guid added during enrichment
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["entity.guid"] == "xyz789"'
+```
+
+**Consider cloud rules for enriched attributes:**
+If your filtering logic requires enriched attributes (like `appName` or `entity.guid`), use cloud rules instead of gateway processors.
+
+**Check the reference table:**
+Before using an attribute in a filter or transform, verify it's not listed as "unavailable at gateway" in the table below.
+
+## Attribute reference by data type
+
+The following table shows which attributes are unavailable at the gateway level for each telemetry data type. If you need to filter or transform based on these attributes, consider using cloud rules instead.
+
+<table>
+    <thead>
+        <tr>
+            <th>Data type</th>
+            <th>Attributes unavailable at gateway</th>
+            <th>Example filter expression (OTTL)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Transaction (APM)</td>
+            <td>`appId`, `appName`, `containerId`, `entity.guid`, `entityGuid`, `host`, `realAgentId`, `transactionSubType`, `transactionType`</td>
+            <td>`attributes["guid"] == "c2906c2e8b9f11ff"`</td>
+        </tr>
+        <tr>
+            <td>Custom Events</td>
+            <td>`appId`, `appName`, `containerId`, `entityGuid`, `host`, `realAgentId`</td>
+            <td>`attributes["myFloat"] == 0.603`</td>
+        </tr>
+        <tr>
+            <td>ErrorTrace</td>
+            <td>`aggregateFacet`, `appId`, `appName`, `applicationIds`, `count`, `entity.guid`, `entityGuid`, `error.class`, `message`, `path`, `exceptionClass`, `fingerprint`, `id`, `message`, `realAgentId`, `storageId`, `timestamp`, `transactionName`, `transactionUiName`</td>
+            <td>`attributes["traceId"] == "b366efe772fa6d1c8e0852558026c40e"`</td>
+        </tr>
+        <tr>
+            <td>TransactionError</td>
+            <td>`aggregateFacet`, `appId`, `appName`, `containerId`, `entity.guid`, `entityGuid`, `host`, `realAgentId`, `transactionUiName`</td>
+            <td>`attributes["error.message"] == "my expected error message"`</td>
+        </tr>
+        <tr>
+            <td>Log</td>
+            <td>`entity.guids`, `messageId`, `newrelic.logPattern`, `newrelic.logs.batchIndex`, `newrelic.source`</td>
+            <td>`span_id == "8b583de97341d094"`</td>
+        </tr>
+        <tr>
+            <td>Metric (timeslice)</td>
+            <td>`appId`, `appName`, `entity.guid`, `entityGuid`, `language`, `metricName`, `metricTimesliceName`, `newrelic.timeslice.value`, `scope`, `timestamp`</td>
+            <td>Use dimensional metrics or cloud rules</td>
+        </tr>
+        <tr>
+            <td>Span (distributed tracing)</td>
+            <td>`appId`, `appName`, `containerId`, `duration.ms`, `entity.guid`, `entity.name`, `entityGuid`, `host`, `id`, `process.id`, `realAgentId`, `trace.id`</td>
+            <td>`name == "WebTransaction/Go/GET /log"`</td>
+        </tr>
+        <tr>
+            <td>SqlTrace</td>
+            <td>`applicationIds`, `callCount`, `databaseMetricName`, `entity.guid`, `id`, `maxCallTime`, `minCallTime`, `path`, `realAgentId`, `sql`, `sqlId`, `storageId`, `timestamp`, `totalCallTime`, `uri`</td>
+            <td>`attributes["uri"] == "Custom/Simple/sqlTransaction"`</td>
+        </tr>
+        <tr>
+            <td>TransactionTrace</td>
+            <td>`storageId`, `uri`, `path`, `agentRunId`, `applicationIds`, `duration`, `entity.guid`, `guid`, `id`, `protocolVersion`, `realAgentId`, `timestamp`</td>
+            <td>Use attributes available in raw trace data</td>
+        </tr>
+        <tr>
+            <td>Metric (gauge)</td>
+            <td>`newrelic.source` (value: `metricAPI`), `metricName`: `{type, count, latest, max, min, sum}`</td>
+            <td>`name == "redis_aof_rewrite_in_progress" and value < 100`</td>
+        </tr>
+        <tr>
+            <td>Metric (summary)</td>
+            <td>`newrelic.source` (value: `metricAPI`), `metricName`: `{type, count, max, min, sum}`</td>
+            <td>`attributes["scrapedTargetKind"] == "user_provided"`</td>
+        </tr>
+        <tr>
+            <td>Metric (count)</td>
+            <td>`newrelic.source` (value: `metricAPI`), `metricName`: `{type, count}`</td>
+            <td>`attributes["instrumentation.name"] == "nri-prometheus"`</td>
+        </tr>
+        <tr>
+            <td>SystemSample (Infrastructure)</td>
+            <td>None</td>
+            <td>`attributes["entityKey"] == "vagrant"`</td>
+        </tr>
+        <tr>
+            <td>StorageSample (Infrastructure)</td>
+            <td>`entityAndMountPoint`</td>
+            <td>`attributes["inodesUsed"] == 161604`</td>
+        </tr>
+        <tr>
+            <td>NetworkSample (Infrastructure)</td>
+            <td>`entityAndInterface`</td>
+            <td>`attributes["entityKey"] == "vagrant"`</td>
+        </tr>
+        <tr>
+            <td>ProcessSample (Infrastructure)</td>
+            <td>`entityAndPid`</td>
+            <td>`attributes["entityKey"] == "vagrant"`</td>
+        </tr>
+        <tr>
+            <td>ContainerSample (Infrastructure)</td>
+            <td>`entityGuid`, `entityType`, `entityId`</td>
+            <td>`attributes["agentName"] == "ContainerSampleAgent"`</td>
+        </tr>
+    </tbody>
+</table>
+
+## Common scenarios
+
+### Filtering by entity
+**Problem:** You want to filter spans by entity, but `entity.guid` doesn't exist at the gateway.
+
+**Solution:** Use service name or other identifying attributes that exist in the raw telemetry:
+```yaml
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["service.name"] == "my-service"'
+```
+
+### Filtering by application name
+**Problem:** APM transactions don't have `appName` at the gateway.
+
+**Solution:** Use attributes your agent sets directly, or apply filtering after enrichment with cloud rules.
+
+### Adding entity information
+**Problem:** You want to add entity context to telemetry at the gateway.
+
+**Solution:** You can't access `entity.guid` at the gateway, but you can add your own identifying metadata:
+```yaml
+transform/Logs:
+  config:
+    log_statements:
+      - set(attributes["deployment"], "production-us-east")
+      - set(attributes["cluster"], "k8s-prod-01")
+```
+
+## Troubleshooting
+
+### Filter not matching expected data
+
+If your filter processor isn't matching data you expect:
+
+1. **Check attribute availability** - Verify the attribute exists at the gateway (not just in NRDB)
+2. **Inspect actual telemetry** - Use gateway monitoring to see what attributes are actually present
+3. **Test attribute access** - Try a simple filter on the attribute to see if it exists:
+   ```yaml
+   filter/Test:
+     config:
+       logs:
+         - 'attributes["entity.guid"] != ""'  # Will match nothing if attribute doesn't exist
+   ```
+
+### Transform not setting expected values
+
+If attributes aren't being added or modified:
+
+1. **Verify attribute names** - Pre-enrichment attribute names may differ from NRDB
+2. **Check data type** - Ensure you're accessing attributes correctly (e.g., `attributes["key"]` vs direct field access)
+3. **Review processor order** - Ensure transforms run before filters that depend on them
+
+## Next steps
+
+- [Filter processor reference](/docs/new-relic-control/pipeline-control/gateway/filter-processor) - Learn OTTL filter syntax
+- [Transform processor reference](/docs/new-relic-control/pipeline-control/gateway/transform-processor) - Learn OTTL transform statements
+- [Cloud rules documentation](/docs/new-relic-control/pipeline-control/cloud-rules/create-pipeline-rules) - Use NRQL on enriched data
