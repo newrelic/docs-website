@@ -11,9 +11,186 @@ freshnessValidatedDate: never
 
 If you're having issues with your Docker monitoring setup, check these common problems and solutions.
 
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-troubleshooting">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-troubleshooting">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-troubleshooting">
+
 <Callout variant="tip">
-  **Using NRDOT Collector?** For NRDOT Collector-specific troubleshooting, refer to the [NRDOT Collector Troubleshooting Guide](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/TROUBLESHOOTING.md). The troubleshooting steps below are primarily for OpenTelemetry Collector Contrib users.
+  **General NRDOT troubleshooting**: For collector startup issues, configuration validation, network connectivity, and NrIntegrationError diagnostics, see the [NRDOT Troubleshooting Guide](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/TROUBLESHOOTING.md). The issues below are specific to Docker container monitoring.
 </Callout>
+
+<CollapserGroup>
+<Collapser
+  id="nrdot-no-metrics"
+  title="No Docker metrics appearing in New Relic"
+>
+
+**Issue**: Docker containers are running but no Docker metrics appear in New Relic after 10+ minutes.
+
+**Diagnostics**:
+```bash
+# Check Docker daemon accessibility
+docker info
+
+# Test Docker socket permissions
+ls -l /var/run/docker.sock
+
+# Verify containers are running
+docker ps
+
+# Check collector logs for Docker-specific errors
+journalctl -u nrdot-collector | grep -i "docker"
+```
+
+**Solutions**:
+1. **Docker socket access**: Add nrdot-collector user to docker group:
+   ```bash
+   sudo usermod -aG docker nrdot-collector
+   sudo systemctl restart nrdot-collector
+   ```
+
+2. **Docker API version**: Ensure Docker API version is 1.25+:
+   ```bash
+   docker version --format '{{.Client.APIVersion}}'
+   ```
+
+</Collapser>
+
+<Collapser
+  id="nrdot-permission-errors"
+  title="Permission denied errors"
+>
+
+**Issue**: Collector logs show "permission denied" when accessing Docker socket.
+
+**Diagnostics**:
+```bash
+# Check socket ownership and permissions
+ls -la /var/run/docker.sock
+
+# Check collector user membership
+groups nrdot-collector
+
+# Check collector logs for permission errors
+journalctl -u nrdot-collector | grep -i "permission denied"
+```
+
+**Solutions**:
+```bash
+# Option 1: Add collector user to docker group (recommended)
+sudo usermod -aG docker nrdot-collector
+sudo systemctl restart nrdot-collector
+
+# Option 2: Adjust socket permissions (less secure)
+sudo chmod 666 /var/run/docker.sock
+
+# Option 3: Run collector as root (not recommended for production)
+# Modify systemd service file User= setting
+```
+
+</Collapser>
+
+<Collapser
+  id="nrdot-incomplete-metrics"
+  title="Incomplete or missing container metrics"
+>
+
+**Issue**: Some containers show metrics while others don't, or metrics are sporadic.
+
+**Diagnostics**:
+```bash
+# Check for containers with networking issues
+docker inspect $(docker ps -q) | grep -A5 "NetworkSettings"
+
+# Review collector configuration
+cat /etc/nrdot-collector/docker-config.yaml | grep -A10 "docker_stats:"
+
+# Check for resource constraints
+docker stats --no-stream
+
+# Check collector logs for specific errors
+journalctl -u nrdot-collector | grep -i "docker_stats"
+```
+
+**Solutions**:
+- **Container visibility**: Ensure all containers are accessible via the Docker socket path configured in the collector
+- **Resource limits**: Increase collector timeout values if containers are slow to respond. Add to your docker-config.yaml:
+  ```yaml
+  receivers:
+    docker_stats:
+      timeout: 10s  # Increase from default 5s
+      collection_interval: 30s  # Reduce frequency if needed
+  ```
+- **Network namespaces**: Some containers in restricted network namespaces may not be accessible
+
+</Collapser>
+
+<Collapser
+  id="nrdot-no-logs"
+  title="Log collection not working"
+>
+
+**Issue**: Configured log collection but container logs don't appear in New Relic.
+
+**Diagnostics**:
+```bash
+# Check log directory permissions
+ls -la /var/lib/docker/containers/
+
+# Verify receiver creator is discovering containers
+journalctl -u nrdot-collector | grep -i "receiver.*creator\|docker.*observer"
+
+# Check if containers have exposed ports (required for discovery)
+docker ps --format 'table {{.Names}}\t{{.Ports}}'
+
+# Verify logs pipeline is configured
+journalctl -u nrdot-collector | grep -i "logs"
+```
+
+**Solutions**:
+1. **File permissions**: Grant log directory access:
+   ```bash
+   sudo chmod -R 755 /var/lib/docker/containers/
+   # Or add collector to docker group
+   sudo usermod -aG docker nrdot-collector
+   sudo systemctl restart nrdot-collector
+   ```
+
+2. **Container port exposure**: Expose ports for container discovery:
+   ```bash
+   # When running containers, expose at least one port
+   docker run -p 8080:8080 my-app:latest
+   # Or use --expose flag
+   docker run --expose 80 my-app:latest
+   ```
+
+3. **Verify logs config**: Ensure your docker-logs-config.yaml is loaded:
+   ```bash
+   # Check systemd override
+   sudo systemctl cat nrdot-collector | grep -A2 "ExecStart="
+   # Should include: --config=/etc/nrdot-collector/docker-logs-config.yaml
+   ```
+
+4. **Query for logs in New Relic**:
+   ```sql
+   FROM Log SELECT * WHERE newrelic.source='api.logs.otlp' SINCE 1 hour ago
+   ```
+
+</Collapser>
+</CollapserGroup>
+
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-troubleshooting">
 
 <CollapserGroup>
 <Collapser
@@ -270,6 +447,10 @@ echo $NEWRELIC_OTLP_ENDPOINT
 </CollapserGroup>
 
 For persistent issues, check the [OpenTelemetry Collector troubleshooting guide](https://opentelemetry.io/docs/collector/troubleshooting/) and [New Relic OpenTelemetry documentation](/docs/opentelemetry/opentelemetry-introduction/).
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 ## Next steps [#next-steps]
 
