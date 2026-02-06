@@ -9,7 +9,7 @@ metaDescription: "Install OpenTelemetry Collector on Linux hosts to monitor self
 freshnessValidatedDate: never
 ---
 
-Monitor your Docker containers by installing the OpenTelemetry Collector directly on Linux hosts. This guide provides complete setup instructions for collecting container metrics and optional log collection.
+Monitor your Docker containers by installing an OpenTelemetry Collector directly on Linux hosts. This guide provides complete setup instructions for collecting container metrics and optional log collection using either the New Relic NRDOT Collector (recommended) or OpenTelemetry Collector Contrib.
 
 ## Before you begin [#prerequisites]
 
@@ -18,7 +18,9 @@ Before you begin, ensure you have:
 - A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
 - Docker Engine (API version 1.25+) installed and running
 - Access to the Docker socket (typically `/var/run/docker.sock`)
-- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running on a Linux host
+- One of the following collectors installed on a Linux host:
+  - **[NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases)** (recommended - New Relic's OpenTelemetry distribution), or
+  - **[OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)** (alternative option)
 - Network access from the Linux host to:
   - Docker Engine socket
   - One of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) endpoints
@@ -44,10 +46,32 @@ Expected output: `1.25` or higher
   title="Check OpenTelemetry Collector"
 >
 
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-version">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-version">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-version">
+```bash
+nrdot-collector --version
+```
+Expected output: Version information
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-version">
 ```bash
 otelcol-contrib --version
 ```
 Expected output: Version information (minimum v0.88.0 recommended)
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 </Collapser>
 
@@ -70,10 +94,10 @@ Expected output: Docker system information (confirms socket access)
 
 ```bash
 # For US region
-curl -I https://otlp.nr-data.net/v1/metrics
+curl -I https://otlp.nr-data.net
 
 # For EU region
-curl -I https://otlp.eu.nr-data.net/v1/metrics
+curl -I https://otlp.eu01.nr-data.net
 ```
 Expected output: HTTP/2 200 response
 
@@ -86,11 +110,107 @@ Follow these steps to configure Docker container monitoring with OpenTelemetry.
 
 <CollapserGroup>
 <Collapser
-  id="configure-collector"
-  title="Step 1: Configure the OpenTelemetry Collector"
+  id="install-collector"
+  title="Step 1: Install your chosen collector (if not already installed)"
 >
 
-Update the `endpoint` value if your Docker socket is at a different location. Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration (typically located at `/etc/otelcol-contrib/config.yaml`).
+Choose one of the following collectors and install it if you haven't already:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-install">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-install">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-install">
+      The NRDOT Collector is New Relic's distribution of OpenTelemetry with pre-configured settings optimized for New Relic.
+
+      Documentation on installation can be found in the [installation section](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#installation) of the nrdot-collector-releases repository.
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-install">
+      Download and install the OpenTelemetry Collector Contrib following the [official installation guide](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest).
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Collapser>
+
+<Collapser
+  id="configure-collector"
+  title="Step 2: Configure the collector for Docker monitoring"
+>
+
+Update the `endpoint` value if your Docker socket is at a different location.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-config">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-config">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-config">
+      For NRDOT Collector, create a separate Docker monitoring configuration file that will be merged with the default configuration using the `--config` flag.
+
+**Create `/etc/nrdot-collector/docker-config.yaml` with the following content:**
+
+```yaml
+receivers:
+  # Docker Stats Receiver - collects container metrics
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 15s
+    timeout: 5s
+    api_version: "1.25"
+    # Most metrics required for New Relic UI are enabled by default:
+    # CPU: container.cpu.usage.total, container.cpu.utilization
+    # Memory: container.memory.usage.total, container.memory.percent
+    # Network: container.network.io.usage.tx_bytes, container.network.io.usage.rx_bytes
+    #          container.network.io.usage.tx_dropped, container.network.io.usage.rx_dropped
+    # Storage: container.blockio.io_service_bytes_recursive
+    #
+    # The following metrics need to be explicitly enabled:
+    metrics:
+      # Required for New Relic UI
+      container.pids.count:
+        enabled: true
+      # Additional network error metrics
+      container.network.io.usage.tx_errors:
+        enabled: true
+      container.network.io.usage.rx_errors:
+        enabled: true
+
+processors:
+  # Resource detection - adds host and Docker metadata
+  resourcedetection/docker:
+    detectors: [docker]
+    timeout: 2s
+    override: false
+
+service:
+  pipelines:
+    # Add a new pipeline for Docker metrics
+    metrics/docker:
+      receivers: [docker_stats]
+      processors: [ resourcedetection/docker, batch]
+      exporters: [otlphttp]
+```
+
+Save the file and ensure the `nrdot-collector` system user can read it. The NRDOT Collector will merge this configuration with its default config when started with multiple `--config` flags (configured in Step 4).
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-config">
+      For OpenTelemetry Collector Contrib, merge the receivers, processors, exporters, and service pipelines into your configuration file (typically `/etc/otelcol-contrib/config.yaml`).
 
 ```yaml
 receivers:
@@ -157,23 +277,38 @@ service:
 ```
 
 Save the file and ensure the `otelcol-contrib` system user can read it.
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 </Collapser>
 
 <Collapser
   id="configure-logs"
-  title="Step 2: Optional - Configure log collection"
+  title="Step 3: Optional - Configure log collection"
 >
 
 You can also collect logs from your Docker containers using the OpenTelemetry [receiver creator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) with the [Docker observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) extension.
 
 <Callout variant="important">
   **Requirements for log collection:**
-  - The OpenTelemetry Collector process must have read permissions to the `/var/lib/docker/containers/` directory. This typically requires running the collector as root or adding the collector user to the docker group.
+  - The collector process must have read permissions to the `/var/lib/docker/containers/` directory. This typically requires running the collector as root or adding the collector user to the docker group.
   - Container ports must be exposed for the receiver creator to discover and scrape logs from containers.
 </Callout>
 
-Add the following configuration to collect container logs:
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-logs">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-logs">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-logs">
+      For NRDOT Collector, add the log collection configuration to a separate file (e.g., `/etc/nrdot-collector/docker-logs-config.yaml`) or merge it with your existing docker-config.yaml.
 
 ```yaml
 extensions:
@@ -216,68 +351,177 @@ service:
   pipelines:
     logs:
       receivers: [receiver_creator]
-      processors: [resourcedetection, resource/docker, attributes/logs, batch]
+      processors: [attributes/logs, batch]
+      exporters: [otlphttp]
+```
+
+If using a separate logs config file, add it to your systemd service with an additional `--config` flag (see Step 4).
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-logs">
+      For OpenTelemetry Collector Contrib, merge the following configuration with your existing config file at `/etc/otelcol-contrib/config.yaml`.
+
+```yaml
+extensions:
+  # Docker observer - discovers running containers
+  docker_observer:
+    endpoint: unix:///var/run/docker.sock
+    use_hostname_if_present: true
+    use_container_labels: true
+
+receivers:
+  # Receiver creator - dynamically creates filelog receivers for discovered containers
+  receiver_creator:
+    watch_observers: [docker_observer]
+    receivers:
+      filelog:
+        rule: type == "container"
+        config:
+          include:
+            - /var/lib/docker/containers/`container_id`/`container_id`-json.log
+          poll_interval: 200ms
+          start_at: end
+          include_file_name: false
+          include_file_path: false
+          operators:
+            - id: container-parser
+              type: container
+              format: docker
+              add_metadata_from_filepath: false
+
+processors:
+  # Add entity type attribute for logs (required for New Relic entity correlation)
+  attributes/logs:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+service:
+  extensions: [docker_observer]
+  pipelines:
+    logs:
+      receivers: [receiver_creator]
+      processors: [resourcedetection, attributes/logs, batch]
       exporters: [otlphttp/newrelic]
 ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 </Collapser>
 
 <Collapser
   id="set-environment-variables"
-  title="Step 3: Set environment variables"
+  title="Step 4: Configure authentication and start the collector"
 >
 
-Configure your New Relic credentials and endpoint:
+Configure authentication by adding your New Relic <InlinePopover type="licenseKey"/> and OTLP endpoint to the collector service.
 
-```bash
-# Set your New Relic license key
-export NEWRELIC_LICENSE_KEY="your-license-key-here"
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-env">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-env">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
 
-# Set the appropriate OTLP endpoint for your region
-# For US region:
-export NEWRELIC_OTLP_ENDPOINT="https://otlp.nr-data.net/v1/metrics"
-# For EU region:
-export NEWRELIC_OTLP_ENDPOINT="https://otlp.eu.nr-data.net/v1/metrics"
-```
+  <TabsPages>
+    <TabsPageItem id="nrdot-env">
+      **NRDOT Collector environment variables:**
 
-For persistent configuration, add these to your shell profile or create a systemd environment file:
+      | Variable | Description | Default | Required |
+      |----------|-------------|---------|----------|
+      | `NEW_RELIC_LICENSE_KEY` | Your New Relic ingest license key | None | Yes |
+      | `OTEL_EXPORTER_OTLP_ENDPOINT` | New Relic OTLP endpoint for your region | `https://otlp.nr-data.net` (US) | No |
+      | `OTELCOL_OPTIONS` | Additional collector configuration flags | Empty | No |
 
-```bash
-# Create environment file for systemd
-sudo tee /etc/default/otelcol-contrib <<EOF
-NEWRELIC_LICENSE_KEY="your-license-key-here"
-NEWRELIC_OTLP_ENDPOINT="https://otlp.nr-data.net/v1/metrics"
-EOF
-```
+      **Endpoint configuration:**
+      - **US region**: `https://otlp.nr-data.net` (default)
+      - **EU region**: `https://otlp.eu01.nr-data.net`
 
-Then update your systemd service to use the environment file:
-```bash
-sudo systemctl edit otelcol-contrib
-```
+      For more endpoint options, see the [New Relic OTLP documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
 
-Add the following content:
-```ini
-[Service]
-EnvironmentFile=/etc/default/otelcol-contrib
-```
+      **Setup steps:**
 
-</Collapser>
+      1. Create a systemd override directory:
+         ```bash
+         sudo mkdir -p /etc/systemd/system/nrdot-collector.service.d
+         ```
 
-<Collapser
-  id="restart-collector"
-  title="Step 4: Restart the collector"
->
+      2. Create `environment.conf` with your configuration. Replace `YOUR_LICENSE_KEY` with your New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region:
+         ```bash
+         cat <<EOF | sudo tee /etc/systemd/system/nrdot-collector.service.d/environment.conf
+         [Service]
+         Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+         Environment="OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+         Environment="OTELCOL_OPTIONS=--config=/etc/nrdot-collector/config.yaml --config=/etc/nrdot-collector/docker-config.yaml"
+         EOF
+         ```
 
-Restart the OpenTelemetry Collector to apply the new configuration:
+      3. Reload systemd and restart the collector:
+         ```bash
+         sudo systemctl daemon-reload
+         sudo systemctl restart nrdot-collector
 
-```bash
-sudo systemctl restart otelcol-contrib
-```
+         # Verify the collector is running
+         sudo systemctl status nrdot-collector
 
-Verify the collector is running:
-```bash
-sudo systemctl status otelcol-contrib
-```
+         # Check logs for any errors
+         journalctl -u nrdot-collector -f
+         ```
+
+      <Callout variant="tip">
+        The `OTELCOL_OPTIONS` variable loads both the default NRDOT configuration and your Docker-specific configuration. The configs are [merged together](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#configuration) with later configs overriding earlier ones. Add additional `--config` flags for log collection if needed.
+      </Callout>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-env">
+      **OpenTelemetry Collector Contrib environment variables:**
+
+      | Variable | Description | Required |
+      |----------|-------------|----------|
+      | `NEWRELIC_LICENSE_KEY` | Your New Relic ingest license key | Yes |
+      | `NEWRELIC_OTLP_ENDPOINT` | New Relic OTLP endpoint for your region | Yes |
+
+      **Endpoint configuration:**
+      - **US region**: `https://otlp.nr-data.net:4318`
+      - **EU region**: `https://otlp.eu01.nr-data.net:4318`
+
+      For more endpoint options, see the [New Relic OTLP documentation](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+      **Setup steps:**
+
+      1. Create a systemd override directory:
+         ```bash
+         sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+         ```
+
+      2. Create `environment.conf` with your configuration. Replace `YOUR_LICENSE_KEY` with your New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region:
+         ```bash
+         cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+         [Service]
+         Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
+         Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
+         EOF
+         ```
+
+      3. Reload systemd and restart the collector:
+         ```bash
+         sudo systemctl daemon-reload
+         sudo systemctl restart otelcol-contrib
+
+         # Verify the collector is running
+         sudo systemctl status otelcol-contrib
+
+         # Check logs for any errors
+         journalctl -u otelcol-contrib -f
+         ```
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 </Collapser>
 </CollapserGroup>
@@ -311,3 +555,4 @@ Now that you have Docker container monitoring set up, you can enhance your obser
 - **Set up alerts**: Create proactive monitoring with [alert conditions](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/) for critical container metrics
 - **Explore metrics**: Review the complete [Docker metrics reference](/docs/opentelemetry/integrations/docker-monitoring/metrics-reference) for detailed metric descriptions and alerting recommendations
 - **OpenTelemetry fundamentals**: Deepen your understanding with [OpenTelemetry in New Relic](/docs/opentelemetry/opentelemetry-introduction/)
+- Explore additional Docker OpenTelemetry configuration examples in the [New Relic OpenTelemetry examples repository](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/docker)
