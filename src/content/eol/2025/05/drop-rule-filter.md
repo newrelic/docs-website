@@ -15,7 +15,7 @@ This update is part of our ongoing work to improve our platform and streamline o
 ## What's changing [#whats-changing]
 * The NRQL Drop Filter Rules API will be deprecated and shut off on June 30, 2026.
 * As of June 30, 2026, you must use the [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/), or the centralized [Pipeline Control UI](https://newrelic.com/platform/pipeline-control), for all drop rule creation and management.
-* On June 30, 2026, drop rules targeting infrastructure events in `SystemSample`, `ProcessSample`, `NetworkSample`, and `StorageSample` will drop aggregated data.
+* On February 3, 2026, drop rules targeting infrastructure events in `SystemSample`, `ProcessSample`, `NetworkSample`, and `StorageSample` will also correctly drop aggregated data.
 * Renewals after the effective date will require the use of [Pipeline cloud rules API](/docs/new-relic-control/pipeline-control/cloud-rules-api/), which is available with the [Advanced Compute add-on](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/add-on-billing/).
 
 ## What do you need to do [#what-to-do]
