@@ -377,6 +377,13 @@ processors:
             label_set: [ topic ]
             aggregation_type: sum
 
+  filter/remove_partition_level_replicas:
+    metrics:
+      exclude:
+        match_type: strict
+        metric_names:
+          - kafka.partition.replicas_in_sync
+
 exporters:
   otlp/newrelic:
     endpoint: https://otlp.nr-data.net:4317
@@ -389,7 +396,7 @@ service:
   pipelines:
     metrics/brokers-cluster-topics:
       receivers: [jmx/kafka_broker-1, kafkametrics]
-      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
       exporters: [otlp/newrelic]
 
     metrics/jmx-cluster:
@@ -554,10 +561,10 @@ Kafka 생산자 및 소비자 근로자로부터 디버그 수준의 텔레메�
 
    ```bash
    java \
-     -javaagent:~/otel-java/opentelemetry-javaagent.jar \
+     -javaagent:$HOME/otel-java/opentelemetry-javaagent.jar \
      -Dotel.service.name="kafka-producer-1" \
      -Dotel.resource.attributes="kafka.cluster.name=my-kafka-cluster" \
-     -Dotel.exporter.otlp.endpoint=https://otlp.nr-data.net:4317 \
+     -Dotel.exporter.otlp.endpoint=http://localhost:4317 \
      -Dotel.exporter.otlp.protocol="grpc" \
      -Dotel.metrics.exporter="otlp" \
      -Dotel.traces.exporter="otlp" \
@@ -573,7 +580,40 @@ Kafka 생산자 및 소비자 근로자로부터 디버그 수준의 텔레메�
 
 * `kafka-producer-1` 생산자 또는 소비자 애플리케이션에 고유한 이름을 지정하세요.
 * `my-kafka-cluster` 수집기 설정에 사용된 것과 동일한 클러스터 이름을 사용합니다.
-* `https://otlp.nr-data.net:4317` 뉴렐릭 OTLP 엔드포인트를 사용하세요(EU 지역의 경우 `https://otlp.eu01.nr-data.net:4317` 사용). 다른 엔드포인트 및 설정 옵션은 [OTLP 엔드포인트 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
+
+<Callout variant="tip">
+  위 설정은 텔메트리를 localhost:4317에서 실행되는 OpenTelemetry Collector 로 보냅니다. 이 설정을 사용하여 구현하다, 배포하다:
+
+  ```yaml
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+  exporters:
+    otlp/newrelic:
+      endpoint: https://otlp.nr-data.net:4317
+      headers:
+        api-key: "${NEW_RELIC_LICENSE_KEY}"
+      compression: gzip
+      timeout: 30s
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      metrics:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      logs:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+  ```
+
+  이를 통해 처리를 사용자 지정하고, 필터를 추가하거나, 여러 백앤드에게 라우팅할 수 있습니다. 다른 엔드포인트 설정에 대해서는 [OTLP 엔드포인트 구성을](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) 참조하세요.
+</Callout>
 
 잔류 에이전트는 코드 변경이 전혀 없는 [기본 Kafka 측정,](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) 캡처 기능을 제공합니다.
 
@@ -595,7 +635,7 @@ Kafka 생산자 및 소비자 근로자로부터 디버그 수준의 텔레메�
     ```yaml
     receivers:
       # ... existing receivers (jmx/kafka_broker_1, kafkametrics/cluster) ...
-      
+
       # File log receiver for Kafka broker logs
       filelog/kafka_broker_1:
         include:
@@ -613,7 +653,7 @@ Kafka 생산자 및 소비자 근로자로부터 디버그 수준의 텔레메�
     service:
       pipelines:
         # ... existing pipelines (metrics/brokers, metrics/cluster) ...
-        
+
         # Logs pipeline for Kafka broker logs
         logs/brokers:
           receivers: [filelog/kafka_broker_1]
@@ -834,6 +874,33 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     error subprocess/subprocess.go:XXX subprocess died
     otelcol.component.id: "jmx/kafka_broker-X"
     error: "unexpected shutdown: exit status 1"
+    ```
+
+    **Check JMX authentication credentials**: Incorrect username or password is a common cause of subprocess failures
+
+    Verify your JMX receiver configuration includes correct credentials:
+
+    ```yaml
+    receivers:
+      jmx/kafka_broker-1:
+        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
+        endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
+        target_system: kafka
+        username: ${env:JMX_USERNAME}  # Must match Kafka JMX credentials
+        password: ${env:JMX_PASSWORD}  # Must match Kafka JMX credentials
+        collection_interval: 30s
+        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
+    ```
+
+    **Verify credentials are set**:
+
+    ```bash
+    # Check environment variables are exported
+    echo "Username: $JMX_USERNAME"
+    echo "Password: $JMX_PASSWORD"
+
+    # Test JMX connection with credentials (requires JMX client tools)
+    # If connection fails with authentication error, verify credentials match Kafka's JMX configuration
     ```
 
     **JMX 수집 간격을 확인하세요**. JMX 스크래퍼가 포함된 JMX 수신기는 최대 59초의 수집 간격만 지원합니다.

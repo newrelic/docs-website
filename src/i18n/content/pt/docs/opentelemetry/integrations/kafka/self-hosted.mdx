@@ -377,6 +377,13 @@ processors:
             label_set: [ topic ]
             aggregation_type: sum
 
+  filter/remove_partition_level_replicas:
+    metrics:
+      exclude:
+        match_type: strict
+        metric_names:
+          - kafka.partition.replicas_in_sync
+
 exporters:
   otlp/newrelic:
     endpoint: https://otlp.nr-data.net:4317
@@ -389,7 +396,7 @@ service:
   pipelines:
     metrics/brokers-cluster-topics:
       receivers: [jmx/kafka_broker-1, kafkametrics]
-      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
       exporters: [otlp/newrelic]
 
     metrics/jmx-cluster:
@@ -554,10 +561,10 @@ Para coletar telemetria em nível de aplicativo de seus aplicativos produtores e
 
    ```bash
    java \
-     -javaagent:~/otel-java/opentelemetry-javaagent.jar \
+     -javaagent:$HOME/otel-java/opentelemetry-javaagent.jar \
      -Dotel.service.name="kafka-producer-1" \
      -Dotel.resource.attributes="kafka.cluster.name=my-kafka-cluster" \
-     -Dotel.exporter.otlp.endpoint=https://otlp.nr-data.net:4317 \
+     -Dotel.exporter.otlp.endpoint=http://localhost:4317 \
      -Dotel.exporter.otlp.protocol="grpc" \
      -Dotel.metrics.exporter="otlp" \
      -Dotel.traces.exporter="otlp" \
@@ -573,7 +580,40 @@ Substituir:
 
 * `kafka-producer-1` com um nome exclusivo para seu aplicativo produtor ou consumidor
 * `my-kafka-cluster` com o mesmo nome de cluster usado na configuração do coletor
-* `https://otlp.nr-data.net:4317` com seu endpoint New Relic OTLP (use `https://otlp.eu01.nr-data.net:4317` para a região da UE). Para outros endpoints e opções de configuração, consulte [Configure seu endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+
+<Callout variant="tip">
+  A configuração acima envia telemetria para um OpenTelemetry Collector em execução em localhost:4317. Implantar seu próprio coletor com esta configuração:
+
+  ```yaml
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+
+  exporters:
+    otlp/newrelic:
+      endpoint: https://otlp.nr-data.net:4317
+      headers:
+        api-key: "${NEW_RELIC_LICENSE_KEY}"
+      compression: gzip
+      timeout: 30s
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      metrics:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+      logs:
+        receivers: [otlp]
+        exporters: [otlp/newrelic]
+  ```
+
+  Isso permite que você personalize o processamento, adicione filtros ou direcione para vários back-ends. Para outras configurações de endpoint, consulte [Configure seu endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+</Callout>
 
 O Java Agent fornece [instrumentação Kafka pronta para uso](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) com zero alterações de código, capturando:
 
@@ -595,7 +635,7 @@ Para coletar logs do broker Kafka de seus hosts e enviá-los para New Relic, con
     ```yaml
     receivers:
       # ... existing receivers (jmx/kafka_broker_1, kafkametrics/cluster) ...
-      
+
       # File log receiver for Kafka broker logs
       filelog/kafka_broker_1:
         include:
@@ -613,7 +653,7 @@ Para coletar logs do broker Kafka de seus hosts e enviá-los para New Relic, con
     service:
       pipelines:
         # ... existing pipelines (metrics/brokers, metrics/cluster) ...
-        
+
         # Logs pipeline for Kafka broker logs
         logs/brokers:
           receivers: [filelog/kafka_broker_1]
@@ -834,6 +874,33 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
     error subprocess/subprocess.go:XXX subprocess died
     otelcol.component.id: "jmx/kafka_broker-X"
     error: "unexpected shutdown: exit status 1"
+    ```
+
+    **Check JMX authentication credentials**: Incorrect username or password is a common cause of subprocess failures
+
+    Verify your JMX receiver configuration includes correct credentials:
+
+    ```yaml
+    receivers:
+      jmx/kafka_broker-1:
+        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
+        endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
+        target_system: kafka
+        username: ${env:JMX_USERNAME}  # Must match Kafka JMX credentials
+        password: ${env:JMX_PASSWORD}  # Must match Kafka JMX credentials
+        collection_interval: 30s
+        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
+    ```
+
+    **Verify credentials are set**:
+
+    ```bash
+    # Check environment variables are exported
+    echo "Username: $JMX_USERNAME"
+    echo "Password: $JMX_PASSWORD"
+
+    # Test JMX connection with credentials (requires JMX client tools)
+    # If connection fails with authentication error, verify credentials match Kafka's JMX configuration
     ```
 
     **Verifique o intervalo de coleta JMX**: O receiver JMX com scraper JMX só suporta intervalos de coleta de até 59 segundos
