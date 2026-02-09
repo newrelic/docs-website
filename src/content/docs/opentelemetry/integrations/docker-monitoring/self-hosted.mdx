@@ -158,11 +158,18 @@ Update the `endpoint` value if your Docker socket is at a different location.
 
   <TabsPages>
     <TabsPageItem id="nrdot-config">
-      For NRDOT Collector, create a separate Docker monitoring configuration file that will be merged with the default configuration using the `--config` flag.
+      For NRDOT Collector, create a standalone Docker monitoring configuration file that replaces the default configuration.
 
-**Create `/etc/nrdot-collector/docker-config.yaml` with the following content:**
+<Callout variant="important">
+  **Standalone vs. Combined monitoring**: This configuration monitors Docker containers only. If you also need host metrics (CPU, memory, disk) or system logs, use the NRDOT Collector's [default configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/config.yaml) which includes the `hostmetrics` and `filelog` receivers, and add the `docker_stats` receiver to it.
+</Callout>
+
+**Create `/etc/nrdot-collector/docker-stats-config.yaml` with the following content:**
 
 ```yaml
+extensions:
+  health_check:
+
 receivers:
   # Docker Stats Receiver - collects container metrics
   docker_stats:
@@ -181,7 +188,7 @@ receivers:
     metrics:
       # Required for New Relic UI
       container.pids.count:
-        enabled: true  
+        enabled: true
       # Additional network error metrics
       container.network.io.usage.tx_errors:
         enabled: true
@@ -189,22 +196,40 @@ receivers:
         enabled: true
 
 processors:
-  # Resource detection - adds host and Docker metadata
-  resourcedetection/docker:
-    detectors: [docker]
-    timeout: 2s
-    override: false
+  # Batch processor optimizes data transmission
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Attributes processor adds entity type for New Relic correlation
+  attributes:
+    actions:
+      - key: nr.entity_type
+        value: CONTAINER
+        action: upsert
+
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+    compression: gzip
 
 service:
   pipelines:
-    # Add a new pipeline for Docker metrics
     metrics/docker:
       receivers: [docker_stats]
-      processors: [ resourcedetection/docker, batch]
+      processors: [batch, attributes]
       exporters: [otlphttp]
+
+  extensions: [health_check]
 ```
 
-Save the file and ensure the `nrdot-collector` system user can read it. The NRDOT Collector will merge this configuration with its default config when started with multiple `--config` flags (configured in Step 4).
+Save the file and ensure the `nrdot-collector` system user can read it:
+```bash
+sudo chown nrdot-collector:nrdot-collector /etc/nrdot-collector/docker-stats-config.yaml
+sudo chmod 644 /etc/nrdot-collector/docker-stats-config.yaml
+```
     </TabsPageItem>
 
     <TabsPageItem id="otelcol-config">
@@ -283,8 +308,70 @@ Save the file and ensure the `otelcol-contrib` system user can read it.
 </Collapser>
 
 <Collapser
+  id="configure-permissions"
+  title="Step 3: Configure Docker socket permissions"
+>
+
+The collector needs access to the Docker socket to collect container metrics. Grant the collector user access to the Docker group.
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-permissions">
+      NRDOT Collector
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-permissions">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-permissions">
+
+```bash
+# Add nrdot-collector user to docker group
+sudo usermod -aG docker nrdot-collector
+
+# Verify the user was added
+groups nrdot-collector
+
+# Restart Docker to apply group changes
+sudo systemctl restart docker
+
+# Test Docker socket access
+sudo -u nrdot-collector docker ps
+```
+
+If the test command succeeds and shows your containers, permissions are correctly configured.
+
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-permissions">
+
+```bash
+# Add otelcol-contrib user to docker group
+sudo usermod -aG docker otelcol-contrib
+
+# Verify the user was added
+groups otelcol-contrib
+
+# Restart Docker to apply group changes
+sudo systemctl restart docker
+
+# Test Docker socket access
+sudo -u otelcol-contrib docker ps
+```
+
+If the test command succeeds and shows your containers, permissions are correctly configured.
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+</Collapser>
+
+<Collapser
   id="configure-logs"
-  title="Step 3: Optional - Configure log collection"
+  title="Step 4: Optional - Configure log collection"
 >
 
 You can also collect logs from your Docker containers using the OpenTelemetry [receiver creator](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/receivercreator) with the [Docker observer](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/observer/dockerobserver) extension.
@@ -412,7 +499,7 @@ service:
 
 <Collapser
   id="set-environment-variables"
-  title="Step 4: Configure authentication and start the collector"
+  title="Step 5: Configure authentication and start the collector"
 >
 
 Configure authentication by adding your New Relic <InlinePopover type="licenseKey"/> and OTLP endpoint to the collector service.
@@ -450,13 +537,14 @@ Configure authentication by adding your New Relic <InlinePopover type="licenseKe
          sudo mkdir -p /etc/systemd/system/nrdot-collector.service.d
          ```
 
-      2. Create `environment.conf` with your configuration. Replace `YOUR_LICENSE_KEY` with your New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region:
+      2. Create an override configuration to use the Docker stats config. Replace `YOUR_LICENSE_KEY` with your New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region:
          ```bash
-         cat <<EOF | sudo tee /etc/systemd/system/nrdot-collector.service.d/environment.conf
+         cat <<EOF | sudo tee /etc/systemd/system/nrdot-collector.service.d/override.conf
          [Service]
          Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
          Environment="OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
-         Environment="OTELCOL_OPTIONS=--config=/etc/nrdot-collector/config.yaml --config=/etc/nrdot-collector/docker-config.yaml"
+         ExecStart=
+         ExecStart=/usr/bin/nrdot-collector --config=/etc/nrdot-collector/docker-stats-config.yaml
          EOF
          ```
 
@@ -473,7 +561,7 @@ Configure authentication by adding your New Relic <InlinePopover type="licenseKe
          ```
 
       <Callout variant="tip">
-        The `OTELCOL_OPTIONS` variable loads both the default NRDOT configuration and your Docker-specific configuration. The configs are [merged together](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#configuration) with later configs overriding earlier ones. Add additional `--config` flags for log collection if needed.
+        The empty `ExecStart=` line clears the default command before setting the new one. This ensures the collector uses only the Docker stats configuration instead of the default configuration.
       </Callout>
     </TabsPageItem>
 
