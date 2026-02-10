@@ -101,6 +101,22 @@ const inlineCodeAttribute = () => (tree) => {
   });
 };
 
+// Convert HTML comments <!-- ... --> back to JSX comments {/* ... */}
+// This restores JSX comments that were converted to HTML comments during serialization
+// preserving the correct MDX/JSX comment syntax
+const htmlCommentsToJsxComments = () => (tree) => {
+  visit(tree, 'html', (node) => {
+    // Match HTML comments: <!-- ... -->
+    const match = node.value.match(/^<!--\s*([\s\S]*?)\s*-->$/);
+
+    if (match) {
+      // Convert to MDX comment
+      node.type = 'mdxFlowExpression';
+      node.value = `/* ${match[1]} */`;
+    }
+  });
+};
+
 // previously, this processor was defined in `deserialization-helpers`.
 // upgrading unified there would have involved changing a lot of CJS modules to ESM.
 // this is a sort of workaround to avoid doing all that,
@@ -145,6 +161,7 @@ const processor = unified()
   // won't know how to stringify those nodes.
   .use(remarkGfm)
   .use(remarkMdx)
+  .use(htmlCommentsToJsxComments) // Convert HTML comments back to JSX comments
   .use(stringify, {
     bullet: '*',
     fences: true,
