@@ -11,44 +11,131 @@ This reference covers YAML syntax for advanced users creating custom gateway con
 Gateway configurations use a declarative YAML format:
 
 ```yaml
-version: "2.0.0"
+version: 2.0.0
 autoscaling:
-  minReplicas: 2
+  minReplicas: 6
   maxReplicas: 10
   targetCPUUtilizationPercentage: 60
 configuration:
   simplified/v1:
+    troubleshooting:
+      proxy: false
+      requestTraceLogs: false
     steps:
       receivelogs:
-        description: "Receive logs from agents"
-        output: ["transform/Logs"]
-
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
       transform/Logs:
-        description: "Add environment metadata"
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
         config:
           log_statements:
-            - set(attributes["environment"], "production")
-        output: ["filter/Logs"]
-
-      filter/Logs:
-        description: "Drop debug logs"
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
         config:
-          logs:
-            - 'severity.text == "DEBUG"'
-        output: ["probabilistic_sampler/Logs"]
-
-      probabilistic_sampler/Logs:
-        description: "Sample 10% of logs"
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
         config:
-          globalSamplingPercentage: 10
-        output: ["exportlogs"]
-
-      exportlogs:
-        description: "Export to New Relic"
-        output: []
-troubleshooting:
-  proxy: false
-  requestTraceLogs: false
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+      nrexporter/newrelic:
+        description: Export to New Relic
 ```
 ### Top-level structure
 - `version`: Configuration format version (currently `"2.0.0"`)
@@ -65,7 +152,7 @@ The Gateway configuration follows a directed acyclic graph (DAG) structure where
 - Processors: processortype/TelemetryType format:
   - Transform: transform/Logs, transform/Metrics, transform/Traces
   - Filter: filter/Logs, filter/Metrics, filter/Traces
-  - Sampling: probabilistic_sampler/Logs, probabilistic_sampler/Metrics, probabilistic_sampler/Traces
+  - Sampling: probabilistic_sampler/Logs, probabilistic_sampler/Traces
 - Exporters: exportlogs, exportmetrics, exporttraces
 
 ### Processor configurations
@@ -77,8 +164,9 @@ Gateway supports three primary processor types for transforming, filtering, and 
 Used for modifying, enriching, or parsing telemetry using OTTL (OpenTelemetry Transformation Language).
 
 Config fields:
+- metric_statements: Array for metric transformations (context: metric)
 - log_statements: Array for log transformations (context: log)
-- statements: Array for metrics/traces transformations (context: span)
+- trace_statements: Array for trace transformations (context: span)
 
 #### Filter processor
 Used to drop telemetry records based on boolean expressions.
