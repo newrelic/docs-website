@@ -6,7 +6,7 @@ redirects:
 freshnessValidatedDate: never
 ---
 
-Monitor your NGINX Plus servers running on a host using the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
+Monitor your NGINX Plus servers running on a host using the [NRDOT Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) (recommended) or [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) to send metrics and telemetry data to New Relic.
 
 This integration leverages the OpenTelemetry [prometheusreceiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) and [nginx-prometheus-exporter](https://github.com/nginx/nginx-prometheus-exporter) to monitor your NGINX Plus performance metrics, connection statistics, and server health. The rich HTTP API in NGINX Plus provides significantly more detailed metrics compared to the basic stub status module in standard NGINX.
 
@@ -20,7 +20,20 @@ This integration leverages the OpenTelemetry [prometheusreceiver](https://github
   Dashboard available through the [New Relic NGINX OpenTelemetry Monitor quickstart](https://newrelic.com/instant-observability/nginx-opentelemetry).
 </figcaption>
 
-## Before you begin [#prerequisites]
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-prereqs">
+      NRDOT Collector (Recommended)
+    </TabsBarItem>
+    <TabsBarItem id="otelcol-prereqs">
+      OpenTelemetry Collector Contrib
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-prereqs">
+
+## Before you begin [#prerequisites-nrdot]
 
 Before you begin, ensure you have:
 
@@ -28,7 +41,7 @@ Before you begin, ensure you have:
 - NGINX Plus version [R13](https://docs.nginx.com/nginx/releases/#r13) or higher
 - NGINX Plus with the [HTTP API](https://nginx.org/en/docs/http/ngx_http_api_module.html) module enabled
 - [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter) installed and running alongside your NGINX Plus instance to expose HTTP API metrics in Prometheus format
-- [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest) installed and running on a linux host
+- **[NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest)** installed and running on a Linux host (New Relic's OpenTelemetry distribution)
 - Network access from the linux host to:
     - NGINX Plus HTTP API endpoint
     - Anyone of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) enpoint
@@ -41,11 +54,11 @@ nginx -V 2>&1 | grep -o "nginx/[0-9.]*"
 ```
 Expected output: `nginx/1.25.0` or higher (R13+)
 
-Check OpenTelemetry Collector:
+Check NRDOT Collector:
 ```bash
-otelcol-contrib --version
+nrdot-collector --version
 ```
-Expected output: Version information (minimum v0.88.0 required)
+Expected output: Version information
 
 Test network connectivity:
 ```bash
@@ -56,7 +69,13 @@ curl -I https://otlp.eu01.nr-data.net:4318/v1/metrics
 ```
 Expected output: `HTTP/2 405` (method not allowed is expected)
 
-## Step 1: Configure NGINX Plus [#configure-nginx]
+<Callout variant="tip">
+If any verification step fails, install the missing components before continuing. Need help installing the NRDOT Collector? Check the [installation section](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/README.md#installation) of the nrdot-collector-releases repository.
+
+Note: During installation use `export collector_distro="nrdot-collector"`
+</Callout>
+
+## Step 1: Configure NGINX Plus [#configure-nginx-nrdot]
 
 Configure and enable the [HTTP API module](https://nginx.org/en/docs/http/ngx_http_api_module.html) to expose metrics from your NGINX Plus server.
 
@@ -105,12 +124,12 @@ Configure and enable the [HTTP API module](https://nginx.org/en/docs/http/ngx_ht
   </Collapser>
 </CollapserGroup>
 
-## Step 2: Configure the OpenTelemetry Collector [#configure-collector]
+## Step 2: Configure the NRDOT Collector [#configure-nrdot-collector]
 
-Configure the OpenTelemetry Collector to scrape metrics from your NGINX Plus Prometheus exporter and send them to New Relic.
+Configure the NRDOT Collector to scrape metrics from your NGINX Plus Prometheus exporter and send them to New Relic.
 
 <CollapserGroup>
-  <Collapser id="step2-install-exporter" title="Install NGINX Prometheus exporter">
+  <Collapser id="step2-install-exporter-nrdot" title="Install NGINX Prometheus exporter">
     Install and configure the [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter) to expose NGINX Plus API metrics in Prometheus format:
 
     ```bash
@@ -120,165 +139,673 @@ Configure the OpenTelemetry Collector to scrape metrics from your NGINX Plus Pro
     sudo mv nginx-prometheus-exporter /usr/local/bin/
 
     # Run the exporter (customize the -nginx.scrape-uri as needed)
-    nginx-prometheus-exporter -nginx.scrape-uri=http://127.0.0.1:8080/api
+    nginx-prometheus-exporter -nginx.scrape-uri=http://127.0.0.1:8080/api/9
     ```
 
     By default, the exporter runs on port `9113` and exposes metrics at `/metrics`.
   </Collapser>
 
-  <Collapser id="step2-config-collector" title="Configure collector configuration">
-    Update your OpenTelemetry Collector configuration (typically located at `/etc/otelcol-contrib/config.yaml`). In the configuration snippet below:
+  <Collapser id="step2-config-collector-nrdot" title="Configure collector configuration">
 
-    - Update the `nginx.deployment.name` value with a unique name to identify this NGINX Plus server in your New Relic account
-    - Update the `targets` value to match your Prometheus exporter host and port (default is `127.0.0.1:9113`)
-    - Update the `nginx.server.endpoint` value to match your API status path and port
-    - Update the `filter/nginx_metrics` as per your requirement to ingest additional metrics
+Create your Collector configuration file (typically `/etc/nrdot-collector/nginx-plus-config.yaml`) and add the following sections:
 
-    Merge the receivers, processors, exporters, and service pipelines from the snippet below into your current configuration:
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'nginx-plus'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['127.0.0.1:9113']
+processors:
+  batch:
+    send_batch_size: 1024
+    timeout: 30s
+  filter/nginx_metrics:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - "nginxplus_connections_.*"
+          - "nginxplus_http_requests_.*"
+          - "nginxplus_ssl_.*"
+      exclude:
+        match_type: regexp
+        metric_names:
+          - "nginxplus_server_.*"
+          - "nginxplus_location_zone_.*"
+          - "nginxplus_cache_.*"
+          - "nginxplus_stream_server_.*"
+          - "nginxplus_upstream_.*"
+          - "nginxplus_stream_upstream_.*"
+          - "nginxplus_stream_zone_sync_zone_.*"
+          - "nginxplus_resolver_.*"
+          - "nginxplus_limit_request_.*"
+          - "nginxplus_limit_connection_.*"
+          - "nginxplus_stream_limit_connection_.*"
+          - "nginxplus_worker_.*"
+  resource/nginx:
+    attributes:
+      - key: nginx.server.endpoint
+        value: "http://127.0.0.1:8080/api/9"  # Replace with your endpoint
+        action: insert
+      - key: nginx.deployment.name
+        value: "production-web-01"                    # Replace with your server name
+        action: insert
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+  transform/nginx:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+      - context: resource
+        statements:
+          - delete_key(attributes, "service.name")
+  transform/metadata_nullify:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "")
+          - set(unit, "")
+exporters:
+  otlp_http:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net}
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+service:
+  pipelines:
+    metrics/nginx:
+      receivers: [prometheus]
+      processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+      exporters: [otlp_http]
+```
 
-     ```yaml
-     receivers:
-       prometheus:
-         config:
-           scrape_configs:
-             - job_name: 'nginx-plus'
-               scrape_interval: 30s
-               static_configs:
-                 - targets: ['127.0.0.1:9113']
-     processors:
-       batch:
-         send_batch_size: 1024
-         timeout: 30s
-       filter/nginx_metrics:
-         metrics:
-           include:
-             match_type: regexp
-             metric_names:
-               - "nginxplus_connections_.*"
-               - "nginxplus_http_requests_.*"
-               - "nginxplus_ssl_.*"
-               - "nginxplus_server_.*"
-               - "nginxplus_location_zone_.*"
-               - "nginxplus_cache_.*"
-           exclude:
-             match_type: regexp
-             metric_names:
-               - "nginxplus_stream_server_.*"
-               - "nginxplus_upstream_.*"
-               - "nginxplus_stream_upstream_.*"
-               - "nginxplus_stream_zone_sync_zone_.*"
-               - "nginxplus_resolver_.*"
-               - "nginxplus_limit_request_.*"
-               - "nginxplus_limit_connection_.*"
-               - "nginxplus_stream_limit_connection_.*"
-               - "nginxplus_worker_.*"
-       resource/nginx:
-         attributes:
-           - key: nginx.server.endpoint
-             value: <API_ENDPOINT>
-             action: insert
-           - key: nginx.deployment.name
-             value: <DEPLOYMENT_NAME>
-             action: insert
-       resourcedetection:
-         detectors: [system]
-         system:
-           resource_attributes:
-             host.name:
-               enabled: true
-             host.id:
-               enabled: true
-       transform/nginx:
-         metric_statements:
-           - context: resource
-             statements:
-               - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
-           - context: resource
-             statements:
-               - delete_key(attributes, "service.name")
-     exporters:
-       otlphttp/newrelic:
-         endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
-         headers:
-           api-key: ${env:NEWRELIC_LICENSE_KEY}
-     service:
-       pipelines:
-         metrics/nginx:
-           receivers: [prometheus]
-           processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx]
-           exporters: [otlphttp/newrelic]
-     ```
+  </Collapser>
+  <Collapser id="step2-customize-nrdot" title="Customize the configuration">
+    **Replace these values in the configuration above:**
 
-    Save the file and ensure the `otelcol-contrib` system user can read it.
+    1. **Targets Value**: Change `127.0.0.1:9113` to match your Prometheus exporter host and port
+    2. **Deployment name**: Replace `production-web-01` with a unique identifier for this NGINX server
+    3. **Endpoint URL**: Change `http://127.0.0.1:8080/api/9` to match your api status configuration from Step 2
+
+    **Choosing a good deployment name:**
+    - Use descriptive names like `production-web-01`, `staging-api`, or `prod-lb-01`
+    - Must be unique across all NGINX servers within your New Relic account
+    - This name will appear in dashboards and help you identify specific servers
+    - Keep it short but meaningful for easy filtering and alerting
+  </Collapser>
+
+  <Collapser id="step2-enable-additional-metrics-nrdot" title="(Optional) Enable additional metrics">
+    By default, the configuration collects only core metrics (connections, HTTP requests, and SSL). To enable additional metric categories like server zones, location zones, or cache metrics:
+
+    1. **Identify the metrics you want to enable** from the [metrics list](#metrics) below. Note which category they belong to (e.g., HTTP Server Zones, Location Zones, Cache).
+
+    2. **Move the corresponding metric prefix from `exclude` to `include`** in the `filter/nginx_metrics` processor.
+
+      **Example: Enable HTTP Server Zones metrics**
+
+      Find this line in the `exclude` section:
+      ```yaml
+      filter/nginx_metrics:
+        metrics:
+          include:
+          # existing include metrics
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_server_.*"
+      ```
+
+      Move it to the `include` section:
+      ```yaml
+      filter/nginx_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_connections_.*"
+              - "nginxplus_http_requests_.*"
+              - "nginxplus_ssl_.*"
+              - "nginxplus_server_.*"  # Added to enable server zone metrics
+          exclude:
+            match_type: regexp
+            metric_names:
+              # Remove "nginxplus_server_.*" from here
+              - "nginxplus_location_zone_.*"
+              - "nginxplus_cache_.*"
+              # ... rest of exclude list
+      ```
+
+    3. **Restart the collector** after making changes:
+       ```bash
+       sudo systemctl restart nrdot-collector.service
+       ```
   </Collapser>
 </CollapserGroup>
 
-## Step 3: Set environment variables for the collector [#set-environment]
 
-Inject your New Relic <InlinePopover type="licenseKey"/> and OTLP endpoint into the collector service so the exporter can authenticate.
+## Step 3: Configure environment and update config path [#set-environment-nrdot]
+
+Update the NRDOT Collector configuration to use your NGINX Plus config file and set the OTLP endpoint.
 
 <CollapserGroup>
-  <Collapser id="step3-create-override" title="Create systemd override directory">
-    Create a systemd override directory:
-    ```bash
-    sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
-    ```
+  <Collapser id="step3-get-endpoint-nrdot" title="Get your OTLP endpoint">
+    Before configuring, determine your OTLP endpoint based on your New Relic region. See [Configure endpoint, port, and protocol](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) for the complete list of endpoints and supported ports for your region.
+    
+    For example:
+    - **US region**: `https://otlp.nr-data.net:4318`
+    - **EU region**: `https://otlp.eu01.nr-data.net:4318`
+
   </Collapser>
 
-  <Collapser id="step3-set-credentials" title="Set New Relic credentials">
-    Write `environment.conf` with your OTLP endpoint. Replace `YOUR_LICENSE_KEY` with the New Relic license key and `YOUR_OTLP_ENDPOINT` with the appropriate endpoint for your region. Refer to the OTLP endpoint configuration [documentation](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) to select the right endpoint.
+  <Collapser id="step3-configure-env-nrdot" title="Update the configuration file path and endpoint">
 
-    ```bash
-    cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
-    [Service]
-    Environment="NEWRELIC_OTLP_ENDPOINT=YOUR_OTLP_ENDPOINT"
-    Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
-    EOF
-    ```
-  </Collapser>
+<Callout variant="important">
+**Note:** Your license key was already configured in `/etc/nrdot-collector/nrdot-collector.conf` during installation. You only need to update the config file path and OTLP endpoint.
+</Callout>
 
-  <Collapser id="step3-restart-collector" title="Restart the collector">
-    Reload systemd and restart the collector:
-    ```bash
-    sudo systemctl daemon-reload
-    sudo systemctl restart otelcol-contrib.service
-    ```
+**Update the collector configuration file:**
+```bash
+export collector_distro="nrdot-collector"
+export otlp_endpoint="https://otlp.nr-data.net:4318"  # Replace with your region's endpoint
+
+# Update the config file path to point to nginx-plus-config.yaml
+sudo sed -i 's|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/config.yaml"|OTELCOL_OPTIONS="--config=/etc/nrdot-collector/nginx-plus-config.yaml"|' /etc/${collector_distro}/${collector_distro}.conf
+
+# Add the OTLP endpoint
+echo "OTEL_EXPORTER_OTLP_ENDPOINT=${otlp_endpoint}" | sudo tee -a /etc/${collector_distro}/${collector_distro}.conf > /dev/null
+```
+
+**Replace the endpoint:**
+- Change `https://otlp.nr-data.net:4318` to match your New Relic region's endpoint
+
   </Collapser>
 </CollapserGroup>
 
-## Step 4: Verify data collection [#verify-data]
+## Step 4: Start monitoring [#start-monitoring-nrdot]
 
-Confirm that the OpenTelemetry Collector is successfully collecting NGINX Plus metrics and sending them to New Relic.
+Now that everything is configured, start the NRDOT Collector and verify that data is flowing to New Relic.
 
 <CollapserGroup>
-  <Collapser id="step4-check-logs" title="Check collector logs">
-    Monitor the collector logs to ensure it's running without errors:
+  <Collapser id="step4-start-collector-nrdot" title="Start the Collector">
+    
+    1. **Apply the configuration changes:**
+       ```bash
+       sudo systemctl daemon-reload
+       sudo systemctl restart nrdot-collector.service
+       ```
 
-    ```bash
-    sudo journalctl -u otelcol-contrib.service -n 20
-    ```
-
-    **Look for these success indicators:**
-    - ✅ `"Everything is ready. Begin running and processing data."`
-    - ✅ `"Scraping metrics"` - Successfully collecting from Prometheus exporter
-    - ✅ `"Exporting metrics"` - Successfully sending to New Relic
+    2. **Verify the service is running:**
+       ```bash
+       sudo systemctl status nrdot-collector.service
+       ```
+       Expected output: `Active: active (running)` with no recent errors
   </Collapser>
 
-  <Collapser id="step4-test-traffic" title="Generate test traffic">
-    Generate test traffic to create metrics:
+  <Collapser id="step4-verify-data-nrdot" title="Verify data collection">
+    3. **Check startup logs:**
+       ```bash
+       sudo journalctl -u nrdot-collector.service -n 20
+       ```
 
-    ```bash
-    # Make a few requests to your NGINX Plus server
-    curl http://localhost
-    ```
-  </Collapser>
+       **Look for these success indicators:**
+       - ✅ `"Everything is ready. Begin running and processing data."`
+       - ✅ `"Scraping metrics"` - Successfully collecting from Prometheus exporter
+       - ✅ `"Exporting metrics"` - Successfully sending to New Relic
 
-  <Collapser id="step4-verify-dashboard" title="Verify data in New Relic">
-    Access your [NGINX dashboard](/docs/opentelemetry/nginx/find-and-query-your-data#find-data) to verify data collection.
+    4. **Generate test traffic (to create metrics):**
+       ```bash
+       # Make a few requests to your NGINX Plus server
+       curl http://localhost
+       ```
+
+    5. Allow time for initial data to appear in New Relic, then access your [NGINX dashboard](/docs/opentelemetry/nginx/find-and-query-your-data#find-data) to verify data collection.
   </Collapser>
 </CollapserGroup>
 
-## Step 5: (Optional) Forward NGINX logs [#forward-logs]
+
+## Step 5: (Optional) Forward NGINX logs [#forward-logs-nrdot]
+
+Extend your collector configuration to include access and error logs if you want log events alongside metrics.
+
+### Configure NGINX Plus log format
+
+Before forwarding logs, configure NGINX Plus to use a structured log format. Refer to the [NGINX logging documentation](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/) for guidance on configuring access and error logs.
+
+### Configure the NRDOT Collector for log forwarding
+
+1. Note the full paths to your NGINX access and error log files. Defaults are usually `/var/log/nginx/access.log` and `/var/log/nginx/error.log`.
+
+2. Update `/etc/nrdot-collector/nginx-plus-config.yaml` to add a `filelog` receiver and log pipeline:
+
+   ```yaml
+   receivers:
+     prometheus:
+       # existing Prometheus receiver configuration
+     filelog/nginx_access_logs:
+       include:
+         - /var/log/nginx/access.log
+     filelog/nginx_error_logs:
+       include:
+         - /var/log/nginx/error.log
+
+   processors:
+     batch:
+       # existing settings
+     filter/nginx_metrics:
+       # existing settings
+     resourcedetection:
+       # existing settings
+     resource/nginx:
+       # existing settings
+     transform/nginx_metrics:
+       # existing settings
+     transform/nginx_access_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx")
+     transform/nginx_error_logs:
+       log_statements:
+         - context: resource
+           statements:
+             - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+             - set(attributes["logtype"], "nginx-error")
+
+   exporters:
+     # existing exporter setup
+
+   service:
+     pipelines:
+       # Your existing metrics pipeline...
+
+       # Add log pipelines
+       logs/nginx-access:
+         receivers: [filelog/nginx_access_logs]
+         processors: [batch, resource/nginx, transform/nginx_access_logs]
+         exporters: [otlp_http]
+       logs/nginx-error:
+         receivers: [filelog/nginx_error_logs]
+         processors: [batch, resource/nginx, transform/nginx_error_logs]
+         exporters: [otlp_http]
+   ```
+
+3. Grant the collector user read access to the log files:
+
+   ```bash
+   sudo usermod -a -G adm nrdot-collector
+   sudo chmod 644 /var/log/nginx/access.log
+   sudo chmod 644 /var/log/nginx/error.log
+   ```
+
+4. Restart the collector to apply the changes:
+
+   ```bash
+   sudo systemctl restart nrdot-collector
+   ```
+
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-prereqs">
+
+## Before you begin [#prerequisites-otelcol]
+
+Before you begin, ensure you have:
+
+- A [New Relic account](https://newrelic.com/signup) with a <InlinePopover type="licenseKey"/>
+- NGINX Plus version [R13](https://docs.nginx.com/nginx/releases/#r13) or higher
+- NGINX Plus with the [HTTP API](https://nginx.org/en/docs/http/ngx_http_api_module.html) module enabled
+- [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter) installed and running alongside your NGINX Plus instance to expose HTTP API metrics in Prometheus format
+- **[OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)** installed and running on a Linux host
+- Network access from the linux host to:
+    - NGINX Plus HTTP API endpoint
+    - Anyone of the [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) enpoint
+
+### Verify your setup
+
+Check NGINX Plus version:
+```bash
+nginx -V 2>&1 | grep -o "nginx/[0-9.]*"
+```
+Expected output: `nginx/1.25.0` or higher (R13+)
+
+Check OpenTelemetry Collector:
+```bash
+otelcol-contrib --version
+```
+Expected output: Version information (minimum v0.88.0 required)
+
+Test network connectivity:
+```bash
+# For US region
+curl -I https://otlp.nr-data.net:4318/v1/metrics
+# For EU region
+curl -I https://otlp.eu01.nr-data.net:4318/v1/metrics
+```
+Expected output: `HTTP/2 405` (method not allowed is expected)
+
+<Callout variant="tip">
+If any verification step fails, install the missing components before continuing. Need help installing the Collector? Check the [OpenTelemetry Collector installation guide](https://github.com/open-telemetry/opentelemetry-collector-contrib).
+</Callout>
+
+## Step 1: Configure NGINX Plus [#configure-nginx-otelcol]
+
+Configure and enable the [HTTP API module](https://nginx.org/en/docs/http/ngx_http_api_module.html) to expose metrics from your NGINX Plus server.
+
+<CollapserGroup>
+  <Collapser id="step1-enable-api-otelcol" title="Enable HTTP API module">
+    Add the HTTP API configuration to your `nginx.conf` file. Typically add this within the `http` block:
+
+    ```nginx
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location /api {
+            api write=on;
+            # Restrict access as needed
+            allow 127.0.0.1;
+            deny all;
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="step1-test-reload-otelcol" title="Test and reload configuration">
+    After updating `nginx.conf`, test and reload the service:
+
+    ```bash
+    sudo nginx -t && sudo nginx -s reload
+    ```
+  </Collapser>
+
+  <Collapser id="step1-verify-api-otelcol" title="Verify API endpoint">
+    Confirm the API endpoint path (including version) exposed in your configuration. Record the full API endpoint path (without the leading slash) and the port that serves it. Common defaults are `api/9` on port `8080`.
+
+    Use `curl` to confirm your API endpoint is reachable:
+
+    ```bash
+    curl -I http://127.0.0.1:8080/api/9 2>/dev/null | head -n 1 | cut -d$' ' -f1,2
+    ```
+
+    Expected output:
+    ```
+    HTTP/1.1 200
+    ```
+
+    If you see a different response, verify your NGINX Plus configuration and ensure the API module is properly enabled.
+  </Collapser>
+</CollapserGroup>
+
+## Step 2: Configure the OpenTelemetry Collector [#configure-otelcol-collector]
+
+Configure the OpenTelemetry Collector to scrape metrics from your NGINX Plus Prometheus exporter and send them to New Relic.
+
+<CollapserGroup>
+  <Collapser id="step2-install-exporter-otelcol" title="Install NGINX Prometheus exporter">
+    Install and configure the [NGINX Prometheus exporter](https://github.com/nginx/nginx-prometheus-exporter) to expose NGINX Plus API metrics in Prometheus format:
+
+    ```bash
+    # Download and install the exporter
+    wget https://github.com/nginx/nginx-prometheus-exporter/releases/latest/download/nginx-prometheus-exporter_linux_amd64.tar.gz
+    tar -xzf nginx-prometheus-exporter_linux_amd64.tar.gz
+    sudo mv nginx-prometheus-exporter /usr/local/bin/
+
+    # Run the exporter (customize the -nginx.scrape-uri as needed)
+    nginx-prometheus-exporter -nginx.scrape-uri=http://127.0.0.1:8080/api/9
+    ```
+
+    By default, the exporter runs on port `9113` and exposes metrics at `/metrics`.
+  </Collapser>
+
+  <Collapser id="step2-config-collector-otelcol" title="Configure collector configuration">
+
+<Callout variant="important">
+**Before editing:** Back up your existing configuration: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+</Callout>
+
+Edit your Collector configuration file (typically `/etc/otelcol-contrib/config.yaml`) and add the following sections. If you already have receivers, processors, or exporters sections, merge these with your existing configuration:
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'nginx-plus'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['127.0.0.1:9113']
+processors:
+  batch:
+    send_batch_size: 1024
+    timeout: 30s
+  filter/nginx_metrics:
+    metrics:
+      include:
+        match_type: regexp
+        metric_names:
+          - "nginxplus_connections_.*"
+          - "nginxplus_http_requests_.*"
+          - "nginxplus_ssl_.*"
+      exclude:
+        match_type: regexp
+        metric_names:
+          - "nginxplus_server_.*"
+          - "nginxplus_location_zone_.*"
+          - "nginxplus_cache_.*"
+          - "nginxplus_stream_server_.*"
+          - "nginxplus_upstream_.*"
+          - "nginxplus_stream_upstream_.*"
+          - "nginxplus_stream_zone_sync_zone_.*"
+          - "nginxplus_resolver_.*"
+          - "nginxplus_limit_request_.*"
+          - "nginxplus_limit_connection_.*"
+          - "nginxplus_stream_limit_connection_.*"
+          - "nginxplus_worker_.*"
+  resource/nginx:
+    attributes:
+      - key: nginx.server.endpoint
+        value: "http://127.0.0.1:8080/api/9"  # Replace with your endpoint
+        action: insert
+      - key: nginx.deployment.name
+        value: "production-web-01"                    # Replace with your server name
+        action: insert
+  resourcedetection:
+    detectors: [system]
+    system:
+      resource_attributes:
+        host.name:
+          enabled: true
+        host.id:
+          enabled: true
+  transform/nginx:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+      - context: resource
+        statements:
+          - delete_key(attributes, "service.name")
+  transform/metadata_nullify:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "")
+          - set(unit, "")
+exporters:
+  otlp_http:
+    endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+    headers:
+      api-key: ${env:NEWRELIC_LICENSE_KEY}
+service:
+  pipelines:
+    metrics/nginx:
+      receivers: [prometheus]
+      processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx, transform/metadata_nullify]
+      exporters: [otlp_http]
+```
+
+  </Collapser>
+  <Collapser id="step2-customize-otelcol" title="Customize the configuration">
+    **Replace these values in the configuration above:**
+
+    1. **Targets Value**: Change `127.0.0.1:9113` to match your Prometheus exporter host and port
+    2. **Deployment name**: Replace `production-web-01` with a unique identifier for this NGINX server
+    3. **Endpoint URL**: Change `http://127.0.0.1:8080/api/9` to match your api status configuration from Step 2
+
+    **Choosing a good deployment name:**
+    - Use descriptive names like `production-web-01`, `staging-api`, or `prod-lb-01`
+    - Must be unique across all NGINX servers within your New Relic account
+    - This name will appear in dashboards and help you identify specific servers
+    - Keep it short but meaningful for easy filtering and alerting
+  </Collapser>
+
+  <Collapser id="step2-enable-additional-metrics-otelcol" title="(Optional) Enable additional metrics">
+    By default, the configuration collects only core metrics (connections, HTTP requests, and SSL). To enable additional metric categories like server zones, location zones, or cache metrics:
+
+    1. **Identify the metrics you want to enable** from the [metrics list](#metrics) below. Note which category they belong to (e.g., HTTP Server Zones, Location Zones, Cache).
+
+    2. **Move the corresponding metric prefix from `exclude` to `include`** in the `filter/nginx_metrics` processor.
+
+      **Example: Enable HTTP Server Zones metrics**
+
+      Find this line in the `exclude` section:
+      ```yaml
+      filter/nginx_metrics:
+        metrics:
+          include:
+          # existing include metrics
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_server_.*"
+      ```
+
+      Move it to the `include` section:
+      ```yaml
+      filter/nginx_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - "nginxplus_connections_.*"
+              - "nginxplus_http_requests_.*"
+              - "nginxplus_ssl_.*"
+              - "nginxplus_server_.*"  # Added to enable server zone metrics
+          exclude:
+            match_type: regexp
+            metric_names:
+              # Remove "nginxplus_server_.*" from here
+              - "nginxplus_location_zone_.*"
+              - "nginxplus_cache_.*"
+              # ... rest of exclude list
+      ```
+
+    3. **Restart the collector** after making changes:
+       ```bash
+       sudo systemctl restart otelcol-contri.service
+       ```
+  </Collapser>
+</CollapserGroup>
+
+
+## Step 3: Set up authentication [#set-environment-otelcol]
+
+Configure secure authentication so the OpenTelemetry Collector can send data to your New Relic account. This step sets up environment variables to keep your credentials secure.
+
+<CollapserGroup>
+  <Collapser id="step3-get-credentials-otelcol" title="Get your New Relic credentials">
+    Before configuring authentication, gather these two pieces of information:
+
+    1. **Your License Key:**
+        - Go to [one.newrelic.com](https://one.newrelic.com) → **API Keys**
+        - Find "Ingest - License" section → Click **Show key**
+        - Copy the license key (starts with "NRAK-...")
+
+    2. **Your OTLP Endpoint:**
+        Use the appropriate endpoint for your New Relic region. See [Configure endpoint, port, and protocol](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) for the complete list of endpoints and supported ports for your region.
+          For example:
+          - **US region**: `https://otlp.nr-data.net:4318`
+          - **EU region**: `https://otlp.eu01.nr-data.net:4318`
+
+  </Collapser>
+
+  <Collapser id="step3-configure-credentials-otelcol" title="Configure the credentials">
+
+**Create a systemd override directory:**
+```bash
+export collector_distro="otelcol-contrib"
+sudo mkdir -p /etc/systemd/system/${collector_distro}.service.d
+```
+
+**Create the environment configuration file:**
+```bash
+cat <<EOF | sudo tee /etc/systemd/system/${collector_distro}.service.d/environment.conf
+[Service]
+Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+EOF
+```
+
+**Update the configuration with your credentials:**
+- Replace `https://otlp.nr-data.net:4318` with your region's endpoint
+- Replace `YOUR_LICENSE_KEY_HERE` with your actual license key from above
+
+  </Collapser>
+</CollapserGroup>
+
+## Step 4: Start monitoring [#start-monitoring-otelcol]
+
+Now that everything is configured, start the OpenTelemetry Collector and verify that data is flowing to New Relic.
+
+<CollapserGroup>
+  <Collapser id="step4-start-collector-otelcol" title="Start the Collector">
+    
+    1. **Apply the configuration changes:**
+       ```bash
+       sudo systemctl daemon-reload
+       sudo systemctl restart otelcol-contrib.service
+       ```
+
+    2. **Verify the service is running:**
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       ```
+       Expected output: `Active: active (running)` with no recent errors
+  </Collapser>
+
+  <Collapser id="step4-verify-data-otelcol" title="Verify data collection">
+    3. **Check startup logs:**
+       ```bash
+       sudo journalctl -u otelcol-contrib.service -n 20
+       ```
+
+       **Look for these success indicators:**
+       - ✅ `"Everything is ready. Begin running and processing data."`
+       - ✅ `"Scraping metrics"` - Successfully collecting from Prometheus exporter
+       - ✅ `"Exporting metrics"` - Successfully sending to New Relic
+
+    4. **Generate test traffic (to create metrics):**
+       ```bash
+       # Make a few requests to your NGINX Plus server
+       curl http://localhost
+       ```
+
+    5. Allow time for initial data to appear in New Relic, then access your [NGINX dashboard](/docs/opentelemetry/nginx/find-and-query-your-data#find-data) to verify data collection.
+  </Collapser>
+</CollapserGroup>
+
+
+## Step 5: (Optional) Forward NGINX logs [#forward-logs-otelcol]
 
 Extend your collector configuration to include access and error logs if you want log events alongside metrics.
 
@@ -332,18 +859,17 @@ Before forwarding logs, configure NGINX Plus to use a structured log format. Ref
 
    service:
      pipelines:
-       metrics/nginx:
-         receivers: [prometheus]
-         processors: [batch, filter/nginx_metrics, resourcedetection, resource/nginx, transform/nginx_metrics]
-         exporters: [otlphttp/newrelic]
+       # Your existing metrics pipeline...
+
+       # Add log pipelines
        logs/nginx-access:
          receivers: [filelog/nginx_access_logs]
          processors: [batch, resource/nginx, transform/nginx_access_logs]
-         exporters: [otlphttp/newrelic]
+         exporters: [otlp_http]
        logs/nginx-error:
          receivers: [filelog/nginx_error_logs]
          processors: [batch, resource/nginx, transform/nginx_error_logs]
-         exporters: [otlphttp/newrelic]
+         exporters: [otlp_http]
    ```
 
 3. Grant the `otelcol-contrib` user read access to the log files:
@@ -359,6 +885,10 @@ Before forwarding logs, configure NGINX Plus to use a structured log format. Ref
    ```bash
    sudo systemctl restart otelcol-contrib
    ```
+
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
 
 ## Find and use data [#find-data]
 
@@ -549,6 +1079,11 @@ Below are the available NGINX Plus metrics:
     id="plus-server-zone"
     title="HTTP Server Zones"
   >
+
+<Callout variant="important">
+  **Note:** These metrics are disabled by default. To enable them, see [(Optional) Enable additional metrics](#step2-enable-additional-metrics-nrdot) for NRDOT Collector or [(Optional) Enable additional metrics](#step2-enable-additional-metrics-otelcol) for OpenTelemetry Collector Contrib.
+</Callout>
+
     <table>
       <thead>
         <tr>
@@ -682,6 +1217,11 @@ Below are the available NGINX Plus metrics:
     id="plus-location-zones"
     title="Location Zones"
   >
+
+<Callout variant="important">
+  **Note:** These metrics are disabled by default. To enable them, see [(Optional) Enable additional metrics](#step2-enable-additional-metrics-nrdot) for NRDOT Collector or [(Optional) Enable additional metrics](#step2-enable-additional-metrics-otelcol) for OpenTelemetry Collector Contrib.
+</Callout>
+
     <table>
       <thead>
         <tr>
@@ -771,6 +1311,11 @@ Below are the available NGINX Plus metrics:
     id="plus-cache"
     title="Cache"
   >
+
+<Callout variant="important">
+  **Note:** These metrics are disabled by default. To enable them, see [(Optional) Enable additional metrics](#step2-enable-additional-metrics-nrdot) for NRDOT Collector or [(Optional) Enable additional metrics](#step2-enable-additional-metrics-otelcol) for OpenTelemetry Collector Contrib.
+</Callout>
+
     <table>
       <thead>
         <tr>
