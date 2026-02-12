@@ -30,23 +30,24 @@ OTTL operates in different contexts depending on the telemetry type:
 Add a transform processor to your pipeline:
 
 ```yaml
-configuration:
-  simplified/v1:
-    steps:
-      transform/Logs:
-        description: "Add environment tags and parse logs"
-        config:
-          log_statements:
-            - set(attributes["environment"], "production")
-            - set(attributes["region"], "us-east-1")
-        output: ["filter/Logs"]
+transform/Logs:
+  description: Transform and process logs
+  config:
+    log_statements:
+      - context: log
+        name: add new field to attribute
+        description: for otlp-test-service application add otlp source type field
+        conditions:
+          - resource.attributes["service.name"] == "otlp-java-test-service"
+        statements:
+          - set(resource.attributes["source.type"],"otlp")
 ```
 
 **Config fields**:
 - `log_statements`: Array of OTTL statements for log transformations (context: log)
 - `metric_statements`: Array of OTTL statements for metric transformations (context: metric)
 - `trace_statements`: Array of OTTL statements for trace transformations (context: trace)
-- `conditions`: Array of boolean OTTL conditions that determine whether statements are evaluated
+{/* - `conditions`: Array of boolean OTTL conditions that determine whether statements are evaluated */}
 
 ## Key OTTL functions
 
@@ -54,82 +55,74 @@ configuration:
 Sets an attribute value.
 
 ```yaml
-log_statements:
-  - set(attributes["environment"], "production")
-  - set(attributes["team"], "platform")
-  - set(severity.text, "ERROR") where severity.number >= 17
+- set(attributes["environment"], "production")
+- set(attributes["team"], "platform")
+- set(severity.text, "ERROR") where severity.number >= 17
 ```
 
 ### delete_key()
 Removes an attribute.
 
 ```yaml
-log_statements:
-  - delete_key(attributes, "internal_debug_info")
-  - delete_key(attributes, "temp_field")
+- delete_key(attributes, "internal_debug_info")
+- delete_key(attributes, "temp_field")
 ```
 
 ### replace_pattern()
 Replaces text matching a regex pattern.
 
 ```yaml
-log_statements:
   # Redact email addresses
-  - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+- replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
 
   # Mask passwords
-  - replace_pattern(attributes["password"], ".+", "password=***REDACTED***")
+- replace_pattern(attributes["password"], ".+", "password=***REDACTED***")
 
   # Obfuscate all non-whitespace (extreme)
-  - replace_pattern(body, "[^\\s]*(\\s?)", "****")
+- replace_pattern(body, "[^\\s]*(\\s?)", "****")
 ```
 
 ### Hash()
 Hashes a value for pseudonymization.
 
 ```yaml
-log_statements:
-  - set(attributes["user_id_hash"], Hash(attributes["user_id"]))
-  - delete_key(attributes, "user_id")
+- set(attributes["user_id_hash"], Hash(attributes["user_id"]))
+- delete_key(attributes, "user_id")
 ```
 
 ### ParseJSON()
 Extracts attributes from JSON strings.
 
 ```yaml
-log_statements:
   # Parse JSON body into attributes
-  - merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
+- merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
 ```
 
 ### ExtractGrokPatterns()
 Parses structured data using Grok patterns.
 
 ```yaml
-log_statements:
   # Parse JSON log format
-  - ExtractGrokPatterns(body, "\\{\"timestamp\":\\s*\"%{TIMESTAMP_ISO8601:extracted_timestamp}\",\\s*\"level\":\\s*\"%{WORD:extracted_level}\",\\s*\"message\":\\s*\"Elapsed time:\\s*%{NUMBER:elapsed_time}ms\"\\}")
+- ExtractGrokPatterns(body, "\\{\"timestamp\":\\s*\"%{TIMESTAMP_ISO8601:extracted_timestamp}\",\\s*\"level\":\\s*\"%{WORD:extracted_level}\",\\s*\"message\":\\s*\"Elapsed time:\\s*%{NUMBER:elapsed_time}ms\"\\}")
 
   # Parse custom format with custom pattern
-  - ExtractGrokPatterns(attributes["custom_field"], "%{USERNAME:user.name}:%{PASSWORD:user.password}", true, ["PASSWORD=%{GREEDYDATA}"])
+- ExtractGrokPatterns(attributes["custom_field"], "%{USERNAME:user.name}:%{PASSWORD:user.password}", true, ["PASSWORD=%{GREEDYDATA}"])
 ```
 
 ### flatten()
 Flattens nested map attributes.
 
 ```yaml
-log_statements:
   # Flatten nested map to top-level attributes
-  - flatten(attributes["map.attribute"])
+- flatten(attributes["map.attribute"])
 ```
 
 ### limit()
 Limits number of attributes, keeping specified priority keys.
 
 ```yaml
-log_statements:
   # Keep only 3 attributes, prioritizing "array.attribute"
-  - limit(attributes, 3, ["array.attribute"])
+- limit(attributes, 3, ["array.attribute"])
 ```
 
 ## Complete examples
@@ -141,11 +134,14 @@ transform/Logs:
   description: "Enrich logs with environment context"
   config:
     log_statements:
-      - set(attributes["environment"], "production")
-      - set(attributes["region"], "us-east-1")
-      - set(attributes["team"], "platform-engineering")
-      - set(attributes["cost_center"], "eng-infra")
-  output: ["filter/Logs"]
+      - context: log
+        name: enrich-with-environment-metadata
+        description: Add environment, region, team, and cost center metadata to all logs
+        statements:
+          - set(attributes["environment"], "production")
+          - set(attributes["region"], "us-east-1")
+          - set(attributes["team"], "platform-engineering")
+          - set(attributes["cost_center"], "eng-infra")
 ```
 
 ### Example 2: Normalize severity levels
@@ -157,15 +153,43 @@ transform/Logs:
   description: "Normalize severity naming"
   config:
     log_statements:
-      # Convert "level" to "severity.text"
-      - set(severity.text, attributes["level"]) where attributes["level"] != nil
-      - delete_key(attributes, "level")
-
-      # Normalize case
-      - set(severity.text, "ERROR") where severity.text == "error"
-      - set(severity.text, "WARN") where severity.text == "warning"
-      - set(severity.text, "INFO") where severity.text == "info"
-  output: ["filter/Logs"]
+      - context: log
+        name: convert-level-to-severity
+        description: Convert custom level attribute to severity_text
+        conditions:
+          - attributes["level"] != nil
+        statements:
+          - set(severity_text, attributes["level"])
+      
+      - context: log
+        name: delete-level-attribute
+        description: Remove the redundant level attribute after conversion
+        statements:
+          - delete_key(attributes, "level")
+      
+      - context: log
+        name: normalize-error-case
+        description: Normalize error severity to uppercase ERROR
+        conditions:
+          - severity_text == "error"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: normalize-warning-case
+        description: Normalize warning severity to uppercase WARN
+        conditions:
+          - severity_text == "warning"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: normalize-info-case
+        description: Normalize info severity to uppercase INFO
+        conditions:
+          - severity_text == "info"
+        statements:
+          - set(severity_text, "INFO")
 ```
 
 ### Example 3: Parse JSON log bodies
@@ -177,8 +201,13 @@ transform/Logs:
   description: "Parse JSON logs into attributes"
   config:
     log_statements:
-      - merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
-  output: ["filter/Logs"]
+      - context: log
+        name: parse-json-body-to-attributes
+        description: Parse JSON log body and merge into attributes
+        conditions:
+          - IsString(body)
+        statements:
+          - merge_maps(attributes, ParseJSON(body), "upsert")
 ```
 
 **Before**: `body = '{"timestamp": "2025-03-01T12:12:14Z", "level":"INFO", "message":"Elapsed time: 10ms"}'`
@@ -194,8 +223,12 @@ transform/Logs:
   description: "Extract HTTP status from message"
   config:
     log_statements:
-      - ExtractGrokPatterns(body, "status=%{NUMBER:http.status_code}")
-  output: ["filter/Logs"]
+      - context: log
+        name: extract-http-status-code
+        description: Extract HTTP status code from log body using regex pattern
+        statements:
+          - ExtractPatterns(body, "status=(\\d+)")
+          - set(attributes["http.status_code"], body)
 ```
 
 ### Example 5: Redact PII
@@ -207,19 +240,36 @@ transform/Logs:
   description: "Redact PII for compliance"
   config:
     log_statements:
-      # Redact emails
-      - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
-
-      # Mask passwords
-      - replace_pattern(attributes["password"], ".+", "***REDACTED***")
-
-      # Hash user IDs
-      - set(attributes["user_id_hash"], Hash(attributes["user_id"]))
-      - delete_key(attributes, "user_id")
-
-      # Mask credit cards (matches various formats)
-      - replace_pattern(body, "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", "****-****-****-****")
-  output: ["exportlogs"]
+      - context: log
+        name: redact-email-addresses
+        description: Redact email addresses from user_email attribute
+        conditions:
+          - attributes["user_email"] != nil
+        statements:
+          - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+      
+      - context: log
+        name: mask-passwords
+        description: Mask password attribute values
+        conditions:
+          - attributes["password"] != nil
+        statements:
+          - replace_pattern(attributes["password"], ".+", "***REDACTED***")
+      
+      - context: log
+        name: hash-user-ids
+        description: Hash user IDs and remove original value
+        conditions:
+          - attributes["user_id"] != nil
+        statements:
+          - set(attributes["user_id_hash"], SHA256(attributes["user_id"]))
+          - delete_key(attributes, "user_id")
+      
+      - context: log
+        name: mask-credit-cards-in-body
+        description: Mask credit card numbers in log body
+        statements:
+          - replace_pattern(body, "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", "****-****-****-****")
 ```
 
 ### Example 6: Parse NGINX access logs
@@ -228,14 +278,40 @@ Extract structured fields from NGINX combined log format:
 
 ```yaml
 transform/Logs:
-  description: "Parse NGINX access logs"
+  description: "Parse and enrich NGINX access logs"
   config:
     log_statements:
-      - ExtractGrokPatterns(body, "%{IPORHOST:client.ip} - %{USER:client.user} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:http.method} %{URIPATHPARAM:http.path} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.status_code} %{NUMBER:http.response_size}")
-
-      # Add error severity for 5xx status codes
-      - set(severity.text, "ERROR") where attributes["http.status_code"] >= "500"
-  output: ["filter/Logs"]
+      - context: log
+        name: extract-nginx-fields
+        description: Parse NGINX access log format into structured attributes
+        statements:
+          - ExtractGrokPatterns(body, "%{IPORHOST:client.ip} - %{USER:client.user} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:http.method} %{URIPATHPARAM:http.path} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.status_code} %{NUMBER:http.response_size}")
+      
+      - context: log
+        name: set-severity-for-server-errors
+        description: Set severity to ERROR for 5xx server errors
+        conditions:
+          - attributes["http.status_code"] >= "500"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: set-severity-for-client-errors
+        description: Set severity to WARN for 4xx client errors
+        conditions:
+          - attributes["http.status_code"] >= "400"
+          - attributes["http.status_code"] < "500"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: set-severity-for-success
+        description: Set severity to INFO for successful requests
+        conditions:
+          - attributes["http.status_code"] >= "200"
+          - attributes["http.status_code"] < "400"
+        statements:
+          - set(severity_text, "INFO")
 ```
 
 ### Example 7: Flatten nested attributes
@@ -247,14 +323,26 @@ transform/Logs:
   description: "Flatten nested map attributes"
   config:
     log_statements:
-      - flatten(attributes["kubernetes"])
-      - flatten(attributes["cloud.provider"])
-  output: ["filter/Logs"]
+      - context: log
+        name: flatten-kubernetes-attributes
+        description: Flatten nested kubernetes attributes into dot notation
+        conditions:
+          - attributes["kubernetes"] != nil
+        statements:
+          - flatten(attributes["kubernetes"])
+      
+      - context: log
+        name: flatten-cloud-provider-attributes
+        description: Flatten nested cloud provider attributes into dot notation
+        conditions:
+          - attributes["cloud.provider"] != nil
+        statements:
+          - flatten(attributes["cloud.provider"])
 ```
 
-**Before**: `attributes.kubernetes = {pod: "app-123", namespace: "production"}`
+**Before**: `attributes["kubernetes"] = {"pod": {"name": "my-app-123", "uid": "abc-xyz"},"namespace": {"name": "production"}}`
 
-**After**: `attributes.kubernetes.pod = "app-123"`, `attributes.kubernetes.namespace = "production"`
+**After**: Attributes flattened: `kubernetes.pod.name`, `kubernetes.pod.uid`, `kubernetes.namespace.name`
 
 ### Example 8: Conditional transformations
 
@@ -265,17 +353,36 @@ transform/Logs:
   description: "Conditional enrichment"
   config:
     log_statements:
-      # Add "business_critical" tag for specific services
-      - set(attributes["business_criticality"], "HIGH") where attributes["service.name"] == "checkout" or attributes["service.name"] == "payment"
-
-      # Normalize environment names
-      - set(attributes["deployment.environment"], "production") where attributes["env"] == "prod" or attributes["environment"] == "prd"
-      - set(attributes["deployment.environment"], "staging") where attributes["env"] == "stg" or attributes["environment"] == "stage"
-
-      # Clean up old fields
-      - delete_key(attributes, "env")
-      - delete_key(attributes, "environment")
-  output: ["filter/Logs"]
+      - context: log
+        name: tag-critical-services
+        description: Add business criticality tag for checkout and payment services
+        conditions:
+          - resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"
+        statements:
+          - set(attributes["business_criticality"], "HIGH")
+      
+      - context: log
+        name: normalize-production-environment
+        description: Normalize production environment names to standard format
+        conditions:
+          - attributes["env"] == "prod" or attributes["environment"] == "prd"
+        statements:
+          - set(attributes["deployment.environment"], "production")
+      
+      - context: log
+        name: normalize-staging-environment
+        description: Normalize staging environment names to standard format
+        conditions:
+          - attributes["env"] == "stg" or attributes["environment"] == "stage"
+        statements:
+          - set(attributes["deployment.environment"], "staging")
+      
+      - context: log
+        name: cleanup-legacy-env-fields
+        description: Remove old environment attribute fields after normalization
+        statements:
+          - delete_key(attributes, "env")
+          - delete_key(attributes, "environment")
 ```
 
 ### Example 9: Data type conversion
@@ -287,13 +394,27 @@ transform/Logs:
   description: "Convert data types"
   config:
     log_statements:
-      # Convert string "true"/"false" to boolean
-      - set(attributes["is_error"], Bool(attributes["error_flag"]))
-      - set(attributes["success"], Bool("true"))
-
-      # Convert strings to numbers
-      - set(attributes["retry_count"], Int(attributes["retry_count_string"]))
-  output: ["filter/Logs"]
+      - context: log
+        name: convert-error-flag-to-boolean
+        description: Convert string error_flag to boolean is_error attribute
+        conditions:
+          - attributes["error_flag"] != nil
+        statements:
+          - set(attributes["is_error"], Bool(attributes["error_flag"]))
+      
+      - context: log
+        name: set-success-boolean
+        description: Set success attribute to boolean true
+        statements:
+          - set(attributes["success"], Bool("true"))
+      
+      - context: log
+        name: convert-retry-count-to-int
+        description: Convert retry_count_string to integer retry_count
+        conditions:
+          - attributes["retry_count_string"] != nil
+        statements:
+          - set(attributes["retry_count"], Int(attributes["retry_count_string"]))
 ```
 
 ### Example 10: Limit cardinality
@@ -305,12 +426,19 @@ transform/Logs:
   description: "Limit high-cardinality attributes"
   config:
     log_statements:
-      # Keep only 5 most important attributes
-      - limit(attributes, 5, ["service.name", "environment", "severity.text"])
-
-      # Generalize high-cardinality values
-      - set(attributes["http.path"], "/api/users/*") where IsMatch(attributes["http.path"], "/api/users/\\d+")
-  output: ["filter/Logs"]
+      - context: log
+        name: limit-attribute-cardinality
+        description: Keep only the 5 most important attributes
+        statements:
+          - limit(attributes, 5, ["service.name", "environment", "severity_text"])
+      
+      - context: log
+        name: generalize-user-api-paths
+        description: Replace user ID in path with wildcard to reduce cardinality
+        conditions:
+          - IsMatch(attributes["http.path"], "/api/users/\\d+")
+        statements:
+          - set(attributes["http.path"], "/api/users/*")
 ```
 
 ## OTTL function reference
