@@ -11,13 +11,11 @@ freshnessValidatedDate: never
 translationType: machine
 ---
 
-O Infinite Tracing Processor da New Relic é uma implementação do [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor) do OpenTelemetry Collector. Além do recurso upstream, ele suporta processamento distribuído altamente escalável, utilizando um cache distribuído para armazenamento de estado compartilhado. Esta documentação descreve as implementações de cache suportadas e suas configurações.
+O Infinite Tracing Processor da New Relic é uma implementação do OpenTelemetry Collector [tailsamplingprocessor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor). Além dos recursos upstream, ele oferece suporte a processamento distribuído escalável e durável usando um cache distribuído para armazenamento de estado compartilhado. Esta documentação mostra como configurá-lo
 
 ## Caches suportados
 
-O processador suporta qualquer implementação de cache compatível com Redis. Foi testado e validado com Redis e Valkey em configurações de instância única e cluster.
-
-Para implantação em produção, recomendamos o uso do modo cluster (fragmentado) para garantir alta disponibilidade e escalabilidade. Para habilitar o cache distribuído, adicione a configuração `distributed_cache` à sua seção de processador `tail_sampling` :
+O processador suporta qualquer implementação de cache compatível com Redis. Foi testado e validado com Redis e Valkey em configurações de instância única e cluster. Para implantações de produção, recomendamos o uso do modo cluster (fragmentado) para garantir alta disponibilidade e escalabilidade. Para habilitar o cache distribuído, adicione a configuração `distributed_cache` à sua seção do processador `tail_sampling`:
 
 ```yaml
 tail_sampling:
@@ -26,19 +24,13 @@ tail_sampling:
       address: redis://localhost:6379/0
       password: 'local'
     trace_window_expiration: 30s      # Default: how long to wait after last span before evaluating
-    in_flight_timeout: 120s           # Optional: defaults to trace_window_expiration if not set
-    traces_ttl: 3600s                 # Optional: default 1 hour
-    cache_ttl: 7200s                  # Optional: default 2 hours
-    suffix: "itc"                     # Redis key prefix
-    max_traces_per_batch: 500         # Default: traces processed per evaluation cycle
-    evaluation_interval: 1s           # Default: evaluation frequency
-    evaluation_workers: 4             # Default: number of parallel workers (defaults to CPU count)
+    processor_name: "itc"             # Nane of the processor
     data_compression:
       format: lz4                     # Optional: compression format (none, snappy, zstd, lz4); lz4 recommended
 ```
 
 <Callout variant="important">
-  **Comportamento de configuração**: Quando `distributed_cache` é configurado, o processador usa automaticamente o cache distribuído para gerenciamento de estado. Se `distributed_cache` for omitido completamente, o coletor usará o processamento em memória. Não existe uma flag `enabled` separada.
+  **Comportamento da configuração**: Quando `distributed_cache` é configurado, o processador usa automaticamente o cache distribuído para gerenciamento de estado. Se `distributed_cache` for omitido por completo, o coletor usará o processamento na memória.
 </Callout>
 
 O parâmetro `address` deve especificar um endereço de servidor válido e compatível com o Redis, usando o formato padrão:
@@ -62,69 +54,681 @@ O processador é implementado em Go e utiliza a biblioteca cliente [go-redis](ht
 
 A seção `distributed_cache` suporta o seguinte parâmetro:
 
-## Parâmetro de conexão
+### Configurações de conexão
 
-* **`connection.address`** (obrigatório): Endereço do servidor Redis no formato `redis[s]://[[username][:password]@][host][:port][/db-number]`
-* **`connection.password`** (opcional): Senha do Redis (alternativa à inclusão no endereço)
+| Parâmetro             | Tipo  | Padrão        | Descrição                                                                                                                                                                     |
+| --------------------- | ----- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.address`  | corda | *obrigatório* | String de conexão do Redis (formato: `redis://host:port/db`). Para o modo cluster, use endereços separados por vírgula (por exemplo, `redis://node1:6379,redis://node2:6379`) |
+| `connection.password` | corda | `""`          | Senha do Redis para autenticação                                                                                                                                              |
 
-## parâmetro de avaliação de traços
+### Compressão de dados
 
-* **`trace_window_expiration`** (padrão: 30s): Janela de tempo após a chegada do último intervalo antes que um trace seja avaliado para decisões de amostragem.
-* **`evaluation_interval`** (padrão: 1s): Com que frequência o processador avalia o rastreamento pendente para decisões de amostragem
-* **`evaluation_workers`** (padrão: número de núcleos de CPU): Número de threads de trabalho paralelas para avaliação de políticas de amostragem. Valores mais elevados aumentam as taxas de transferência mas consomem mais recursos.
+| Parâmetro          | Tipo  | Padrão | Descrição                                                                                   |
+| ------------------ | ----- | ------ | ------------------------------------------------------------------------------------------- |
+| `data_compression` | corda | `none` | Algoritmo de compressão para dados de rastreamento. Opções: `none`, `snappy`, `zstd`, `lz4` |
 
-## TTL e parâmetro de expiração
+<Callout variant="tip">
+  **Compensações de compactação**:
 
-* **`in_flight_timeout`** (padrão: igual a `trace_window_expiration`): Tempo máximo que um lote pode permanecer em processamento antes de ser considerado órfão e recuperado.
-* **`traces_ttl`** (padrão: 1 hora): Tempo de expiração da chave Redis para dados de trace de intervalo.
-* **`cache_ttl`** (padrão: 2 horas): Tempo de expiração da chave Redis para entradas do cache de decisão de amostragem
+  * `none`: Sem sobrecarga de CPU, maior uso de memória de rede e Redis
+  * `snappy`: Compressão/descompressão rápida, boa taxa de compressão
+  * `zstd`: Melhor taxa de compressão, mais uso da CPU
+  * `lz4`: Muito rápido, taxa de compressão moderada
 
-## Armazenamento
+  A compressão visa principalmente reduzir o tráfego de rede, que é o principal gargalo dos processadores ao se conectar ao redis
+</Callout>
 
-* **`max_traces_per_batch`** (padrão: 500): Número máximo de rastreamentos processados em um único ciclo de avaliação. Valores mais altos melhoram as taxas de transferência, mas aumentam o uso de memória.
+### Gerenciamento de rastreamento
 
-* **`suffix`** (padrão: &quot;tsp&quot;): Prefixo para chaves Redis para evitar colisões quando vários processadores compartilham a mesma instância Redis.
+| Parâmetro                 | Tipo    | Padrão | Descrição                                                                                 |
+| ------------------------- | ------- | ------ | ----------------------------------------------------------------------------------------- |
+| `trace_window_expiration` | duração | `30s`  | Quanto tempo esperar pelos spans antes de avaliar um rastreamento                         |
+| `traces_ttl`              | duração | `5m`   | Tempo de vida dos dados de rastreamento no Redis                                          |
+| `cache_ttl`               | duração | `30m`  | Tempo de vida útil para decisões de amostragem                                            |
+| `processor_name`          | corda   | `""`   | nome do processador para chaves e métricas do Redis (útil para implantações multi-tenant) |
 
-* **`data_compression`** (opcional): Configurações de compressão para dados trace armazenados no Redis
+**Diretrizes de TTL:**
 
-  * **`format`** (padrão: nenhum): Formato de compressão: `none`, `snappy`, `zstd` ou `lz4`
+* `traces_ttl` deve ser longo o suficiente para lidar com novas tentativas e spans tardios
+* `cache_ttl` deve ser muito maior que `traces_ttl` para lidar com spans que chegam atrasados
+* Um `cache_ttl` mais longo reduz avaliações duplicadas, mas aumenta o uso de memória do Redis
+
+### Particionamento
+
+| Parâmetro           | Tipo | Padrão | Descrição                                               |
+| ------------------- | ---- | ------ | ------------------------------------------------------- |
+| `partitions`        | int  | `6`    | Número de partições para distribuição de carga no Redis |
+| `partition_workers` | int  | `6`    | Número de workers de avaliação simultâneos              |
+
+**Benefícios do particionamento:**
+
+* Distribui a carga em vários intervalos de chaves Redis
+* Permite a avaliação paralela em vários workers
+* Melhora a taxa de transferência em implantações multi-coletor
+
+<Callout variant="tip">
+  **Dimensionamento de partição**: Uma partição é uma divisão lógica de dados de rastreamento no Redis que permite o dimensionamento horizontal. Os rastreamentos são atribuídos a partições usando um algoritmo de hash no ID do rastreamento.
+
+  **Importante**: `partitions` deve ser idealmente 3 vezes o número de nós Redis necessários para sua carga de trabalho com carga média. `partition_workers` normalmente deve ser menor ou igual ao número de `partitions`.
+</Callout>
+
+### Configurações de ingestão
+
+| Parâmetro                    | Tipo    | Padrão       | Descrição                                                                                                                  |
+| ---------------------------- | ------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `ingestion_workers`          | int     | `6`          | Número de goroutines processando rastreamentos do canal de ingestão compartilhado                                          |
+| `ingestion_buffer_size`      | int     | `10000`      | Capacidade do canal de ingestão compartilhado para bufferizar traces recebidos                                             |
+| `ingestion_channel_timeout`  | duração | `500ms`      | Tempo máximo de espera ao enviar rastreamentos para o canal de ingestão. Se excedido, os rastreamentos são descartados     |
+| `ingestion_response_timeout` | duração | `10s`        | Tempo máximo de espera para um worker processar e responder. Impede o bloqueio indefinido se os workers estiverem travados |
+| `hashing_strategy`           | corda   | `rendezvous` | Algoritmo de hash para seleção de partição. Opções: `rendezvous` (recomendado, 3x mais rápido) ou `consistent`             |
+
+**Arquitetura de ingestão:**
+
+O processador usa um canal compartilhado com workers configuráveis para ingestão de rastreios:
+
+1. Os rastreamentos de entrada são enviados para um canal compartilhado em buffer
+2. Vários workers puxam do canal e roteiam rastreamentos para as partições apropriadas
+3. Workers fazem hash dos IDs de rastreio usando a estratégia de hash configurada para determinar a atribuição da partição
+
+**Diretrizes de configuração:**
+
+* **Tamanho do buffer**: Deve absorver picos de tráfego.
+* **Workers**: Número de goroutines simultâneas processando rastreios.
+* **Tempo limite do canal**: Quanto tempo esperar se o buffer estiver cheio. Tempo limite curto (500ms) falha rapidamente em caso de saturação
+* **Tempo limite da resposta**: Protege contra workers travados. Padrão: 10s é apropriado para operações normais do Redis
+* **Estratégia de hashing**: Algoritmo para determinar a atribuição de partição de rastreamento
+* **`rendezvous`** (padrão): Fornece distribuição de carga superior para 2-99 partições. Melhor opção para implantações típicas.
+* **`consistent`**: Mantém o desempenho ao usar mais de 100 partições, onde o rendezvous se torna lento. Troca uma distribuição de carga ligeiramente menos otimizada por melhor desempenho em escala.
+* Ambas as estratégias garantem que o mesmo rastreamento sempre mapeie para a mesma partição (determinístico)
+* Escolha rendezvous para melhor distribuição de carga (até 99 partições), consistente para desempenho em escala (100+)
+
+### Configurações de avaliação
+
+| Parâmetro              | Tipo    | Padrão  | Descrição                                                                                                                 |
+| ---------------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `evaluation_interval`  | duração | `1s`    | Com que frequência verificar se há rastreios prontos para avaliação                                                       |
+| `max_traces_per_batch` | int     | `1000`  | Número máximo de rastreios a serem avaliados por lote                                                                     |
+| `rate_limiter`         | bool    | `false` | Habilitar limitador de taxa de bloqueio para processamento de rastreamento simultâneo                                     |
+| `num_traces`           | int     | `50000` | se rate\_limiter estiver habilitado, ele usa num\_traces como número máximo de rastreamentos de processamento simultâneos |
+
+**Limitador de taxa:**
+
+A opção `rate_limiter` controla o comportamento de backpressure quando o limite de rastreamento simultâneo (`num_traces`) é atingido:
+
+* **`false` (padrão)**: Sem limitação de taxa. O processador aceita rastreamentos sem bloqueio, contando com o Redis para armazenamento. Esta é a configuração recomendada para a maioria das implantações do Redis.
+* **`true`**: Habilita um limitador de taxa de bloqueio que aplica backpressure quando `num_traces` traces simultâneos estão sendo processados. Novos traces serão bloqueados até que um slot fique disponível.
+
+**Quando habilitar:**
+
+* Para evitar sobrecarregar a rede, CPU e/ou memória do Redis
+* Para evitar sobrecarregar os consumidores downstream com rajadas repentinas de tráfego
+
+### Tentar novamente e recuperação
+
+| Parâmetro           | Tipo    | Padrão                            | Descrição                                                                           |
+| ------------------- | ------- | --------------------------------- | ----------------------------------------------------------------------------------- |
+| `max_retries`       | int     | `2`                               | Número máximo de tentativas para avaliações de rastreamento com falha               |
+| `in_flight_timeout` | duração | Igual a `trace_window_expiration` | Tempo limite para processamento em lote em andamento antes de ser considerado órfão |
+| `recover_interval`  | duração | `5s`                              | Com que frequência verificar lotes órfãos                                           |
+
+<Callout variant="important">
+  **Recuperação de órfãos**: Lotes órfãos ocorrem quando um coletor trava no meio da avaliação. O processo de recuperação de órfãos reenfileira esses rastreamentos para avaliação por outra instância do coletor.
+</Callout>
+
+### Configuração da política
+
+| Parâmetro  | Tipo   | Padrão        | Descrição                            |
+| ---------- | ------ | ------------- | ------------------------------------ |
+| `policies` | matriz | *obrigatório* | Definições da política de amostragem |
+
+Eles seguem as mesmas regras do [tail sampling](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.137.x/processor/tailsamplingprocessor/README.md) de código aberto.
+
+### Tempos limite do cliente Redis e pool de conexões
+
+Todas as configurações são opcionais e têm padrões alinhados com os 10s `ingestion_response_timeout`.
+
+| Parâmetro                       | Tipo    | Padrão       | Descrição                                                                                                                                              |
+| ------------------------------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `connection.dial_timeout`       | duração | `5s`         | Tempo limite para estabelecer novas conexões com o Redis                                                                                               |
+| `connection.read_timeout`       | duração | `3s`         | Tempo limite para leituras de socket. Comandos falham com erro de tempo limite se excedido                                                             |
+| `connection.write_timeout`      | duração | `3s`         | Tempo limite para gravações de soquete. Os comandos falham com erro de tempo limite se excedidos                                                       |
+| `connection.pool_timeout`       | duração | `4s`         | Tempo para aguardar a conexão do pool se todas as conexões estiverem ocupadas                                                                          |
+| `connection.pool_size`          | int     | `10 * cores` | Número base de conexões de socket                                                                                                                      |
+| `connection.min_idle_conns`     | int     | `0`          | Número mínimo de conexões ociosas, o que é útil quando o estabelecimento de uma nova conexão é lento. As conexões ociosas não são fechadas por padrão. |
+| `connection.max_idle_conns`     | int     | `0`          | Número máximo de conexões alocadas pelo pool em um determinado momento. 0 sem limite                                                                   |
+| `connection.conn_max_idle_time` | duração | `30m`        | Tempo máximo que uma conexão pode ficar ociosa. Deve ser menor que o tempo limite do servidor.                                                         |
+| `connection.conn_max_lifetime`  | duração | `0m`         | Tempo máximo que uma conexão pode ser reutilizada.                                                                                                     |
+| `connection.max_retries`        | int     | `3`          | Número máximo de tentativas de comando antes de desistir                                                                                               |
+| `connection.min_retry_backoff`  | duração | `8ms`        | Intervalo mínimo entre novas tentativas                                                                                                                |
+| `connection.max_retry_backoff`  | duração | `512ms`      | Backoff máximo entre as tentativas (backoff exponencial limitado a este valor)                                                                         |
+
+**Diretrizes de ajuste:**
+
+* **Redis de alta latência** (cross-region, VPN): Aumente os tempos limite para 2-3x os padrões e reduza `max_retries` para 2
+* **Redis muito rápido** (mesmo host/rack): Pode reduzir ainda mais os timeouts (por exemplo, 250ms) para uma detecção de falhas mais rápida
+* **Alta taxa de transferência**: Aumente `pool_size` para 30-50 para evitar o esgotamento do pool de conexões
+* **Rede não confiável**: Aumente `max_retries` para 5-7 e ajuste as configurações de backoff
+
+### Opções de réplica do cluster
+
+A seção `connection.replica` controla o roteamento de réplicas do cluster.
+
+| Parâmetro                               | Tipo | Padrão  | Descrição                                                                                                       |
+| --------------------------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `connection.replica.read_only_replicas` | bool | `true`  | Habilite o roteamento de comandos de leitura para nós de réplica. O padrão é `true` para melhor escalabilidade. |
+| `connection.replica.route_by_latency`   | bool | `false` | Encaminhar comandos para o nó mais próximo com base na latência (habilita automaticamente read\_only\_replicas) |
+| `connection.replica.route_randomly`     | bool | `false` | Encaminhar comandos para um nó aleatório (habilita automaticamente read\_only\_replicas)                        |
+
+<Callout variant="tip">
+  **Benefícios da leitura de réplicas**: Ao executar com um cluster Redis que possui nós de réplica, a ativação de leituras de réplica distribui a carga de leitura entre os nós primários e de réplica, melhorando significativamente a taxa de transferência de leitura e reduzindo a carga nos nós primários.
+
+  **Considerações importantes**:
+
+  * **Somente cluster**: Essas opções só funcionam com implantações de cluster Redis com réplicas por shard
+</Callout>
+
+### Exemplo de configuração completa
+
+```yaml
+processors:
+  tail_sampling:
+    num_traces: 5_000_000
+    distributed_cache:
+      # Connection
+      connection:
+        address: "redis://redis-cluster:6379/0"
+        password: "your-redis-password"
+
+        # Connection pool settings (optional - tune for your environment)
+        pool_size: 30
+        read_timeout: 2s
+        write_timeout: 2s
+        pool_timeout: 5s
+        max_retries: 5
+
+        # Replica read options (cluster mode only)
+        replica:
+          read_only_replicas: true  # Default: enabled for improved scalability
+          route_by_latency: true    # Route to closest node (recommended)
+
+      # Compression
+      data_compression: snappy
+
+      # Trace Management
+      trace_window_expiration: 30s
+      traces_ttl: 2m              # 120s (allow extra time for retries)
+      cache_ttl: 1h               # 3600s (keep decisions longer)
+      processor_name: "prod-cluster-1"
+
+      # Retry and Recovery
+      max_retries: 3
+      in_flight_timeout: 45s
+      recover_interval: 10s
+
+      # Evaluation
+      evaluation_interval: 1s
+      max_traces_per_batch: 10000
+      rate_limiter: false         # Recommended for Redis mode
+
+      # Partitioning
+      partitions: 8
+      partition_workers: 8
+      partition_buffer_max_traces: 1000
+
+      # Ingestion
+      ingestion_workers: 12            # 1.5 workers per partition
+      ingestion_buffer_size: 40000     # 40k trace buffer
+      ingestion_channel_timeout: 500ms
+      ingestion_response_timeout: 10s
+      hashing_strategy: rendezvous     # default, best for less than 100 partitions
+
+    # Sampling policies
+    policies:
+      - name: errors
+        type: status_code
+        status_code: {status_codes: [ERROR]}
+      - name: slow-traces
+        type: latency
+        latency: {threshold_ms: 1000}
+      - name: sample-10-percent
+        type: probabilistic
+        probabilistic: {sampling_percentage: 10}
+```
+
+## Avaliação de rastreamento
+
+Esta seção aborda os parâmetros que controlam quando os rastreamentos são avaliados e por quanto tempo os dados persistem no Redis.
+
+### Tempo e frequência de avaliação
+
+**Como a avaliação funciona:**
+
+1. A cada `evaluation_interval`, os workers verificam rastreamentos que estão ociosos por pelo menos `trace_window_expiration`
+2. Até `max_traces_per_batch` rastreios são extraídos do Redis por ciclo de avaliação
+3. `partition_workers` avaliar lotes simultaneamente em várias partições
+
+**Orientação de ajuste:**
+
+* **Decisões mais rápidas**: Diminua `evaluation_interval` (por exemplo, 500ms) para menor latência, mas aumenta a carga do Redis
+* **Maior taxa de transferência**: Aumente `max_traces_per_batch` (por exemplo, 5000-10000) para processar mais rastreios por ciclo
+* **Mais paralelismo**: Aumente `partition_workers` para corresponder aos núcleos de CPU disponíveis
+
+### TTL e expiração
+
+#### Como o TTL funciona no modo distribuído
+
+Ao usar `distributed_cache`, o processador implementa um sistema TTL de vários estágios que difere do processador na memória:
+
+**Estágios do ciclo de vida do rastreamento:**
+
+1. **Fase de coleta**: os spans chegam e são armazenados no Redis
+2. **Fase de avaliação**: Após `trace_window_expiration`, o rastreamento está pronto para a decisão de amostragem
+3. **Fase de retenção**: Os dados de rastreamento persistem por `traces_ttl` para lidar com novas tentativas e spans tardios
+4. **Fase de cache**: As decisões de amostragem persistem por `cache_ttl` para evitar avaliações duplicadas
+
+<Callout variant="important">
+  **Principal diferença em relação ao modo in-memory**: O parâmetro `trace_window_expiration` substitui `decision_wait` e implementa uma abordagem de **janela deslizante**:
+
+  * Cada vez que novos spans chegam para um rastreamento, o cronômetro de avaliação é reiniciado
+  * Rastreamentos com atividade em andamento permanecem ativos por mais tempo do que rastreamentos que pararam de receber spans
+  * Este comportamento dinâmico lida melhor com os padrões de chegada de span do mundo real
+</Callout>
+
+**Por que os TTLs em cascata são importantes:**
+
+A hierarquia TTL garante a disponibilidade de dados durante todo o ciclo de vida do rastreio:
+
+```
+trace_window_expiration (30s)
+    ↓ [trace ready for evaluation]
+in_flight_timeout (30s default)
+    ↓ [evaluation completes or times out]
+traces_ttl (5m)
+    ↓ [trace data deleted from Redis]
+cache_ttl (30m)
+    ↓ [decision expires, late spans re-evaluated]
+```
+
+* **`trace_window_expiration`** (mais curto) controla quando a avaliação começa
+* **`in_flight_timeout`** (menor) controla quando a avaliação está demorando muito e deve ser repetida
+* **`cache_ttl`** (mais longo) lida com spans que chegam tardiamente horas após a avaliação
+* **`traces_ttl`** (médio) fornece buffer para novas tentativas e recuperação de órfãos
+
+Os TTLs configurados corretamente evitam a perda de dados, avaliações duplicadas e rastreamentos incompletos, otimizando o uso da memória Redis.
+
+<Callout variant="tip">
+  **Princípio de configuração**: Cada TTL deve ser significativamente maior do que o anterior (normalmente 5-10x). Isso cria buffers de segurança que contabilizam atrasos de processamento, novas tentativas e dados que chegam atrasados.
+</Callout>
+
+##### 1. Janela de coleta de rastreamento: `trace_window_expiration`
+
+**Padrão:** `30s` | **Configuração:** `distributed_cache.trace_window_expiration`
+
+* **Finalidade**: Controla quando um rastreio está pronto para avaliação de amostragem
+* **Comportamento**: Janela deslizante que redefine cada vez que novos spans chegam para um rastreamento
+* **Exemplo**: Se um rastreamento receber spans em t=0s, t=15s e t=28s, a avaliação começa em t=58s (janela de 28s + 30s)
+
+**Orientação de ajuste:**
+
+* **Valores mais curtos (15-20s)**: Decisões de amostragem mais rápidas, mas risco de rastreios incompletos se os spans chegarem lentamente
+* **Valores mais longos (45-60s)**: rastreamentos mais completos, mas maior latência e uso de memória
+* **Intervalo típico**: 20-45 segundos, dependendo dos seus padrões de chegada de span
+
+##### 2. Tempo limite de processamento em lote: `in_flight_timeout`
+
+**Padrão:** Igual a `trace_window_expiration` | **Configuração:** `distributed_cache.in_flight_timeout`
+
+* **Propósito**: Tempo máximo que um lote pode estar em processamento antes de ser considerado órfão
+* **Comportamento**: Evita a perda de dados se um coletor falhar durante a avaliação
+* **Recuperação de órfãos**: Lotes que excedem este tempo limite são automaticamente reenfileirados para avaliação por outro coletor
+
+**Orientação de ajuste:**
+
+* **Deve ser ≥ `trace_window_expiration`**: Garante tempo suficiente para avaliação normal
+
+* **Aumente se**: Suas políticas de avaliação são computacionalmente caras (OTTL complexo, regex)
+
+* **Monitorar**: `otelcol_processor_tail_sampling_sampling_decision_timer_latency` para garantir que as avaliações sejam concluídas dentro desta janela
 
   <Callout variant="tip">
-    **Vantagens e desvantagens da compressão**: Habilitar a compressão reduz a largura de banda da rede entre o processador e o Redis, além de diminuir os requisitos de memória do Redis. No entanto, a compressão aumenta o uso da CPU e da memória na instância do processador durante as operações de compressão/descompressão.
-
-    **Recomendações de formatação**:
-
-    * **`zstd`**: Taxa de compressão máxima, ideal para ambientes com largura de banda limitada, mas com maior sobrecarga de CPU durante a descompressão.
-    * **`lz4`**: Opção equilibrada com boa compressão e sobrecarga de descompressão quase insignificante — recomendada para a maioria das implantações.
-    * **`snappy`**: Compressão/descompressão mais rápida com o menor custo de CPU, mas com taxas de compressão menores que o lz4.
-
-    Escolha com base no seu gargalo: largura de banda da rede e armazenamento Redis versus disponibilidade do processador (CPU).
+    **Relação com trace\_window\_expiration**: Definir `in_flight_timeout` igual a `trace_window_expiration` funciona bem para a maioria das implantações. Aumente somente se observar recuperações frequentes de lotes órfãos devido à avaliação lenta da política.
   </Callout>
 
-## Requisitos de cache compatíveis com Redis
+##### 3. Retenção de dados de rastreamento: `traces_ttl`
 
-O processador utiliza o cache como armazenamento distribuído para os seguintes dados trace :
+**Padrão:** `5m` | **Configuração:** `distributed_cache.traces_ttl`
 
-* atributo de rastreamento e extensão
-* Dados trace ativos
-* Cache de decisão de amostragem
+* **Finalidade**: Quanto tempo os dados de span de rastreamento persistem no Redis após o armazenamento inicial
+* **Comportamento**: Fornece tempo de buffer para novas tentativas, spans tardios e recuperação de órfãos
+* **Restrição crítica**: Deve ser significativamente maior que `trace_window_expiration` + `in_flight_timeout`
 
-O processador executa um **script Lua** para interagir atomicamente com o cache Redis. O suporte script Lua geralmente está habilitado por padrão em caches compatíveis com Redis. Nenhuma configuração adicional é necessária, a menos que você tenha desativado explicitamente esse recurso.
+**Fórmula recomendada:**
+
+```
+traces_ttl ≥ (trace_window_expiration + in_flight_timeout + max_retries × evaluation_interval) × 2
+```
+
+**Exemplo com padrões:**
+
+```
+traces_ttl ≥ (30s + 30s + 2 retries × 1s) × 2 = 124s ≈ 5m ✅
+```
+
+**Orientação de ajuste:**
+
+* **Restrito por memória**: Use TTL mais curto (2-3m), mas corra o risco de perder dados para spans muito tardios
+
+* **Tolerância a span tardios**: Use um TTL mais longo (10-15m) para lidar com a chegada de span atrasados
+
+* **Produção padrão**: 5-10 minutos oferece um bom equilíbrio
+
+  <Callout variant="important">
+    **Muito curto = perda de dados**: Se `traces_ttl` for muito curto, os rastreamentos podem ser excluídos antes que a avaliação seja concluída, especialmente durante as tentativas ou a recuperação de órfãos. Isso resulta em rastreamentos parciais ou ausentes.
+  </Callout>
+
+##### 4. Retenção do cache de decisão: `cache_ttl`
+
+**Padrão:** `30m` | **Configuração:** `distributed_cache.cache_ttl`
+
+* **Finalidade**: Por quanto tempo as decisões de amostragem (amostrado/não amostrado) são armazenadas em cache
+* **Comportamento**: Impede a avaliação duplicada quando spans tardios chegam após a avaliação do rastreamento
+* **Restrição crítica**: Deve ser muito maior que `traces_ttl`
+
+**Fórmula recomendada:**
+
+```
+cache_ttl ≥ traces_ttl × 6
+```
+
+**Por que muito maior?**
+
+* Spans tardios podem chegar minutos ou horas após a conclusão do rastreamento
+* O cache de decisão impede a reavaliação de rastreamentos quando spans muito tardios chegam
+* Sem a decisão em cache, os spans tardios seriam avaliados como rastreamentos incompletos (decisão de amostragem incorreta)
+
+**Orientação de ajuste:**
+
+* **Produção padrão**: 30m-2h equilibra o uso de memória e o tratamento de spans tardios
+* **Alta taxa de spans tardios**: 2-4h garante que as decisões persistam para dados muito atrasados
+* **Com restrição de memória**: mínimo de 15-30m, mas espere mais avaliações duplicadas
+
+**Impacto na memória:**
+
+* Cada decisão: \~50 bytes por ID de rastreamento
+
+* A 10.000 spans/seg com 20 spans/rastreamento → 500 rastreamentos/seg
+
+* Cache de 30 minutos: \~900.000 decisões × 50 bytes = **\~45 MB**
+
+* Cache de 2 horas: \~3,6 milhões de decisões × 50 bytes = **\~180 MB**
+
+  <Callout variant="tip">
+    **Monitorar a eficácia do cache**: Acompanhe a métrica `otelcol_processor_tail_sampling_early_releases_from_cache_decision`. Valores altos indicam que o cache está impedindo avaliações duplicadas de forma eficaz.
+  </Callout>
+
+#### Exemplos de configuração de TTL
+
+**Baixa latência, com restrição de memória:**
+
+```yaml
+distributed_cache:
+  trace_window_expiration: 20s
+  in_flight_timeout: 20s
+  traces_ttl: 2m
+  cache_ttl: 15m
+  evaluation_interval: 500ms
+  max_traces_per_batch: 2000
+```
+
+**Tolerante a alto throughput e spans tardios:**
+
+```yaml
+distributed_cache:
+  trace_window_expiration: 45s
+  in_flight_timeout: 60s
+  traces_ttl: 10m
+  cache_ttl: 2h
+  evaluation_interval: 1s
+  max_traces_per_batch: 10000
+```
+
+**Produção balanceada (recomendado):**
+
+```yaml
+distributed_cache:
+  trace_window_expiration: 30s
+  in_flight_timeout: 45s  # Extra buffer for complex policies
+  traces_ttl: 5m
+  cache_ttl: 30m
+  evaluation_interval: 1s
+  max_traces_per_batch: 5000
+```
+
+### Tentar novamente e recuperação
+
+**Recuperação de órfãos:**
+
+Lotes órfãos ocorrem quando um coletor trava no meio da avaliação. O processo de recuperação de órfãos é executado a cada `recover_interval` e:
+
+1. Identifica lotes que excederam `in_flight_timeout`
+2. Reenvia esses rastreamentos para avaliação por outra instância do coletor
+3. Garante que nenhum rastreio seja perdido devido a falhas do coletor
+
+**Orientação de ajuste:**
+
+* **Aumentar `max_retries`** (3-5) se estiver enfrentando erros transitórios do Redis
+* **Diminuir `recover_interval`** (2-3s) para uma recuperação mais rápida em ambientes de alta disponibilidade
+* **Monitorar** métricas de recuperação para identificar se os coletores estão travando com frequência
+
+## Particionamento e dimensionamento
+
+### O que é uma partição?
+
+Uma **partição** é um shard lógico de dados de rastreamento no Redis que permite o processamento paralelo e o dimensionamento horizontal. Pense nas partições como filas separadas onde os rastreamentos são distribuídos com base em seu ID de rastreamento.
+
+**Conceitos-chave:**
+
+* Cada partição mantém sua própria fila de rastreios pendentes no Redis
+
+* Os rastreios são atribuídos a partições usando uma **estratégia de hash** configurável (rendezvous ou consistente) no ID do rastreio
+
+* Cada partição pode ser processada de forma independente e simultânea
+
+* As partições permitem **escalonamento vertical** (mais núcleos de CPU) e **escalonamento horizontal** (mais instâncias de coletor)
+
+  <Callout variant="caution">
+    **Importante**: Alterar o número de partições quando já houver um cluster em execução causará rastreamentos fragmentados, pois os rastreamentos podem ser roteados para outra partição após a alteração.
+  </Callout>
+
+### Como o particionamento funciona
+
+```
+Incoming Traces
+      |
+      v
+┌─────────────────────────────┐
+│  Hashing Strategy           │  trace_id → rendezvous or consistent hash
+│  (rendezvous by default)    │
+└─────────────────────────────┘
+      |
+      ├──────────┬──────────┬──────────┐
+      v          v          v          v
+┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+│Partition│ │Partition│ │Partition│ │Partition│
+│    0    │ │    1    │ │    2    │ │    3    │
+│ (Redis) │ │ (Redis) │ │ (Redis) │ │ (Redis) │
+└─────────┘ └─────────┘ └─────────┘ └─────────┘
+      |          |          |          |
+      v          v          v          v
+┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+│ Worker  │ │ Worker  │ │ Worker  │ │ Worker  │
+│    0    │ │    1    │ │    2    │ │    3    │
+│(Goroutine)│(Goroutine)│(Goroutine)│(Goroutine)│
+└─────────┘ └─────────┘ └─────────┘ └─────────┘
+      |          |          |          |
+      └──────────┴──────────┴──────────┘
+                   |
+                   v
+            Sampled Traces
+```
+
+**Fluxo:**
+
+1. **Ingestão**: O ID do rastreamento é submetido a hash usando a estratégia de hash configurada para determinar a atribuição da partição
+2. **Armazenamento**: Dados de rastreamento armazenados no Redis em chaves específicas da partição
+3. **Avaliação**: Trabalhador atribuído a essa partição puxa e avalia rastreamentos
+4. **Concorrência**: Todos os workers de partição são executados em paralelo, processando rastreamentos diferentes simultaneamente
+
+### Estratégia de hashing
+
+O processador suporta dois algoritmos de hashing para seleção de partição. A escolha depende do número de partições:
+
+| Estratégia                | Distribuição de carga           | desempenho                                    | Melhor para                                                                                                         |
+| ------------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **`rendezvous`** (padrão) | Balanceamento de carga superior | Rápido para até 99 partições                  | **Implantações padrão (2-99 partições)** - melhor distribuição de carga para cargas de trabalho de produção típicas |
+| **`consistent`**          | Boa distribuição                | Mantém o desempenho com mais de 100 partições | **Escala muito grande (mais de 100 partições)** - preserva o desempenho quando o rendezvous fica lento              |
+
+<Callout variant="important">
+  **Principais características:** Ambas as estratégias são determinísticas - o mesmo rastreamento sempre mapeia para a mesma partição. Rendezvous oferece melhor distribuição de carga, mas requer mais CPU com um alto número de partições
+
+  **Escolhendo a estratégia certa**:
+
+  * **Rendezvous** (padrão): Use para implantações com até 100 partições. Fornece distribuição de carga superior para a grande maioria das cargas de trabalho de produção.
+  * **Consistente**: Use ao escalar para mais de 100 partições, onde o rendezvous se torna intensivo em CPU.
+</Callout>
+
+<Callout variant="caution">
+  **Importante**: Alterar o algoritmo de hash quando já houver um cluster em execução causará rastreios fragmentados, pois os rastreios podem ser roteados para outra partição após a alteração.
+</Callout>
+
+### Parâmetros de configuração de partição
+
+Use `partitions` para controlar quantos shards lógicos você tem e `partition_workers` para definir quantos workers os processam:
+
+```yaml
+distributed_cache:
+  partitions: 8         # Number of logical shards in Redis
+  partition_workers: 8  # Number of workers processing partitions
+```
+
+**Comportamento do worker:**
+
+* **8 partições + 8 workers**: Cada worker processa uma partição a cada `evaluation_interval` ✅ Balanceado
+* **8 partições + 16 workers**: Cada partição avaliada duas vezes por intervalo (redundante, desperdiça recursos)
+* **8 partições + 4 workers**: Apenas metade das partições avaliadas por intervalo (mais lento, mas menos carga do Redis)
+
+<Callout variant="tip">
+  **Dica de ajuste**: Definir menos workers por instância (`partition_workers < partitions`) reduz o estresse no Redis e no coletor, útil ao executar muitas instâncias do coletor.
+</Callout>
+
+### Diretrizes de dimensionamento de partição
+
+| Cenário                                         | Partições | Trabalhadores de partição | Raciocínio                         |
+| ----------------------------------------------- | --------- | ------------------------- | ---------------------------------- |
+| **Desenvolvimento**                             | 2-4       | 2-4                       | Sobrecarga mínima, fácil depuração |
+| **Produção padrão (15 mil spans/seg)**          | 4-12      | 4-12                      | Balanceado                         |
+| **Alto Volume (mais de 100 mil spans/segundo)** | 12-48     | 12-48                     | Maximizar a taxa de transferência  |
+
+<Callout variant="important">
+  **Regras importantes de dimensionamento:**
+
+  * `partitions` deve ser **pelo menos 2x 3x o número de nós Redis** necessários para sua carga de trabalho média
+  * `partition_workers` normalmente deve ser **≤ `partitions`**
+  * **Alterar a contagem de partições perde dados existentes** - traces não podem ser localizados após as alterações na contagem de partições
+</Callout>
+
+### Exemplos de configuração de partição
+
+**Coletor único (máquina de 4 núcleos):**
+
+```yaml
+distributed_cache:
+  partitions: 4
+  partition_workers: 4
+  partition_buffer_max_traces: 5000
+```
+
+**Multi-coletor (3 instâncias, 8 núcleos cada):**
+
+```yaml
+distributed_cache:
+  partitions: 12                    # 3x more than single collector
+  partition_workers: 6              # Each collector processes 6 partitions
+  partition_buffer_max_traces: 10000
+```
+
+**Alto volume (mais de 10 coletores):**
+
+```yaml
+distributed_cache:
+  partitions: 24
+  partition_workers: 4              # Fewer per collector to share load
+  partition_buffer_max_traces: 20000
+```
 
 ## Dimensionamento e desempenho
 
-O dimensionamento correto da instância do Redis é crucial para um desempenho ideal. Utilize o exemplo de configuração em &quot;Caches suportados&quot; acima. Para calcular os requisitos de memória, você deve estimar as características da sua workload :
+<Callout variant="caution">
+  **Gargalos críticos**: O desempenho do Redis para amostragem de cauda é restrito principalmente por **Rede e CPU**, não memória. Concentre seus esforços de dimensionamento e otimização em:
 
-* **Spans por segundo**: Taxas de transferência assumidas de 10.000 spans/s
-* **Tamanho médio do intervalo**: Tamanho estimado de 900 bytes (formato protobuf serializado)
+  1. **Taxa de transferência e latência da rede** entre coletores e Redis
+  2. **Capacidade da CPU:** Consumo de CPU do Redis
+  3. **Capacidade de memória:** Normalmente suficiente se CPU e rede forem devidamente dimensionadas
+</Callout>
 
-### Fórmula de estimativa de memória
+Exemplo: assuma os seguintes parâmetros
+
+* **Spans por segundo**: assume 10.000 spans/seg de throughput
+* **Tamanho médio do intervalo**: 900 bytes
+
+### 1. Requisitos de rede
+
+**Cálculos de largura de banda:**
+
+Para 10.000 spans/segundo a 900 bytes por span:
+
+* **Tráfego de ingestão** (coletores → Redis): `10,000 × 900 bytes = 9 MB/sec = ~72 Mbps`
+* **Tráfego de avaliação** (Redis → coletores): `~9 MB/sec = ~72 Mbps` (lendo rastreios para avaliação)
+* **Total bidirecional**: `~18 MB/sec = ~144 Mbps`
+
+Com 25% de compressão (snappy/lz4):
+
+* **Tráfego comprimido**: `~108 Mbps` bidirecional
+
+**Diretrizes de rede:**
+
+* **Monitorar o uso da rede Redis**: Uma instância típica do Redis pode lidar com até 1 GB/s, certifique-se de monitorar o uso da rede
+* **Usar compressão**: Reduz a quantidade de tráfego de rede em troca do uso da CPU nos coletores
+* **Co-localizado** (mesmo data center/VPC): interfaces de rede de 1 Gbps são suficientes para a maioria das cargas de trabalho
+* **Entre regiões**: Espere latência de 10-50ms - aumente os tempos limite e use a compressão para reduzir a largura de banda
+* **Pool de conexões**: Aumente para maior throughput
+* **Usar réplicas**: Se o cluster tiver réplicas de leitura, elas serão usadas por padrão. Reduzindo o uso da rede e da CPU em nós mestres
+
+### 2. Requisitos de CPU
+
+**Diretrizes de CPU:**
+
+* **Instância Redis única**: Mínimo de 4 vCPUs
+
+* **Cluster Redis**: 3+ nós com réplicas de leitura com 4 vCPUs cada para alta vazão.
+
+* **Usar réplicas**: Se o cluster tiver réplicas de leitura, elas serão usadas por padrão. Reduzindo o uso da rede e da CPU em nós mestres
+
+  <Callout variant="tip">
+    **Monitoramento da CPU**: Observe a saturação da CPU (mais de 80% de utilização) como o primeiro indicador das necessidades de dimensionamento. Se limitado pela CPU, adicione nós de cluster
+  </Callout>
+
+### 3. Requisitos de memória
+
+Embora a memória seja menos restrita do que CPU e rede, o dimensionamento adequado impede despejos e garante a disponibilidade de dados.
+
+#### Fórmula de estimativa de memória
 
 ```
 Total Memory = (Trace Data) + (Decision Caches) + (Overhead)
 ```
 
-#### 1. Rastrear armazenamento de dados
+#### Armazenamento de dados de rastreamento
 
 Os dados de rastreamento são armazenados no Redis durante todo o período `traces_ttl` para suportar intervalos que chegam com atraso e recuperação trace :
 
@@ -154,7 +758,7 @@ Os dados de rastreamento são armazenados no Redis durante todo o período `trac
 
 Nota: Este cálculo representa o principal consumidor de memória. O consumo real de memória do Redis pode ser ligeiramente maior devido aos caches de decisão e às estruturas de dados internas.
 
-#### 2. Armazenamento em cache de decisões
+#### Armazenamento em cache de decisão
 
 Ao usar `distributed_cache`, os caches de decisão são armazenados no Redis sem limites de tamanho explícitos. Em vez disso, o Redis usa sua política de remoção LRU nativa (configurada via `maxmemory-policy`) para gerenciar a memória. Cada ID trace requer aproximadamente 50 bytes de armazenamento:
 
@@ -168,7 +772,7 @@ Ao usar `distributed_cache`, os caches de decisão são armazenados no Redis sem
     **gerenciamento de memória**: Configure Redis com `maxmemory-policy allkeys-lru` para permitir a remoção automática de entradas antigas do cache de decisão quando os limites de memória forem atingidos. As chaves do cache de decisão usam expiração baseada em TTL (controlada por `cache_ttl`) em vez de limites de tamanho fixos.
   </Callout>
 
-#### 3. Sobrecarga do processamento em lote
+#### Sobrecarga de processamento em lote
 
 * **Fila de lotes atual**: Mínima (IDs trace + pontuações no conjunto ordenado)
 * **Lotes a bordo**: `max_traces_per_batch × average_spans_per_trace × 900 bytes`
@@ -181,87 +785,64 @@ Ao usar `distributed_cache`, os caches de decisão são armazenados no Redis sem
 
 O tamanho do lote influencia o uso de memória durante a avaliação. A memória de processamento em lote durante o voo é temporária e liberada após a conclusão do processamento.
 
-### Exemplo completo de dimensionamento
+### Arquitetura de configuração padrão
 
-Com base na configuração acima com o seguinte parâmetro workload :
+Os valores de configuração padrão são projetados para uma implantação de referência que suporta 1 milhão de spans por minuto (\~16.000 spans/seg):
 
-* **Taxas de transferência**: 10.000 spans/segundo
-* **Tamanho médio do intervalo**: 900 bytes
-* **Período de armazenamento**: 1 hora (`traces_ttl`)
+**Implantação do coletor:**
 
-**Sem compressão:**
+* **3 instâncias do coletor**
+* **4 vCPUs por instância**
+* **8 GB de RAM por instância**
 
-| Componente                                 | memória necessária              |
-| ------------------------------------------ | ------------------------------- |
-| dados de rastreamento (retenção de 1 hora) | 32,4 GB                         |
-| Caches de decisão                          | Variável (gerenciada por LRU)   |
-| Processamento em lote                      | `~10 MB`                        |
-| Sobrecarga do Redis (25%)                  | `~8.1 GB`                       |
-| **Total (mínimo)**                         | `**~40.5 GB + decision cache**` |
+**Cluster Redis:**
 
-**Com compressão lz4 (redução de 25%):**
+* **3 instâncias Redis** (AWS cache.r6g.xlarge: 4 vCPUs, 25,01 GiB de memória cada)
+* Configurado como um cluster para alta disponibilidade e distribuição de carga
+* Co-localizado com coletores para acesso de baixa latência
 
-| Componente                                 | memória necessária              |
-| ------------------------------------------ | ------------------------------- |
-| dados de rastreamento (retenção de 1 hora) | 24,3 GB                         |
-| Caches de decisão                          | Variável (gerenciada por LRU)   |
-| Processamento em lote                      | `~7 MB`                         |
-| Sobrecarga do Redis (25%)                  | `~6.1 GB`                       |
-| **Total (mínimo)**                         | `**~30.4 GB + decision cache**` |
+Esta arquitetura de referência fornece um ponto de partida para implantações de produção. Ajuste com base em seus requisitos reais de taxa de transferência e latência.
 
-<Callout variant="important">
-  **Orientações de dimensionamento**: Os cálculos acima servem como um exemplo de estimativa. Recomendamos que você faça seu próprio planejamento de capacidade com base nas características específicas da sua workload. Para implantação de produção, considere:
+## Referência de métricas
 
-  * Provisionar **de 10 a 15% de memória adicional** além dos requisitos calculados para acomodar picos de tráfego e sobrecarga transitória.
-  * Utilizando o modo cluster do Redis para escalonamento horizontal.
-  * uso real e ajuste da capacidade de acordo
+O processador de amostragem de cauda emite as seguintes métricas no modo distribuído Redis para ajudá-lo a monitorar o desempenho e diagnosticar problemas.
+
+### Métricas disponíveis
+
+| Nome da métrica                                                      | Dimensões                                      | Descrição                                                               | Caso de Uso                                                  |
+| -------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `otelcol_processor_tail_sampling_batches`                            | `partition`, `processor`                       | Número de operações em lote                                             | Monitorar a taxa de processamento em lote entre as partições |
+| `otelcol_processor_tail_sampling_sampling_decision_timer_latency`    | `partition`, `processor`                       | Latência do temporizador de decisão de amostragem (ms)                  | Acompanhar o desempenho geral da avaliação por partição      |
+| `otelcol_processor_tail_sampling_sampling_policy_evaluation_error`   | `partition`, `processor`                       | Contagem de erros de avaliação de política                              | Detectar problemas de configuração de política               |
+| `otelcol_processor_tail_sampling_count_traces_sampled`               | `policy`, `decision`, `partition`, `processor` | Contagem de rastreamentos amostrados/não amostrados por política        | Rastrear decisões de amostragem por política                 |
+| `otelcol_processor_tail_sampling_count_spans_sampled`                | `policy`, `decision`, `partition`, `processor` | Contagem de spans amostrados/não amostrados por política                | Estatísticas de amostragem no nível do span                  |
+| `otelcol_processor_tail_sampling_global_count_traces_sampled`        | `decision`, `partition`, `processor`           | Contagem global de rastreamentos amostrados por pelo menos uma política | Monitoramento geral da taxa de amostragem                    |
+| `otelcol_processor_tail_sampling_early_releases_from_cache_decision` | `sampled`                                      | Spans liberados imediatamente devido ao acerto do cache                 | Eficácia do cache de decisão                                 |
+| `otelcol_processor_tail_sampling_new_trace_id_received`              | `partition`, `processor`                       | Contagem de novos rastreamentos recebidos                               | Taxa de ingestão de rastreamento por partição                |
+| `otelcol_processor_tail_sampling_new_span_received`                  | `partition`, `processor`                       | Contagem de novos spans recebidos                                       | Taxa de ingestão de span por partição                        |
+| `otelcol_processor_tail_sampling_traces_dropped`                     | `partition`, `processor`                       | Rastreios descartados devido a erros de salvamento                      | Detecção e solução de problemas de erros                     |
+| `otelcol_processor_tail_sampling_spans_dropped`                      | `partition`, `processor`                       | Spans descartados devido a erros de salvamento                          | Detecção e solução de problemas de erros                     |
+| `otelcol_processor_tail_sampling_count_traces_deleted`               | `deleted`, `partition`, `processor`            | Contagem de rastreamentos excluídos do armazenamento                    | Monitoramento de limpeza                                     |
+
+### Detalhes da dimensão
+
+* **`policy`**: Nome da política de amostragem que tomou a decisão
+* **`sampled`**: Se a decisão foi amostrar (`true`/`false`)
+* **`decision`**: O tipo de decisão de amostragem (`sampled`, `not_sampled`, `dropped`)
+* **`deleted`**: Se a exclusão foi bem-sucedida (`true`/`false`)
+* **`partition`**: Identificador de partição (hash codificado em hexadecimal, por exemplo, `{a1b2c3d4...}`) - garante a compatibilidade da tag de hash do Redis Cluster
+* **`processor`**: Identificador da instância do processador (da configuração `distributed_cache.processor_name`)
+
+<Callout variant="tip">
+  **Identificadores de partição**: Os valores de partição são hashes SHA256 determinísticos do índice de partição combinados com o nome do processador. Verifique os logs do coletor na inicialização para ver o mapeamento dos índices de partição para os valores de hash.
 </Callout>
 
-### Considerações de desempenho
+## Requisitos de cache compatíveis com Redis
 
-* **Latência da rede**: O tempo de ida e volta entre o coletor e Redis impacta diretamente as taxas de transferência de amostragem. implantar instância Redis com conectividade de rede de baixa latência para o coletor.
-* **ModoCluster **: distribuir a carga entre vários nós Redis aumenta as taxas de transferência e fornece tolerância a falhas para implantação de alta disponibilidade.
+O processador utiliza o cache como armazenamento distribuído para os seguintes dados trace :
 
-## Gestão e desempenho de dados
+* atributo de rastreamento e extensão
+* Dados trace ativos
+* Cache de decisão de amostragem
 
-<Callout variant="caution">
-  **Desempenho gargalo**: Redis e comunicação de rede são normalmente os fatores limitantes para o desempenho do processador. A velocidade e a confiabilidade do seu cache Redis são essenciais para o funcionamento adequado do coletor. Certifique-se de que sua instância do Redis tenha recursos suficientes e mantenha conectividade de rede de baixa latência com o coletor.
-</Callout>
-
-O processador armazena temporariamente os dados trace no Redis enquanto toma as decisões de amostragem. Compreender as políticas de expiração de dados e remoção de cache é fundamental para um desempenho ideal.
-
-## TTL e expiração
-
-Ao usar `distributed_cache`, a configuração TTL difere do processador em memória. O seguinte parâmetro controla a expiração dos dados:
-
-<Callout variant="important">
-  **Principal diferença em relação ao modo em memória**: Quando `distributed_cache` está configurado, `trace_window_expiration` substitui `decision_wait` para determinar quando os rastreamentos são avaliados. O parâmetro `trace_window_expiration` define uma janela deslizante: cada vez que novos intervalos chegam para um trace, o trace permanece ativo por outro período `trace_window_expiration`. Essa abordagem incremental mantém o rastreamento com atividade contínua ativo por mais tempo do que aqueles que pararam de receber intervalos.
-</Callout>
-
-### Hierarquia TTL e valores padrão
-
-O processador utiliza uma estrutura TTL em cascata, onde cada nível fornece proteção para a camada inferior:
-
-1. **`trace_window_expiration`** (padrão: 30s)
-
-   * Configura por quanto tempo esperar após a chegada do último intervalo antes de avaliar um trace
-   * Funciona como uma janela deslizante: redefine sempre que novos intervalos chegam para um trace
-   * Definido por meio de `distributed_cache.trace_window_expiration`
-
-2. **`in_flight_timeout`** (padrão: igual a `trace_window_expiration` se não for especificado)
-
-   * Tempo máximo que um lote pode ser processado antes de ser considerado órfão.
-   * Lotes órfãos são recuperados automaticamente e reenfileirados.
-   * Pode ser anulado através de `distributed_cache.in_flight_timeout`
-
-3. **`traces_ttl`** (padrão: 1 hora)
-
-   * Expiração da chave Redis para dados trace de intervalo
-   * Garante que os dados trace persistam por tempo suficiente para avaliação e recuperação.
-   * Definido por meio de `distributed_cache.traces_ttl`
-
-4. **`cache_ttl`** (padrão: 2 horas)
-
-   * Expiração da chave Redis para entradas de cache de decisão (amostradas/não amostradas)
-   * Impede a avaliação duplicada de intervalos que chegam com atraso.
-   * Definido por meio de `distributed_cache.cache_ttl`
+O processador executa um **script Lua** para interagir atomicamente com o cache Redis. O suporte script Lua geralmente está habilitado por padrão em caches compatíveis com Redis. Nenhuma configuração adicional é necessária, a menos que você tenha desativado explicitamente esse recurso.
