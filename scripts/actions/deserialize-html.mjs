@@ -145,6 +145,8 @@ const processor = unified()
   // won't know how to stringify those nodes.
   .use(remarkGfm)
   .use(remarkMdx)
+  // Note: htmlCommentsToJsxComments removed - let HTML comments stay as HTML
+  // This prevents issues with HTML comments from translators/Smartling
   .use(stringify, {
     bullet: '*',
     fences: true,
@@ -178,6 +180,11 @@ const processor = unified()
         if (index !== -1) {
           state.unsafe.splice(index, 1);
         }
+
+        // Remove tilde from unsafe characters to prevent escaping
+        // Tilde is commonly used in Korean and other languages for ranges (e.g., "3~5")
+        // Remove all tilde-related unsafe rules
+        state.unsafe = state.unsafe.filter((rule) => rule.character !== '~');
 
         node.value = htmlEncode(node.value);
         return defaultStringifyHandlers.text(node, _, state, info);
