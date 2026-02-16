@@ -1,0 +1,479 @@
+---
+title: 샘플링 프로세서
+metaDescription: Use the sampling processor to reduce telemetry data volume with intelligent probabilistic sampling strategies.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+샘플링 프로세서는 신호 품질을 유지하면서 데이터 용량을 줄이기 위해 확률적 샘플링을 구현합니다. 이 기능을 사용하여 모든 오류 및 느린 requests 유지하면서 일상적인 성공 사례를 적극적으로 샘플링하여 진단 가치를 잃지 않고 비용을 절감할 수 있습니다.
+
+## 샘플링 프로세서를 사용해야 하는 경우
+
+다음과 같은 경우에 샘플링 프로세서를 사용하십시오.
+
+* **오류는 100% 보존하면서 성공 사례는 샘플링합니다**. 모든 진단 데이터를 보존하고, 일반적인 트래픽은 제외합니다.
+* **서비스 이용량이 많은 서비스는 더욱 적극적으로 샘플링합니다**. 서비스 또는 중요도에 따라 샘플링 비율을 다르게 설정합니다.
+* **빠른 요청을 샘플링하면서 느린 requests/트레이스 유지**: 분석을 위해 성능 이상치 유지
+* **환경 또는 서비스별로 다른 샘플링 비율을 적용합니다. 예를 들어** 생산 현장 10%, 운영 현장 50%, 테스트 현장 100%와 같이 적용합니다.
+* **분배 시스템에서 트레이스 볼륨 감소**: 완전한 트레이스에 대한 테일 기반 내부 결정
+
+## 샘플링 작동 방식
+
+샘플링 처리기는 조건부 규칙을 사용하는 **확률적 샘플링을** 사용합니다.
+
+1. **기본 샘플링 비율**: 조건부 규칙과 일치하지 않는 모든 데이터에 적용되는 기본 비율입니다.
+2. **조건부 샘플링 규칙**: 특정 조건이 충족될 때 기본 샘플링 비율을 재정의합니다.
+3. **무작위성의 원천**: 일관된 필드(예: `trace_id`)는 관련 데이터가 함께 샘플링되도록 보장합니다.
+
+**평가 순서**: 조건부 규칙은 정의된 순서대로 평가됩니다. 첫 번째 매칭 규칙은 샘플링 속도를 결정합니다. 일치하는 규칙이 없으면 기본 샘플링 비율이 적용됩니다.
+
+## 구성
+
+파이프라인에 샘플링 프로세서를 추가하세요.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Keep errors, sample success"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+```
+
+**설정 필드**:
+
+* `global_sampling_percentage`조건부 규칙과 일치하지 않는 데이터에 대한 기본 샘플링 속도(0-100)
+
+* `conditionalSamplingRules`조건부 규칙의 순서 (순서대로 평가됨)
+
+  * `name`규칙 식별자
+  * `description`: 사람이 읽을 수 있는 설명
+  * `samplingPercentage`매칭된 데이터의 샘플링 비율(0-100)
+  * `sourceOfRandomness`샘플링 결정을 위해 사용할 필드(일반적으로 `trace_id`)
+  * `condition`: 텔레메트리와 일치하는 OTTL 표현식
+
+## 샘플링 전략
+
+### 중요한 데이터는 유지하고, 일상적인 트래픽은 줄이세요.
+
+가장 일반적인 패턴은 모든 진단 데이터(오류, 느린 requests)를 보존하고, 일상적인 성공 사례를 적극적으로 샘플링하는 것입니다.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Intelligent log sampling"
+  config:
+    global_sampling_percentage: 5  # Sample 5% of everything else
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "preserve-warnings"
+        description: "Keep most warnings"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+```
+
+**결과**: 오류 100% + 경고 50% + 기타 5%
+
+### 서비스 티어별 샘플
+
+서비스 중요도에 따라 샘플링 비율을 다르게 설정합니다.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Service tier sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "critical-services"
+        description: "Keep most traces from critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"'
+
+      - name: "standard-services"
+        description: "Medium sampling for standard services"
+        sampling_percentage: 30
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.tier"] == "standard"'
+```
+
+### 환경별 샘플
+
+테스트 환경에서는 샘플링 횟수를 늘리고, 실제 운영 환경에서는 줄입니다.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Environment-based sampling"
+  config:
+    global_sampling_percentage: 10  # Production default
+    conditionalSamplingRules:
+      - name: "test-environment"
+        description: "Keep all test data"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "test"'
+
+      - name: "staging-environment"
+        description: "Keep half of staging data"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "staging"'
+```
+
+### 느린 requests유지합니다.
+
+분석을 위해 성능 이상치를 보관하십시오.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Preserve important logs"
+  config:
+    global_sampling_percentage: 1  # Sample 1% of routine logs
+    conditionalSamplingRules:
+      - name: "critical-logs"
+        description: "Keep all error and fatal logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "warning-logs"
+        description: "Keep half of warning logs"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+      
+      - name: "traced-logs"
+        description: "Keep logs with trace context"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'trace_id != nil and trace_id.string != "00000000000000000000000000000000"'
+```
+
+**참고**: 지속 시간은 나노초 단위입니다 (1초 = 1,000,000,000 나노초).
+
+## 완전한 예시
+
+### 예 1: 지능형 트레이스(Forward Treasure)
+
+트레이스의 경우 전체 샘플링 비율만 변경할 수 있습니다. 다음은 몇 가지 예입니다.
+
+```yaml
+probabilistic_sampler/Traces:
+  description: Probabilistic sampling for traces
+  config:
+    global_sampling_percentage: 55
+```
+
+### 예시 2: 로그 볼륨 감소
+
+진단 데이터는 유지하면서 로그 용량을 획기적으로 줄이세요:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Aggressive log sampling, preserve errors"
+  config:
+    global_sampling_percentage: 2  # Keep 2% of routine logs
+    conditionalSamplingRules:
+      - name: "keep-errors-fatals"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'  # ERROR and above
+
+      - name: "keep-some-warnings"
+        description: "Keep 25% of warnings"
+        sampling_percentage: 25
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'  # WARN
+```
+
+### 예제 3: HTTP 상태 코드별 샘플
+
+모든 실패 사례(100%)와 성공 사례의 일부(5%)를 샘플링합니다.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample by HTTP response status"
+  config:
+    global_sampling_percentage: 5  # 5% of successes
+    conditionalSamplingRules:
+      - name: "keep-server-errors"
+        description: "Keep all 5xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 500'
+
+      - name: "keep-client-errors"
+        description: "Keep all 4xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 400 and attributes["http.status_code"] < 500'
+```
+
+### 예시 4: 다중 계층 서비스 샘플링
+
+중요도 수준에 따라 다른 비율이 적용됩니다.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Business criticality sampling"
+  config:
+    global_sampling_percentage: 1
+    conditionalSamplingRules:
+      # Critical business services: keep 80%
+      - name: "critical-services"
+        description: "High sampling for critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "critical"'
+
+      # Important services: keep 40%
+      - name: "important-services"
+        description: "Medium sampling for important services"
+        sampling_percentage: 40
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "important"'
+
+      # Standard services: keep 10%
+      - name: "standard-services"
+        description: "Low sampling for standard services"
+        sampling_percentage: 10
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "standard"'
+```
+
+### 예시 5: 시간 기반 샘플링(비피크 시간대 감소)
+
+업무시간 중 샘플링 증가(외부 속성 태그 필요):
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Time-based sampling (requires time attribute)"
+  config:
+    global_sampling_percentage: 5  # Off-peak default
+    conditionalSamplingRules:
+      - name: "business-hours"
+        description: "Higher sampling during business hours"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'attributes["is_business_hours"] == true'
+```
+
+### 예시 6: 끝점 패턴으로 샘플링
+
+모든 관리자 엔드포인트를 유지하고, 공개 API를 적극적으로 샘플링하세요.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Endpoint-based sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "admin-endpoints"
+        description: "Keep all admin traffic"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/admin/.*")'
+
+      - name: "api-endpoints"
+        description: "Sample public API"
+        sampling_percentage: 5
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/api/.*")'
+```
+
+## 무작위성의 원천
+
+`sourceOfRandomness` 필드는 일관된 샘플링 결정을 내리는 데 사용되는 속성을 결정합니다.
+
+**공통 값**:
+
+* `trace_id`: 트레이스의 경우 (트레이스의 모든 스팬이 함께 샘플링되도록 보장)
+* `span_id`개별 스팬 샘플링용 (분산 추적에는 권장하지 않음)
+* 사용자 정의 속성: 임의성을 제공하는 모든 속성
+
+**중요한 이유**: `trace_id` 사용하면 트레이스를 샘플링할 때 임의의 개별 스팬이 아닌 해당 트레이스의 모든 스팬을 얻을 수 있습니다. 이는 분산 거래를 이해하는 데 매우 중요합니다.
+
+## 성능 고려 사항
+
+* **빈도순 정렬 규칙**: 평가 시간을 줄이기 위해 가장 자주 일치하는 조건을 먼저 배치합니다.
+* **무작위성 성능의 원천**: `trace_id` 사용하는 것은 이미 사용 가능하므로 매우 효율적입니다.
+* **샘플링은 다른 프로세서들이 처리된 후에 발생합니다**. 버려질 데이터에 CPU 자원을 낭비하지 않도록 샘플링은 파이프라인의 끝부분에 배치하십시오.
+
+**효율적인 파이프라인 순서 지정**:
+
+```yaml
+steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+```
+
+## 비용 영향 사례
+
+### 예시: 1TB/일 → 100GB/일
+
+**샘플링 전**:
+
+* 하루에 1TB의 로그
+* 90%는 정보 수준의 일상적인 작업입니다.
+* 8%는 경고입니다
+* 2%는 오류/치명적입니다.
+
+**지능형 샘플링을 통해**:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample logs by severity level"
+  config:
+    global_sampling_percentage: 2  # Sample 2% of INFO and below
+    conditionalSamplingRules:
+      - name: "errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100  # Keep 100% of errors
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'
+      
+      - name: "warnings"
+        description: "Keep quarter of warning logs"
+        sampling_percentage: 25  # Keep 25% of warnings
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'
+```
+
+**샘플링 후**:
+
+* 정보: 900GB × 2% = 18GB
+* 경고: 80GB × 25% = 20GB
+* 오류/치명적: 20GB × 100% = 20GB
+* **총 사용량: 하루 약 58GB (94% 감소)**
+* **문제 해결, 해결을 위해 모든 오류가 보존됩니다.**
+
+## OpenTelemetry 리소스
+
+* [확률적 샘플러 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)
+* [조건에 대한 OTTL 구문](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+
+## 다음 단계
+
+* 샘플링 전 데이터 보강을 위한 [변환 프로세서](/docs/new-relic-control/pipeline-control/gateway/transform-processor) 에 대해 알아보세요.
+* 원치 않는 데이터를 삭제하려면 [필터 프로세서를](/docs/new-relic-control/pipeline-control/gateway/filter-processor) 참조하세요.
+* 전체 구문은 [YAML 설정 참조를](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) 확인하세요.
