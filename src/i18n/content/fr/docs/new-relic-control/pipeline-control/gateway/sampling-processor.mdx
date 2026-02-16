@@ -1,0 +1,479 @@
+---
+title: Processeur d'échantillonnage
+metaDescription: Use the sampling processor to reduce telemetry data volume with intelligent probabilistic sampling strategies.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Le processeur d&apos;échantillonnage implémente un échantillonnage probabiliste pour réduire le volume de données tout en préservant le signal. Utilisez-le pour conserver toutes les erreurs et les requêtes lentes tout en échantillonnant de manière agressive les cas de succès courants, réduisant ainsi les coûts sans perdre de valeur diagnostique.
+
+## Quand utiliser le processeur d&apos;échantillonnage
+
+Utilisez le processeur d&apos;échantillonnage lorsque vous devez :
+
+* **Conservez 100 % des erreurs tout en échantillonnant les cas de succès**: préservez toutes les données de diagnostic, supprimez le trafic de routine
+* **Échantillonnez plus agressivement les services à fort volume**: différents taux d&apos;échantillonnage selon le niveau de service ou l&apos;importance
+* **Conservez les requêtes/traces lentes tout en échantillonnant les rapides**: conservez les valeurs aberrantes de performance pour analyse
+* **Appliquez des taux d&apos;échantillonnage différents par environnement ou service**: Production à 10 %, préproduction à 50 %, test à 100 %
+* **Réduire le volume de traces des systèmes distribués**: Décisions d&apos;échantillonnage a posteriori pour des traces complètes
+
+## Comment fonctionne l&apos;échantillonnage
+
+Le processeur d&apos;échantillonnage utilise un **échantillonnage probabiliste** avec des règles conditionnelles :
+
+1. **Pourcentage d&apos;échantillonnage par défaut**: Taux par défaut appliqué à toutes les données ne correspondant pas aux règles conditionnelles
+2. **Règles d&apos;échantillonnage conditionnel**: remplacez le taux par défaut lorsque des conditions spécifiques sont remplies
+3. **Source d&apos;aléatoire**: un champ cohérent (comme `trace_id`) garantit que les données liées sont échantillonnées ensemble
+
+**Ordre d&apos;évaluation**: Les règles conditionnelles sont évaluées dans l&apos;ordre défini. La première règle correspondante détermine le taux d&apos;échantillonnage. Si aucune règle ne correspond, le pourcentage d&apos;échantillonnage par défaut s&apos;applique.
+
+## Configuration
+
+Ajoutez un processeur d&apos;échantillonnage à votre pipeline :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Keep errors, sample success"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+```
+
+**Champs de configuration**:
+
+* `global_sampling_percentage`: Taux d&apos;échantillonnage par défaut (0-100) pour les données ne correspondant pas aux règles conditionnelles
+
+* `conditionalSamplingRules`: Tableau de règles conditionnelles (évaluées dans l&apos;ordre)
+
+  * `name`: Identifiant de règle
+  * `description`: Description lisible par l&apos;homme
+  * `samplingPercentage`: Taux d&apos;échantillonnage pour les données correspondantes (0-100)
+  * `sourceOfRandomness`: Champ à utiliser pour la décision d&apos;échantillonnage (généralement `trace_id`)
+  * `condition`: Expression OTTL pour correspondre à la télémétrie
+
+## Stratégies d&apos;échantillonnage
+
+### Conservez les données précieuses, rejetez le trafic de routine
+
+Le modèle le plus courant : conserver toutes les données de diagnostic (erreurs, requêtes lentes), échantillonner agressivement les cas de réussite courants.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Intelligent log sampling"
+  config:
+    global_sampling_percentage: 5  # Sample 5% of everything else
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "preserve-warnings"
+        description: "Keep most warnings"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+```
+
+**Résultat**: 100 % des erreurs + 50 % des avertissements + 5 % du reste
+
+### Échantillonner par niveau de service
+
+Différents taux d&apos;échantillonnage selon l&apos;importance du service :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Service tier sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "critical-services"
+        description: "Keep most traces from critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"'
+
+      - name: "standard-services"
+        description: "Medium sampling for standard services"
+        sampling_percentage: 30
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.tier"] == "standard"'
+```
+
+### Échantillon par environnement
+
+Échantillonnage plus élevé dans les environnements de test, plus faible en production :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Environment-based sampling"
+  config:
+    global_sampling_percentage: 10  # Production default
+    conditionalSamplingRules:
+      - name: "test-environment"
+        description: "Keep all test data"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "test"'
+
+      - name: "staging-environment"
+        description: "Keep half of staging data"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "staging"'
+```
+
+### Conserver les requêtes lentes
+
+Conserver les valeurs aberrantes de performance pour analyse :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Preserve important logs"
+  config:
+    global_sampling_percentage: 1  # Sample 1% of routine logs
+    conditionalSamplingRules:
+      - name: "critical-logs"
+        description: "Keep all error and fatal logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "warning-logs"
+        description: "Keep half of warning logs"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+      
+      - name: "traced-logs"
+        description: "Keep logs with trace context"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'trace_id != nil and trace_id.string != "00000000000000000000000000000000"'
+```
+
+**Remarque**: La durée est exprimée en nanosecondes (1 seconde = 1 000 000 000 ns).
+
+## Exemples complets
+
+### Exemple 1 : Échantillonnage intelligent des traces pour le traçage distribué
+
+Pour les traces, nous ne pouvons modifier que le pourcentage d&apos;échantillonnage global. Voici quelques exemples :
+
+```yaml
+probabilistic_sampler/Traces:
+  description: Probabilistic sampling for traces
+  config:
+    global_sampling_percentage: 55
+```
+
+### Exemple 2 : Réduction du volume de logs
+
+Réduisez considérablement le volume de logs tout en conservant les données de diagnostic :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Aggressive log sampling, preserve errors"
+  config:
+    global_sampling_percentage: 2  # Keep 2% of routine logs
+    conditionalSamplingRules:
+      - name: "keep-errors-fatals"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'  # ERROR and above
+
+      - name: "keep-some-warnings"
+        description: "Keep 25% of warnings"
+        sampling_percentage: 25
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'  # WARN
+```
+
+### Exemple 3 : Échantillonnage par code d&apos;état HTTP
+
+Échantillonner tous les échecs (100 %) et une fraction des succès (5 %) :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample by HTTP response status"
+  config:
+    global_sampling_percentage: 5  # 5% of successes
+    conditionalSamplingRules:
+      - name: "keep-server-errors"
+        description: "Keep all 5xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 500'
+
+      - name: "keep-client-errors"
+        description: "Keep all 4xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 400 and attributes["http.status_code"] < 500'
+```
+
+### Exemple 4 : Échantillonnage de service multiniveau
+
+Différents taux pour différents niveaux d&apos;importance :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Business criticality sampling"
+  config:
+    global_sampling_percentage: 1
+    conditionalSamplingRules:
+      # Critical business services: keep 80%
+      - name: "critical-services"
+        description: "High sampling for critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "critical"'
+
+      # Important services: keep 40%
+      - name: "important-services"
+        description: "Medium sampling for important services"
+        sampling_percentage: 40
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "important"'
+
+      # Standard services: keep 10%
+      - name: "standard-services"
+        description: "Low sampling for standard services"
+        sampling_percentage: 10
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "standard"'
+```
+
+### Exemple 5 : Échantillonnage temporel (réduction hors pointe)
+
+Échantillonnage plus élevé pendant les heures de bureau (nécessite un étiquetage d&apos;attributs externes) :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Time-based sampling (requires time attribute)"
+  config:
+    global_sampling_percentage: 5  # Off-peak default
+    conditionalSamplingRules:
+      - name: "business-hours"
+        description: "Higher sampling during business hours"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'attributes["is_business_hours"] == true'
+```
+
+### Exemple 6 : Échantillonner par motif de point de terminaison
+
+Conserver tous les endpoints d&apos;administration, échantillonner l&apos;API publique de manière agressive :
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Endpoint-based sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "admin-endpoints"
+        description: "Keep all admin traffic"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/admin/.*")'
+
+      - name: "api-endpoints"
+        description: "Sample public API"
+        sampling_percentage: 5
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/api/.*")'
+```
+
+## Source d&apos;aléatoire
+
+Le champ `sourceOfRandomness` détermine quel attribut est utilisé pour prendre des décisions d&apos;échantillonnage cohérentes.
+
+**Valeurs courantes**:
+
+* `trace_id`: Pour les traces distribuées (garantit que tous les spans d&apos;une trace sont échantillonnés ensemble)
+* `span_id`: Pour l&apos;échantillonnage individuel de spans (non recommandé pour le traçage distribué)
+* Attribut personnalisé : tout attribut qui fournit de l&apos;aléatoire
+
+**Pourquoi c&apos;est important**: L&apos;utilisation de `trace_id` garantit que lorsque vous échantillonnez une trace, vous obtenez TOUS les spans de cette trace, et non pas seulement des spans individuels aléatoires. Ceci est essentiel pour comprendre les transactions distribuées.
+
+## Considérations relatives aux performances
+
+* **Ordonnez les règles par fréquence**: Placez les conditions les plus fréquemment remplies en premier pour réduire le temps d&apos;évaluation
+* **Performances de la source d&apos;aléatoire**: L&apos;utilisation de `trace_id` est très efficace car il est déjà disponible
+* **L&apos;échantillonnage s&apos;effectue après les autres processeurs**: placez l&apos;échantillonnage vers la fin de votre pipeline pour éviter de gaspiller du CPU sur des données qui seront rejetées
+
+**Ordonnancement efficace des pipelines**:
+
+```yaml
+steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+```
+
+## Exemples d&apos;impact sur les coûts
+
+### Exemple : 1 To/jour → 100 Go/jour
+
+**Avant l&apos;échantillonnage**:
+
+* 1 To de logs par jour
+* 90 % sont des opérations de routine de niveau INFO
+* 8 % sont WARN
+* 2 % sont ERROR/FATAL
+
+**Avec l&apos;échantillonnage intelligent**:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample logs by severity level"
+  config:
+    global_sampling_percentage: 2  # Sample 2% of INFO and below
+    conditionalSamplingRules:
+      - name: "errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100  # Keep 100% of errors
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'
+      
+      - name: "warnings"
+        description: "Keep quarter of warning logs"
+        sampling_percentage: 25  # Keep 25% of warnings
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'
+```
+
+**Après l&apos;échantillonnage**:
+
+* INFO : 900 Go × 2 % = 18 Go
+* AVERTISSEMENT : 80 Go × 25 % = 20 Go
+* ERREUR/FATAL : 20 Go × 100 % = 20 Go
+* **Total : ~58 Go/jour (réduction de 94 %)**
+* **Toutes les erreurs conservées pour le dépannage**
+
+## Ressources OpenTelemetry
+
+* [Processeur d&apos;échantillonnage probabiliste](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)
+* [Syntaxe OTTL pour les conditions](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+
+## Prochaines étapes
+
+* En savoir plus sur le [processeur de transformation](/docs/new-relic-control/pipeline-control/gateway/transform-processor) pour l&apos;enrichissement des données avant l&apos;échantillonnage
+* Consultez [Filter processor](/docs/new-relic-control/pipeline-control/gateway/filter-processor) pour supprimer les données indésirables
+* Consultez la [référence de configuration YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) pour la syntaxe complète
