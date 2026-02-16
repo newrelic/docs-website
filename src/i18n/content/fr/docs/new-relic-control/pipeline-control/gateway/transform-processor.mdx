@@ -1,0 +1,466 @@
+---
+title: Transformateur de processeur
+metaDescription: 'Use the transform processor to modify, enrich, and parse telemetry data using OTTL (OpenTelemetry Transformation Language).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Le processeur de transformation modifie, enrichit ou analyse les données de télémétrie à l&apos;aide d&apos;OTTL (OpenTelemetry Transformation Language). Utilisez-le pour ajouter du contexte, normaliser les schémas, analyser des données non structurées ou obfusquer des informations sensibles avant que les données ne quittent votre réseau.
+
+## Quand utiliser le processeur de transformation
+
+Utilisez le processeur de transformation lorsque vous devez :
+
+* **Enrichir la télémétrie avec des métadonnées organisationnelles**: ajouter des tags d&apos;environnement, de région, d&apos;équipe ou de centre de coûts
+* **Analyser les messages de log non structurés**: extraire des attributs structurés à l&apos;aide de regex, de patterns Grok ou de l&apos;analyse JSON
+* **Normaliser les noms d&apos;attributs et les schémas de valeurs**: Standardiser les différentes conventions de nommage entre les services ou les agents (`level` → `severity.text`, `env` → `environment`)
+* **Hachez ou masquez les données sensibles**: Supprimez les informations personnelles identifiables, les identifiants ou toute autre information sensible avant qu&apos;elles ne quittent votre réseau
+* **Extraire des valeurs de chaînes**: récupérez les codes d&apos;état HTTP, les durées ou d&apos;autres données des messages de log
+* **Agréger ou mettre à l&apos;échelle des métriques**: Modifier les valeurs des métriques ou combiner plusieurs métriques
+
+## Contextes OTTL
+
+OTTL fonctionne dans différents contextes selon le type de télémétrie :
+
+* **Logs**: contexte `log` - corps du log d&apos;accès, attributs, gravité
+* **Traces**: contexte `trace` - accédez aux attributs, à la durée et au statut du span
+* **Métriques**: contextes `metric` et `datapoint` - accès au nom, à la valeur et aux attributs de la métrique
+
+## Configuration
+
+Ajoutez un processeur de transformation à votre pipeline :
+
+```yaml
+transform/Logs:
+  description: Transform and process logs
+  config:
+    log_statements:
+      - context: log
+        name: add new field to attribute
+        description: for otlp-test-service application add otlp source type field
+        conditions:
+          - resource.attributes["service.name"] == "otlp-java-test-service"
+        statements:
+          - set(resource.attributes["source.type"],"otlp")
+```
+
+**Champs de configuration**:
+
+* `log_statements`: Tableau d&apos;instructions OTTL pour les transformations de logs (contexte : log)
+* `metric_statements`: Tableau d&apos;instructions OTTL pour les transformations de métriques (contexte : métrique)
+* `trace_statements`: Tableau d&apos;instructions OTTL pour les transformations de traces (contexte : trace)
+
+/\* - \`conditions\` : Tableau de conditions OTTL booléennes qui déterminent si les instructions sont évaluées \*/
+
+## Fonctions OTTL clés
+
+### set()
+
+Définit une valeur d&apos;attribut.
+
+```yaml
+- set(attributes["environment"], "production")
+- set(attributes["team"], "platform")
+- set(severity.text, "ERROR") where severity.number >= 17
+```
+
+### delete\_key()
+
+Supprime un attribut.
+
+```yaml
+- delete_key(attributes, "internal_debug_info")
+- delete_key(attributes, "temp_field")
+```
+
+### replace\_pattern()
+
+Remplace le texte correspondant à un motif d&apos;expression régulière.
+
+```yaml
+  # Redact email addresses
+- replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+
+  # Mask passwords
+- replace_pattern(attributes["password"], ".+", "password=***REDACTED***")
+
+  # Obfuscate all non-whitespace (extreme)
+- replace_pattern(body, "[^\\s]*(\\s?)", "****")
+```
+
+### Hash()
+
+Hache une valeur pour la pseudonymisation.
+
+```yaml
+- set(attributes["user_id_hash"], Hash(attributes["user_id"]))
+- delete_key(attributes, "user_id")
+```
+
+### ParseJSON()
+
+Extrait des attributs de chaînes JSON.
+
+```yaml
+  # Parse JSON body into attributes
+- merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body)
+```
+
+### ExtractGrokPatterns()
+
+Analyse les données structurées à l&apos;aide de motifs Grok.
+
+```yaml
+  # Parse JSON log format
+- ExtractGrokPatterns(body, "\\{\"timestamp\":\\s*\"%{TIMESTAMP_ISO8601:extracted_timestamp}\",\\s*\"level\":\\s*\"%{WORD:extracted_level}\",\\s*\"message\":\\s*\"Elapsed time:\\s*%{NUMBER:elapsed_time}ms\"\\}")
+
+  # Parse custom format with custom pattern
+- ExtractGrokPatterns(attributes["custom_field"], "%{USERNAME:user.name}:%{PASSWORD:user.password}", true, ["PASSWORD=%{GREEDYDATA}"])
+```
+
+### flatten()
+
+Aplatit les attributs de map imbriqués.
+
+```yaml
+  # Flatten nested map to top-level attributes
+- flatten(attributes["map.attribute"])
+```
+
+### limit()
+
+Limite le nombre d&apos;attributs, en conservant les clés prioritaires spécifiées.
+
+```yaml
+  # Keep only 3 attributes, prioritizing "array.attribute"
+- limit(attributes, 3, ["array.attribute"])
+```
+
+## Exemples complets
+
+### Exemple 1 : Ajouter des métadonnées d&apos;environnement
+
+```yaml
+transform/Logs:
+  description: "Enrich logs with environment context"
+  config:
+    log_statements:
+      - context: log
+        name: enrich-with-environment-metadata
+        description: Add environment, region, team, and cost center metadata to all logs
+        statements:
+          - set(attributes["environment"], "production")
+          - set(attributes["region"], "us-east-1")
+          - set(attributes["team"], "platform-engineering")
+          - set(attributes["cost_center"], "eng-infra")
+```
+
+### Exemple 2 : Normaliser les niveaux de sévérité
+
+Différents services utilisent différentes conventions de gravité. Standardisez-les :
+
+```yaml
+transform/Logs:
+  description: "Normalize severity naming"
+  config:
+    log_statements:
+      - context: log
+        name: convert-level-to-severity
+        description: Convert custom level attribute to severity_text
+        conditions:
+          - attributes["level"] != nil
+        statements:
+          - set(severity_text, attributes["level"])
+      
+      - context: log
+        name: delete-level-attribute
+        description: Remove the redundant level attribute after conversion
+        statements:
+          - delete_key(attributes, "level")
+      
+      - context: log
+        name: normalize-error-case
+        description: Normalize error severity to uppercase ERROR
+        conditions:
+          - severity_text == "error"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: normalize-warning-case
+        description: Normalize warning severity to uppercase WARN
+        conditions:
+          - severity_text == "warning"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: normalize-info-case
+        description: Normalize info severity to uppercase INFO
+        conditions:
+          - severity_text == "info"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### Exemple 3 : Analyser les corps de logs JSON
+
+Extraire des attributs structurés de messages de log au format JSON :
+
+```yaml
+transform/Logs:
+  description: "Parse JSON logs into attributes"
+  config:
+    log_statements:
+      - context: log
+        name: parse-json-body-to-attributes
+        description: Parse JSON log body and merge into attributes
+        conditions:
+          - IsString(body)
+        statements:
+          - merge_maps(attributes, ParseJSON(body), "upsert")
+```
+
+**Avant**: `body = '{"timestamp": "2025-03-01T12:12:14Z", "level":"INFO", "message":"Elapsed time: 10ms"}'`
+
+**Après**: Attributs extraits : `timestamp`, `level`, `message`
+
+### Exemple 4 : Extraire les codes d&apos;état HTTP
+
+Extraire les codes d&apos;état des messages de log :
+
+```yaml
+transform/Logs:
+  description: "Extract HTTP status from message"
+  config:
+    log_statements:
+      - context: log
+        name: extract-http-status-code
+        description: Extract HTTP status code from log body using regex pattern
+        statements:
+          - ExtractPatterns(body, "status=(\\d+)")
+          - set(attributes["http.status_code"], body)
+```
+
+### Exemple 5 : Masquer les informations personnelles
+
+Supprimez les informations sensibles avant que les données ne quittent votre réseau :
+
+```yaml
+transform/Logs:
+  description: "Redact PII for compliance"
+  config:
+    log_statements:
+      - context: log
+        name: redact-email-addresses
+        description: Redact email addresses from user_email attribute
+        conditions:
+          - attributes["user_email"] != nil
+        statements:
+          - replace_pattern(attributes["user_email"], "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "[REDACTED_EMAIL]")
+      
+      - context: log
+        name: mask-passwords
+        description: Mask password attribute values
+        conditions:
+          - attributes["password"] != nil
+        statements:
+          - replace_pattern(attributes["password"], ".+", "***REDACTED***")
+      
+      - context: log
+        name: hash-user-ids
+        description: Hash user IDs and remove original value
+        conditions:
+          - attributes["user_id"] != nil
+        statements:
+          - set(attributes["user_id_hash"], SHA256(attributes["user_id"]))
+          - delete_key(attributes, "user_id")
+      
+      - context: log
+        name: mask-credit-cards-in-body
+        description: Mask credit card numbers in log body
+        statements:
+          - replace_pattern(body, "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}", "****-****-****-****")
+```
+
+### Exemple 6 : Analyser les logs d&apos;accès NGINX
+
+Extraire des champs structurés du format de log combiné NGINX :
+
+```yaml
+transform/Logs:
+  description: "Parse and enrich NGINX access logs"
+  config:
+    log_statements:
+      - context: log
+        name: extract-nginx-fields
+        description: Parse NGINX access log format into structured attributes
+        statements:
+          - ExtractGrokPatterns(body, "%{IPORHOST:client.ip} - %{USER:client.user} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:http.method} %{URIPATHPARAM:http.path} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.status_code} %{NUMBER:http.response_size}")
+      
+      - context: log
+        name: set-severity-for-server-errors
+        description: Set severity to ERROR for 5xx server errors
+        conditions:
+          - attributes["http.status_code"] >= "500"
+        statements:
+          - set(severity_text, "ERROR")
+      
+      - context: log
+        name: set-severity-for-client-errors
+        description: Set severity to WARN for 4xx client errors
+        conditions:
+          - attributes["http.status_code"] >= "400"
+          - attributes["http.status_code"] < "500"
+        statements:
+          - set(severity_text, "WARN")
+      
+      - context: log
+        name: set-severity-for-success
+        description: Set severity to INFO for successful requests
+        conditions:
+          - attributes["http.status_code"] >= "200"
+          - attributes["http.status_code"] < "400"
+        statements:
+          - set(severity_text, "INFO")
+```
+
+### Exemple 7 : Aplatir les attributs imbriqués
+
+Convertir les structures imbriquées en attributs plats :
+
+```yaml
+transform/Logs:
+  description: "Flatten nested map attributes"
+  config:
+    log_statements:
+      - context: log
+        name: flatten-kubernetes-attributes
+        description: Flatten nested kubernetes attributes into dot notation
+        conditions:
+          - attributes["kubernetes"] != nil
+        statements:
+          - flatten(attributes["kubernetes"])
+      
+      - context: log
+        name: flatten-cloud-provider-attributes
+        description: Flatten nested cloud provider attributes into dot notation
+        conditions:
+          - attributes["cloud.provider"] != nil
+        statements:
+          - flatten(attributes["cloud.provider"])
+```
+
+**Avant**: `attributes["kubernetes"] = {"pod": {"name": "my-app-123", "uid": "abc-xyz"},"namespace": {"name": "production"}}`
+
+**Après**: Attributs aplatis : `kubernetes.pod.name`, `kubernetes.pod.uid`, `kubernetes.namespace.name`
+
+### Exemple 8 : Transformations conditionnelles
+
+Appliquer les transformations uniquement lorsque les conditions sont remplies :
+
+```yaml
+transform/Logs:
+  description: "Conditional enrichment"
+  config:
+    log_statements:
+      - context: log
+        name: tag-critical-services
+        description: Add business criticality tag for checkout and payment services
+        conditions:
+          - resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"
+        statements:
+          - set(attributes["business_criticality"], "HIGH")
+      
+      - context: log
+        name: normalize-production-environment
+        description: Normalize production environment names to standard format
+        conditions:
+          - attributes["env"] == "prod" or attributes["environment"] == "prd"
+        statements:
+          - set(attributes["deployment.environment"], "production")
+      
+      - context: log
+        name: normalize-staging-environment
+        description: Normalize staging environment names to standard format
+        conditions:
+          - attributes["env"] == "stg" or attributes["environment"] == "stage"
+        statements:
+          - set(attributes["deployment.environment"], "staging")
+      
+      - context: log
+        name: cleanup-legacy-env-fields
+        description: Remove old environment attribute fields after normalization
+        statements:
+          - delete_key(attributes, "env")
+          - delete_key(attributes, "environment")
+```
+
+### Exemple 9 : Conversion de type de données
+
+Convertir les attributs en différents types :
+
+```yaml
+transform/Logs:
+  description: "Convert data types"
+  config:
+    log_statements:
+      - context: log
+        name: convert-error-flag-to-boolean
+        description: Convert string error_flag to boolean is_error attribute
+        conditions:
+          - attributes["error_flag"] != nil
+        statements:
+          - set(attributes["is_error"], Bool(attributes["error_flag"]))
+      
+      - context: log
+        name: set-success-boolean
+        description: Set success attribute to boolean true
+        statements:
+          - set(attributes["success"], Bool("true"))
+      
+      - context: log
+        name: convert-retry-count-to-int
+        description: Convert retry_count_string to integer retry_count
+        conditions:
+          - attributes["retry_count_string"] != nil
+        statements:
+          - set(attributes["retry_count"], Int(attributes["retry_count_string"]))
+```
+
+### Exemple 10 : Limiter la cardinalité
+
+Réduire la cardinalité des attributs pour gérer les coûts :
+
+```yaml
+transform/Logs:
+  description: "Limit high-cardinality attributes"
+  config:
+    log_statements:
+      - context: log
+        name: limit-attribute-cardinality
+        description: Keep only the 5 most important attributes
+        statements:
+          - limit(attributes, 5, ["service.name", "environment", "severity_text"])
+      
+      - context: log
+        name: generalize-user-api-paths
+        description: Replace user ID in path with wildcard to reduce cardinality
+        conditions:
+          - IsMatch(attributes["http.path"], "/api/users/\\d+")
+        statements:
+          - set(attributes["http.path"], "/api/users/*")
+```
+
+## Référence des fonctions OTTL
+
+Pour la liste complète des fonctions, opérateurs et syntaxe OTTL :
+
+* [Référence des fonctions OTTL](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md)
+* [Documentation du processeur Transform](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+
+## Prochaines étapes
+
+* En savoir plus sur le [processeur de filtrage](/docs/new-relic-control/pipeline-control/gateway/filter-processor) pour supprimer les données indésirables
+* Voir [Processeur d&apos;échantillonnage](/docs/new-relic-control/pipeline-control/gateway/sampling-processor) pour la réduction du volume
+* Consultez la [référence de configuration YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) pour la syntaxe complète
