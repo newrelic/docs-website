@@ -205,11 +205,6 @@ const processor = unified()
           state.unsafe.splice(index, 1);
         }
 
-        // Note: Tildes are removed from unsafe characters here to prevent escaping during serialization.
-        // However, tildes are still problematic for MDX parsing (they're code fence delimiters),
-        // so we replace them with hyphens in the replaceTildesWithHyphens plugin applied later in the pipeline.
-        state.unsafe = state.unsafe.filter((rule) => rule.character !== '~');
-
         node.value = htmlEncode(node.value);
         return defaultStringifyHandlers.text(node, _, state, info);
       },
