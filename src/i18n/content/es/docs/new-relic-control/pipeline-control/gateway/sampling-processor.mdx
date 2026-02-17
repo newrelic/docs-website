@@ -1,0 +1,479 @@
+---
+title: Procesador de muestreo
+metaDescription: Use the sampling processor to reduce telemetry data volume with intelligent probabilistic sampling strategies.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El procesador de muestreo implementa un muestreo probabilístico para reducir el volumen de datos mientras preserva la señal. Utilícelo para conservar todos los errores y las solicitudes lentas, mientras muestrea agresivamente los casos de éxito rutinarios, reduciendo costos sin perder valor de diagnóstico.
+
+## Cuándo usar el procesador de muestreo
+
+Utilice el procesador de muestreo cuando necesite:
+
+* **Conserve el 100% de los errores mientras muestrea los casos de éxito**: Preserve todos los datos de diagnóstico, descarte el tráfico de rutina
+* **Muestree los servicios de alto volumen más agresivamente**: Diferentes tasas de muestreo por nivel de servicio o importancia
+* **Conserve las solicitudes/trazas lentas mientras muestrea las rápidas**: Mantenga los valores atípicos de rendimiento para su análisis
+* **Aplique diferentes tasas de muestreo por entorno o servicio**: Producción al 10%, staging al 50%, pruebas al 100%
+* **Reduzca el volumen de trazas de los sistemas distribuidos**: Decisiones de muestreo basadas en la cola para trazas completas
+
+## Cómo funciona el muestreo
+
+El procesador de muestreo utiliza **muestreo probabilístico** con reglas condicionales:
+
+1. **Porcentaje de muestreo predeterminado**: Tasa predeterminada aplicada a todos los datos que no coinciden con las reglas condicionales
+2. **Reglas de muestreo condicional**: Sobrescribe la tasa predeterminada cuando se cumplen condiciones específicas
+3. **Fuente de aleatoriedad**: Un campo consistente (como `trace_id`) garantiza que los datos relacionados se muestreen juntos
+
+**Orden de evaluación**: Las reglas condicionales se evalúan en el orden definido. La primera regla de coincidencia determina la tasa de muestreo. Si ninguna regla coincide, se aplica el porcentaje de muestreo predeterminado.
+
+## Configuración
+
+Agregue un procesador de muestreo a su pipeline:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Keep errors, sample success"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+```
+
+**Campos de configuración**:
+
+* `global_sampling_percentage`: Tasa de muestreo predeterminada (0-100) para datos que no coinciden con las reglas condicionales
+
+* `conditionalSamplingRules`: Arreglo de reglas condicionales (evaluadas en orden)
+
+  * `name`: Identificador de regla
+  * `description`: Descripción legible por humanos
+  * `samplingPercentage`: Tasa de muestreo para datos coincidentes (0-100)
+  * `sourceOfRandomness`: Campo que se usará para la decisión de muestreo (típicamente `trace_id`)
+  * `condition`: expresión OTTL para coincidir con la telemetría
+
+## Estrategias de muestreo
+
+### Conserve los datos valiosos, descarte el tráfico de rutina
+
+El patrón más común: conservar todos los datos de diagnóstico (errores, solicitudes lentas), muestrear agresivamente los casos de éxito rutinarios.
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Intelligent log sampling"
+  config:
+    global_sampling_percentage: 5  # Sample 5% of everything else
+    conditionalSamplingRules:
+      - name: "preserve-errors"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "preserve-warnings"
+        description: "Keep most warnings"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+```
+
+**Resultado**: 100% de los errores + 50% de las advertencias + 5% de todo lo demás
+
+### Muestra por nivel de servicio
+
+Diferentes tasas de muestreo para distinta importancia del servicio:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Service tier sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "critical-services"
+        description: "Keep most traces from critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.name"] == "checkout" or resource.attributes["service.name"] == "payment"'
+
+      - name: "standard-services"
+        description: "Medium sampling for standard services"
+        sampling_percentage: 30
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["service.tier"] == "standard"'
+```
+
+### Muestra por ambiente
+
+Mayor muestreo en entornos de prueba, menor en producción:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Environment-based sampling"
+  config:
+    global_sampling_percentage: 10  # Production default
+    conditionalSamplingRules:
+      - name: "test-environment"
+        description: "Keep all test data"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "test"'
+
+      - name: "staging-environment"
+        description: "Keep half of staging data"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'resource.attributes["environment"] == "staging"'
+```
+
+### Conservar solicitudes lentas
+
+Conserve los valores atípicos de rendimiento para su análisis:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Preserve important logs"
+  config:
+    global_sampling_percentage: 1  # Sample 1% of routine logs
+    conditionalSamplingRules:
+      - name: "critical-logs"
+        description: "Keep all error and fatal logs"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "ERROR" or severity_text == "FATAL"'
+
+      - name: "warning-logs"
+        description: "Keep half of warning logs"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'severity_text == "WARN"'
+      
+      - name: "traced-logs"
+        description: "Keep logs with trace context"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'trace_id != nil and trace_id.string != "00000000000000000000000000000000"'
+```
+
+**Nota**: La duración es en nanosegundos (1 segundo = 1,000,000,000 ns).
+
+## Ejemplos completos
+
+### Ejemplo 1: Muestreo inteligente de trazas para rastreo distribuido
+
+Para las trazas, solo podemos cambiar el porcentaje de muestreo global. Estos son algunos ejemplos:
+
+```yaml
+probabilistic_sampler/Traces:
+  description: Probabilistic sampling for traces
+  config:
+    global_sampling_percentage: 55
+```
+
+### Ejemplo 2: Reducción del volumen de logs
+
+Reduzca drásticamente el volumen de logs mientras conserva los datos de diagnóstico:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Aggressive log sampling, preserve errors"
+  config:
+    global_sampling_percentage: 2  # Keep 2% of routine logs
+    conditionalSamplingRules:
+      - name: "keep-errors-fatals"
+        description: "Keep all errors and fatals"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'  # ERROR and above
+
+      - name: "keep-some-warnings"
+        description: "Keep 25% of warnings"
+        sampling_percentage: 25
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'  # WARN
+```
+
+### Ejemplo 3: Muestra por código de estado HTTP
+
+Muestrear todas las fallas (100%) y una fracción de los éxitos (5%):
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample by HTTP response status"
+  config:
+    global_sampling_percentage: 5  # 5% of successes
+    conditionalSamplingRules:
+      - name: "keep-server-errors"
+        description: "Keep all 5xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 500'
+
+      - name: "keep-client-errors"
+        description: "Keep all 4xx errors"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'attributes["http.status_code"] >= 400 and attributes["http.status_code"] < 500'
+```
+
+### Ejemplo 4: Muestreo de servicios multinivel
+
+Diferentes tasas para diferentes niveles de importancia:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Business criticality sampling"
+  config:
+    global_sampling_percentage: 1
+    conditionalSamplingRules:
+      # Critical business services: keep 80%
+      - name: "critical-services"
+        description: "High sampling for critical services"
+        sampling_percentage: 80
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "critical"'
+
+      # Important services: keep 40%
+      - name: "important-services"
+        description: "Medium sampling for important services"
+        sampling_percentage: 40
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "important"'
+
+      # Standard services: keep 10%
+      - name: "standard-services"
+        description: "Low sampling for standard services"
+        sampling_percentage: 10
+        source_of_randomness: "trace.id"
+        condition: 'attributes["business_criticality"] == "standard"'
+```
+
+### Ejemplo 5: Muestreo basado en tiempo (reducción fuera de horas pico)
+
+Mayor muestreo durante el horario laboral (requiere etiquetado de atributos externos):
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Time-based sampling (requires time attribute)"
+  config:
+    global_sampling_percentage: 5  # Off-peak default
+    conditionalSamplingRules:
+      - name: "business-hours"
+        description: "Higher sampling during business hours"
+        sampling_percentage: 50
+        source_of_randomness: "trace.id"
+        condition: 'attributes["is_business_hours"] == true'
+```
+
+### Ejemplo 6: Muestrear por patrón de endpoint
+
+Conservar todos los endpoints de administración, muestrear agresivamente la API pública:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Endpoint-based sampling"
+  config:
+    global_sampling_percentage: 10
+    conditionalSamplingRules:
+      - name: "admin-endpoints"
+        description: "Keep all admin traffic"
+        sampling_percentage: 100
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/admin/.*")'
+
+      - name: "api-endpoints"
+        description: "Sample public API"
+        sampling_percentage: 5
+        source_of_randomness: "trace.id"
+        condition: 'IsMatch(attributes["http.path"], "^/api/.*")'
+```
+
+## Fuente de aleatoriedad
+
+El campo `sourceOfRandomness` determina qué atributo se utiliza para tomar decisiones de muestreo consistentes.
+
+**Valores comunes**:
+
+* `trace_id`: Para trazas distribuidas (garantiza que todos los spans de una traza se muestreen juntos)
+* `span_id`: Para el muestreo de spans individuales (no recomendado para el rastreo distribuido)
+* Atributo personalizado: Cualquier atributo que proporcione aleatoriedad
+
+**Por qué es importante**: Usar `trace_id` asegura que, al muestrear una traza, obtenga TODOS los spans de esa traza, no solo spans individuales aleatorios. Esto es fundamental para comprender las transacciones distribuidas.
+
+## Consideraciones de rendimiento
+
+* **Ordene las reglas por frecuencia**: Coloque primero las condiciones que coinciden con mayor frecuencia para reducir el tiempo de evaluación
+* **Rendimiento de la fuente de aleatoriedad**: Usar `trace_id` es muy eficiente ya que ya está disponible
+* **El muestreo ocurre después de otros procesadores**: Coloque el muestreo cerca del final de su pipeline para evitar desperdiciar CPU en datos que serán descartados
+
+**Ordenamiento eficiente de pipelines**:
+
+```yaml
+steps:
+      receivelogs:
+        description: Receive logs from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Logs
+      receivemetrics:
+        description: Receive metrics from OTLP and New Relic proprietary sources
+        output:
+          - filter/Metrics
+      receivetraces:
+        description: Receive traces from OTLP and New Relic proprietary sources
+        output:
+          - probabilistic_sampler/Traces
+      probabilistic_sampler/Logs:
+        description: Probabilistic sampling for all logs
+        output:
+          - filter/Logs
+        config:
+          global_sampling_percentage: 100
+          conditionalSamplingRules:
+            - name: sample the log records for ruby test service
+              description: sample the log records for ruby test service with 70%
+              sampling_percentage: 70
+              source_of_randomness: trace.id
+              condition: resource.attributes["service.name"] == "ruby-test-service"
+      probabilistic_sampler/Traces:
+        description: Probabilistic sampling for traces
+        output:
+          - filter/Traces
+        config:
+          global_sampling_percentage: 80
+      filter/Logs:
+        description: Apply drop rules and data processing for logs
+        output:
+          - transform/Logs
+        config:
+          error_mode: ignore
+          logs:
+            rules:
+              - name: drop the log records
+                description: drop all records which has severity text INFO
+                value: log.severity_text == "INFO"
+      filter/Metrics:
+        description: Apply drop rules and data processing for metrics
+        output:
+          - transform/Metrics
+        config:
+          error_mode: ignore
+          metric:
+            rules:
+              - name: drop entire metrics
+                description: delete the metric on basis of humidity_level_metric
+                value: (name == "humidity_level_metric" and IsMatch(resource.attributes["process_group_id"], "pcg_.*"))
+          datapoint:
+            rules:
+              - name: drop datapoint
+                description: drop datapoint on the basis of unit
+                value: (attributes["unit"] == "Fahrenheit" and (IsMatch(attributes["process_group_id"], "pcg_.*") or IsMatch(resource.attributes["process_group_id"], "pcg_.*")))
+      filter/Traces:
+        description: Apply drop rules and data processing for traces
+        output:
+          - transform/Traces
+        config:
+          error_mode: ignore
+          span:
+            rules:
+              - name: delete spans
+                description: deleting the span for a specified host
+                value: (attributes["host"] == "host123.example.com" and (IsMatch(attributes["control_group_id"], "pcg_.*") or IsMatch(resource.attributes["control_group_id"], "pcg_.*")))
+          span_event:
+            rules:
+              - name: Drop all the traces span event
+                description: Drop all the traces span event with name debug event
+                value: name == "debug_event"
+      transform/Logs:
+        description: Transform and process logs
+        output:
+          - nrexporter/newrelic
+        config:
+          log_statements:
+            - context: log
+              name: add new field to attribute
+              description: for otlp-test-service application add newrelic source type field
+              conditions:
+                - resource.attributes["service.name"] == "otlp-java-test-service"
+              statements:
+                - set(resource.attributes["source.type"],"otlp")
+      transform/Metrics:
+        description: Transform and process metrics
+        output:
+          - nrexporter/newrelic
+        config:
+          metric_statements:
+            - context: metric
+              name: adding a new attributes
+              description: 'adding a new field into a attributes '
+              conditions:
+                - resource.attributes["service.name"] == "payments-api"
+              statements:
+                - set(resource.attributes["application.name"], "compute-application")
+      transform/Traces:
+        description: Transform and process traces
+        output:
+          - nrexporter/newrelic
+        config:
+          trace_statements:
+            - context: span
+              name: remove the attribute
+              description: remove the attribute when service name is payment-service
+              conditions:
+                - resource.attributes["service.name"] == "payment-service"
+              statements:
+                - delete_key(resource.attributes, "service.version")
+```
+
+## Ejemplos de impacto en el costo
+
+### Ejemplo: 1TB/día → 100GB/día
+
+**Antes del muestreo**:
+
+* 1 TB de logs por día
+* El 90% son operaciones de rutina de nivel INFO
+* El 8% son WARN
+* 2% son ERROR/FATAL
+
+**Con muestreo inteligente**:
+
+```yaml
+probabilistic_sampler/Logs:
+  description: "Sample logs by severity level"
+  config:
+    global_sampling_percentage: 2  # Sample 2% of INFO and below
+    conditionalSamplingRules:
+      - name: "errors"
+        description: "Keep all error logs"
+        sampling_percentage: 100  # Keep 100% of errors
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 17'
+      
+      - name: "warnings"
+        description: "Keep quarter of warning logs"
+        sampling_percentage: 25  # Keep 25% of warnings
+        source_of_randomness: "trace.id"
+        condition: 'severity_number >= 13 and severity_number < 17'
+```
+
+**Después del muestreo**:
+
+* INFO: 900GB × 2% = 18GB
+* ADVERTENCIA: 80GB × 25% = 20GB
+* ERROR/FATAL: 20GB × 100% = 20GB
+* **Total: ~58 GB/día (reducción del 94%)**
+* **Todos los errores conservados para la solución de problemas**
+
+## Recursos de OpenTelemetry
+
+* [Procesador de muestreo probabilístico](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor)
+* [Sintaxis de OTTL para condiciones](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/README.md)
+
+## Próximos pasos
+
+* Obtenga más información sobre el [procesador de transformación](/docs/new-relic-control/pipeline-control/gateway/transform-processor) para el enriquecimiento de datos antes del muestreo
+* Consulte [Filter processor](/docs/new-relic-control/pipeline-control/gateway/filter-processor) para descartar datos no deseados
+* Consulte la [referencia de configuración YAML](/docs/new-relic-control/pipeline-control/gateway/yaml-overview) para la sintaxis completa
