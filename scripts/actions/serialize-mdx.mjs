@@ -40,7 +40,7 @@ const mdxSpanExpression = (h, node) => {
   return h.handlers.text(h, node);
 };
 
-// Convert JSX comments {/* ... */} to HTML comments <!-- ... -->
+// Convert JSX comments {/* ... */} to HTML comments with a special marker
 // This preserves comments through the translation pipeline since:
 // 1. HTML comments are first-class citizens in HTML parsers
 // 2. Translation tools preserve HTML comments automatically
@@ -60,6 +60,8 @@ const mdxFlowExpression = (h, node) => {
   // For non-comment expressions, convert to text (default behavior)
   return h.handlers.text(h, node);
 };
+=======
+>>>>>>> Stashed changes
 
 const processor = unified()
   .use(toMDAST)
@@ -74,8 +76,6 @@ const processor = unified()
       mdxjsEsm: handlers.import.serialize,
       mdxJsxTextElement: mdxElement,
       mdxJsxFlowElement: mdxElement,
-      mdxFlowExpression, // Convert JSX comments to HTML comments
-      mdxTextExpression: mdxFlowExpression, // Handle inline comments too
       mdxSpanExpression,
       code: handlers.CodeBlock.serialize,
     },
