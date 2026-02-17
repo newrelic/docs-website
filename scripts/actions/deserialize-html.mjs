@@ -125,27 +125,6 @@ const inlineCodeAttribute = () => (tree) => {
   });
 };
 
-// Convert HTML comments with [JSX_COMMENT] marker back to JSX comments {/* ... */}
-// This restores JSX comments that were converted to HTML comments during serialization
-// while leaving translator-added HTML comments as-is
-const htmlCommentsToJsxComments = () => (tree) => {
-  visit(tree, 'html', (node) => {
-    // Match HTML comments: <!-- [JSX_COMMENT]... -->
-    const match = node.value.match(/^<!--\s*\[JSX_COMMENT\]([\s\S]*?)\s*-->$/);
-
-    if (match) {
-      // Decode HTML entities in the comment content
-      // This fixes issues where quotes and other special chars were HTML-encoded
-      const decodedContent = htmlDecode(match[1]);
-
-      // Convert back to MDX flow expression (JSX comment)
-      node.type = 'mdxFlowExpression';
-      node.value = `/* ${decodedContent} */`;
-    }
-    // HTML comments without the marker are left as-is (translator-added comments)
-  });
-};
-
 // previously, this processor was defined in `deserialization-helpers`.
 // upgrading unified there would have involved changing a lot of CJS modules to ESM.
 // this is a sort of workaround to avoid doing all that,
@@ -190,9 +169,8 @@ const processor = unified()
   // won't know how to stringify those nodes.
   .use(remarkGfm)
   .use(remarkMdx)
-  // Convert HTML comments with [JSX_COMMENT] marker back to JSX comments
-  // This preserves our original JSX comments while leaving translator-added HTML comments as-is
-  .use(htmlCommentsToJsxComments)
+  // Note: htmlCommentsToJsxComments removed - let HTML comments stay as HTML
+  // This prevents issues with HTML comments from translators/Smartling
   .use(stringify, {
     bullet: '*',
     fences: true,
