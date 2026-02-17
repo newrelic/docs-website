@@ -40,21 +40,20 @@ const mdxSpanExpression = (h, node) => {
   return h.handlers.text(h, node);
 };
 
-// Convert JSX comments {/* ... */} to HTML comments with a special marker
+// Convert JSX comments {/* ... */} to HTML comments <!-- ... -->
 // This preserves comments through the translation pipeline since:
 // 1. HTML comments are first-class citizens in HTML parsers
 // 2. Translation tools preserve HTML comments automatically
-// 3. We can convert them back to JSX comments during deserialization using the marker
+// 3. We can convert them back to JSX comments during deserialization
 const mdxFlowExpression = (h, node) => {
   // Check if this is a comment (starts with /* and ends with */)
   if (node.value && node.value.trim().match(/^\/\*[\s\S]*?\*\/$/)) {
     // Extract comment content (remove /* and */)
     const commentContent = node.value.trim().slice(2, -2);
-    // Add a special marker to identify JSX comments vs translator-added HTML comments
-    // This marker helps deserialization distinguish between the two types
+    // Return an HTML comment node in the HAST
     return {
       type: 'comment',
-      value: `[JSX_COMMENT]${commentContent}`,
+      value: commentContent,
     };
   }
 
