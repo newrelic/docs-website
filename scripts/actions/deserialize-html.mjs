@@ -93,27 +93,35 @@ const stripTranslateFrontmatter = () => {
   return transformer;
 };
 
+/**
+ * Replace tildes with hyphens in text nodes to prevent MDX parsing issues.
+ *
+ * Tildes (~) are used as code fence delimiters in Markdown/MDX (like ``` or ~~~)
+ * and cause parsing errors when used in regular text. Korean translations naturally
+ * use ~ for ranges (e.g., "7.9~10" meaning "7.9 to 10"), which breaks MDX validation.
+ *
+ * This transformer replaces all tildes with hyphens in text nodes to ensure
+ * MDX compatibility across all languages.
+ */
+const replaceTildesWithHyphens = () => {
+  const transformer = (tree) => {
+    visit(tree, 'text', (node) => {
+      if (node.value && typeof node.value === 'string') {
+        // Replace tildes with hyphens to prevent MDX parsing errors
+        node.value = node.value.replace(/~/g, '-');
+      }
+    });
+    return tree;
+  };
+
+  return transformer;
+};
+
 const inlineCodeAttribute = () => (tree) => {
   visit(tree, 'inlineCode', (node) => {
     node.type = 'mdxJsxSpanElement';
     node.name = 'InlineCode';
     node.children = [u('text', node.value)];
-  });
-};
-
-// Convert HTML comments <!-- ... --> back to JSX comments {/* ... */}
-// This restores JSX comments that were converted to HTML comments during serialization
-// preserving the correct MDX/JSX comment syntax
-const htmlCommentsToJsxComments = () => (tree) => {
-  visit(tree, 'html', (node) => {
-    // Match HTML comments: <!-- ... -->
-    const match = node.value.match(/^<!--\s*([\s\S]*?)\s*-->$/);
-
-    if (match) {
-      // Convert to MDX comment
-      node.type = 'mdxFlowExpression';
-      node.value = `/* ${match[1]} */`;
-    }
   });
 };
 
@@ -161,7 +169,8 @@ const processor = unified()
   // won't know how to stringify those nodes.
   .use(remarkGfm)
   .use(remarkMdx)
-  .use(htmlCommentsToJsxComments) // Convert HTML comments back to JSX comments
+  // Note: htmlCommentsToJsxComments removed - let HTML comments stay as HTML
+  // This prevents issues with HTML comments from translators/Smartling
   .use(stringify, {
     bullet: '*',
     fences: true,
@@ -196,18 +205,14 @@ const processor = unified()
           state.unsafe.splice(index, 1);
         }
 
-        // Remove tilde from unsafe characters to prevent escaping
-        // Tilde is commonly used in Korean and other languages for ranges (e.g., "3~5")
-        // Remove all tilde-related unsafe rules
-        state.unsafe = state.unsafe.filter((rule) => rule.character !== '~');
-
         node.value = htmlEncode(node.value);
         return defaultStringifyHandlers.text(node, _, state, info);
       },
     },
   })
   .use(frontmatter, ['yaml'])
-  .use(stripTranslateFrontmatter);
+  .use(stripTranslateFrontmatter)
+  .use(replaceTildesWithHyphens);
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);
