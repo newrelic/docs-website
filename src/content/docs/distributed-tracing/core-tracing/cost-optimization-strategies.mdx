@@ -1,0 +1,453 @@
+---
+title: Optimize distributed tracing costs with APM agents
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Span configuration
+  - Cost optimization
+  - APM agents
+metaDescription: Reduce distributed tracing costs by 50-85% using APM agent configuration options while maintaining critical system visibility.
+freshnessValidatedDate: never
+---
+
+APM agents provide configurable controls for distributed tracing data volume and granularity, allowing you to reduce costs by 50-85% while maintaining the visibility you need for troubleshooting and monitoring. This guide shows you how to strategically apply span filtering and attribute reduction across your services.
+
+## Understand your tracing costs [#understand-costs]
+
+Distributed tracing costs come from two main factors:
+
+### Ingest costs
+
+You're charged for the data volume (GB) of span data ingested. Span data includes:
+* Number of spans (controlled by [span filtering configuration](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing))
+* Size of each span (controlled by [span attribute reduction](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing))
+* Sampling rate (controlled by adaptive sampling configuration)
+
+### Compute (CCU) costs
+
+Querying and visualizing trace data consumes compute units. While span configuration primarily addresses ingest costs, the impact on query performance depends on many variables and may vary by customer.
+
+### Measure your baseline
+
+Before optimizing, establish your current costs:
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily Span GB'
+FROM Span
+SINCE 1 day ago
+```
+
+This gives you a starting point to measure improvement against.
+
+## Cost reduction strategies [#strategies]
+
+APM agent span configuration offers three main options you can apply strategically across your services:
+
+### Strategy 1: Reduced granularity for services with deep call stacks
+
+**What it does:** Removes in-process spans, keeping only entry and exit spans (AI spans still captured)
+**Typical savings:** 50-80% reduction in span count
+**Best for:** Services with deep call stacks, high-throughput services, Java/.NET applications
+
+Use [reduced granularity (span filtering)](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to eliminate in-process spans while keeping entry and exit spans. This dramatically reduces span volume without losing service-to-service visibility.
+
+**Example scenario:**
+Your Java services generate 5-10 in-process spans per request. If an app produces 5 in-process spans per transaction and makes 3 DB queries, then reduced granularity will result in 5 fewer spans per transaction, or about 55% fewer bytes produced.
+
+* Enable reduced granularity on all services with deep call stacks
+* Keep full distributed tracing on services where you need method-level visibility
+* **Result:** More cost optimization control with results that vary by application
+
+### Strategy 2: Essential granularity for supporting services
+
+**What it does:** Removes in-process spans and reduces span attributes
+**Typical savings:** 60-75% reduction in total data volume
+**Best for:** Supporting services, internal APIs, background workers
+
+Use [essential granularity](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) on services where you need connectivity data but not detailed metadata. You'll still see service-to-service calls in your flow maps and traces, with minimal span data.
+
+**Example scenario:**
+You have 50 microservices. The 15 most critical handle customer transactions. The other 35 are supporting services (auth, notifications, logging, etc.).
+
+* Keep full distributed tracing on 15 critical services
+* Enable essential granularity on 35 supporting services
+* **Result:** Customized cost optimization based on your needs
+
+### Strategy 3: Compact granularity for non-production or high-volume services
+
+**What it does:** Removes in-process spans, reduces attributes, and compresses duplicate exit spans (for same URLs/databases)
+**Typical savings:** 70-85% reduction in total data volume
+**Best for:** Non-production environments, extremely high-volume services, cost-critical situations
+
+Use [compact granularity](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) on services where you only need the "big picture" connectivity without duplicate call tracking.
+
+**Example scenario:**
+You have extensive staging and development environments that mirror production.
+
+* Production: Full distributed tracing on critical services, reduced granularity on others
+* Staging: Essential or compact granularity on all services
+* Development: Compact granularity on all services
+* **Result:** More optimization controls for non-production environments
+
+### Strategy 4: Adjust adaptive sampling rates
+
+**What it does:** Controls how many traces are sampled per minute
+**Typical savings:** 10-30% depending on adjustment
+**Best for:** Fine-tuning after implementing span filtering options
+
+Lower sampling rates on services that don't require high trace capture rates.
+
+**Example scenario:**
+Your services use the default 10 traces/minute, but you find that 5 traces/minute provides adequate coverage.
+
+* Reduce sampling to 5 traces/minute on non-critical services
+* **Result:** Additional 10-15% reduction on top of span filtering savings
+
+### Strategy 5: Hybrid sampling (full + partial granularity)
+
+**What it does:** Enables both full and partial granularity tracing simultaneously on the same service
+**Typical savings:** 40-70% depending on sampling ratios
+**Best for:** Services where you need occasional detailed traces but can't justify full granularity for all requests
+
+Configure a service to sample some traces at full granularity while capturing others at partial granularity (reduced, essential, or compact). This gives you 100% trace coverage with mixed detail levels. Each individual trace is captured as either full OR partial granularity, never both simultaneously. Full granularity takes precedence when both are enabled.
+
+**Example scenario:**
+Your checkout service is business-critical but generates 50GB/day of trace data. You need detailed traces for troubleshooting but can't afford full detail on every request.
+
+* Configure 10% of traces to use full granularity (complete detail for deep analysis)
+* Configure 90% of traces to use essential granularity (lightweight coverage)
+* **Result:** 100% trace coverage with 60-70% cost reduction
+
+## Service prioritization framework [#prioritization]
+
+Not all services need the same level of tracing detail. Use this framework to decide which span configuration option to apply:
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        Service category
+      </th>
+      <th>
+        Recommended configuration
+      </th>
+      <th>
+        Rationale
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **Business-critical**
+
+        Customer-facing transactions, payment processing, checkout flows
+      </td>
+      <td>
+        Full distributed tracing (no filtering)
+      </td>
+      <td>
+        Keep maximum detail for troubleshooting customer-impacting issues. Cost is justified by business importance.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Important services**
+
+        Core APIs, authentication, main business logic
+      </td>
+      <td>
+        Reduced granularity (span filtering only)
+      </td>
+      <td>
+        Maintain service-to-service visibility while reducing span volume. You can still see the flow, just without internal method details. Check for dependencies on custom attributes or traced functions before enabling.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Supporting services**
+
+        Logging, metrics, notifications, caching
+      </td>
+      <td>
+        Essential granularity (span filtering + attribute reduction)
+      </td>
+      <td>
+        Need connectivity data for complete traces, but rarely need detailed attributes. Provides cost optimization controls.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Internal tools**
+
+        Admin panels, dashboards, reporting
+      </td>
+      <td>
+        Compact granularity (maximum reduction) + reduced sampling
+      </td>
+      <td>
+        Low usage, low priority. Minimal tracing provides adequate visibility with optimized data volume.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **Non-production**
+
+        Development, staging, QA environments
+      </td>
+      <td>
+        Essential or compact granularity
+      </td>
+      <td>
+        Need to test trace propagation but don't need production-level detail. Good opportunity for cost optimization.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Create your service inventory
+
+Map your services to these categories:
+
+1. List all services currently sending distributed tracing data
+2. Categorize each service using the framework above
+3. Note current span volume per service:
+   ```sql
+   SELECT count(*) as 'Span Count'
+   FROM Span
+   FACET entity.name
+   SINCE 1 day ago
+   ```
+4. Prioritize configuration rollout starting with supporting services (lowest risk)
+
+## Calculate your potential savings [#calculate]
+
+Use this approach to estimate savings before implementing:
+
+### Step 1: Measure current ingest
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB',
+       (bytecountestimate() / 1e9) * 30 as 'Monthly GB'
+FROM Span
+SINCE 1 day ago
+```
+
+**Note:** `bytecountestimate()` provides an estimate for planning purposes. For monitoring actual consumption, consider using other metrics that track actual data ingest.
+
+### Step 2: Estimate reduction by configuration
+
+Break down by service category and apply reduction percentages. Group your services by configuration type and estimate the data volume reduction for each group based on typical reduction percentages (reduced: ~55%, essential: ~65-70%, compact: ~70-85%).
+
+### Step 3: Calculate expected cost
+
+Example calculation:
+
+| Current state | After span configuration |
+|---------------|-------------------|
+| 100 GB/day baseline | |
+| 20 GB (20%): Critical services keep full DT | 20 GB (no change) |
+| 30 GB (30%): Important services use Option 1 | 13.5 GB (55% reduction) |
+| 50 GB (50%): Supporting services use Option 2 | 15 GB (70% reduction) |
+| **Total: 100 GB/day** | **Total: 48.5 GB/day** |
+
+**Result:** 51.5% overall cost reduction
+
+## Rollout approach [#rollout]
+
+Implement span configuration gradually to minimize risk:
+
+### Phase 1: Baseline and planning (Week 1)
+
+1. Measure current ingest volume and costs
+2. Categorize all services using the prioritization framework
+3. Identify 2-3 low-risk services for pilot (supporting services ideal)
+4. Document current troubleshooting workflows that rely on detailed spans
+
+### Phase 2: Pilot deployment (Weeks 2-3)
+
+1. Enable span configuration on pilot services:
+   * Week 2: Option 1 on 2-3 services
+   * Week 3: Evaluate and optionally move to Option 2
+2. Monitor daily ingest volume:
+   ```sql
+   SELECT bytecountestimate() / 1e9 as 'Daily GB'
+   FROM Span
+   WHERE entity.name IN ('pilot-service-1', 'pilot-service-2')
+   SINCE 1 day ago
+   TIMESERIES
+   ```
+3. Verify trace completeness in UI
+4. Confirm Dynamic Flow Maps still show all connections
+5. Gather feedback from team
+
+### Phase 3: Expand to supporting services (Weeks 4-6)
+
+1. Apply Option 2 or 3 to all supporting services
+2. Monitor aggregate impact on costs
+3. Address any issues discovered
+4. Document lessons learned
+
+### Phase 4: Optimize important services (Weeks 7-9)
+
+1. Apply Option 1 to important services
+2. Verify troubleshooting workflows still work
+3. Fine-tune configurations based on actual usage
+
+### Phase 5: Continuous optimization (Ongoing)
+
+1. Review configurations quarterly
+2. Adjust as service priorities change
+3. Monitor for new services to configure
+4. Track cost savings over time
+
+<Callout variant="tip">
+  Don't rush the rollout. Taking 2-3 months to implement span configuration carefully is better than rushing and losing critical visibility.
+</Callout>
+
+## Track your cost impact [#track]
+
+Monitor the effectiveness of your span configuration implementation:
+
+### Daily ingest tracking
+
+```sql
+SELECT bytecountestimate() / 1e9 as 'Daily GB'
+FROM Span
+FACET CASES (
+  WHERE nr.lowGranularity IS NULL as 'Full DT',
+  WHERE nr.lowGranularity = true as 'Partial Granularity'
+)
+SINCE 7 days ago
+TIMESERIES 1 day
+```
+
+### Span count by configuration
+
+```sql
+SELECT count(*) as 'Span Count'
+FROM Span
+FACET entity.name, nr.lowGranularity
+SINCE 1 day ago
+```
+
+### Cost savings dashboard
+
+Create a dashboard with these charts:
+
+1. **Total ingest over time:** Track overall GB/day trend
+2. **Ingest by configuration type:** Compare Full DT vs Partial Granularity options
+3. **Span count by service:** Identify high-volume services
+4. **Cost reduction percentage:** Calculate savings vs baseline
+
+Example query for cost reduction:
+
+```sql
+SELECT
+  (bytecountestimate() / 1e9) as 'Current GB',
+  (bytecountestimate() / 1e9) / YOUR_BASELINE_GB * 100 as '% of Baseline'
+FROM Span
+SINCE 1 day ago
+```
+
+## Balance cost and visibility [#balance]
+
+Span configuration is about smart trade-offs, not blind cost-cutting. Follow these principles:
+
+### What not to sacrifice
+
+* **Error visibility:** Always capture errors, even with Options 2-3
+* **Critical paths:** Keep full DT on customer-facing transactions
+* **Regulatory requirements:** Some industries require detailed audit trails
+* **Active incidents:** Temporarily increase detail when troubleshooting
+
+### Warning signs you've over-optimized
+
+Watch for these indicators that you've gone too far:
+
+1. **Troubleshooting time increases:** Teams struggle to diagnose issues
+2. **Incomplete traces:** Services missing from trace visualizations
+3. **Team complaints:** Engineers request "more detail" frequently
+4. **Failed root cause analysis:** Can't determine cause of incidents
+
+If you see these signs, dial back span configuration on affected services.
+
+### Configuration change considerations
+
+Agent configuration changes require editing configuration files and restarting your application:
+
+* Configuration changes typically require modifying agent config files (YAML, INI, etc.)
+* Most changes require an application restart to take effect
+* Plan configuration changes during maintenance windows when possible
+
+**Note:** Dynamic configuration changes during active incidents may not be practical due to restart requirements. It's better to have appropriate configurations in place proactively rather than adjusting them reactively during incidents.
+
+## Real-world cost optimization examples [#examples]
+
+### Example 1: E-commerce platform (150 services)
+
+**Situation:**
+* 150 microservices
+* $12,000/month distributed tracing costs
+* Needed to reduce by ~50%
+
+**Approach:**
+* Full DT: 10 customer-facing services (checkout, payment, cart)
+* Reduced granularity: 30 core services (inventory, pricing, search)
+* Essential/compact granularity: 110 supporting services (logging, notifications, analytics)
+
+**Results:**
+* Reduced ingest from 450 GB/day to 210 GB/day (53% reduction)
+* Saved ~$6,300/month
+* Maintained full visibility on critical customer paths
+
+### Example 2: SaaS startup (25 services)
+
+**Situation:**
+* 25 services
+* Limited budget, new to distributed tracing
+* Wanted coverage without high costs
+
+**Approach:**
+* Started with essential granularity on all 25 services
+* After 2 months, upgraded 5 core services to full DT
+* Kept essential granularity on 20 supporting services
+
+**Results:**
+* Light-weight entry into distributed tracing
+* Complete service map on day one
+* Gradual increase in detail as value proven
+
+### Example 3: Enterprise (500+ services)
+
+**Situation:**
+* 500+ microservices
+* Non-production environments mirroring production
+* Production DT costs acceptable, but dev/staging was wasteful
+
+**Approach:**
+* Production: Tiered strategy (Full DT / reduced / essential/compact by priority)
+* Staging: Essential/compact granularity on all services
+* Development: Compact granularity + reduced sampling
+
+**Results:**
+* 75% reduction in non-production costs
+* Production costs down 35%
+* Complete traces in all environments
+
+## What's next [#whats-next]
+
+Ready to optimize your costs?
+
+1. [Configure minimal spans tracing](/docs/distributed-tracing/core-tracing/configure-minimal-spans-tracing) to reduce span volume
+2. [Configure low-granularity tracing](/docs/distributed-tracing/core-tracing/configure-low-granularity-tracing) to reduce span size
+3. [Review use cases](/docs/distributed-tracing/core-tracing/use-cases-examples) for more real-world scenarios
+
+<Callout variant="tip">
+  Need help planning your span configuration strategy? Contact your New Relic account team or [New Relic Support](https://support.newrelic.com) for guidance.
+</Callout>
