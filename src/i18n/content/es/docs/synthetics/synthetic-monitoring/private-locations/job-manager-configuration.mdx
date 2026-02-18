@@ -1831,9 +1831,9 @@ Para garantizar que su ubicación privada funcione de manera eficiente, debe apr
 
 Si su ubicación privada actual tiene dificultades para mantener el ritmo y sospecha que hay cola de trabajos, emplee esta fórmula para descubrir cuántos núcleos necesita realmente. Se basa en el rendimiento observable de su sistema.
 
-$$ C\_req = (R\_proc + R\_growth) \cdot D\_avg,m $$
+$$ C\_est = (R\_proc + R\_growth) \cdot D\_avg,m $$
 
-* $C\_req$ = **Núcleos de CPU requeridos**.
+* $C\_est$ = **Núcleos de CPU estimados**.
 * $R\_proc$ = La **tasa** de trabajos pesados que se **procesan** por minuto.
 * $R\_growth$ = La **velocidad a** la que su cola `jobManagerHeavyweightJobs` **crece** por minuto.
 * $D\_avg,m$ = La **duración promedio** de trabajos pesados en **minutos**.
@@ -1844,9 +1844,9 @@ Esta fórmula calcula la tasa real de llegada de trabajos sumando los trabajos q
 
 Si está configurando una nueva ubicación privada o planea agregar más monitores, use esta fórmula para pronosticar sus necesidades con anticipación.
 
-$$ C\_req = N\_mon \cdot D\_avg,m \cdot \frac1P\_avg,m $$
+$$ C\_est = N\_mon \cdot D\_avg,m \cdot \frac1P\_avg,m $$
 
-* $C\_req$ = **Núcleos de CPU requeridos**.
+* $C\_est$ = **Núcleos de CPU estimados**.
 * $N\_mon$ = La **cantidad** total de **monitores** pesados que planea ejecutar.
 * $D\_avg,m$ = La **duración promedio** de un trabajo pesado en **minutos**.
 * $P\_avg,m$ = El **periodo promedio** para monitores pesados en **minutos** (por ejemplo, un monitor que se ejecuta cada 5 minutos tiene $P\_avg,m = 5$).
@@ -1857,7 +1857,7 @@ Esto calcula tu carga de trabajo prevista a partir de principios básicos: cuán
 
 Al emplear estas fórmulas, recuerde tener en cuenta estos factores:
 
-* **Duración del trabajo ($D\_avg,m$):** su promedio debe incluir trabajos que **expiran** (generalmente \~3 minutos), ya que estos mantienen un núcleo durante toda su duración.
+* **Duración del trabajo ($D\_avg,m$):** su promedio debe incluir trabajos que **expiran** (generalmente ~3 minutos), ya que estos mantienen un núcleo durante toda su duración.
 * **Errores de trabajo y reintentos:** cuando un monitor falla, se vuelve a intentar automáticamente. Estos reintentos son trabajos adicionales que se suman a la carga total. Un monitor que falla y vuelve a intentarlo constantemente **multiplica efectivamente su periodo**, lo que afecta significativamente el rendimiento.
 * **Escalamiento horizontal:** además de agregar más núcleos a un host (escalamiento vertical), puede implementar administradores de trabajos sintéticos adicionales con la misma clave de ubicación privada para equilibrar la carga de trabajos en múltiples entornos (escalamiento horizontal).
 
@@ -1867,7 +1867,7 @@ Agregar más SJM con la misma clave de ubicación privada ofrece varios benefici
 
 * **Equilibrio de carga**: los trabajos para la ubicación privada se distribuyen entre todos los SJM disponibles.
 * **Protección contra conmutación por error**: si una instancia de SJM deja de funcionar, las demás pueden continuar procesando trabajos.
-* **Mayor rendimiento total**: el rendimiento total de su ubicación privada se convierte en la suma del rendimiento de cada SJM (por ejemplo, dos SJM proporcionan hasta \~30 trabajos/minuto).
+* **Mayor rendimiento total**: el rendimiento total de su ubicación privada se convierte en la suma del rendimiento de cada SJM (por ejemplo, dos SJM proporcionan hasta ~30 trabajos/minuto).
 
 ### Consulta de NRQL para diagnóstico
 
@@ -1878,7 +1878,7 @@ Puede ejecutar estas consultas en el [generador de consultas](/docs/query-your-d
 ```sql
 FROM SyntheticCheck
 SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1900,7 +1900,7 @@ TIMESERIES SINCE 1 day ago
 ```sql
 FROM SyntheticCheck
 SELECT uniqueCount(monitorId) AS 'monitor count'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1909,7 +1909,7 @@ SINCE 1 day ago
 ```sql
 FROM SyntheticCheck
 SELECT average(executionDuration)/60e3 AS 'avg job duration (m)'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1936,194 +1936,117 @@ Cada entorno de ejecución empleado por el administrador de trabajos Kubernetes 
 * La configuración `parallelism` controla cuántos pods de un entorno de ejecución particular se ejecutan simultáneamente.
 * La configuración `completions` controla cuántos pods deben completar antes de que `CronJob` inicie otro trabajo Kubernetes para ese tiempo de ejecución.
 
-### Cómo dimensionar su despliegue: Una guía paso a paso
+### Mejores prácticas para dimensionar su implementación
 
-Su objetivo es configurar el paralelismo suficiente para manejar su carga de trabajo sin exceder el límite de rendimiento de su instancia SJM.
+A menudo no es posible calcular con precisión los valores necesarios de paralelismo y finalizaciones porque la duración promedio observada en New Relic podría no ser exacta, especialmente si la ubicación privada existente no funciona correctamente. Siga este enfoque práctico para ajustar el paralelismo y las finalizaciones. Las siguientes ecuaciones se pueden utilizar para obtener valores aproximados como punto de partida.
 
-### Paso 1: Estima tu carga de trabajo requerida
+**1. Estimar finalizaciones y paralelismo**
 
-**Finalizaciones:** Esto determina cuántos pods de tiempo de ejecución deben completar antes de que se inicie un nuevo trabajo Kubernetes.
+Haga lo posible por estimar la duración promedio de ejecución y el número de trabajos cada 5 minutos. Esto le proporciona un punto de partida aproximado para el siguiente paso, que implicará prueba y error para ajustar los valores de paralelismo y finalizaciones en un clúster en funcionamiento. Asegúrese de escalarlos proporcionalmente, por ejemplo, pasando de los valores predeterminados de 1 y 6 a 10 y 60.
 
-Primero, determine la duración promedio de ejecución de trabajos y la tasa de trabajos en su ubicación privada. Emplee `executionDuration` ya que refleja con mayor precisión el tiempo de ejecución activo del pod.
+**Finalizaciones estimadas:** Esto determina cuánto tiempo tardará en completarse su carga de trabajo de 5 minutos.
 
 ```sql
--- Get average job execution duration (in seconds)
+-- Get average execution duration in minutes
 FROM SyntheticCheck
-SELECT average(executionDuration / 60e3) AS 'D_avg_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT average(executionDuration / 60e3) AS 'Avg Duration (min)'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
 $$ Finalizaciones = \frac5D\_avg,m $$
 
-Donde $D\_avg,m$ es la **duración promedio de ejecución del trabajo en segundos**.
+Donde $D\_avg,m$ es su **duración promedio de ejecución del trabajo en minutos**.
 
-**Paralelismo requerido:** Esto determina cuántos trabajadores (pods) necesita ejecutar simultáneamente para manejar su carga de trabajo de 5 minutos.
+**Paralelismo estimado:** Esto determina cuántos trabajadores (pods) necesita que se ejecuten simultáneamente para manejar su carga de trabajo de 5 minutos.
 
 ```sql
 -- Get jobs per 5 minutes
 FROM SyntheticCheck
-SELECT rate(uniqueCount(id), 5 minutes) AS 'N_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT rate(uniqueCount(id), 5 minutes) AS 'Number of monitor jobs per 5 minutes'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
-$$ P\_req = \fracN\_mCompletaciones $$
+$$ P\_est = \fracN\_mCompletions $$
 
-Donde $N\_m$ es su **número de trabajos por 5 minutos**. Este valor $P\_req$ es su **paralelismo total objetivo**.
+Donde $N\_m$ es su **número de trabajos por 5 minutos**. Este valor $P\_est$ es su **paralelismo estimado**.
 
-### Paso 2: Comprobar el límite de rendimiento de un solo SJM
+**2. Realice un despliegue de Helm**
 
-**Paralelismo máximo:** Esto determina cuántos trabajadores (pods) puede emplear eficazmente su SJM.
+Realice un despliegue de Helm con valores estimados de paralelismo y finalizaciones, y su mejor estimación para `ping-runtime.replicaCount` dada la cantidad de núcleos de CPU por nodo y el número de monitores de ping que deben ejecutarse por minuto.
 
-$$ P\_max ≈ 15 ⋅ D\_avg,m $$
+**3. Monitorear el crecimiento de la cola**
 
-Este valor $P\_max$ es **el límite de su sistema para una implementación de SJM Helm **.
+Con los monitores sintéticos configurados para enviar trabajos a la ubicación privada, verifique el crecimiento de la cola en un gráfico de líneas de serie de tiempo para `pingJobs` y `jobManagerHeavyweightJobs`.
 
-<Callout variant="tip">
-  Las consultas anteriores se basan en los resultados actuales. Si su ubicación privada no tiene ningún resultado o el administrador de trabajos no está funcionando de la mejor manera, es posible que los resultados de la consulta no sean precisos. En ese caso, comience con los ejemplos de la tabla siguiente y ajústelos hasta que su cola sea estable.
-</Callout>
+* Si la cola `pingJobs` tiene una pendiente positiva, aumente `ping-runtime.replicaCount` y vuelva a desplegar.
+* Si la cola `jobManagerHeavyweightJobs` tiene una pendiente positiva, aumente `parallelism` y `completions` proporcionalmente hasta que la cola deje de crecer (pendiente negativa).
 
-<Callout variant="tip">
-  Una consideración clave es que una **sola instancia de SJM tiene un rendimiento máximo de aproximadamente 15 trabajos pesados por minuto**. Puedes calcular el paralelismo efectivo máximo ($P\_max$) que un solo SJM puede soportar antes de alcanzar este límite.
-</Callout>
-
-### Paso 3: Comparar, configurar y escalar
-
-Compara el paralelismo **requerido** ($P\_req$) del Paso 1 con el paralelismo **máximo** ($P\_max$) del Paso 2.
-
-<DNT>
-  **Scenario A:** $P\_req \le P\_max$
-</DNT>
-
-* **Diagnóstico:** Su carga de trabajo se encuentra dentro del límite de una sola instancia de SJM.
-
-* **Acción:**
-
-  1. Deberás desplegar **una** versión de SJM Helm.
-  2. En tu gráfico Helm `values.yaml`, establece `parallelism` en tu $P\_req$ calculado.
-  3. Establece `completions` en tus **Completaciones** calculadas. Para una mayor eficiencia, este valor normalmente debería ser de 6 a 10 veces su configuración `parallelism`.
-
-<DNT>
-  **Scenario B:** $P\_req &gt; P\_max$
-</DNT>
-
-* **Diagnóstico:** Su carga de trabajo **supera el límite de \~15 trabajos/minuto** de un solo SJM.
-
-* **Acción:**
-
-  1. Debe **escalar horizontalmente desplegando múltiples versiones separadas de SJM Helm **.
-  2. Consulte la sección **[&quot;Escalado horizontal con múltiples implementaciones de SJM&quot;](#scaling-out-with-multiple-sjm-deployments)** a continuación para conocer el procedimiento correcto.
-  3. **No** aumente el `replicaCount` en su gráfico de Helm.
-
-### Paso 4: Monitorea tu cola
-
-Tras aplicar los cambios, debe verificar que su cola de trabajos sea estable y no esté creciendo. Una cola que crece constantemente significa que su ubicación aún no cuenta con los recursos suficientes.
-
-Ejecute esta consulta para comprobar la tasa de crecimiento de la cola:
+Una pendiente negativa indica que el administrador de trabajos tiene suficiente paralelismo para manejar la demanda de trabajos. Eventualmente llegará a cero con una pendiente negativa.
 
 ```sql
--- Check for queue growth (a positive value means the queue is growing)
-SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'Heavyweight Queue Growth Rate (per min)'
 FROM SyntheticsPrivateLocationStatus
+SELECT average(jobManagerHeavyweightJobs) AS 'Heavyweight Queue Growth', average(pingJobs) AS 'Ping Queue Growth'
 WHERE name = 'YOUR_PRIVATE_LOCATION'
-SINCE 1 hour ago TIMESERIES
+SINCE 1 day ago TIMESERIES
 ```
 
-Si la &quot;Tasa de crecimiento de la cola&quot; es consistentemente positiva, debe instalar más despliegue de SJM Helm (Escenario B) o volver a revisar su configuración `parallelism` (Escenario A).
+**4. Ajustar según el estado de ejecución del pod**
 
-### Ejemplos de configuración y ajuste
+Con la cola disminuyendo o en cero, busque pods `node-api-runtime` y `node-browser-runtime` que estén en estado &quot;running&quot; durante más de 10 minutos. Esto indica que el paralelismo está configurado demasiado alto y hay más pods de los necesarios.
 
-La configuración `parallelism` afecta directamente la cantidad de trabajos de Sintéticos por minuto que se pueden ejecutar. Si el valor es demasiado pequeño, la cola puede crecer. Si el valor es demasiado grande, los nodos pueden sufrir limitaciones de recursos.
+Para evitar desperdiciar recursos innecesariamente, disminuya `parallelism` y `completions` para reducir la antigüedad de cada pod de runtime &quot;running&quot;. Si el objetivo es una antigüedad de trabajo de Kubernetes de 5 minutos, los pods de tiempo de ejecución deben estar en estado de ejecución durante menos de 5 minutos, lo que significa que el pod se creó, recibió rápidamente un trabajo para ejecutar y se completó.
 
-<table>
-  <thead>
-    <tr>
-      <th style={{ width: "300px" }}>
-        Ejemplo
-      </th>
+**5. Escalar horizontalmente si es necesario**
 
-      <th>
-        Descripción
-      </th>
-    </tr>
-  </thead>
+Si la cola no disminuye, pero hay muchos pods en estado &quot;running&quot; durante más de 10 minutos, es probable que el gestor de trabajos esté alcanzando su cuello de botella de rendimiento. Lo siguiente que debe hacer es disminuir el paralelismo y escalar horizontalmente con una o más implementaciones adicionales.
 
-  <tbody>
-    <tr>
-      <td>
-        `parallelism=1` `completions=1`
-      </td>
+Por ejemplo, con `parallelism: 100`, `completions: 600` la cola sigue creciendo, pero hay muchos pods en estado &quot;running&quot; durante más de 10 minutos, y la antigüedad del Job de Kubernetes es de 20 minutos ... configure `parallelism: 50`, `completions: 200` y escale horizontalmente (hacia afuera) agregando 2 despliegues adicionales. Esto genera un total de 150 pods paralelos y debería reducir la antigüedad del trabajo de K8s a menos de 20 minutos, a la vez que reduce la cantidad de pods &quot;running&quot; de larga duración. Apunte a una antigüedad del trabajo de K8s de 5 a 10 minutos.
 
-      <td>
-        El tiempo de ejecución ejecutará 1 trabajo Sintético por minuto. Después de que se complete 1 trabajo, la configuración `CronJob` comenzará un nuevo trabajo en el siguiente minuto. <DNT>**Throughput will be extremely limited with this configuration.**</DNT>
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `parallelism=1` `completions=6`
-      </td>
-
-      <td>
-        El entorno de ejecución ejecutará 1 trabajo de Sintéticos a la vez. Una vez finalizado el trabajo, comenzará inmediatamente otro. Después de que se completen 6 trabajos, la configuración `CronJob` iniciará un nuevo trabajo de Kubernetes. <DNT>**Throughput will be limited.**</DNT> Un único trabajo de Sintéticos de larga duración bloqueará el procesamiento de cualquier otro trabajo de Sintéticos de este tipo.
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `parallelism=3` `completions=24`
-      </td>
-
-      <td>
-        El entorno de ejecución ejecutará 3 trabajos de Sintéticos a la vez. Una vez finalizado cualquiera de estos trabajos, comenzará inmediatamente otro. Después de que se completen 24 trabajos, la configuración `CronJob` iniciará un nuevo trabajo de Kubernetes. <DNT>**Throughput is much better with this or similar configurations.**</DNT>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-Si su configuración `parallelism` funciona correctamente (manteniendo la cola en cero), establecer un valor `completions` mayor (por ejemplo, 6-10 veces el `parallelism`) puede mejorar la eficiencia al:
-
-* Adaptar a la variabilidad en la duración de los trabajos.
-* Reducir el número de ciclos de finalización para minimizar la ineficiencia de &quot;finalización inminente de las finalizaciones&quot;, donde el siguiente lote no puede comenzar hasta que finalice el último trabajo del lote actual.
-
-Es importante tener en cuenta que el valor `completions` no debe ser demasiado grande o CronJob experimentará un evento de advertencia como el siguiente:
-
-```sh
-8m40s     Warning   TooManyMissedTimes   cronjob/synthetics-node-browser-runtime   too many missed start times: 101. Set or decrease .spec.startingDeadlineSeconds or check clock skew
-```
+Para obtener más información sobre cómo agregar implementaciones, consulte [Escalamiento con múltiples implementaciones de SJM](#scaling-out-with-multiple-sjm-deployments).
 
 <Callout variant="tip">
-  New Relic no es responsable de ninguna modificación que realice en los archivos del administrador de trabajos de Sintéticos.
+  Puede utilizar la siguiente consulta para ayudar a determinar si necesita escalar horizontalmente.
+
+  **Nota:** Los monitores pueden existir en múltiples subcuentas.
+
+  ```sql
+  -- monitors per minute per SJM
+  FROM SyntheticCheck SELECT
+    round(rate(uniqueCount(id), 1 minute)/uniqueCount(minionId),0.1) AS 'heavy jobs per minute per SJM',
+    uniqueCount(minionId) AS 'number of SJMs (namespaces)',
+    round(rate(uniqueCount(id), 1 minute),0.1) AS 'heavy jobs per minute total'
+  WHERE minionContainerSystem = 'KUBERNETES' AND minionDeploymentMode = 'private' AND location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' FACET location SINCE 1 hour ago TIMESERIES
+  ```
+</Callout>
+
+<Callout variant="tip">
+  Reducir el número de ciclos de trabajo de K8s también puede mejorar el rendimiento. A medida que cada ciclo alcanza el número establecido de finalizaciones, hay cada vez menos pods &quot;en ejecución&quot; para asumir nuevos trabajos de Synthetics. Por ejemplo, con completions establecido en 200 y parallelism establecido en 50, inicialmente tenemos 50 pods en ejecución, pero esto comienza a disminuir a medida que superamos los 150 completions. A las 199 finalizaciones, solo queda 1 pod en ejecución.
+
+  Configurar un valor mayor para las finalizaciones no es una mala idea, pero puede generar eventos de advertencia en K8s sobre `TooManyMissedTimes` para el cronjob.
 </Callout>
 
 ### Escalado horizontal con múltiples despliegues de SJM
 
-Para escalar más allá del rendimiento de \~15 trabajos/minuto de un solo SJM, debe instalar **varias versiones separadas de SJM Helm**.
+Para escalar más allá del rendimiento de ~15 trabajos/minuto de un solo SJM, debe instalar **varias versiones separadas de SJM Helm**.
 
 <Callout variant="important">
-  **No emplee `replicaCount` para escalar el pod del administrador de trabajos.** **No se puede** escalar aumentando el `replicaCount` para una sola versión de Helm. La arquitectura SJM requiere una relación 1:1 entre un pod de tiempo de ejecución y su pod SJM padre. Si el pod de tiempo de ejecución envía los resultados a la réplica SJM incorrecta (por ejemplo, a través de un servicio Kubernetes), esos resultados se perderán.
+  No utilice réplicas para escalar el pod del administrador de trabajos. La arquitectura SJM requiere una relación 1:1 entre un pod de tiempo de ejecución y su pod SJM padre. Si los pods de tiempo de ejecución envían resultados a la réplica de SJM incorrecta (p. ej., a través de un servicio de Kubernetes), esos resultados se perderán. Sin embargo, se puede usar ping-runtime.replicaCount.
 </Callout>
 
 La estrategia correcta es desplegar múltiples instancias de SJM, cada una como su propia versión Helm. Cada SJM competirá por los trabajos desde la misma ubicación privada, lo que proporcionará equilibrio de carga, protección contra fallos y un mayor rendimiento total de trabajos.
 
-#### Estrategia de escalamiento simplificada
+#### Estrategia de escalado horizontal
 
-Suponiendo que $P\_req &gt; P\_max$ y necesite escalar horizontalmente, puede simplificar el mantenimiento tratando cada despliegue de SJM como una unidad de capacidad fija.
+Si necesita escalar horizontalmente, puede simplificar el mantenimiento tratando cada implementación de SJM como una unidad de capacidad fija.
 
-1. **Establecer paralelismo máximo:** Para *cada* SJM, establezca `parallelism` en el mismo valor $P\_max$. Esto maximiza el rendimiento potencial de cada SJM.
+1. **Establecer paralelismo:** Para *cada* SJM, establezca `parallelism` en el mismo máximo que un solo SJM pueda manejar sin crear demasiados pods de tiempo de ejecución &quot;en ejecución&quot; de larga duración. Esto maximiza el rendimiento potencial de cada SJM sin desperdiciar recursos.
+2. **Establecer finalizaciones:** Para *cada* SJM, establezca `completions` en el mismo valor fijo también. Ajuste según sea necesario para lograr una antigüedad de job de Kubernetes de 5 minutos por runtime, es decir, node-browser-runtime y node-api-runtime.
+3. **Instalar lanzamientos:** Instale tantos lanzamientos de Helm separados como necesite para manejar su demanda total de trabajos; es decir, lleve la cola a cero o el gráfico de líneas a una pendiente negativa.
+4. **Monitorear y agregar:** Monitoree la cola de trabajos de la ubicación privada. Si comienza a crecer (pendiente positiva), simplemente instale otro release de Helm (p. ej., `sjm-delta`) usando la misma configuración fija.
 
-2. **Completaciones de conjuntos:** Para *cada* SJM, establezca también `completions` en un valor fijo. La fórmula $P\_req$ del [Paso 1](#step-1-estimate-your-required-workload) se puede modificar para estimar las finalizaciones sustituyendo el valor $P\_max$:
-
-   $$ Finalizaciones = \fracN\_mP\_max $$
-
-   Donde $N\_m$ es su **número de trabajos por 5 minutos**. Ajustar según sea necesario luego de la implementación para lograr un tiempo de ejecución de 5 minutos por trabajo Kubernetes por entorno de ejecución, es decir, node-browser-runtime y node-api-runtime.
-
-3. **Versiones de instalación:** Instale tantas versiones separadas de Helm como necesite para manejar su total de $P\_req$. Por ejemplo, si su $P\_req$ total es 60 y fijó `parallelism` de cada SJM en 20 ($P\_max$ del [paso 2](#step-2-check-against-the-single-sjm-throughput-limit)), necesitaría **tres** despliegues Helm separados para satisfacer la demanda de trabajo requerida.
-
-4. **Monitorear y agregar:** Monitorear su cola de trabajos (consulte [el paso 4](#step-4-monitor-your-queue)). Si comienza a crecer, simplemente instale otra versión de Helm (por ejemplo, `sjm-delta`) empleando la misma configuración fija.
-
-Al fijar el paralelismo y las finalizaciones a valores estáticos basados en $P\_max$, aumentar o disminuir la capacidad se convierte en un proceso más simple de **agregar o eliminar versiones de Helm**. Esto ayuda a evitar el desperdicio de recursos del clúster en un valor de paralelismo superior al que el SJM puede emplear de manera efectiva.
+Al fijar el paralelismo y las finalizaciones en valores estáticos, aumentar o disminuir la capacidad se convierte en un proceso más sencillo de **agregar o eliminar releases de Helm**. Esto ayuda a evitar el desperdicio de recursos del clúster en un valor de paralelismo superior al que el SJM puede utilizar eficazmente.
 
 #### Ejemplo de instalación
 
