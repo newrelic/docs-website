@@ -8,6 +8,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/workflow-automation/introduction-
 New Relic is excited to announce the general availability of Workflow Automation, a powerful feature that enables you to automate routine tasks and incident responses without writing code. Connect New Relic with AWS, Slack, and any HTTP API to build workflows that respond to alerts, manage infrastructure, and streamline operational tasks.
 
 ## Automate your operational workflows
+
 Workflow Automation transforms how teams respond to incidents and manage infrastructure by embedding intelligent automation directly into your observability platform. Build workflows that automatically remediate issues, integrate with your existing tools, and execute complex automation logic—all without leaving New Relic.
 
 ## Key features
@@ -37,4 +38,4 @@ Workflow Automation transforms how teams respond to incidents and manage infrast
 ## Pricing and availability
 Workflow Automation is now generally available to all New Relic customers. Start building workflows today to reduce manual toil and accelerate your incident response.
 
-Want to know more? Check out our [Workflow Automation documentation](https://docs.newrelic.com/docs/workflow-automation/introduction-to-workflow).
+Want to know more? Check out our [Workflow Automation documentation](/docs/workflow-automation/introduction-to-workflow).
