@@ -18,7 +18,7 @@ Start leveraging OpenTelemetry seamlessly within New Relic’s unified platform 
 
 ### Find out more:
 - [Learn More](https://docs.newrelic.com/docs/opentelemetry/get-started/TBD/)
-- [Blog](TBD: Press release?)
+- [Blog](http://newrelic.com/blog/news/first-class-opentelemetry-break-free-without-breaking-workflows)
 - [Get Started](https://newrelic.com/signup)
 
 <img
