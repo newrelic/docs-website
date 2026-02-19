@@ -1,0 +1,236 @@
+---
+title: 'Monitor and troubleshoot ATP'
+metaDescription: 'Learn how to monitor ATP performance, verify data filtering effectiveness, and troubleshoot common configuration issues.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Monitoring
+  - Troubleshooting
+  - Performance
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+We're still working on this feature, but we'd love for you to try it out!
+
+This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+Learn how to verify ATP is working correctly and troubleshoot common configuration issues across host and Kubernetes environments.
+
+## Verify ATP is working [#verify-atp]
+
+After installing ATP, verify that New Relic is receiving process data by running these queries in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+<CollapserGroup>
+  <Collapser
+    id="host-verification"
+    title="Host environments"
+  >
+    
+    * To view recent process metrics:
+    ```sql
+    FROM Metric SELECT *
+    WHERE metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * To count unique process metric types:
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE metricName LIKE 'process.%'
+    ```
+    
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-verification"
+    title="Kubernetes environments"
+  >
+    
+    * To view recent process metrics for your cluster:
+    ```sql
+    FROM Metric SELECT *
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    * To count unique process metric types for your cluster:
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE k8s.cluster.name='your-cluster-name'
+    AND metricName LIKE 'process.%'
+    ```
+    
+  </Collapser>
+</CollapserGroup>
+
+## Troubleshoot ATP issues [#troubleshoot]
+
+<CollapserGroup>
+  <Collapser
+    id="atp-filtering"
+    title="ATP not filtering metrics"
+  >
+
+
+**Problem**: All process metrics are being sent, not filtered.
+
+<CollapserGroup>
+  <Collapser
+    id="host-atp-filtering"
+    title="Host environment solutions"
+  >
+    
+    1. Verify ATP is in the pipeline processors list.
+    2. Check whether `metric_thresholds` are configured.
+    3. Ensure process metrics are being collected.
+    4. Review collector logs for ATP initialization errors.
+    
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-atp-filtering"
+    title="Kubernetes environment solutions"
+  >
+    
+    1. Verify ATP is enabled:
+        ```bash
+        kubectl get configmap -n newrelic nr-k8s-otel-collector-daemonset-config -o yaml | grep adaptivetelemetry
+        ```
+
+    2. Check ATP is in the pipeline: Look for `adaptivetelemetry` in the `metrics/nr` pipeline
+
+    3. Verify you're using the correct collector image:
+        ```bash
+        kubectl get daemonset -n newrelic nr-k8s-otel-collector-daemonset -o yaml | grep "image:"
+        ```
+        
+        Expected: `newrelic/nrdot-collector:11.0` (or later)  
+        **NOT**: `newrelic/nrdot-collector-k8s:1.11.0`
+
+    4. **Verify `enable_atp` is set to `true`** in your `values.yaml` or ConfigMap
+    
+  </Collapser>
+</CollapserGroup>
+
+
+</Collapser>
+
+  <Collapser
+    id="high-memory"
+    title="High memory usage"
+  >
+
+**Problem**: Collector memory increases over time
+
+**Solution**: Adjust retention settings:
+
+```yaml
+processors:
+  adaptivetelemetry:
+    retention_minutes: 15  # Reduce from default 30
+```
+
+</Collapser>
+
+  <Collapser
+    id="missing-processes"
+    title="Processes not being captured"
+  >
+
+**Problem**: Expected processes are missing from telemetry
+
+**Solution**: Must use full path to add processes to include list. Entries without path separators won't match any process. For example:
+
+```yaml
+processors:
+  adaptivetelemetry:
+    include_process_list:
+      - "/usr/bin/myapp"  # Always captured regardless of thresholds
+```
+
+</Collapser>
+
+<Collapser
+    id="data-stopped"
+    title="ATP data stopped populating"
+  >
+
+
+**Problem**: Earlier, ATP data was shown but now it is not. This could be due to hitting cardinality limits. ATP filters out many processes to reduce telemetry volume, but if you have a very high number of unique processes, you could still hit limits. You can [monitor your cardinality usage](/docs/data-apis/ingest-apis/metric-api/monitor-cardinality/) to track this.
+
+**Solution**: 
+
+To troubleshoot, check whether you've hit cardinality limits by going to the [cardinality management page](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment) in New Relic. If you've breached limits, you can increase your [cardinality limit](/docs/data-apis/ingest-apis/metric-api/cardinality-management/#per-metric-limit-adjustment).
+
+
+<Callout variant="tip">
+
+If this is a recurring issue, you can also increase ATP's `metric_thresholds` to filter out more processes and reduce the volume of incoming metrics. This will help prevent hitting cardinality limits in the future. For example, you could increase the CPU and memory utilization thresholds to only capture more resource-intensive processes:
+
+```yaml
+processors:
+  adaptivetelemetry:
+    metric_thresholds:
+      process.cpu.utilization: 0.10  # Increase from 0.05 to 0.10 (10% CPU)
+      process.memory.utilization: 0.10  # Filter out more processes
+```
+</Callout>
+
+</Collapser>
+
+</CollapserGroup>
+
+
+## Configuration requirements [#config-requirements]
+
+<CollapserGroup>
+  <Collapser
+    id="persistence-file"
+    title="Enable persistence file feature"
+  >
+
+To enable ATP's persistence file feature, you need to run the binary with escalated privileges.
+
+Add the following to the `daemonset.yaml` file in your Helm chart:
+
+```yaml
+hostPID: true
+```
+
+</Collapser>
+
+  <Collapser
+    id="disk-io"
+    title="Enable disk.io data"
+  >
+
+
+To enable `disk.io` data collection by the OpenTelemetry hostmetrics receiver, you need escalated privileges because the io data stored at `/proc/[PID]/io` requires root user access. This is not an ATP requirement, ATP only processes data that's already been collected by OpenTelemetry.
+
+Add the following security context to your Helm chart:
+
+```yaml
+securityContext:
+  allowPrivilegeEscalation: true
+  privileged: true
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+  runAsUser: 0
+```
+
+</Collapser>
+
+</CollapserGroup>
+
+## Related resources [#related-resources]
+
+<DocTiles>
+    <DocTile title="Advanced-features" path="/docs/opentelemetry/nrdot/atp/advanced-features">Learn how to enable advanced features for your ATP deployment.</DocTile>
+    <DocTile title="Query your data" path="/docs/opentelemetry/nrdot/atp/query">Learn how to query ATP data in New Relic using NRQL.</DocTile>
+</DocTiles>
