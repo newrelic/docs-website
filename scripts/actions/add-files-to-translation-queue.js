@@ -26,8 +26,16 @@ const getCommandLineOptions = () => {
       'directory of files to be queued for translation'
     )
     .option(
-      '-mt, --machine-translation',
-      'Boolean to only send files needing machine translation'
+      '-mt, --machine-translation [value]',
+      'Boolean to only send files needing machine translation',
+      (value) => {
+        // Handle both "-mt" (no value) and "-mt true/false"
+        if (value === undefined || value === true) return true;
+        if (typeof value === 'string') {
+          return value.toLowerCase() === 'true';
+        }
+        return Boolean(value);
+      }
     )
     .option(
       '-l, --locale <locale>',
