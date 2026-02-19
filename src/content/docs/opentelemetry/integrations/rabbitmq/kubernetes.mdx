@@ -13,10 +13,38 @@ freshnessValidatedDate: never
 Monitor RabbitMQ running in Kubernetes clusters using the OpenTelemetry Collector with automatic pod discovery. This guide walks you through deploying the collector via Helm with dynamic broker detection powered by the Kubernetes observer.
 
 <Callout variant="tip">
-  **Running RabbitMQ on Linux hosts?** See the [self-hosted installation guide](/docs/opentelemetry/integrations/rabbitmq/self-hosted) for virtual machine or bare metal deployments.
+  Running RabbitMQ on Linux hosts? See the [self-hosted installation guide](/docs/opentelemetry/integrations/rabbitmq/self-hosted) for virtual machine or bare metal deployments.
 </Callout>
 
-## Before you begin [#requirements]
+## How the integration works [#architecture]
+
+This Kubernetes-native deployment provides automatic discovery and monitoring:
+
+**Key components:**
+* **Kubernetes observer**: Continuously watches for RabbitMQ pods based on label selectors
+* **Receiver creator**: Dynamically creates RabbitMQ receivers for each discovered pod
+* **Resource attribution**: Automatically enriches metrics with Kubernetes metadata:
+  * `k8s.cluster.name` - Your cluster identifier
+  * `k8s.namespace.name` - Pod namespace
+  * `k8s.pod.name` - Individual pod name
+  * `rabbitmq.deployment.name` - Derived from pod name
+
+**Deployment model:**
+The collector runs as a Kubernetes deployment (single replica) with RBAC permissions to list and watch pods across namespaces. When new RabbitMQ pods are created or existing ones are removed, the observer automatically updates the collector's configuration.
+
+<Callout variant="important">
+  The collector requires `get`, `list`, and `watch` permissions on pods to discover RabbitMQ instances automatically.
+</Callout>
+
+## Installation steps [#install]
+
+Follow these steps to deploy the OpenTelemetry Collector with RabbitMQ monitoring.
+
+<Steps>
+
+<Step>
+
+### Before you begin [#requirements]
 
 Ensure your environment meets these requirements:
 
@@ -40,31 +68,7 @@ Ensure your environment meets these requirements:
   </Collapser>
 </CollapserGroup>
 
-## How the integration works [#architecture]
-
-This Kubernetes-native deployment provides automatic discovery and monitoring:
-
-**Key components:**
-* **Kubernetes Observer**: Continuously watches for RabbitMQ pods based on label selectors
-* **Receiver Creator**: Dynamically creates RabbitMQ receivers for each discovered pod
-* **Resource Attribution**: Automatically enriches metrics with Kubernetes metadata:
-  * `k8s.cluster.name` - Your cluster identifier
-  * `k8s.namespace.name` - Pod namespace
-  * `k8s.pod.name` - Individual pod name
-  * `rabbitmq.deployment.name` - Derived from pod name
-
-**Deployment model:**
-The collector runs as a Kubernetes Deployment (single replica) with RBAC permissions to list and watch pods across namespaces. When new RabbitMQ pods are created or existing ones are removed, the observer automatically updates the collector's configuration.
-
-<Callout variant="important">
-  The collector requires `get`, `list`, and `watch` permissions on pods to discover RabbitMQ instances automatically.
-</Callout>
-
-## Installation steps [#install]
-
-Follow these steps to deploy the OpenTelemetry Collector with RabbitMQ monitoring.
-
-<Steps>
+</Step>
 
 <Step>
 
@@ -344,7 +348,7 @@ Run `kubectl get pods --show-labels -n <namespace>` to view your pod labels.
 
 Store your New Relic credentials in a Kubernetes secret.
 
-Choose your New Relic region:
+Select the region that matches your New Relic account (check your browser URL when logged into New Relic):
 
 <Tabs>
   <TabsBar>
@@ -400,9 +404,9 @@ helm upgrade --install rabbitmq-otel-collector \
   --values otel-collector-values.yaml
 ```
 
-The deployment creates:
-* A Deployment named `rabbitmq-otel-collector` in the `newrelic` namespace
-* A ServiceAccount with RBAC permissions to watch pods
+This creates:
+* A deployment named `rabbitmq-otel-collector` in the `newrelic` namespace
+* A Serviceaccount with RBAC permissions to watch pods
 * ConfigMaps containing the collector configuration
 
 </Step>
@@ -411,7 +415,7 @@ The deployment creates:
 
 ### Verify the deployment and data flow [#verify]
 
-**Check that the collector pod is running:**
+Check that the collector pod is running:
 
 ```bash
 kubectl get pods -n newrelic -l app.kubernetes.io/name=opentelemetry-collector
@@ -423,7 +427,7 @@ NAME                                 READY   STATUS    RESTARTS   AGE
 rabbitmq-otel-collector-6d8c5c5d8d-abc12   1/1     Running   0          2m
 ```
 
-**View collector logs to verify pod discovery:**
+View collector logs to verify pod discovery:
 
 ```bash
 kubectl logs deploy/rabbitmq-otel-collector -n newrelic --tail=50
@@ -436,7 +440,7 @@ INFO    k8sobserver/extension.go:150    Discovered pod {"kind": "pod", "name": "
 INFO    RabbitmqReceiver                Successfully scraped rabbitmq metrics from pod rabbitmq-0
 ```
 
-**Verify data is flowing to New Relic:**
+Verify your data in New Relic:
 
 Wait 2-3 minutes for data to appear, then run this query in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder):
 
@@ -464,7 +468,7 @@ You should see metrics from each RabbitMQ pod with Kubernetes attributes:
 
 </Steps>
 
-## Troubleshooting common issues [#troubleshoot]
+## Troubleshooting [#troubleshoot]
 
 <CollapserGroup>
   <Collapser id="no-data" title="No data appearing in New Relic">
@@ -585,6 +589,12 @@ You should see metrics from each RabbitMQ pod with Kubernetes attributes:
 
     **Disable less critical metrics:**
     Comment out metrics you don't need in the receiver configuration.
+
+    **Additional optimization tips:**
+    * Use more specific label selectors to monitor only production pods
+    * Filter specific queues by name instead of monitoring all queues
+    * Increase the `collection_interval` to reduce data points
+    * Consider using metric aggregation in the collector
   </Collapser>
 
   <Collapser id="collector-crashes" title="Collector pod crashing or restarting">
@@ -609,36 +619,26 @@ You should see metrics from each RabbitMQ pod with Kubernetes attributes:
     **Check configuration syntax:**
     Ensure your YAML configuration is valid and properly indented.
   </Collapser>
+
+  <Collapser id="auth-failures" title="Authentication failures">
+    If you see `401 Unauthorized` errors:
+
+    **Verify credentials in the Helm values match your RabbitMQ setup:**
+    ```bash
+    kubectl exec <rabbitmq-pod> -n <namespace> -- rabbitmqctl list_users
+    ```
+
+    **Check that the RabbitMQ user has administrator privileges** and ensure credentials don't contain special characters that need escaping.
+  </Collapser>
 </CollapserGroup>
-
-* Use more specific label selectors to monitor only production pods
-* Filter specific queues by name instead of monitoring all queues
-* Increase the `collection_interval` to reduce data points
-* Consider using metric aggregation in the collector
-
-### Authentication failures
-
-If you see `401 Unauthorized` errors:
-
-* Verify credentials in the Helm values match your RabbitMQ setup
-* Check that the RabbitMQ user has administrator privileges:
-  ```bash
-  kubectl exec <rabbitmq-pod> -n <namespace> -- rabbitmqctl list_users
-  ```
-* Ensure credentials don't contain special characters that need escaping
 
 ## What's next? [#whats-next]
 
-<DocTiles>
-  <DocTile title="Metrics reference" path="/docs/opentelemetry/integrations/rabbitmq/metrics-reference">
-    Complete list of metrics with NRQL query examples
-  </DocTile>
+Now that you have RabbitMQ monitoring set up, you can enhance your observability:
 
-  <DocTile title="Create alerts" path="/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts">
-    Set up alerts for queue depths and pod health
-  </DocTile>
+**Explore your data:**
+- [Explore RabbitMQ metrics](/docs/opentelemetry/integrations/rabbitmq/metrics-reference) - Complete list of metrics with NRQL query examples
 
-  <DocTile title="Build dashboards" path="/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards">
-    Create custom dashboards to visualize your RabbitMQ metrics
-  </DocTile>
-</DocTiles>
+**Enhance monitoring:**
+- [Create alerts](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/introduction-alerts) - Set up alerts for queue depths and pod health
+- [Build dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Create custom dashboards to visualize your RabbitMQ metrics
