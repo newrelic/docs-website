@@ -1831,9 +1831,9 @@ Pour garantir que votre site privé fonctionne efficacement, vous devez provisio
 
 Si votre site privé actuel a du mal à suivre et que vous pensez que des tâches sont en file d&apos;attente, utilisez cette formule pour savoir de combien de cœurs vous avez réellement besoin. Il est basé sur les performances observable de votre système.
 
-$$ C\_req = (R\_proc + R\_growth) \cdot D\_avg,m $$
+$$ C\_est = (R\_proc + R\_growth) \cdot D\_avg,m $$
 
-* $C\_req$ = **Cœurs de processeur requis**.
+* $C\_est$ = **Cœurs de CPU estimés**.
 * $R\_proc$ = Le **taux** de tâches lourdes **traitées** par minute.
 * $R\_growth$ = Le **taux** **de croissance** de votre file d&apos;attente `jobManagerHeavyweightJobs` par minute.
 * $D\_avg,m$ = La **durée moyenne** des tâches lourdes en **minutes**.
@@ -1844,9 +1844,9 @@ Cette formule calcule votre taux réel d&apos;arrivée des tâches en additionna
 
 Si vous configurez un nouveau site privé ou prévoyez d&apos;ajouter plus de moniteurs, utilisez cette formule pour prévoir vos besoins à l&apos;avance.
 
-$$ C\_req = N\_mon \cdot D\_avg,m \cdot \frac1P\_avg,m $$
+$$ C\_est = N\_mon \cdot D\_avg,m \cdot \frac1P\_avg,m $$
 
-* $C\_req$ = **Cœurs de processeur requis**.
+* $C\_est$ = **Cœurs de CPU estimés**.
 * $N\_mon$ = Le **nombre** total de **moniteurs** lourds que vous prévoyez d&apos;exécuter.
 * $D\_avg,m$ = La **durée moyenne** d&apos;un travail lourd en **minutes**.
 * $P\_avg,m$ = La **période moyenne** pour un moniteur lourd en **minutes** (par exemple, un moniteur qui s&apos;exécute toutes les 5 minutes a $P\_avg,m = 5$).
@@ -1867,7 +1867,7 @@ L&apos;ajout de plusieurs SJM avec la même clé privée de site offre plusieurs
 
 * **Équilibrage de charge**: Les jobs du site privé sont répartis sur tous les SJM disponibles.
 * **Protection de basculement**: si une instance SJM tombe en panne, les autres peuvent continuer à traiter les tâches.
-* **Débit total plus élevé**: Le débit total de votre site privé devient la somme du débit de chaque SJM (par exemple, deux SJM fournissent jusqu&apos;à \~30 jobs/minute).
+* **Débit total plus élevé**: Le débit total de votre site privé devient la somme du débit de chaque SJM (par exemple, deux SJM fournissent jusqu&apos;à -30 jobs/minute).
 
 ### Requête NRQL pour le diagnostic
 
@@ -1878,7 +1878,7 @@ Vous pouvez exécuter ces requêtes dans le [générateur de requêtes](/docs/qu
 ```sql
 FROM SyntheticCheck
 SELECT rate(uniqueCount(id), 1 minute) AS 'job rate per minute'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1900,7 +1900,7 @@ TIMESERIES SINCE 1 day ago
 ```sql
 FROM SyntheticCheck
 SELECT uniqueCount(monitorId) AS 'monitor count'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1909,7 +1909,7 @@ SINCE 1 day ago
 ```sql
 FROM SyntheticCheck
 SELECT average(executionDuration)/60e3 AS 'avg job duration (m)'
-WHERE location = 'YOUR_PRIVATE_LOCATION' AND typeLabel != 'Ping'
+WHERE location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE'
 SINCE 1 day ago
 ```
 
@@ -1936,165 +1936,95 @@ Chaque runtime utilisé par le gestionnaire de tâches Kubernetes et OpenShift S
 * Le paramètre `parallelism` contrôle le nombre de pods d&apos;un environnement d&apos;exécution particulier exécutés simultanément.
 * Le paramètre `completions` contrôle le nombre de pods qui doivent se terminer avant que le `CronJob` ne démarre un autre travail Kubernetes pour cette période d&apos;exécution.
 
-### Comment dimensionner votre déploiement : un guide étape par étape
+### Bonnes pratiques pour le dimensionnement de votre déploiement
 
-Votre objectif est de configurer un parallélisme suffisant pour gérer votre charge de travail sans dépasser la limite de débit de votre instance SJM.
+Il est souvent impossible de calculer avec précision les valeurs de parallélisme et de complétions nécessaires, car la durée moyenne observée dans New Relic peut ne pas être exacte, en particulier si l&apos;emplacement privé existant ne fonctionne pas correctement. Suivez cette approche pratique pour ajuster le parallélisme et les complétions. Les équations ci-dessous peuvent être utilisées pour obtenir des valeurs approximatives de départ.
 
-### Étape 1 : Estimez votre charge de travail requise
+**1. Estimer les complétions et le parallélisme**
 
-**Terminaisons :** ceci détermine le nombre de pods d’exécution qui doivent se terminer avant qu’un nouveau travail Kubernetes ne démarre.
+Faites de votre mieux pour estimer la durée moyenne d&apos;exécution et le nombre de jobs par 5 minutes. Cela vous fournit un point de départ approximatif pour l&apos;étape suivante, qui consistera à procéder par tâtonnements pour ajuster les valeurs de parallélisme et de complétions dans un cluster actif. Veillez à les mettre à l&apos;échelle proportionnellement, par exemple en passant des valeurs par défaut de 1 et 6 à 10 et 60.
 
-Tout d&apos;abord, déterminez la durée moyenne d&apos;exécution des tâches et le taux de traitement des tâches de votre site privé. Utilisez `executionDuration` car cela reflète le plus précisément l&apos;état d&apos;exécution actif du pod.
+**Achèvements estimés :** Cela détermine le temps nécessaire à l&apos;achèvement de votre charge de jobs de 5 minutes.
 
 ```sql
--- Get average job execution duration (in seconds)
+-- Get average execution duration in minutes
 FROM SyntheticCheck
-SELECT average(executionDuration / 60e3) AS 'D_avg_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT average(executionDuration / 60e3) AS 'Avg Duration (min)'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
 $$ Achèvements = \frac5D\_avg,m $$
 
-Où $D\_avg,m$ représente **la durée moyenne d&apos;exécution de votre tâche en secondes**.
+Où $D\_avg,m$ est votre **durée moyenne d&apos;exécution de tâche en minutes**.
 
-**Parallélisme requis :** cela détermine le nombre de travailleurs (pods) dont vous avez besoin pour gérer votre charge de travail de 5 minutes.
+**Parallélisme estimé :** Cela détermine le nombre de workers (pods) que vous devez exécuter simultanément pour gérer votre charge de travail de 5 minutes.
 
 ```sql
 -- Get jobs per 5 minutes
 FROM SyntheticCheck
-SELECT rate(uniqueCount(id), 5 minutes) AS 'N_m'
-WHERE typeLabel != 'Ping' AND location = 'YOUR_PRIVATE_LOCATION'
-FACET typeLabel SINCE 1 hour ago
+SELECT rate(uniqueCount(id), 5 minutes) AS 'Number of monitor jobs per 5 minutes'
+WHERE type != 'SIMPLE' AND location = 'YOUR_PRIVATE_LOCATION'
+SINCE 1 hour ago
 ```
 
-$$ P\_req = \fracN\_mCompletions $$
+$$ P\_est = \fracN\_mCompletions $$
 
-Où $N\_m$ représente votre **nombre de tâches par 5 minutes**. Cette valeur $P\_req$ correspond à votre **parallélisme total cible**.
+Où $N\_m$ est votre **nombre de tâches par 5 minutes**. Cette valeur $P\_est$ est votre **parallélisme estimé**.
 
-### Étape 2 : Vérifier la limite de débit d&apos;un seul SJM
+**2. Effectuer un déploiement Helm**
 
-**Parallélisme maximal :** ceci détermine le nombre de travailleurs (pods) que votre SJM peut utiliser efficacement.
+Effectuez un déploiement Helm avec des valeurs estimées de parallélisme et de complétions, ainsi que votre meilleure estimation pour `ping-runtime.replicaCount` compte tenu du nombre de cœurs CPU par nœud et du nombre de moniteurs ping qui doivent s&apos;exécuter par minute.
 
-$$ P\_max ≈ 15 × D\_avg,m $$
+**3. Monitorer la croissance de la file d&apos;attente**
 
-Cette valeur $P\_max$ représente **la limite de votre système pour un déploiement SJM Helm**.
+Avec les moniteurs synthétiques configurés pour envoyer des tâches à l&apos;emplacement privé, vérifiez la croissance de la file d&apos;attente sur un graphique linéaire de séries temporelles pour `pingJobs` et `jobManagerHeavyweightJobs`.
 
-<Callout variant="tip">
-  Les requêtes ci-dessus sont basées sur les résultats actuels. Si votre site privé ne donne aucun résultat ou si le gestionnaire de tâches ne fonctionne pas de manière optimale, les résultats de la requête peuvent ne pas être précis. Dans ce cas, commencez par les exemples du tableau ci-dessous et ajustez-les jusqu&apos;à ce que votre file d&apos;attente soit stable.
-</Callout>
+* Si la file d&apos;attente `pingJobs` a une pente positive, augmentez `ping-runtime.replicaCount` et redéployez.
+* Si la file d&apos;attente `jobManagerHeavyweightJobs` présente une pente positive, augmentez `parallelism` et `completions` proportionnellement jusqu&apos;à ce que la file cesse de croître (pente négative).
 
-<Callout variant="tip">
-  Un élément clé à prendre en compte est qu&apos;une **seule instance SJM a un débit maximal d&apos;environ 15 tâches lourdes par minute**. Vous pouvez calculer le parallélisme effectif maximal ($P\_max$) qu&apos;un seul SJM peut supporter avant d&apos;atteindre ce plafond.
-</Callout>
-
-### Étape 3 : Comparer, configurer et mettre à l’échelle
-
-Comparez votre parallélisme **requis** ($P\_req$) de l&apos;étape 1 au parallélisme **maximal** ($P\_max$) de l&apos;étape 2.
-
-<DNT>
-  **Scenario A:** $P\_req \le P\_max$
-</DNT>
-
-* **Diagnostic :** Votre charge de travail est inférieure à la limite d&apos;une seule instance SJM.
-
-* **Action:**
-
-  1. Vous déployerez **une** sortie du SJM Helm.
-  2. Dans votre graphique Helm `values.yaml`, définissez `parallelism` sur votre $P\_req$ calculé.
-  3. Définissez `completions` sur vos **Completions** calculées. Pour une efficacité accrue, cette valeur devrait généralement être 6 à 10 fois supérieure à votre paramètre `parallelism`.
-
-<DNT>
-  **Scenario B:** $P\_req &gt; P\_max$
-</DNT>
-
-* **Diagnostic :** Votre charge de travail **dépasse la limite d&apos;environ 15 tâches/minute** d&apos;un seul SJM.
-
-* **Action:**
-
-  1. Vous devez **évoluer en déployant plusieurs sorties SJM Helm distinctes**.
-  2. Consultez la section **[« Mise à l’échelle avec plusieurs déploiements SJM »](#scaling-out-with-multiple-sjm-deployments)** ci-dessous pour connaître la procédure correcte.
-  3. **N&apos;augmentez pas** la valeur `replicaCount` dans votre graphique Helm.
-
-### Étape 4 : Monitorez votre file d’attente
-
-Après avoir appliqué vos modifications, vous devez vérifier que votre file d&apos;attente de tâches est stable et ne s&apos;allonge pas. Une file d&apos;attente qui ne cesse de s&apos;allonger signifie que votre site est encore sous-approvisionné.
-
-Exécutez cette requête pour vérifier le taux de croissance de la file d&apos;attente :
+Une pente négative indique que le gestionnaire de tâches dispose d&apos;un parallélisme suffisant pour gérer la demande de tâches. Il finira par atteindre zéro avec une pente négative.
 
 ```sql
--- Check for queue growth (a positive value means the queue is growing)
-SELECT derivative(jobManagerHeavyweightJobs, 1 minute) AS 'Heavyweight Queue Growth Rate (per min)'
 FROM SyntheticsPrivateLocationStatus
+SELECT average(jobManagerHeavyweightJobs) AS 'Heavyweight Queue Growth', average(pingJobs) AS 'Ping Queue Growth'
 WHERE name = 'YOUR_PRIVATE_LOCATION'
-SINCE 1 hour ago TIMESERIES
+SINCE 1 day ago TIMESERIES
 ```
 
-Si le « taux de croissance de la file d&apos;attente » est constamment positif, vous devez installer davantage de déploiements SJM Helm (scénario B) ou revérifier vos paramètres `parallelism` (scénario A).
+**4. Ajuster en fonction de l&apos;état d&apos;exécution du pod**
 
-### Exemples de configuration et de réglage
+Avec la file d&apos;attente en baisse ou à zéro, recherchez les pods `node-api-runtime` et `node-browser-runtime` qui sont à l&apos;état &quot;running&quot; depuis plus de 10 minutes. Cela indique que le parallélisme est trop élevé et qu&apos;il y a plus de pods que nécessaire.
 
-Le paramètre `parallelism` affecte directement le nombre de tâches Synthetics pouvant être exécutées par minute. Une valeur trop faible et la file d&apos;attente risque de s&apos;allonger. Une valeur trop élevée peut entraîner une limitation des ressources au niveau des nœuds.
+Pour éviter de gaspiller inutilement des ressources, réduisez `parallelism` et `completions` pour réduire l&apos;âge de chaque pod d&apos;exécution &quot;en cours d&apos;exécution&quot;. Si vous ciblez un âge de job Kubernetes de 5 minutes, les pods d&apos;exécution doivent être en cours d&apos;exécution pendant moins de 5 minutes, ce qui signifie que le pod a été créé, a rapidement reçu un job à exécuter et s&apos;est terminé.
 
-<table>
-  <thead>
-    <tr>
-      <th style={{ width: "300px" }}>
-        Exemple
-      </th>
+**5. Mettre à l&apos;échelle horizontalement si nécessaire**
 
-      <th>
-        Description
-      </th>
-    </tr>
-  </thead>
+Si la file d&apos;attente ne diminue pas alors que de nombreux pods sont à l&apos;état &quot;running&quot; depuis plus de 10 minutes, il est probable que le gestionnaire de jobs atteigne un goulot d&apos;étranglement de performance. L&apos;étape suivante consiste à réduire le parallélisme et à effectuer une mise à l&apos;échelle horizontale avec un ou plusieurs déploiements supplémentaires.
 
-  <tbody>
-    <tr>
-      <td>
-        `parallelism=1` `completions=1`
-      </td>
+Par exemple, avec `parallelism: 100`, `completions: 600` la file d&apos;attente continue de croître alors que de nombreux pods sont à l&apos;état &quot;running&quot; depuis plus de 10 minutes, et que l&apos;âge du Job Kubernetes est de 20 minutes ... définissez `parallelism: 50`, `completions: 200` et mettez à l&apos;échelle horizontalement (out) en ajoutant 2 déploiements supplémentaires. Cela donne un total de 150 pods parallèles et devrait réduire la durée du job K8s à moins de 20 minutes tout en réduisant le nombre de pods &quot;running&quot; de longue durée. Visez un âge de Job K8s de 5 à 10 minutes.
 
-      <td>
-        Le runtime exécutera 1 tâche Synthetics par minute. Une fois la tâche terminée, la configuration `CronJob` démarrera une nouvelle tâche à la minute suivante. <DNT>**Throughput will be extremely limited with this configuration.**</DNT>
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `parallelism=1` `completions=6`
-      </td>
-
-      <td>
-        L&apos;environnement d&apos;exécution exécutera une tâche Synthetics à la fois. Une fois le travail terminé, un nouveau travail commencera immédiatement. Une fois 6 tâches terminées, la configuration `CronJob` démarrera une nouvelle tâche Kubernetes. <DNT>**Throughput will be limited.**</DNT> Une seule tâche Synthetics de longue durée bloquera le traitement de toute autre tâche Synthetics de ce type.
-      </td>
-    </tr>
-
-    <tr>
-      <td>
-        `parallelism=3` `completions=24`
-      </td>
-
-      <td>
-        L&apos;environnement d&apos;exécution exécutera 3 tâches Synthetics simultanément. Une fois chacune de ces tâches terminée, une nouvelle tâche commencera immédiatement. Une fois 24 tâches terminées, la configuration `CronJob` lancera une nouvelle tâche Kubernetes. <DNT>**Throughput is much better with this or similar configurations.**</DNT>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-Si votre paramètre `parallelism` fonctionne correctement (en maintenant la file d&apos;attente à zéro), l&apos;augmentation de la valeur `completions` (par exemple, 6 à 10 fois `parallelism`) peut améliorer l&apos;efficacité en :
-
-* S’adapter à la variabilité de la durée des missions.
-* Réduire le nombre de cycles d&apos;achèvement afin de minimiser l&apos;inefficacité liée à la « fin imminente des achèvements », où le lot suivant ne peut démarrer que lorsque la dernière tâche du lot actuel est terminée.
-
-Il est important de noter que la valeur `completions` ne doit pas être trop grande, sinon le CronJob rencontrera un événement d&apos;avertissement comme le suivant :
-
-```sh
-8m40s     Warning   TooManyMissedTimes   cronjob/synthetics-node-browser-runtime   too many missed start times: 101. Set or decrease .spec.startingDeadlineSeconds or check clock skew
-```
+Pour plus d&apos;informations sur l&apos;ajout de déploiements, consultez [Mise à l&apos;échelle avec plusieurs déploiements SJM](#scaling-out-with-multiple-sjm-deployments).
 
 <Callout variant="tip">
-  New Relic n&apos;est pas responsable des modifications que vous apportez aux fichiers du gestionnaire de tâches Synthetics.
+  Vous pouvez utiliser la requête suivante pour vous aider à déterminer si vous devez effectuer une mise à l&apos;échelle horizontale.
+
+  **Remarque :** Les moniteurs peuvent exister dans plusieurs sous-comptes.
+
+  ```sql
+  -- monitors per minute per SJM
+  FROM SyntheticCheck SELECT
+    round(rate(uniqueCount(id), 1 minute)/uniqueCount(minionId),0.1) AS 'heavy jobs per minute per SJM',
+    uniqueCount(minionId) AS 'number of SJMs (namespaces)',
+    round(rate(uniqueCount(id), 1 minute),0.1) AS 'heavy jobs per minute total'
+  WHERE minionContainerSystem = 'KUBERNETES' AND minionDeploymentMode = 'private' AND location = 'YOUR_PRIVATE_LOCATION' AND type != 'SIMPLE' FACET location SINCE 1 hour ago TIMESERIES
+  ```
+</Callout>
+
+<Callout variant="tip">
+  Réduire le nombre de cycles de Jobs K8s peut également améliorer les performances. À mesure que chaque cycle atteint le nombre défini de complétions, il y a de moins en moins de pods « en cours d&apos;exécution » pour prendre en charge les nouvelles tâches Synthetics. Par exemple, avec completions défini sur 200 et parallelism sur 50, nous avons initialement 50 pods en cours d&apos;exécution, mais ce nombre commence à diminuer lorsque nous dépassons 150 completions. À 199 exécutions terminées, il ne reste qu&apos;un pod en cours d&apos;exécution.
+
+  Définir une valeur plus élevée pour les completions n&apos;est pas une mauvaise idée, mais cela peut entraîner des événements d&apos;avertissement dans K8s concernant `TooManyMissedTimes` pour le cronjob.
 </Callout>
 
 ### Évolutivité avec plusieurs déploiements SJM
@@ -2102,28 +2032,21 @@ Il est important de noter que la valeur `completions` ne doit pas être trop gra
 Pour dépasser le débit d&apos;environ 15 tâches/minute d&apos;un seul SJM, vous devez installer **plusieurs sorties SJM Helm distinctes**.
 
 <Callout variant="important">
-  **N’utilisez pas `replicaCount` pour dimensionner le pod du gestionnaire de tâches.** Vous **ne pouvez pas** augmenter la valeur de `replicaCount` pour une seule sortie Helm. L&apos;architecture SJM requiert une relation 1:1 entre un pod d&apos;exécution et son pod SJM parent. Si le pod d&apos;exécution renvoie les résultats à la mauvaise réplique SJM (par exemple, via un service Kubernetes), ces résultats seront perdus.
+  N&apos;utilisez pas de répliques pour mettre à l&apos;échelle le pod du gestionnaire de tâches. L&apos;architecture SJM nécessite une relation 1:1 entre un pod d&apos;exécution et son pod SJM parent. Si les pods d&apos;exécution renvoient des résultats au mauvais réplica SJM (par exemple, via un service Kubernetes), ces résultats seront perdus. Cependant, ping-runtime.replicaCount peut être utilisé.
 </Callout>
 
 La stratégie correcte consiste à déployer plusieurs instances SJM, chacune en tant que sortie Helm distincte. Chaque SJM sera en concurrence pour les tâches du même site privé, assurant ainsi l&apos;équilibrage de charge, la protection contre les pannes et une augmentation du débit total de tâches.
 
-#### Stratégie de mise à l&apos;échelle simplifiée
+#### Stratégie de mise à l&apos;échelle horizontale
 
-En supposant que $P\_req &gt; P\_max$ et que vous ayez besoin d&apos;augmenter la capacité, vous pouvez simplifier la maintenance en traitant chaque déploiement SJM comme une unité à capacité fixe.
+Si vous avez besoin de faire évoluer horizontalement, vous pouvez simplifier la maintenance en traitant chaque déploiement SJM comme une unité à capacité fixe.
 
-1. **Définir le parallélisme maximal :** pour *chaque* SJM, définissez `parallelism` sur la même valeur $P\_max$. Cela maximise le débit potentiel de chaque SJM.
+1. **Définir le parallélisme :** Pour *chaque* SJM, définissez `parallelism` sur le même maximum qu&apos;un seul SJM peut gérer sans créer trop de pods d&apos;exécution &quot;running&quot; à longue durée de vie. Cela maximise le débit potentiel de chaque SJM sans gaspiller de ressources.
+2. **Définir les complétions :** Pour *chaque* SJM, définissez également `completions` sur la même valeur fixe. Ajustez selon les besoins pour cibler un âge de job Kubernetes de 5 minutes par runtime, c&apos;est-à-dire node-browser-runtime et node-api-runtime.
+3. **Installer des releases :** Installez autant de releases Helm distinctes que nécessaire pour gérer la demande totale de vos jobs, c&apos;est-à-dire ramener la file d&apos;attente à zéro ou obtenir une pente négative sur le graphique linéaire.
+4. **Monitorer et ajouter :** Monitorez la file d&apos;attente des jobs de l&apos;emplacement privé. Si cela commence à augmenter (pente positive), installez simplement une autre release Helm (par ex. `sjm-delta`) en utilisant la même configuration fixe.
 
-2. **Saisie des ensembles :** Pour *chaque* SJM, définissez également `completions` sur une valeur fixe. La formule $P\_req$ de [l&apos;étape 1](#step-1-estimate-your-required-workload) peut être modifiée pour estimer les complétions en remplaçant la valeur par $P\_max$ :
-
-   $$ Achèvements = \fracN\_mP\_max $$
-
-   Où $N\_m$ représente votre **nombre de tâches par 5 minutes**. Ajustez au besoin après le déploiement pour cibler une durée d&apos;exécution de 5 minutes pour chaque tâche Kubernetes, c&apos;est-à-dire node-browser-runtime et node-api-runtime.
-
-3. **Installation de sortie :** Installez autant de sorties Helm distinctes que nécessaire pour gérer votre total $P\_req$. Par exemple, si votre $P\_req$ total est de 60 et que vous avez fixé `parallelism` de chaque SJM à 20 ($P\_max$ de [l&apos;étape 2](#step-2-check-against-the-single-sjm-throughput-limit)), vous auriez besoin **de trois** déploiements Helm distincts pour répondre à la demande de travail requise.
-
-4. **Monitorez et ajoutez :** monitorez votre file d&apos;attente de tâches (voir [l&apos;étape 4](#step-4-monitor-your-queue)). Si elle commence à se développer, installez simplement une autre sortie Helm (par exemple, `sjm-delta`) en utilisant la même configuration fixe.
-
-En fixant le parallélisme et les complétions à des valeurs statiques basées sur $P\_max$, l&apos;augmentation ou la diminution de la capacité devient un processus plus simple d&apos; **ajout ou de suppression de sortie Helm **. Cela permet d&apos;éviter de gaspiller les ressources du cluster pour une valeur de parallélisme supérieure à ce que le SJM peut utiliser efficacement.
+En fixant le parallélisme et les complétions à des valeurs statiques, l&apos;augmentation ou la diminution de la capacité devient un processus plus simple consistant à **ajouter ou supprimer des releases Helm**. Cela permet d&apos;éviter de gaspiller les ressources du cluster avec une valeur de parallélisme supérieure à ce que le SJM peut utiliser efficacement.
 
 #### Exemple d&apos;installation
 
