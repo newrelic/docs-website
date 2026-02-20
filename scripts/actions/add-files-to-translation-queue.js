@@ -26,8 +26,16 @@ const getCommandLineOptions = () => {
       'directory of files to be queued for translation'
     )
     .option(
-      '-mt, --machine-translation',
-      'Boolean to only send files needing machine translation'
+      '-mt, --machine-translation [value]',
+      'Boolean to only send files needing machine translation',
+      (value) => {
+        // Handle both "-mt" (no value) and "-mt true/false"
+        if (value === undefined || value === true) return true;
+        if (typeof value === 'string') {
+          return value.toLowerCase() === 'true';
+        }
+        return Boolean(value);
+      }
     )
     .option(
       '-l, --locale <locale>',
@@ -94,6 +102,10 @@ const getLocalizedFileData = (mdxFile) => {
   const checkLocale = getProjectId(attributes.translate);
   const contentType = attributes.type;
 
+  console.log(`\n ${mdxFile}`);
+  console.log(`   Content type: ${contentType || 'none'}`);
+  console.log(`   Human translation locales: ${attributes.translate ? attributes.translate.join(', ') : 'none (all machine)'}`);
+
   return Object.keys(LOCALE_IDS).map((locale) => ({
     filename: mdxFile,
     contentType,
@@ -108,16 +120,31 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     .filter(Boolean)
     .flatMap(getLocalizedFileData);
 
+  console.log(`\n Processing Results:`);
+  console.log(`   Total file-locale combinations: ${allLocalizedFileData.length}`);
+
   const filesToTranslate = machineTranslation
     ? allLocalizedFileData.filter(
         ({ project_id }) => project_id === machineTranslatedProjectID
       )
     : allLocalizedFileData;
 
+  if (machineTranslation) {
+    const filtered = allLocalizedFileData.length - filesToTranslate.length;
+    console.log(`   Machine translation filter enabled: ${filtered} human translation(s) filtered out`);
+  }
+  console.log(`   After machine translation filter: ${filesToTranslate.length}`);
+
   const includedFiles = excludeFiles(filesToTranslate);
+  const excluded = filesToTranslate.length - includedFiles.length;
+  if (excluded > 0) {
+    console.log(`   After exclusion rules: ${includedFiles.length} (${excluded} excluded)`);
+  }
+
   const queue = await getTranslations({
     status: STATUS.PENDING,
   });
+  console.log(`   Already in queue (PENDING status): ${queue.length}`);
 
   const filterByLocaleOption = (file) => {
     if (options.locale) {
@@ -130,6 +157,21 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     includedFiles
   ).filter(filterByLocaleOption);
 
+  if (options.locale) {
+    console.log(`   After locale filter (${options.locale}): ${fileDataToAddToQueue.length}`);
+  }
+
+  console.log(`\n Adding to database:`);
+  if (fileDataToAddToQueue.length === 0) {
+    console.log('   ⚠️  No files to add (all filtered out or already in queue)');
+  } else {
+    console.log(`   Adding ${fileDataToAddToQueue.length} file-locale combination(s):`);
+    fileDataToAddToQueue.forEach(({ filename, locale, project_id }) => {
+      const isHuman = project_id === humanTranslatedProjectID;
+      console.log(`   • ${locale} - ${filename} [${isHuman ? 'HUMAN' : 'MACHINE'}]`);
+    });
+  }
+
   await Promise.all(
     fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
       addTranslation({
@@ -140,6 +182,8 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
       })
     )
   );
+
+  console.log(`\n Done! ${fileDataToAddToQueue.length} translation(s) added to queue.`);
 };
 
 /** Entrypoint. */
