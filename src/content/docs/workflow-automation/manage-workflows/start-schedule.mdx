@@ -1,0 +1,337 @@
+---
+title: Start and schedule workflows
+tags:
+  - workflow automation
+  - workflow
+  - start a workflow automation
+  - start workflow automation on demand
+  - schedule workflows
+metaDescription: "Trigger workflows manually or schedule them to run automatically at specified times using NerdGraph APIs."
+freshnessValidatedDate: never
+---
+
+Once you've created a workflow, you can trigger it in three ways: from alerts, manually on demand, or on a schedule.
+
+## Choose your trigger method
+
+Select the right approach for your use case:
+
+<table>
+    <thead>
+        <tr>
+            <th style={{ width: "200px" }}>
+              **Trigger from alerts**
+            </th>
+            <th>
+              **Run on demand**
+            </th>
+            <th>
+              **Run on schedule**
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              Automated incident response
+            </td>
+            <td>
+              Testing new workflows
+            </td>
+            <td>
+              Regular health checks
+            </td>
+        </tr>
+        <tr>
+            <td>
+              Auto-remediation (resize EC2, rollback)
+            </td>
+            <td>
+              Manual operations
+            </td>
+            <td>
+              Periodic data processing
+            </td>
+        </tr>
+        <tr>
+            <td>
+              Enriched alert notifications
+            </td>
+            <td>
+              Ad-hoc maintenance
+            </td>
+            <td>
+              Daily or weekly reports
+            </td>
+        </tr>
+        <tr>
+            <td>
+              **Setup**: [Configure as alert destination](/docs/workflow-automation/setup-and-configure/create-destinations#trigger-from-alerts)
+            </td>
+            <td>
+              **API**: [StartWorkflowRun](/docs/workflow-automation/workflow-automation-apis/start-workflow-run)
+            </td>
+            <td>
+               **API**: [CreateSchedule](/docs/workflow-automation/workflow-automation-apis/create-schedule)
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<Callout variant="tip">
+  When alert conditions are breached, New Relic can automatically trigger workflows by configuring Workflow Automation as a destination. The `issueId` and `accountId` are passed automatically. See [Send notifications from workflows](/docs/workflow-automation/setup-and-configure/create-destinations#trigger-from-alerts) for setup instructions.
+</Callout>
+
+## Before you begin
+
+Before triggering workflows, ensure you have:
+
+- **Workflow created**: A workflow definition already deployed in your account from [template](/docs/workflow-automation/create-a-workflow-automation/use-a-template) or [custom-built](/docs/workflow-automation/create-a-workflow-automation/create-your-own).
+- **Account ID**: Your New Relic account ID can be found in [Account settings](/docs/accounts/accounts-billing/account-structure/account-id).
+- **Workflow name**: The exact name from your workflow definition.
+- **Required inputs**: Values for any parameters your workflow expects.
+- **Secrets configured**: AWS credentials, Slack tokens, or other secrets stored in [secrets manager](/docs/workflow-automation/limitations-and-faq/workflow-best-practices/#secure-credentials).
+
+<Callout variant="tip">
+  **New to workflows?** Create your first workflow before trying to trigger it. Start with [Use a template](/docs/workflow-automation/create-a-workflow-automation/use-a-template) for pre-built workflows.
+</Callout>
+
+## Run workflows on demand [#on-demand]
+
+Trigger workflows manually using the [StartWorkflowRun API](/docs/workflow-automation/workflow-automation-apis/start-workflow-run). This executes the workflow immediately with the inputs you provide.
+
+### Example: Invoke an AWS Lambda function
+
+The following workflow definition invokes an AWS Lambda function and logs the output. Replace `12345678` with your New Relic account ID.
+
+  ```yaml
+    name: lambda1
+
+    workflowInputs:
+      username:
+        type: String
+        defaultValue: "User"
+      key:
+        type: String
+        defaultValue: "${{ :secrets:12345678:USERNAME_AWS_ACCESS_KEY_ID }}"
+      access:
+        type: String
+        defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SECRET_ACCESS_KEY }}"
+      token:
+        type: String
+        defaultValue: "${{ :secrets:12345678:USERNAME_AWS_SESSION_TOKEN }}"
+      region:
+        type: String
+        defaultValue: us-east-1
+
+    steps:
+      - name: invoke1
+        type: action
+        action: aws.lambda.invoke
+        version: 1
+        inputs:
+          awsAccessKeyId: ${{ .workflowInputs.key }}
+          awsSecretAccessKey: ${{ .workflowInputs.access }}
+          awsSessionToken: ${{ .workflowInputs.token }}
+          region: ${{ .workflowInputs.region }}
+          functionName: hello-you
+          payload:
+            user: ${{ .workflowInputs.username }}
+
+      - name: logOutput
+        type: action
+        action: newrelic.ingest.sendLogs
+        version: 1
+        inputs:
+          logs:
+            - message: 'The lambda function message output is:${{ .steps.invoke1.outputs.payload.body }}'
+  ```
+
+To start this workflow, use the following NerdGraph mutation. Before running this mutation, ensure you've stored your AWS credentials using the `secretsManagementCreateSecret` mutation. For more information, see [secrets manager](/docs/workflow-automation/limitations-and-faq/workflow-best-practices/#secure-credentials).
+
+  ```yaml
+    mutation {
+      workflowAutomationStartWorkflowRun(
+        # Specify the account where the workflow is defined
+        scope: { type: ACCOUNT id: "12345678" }
+
+        # Reference the workflow definition by name
+        definition: { name: "lambda1" }
+
+        # Provide input values for the workflow
+        workflowInputs: [
+          {key: "key" value: "${{ :secrets:testUser123_AWS_ACCESS_KEY_ID }}"}
+          {key: "access" value: "${{ :secrets:testUser123_AWS_SECRET_ACCESS_KEY }}"}
+          {key: "token" value: "${{ :secrets:testUser123_AWS_SESSION_TOKEN }}"}
+          {key: "region" value:"us-east-2"}
+          {key: "username" value: "Julien"}
+        ]
+      ) {
+        runId
+      }
+    }
+  ```
+
+**Parameters explained:**
+  - `scope`: The account ID where your workflow definition is stored
+  - `definition`: The name of the workflow to run (must match the `name` field in your workflow definition)
+  - `workflowInputs`: Key-value pairs that override the default values in the `workflowInputs` section of your workflow definition
+
+The mutation returns a `runId` (for example, `7bd25287-2af8-42e1-b783-80f4e760a40b`). Use this ID to query the logs and view the output:
+
+<img
+  title="Workflow automation logs"
+  alt="Workflow automation logs showing the Lambda function output"
+  src="/images/autoflow-all-logs-2.webp"
+/>
+
+## Schedule workflows [#scheduled]
+
+Schedule workflows to run automatically at specific times using the [CreateSchedule API](/docs/workflow-automation/workflow-automation-apis/create-schedule). Scheduled workflows run recurring tasks without manual intervention.
+
+**When to schedule workflows:**
+  - Regular health checks
+  - Periodic data processing
+  - Daily/weekly reports
+  - Scheduled maintenance windows
+  - Recurring backups or cleanups
+
+### Cron expression reference
+
+Schedules use cron expressions to define when workflows run. Format: `minute hour day month weekday`
+
+<table>
+    <thead>
+        <tr>
+            <th style={{ width: "200px" }}>
+              Pattern
+            </th>
+            <th>
+              Description
+            </th>
+            <th>
+              Example use case
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>`0 9 * * *`</td>
+            <td>Every day at 9:00 AM</td>
+            <td>Daily morning health checks</td>
+        </tr>
+        <tr>
+            <td>`0 9 * * 1-5`</td>
+            <td>Every weekday at 9:00 AM</td>
+            <td>Business day operations</td>
+        </tr>
+        <tr>
+            <td>`0 */6 * * *`</td>
+            <td>Every 6 hours</td>
+            <td>Regular sync operations</td>
+        </tr>
+        <tr>
+            <td>`0 0 1 * *`</td>
+            <td>First day of month at midnight</td>
+            <td>Monthly reports</td>
+        </tr>
+        <tr>
+            <td>`*/10 * * * *`</td>
+            <td>Every 10 minutes (minimum interval)</td>
+            <td>Frequent polling, health checks</td>
+        </tr>
+        <tr>
+            <td>`0 0 * * 0`</td>
+            <td>Every Sunday at midnight</td>
+            <td>Weekly cleanup tasks</td>
+        </tr>
+    </tbody>
+</table>
+
+<Callout variant="important">
+  **Minimum schedule interval:** Schedules must be at least 10 minutes apart. You cannot schedule workflows to run more frequently than every 10 minutes. For sub-10-minute intervals, consider scheduling every 10 minutes and using a [wait step](/docs/workflow-automation/workflow-automation-apis/definition-schema#wait) within your workflow. See [workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits) for all scheduling constraints.
+</Callout>
+
+<Callout variant="tip">
+  **Cron syntax:** `*` means `every`, `/` means `every nth`, `-` means `range`. Example: `0 9 * * 1-5 = At minute 0, hour 9, every day, every month, Monday through Friday`.
+</Callout>
+
+### Example: Schedule a daily health check
+
+The following example schedules the `lambda1` workflow to run every day at 9 AM Eastern Time:
+
+  ```yaml
+    mutation {
+      workflowAutomationCreateSchedule(
+        scope: {type: ACCOUNT, id: "1"}
+        definition: {name: "outdated_agents_multiple_nrql", version: 22}
+        workflowInputs: [{key: "emailDestinationId", value: "04ea4bf6-e52a-4df1-bd5d-9c0271652a93"}, {key: "accountId", value: "1"}]
+        timezone: "America/New_York"
+        cronExpression: "0 12 * * *"
+      ) {
+        scheduleId
+      }
+    }
+  ```
+
+**What you get back:** `scheduleId`, Unique identifier for the schedule (use this to update or delete the schedule later)
+
+### Workaround: Sub-10-minute intervals
+
+If you need to check something more frequently than every 10 minutes, schedule your workflow at the minimum 10-minute interval and use a wait step within the workflow definition to create additional polling intervals.
+
+**Example workflow with 5-minute polling:**
+
+  ```yaml
+    name: frequent-health-check
+
+    steps:
+      # First check happens immediately when scheduled
+      - name: firstCheck
+        type: action
+        action: newrelic.nrdb.query
+        version: 1
+        inputs:
+          query: "FROM Transaction SELECT count(*) WHERE appName = 'MyApp' SINCE 5 minutes ago"
+
+      # Wait 5 minutes
+      - name: waitStep
+        type: wait
+        seconds: 300
+
+      # Second check happens 5 minutes after the workflow started
+      - name: secondCheck
+        type: action
+        action: newrelic.nrdb.query
+        version: 1
+        inputs:
+          query: "FROM Transaction SELECT count(*) WHERE appName = 'MyApp' SINCE 5 minutes ago"
+  ```
+
+Schedule this workflow to run every 10 minutes using `*/10 * * * *`. This gives you effective 5-minute polling:
+  - 0:00 - Workflow starts, runs firstCheck
+  - 0:05 - secondCheck runs (after wait step)
+  - 0:10 - Next scheduled workflow starts, runs firstCheck
+  - 0:15 - secondCheck runs (after wait step)
+
+<Callout variant="tip">
+  **Workflow duration limit:** Remember that workflows have a maximum duration of 7 days. Design your wait steps and polling frequency accordingly. See [workflow limits](/docs/workflow-automation/limitations-and-faq/workflow-limits) for details.
+</Callout>
+
+### Manage schedules
+
+After creating a schedule:
+  - **View active schedules**: See all scheduled runs in the [workflow dashboard](/docs/workflow-automation/manage-workflows/managing-workflow#monitor-runs)
+  - **Update schedule**: Use the UpdateSchedule API to change frequency or inputs
+  - **Delete schedule**: Use the DeleteSchedule API to stop recurring runs
+
+For complete API documentation, see [Workflow Automation APIs](/docs/workflow-automation/workflow-automation-apis/using-workflow-automation-api).
+
+## Related topics [#related-topics]
+
+<DocTiles>
+  <DocTile title='Manage workflows' path="/docs/workflow-automation/manage-workflows/managing-workflow">Monitor execution history and manage running workflows</DocTile>
+  <DocTile title='Create schedule API' path="/docs/workflow-automation/workflow-automation-apis/create-schedule">Create schedules programmatically via NerdGraph</DocTile>
+  <DocTile title='Start workflow run API' path="/docs/workflow-automation/workflow-automation-apis/start-workflow-run">Trigger workflows on-demand via API</DocTile>
+  <DocTile title='Workflow limits' path="/docs/workflow-automation/limitations-and-faq/workflow-limits">Understand schedule frequency and execution limits</DocTile>
+</DocTiles>
