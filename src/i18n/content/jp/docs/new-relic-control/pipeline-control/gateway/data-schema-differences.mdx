@@ -1,0 +1,817 @@
+---
+title: ゲートウェイデータスキーマの違い
+metaDescription: 'Learn about schema differences between gateway processing and NRDB, including which attributes are available at the gateway level.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+ゲートウェイ プロセッサは、テレメトリー データがNew Relicに到達する前にそれを処理します。これは、NRDB で利用可能な一部のプロパティがゲートウェイではまだ利用できないことを意味します。 フィルター、変換、およびサンプリング プロセッサの OTTL 式を記述するときには、これらの違いを理解することが重要です。
+
+## スキーマが異なる理由
+
+### データフローとエンリッチメント
+
+テレメトリーデータがNew Relicのプラットフォームを通過する場合:
+
+1. **ゲートウェイ処理**- ゲートウェイはエージェントやその他のソースから生のテレメトリーを受信します
+2. **エンリッチメント**- New Relic は属性（ `entity.guid` 、 `appName`など）を追加し、既存の属性の名前を変更します
+3. **クラウドルール処理**- NRQLベースのcloudルールは強化されたデータに対して動作します
+4. **ストレージ**- データはすべてのエンリッチメントが適用された状態でNRDBに保存されます
+
+### ゲートウェイプロセッサへの影響
+
+**ゲートウェイ プロセッサは、事前エンリッチメント データを参照します**。これは次のことを意味します。
+
+* 一部の属性はまだ存在しません (`entity.guid` 、 `appName` 、 `entityGuid`など)
+* 属性名はNRDBに表示されるものと異なる場合があります
+* フィルタと変換ロジックは、この縮小された属性セットを考慮する必要があります。
+
+**クラウド ルールはエンリッチメント後のデータを参照します**。これは次のことを意味します。
+
+* すべての強化された属性が利用可能
+* NRQLゲートウェイに存在しないプロパティを参照できる
+
+## データソース
+
+ゲートウェイは以下からテレメトリーを受信します。
+
+* [New Relic APM エージェント](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration)(複数の言語をサポート)
+* New Relic Infrastructure
+* OpenTelemetry
+* New Relic API (イベントAPI 、ログAPI 、トレースAPI 、メトリクスAPI)
+* その他のOTLP互換ソース
+
+<Callout variant="important">
+  [エージェント設定ドキュメント](/docs/new-relic-control/pipeline-control/gateway/modify-agent-configuration)を参照して、ゲートウェイ デプロイメントでサポートされているエージェントとバージョンを確認してください。
+</Callout>
+
+すべてのデータは、多数の属性を持つ複雑で多重ネストされた JSON として届きます。
+
+## ゲートウェイプロセッサのOTTL式の記述
+
+### 属性の可用性
+
+OTTL フィルタ条件または変換ステートメントを記述する場合:
+
+**利用可能な属性:**
+
+* エージェント/コレクターによって送信されたコア テレメトリー プロパティ
+* 計装が直接追加するプロパティ
+* 標準 OTLP 属性 (`span_id` 、 `trace_id` 、 `severity.number`など)
+
+**利用できない属性（エンリッチメント中に追加されたもの）:**
+
+* `entity.guid`, `entityGuid`
+* `appId`, `appName`
+* `host` （ほとんどの場合）
+* `realAgentId`
+* NR固有のさまざまなメタデータ属性
+
+詳細については、以下の[属性参照表](#attribute-reference-by-data-type)を参照してください。
+
+### ベストプラクティス
+
+**実際のデータでテストする:**複雑なフィルターを作成する前に、ゲートウェイの監視データを使用して、テレメトリーにどのプロパティが存在するかを確認します。
+
+**利用可能な属性を使用します:**
+
+```yaml
+# ✓ Works - span_id exists in raw telemetry
+filter/Spans:
+  config:
+    spans:
+      - 'span_id.string == "abc123"'
+
+# ✗ May not work - entity.guid added during enrichment
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["entity.guid"] == "xyz789"'
+```
+
+**強化された属性のcloudルールを検討してください。**フィルタリング ロジックで強化された属性 (`appName`や`entity.guid`など) が必要な場合は、ゲートウェイ プロセッサの代わりにcloudルールを使用します。
+
+**参照テーブルを確認します。**フィルターまたは変換で属性を使用する前に、以下の表でその属性が「ゲートウェイでは使用不可」としてリストされていないことを確認します。
+
+## データ型による属性参照
+
+次の表は、各テレメトリーデータ タイプのゲートウェイ レベルで利用できないプロパティを示しています。 これらの属性に基づいてフィルタリングまたは変換する必要がある場合は、代わりにcloudルールの使用を検討してください。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        データ型
+      </th>
+
+      <th>
+        ゲートウェイで利用できない属性
+      </th>
+
+      <th>
+        フィルター式の例（OTTL）
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        トランザクション（APM）
+      </td>
+
+      <td>
+        `appId`
+
+        、 
+
+        `appName`
+
+         、 
+
+        `containerId`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `host`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `transactionSubType`
+
+         、 
+
+        `transactionType`
+      </td>
+
+      <td>
+        `attributes["guid"] == "c2906c2e8b9f11ff"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        カスタムイベント
+      </td>
+
+      <td>
+        `appId`
+
+        、 
+
+        `appName`
+
+         、 
+
+        `containerId`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `host`
+
+         、 
+
+        `realAgentId`
+      </td>
+
+      <td>
+        `attributes["myFloat"] == 0.603`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        エラートレース
+      </td>
+
+      <td>
+        `aggregateFacet`
+
+        、 
+
+        `appId`
+
+         、 
+
+        `appName`
+
+         、 
+
+        `applicationIds`
+
+         、 
+
+        `count`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `error.class`
+
+         、 
+
+        `message`
+
+         、 
+
+        `path`
+
+         、 
+
+        `exceptionClass`
+
+         、 
+
+        `fingerprint`
+
+         、 
+
+        `id`
+
+         、 
+
+        `message`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `storageId`
+
+         、 
+
+        `timestamp`
+
+         、 
+
+        `transactionName`
+
+         、 
+
+        `transactionUiName`
+      </td>
+
+      <td>
+        `attributes["traceId"] == "b366efe772fa6d1c8e0852558026c40e"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        TransactionError
+      </td>
+
+      <td>
+        `aggregateFacet`
+
+        、 
+
+        `appId`
+
+         、 
+
+        `appName`
+
+         、 
+
+        `containerId`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `host`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `transactionUiName`
+      </td>
+
+      <td>
+        `attributes["error.message"] == "my expected error message"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ログ
+      </td>
+
+      <td>
+        `entity.guids`
+
+        、
+
+        `messageId`
+
+        、
+
+        `newrelic.logPattern`
+
+        、
+
+        `newrelic.logs.batchIndex`
+
+        、 
+
+        `newrelic.source`
+      </td>
+
+      <td>
+        `span_id == "8b583de97341d094"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メトリックタイムスライス)
+      </td>
+
+      <td>
+        `appId`
+
+        、 
+
+        `appName`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `language`
+
+         、 
+
+        `metricName`
+
+         、 
+
+        `metricTimesliceName`
+
+         、 
+
+        `newrelic.timeslice.value`
+
+         、 
+
+        `scope`
+
+         、 
+
+        `timestamp`
+      </td>
+
+      <td>
+        次元メトリクスまたはcloudルールを使用する
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        スパン (ディストリビューティッド（分散）トレーシング)
+      </td>
+
+      <td>
+        `appId`
+
+        、 
+
+        `appName`
+
+         、 
+
+        `containerId`
+
+         、 
+
+        `duration.ms`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `entity.name`
+
+         、 
+
+        `entityGuid`
+
+         、 
+
+        `host`
+
+         、 
+
+        `id`
+
+         、 
+
+        `process.id`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `trace.id`
+      </td>
+
+      <td>
+        `name == "WebTransaction/Go/GET /log"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SQLトレース
+      </td>
+
+      <td>
+        `applicationIds`
+
+        、 
+
+        `callCount`
+
+         、 
+
+        `databaseMetricName`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `id`
+
+         、 
+
+        `maxCallTime`
+
+         、 
+
+        `minCallTime`
+
+         、 
+
+        `path`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `sql`
+
+         、 
+
+        `sqlId`
+
+         、 
+
+        `storageId`
+
+         、 
+
+        `timestamp`
+
+         、 
+
+        `totalCallTime`
+
+         、 
+
+        `uri`
+      </td>
+
+      <td>
+        `attributes["uri"] == "Custom/Simple/sqlTransaction"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        トランザクショントレース
+      </td>
+
+      <td>
+        `storageId`
+
+        、 
+
+        `uri`
+
+         、 
+
+        `path`
+
+         、 
+
+        `agentRunId`
+
+         、 
+
+        `applicationIds`
+
+         、 
+
+        `duration`
+
+         、 
+
+        `entity.guid`
+
+         、 
+
+        `guid`
+
+         、 
+
+        `id`
+
+         、 
+
+        `protocolVersion`
+
+         、 
+
+        `realAgentId`
+
+         、 
+
+        `timestamp`
+      </td>
+
+      <td>
+        生のトレースデータで利用可能な属性を使用する
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メトリクス（ゲージ）
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (値: 
+
+        `metricAPI`
+
+        )、 
+
+        `metricName`
+
+         : 
+
+        `{type, count, latest, max, min, sum}`
+      </td>
+
+      <td>
+        `name == "redis_aof_rewrite_in_progress" and value < 100`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メトリクス（概要）
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (値: 
+
+        `metricAPI`
+
+        )、 
+
+        `metricName`
+
+         : 
+
+        `{type, count, max, min, sum}`
+      </td>
+
+      <td>
+        `attributes["scrapedTargetKind"] == "user_provided"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メトリクス（カウント）
+      </td>
+
+      <td>
+        `newrelic.source`
+
+         (値: 
+
+        `metricAPI`
+
+        )、 
+
+        `metricName`
+
+         : 
+
+        `{type, count}`
+      </td>
+
+      <td>
+        `attributes["instrumentation.name"] == "nri-prometheus"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        SystemSample（インフラストラクチャ）
+      </td>
+
+      <td>
+        なし
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ストレージサンプル（インフラストラクチャ）
+      </td>
+
+      <td>
+        `entityAndMountPoint`
+      </td>
+
+      <td>
+        `attributes["inodesUsed"] == 161604`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        NetworkSample (インフラストラクチャ)
+      </td>
+
+      <td>
+        `entityAndInterface`
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ProcessSample (インフラストラクチャ)
+      </td>
+
+      <td>
+        `entityAndPid`
+      </td>
+
+      <td>
+        `attributes["entityKey"] == "vagrant"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ContainerSample (インフラストラクチャ)
+      </td>
+
+      <td>
+        `entityGuid`
+
+        、 
+
+        `entityType`
+
+         、 
+
+        `entityId`
+      </td>
+
+      <td>
+        `attributes["agentName"] == "ContainerSampleAgent"`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 一般的なシナリオ
+
+### エンティティによるフィルタリング
+
+**問題:**エンティティごとにスパンをフィルター処理したいのですが、ゲートウェイに`entity.guid`が存在しません。
+
+**解決策:**未加工のテレメトリーに存在するサービス名またはその他の識別プロパティを使用します。
+
+```yaml
+filter/Spans:
+  config:
+    spans:
+      - 'attributes["service.name"] == "my-service"'
+```
+
+### アプリケーション名によるフィルタリング
+
+**問題:** APM トランザクションのゲートウェイに`appName`がありません。
+
+**解決策:**エージェントが設定したプロパティを直接使用するか、 cloudルールで強化した後にフィルタリングを適用します。
+
+### エンティティ情報の追加
+
+**問題:**ゲートウェイでテレメトリーにエンティティ コンテキストを追加したいと考えています。
+
+**解決策:**ゲートウェイで`entity.guid`にアクセスすることはできませんが、独自の識別メタデータを追加できます。
+
+```yaml
+transform/Logs:
+  config:
+    log_statements:
+      - set(attributes["deployment"], "production-us-east")
+      - set(attributes["cluster"], "k8s-prod-01")
+```
+
+## トラブルシューティング
+
+### フィルターが期待されるデータと一致しない
+
+フィルター プロセッサが期待どおりのデータと一致しない場合は、次の操作を実行します。
+
+1. **属性の可用性を確認する**- ゲートウェイに属性が存在することを確認する（NRDB だけでなく）
+2. **実際のテレメトリーを検査する**- ゲートウェイ監視を使用して、実際にどのようなプロパティが存在するかを確認します。
+3. **属性アクセスのテスト**- 属性に簡単なフィルターを適用して、属性が存在するかどうかを確認します。
+   ```yaml
+   filter/Test:
+     config:
+       logs:
+         - 'attributes["entity.guid"] != ""'  # Will match nothing if attribute doesn't exist
+   ```
+
+### 変換で期待される値が設定されない
+
+属性が追加または変更されていない場合:
+
+1. **属性名を確認する**- エンリッチメント前の属性名はNRDBと異なる場合があります
+2. **データ型を確認してください**- 属性に正しくアクセスしていることを確認してください（例: `attributes["key"]`と直接フィールド アクセス）
+3. **プロセッサの順序を確認する**- 変換が、それに依存するフィルタよりも先に実行されることを確認する
+
+## 次のステップ
+
+* [フィルタープロセッサリファレンス](/docs/new-relic-control/pipeline-control/gateway/filter-processor)- OTTLフィルター構文を学ぶ
+* [変換プロセッサリファレンス](/docs/new-relic-control/pipeline-control/gateway/transform-processor)- OTTL変換ステートメントを学ぶ
+* [クラウドルールドキュメント](/docs/new-relic-control/pipeline-control/cloud-rules/create-pipeline-rules)- エンリッチドデータでNRQLを使用する
