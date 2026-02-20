@@ -1,0 +1,415 @@
+---
+title: 'Configure ATP for Kubernetes'
+metaDescription: 'Step-by-step guide to install and configure the Adaptive Telemetry Processor (ATP) with NRDOT Collector in Kubernetes environments.'
+tags:
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - NRDOT
+  - Adaptive Telemetry Processor
+  - ATP
+  - Kubernetes
+  - Helm
+  - Manifests
+freshnessValidatedDate: never
+---
+
+<Callout title="Preview">
+We're still working on this feature, but we'd love for you to try it out!
+
+This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/). 
+</Callout>
+
+Learn how to install and configure the Adaptive Telemetry Processor (ATP) with the NRDOT Collector in Kubernetes environments. ATP reduces telemetry data volume while maintaining critical visibility into your applications.
+
+<Callout variant="important">
+  ATP for Kubernetes uses an experimental build. This entire build is experimental for Kubernetes installation, not just the ATP feature being in preview.
+</Callout>
+
+## Installation methods [#installation-methods]
+
+You can install the OpenTelemetry Collector with ATP using either Helm (recommended) or Kubernetes manifests:
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="helm">Helm install (recommended)</TabsBarItem>
+    <TabsBarItem id="manifest">Manifest install</TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="helm">
+
+The Helm installation method is the recommended approach for deploying ATP-enabled collectors in Kubernetes.
+
+<Steps>
+
+<Step>
+
+### Before you begin [#helm-prereq]
+
+Ensure you have:
+
+* Your New Relic license key
+* kubectl configured to access your cluster
+* Cluster admin permissions
+
+</Step>
+
+<Step>
+
+### Download and customize values.yaml [#helm-values]
+
+1. Download the Helm chart `values.yaml` file:
+
+    ```bash
+    curl -o values.yaml https://raw.githubusercontent.com/newrelic/helm-charts/master/charts/nr-k8s-otel-collector/values.yaml
+    ```
+
+2. Edit the `values.yaml` file with your specific configuration:
+
+    ```yaml
+    # Required: Set your cluster name and license key
+    cluster: "YOUR_CLUSTER_NAME"
+    licenseKey: "YOUR_NEW_RELIC_LICENSE_KEY"
+    
+    # Enable ATP
+    enable_atp: true
+    
+    # IMPORTANT: Use experimental collector image for ATP
+    images:
+      collector:
+        repository: "newrelic/nrdot-collector"  # Changed from nrdot-collector-k8s
+        tag: "<NRDOT_COLLECTOR_LATEST_VERSION>"  # Use latest version from releases page
+    ```
+
+3. Find the latest NRDOT Collector version at the [releases page](https://github.com/newrelic/nrdot-collector-releases/releases) and update the `tag` value.
+
+4. For additional configuration options, see [configuration parameters](/docs/kubernetes-pixie/k8s-otel/install/#config-params).
+
+</Step>
+
+<Step>
+
+### Install the Helm chart [#helm-install]
+
+1. Add the New Relic Helm repository:
+
+    ```bash
+    helm repo add newrelic https://helm-charts.newrelic.com
+    helm repo update
+    ```
+
+2. Install the chart using your customized `values.yaml` file:
+
+    ```bash
+    helm upgrade nr-k8s-otel-collector newrelic/nr-k8s-otel-collector \
+      -f values.yaml \
+      -n newrelic \
+      --create-namespace \
+      --install
+    ```
+
+</Step>
+
+<Step>
+
+### Verify the installation [#helm-verify]
+
+1. Check that pods are running:
+
+    ```bash
+    kubectl get pods -n newrelic --watch
+    ```
+
+    You should see pods with names like `nr-k8s-otel-collector-<hash>` in the `newrelic` namespace.
+
+2. Verify New Relic is receiving process data by running these queries in the [query builder](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE k8s.cluster.name='YOUR_CLUSTER_NAME'
+    AND metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE k8s.cluster.name='YOUR_CLUSTER_NAME'
+    AND metricName LIKE 'process.%'
+    ```
+
+</Step>
+
+<Step>
+
+### Access the ATP data in New Relic [#access-data]
+
+Once the ATP is configured, it starts collecting data from your Kubernetes cluster. You can access this data in New Relic OpenTelemetry UI. For more information on New Relic OpenTelemetry UI, refer to [OpenTelemetry APM UI](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui).
+
+**To view the ATP process metric data in New Relic:**
+
+1. Go to **<DNT>[one.newrelic.com](https://one.newrelic.com) > All Entities</DNT>**.
+
+    OR 
+
+    Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > Catalogs > Infrastructure**</DNT>.
+
+2. Search for entity where you installed the NRDOT collector with ATP.
+3. Select the entity then click **<DNT>Process</DNT>** in the left pane.
+
+    On the <DNT>Process</DNT> page, you can view all the processes running, along with their IDs, CPU and memory utilization metrics. It also displays the parent-child relationship between processes if a process spawns other processes.
+
+        <img
+            style={{ align: 'left' }}
+            title="ATP process metrics in New Relic OpenTelemetry UI"
+            alt="ATP process metrics in New Relic OpenTelemetry UI"
+            src="/images/atp-process-metrics.webp"
+        />
+
+</Step>
+
+</Steps>
+
+    </TabsPageItem>
+
+    <TabsPageItem id="manifest">
+
+The manifest installation method provides a way to set up OpenTelemetry for Kubernetes without using Helm. This method is suitable for users who prefer a more hands-on approach or have specific requirements that necessitate manual configuration.
+
+<Steps>
+
+<Step>
+
+### Before you begin [#manifest-prereq]
+
+Ensure you have:
+
+* Your New Relic license key
+* kubectl configured to access your cluster
+* Cluster admin permissions
+
+
+</Step>
+
+<Step>
+
+### Download and prepare manifest files [#manifest-download]
+
+1. Copy the contents of the `nr-k8s-otel-collector`'s rendered examples directory to your local workspace:
+
+    ```bash
+    git clone https://github.com/newrelic/helm-charts.git
+    cd helm-charts/charts/nr-k8s-otel-collector/examples/k8s-with-atp/rendered
+    ```
+
+2. Update the collector image in both `daemonset.yaml` and `deployment.yaml` files:
+
+    Change from:
+    ```yaml
+    image: docker.io/newrelic/nrdot-collector-k8s
+    ```
+
+    To:
+    ```yaml
+    image: docker.io/newrelic/nrdot-collector:<NRDOT_COLLECTOR_LATEST_VERSION>
+    ```
+
+    <Callout variant="important">
+      This is an experimental build for Kubernetes installation. Find the latest version at the [releases page](https://github.com/newrelic/nrdot-collector-releases/releases).
+    </Callout>
+
+</Step>
+
+<Step>
+
+### Configure license key and cluster name [#manifest-config]
+
+1. Update the `secret.yaml` file with your Base64-encoded New Relic license key:
+
+    ```yaml
+    data:
+      licenseKey: <YOUR_BASE64_ENCODED_LICENSE_KEY>
+    ```
+
+    To encode your license key:
+    * **Linux/macOS:** `echo -n "<YOUR_LICENSE_KEY>" | base64`
+    * **Windows (PowerShell):** `[System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("<YOUR_LICENSE_KEY>"))`
+
+2. Update your cluster name in both `daemonset-configmap.yaml` and `deployment-configmap.yaml` files:
+
+    Locate instances of `k8s.cluster.name` and replace `<YOUR_CLUSTER_NAME>` with your desired cluster name:
+
+    ```yaml
+    - key: k8s.cluster.name
+      action: upsert
+      value: YOUR_CLUSTER_NAME  # Replace with your cluster name
+    ```
+
+</Step>
+
+<Step>
+
+### Deploy the manifests [#manifest-deploy]
+
+1. Create the `newrelic` namespace and apply the manifests:
+
+    ```bash
+    kubectl create namespace newrelic
+    kubectl apply -n newrelic -R -f .
+    ```
+
+2. Verify the pods are running:
+
+    ```bash
+    kubectl get pods -n newrelic --watch
+    ```
+
+3. Verify New Relic is receiving process data by running these queries in the [query builder](https://docs.newrelic.com/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/):
+
+    ```sql
+    FROM Metric SELECT *
+    WHERE k8s.cluster.name='<YOUR_CLUSTER_NAME>'
+    AND metricName LIKE 'process.%'
+    LIMIT 100
+    ```
+
+    ```sql
+    FROM Metric SELECT uniqueCount(metricName)
+    WHERE k8s.cluster.name='<YOUR_CLUSTER_NAME>'
+    AND metricName LIKE 'process.%'
+    ```
+
+</Step>
+
+
+<Step>
+
+### Access the ATP data in New Relic [#access-data]
+
+Once the ATP is configured, it starts collecting data from your Kubernetes cluster. You can access this data in New Relic OpenTelemetry UI. For more information on New Relic OpenTelemetry UI, refer to [OpenTelemetry APM UI](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui).
+
+**To view the ATP process metric data in New Relic:**
+
+1. Go to **<DNT>[one.newrelic.com](https://one.newrelic.com) > All Entities</DNT>**.
+
+    OR 
+
+    Go to <DNT>**[one.newrelic.com](https://one.newrelic.com) > Catalogs > Infrastructure**</DNT>.
+
+2. Search for entity where you installed the NRDOT collector with ATP.
+3. Select the entity then click **<DNT>Process</DNT>** in the left pane.
+
+    On the <DNT>Process</DNT> page, you can view all the processes running, along with their IDs, CPU and memory utilization metrics. It also displays the parent-child relationship between processes if a process spawns other processes.
+
+        <img
+            style={{ align: 'left' }}
+            title="ATP process metrics in New Relic OpenTelemetry UI"
+            alt="ATP process metrics in New Relic OpenTelemetry UI"
+            src="/images/atp-process-metrics.webp"
+        />
+
+</Step>
+
+
+</Steps>
+
+    </TabsPageItem>
+
+  </TabsPages>
+</Tabs>
+
+## ATP configuration options [#atp-config]
+
+When ATP is enabled, the following configuration is automatically applied:
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+      <th>Default value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>`enable_atp`</td>
+      <td>Enable/disable ATP functionality. Set to `true` to enable ATP.</td>
+      <td>`false`</td>
+    </tr>
+    <tr>
+      <td>`images.collector.repository`</td>
+      <td>Must be changed to `newrelic/nrdot-collector` to use ATP.</td>
+      <td>`newrelic/nrdot-collector-k8s`</td>
+    </tr>
+    <tr>
+      <td>`images.collector.tag`</td>
+      <td>Image tag for ATP-enabled collector.</td>
+      <td>`<TO_BE_CONFIRMED>`</td>
+    </tr>
+  </tbody>
+</table>
+{/* 
+## Troubleshooting ATP [#troubleshooting]
+
+### ATP not filtering metrics
+
+**Problem**: All process metrics are being sent, not filtered.
+
+**Solutions**:
+
+1. **Verify ATP is enabled**:
+    ```bash
+    kubectl get configmap -n newrelic nr-k8s-otel-collector-daemonset-config -o yaml | grep adaptivetelemetry
+    ```
+
+2. **Check ATP is in the pipeline**: Look for `adaptivetelemetry` in the `metrics/nr` pipeline.
+
+3. **Verify you're using the correct collector image**:
+    ```bash
+    kubectl get daemonset -n newrelic nr-k8s-otel-collector-daemonset -o yaml | grep "image:"
+    ```
+    
+    Expected: `newrelic/nrdot-collector:1.11.0` (or later)  
+    **NOT**: `newrelic/nrdot-collector-k8s:1.11.0`
+
+4. **Verify `enable_atp` is set to `true`** in your `values.yaml` or ConfigMap.
+
+### Pods not starting
+
+**Problem**: Collector pods are failing to start.
+
+**Solutions**:
+
+1. **Check pod logs**:
+    ```bash
+    kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector
+    ```
+
+2. **Verify license key is correctly encoded**:
+    ```bash
+    kubectl get secret -n newrelic nr-k8s-otel-collector-config -o yaml
+    ```
+
+3. **Check resource limits**: Ensure your cluster has sufficient resources for the collector pods.
+
+### No data in New Relic
+
+**Problem**: No metrics appearing in New Relic after installation.
+
+**Solutions**:
+
+1. **Wait 2-5 minutes** for data to appear in the New Relic UI.
+
+2. **Verify cluster name** matches what you set in your configuration.
+
+3. **Check collector logs** for connection errors:
+    ```bash
+    kubectl logs -n newrelic -l app.kubernetes.io/name=nr-k8s-otel-collector | grep -i error
+    ``` */}
+
+## Related resources [#related-resources]
+
+<DocTiles>
+    <DocTile title="Troubleshooting" path="/docs/opentelemetry/nrdot/atp/troubleshooting">Learn how to troubleshoot ATP issues for your environment.</DocTile>
+    <DocTile title="Query your data" path="/docs/opentelemetry/nrdot/atp/query">Learn how to query ATP data in New Relic using NRQL.</DocTile>
+    <DocTile title="Advanced-features" path="/docs/opentelemetry/nrdot/atp/advanced-features">Learn how to enable advanced features for your ATP deployment.</DocTile>
+</DocTiles>
