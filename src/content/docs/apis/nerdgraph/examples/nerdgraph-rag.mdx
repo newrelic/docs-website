@@ -1,5 +1,5 @@
 ---
-title: "NerdGraph tutorial: Set up RAG integration"
+title: "Set up RAG integration"
 metaDescription: Enhance New Relic AI with RAG (Retrieval Augmented Generation)
 redirects:
   - /docs/agentic-ai/knowledge-integration/apis-and-communication-protocol
@@ -125,7 +125,17 @@ You should save the `id` returned as you'll need it in later steps to link docum
 </Collapser>
 </CollapserGroup>
 
-## Task 2: Index your documents [#index-your-documents]
+## Task 2 [#task2]
+You have two options for providing context to your RAG tool. You can manually upload static files or set up an automated connector for living documentation.
+
+### Option A: Index your documents [#index-your-documents]
+If you have static documents such as PDFs, Word files, or local CSVs that are not hosted in a cloud knowledge base, use the Document Knowledge Connector. This method utilizes the Blob API to upload individual files directly to New Relic. Use this option for:
+
+- **One-time context:**Uploading specific runbooks or architectural diagrams that rarely change.
+
+- **Local data:** Indexing proprietary or internal files that live on your local machine rather than a wiki.
+
+- **Agentic testing:** Quickly providing a specific set of documents to an AI agent for a focused workflow.
 
 <CollapserGroup>
 <Collapser id = "upload-document" title = "Upload a document via the Blob API">
@@ -393,12 +403,376 @@ mutation {
 </Collapser>
 </CollapserGroup>
 
+### Option B: Index your Confluence documents [#index-your-confluence]
+If your organization uses Confluence for documentation, you can index your Confluence documents into New Relic without needing to use the Blob API. This option allows you to connect your Confluence instance and select specific documents or spaces to be indexed and associated with your RAG tool. Use this option to ensure New Relic AI always has the latest version of your Confluence pages.
+
+<CollapserGroup>
+<Collapser id="confluence-api-token" title="Store your Confluence API token">
+
+The connector requires an Atlassian API token to fetch your pages. Securely store this in the New Relic secrets manager.
+
+### Input parameters
+
+<table>
+<thead>
+<tr>
+<th>Parameter Name</th>
+<th>Data Type</th>
+<th>Required?</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>description</td>
+<td>String</td>
+<td>No</td>
+<td>A brief summary of what the secret is used for.</td>
+</tr>
+<tr>
+<td>key</td>
+<td>String</td>
+<td>Yes</td>
+<td>The unique name used to reference this secret (for example, `CONFLUENCE_API_TOKEN`).</td>
+</tr>
+<tr>
+<td>namespace</td>
+<td>String</td>
+<td>Yes</td>
+<td>Must be set to <strong>rag-datafetching</strong> for the RAG indexer service to access it.</td>
+</tr>
+<tr>
+<td>value</td>
+<td>String</td>
+<td>Yes</td>
+<td>The actual Confluence API token value or password.</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Object</td>
+<td>Yes</td>
+<td>Defines the organizational context; the type must be <strong>ORGANIZATION</strong>.</td>
+</tr>
+</tbody>
+</table>
+
+### Sample mutation
+
+```graphql
+mutation createSecretKey {
+  secretsManagementCreateSecret(
+    description: "Confluence API token for RAG indexing"
+    key: "CONFLUENCE_API_TOKEN"
+    namespace: "rag-datafetching"
+    scope: {id: "YOUR_ORGANIZATION_ID", type: ORGANIZATION}
+    value: "YOUR_CONFLUENCE_API_TOKEN"
+  ) {
+    key
+  }
+}
+```
+
+</Collapser>
+
+<Collapser id="confluence-integration" title="Create the Confluence integration">
+
+Define the connection to your Confluence instance. This acts as the bridge between New Relic and Atlassian.
+
+### Input parameters
+
+<table>
+<thead>
+<tr>
+<th>Parameter Name</th>
+<th>Data Type</th>
+<th>Required?</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>String</td>
+<td>Yes</td>
+<td>A descriptive name for the integration (for example, "Engineering Confluence").</td>
+</tr>
+<tr>
+<td>url</td>
+<td>String</td>
+<td>Yes</td>
+<td>Your base Confluence URL (for example, https://example.atlassian.net/wiki).</td>
+</tr>
+<tr>
+<td>confluenceUserId</td>
+<td>String</td>
+<td>Yes</td>
+<td>The email address or ID associated with your Atlassian API token.</td>
+</tr>
+<tr>
+<td>secretKey</td>
+<td>String</td>
+<td>Yes</td>
+<td>The key name you defined in the previous step (`CONFLUENCE_API_TOKEN`).</td>
+</tr>
+<tr>
+<td>scope</td>
+<td>Object</td>
+<td>Yes</td>
+<td>Defines the context for the integration. The type must be set to <strong>ORGANIZATION</strong>.</td>
+</tr>
+<tr>
+<td>tags</td>
+<td>Object</td>
+<td>No</td>
+<td>Optional metadata used to categorize the integration by department or team.</td>
+</tr>
+</tbody>
+</table>
+
+### Sample mutation
+
+```graphql
+mutation {
+  entityManagementCreateConfluenceIntegration(
+    confluenceIntegration: {
+      name: "Engineering Confluence Integration"
+      url: "https://your-company.atlassian.net/wiki"
+      confluenceUserId: "your-confluence-user-id"
+      secretKey: "CONFLUENCE_API_TOKEN"  # From Step 2
+      scope: {id: "YOUR_ORGANIZATION_ID", type: ORGANIZATION}
+      tags: {key: "department", values: "engineering"}
+    }
+  ) {
+    entity {
+      id
+    }
+  }
+}
+```
+
+</Collapser>
+
+<Collapser id="rag-settings" title="Configure indexing logic (RAG settings)">
+
+Create a RAG settings entity to define what content to fetch and how it should be chunked.
+
+### Input parameters
+
+<table>
+<thead>
+<tr>
+<th>Parameter Name</th>
+<th>Data Type</th>
+<th>Required?</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>confluenceIntegrationId</td>
+<td>String</td>
+<td>Yes</td>
+<td>The unique ID of the Confluence integration created in the previous step.</td>
+</tr>
+<tr>
+<td>confluenceQuery</td>
+<td>String</td>
+<td>Yes</td>
+<td>A CQL (Confluence Query Language) filter (for example, space = 'ENG')..</td>
+</tr>
+<tr>
+<td>intervalSeconds</td>
+<td>Int</td>
+<td>Yes</td>
+<td>The number of seconds between indexing runs (for example, 3600 for every hour).</td>
+</tr>
+<tr>
+<td>chunkSize</td>
+<td>Int</td>
+<td>Yes</td>
+<td>The maximum number of characters in each text segment (for example, 4000).</td>
+</tr>
+<tr>
+<td>chunkOverlap</td>
+<td>Int</td>
+<td>Yes</td>
+<td>The number of characters to overlap between text segments (for example, 100) to maintain context.</td>
+</tr>
+<tr>
+<td>textSplitterType</td>
+<td>Enum</td>
+<td>Yes</td>
+<td>The type of text splitter to use (for example, `MARKDOWN_TEXT_SPLITTER`).</td>
+</tr>
+<tr>
+<td>markdownTextSplitterOptions</td>
+<td>Object</td>
+<td>No</td>
+<td>Configuration for markdown splitting, such as which header levels (#, ##) to split on.</td>
+</tr>
+<tr>
+<td>tokenTextSplitterOptions</td>
+<td>Object</td>
+<td>No</td>
+<td>Configuration for token splitting, including the encoding model (for example, `O200K_BASE`).</td>
+</tr>
+<tr>
+<td>tags</td>
+<td>Object</td>
+<td>No</td>
+<td>Optional metadata to categorize settings (for example, key: `knowledge_category`, values: `documentation`).</td>
+</tr>
+</tbody>
+</table>
+
+#### Text splitter types
+Use these types to define the `textSplitterType` parameter:
+
+- `TOKEN_TEXT_SPLITTER`: Accurate token-based splitting.
+
+- `MARKDOWN_TEXT_SPLITTER`: Split by markdown headers.
+
+- `CHARACTER_TEXT_SPLITTER`: Split by character count.
+
+- `JSON_TEXT_SPLITTER`: Split JSON recursively.
+
+If using `TOKEN_TEXT_SPLITTER`, define the encoding in `tokenTextSplitterOptions`:
+
+- `O200K_BASE`: For GPT-4o and newer models (recommended).
+
+- `CL100K_BASE`: For GPT-4 and GPT-3.5.
+
+### Sample mutation
+
+```graphql
+mutation {
+  entityManagementCreateConfluenceRagSettings(
+    confluenceRagSettingsEntity: {
+      name: "Engineering Docs RAG Settings"
+      scope: {id: "YOUR_ORGANIZATION_ID", type: ORGANIZATION}
+      confluenceIntegrationId: "INTEGRATION_ID_FROM_STEP_3"
+      confluenceQuery: "space = ENG AND type = page"
+      intervalSeconds: 3600  # Re-index every hour
+
+      # Chunking Configuration
+      chunkSize: 4000
+      chunkOverlap: 100
+      textSplitterType: MARKDOWN_TEXT_SPLITTER
+
+      # Optional: Markdown-specific options
+      markdownTextSplitterOptions: {
+        headersToSplitOn: "#,##,###"
+        returnEachLine: false
+      }
+
+      # Optional: Token splitter options (if using TOKEN_TEXT_SPLITTER)
+      # tokenTextSplitterOptions: {
+      #   encodingName: O200K_BASE
+      # }
+
+      # Optional: Character splitter options (if using CHARACTER_TEXT_SPLITTER)
+      # characterTextSplitterOptions: {
+      #   separator: "\n\n"
+      #   isSeparatorRegex: false
+      # }
+
+      tags: {key: "knowledge_category", values: "documentation"}
+    }
+  ) {
+    entity {
+      id
+    }
+  }
+}
+```
+
+</Collapser>
+<Collapser id="trigger-sync" title="Create relationship">
+
+Linking your RAG settings to your RAG Tool via an `APPLY_TO` relationship activates the automated indexing.
+
+### Input parameters
+
+<table>
+<thead>
+<tr>
+<th>Parameter Name</th>
+<th>Data Type</th>
+<th>Required?</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>source.id</td>
+<td>String</td>
+<td>Yes</td>
+<td>The ID of the RAG settings created in the previous step.</td>
+</tr>
+<tr>
+<td>target.id</td>
+<td>String</td>
+<td>Yes</td>
+<td>The ID of the RAG tool created in Task 1.</td>
+</tr>
+<tr>
+<td>type</td>
+<td>String</td>
+<td>Yes</td>
+<td>Must be set to `APPLY_TO` for settings-to-tool connections.</td>
+</tr>
+<tr>
+<td>tags </td>
+<td>String</td>
+<td>Yes</td>
+<td>Optional metadata used to label the relationship (for example, key: "`auto_created`", values: "`true`")</td>
+</tr>
+</tbody>
+</table>
+
+### Sample mutation
+
+```graphql
+mutation {
+  entityManagementCreateRelationship(
+    relationship: {
+      source: {id: "RAG_SETTINGS_ID_FROM_STEP_4", scope: ORGANIZATION}
+      target: {id: "RAG_TOOL_ID_FROM_STEP_1", scope: ORGANIZATION}
+      type: "APPLY_TO"
+      tags: {key: "auto_created", values: "true"}
+    }
+  ) {
+    relationship {
+      type
+    }
+  }
+}
+```
+
+</Collapser>
+</CollapserGroup>
+
+### Outcome: Automatic indexing triggered
+Indexing will now happen automatically!
+
+When the `APPLY_TO` relationship is created between your RAG settings and your RAG tool, the New Relic RAG indexer service initiates the following background process:
+
+1. The service uses your `confluenceQuery` to search your Confluence instance for matching content.
+
+2. It retrieves all matching pages and transforms them into a processable format.
+
+3. The content is split into smaller segments based on your `chunkSize`, `chunkOverlap`, and `textSplitterType` configuration.
+
+4. The service generates dense and sparse embeddings for each chunk and indexes them in the vector database (Pinecone).
+
+5. The connector will re-index your content periodically based on the intervalSeconds you defined to ensure the AI has access to the most up-to-date documentation.
+
 ## Task 3: Retrieve relevant information [#retrieve-relevant-information]
 
 <CollapserGroup>
 <Collapser id="query-to-see-relationships-between-rag-documents-and-rag-tools" title="Query to see relationships between RAG documents and RAG tools">
 
-After creating a relationship between your RAG document and RAG tool, you can verify the association by querying relationships in NerdGraph. This helps ensure your document is properly linked and available for New Relic AI to use.
+After establishing a relationship (either by linking a specific RAG document via `INDEXED_FOR` or applying a Confluence configuration via `APPLY_TO`), you can verify the association and query the tool. This ensures your internal knowledge is properly indexed and available for New Relic AI to surface context-aware answers.
 
 - Replace `${RAG_DOCUMENT_ID}` with the `entityGuid` of your uploaded document.
 
