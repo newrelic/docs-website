@@ -12,683 +12,945 @@ translationType: machine
 
 Supervise su clúster de Apache Kafka autohospedado instalando el recopilador de OpenTelemetry directamente en los hosts de Linux.
 
-## Antes de que empieces [#prerequisites]
+## Instalación y configuración [#installation-configuration]
 
-Asegúrese de tener:
+Siga estos pasos para configurar un monitoreo integral de Kafka instalando el agente Java de OpenTelemetry en sus brokers e implementando un colector para recopilar y enviar métricas a New Relic.
 
-* Una [cuenta de New Relic](https://newrelic.com/signup) con un<InlinePopover type="licenseKey" />
+<Steps>
+  <Step>
+    ### Antes de que empieces [#prerequisites]
 
-* OpenJDK instalado en el host de monitoreo
+    Asegúrese de tener:
 
-* JMX habilitado en los brokers de Kafka (típicamente en el puerto 9999)
+    * Una [cuenta de New Relic](https://newrelic.com/signup) con un<InlinePopover type="licenseKey" />
+    * Acceso de red desde el colector al puerto del servidor de arranque de Kafka (típicamente 9092)
+  </Step>
 
-* Acceso a la red desde el recopilador a los brokers de Kafka:
+  <Step>
+    ### Descargar el agente Java de OpenTelemetry [#download-java-agent]
 
-  * Puerto del servidor de arranque (normalmente 9092)
-  * Puerto JMX (típicamente 9999)
+    El [Agente Java de OpenTelemetry](https://opentelemetry.io/docs/zero-code/java/agent/) se ejecuta como un agente Java adjunto a sus brokers de Kafka, recopilando métricas de Kafka y JMX y enviándolas al colector mediante OTLP:
 
-### Paso 1: Instale el recopilador OpenTelemetry [#install-collector]
+    ```bash
+    # Create directory for OpenTelemetry components
+    mkdir -p ~/opentelemetry
 
-Descargue e instale el binario de OpenTelemetry Collector Contrib para el sistema operativo de su host desde las [versiones de OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest).
+    # Download OpenTelemetry Java Agent
+    curl -L -o ~/opentelemetry/opentelemetry-javaagent.jar \
+      https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+    ```
+  </Step>
 
-### Paso 2: Descargue el scraper de JMX [#jmx-scraper]
+  <Step>
+    ### Crear configuración personalizada de JMX [#jmx-config]
 
-El scraper JMX recopila métricas detalladas de los MBeans del broker de Kafka:
+    Crea un archivo de configuración JMX del agente Java de OpenTelemetry para recopilar métricas de Kafka de los MBeans de JMX.
 
-```bash
-# Create directory in user home (no sudo needed)
-mkdir -p ~/opentelemetry
-curl -L -o ~/opentelemetry/opentelemetry-jmx-scraper.jar \
-  https://github.com/open-telemetry/opentelemetry-java-contrib/releases/download/v1.52.0/opentelemetry-jmx-scraper.jar
-```
+    Cree el archivo `~/opentelemetry/jmx-custom-config.yaml` con la siguiente configuración:
 
-<Callout variant="important">
-  **Compatibilidad de versiones**: Esta guía utiliza JMX Scraper 1.52.0. Es posible que las versiones anteriores del OpenTelemetry Collector no incluyan el hash de este scraper en su lista de compatibilidad. Para obtener los mejores resultados, utilice la última versión de OpenTelemetry Collector, que incluye soporte para esta versión de JMX Scraper.
+    ```yaml
+    ---
+    rules:
+      # Per-topic custom metrics using custom MBean commands
+      - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+        mapping:
+          Count:
+            metric: kafka.prod.msg.count
+            type: counter
+            desc: The number of messages per topic
+            unit: "{message}"
 
-  <CollapserGroup>
-    <Collapser id="verify-jmx-compatibility" title="Verifique que su recopilador sea compatible con esta versión de JMX Scraper">
-      1. Consulte el archivo [supported\_jars.go](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/jmxreceiver/supported_jars.go) para conocer la versión de su recopilador.
-      2. Verifique que JMX Scraper 1.52.0 esté listado en el mapa `jmxScraperVersions` con su hash SHA256
-      3. Después de descargar el JAR, verifique que su hash coincida:
-         ```bash
-         sha256sum ~/opentelemetry/opentelemetry-jmx-scraper.jar
-         ```
-      4. Si la versión no aparece en la lista, actualice a la última versión de OpenTelemetry Collector
-    </Collapser>
-  </CollapserGroup>
-</Callout>
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+          direction: const(in)
+        mapping:
+          Count:
+            metric: kafka.topic.io
+            type: counter
+            desc: The bytes received or sent per topic
+            unit: By
 
-### Paso 3: Crear la configuración de métricas personalizadas JMX [#jmx-config]
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,topic=*
+        metricAttribute:
+          topic: param(topic)
+          direction: const(out)
+        mapping:
+          Count:
+            metric: kafka.topic.io
+            type: counter
+            desc: The bytes received or sent per topic
+            unit: By
 
-Cree un archivo de configuración JMX personalizado para recopilar métricas adicionales de Kafka que no están incluidas en el sistema de destino predeterminado.
+      # Cluster-level metrics using controller-based MBeans
+      - bean: kafka.controller:type=KafkaController,name=GlobalTopicCount
+        mapping:
+          Value:
+            metric: kafka.cluster.topic.count
+            type: gauge
+            desc: The total number of global topics in the cluster
+            unit: "{topic}"
 
-Cree el archivo `~/opentelemetry/kafka-jmx-config.yaml` con la siguiente configuración:
+      - bean: kafka.controller:type=KafkaController,name=GlobalPartitionCount
+        mapping:
+          Value:
+            metric: kafka.cluster.partition.count
+            type: gauge
+            desc: The total number of global partitions in the cluster
+            unit: "{partition}"
 
-```yaml
----
-rules:
-  # Per-topic custom metrics using custom MBean commands
-  - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic=*
-    metricAttribute:
-      topic: param(topic)
-    mapping:
-      Count:
-        metric: kafka.prod.msg.count
-        type: counter
-        desc: The number of messages in per topic
-        unit: "{message}"
+      - bean: kafka.controller:type=KafkaController,name=FencedBrokerCount
+        mapping:
+          Value:
+            metric: kafka.broker.fenced.count
+            type: gauge
+            desc: The number of fenced brokers in the cluster
+            unit: "{broker}"
 
-  - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*
-    metricAttribute:
-      topic: param(topic)
-      direction: const(in)
-    mapping:
-      Count:
-        metric: kafka.topic.io
-        type: counter
-        desc: The bytes received or sent per topic
+      - bean: kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount
+        mapping:
+          Value:
+            metric: kafka.partition.non_preferred_leader
+            type: gauge
+            desc: The count of topic partitions for which the leader is not the preferred leader
+            unit: "{partition}"
+
+      # Broker-level metrics using ReplicaManager MBeans
+      - bean: kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
+        mapping:
+          Value:
+            metric: kafka.partition.under_min_isr
+            type: gauge
+            desc: The number of partitions where the number of in-sync replicas is less than the minimum
+            unit: "{partition}"
+
+      # Broker uptime metric using JVM Runtime
+      - bean: java.lang:type=Runtime
+        mapping:
+          Uptime:
+            metric: kafka.broker.uptime
+            type: gauge
+            desc: Broker uptime in milliseconds
+            unit: ms
+
+      # Leader count per broker
+      - bean: kafka.server:type=ReplicaManager,name=LeaderCount
+        mapping:
+          Value:
+            metric: kafka.broker.leader.count
+            type: gauge
+            desc: Number of partitions for which this broker is the leader
+            unit: "{partition}"
+
+      # JVM metrics
+      - bean: java.lang:type=GarbageCollector,name=*
+        mapping:
+          CollectionCount:
+            metric: jvm.gc.collections.count
+            type: counter
+            unit: "{collection}"
+            desc: total number of collections that have occurred
+            metricAttribute:
+              name: param(name)
+          CollectionTime:
+            metric: jvm.gc.collections.elapsed
+            type: counter
+            unit: ms
+            desc: the approximate accumulated collection elapsed time in milliseconds
+            metricAttribute:
+              name: param(name)
+
+      - bean: java.lang:type=Memory
         unit: By
+        prefix: jvm.memory.
+        dropNegativeValues: true
+        mapping:
+          HeapMemoryUsage.committed:
+            metric: heap.committed
+            desc: current heap usage
+            type: gauge
+          HeapMemoryUsage.max:
+            metric: heap.max
+            desc: current heap usage
+            type: gauge
+          HeapMemoryUsage.used:
+            metric: heap.used
+            desc: current heap usage
+            type: gauge
 
-  - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,topic=*
-    metricAttribute:
-      topic: param(topic)
-      direction: const(out)
-    mapping:
-      Count:
-        metric: kafka.topic.io
-        type: counter
-        desc: The bytes received or sent per topic
+      - bean: java.lang:type=Threading
+        mapping:
+          ThreadCount:
+            metric: jvm.thread.count
+            type: gauge
+            unit: "{thread}"
+            desc: Total thread count (Kafka typical range 100-300 threads)
+
+      - bean: java.lang:type=OperatingSystem
+        prefix: jvm.
+        dropNegativeValues: true
+        mapping:
+          SystemLoadAverage:
+            metric: system.cpu.load_1m
+            type: gauge
+            unit: "{run_queue_item}"
+            desc: System load average (1 minute) - alert if > CPU count
+          AvailableProcessors:
+            metric: cpu.count
+            type: gauge
+            unit: "{cpu}"
+            desc: Number of processors available
+          ProcessCpuLoad:
+            metric: cpu.recent_utilization
+            type: gauge
+            unit: '1'
+            desc: Recent CPU utilization for JVM process (0.0 to 1.0)
+          SystemCpuLoad:
+            metric: system.cpu.utilization
+            type: gauge
+            unit: '1'
+            desc: Recent CPU utilization for whole system (0.0 to 1.0)
+          OpenFileDescriptorCount:
+            metric: file_descriptor.count
+            type: gauge
+            unit: "{file_descriptor}"
+            desc: Number of open file descriptors - alert if > 80% of ulimit
+
+      - bean: java.lang:type=ClassLoading
+        mapping:
+          LoadedClassCount:
+            metric: jvm.class.count
+            type: gauge
+            unit: "{class}"
+            desc: Currently loaded class count
+
+      - bean: java.lang:type=MemoryPool,name=*
+        type: gauge
         unit: By
-
-  # Cluster-level metrics using controller-based MBeans
-  - bean: kafka.controller:type=KafkaController,name=GlobalTopicCount
-    mapping:
-      Value:
-        metric: kafka.cluster.topic.count
-        type: gauge
-        desc: The total number of global topics in the cluster
-        unit: "{topic}"
-
-  - bean: kafka.controller:type=KafkaController,name=GlobalPartitionCount
-    mapping:
-      Value:
-        metric: kafka.cluster.partition.count
-        type: gauge
-        desc: The total number of global partitions in the cluster
-        unit: "{partition}"
-
-  - bean: kafka.controller:type=KafkaController,name=FencedBrokerCount
-    mapping:
-      Value:
-        metric: kafka.broker.fenced.count
-        type: gauge
-        desc: The number of fenced brokers in the cluster
-        unit: "{broker}"
-
-  - bean: kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount
-    mapping:
-      Value:
-        metric: kafka.partition.non_preferred_leader
-        type: gauge
-        desc: The count of topic partitions for which the leader is not the preferred leader
-        unit: "{partition}"
-
-  # Broker-level metrics using ReplicaManager MBeans
-  - bean: kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
-    mapping:
-      Value:
-        metric: kafka.partition.under_min_isr
-        type: gauge
-        desc: The number of partitions where the number of in-sync replicas is less than the minimum
-        unit: "{partition}"
-
-  # Broker uptime metric using JVM Runtime
-  - bean: java.lang:type=Runtime
-    mapping:
-      Uptime:
-        metric: kafka.broker.uptime
-        type: gauge
-        desc: Broker uptime in milliseconds
-        unit: ms
-
-  # Leader count per broker
-  - bean: kafka.server:type=ReplicaManager,name=LeaderCount
-    mapping:
-      Value:
-        metric: kafka.broker.leader.count
-        type: gauge
-        desc: Number of partitions for which this broker is the leader
-        unit: "{partition}"
-
-  # JVM metrics
-  - bean: java.lang:type=GarbageCollector,name=*
-    mapping:
-      CollectionCount:
-        metric: jvm.gc.collections.count
-        type: counter
-        unit: "{collection}"
-        desc: total number of collections that have occurred
         metricAttribute:
           name: param(name)
-      CollectionTime:
-        metric: jvm.gc.collections.elapsed
-        type: counter
-        unit: ms
-        desc: the approximate accumulated collection elapsed time in milliseconds
+        mapping:
+          Usage.used:
+            metric: jvm.memory.pool.used
+            desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
+          Usage.max:
+            metric: jvm.memory.pool.max
+            desc: Maximum memory pool size
+          CollectionUsage.used:
+            metric: jvm.memory.pool.used_after_last_gc
+            desc: Memory used after last GC (shows retained memory baseline)
+      
+      - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec
+        mapping:
+          Count:
+            metric: kafka.message.count
+            type: counter
+            desc: The number of messages received by the broker
+            unit: "{message}"
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=TotalFetchRequestsPerSec
         metricAttribute:
-          name: param(name)
+          type: const(fetch)
+        mapping:
+          Count:
+            metric: &metric kafka.request.count
+            type: &type counter
+            desc: &desc The number of requests received by the broker
+            unit: &unit "{request}"
 
-  - bean: java.lang:type=Memory
-    unit: By
-    prefix: jvm.memory.
-    dropNegativeValues: true
-    mapping:
-      HeapMemoryUsage.committed:
-        metric: heap.committed
-        desc: current heap usage
+      - bean: kafka.server:type=BrokerTopicMetrics,name=TotalProduceRequestsPerSec
+        metricAttribute:
+          type: const(produce)
+        mapping:
+          Count:
+            metric: *metric
+            type: *type
+            desc: *desc
+            unit: *unit
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=FailedFetchRequestsPerSec
+        metricAttribute:
+          type: const(fetch)
+        mapping:
+          Count:
+            metric: &metric kafka.request.failed
+            type: &type counter
+            desc: &desc The number of requests to the broker resulting in a failure
+            unit: &unit "{request}"
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=FailedProduceRequestsPerSec
+        metricAttribute:
+          type: const(produce)
+        mapping:
+          Count:
+            metric: *metric
+            type: *type
+            desc: *desc
+            unit: *unit
+
+      - beans:
+          - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce
+          - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer
+          - kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchFollower
+        metricAttribute:
+          type: param(request)
+        unit: ms
+        mapping:
+          Count:
+            metric: kafka.request.time.total
+            type: counter
+            desc: The total time the broker has taken to service requests
+          50thPercentile:
+            metric: kafka.request.time.50p
+            type: gauge
+            desc: The 50th percentile time the broker has taken to service requests
+          99thPercentile:
+            metric: kafka.request.time.99p
+            type: gauge
+            desc: The 99th percentile time the broker has taken to service requests
+          Mean:
+            metric: kafka.request.time.avg
+            type: gauge
+            desc: The average time the broker has taken to service requests
+
+      - bean: kafka.network:type=RequestChannel,name=RequestQueueSize
+        mapping:
+          Value:
+            metric: kafka.request.queue
+            type: gauge
+            desc: Size of the request queue
+            unit: "{request}"
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec
+        metricAttribute:
+          direction: const(in)
+        mapping:
+          Count:
+            metric: &metric kafka.network.io
+            type: &type counter
+            desc: &desc The bytes received or sent by the broker
+            unit: &unit By
+
+      - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec
+        metricAttribute:
+          direction: const(out)
+        mapping:
+          Count:
+            metric: *metric
+            type: *type
+            desc: *desc
+            unit: *unit
+
+      - beans:
+          - kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Produce
+          - kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Fetch
+        metricAttribute:
+          type: param(delayedOperation)
+        mapping:
+          Value:
+            metric: kafka.purgatory.size
+            type: gauge
+            desc: The number of requests waiting in purgatory
+            unit: "{request}"
+
+      - bean: kafka.server:type=ReplicaManager,name=PartitionCount
+        mapping:
+          Value:
+            metric: kafka.partition.count
+            type: gauge
+            desc: The number of partitions on the broker
+            unit: "{partition}"
+
+      - bean: kafka.controller:type=KafkaController,name=OfflinePartitionsCount
+        mapping:
+          Value:
+            metric: kafka.partition.offline
+            type: gauge
+            desc: The number of partitions offline
+            unit: "{partition}"
+
+      - bean: kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions
+        mapping:
+          Value:
+            metric: kafka.partition.under_replicated
+            type: gauge
+            desc: The number of under replicated partitions
+            unit: "{partition}"
+
+      - bean: kafka.server:type=ReplicaManager,name=IsrShrinksPerSec
+        metricAttribute:
+          operation: const(shrink)
+        mapping:
+          Count:
+            metric: kafka.isr.operation.count
+            type: counter
+            desc: The number of in-sync replica shrink and expand operations
+            unit: "{operation}"
+
+      - bean: kafka.server:type=ReplicaManager,name=IsrExpandsPerSec
+        metricAttribute:
+          operation: const(expand)
+        mapping:
+          Count:
+            metric: kafka.isr.operation.count
+            type: counter
+            desc: The number of in-sync replica shrink and expand operations
+            unit: "{operation}"
+
+      - bean: kafka.server:type=ReplicaFetcherManager,name=MaxLag,clientId=Replica
+        mapping:
+          Value:
+            metric: kafka.max.lag
+            type: gauge
+            desc: The max lag in messages between follower and leader replicas
+            unit: "{message}"
+
+      - bean: kafka.controller:type=KafkaController,name=ActiveControllerCount
+        mapping:
+          Value:
+            metric: kafka.controller.active.count
+            type: gauge
+            desc: For KRaft mode, the number of active controllers in the cluster. For ZooKeeper, indicates whether the broker is the controller broker.
+            unit: "{controller}"
+
+      - bean: kafka.controller:type=ControllerStats,name=LeaderElectionRateAndTimeMs
+        mapping:
+          Count:
+            metric: kafka.leader.election.rate
+            type: counter
+            desc: The leader election count
+            unit: "{election}"
+
+      - bean: kafka.controller:type=ControllerStats,name=UncleanLeaderElectionsPerSec
+        mapping:
+          Count:
+            metric: kafka.unclean.election.rate
+            type: counter
+            desc: Unclean leader election count - increasing indicates broker failures
+            unit: "{election}"
+
+      - bean: kafka.log:type=LogFlushStats,name=LogFlushRateAndTimeMs
+        unit: ms
         type: gauge
-      HeapMemoryUsage.max:
-        metric: heap.max
-        desc: current heap usage
-        type: gauge
-      HeapMemoryUsage.used:
-        metric: heap.used
-        desc: current heap usage
-        type: gauge
-
-  - bean: java.lang:type=Threading
-    mapping:
-      ThreadCount:
-        metric: jvm.thread.count
-        type: gauge
-        unit: "{thread}"
-        desc: Total thread count (Kafka typical range 100-300 threads)
-
-  - bean: java.lang:type=OperatingSystem
-    prefix: jvm.
-    dropNegativeValues: true
-    mapping:
-      SystemLoadAverage:
-        metric: system.cpu.load_1m
-        type: gauge
-        unit: "{run_queue_item}"
-        desc: System load average (1 minute) - alert if > CPU count
-      AvailableProcessors:
-        metric: cpu.count
-        type: gauge
-        unit: "{cpu}"
-        desc: Number of processors available
-      ProcessCpuLoad:
-        metric: cpu.recent_utilization
-        type: gauge
-        unit: '1'
-        desc: Recent CPU utilization for JVM process (0.0 to 1.0)
-      SystemCpuLoad:
-        metric: system.cpu.utilization
-        type: gauge
-        unit: '1'
-        desc: Recent CPU utilization for whole system (0.0 to 1.0)
-      OpenFileDescriptorCount:
-        metric: file_descriptor.count
-        type: gauge
-        unit: "{file_descriptor}"
-        desc: Number of open file descriptors - alert if > 80% of ulimit
-
-  - bean: java.lang:type=ClassLoading
-    mapping:
-      LoadedClassCount:
-        metric: jvm.class.count
-        type: gauge
-        unit: "{class}"
-        desc: Currently loaded class count
-
-  - bean: java.lang:type=MemoryPool,name=*
-    type: gauge
-    unit: By
-    metricAttribute:
-      name: param(name)
-    mapping:
-      Usage.used:
-        metric: jvm.memory.pool.used
-        desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
-      Usage.max:
-        metric: jvm.memory.pool.max
-        desc: Maximum memory pool size
-      CollectionUsage.used:
-        metric: jvm.memory.pool.used_after_last_gc
-        desc: Memory used after last GC (shows retained memory baseline)
-```
-
-<Callout variant="tip">
-  **Personalizar la recopilación de métricas**: Puede extraer métricas de Kafka adicionales agregando reglas MBean personalizadas al archivo `kafka-jmx-config.yaml`:
-
-  * Aprenda la [sintaxis básica para las reglas de métricas JMX](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/jmx-metrics#basic-syntax)
-  * Encuentre los nombres de MBean disponibles en la [documentación de monitoreo de Kafka](https://kafka.apache.org/41/operations/monitoring/)
-
-  Esto le permite recopilar cualquier métrica JMX expuesta por los brokers de Kafka en función de sus necesidades específicas de monitoreo.
-</Callout>
-
-### Paso 4: Crear la configuración del recopilador [#collector-config]
-
-Cree la configuración principal de OpenTelemetry Collector en `~/opentelemetry/config.yaml`.
-
-```yaml
-receivers:
-  # Kafka metrics receiver for cluster-level metrics
-  kafkametrics:
-    brokers:
-      - ${env:KAFKA_BROKER_ADDRESS}
-    protocol_version: 2.8.0
-    scrapers:
-      - brokers
-      - topics
-      - consumers
-    collection_interval: 30s
-    topic_match: ".*"
-    metrics:
-      kafka.topic.min_insync_replicas:
-        enabled: true
-      kafka.topic.replication_factor:
-        enabled: true
-      kafka.partition.replicas:
-        enabled: false
-      kafka.partition.oldest_offset:
-        enabled: false
-      kafka.partition.current_offset:
-        enabled: false
-
-  # JMX receiver for broker-specific metrics
-  jmx/kafka_broker-1:
-    jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
-    endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
-    target_system: kafka
-    collection_interval: 30s
-    jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
-    resource_attributes:
-      broker.id: "1"
-      broker.endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
-
-processors:
-  batch/aggregation:
-    send_batch_size: 1024
-    timeout: 30s
-
-  resourcedetection:
-    detectors: [env, ec2, system]
-    system:
-      resource_attributes:
-        host.name:
-          enabled: true
-        host.id:
-          enabled: true
-
-  resource:
-    attributes:
-      - action: insert
-        key: kafka.cluster.name
-        value: ${env:KAFKA_CLUSTER_NAME}
-
-  transform/remove_broker_id:
-    metric_statements:
-      - context: resource
-        statements:
-          - delete_key(attributes, "broker.id")
-
-  filter/include_cluster_metrics:
-    metrics:
-      include:
-        match_type: regexp
-        metric_names:
-          - "kafka\\.partition\\.offline"
-          - "kafka\\.(leader|unclean)\\.election\\.rate"
-          - "kafka\\.partition\\.non_preferred_leader"
-          - "kafka\\.broker\\.fenced\\.count"
-          - "kafka\\.cluster\\.partition\\.count"
-          - "kafka\\.cluster\\.topic\\.count"
-
-  filter/exclude_cluster_metrics:
-    metrics:
-      exclude:
-        match_type: regexp
-        metric_names:
-          - "kafka\\.partition\\.offline"
-          - "kafka\\.(leader|unclean)\\.election\\.rate"
-          - "kafka\\.partition\\.non_preferred_leader"
-          - "kafka\\.broker\\.fenced\\.count"
-          - "kafka\\.cluster\\.partition\\.count"
-          - "kafka\\.cluster\\.topic\\.count"
-
-  transform/des_units:
-    metric_statements:
-      - context: metric
-        statements:
-          - set(description, "") where description != ""
-          - set(unit, "") where unit != ""
-
-  cumulativetodelta:
-
-  metricstransform/kafka_topic_sum_aggregation:
-    transforms:
-      - include: kafka.partition.replicas_in_sync
-        action: insert
-        new_name: kafka.partition.replicas_in_sync.total
-        operations:
-          - action: aggregate_labels
-            label_set: [ topic ]
-            aggregation_type: sum
-
-  filter/remove_partition_level_replicas:
-    metrics:
-      exclude:
-        match_type: strict
-        metric_names:
-          - kafka.partition.replicas_in_sync
-
-exporters:
-  otlp/newrelic:
-    endpoint: https://otlp.nr-data.net:4317
-    headers:
-      api-key: ${env:NEW_RELIC_LICENSE_KEY}
-    compression: gzip
-    timeout: 30s
-
-service:
-  pipelines:
-    metrics/brokers-cluster-topics:
-      receivers: [jmx/kafka_broker-1, kafkametrics]
-      processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
-      exporters: [otlp/newrelic]
-
-    metrics/jmx-cluster:
-      receivers: [jmx/kafka_broker-1]
-      processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/des_units, cumulativetodelta, batch/aggregation]
-      exporters: [otlp/newrelic]
-```
-
-<CollapserGroup>
-  <Collapser id="configuration-highlights" title="Aspectos destacados de la configuración">
-    **Enfoque de dos pipelines**: Las métricas a nivel de clúster se envían sin broker.id para mapear a la entidad del clúster
-
-    **Filtrado de métricas**: Separa las métricas específicas del broker de las métricas a nivel de clúster para evitar la duplicación
-
-    **Agregación**: Agrega automáticamente las métricas a nivel de partición por tema
-
-    **Recopilación optimizada**: los intervalos de 30 segundos equilibran la actualización con el uso de recursos
-  </Collapser>
-</CollapserGroup>
-
-**Notas de configuración:**
-
-* **Punto final OTLP**: Usa `https://otlp.nr-data.net:4317` (región de EE. UU.) o `https://otlp.eu01.nr-data.net:4317` (región de la UE). Consulte [Configure su punto final OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) para otras regiones
-
-<CollapserGroup>
-  <Collapser id="additional-receiver-docs" title="Documentación adicional del receptor">
-    Para opciones de configuración avanzadas, consulte estas páginas de documentación del receptor:
-
-    * [Documentación del receptor de métricas de Kafka](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - Configuración adicional de métricas de Kafka
-    * [Documentación del receptor JMX](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/jmxreceiver) - Opciones de configuración del receptor JMX
-  </Collapser>
-</CollapserGroup>
-
-<Callout variant="important">
-  Para **múltiples brokers**, agregue receptores JMX adicionales con diferentes puntos finales e ID de broker para monitorear cada broker en su clúster.
-
-  <CollapserGroup>
-    <Collapser id="multiple-brokers-config" title="Configure múltiples brokers">
-      Agregue receptores JMX adicionales con diferentes puntos finales e ID de agente:
-
-      ```yaml
-      jmx/kafka_broker-1:
-        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
-        endpoint: broker1.example.com:9999
-        target_system: kafka
-        collection_interval: 30s
-        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
-        resource_attributes:
-          broker.id: "1"
-          broker.endpoint: broker1.example.com:9999
-
-      jmx/kafka_broker-2:
-        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
-        endpoint: broker2.example.com:9999
-        target_system: kafka
-        collection_interval: 30s
-        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
-        resource_attributes:
-          broker.id: "2"
-          broker.endpoint: broker2.example.com:9999
-      ```
-
-      Luego incluya todos los receptores en las canalizaciones: `receivers: [jmx/kafka_broker-1, jmx/kafka_broker-2, kafkametrics]`
-    </Collapser>
-  </CollapserGroup>
-</Callout>
-
-### Paso 5: Establecer variables de entorno [#env-vars]
-
-Establezca las variables de entorno requeridas:
-
-```bash
-export NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY"
-export KAFKA_CLUSTER_NAME="my-kafka-cluster"
-export KAFKA_BROKER_ADDRESS="localhost:9092"
-export KAFKA_BROKER_JMX_ADDRESS="localhost:9999"
-```
-
-Reemplazar:
-
-* `YOUR_LICENSE_KEY` con su clave de licencia de New Relic
-* `my-kafka-cluster` con un nombre único para su clúster de Kafka
-* `localhost:9092` con la dirección de su servidor de arranque de Kafka
-* `localhost:9999` con su punto final JMX del broker de Kafka
-
-### Paso 6: Inicie el recopilador [#start-collector]
-
-<Tabs>
-  <TabsBar>
-    <TabsBarItem id="otel-direct">
-      Ejecución directa
-    </TabsBarItem>
-
-    <TabsBarItem id="otel-systemd">
-      Servicio Systemd
-    </TabsBarItem>
-  </TabsBar>
-
-  <TabsPages>
-    <TabsPageItem id="otel-direct">
-      Ejecute el recopilador directamente (no se necesita sudo):
-
-      ```bash
-      # Start the collector with your config
-      otelcol-contrib --config ~/opentelemetry/config.yaml
-      ```
-
-      El recopilador comenzará a enviar métricas de Kafka a New Relic en unos minutos.
-    </TabsPageItem>
-
-    <TabsPageItem id="otel-systemd">
-      Cree un servicio systemd para la ejecución persistente (requiere sudo para la configuración única):
-
-      ```bash
-      # Create systemd service file
-      sudo tee /etc/systemd/system/otelcol-contrib.service > /dev/null <<EOF
-      [Unit]
-      Description=OpenTelemetry Collector for Kafka
-      After=network.target
-
-      [Service]
-      Type=simple
-      User=$USER
-      WorkingDirectory=$HOME/opentelemetry
-      ExecStart=/usr/local/bin/otelcol-contrib --config $HOME/opentelemetry/config.yaml
-      Restart=on-failure
-      Environment="NEW_RELIC_LICENSE_KEY=YOUR_LICENSE_KEY"
-      Environment="KAFKA_CLUSTER_NAME=my-kafka-cluster"
-      Environment="KAFKA_BROKER_ADDRESS=localhost:9092"
-      Environment="KAFKA_BROKER_JMX_ADDRESS=localhost:9999"
-
-      [Install]
-      WantedBy=multi-user.target
-      EOF
-      ```
-
-      Reemplace `YOUR_LICENSE_KEY` y otros valores, luego habilite e inicie el servicio:
-
-      ```bash
-      sudo systemctl daemon-reload
-      sudo systemctl enable otelcol-contrib
-      sudo systemctl start otelcol-contrib
-      sudo systemctl status otelcol-contrib
-      ```
-    </TabsPageItem>
-  </TabsPages>
-</Tabs>
-
-### Paso 7: (Opcional) Instrumente las aplicaciones de productor o consumidor [#instrument-apps]
-
-Para recopilar telemetría a nivel de aplicación de sus aplicaciones de productor y consumidor de Kafka, use el [Agente Java de OpenTelemetry](https://opentelemetry.io/docs/zero-code/java/agent/getting-started/):
-
-1. Descargue el agente Java:
-
-   ```bash
-   mkdir -p ~/otel-java
-   curl -L -o ~/otel-java/opentelemetry-javaagent.jar \
-     https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
-   ```
-
-2. Inicie su aplicación con el agente:
-
-   ```bash
-   java \
-     -javaagent:$HOME/otel-java/opentelemetry-javaagent.jar \
-     -Dotel.service.name="kafka-producer-1" \
-     -Dotel.resource.attributes="kafka.cluster.name=my-kafka-cluster" \
-     -Dotel.exporter.otlp.endpoint=http://localhost:4317 \
-     -Dotel.exporter.otlp.protocol="grpc" \
-     -Dotel.metrics.exporter="otlp" \
-     -Dotel.traces.exporter="otlp" \
-     -Dotel.logs.exporter="otlp" \
-     -Dotel.instrumentation.kafka.experimental-span-attributes="true" \
-     -Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled="true" \
-     -Dotel.instrumentation.kafka.producer-propagation.enabled="true" \
-     -Dotel.instrumentation.kafka.enabled="true" \
-     -jar your-kafka-application.jar
-   ```
-
-Reemplazar:
-
-* `kafka-producer-1` con un nombre único para su aplicación de productor o consumidor
-* `my-kafka-cluster` con el mismo nombre de clúster utilizado en la configuración de su recolector
-
-<Callout variant="tip">
-  La configuración anterior envía telemetría a un recopilador OpenTelemetry que se ejecuta en localhost:4317. Implemente su propio recopilador con esta configuración:
-
-  ```yaml
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: "0.0.0.0:4317"
-
-  exporters:
-    otlp/newrelic:
-      endpoint: https://otlp.nr-data.net:4317
-      headers:
-        api-key: "${NEW_RELIC_LICENSE_KEY}"
-      compression: gzip
-      timeout: 30s
-
-  service:
-    pipelines:
-      traces:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-      metrics:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-      logs:
-        receivers: [otlp]
-        exporters: [otlp/newrelic]
-  ```
-
-  Esto le permite personalizar el procesamiento, agregar filtros o enrutar a múltiples backends. Para otras configuraciones de endpoints, consulte [Configure su endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
-</Callout>
-
-El agente Java proporciona [instrumentación de Kafka lista para usar](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) sin cambios de código, capturando:
-
-* Latencias de solicitud
-* Métricas de rendimiento
-* Tasas de error
-* Rastreo distribuido
-
-Para una configuración avanzada, consulte la [documentación de instrumentación de Kafka](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/kafka).
-
-### Paso 6: (Opcional) Reenviar los logs del broker Kafka [#forward-logs]
-
-Para recopilar logs de agente de Kafka de sus hosts y enviarlos a New Relic, configure el receptor de log de archivos en su OpenTelemetry Collector.
-
-<CollapserGroup>
-  <Collapser id="configure-log-collection" title="Configurar la recopilación de logs">
-    Agregue el receptor de log de archivos a la configuración de su recopilador en `~/opentelemetry/otel-config.yaml` en la sección `receivers`:
+        prefix: kafka.logs.flush.
+        mapping:
+          Count:
+            metric: count
+            unit: '{flush}'
+            type: counter
+            desc: Log flush count
+          50thPercentile:
+            metric: time.50p
+            desc: Log flush time - 50th percentile
+          99thPercentile:
+            metric: time.99p
+            desc: Log flush time - 99th percentile
+    ```
+  </Step>
+
+  <Step>
+    ### Configurar el broker de Kafka [#configure-broker]
+
+    Adjunte el OpenTelemetry Java Agent a su broker de Kafka configurando la variable de entorno `KAFKA_OPTS` antes de iniciar Kafka.
+
+    **Ejemplo de broker único**:
+
+    ```bash
+    OTEL_AGENT="$HOME/opentelemetry/opentelemetry-javaagent.jar"
+    JMX_CONFIG="$HOME/opentelemetry/jmx-custom-config.yaml"
+
+    nohup env KAFKA_OPTS="-javaagent:$OTEL_AGENT \
+        -Dotel.jmx.enabled=true \
+        -Dotel.jmx.config=$JMX_CONFIG \
+        -Dotel.resource.attributes=broker.id=1,kafka.cluster.name=my-kafka-cluster \
+        -Dotel.exporter.otlp.endpoint=http://localhost:4317 \
+        -Dotel.exporter.otlp.protocol=grpc \
+        -Dotel.metrics.exporter=otlp \
+        -Dotel.metric.export.interval=30000" \
+        bin/kafka-server-start.sh config/server.properties &
+    ```
+
+    <Callout variant="important">
+      **Clústeres de múltiples brokers**: Para múltiples brokers, utilice la misma configuración con valores `broker.id` únicos (p. ej., `broker.id=1`, `broker.id=2`, `broker.id=3`) en el parámetro `-Dotel.resource.attributes` para cada broker.
+    </Callout>
+
+    <CollapserGroup>
+      <Collapser id="configuration-parameters" title="Parámetro de configuración">
+        * `nohup` - Ejecuta el broker de Kafka en segundo plano, continuando incluso si la sesión de shell finaliza
+        * `-javaagent` - Adjunta el agente Java de OpenTelemetry a la JVM del broker de Kafka
+        * `-Dotel.jmx.enabled=true` habilita la recolección de métricas JMX
+        * `-Dotel.jmx.config` especifica su archivo de configuración de métricas JMX personalizado
+        * `-Dotel.resource.attributes` agrega metadatos: `broker.id` único y `kafka.cluster.name`
+        * `-Dotel.exporter.otlp.endpoint` apunta a su OpenTelemetry Collector (predeterminado: localhost:4317)
+        * `-Dotel.exporter.otlp.protocol=grpc` utiliza el protocolo gRPC para OTLP
+        * `-Dotel.metrics.exporter=otlp` envía métricas vía OTLP
+        * `-Dotel.metric.export.interval=30000` exporta métricas cada 30 segundos
+        * `&` - Ejecuta el comando en segundo plano
+
+        **Para colectores remotos** (host diferente):
+
+        ```bash
+        -Dotel.exporter.otlp.endpoint=http://collector-host:4317
+        ```
+
+        Para ver las opciones de configuración completas, consulte la [guía de configuración del agente Java](https://opentelemetry.io/docs/zero-code/java/agent/configuration/).
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### Crear configuración del colector [#collector-config]
+
+    Cree la configuración principal de OpenTelemetry Collector en `~/opentelemetry/kafka-config.yaml`.
 
     ```yaml
     receivers:
-      # ... existing receivers (jmx/kafka_broker_1, kafkametrics/cluster) ...
+      # OTLP receiver for Kafka and JMX metrics from Java agents and application telemetry
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
 
-      # File log receiver for Kafka broker logs
-      filelog/kafka_broker_1:
-        include:
-          - ${env:HOME}/logs/kafka-broker-1.log
-        start_at: end
-        multiline:
-          line_start_pattern: '^\['
-        resource:
-          broker.id: "1"
-    ```
+      # Kafka metrics receiver for cluster-level metrics
+      kafkametrics:
+        brokers: ${env:KAFKA_BOOTSTRAP_BROKER_ADDRESSES}
+        protocol_version: 2.0.0
+        scrapers:
+          - brokers
+          - topics
+          - consumers
+        collection_interval: 30s
+        topic_match: ".*"
+        metrics:
+          kafka.topic.min_insync_replicas:
+            enabled: true
+          kafka.topic.replication_factor:
+            enabled: true
+          kafka.partition.replicas:
+            enabled: false
+          kafka.partition.oldest_offset:
+            enabled: false
+          kafka.partition.current_offset:
+            enabled: false
 
-    Agregue una canalización de logs en la sección `service`:
+    processors:
+      batch/aggregation:
+        send_batch_size: 1024
+        timeout: 30s
 
-    ```yaml
+      resourcedetection:
+        detectors: [env, ec2, system]
+        system:
+          resource_attributes:
+            host.name:
+              enabled: true
+            host.id:
+              enabled: true
+
+      resource:
+        attributes:
+          - action: insert
+            key: kafka.cluster.name
+            value: ${env:KAFKA_CLUSTER_NAME}
+
+      transform/remove_broker_id:
+        metric_statements:
+          # Remove broker.id from resource attributes for cluster-level metrics
+          - context: resource
+            statements:
+              - delete_key(attributes, "broker.id")
+
+      transform/remove_extra_attributes:
+        metric_statements:
+          - context: resource
+            statements:
+              # Delete all attributes starting with "process."
+              - delete_matching_keys(attributes, "^process\\..*")
+              # Delete all attributes starting with "telemetry."
+              - delete_matching_keys(attributes, "^telemetry\\..*")
+              - delete_key(attributes, "host.arch")
+              - delete_key(attributes, "os.description")
+
+      filter/include_cluster_metrics:
+        metrics:
+          include:
+            match_type: regexp
+            metric_names:
+              - "kafka\\.partition\\.offline"
+              - "kafka\\.(leader|unclean)\\.election\\.rate"
+              - "kafka\\.partition\\.non_preferred_leader"
+              - "kafka\\.broker\\.fenced\\.count"
+              - "kafka\\.cluster\\.partition\\.count"
+              - "kafka\\.cluster\\.topic\\.count"
+
+      filter/exclude_cluster_metrics:
+        metrics:
+          exclude:
+            match_type: regexp
+            metric_names:
+              - "kafka\\.partition\\.offline"
+              - "kafka\\.(leader|unclean)\\.election\\.rate"
+              - "kafka\\.partition\\.non_preferred_leader"
+              - "kafka\\.broker\\.fenced\\.count"
+              - "kafka\\.cluster\\.partition\\.count"
+              - "kafka\\.cluster\\.topic\\.count"
+
+      transform/des_units:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "") where description != ""
+              - set(unit, "") where unit != ""
+
+      cumulativetodelta:
+
+      metricstransform/kafka_topic_sum_aggregation:
+        transforms:
+          - include: kafka.partition.replicas_in_sync
+            action: insert
+            new_name: kafka.partition.replicas_in_sync.total
+            operations:
+              - action: aggregate_labels
+                label_set: [topic]
+                aggregation_type: sum
+          
+          - include: kafka.partition.replicas
+            action: insert
+            new_name: kafka.partition.replicas.total
+            operations:
+              - action: aggregate_labels
+                label_set: [topic]
+                aggregation_type: sum
+
+      filter/remove_partition_level_replicas:
+        metrics:
+          exclude:
+            match_type: strict
+            metric_names:
+              - kafka.partition.replicas_in_sync
+
+    exporters:
+      otlp/newrelic:
+        endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        compression: gzip
+        timeout: 30s
+
     service:
       pipelines:
-        # ... existing pipelines (metrics/brokers, metrics/cluster) ...
+        # Broker metrics pipeline (excludes cluster-level metrics)
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
+          processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, filter/remove_partition_level_replicas, batch/aggregation]
+          exporters: [otlp/newrelic]
 
-        # Logs pipeline for Kafka broker logs
-        logs/brokers:
-          receivers: [filelog/kafka_broker_1]
-          processors: [batch/aggregation, resourcedetection, resource]
-          exporters: [otlp]
+        # Cluster metrics pipeline (only cluster-level metrics, no broker.id)
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/remove_extra_attributes, transform/des_units, cumulativetodelta, batch/aggregation]
+          exporters: [otlp/newrelic]
     ```
 
-    **Notas de configuración:**
+    <CollapserGroup>
+      <Collapser id="configuration-notes" title="Notas de configuración">
+        **Aspectos destacados de la arquitectura:**
 
-    * Actualice la ruta `include` para que coincida con las ubicaciones de sus archivos de log de Kafka (por ejemplo, `/var/log/kafka/server.log`)
-    * Ajuste `broker.id` para que coincida con su identificador de broker
-    * Para varios agentes, cree receptores `filelog` separados (por ejemplo, `filelog/kafka_broker_2`, `filelog/kafka_broker_3`)
-    * El patrón `multiline` asume que los logs comienzan con `[`; ajústelo si su formato de log difiere
-    * Para obtener opciones de configuración completas y patrones avanzados, consulte la [documentación del receptor filelog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver)
+        * **Receptor OTLP**: Recibe métricas de Kafka y JMX del Agente Java de OpenTelemetry que se ejecuta en los brokers de Kafka a través de gRPC en el puerto 4317
+        * **Enfoque de dos pipelines**: Las métricas a nivel de clúster se envían sin broker.id para mapear a la entidad del clúster
+        * **Filtrado de métricas**: Separa las métricas específicas del broker de las métricas a nivel de clúster para evitar la duplicación
+        * **Agregación**: Agrega automáticamente las métricas a nivel de partición por tema
+      </Collapser>
 
-    Después de actualizar la configuración, reinicie el recopilador:
+      <Collapser id="additional-receiver-docs" title="Documentación adicional del receptor">
+        Para opciones de configuración avanzadas, consulte estas páginas de documentación del receptor:
+
+        * [Documentación del receptor OTLP](https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver) - Opciones de configuración del receptor OTLP
+        * [Documentación del receptor de métricas de Kafka](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/kafkametricsreceiver) - Configuración adicional de métricas de Kafka
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ### Establecer variables de entorno [#env-vars]
+
+    Configure las variables de entorno requeridas antes de instalar el colector:
 
     ```bash
-    sudo systemctl restart otel-collector
+    export NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY"
+    export KAFKA_CLUSTER_NAME="my-kafka-cluster"
+    export KAFKA_BOOTSTRAP_BROKER_ADDRESSES="localhost:9092"
+    export NEW_RELIC_OTLP_ENDPOINT="https://otlp.nr-data.net:4317" # US region
     ```
-  </Collapser>
 
-  <Collapser id="find-logs-in-new-relic" title="Encuentre sus logs en New Relic">
-    Los logs de su broker de Kafka aparecerán en dos lugares:
+    Reemplazar:
 
-    * **Entidades de broker**: Navegue a la entidad de broker de Kafka en New Relic para ver los logs correlacionados con ese broker específico
-    * **UI de logs**: Consulte todos los logs de Kafka utilizando la [UI de logs](/docs/logs/ui-data/use-logs-ui/) con filtros como `kafka.cluster.name = 'my-kafka-cluster'`
+    * `YOUR_LICENSE_KEY` con su clave de licencia de New Relic
+    * `my-kafka-cluster` con un nombre único para su clúster de Kafka
+    * `localhost:9092` con la(s) dirección(es) de su broker de arranque de Kafka. Para múltiples brokers, use una lista separada por comas: `broker1:9092,broker2:9092,broker3:9092`
+    * Endpoint OTLP: Usa `https://otlp.nr-data.net:4317` (región de EE. UU.) o `https://otlp.eu01.nr-data.net:4317` (región de la UE). Consulte [Configure su endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) para otras regiones
+  </Step>
 
-    También puede consultar sus logs con NRQL:
+  <Step>
+    ### Instale e inicie el recopilador [#install-start-collector]
 
-    ```sql
-    FROM Log SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
+    Elija entre NRDOT Collector (distribución de New Relic) u OpenTelemetry Collector:
+
+    <Tabs>
+      <TabsBar>
+        <TabsBarItem id="nrdot">Recopilador NRDOT</TabsBarItem> <TabsBarItem id="otel">Recopilador OpenTelemetry</TabsBarItem>
+      </TabsBar>
+
+      <TabsPages>
+        <TabsPageItem id="nrdot">
+          <Callout variant="tip">
+            **NRDOT Collector** es la distribución de New Relic de OpenTelemetry Collector con soporte de New Relic para asistencia.
+          </Callout>
+
+          **Descargue e instale el binario**
+
+          Descargue e instale el binario de NRDOT Collector para su sistema operativo host. El siguiente ejemplo es para la arquitectura linux\_amd64:
+
+          ```bash
+          # Set version and architecture
+          NRDOT_VERSION="1.9.0"
+          ARCH="amd64"  # or arm64
+
+          # Download and extract
+          curl "https://github.com/newrelic/nrdot-collector-releases/releases/download/${NRDOT_VERSION}/nrdot-collector_${NRDOT_VERSION}_linux_${ARCH}.tar.gz" \
+            --location --output collector.tar.gz
+          tar -xzf collector.tar.gz
+
+          # Move to a location in PATH (optional)
+          sudo mv nrdot-collector /usr/local/bin/
+
+          # Verify installation
+          nrdot-collector --version
+          ```
+
+          <Callout variant="important">
+            Para otros sistemas operativos y arquitecturas, visita [lanzamientos de NRDOT Collector](https://github.com/newrelic/nrdot-collector-releases/releases/latest) y descarga el binario adecuado para tu sistema.
+          </Callout>
+
+          **Iniciar el colector**
+
+          Ejecute el colector con su archivo de configuración para comenzar a monitorear:
+
+          ```bash
+          nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+          ```
+
+          El recopilador comenzará a enviar métricas de Kafka a New Relic en unos minutos.
+        </TabsPageItem>
+
+        <TabsPageItem id="otel">
+          **Descargue e instale el binario**
+
+          Descargue e instale el binario de OpenTelemetry Collector Contrib para su sistema operativo host. El siguiente ejemplo es para la arquitectura linux\_amd64:
+
+          ```bash
+          # Set version and architecture
+          # Check https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest for the latest version
+          OTEL_VERSION="<collector_version>"
+          ARCH="amd64"
+
+          # Download the collector
+          curl -L -o otelcol-contrib.tar.gz \
+            "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTEL_VERSION}/otelcol-contrib_${OTEL_VERSION}_linux_${ARCH}.tar.gz"
+
+          # Extract the binary
+          tar -xzf otelcol-contrib.tar.gz
+
+          # Move to a location in PATH (optional)
+          sudo mv otelcol-contrib /usr/local/bin/
+
+          # Verify installation
+          otelcol-contrib --version
+          ```
+
+          Para otros sistemas operativos, visite la página de [lanzamientos de OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest).
+
+          **Iniciar el colector**
+
+          Ejecute el colector con su archivo de configuración para comenzar a monitorear:
+
+          ```bash
+          otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
+          ```
+
+          El recopilador comenzará a enviar métricas de Kafka a New Relic en unos minutos.
+        </TabsPageItem>
+      </TabsPages>
+    </Tabs>
+  </Step>
+
+  <Step>
+    ### (Opcional) Instrumentar aplicaciones productoras o consumidoras [#instrument-apps]
+
+    <Callout variant="important">
+      **Soporte de lenguajes**: Actualmente, solo se admiten aplicaciones Java para la instrumentación de clientes Kafka mediante el Agente Java de OpenTelemetry.
+    </Callout>
+
+    Para recopilar telemetría a nivel de aplicación de sus aplicaciones de productor y consumidor de Kafka, utilice el Agente Java de OpenTelemetry que descargó en el [Paso 1](#download-java-agent).
+
+    Inicie su aplicación con el agente:
+
+    ```bash
+    java \
+      -javaagent:$HOME/opentelemetry/opentelemetry-javaagent.jar \
+      -Dotel.service.name="order-process-service" \
+      -Dotel.resource.attributes="kafka.cluster.name=my-kafka-cluster" \
+      -Dotel.exporter.otlp.endpoint=http://localhost:4317 \
+      -Dotel.exporter.otlp.protocol="grpc" \
+      -Dotel.metrics.exporter="otlp" \
+      -Dotel.traces.exporter="otlp" \
+      -Dotel.logs.exporter="otlp" \
+      -Dotel.instrumentation.kafka.experimental-span-attributes="true" \
+      -Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled="true" \
+      -Dotel.instrumentation.kafka.producer-propagation.enabled="true" \
+      -Dotel.instrumentation.kafka.enabled="true" \
+      -jar your-kafka-application.jar
     ```
-  </Collapser>
-</CollapserGroup>
+
+    Reemplazar:
+
+    * `order-process-service` con un nombre único para su aplicación de productor o consumidor
+    * `my-kafka-cluster` con el mismo nombre de clúster utilizado en la configuración de su recolector
+
+    <Callout variant="tip">
+      La configuración anterior envía telemetría a un OpenTelemetry Collector que se ejecuta en localhost:4317.
+
+      <CollapserGroup>
+        <Collapser id="app-collector-config" title="Configuración de ejemplo del colector">
+          ```yaml
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
+
+          exporters:
+            otlp/newrelic:
+              endpoint: https://otlp.nr-data.net:4317
+              headers:
+                api-key: "${NEW_RELIC_LICENSE_KEY}"
+              compression: gzip
+              timeout: 30s
+
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                exporters: [otlp/newrelic]
+              metrics:
+                receivers: [otlp]
+                exporters: [otlp/newrelic]
+              logs:
+                receivers: [otlp]
+                exporters: [otlp/newrelic]
+          ```
+        </Collapser>
+      </CollapserGroup>
+
+      Esto le permite personalizar el procesamiento, agregar filtros o enrutar a múltiples backends. Para otras configuraciones de endpoints, consulte [Configure su endpoint OTLP](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol).
+    </Callout>
+
+    El agente Java proporciona [instrumentación de Kafka lista para usar](https://opentelemetry.io/docs/zero-code/java/spring-boot-starter/out-of-the-box-instrumentation/) sin cambios de código, capturando:
+
+    * Latencias de solicitud
+    * Métricas de rendimiento
+    * Tasas de error
+    * Rastreo distribuido
+
+    Para una configuración avanzada, consulte la [documentación de instrumentación de Kafka](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/kafka).
+  </Step>
+
+  <Step>
+    ### (Opcional) Enviar logs del broker de Kafka [#forward-logs]
+
+    Para recopilar logs del broker de Kafka y enviarlos a New Relic, configure el receptor filelog en su OpenTelemetry Collector.
+
+    <CollapserGroup>
+      <Collapser id="configure-log-collection" title="Configurar la recopilación de logs">
+        Actualice la configuración de su recopilador en `~/opentelemetry/kafka-config.yaml` para agregar el receptor filelog.
+
+        **Agregar a la sección de receptores**:
+
+        ```yaml
+        receivers:
+          # ... existing receivers (otlp, kafkametrics) ...
+          
+          # File log receiver for Kafka broker logs
+          filelog/kafka_broker_1:
+            include:
+              - /path/to/kafka/logs/server.log
+            start_at: end
+            multiline:
+              line_start_pattern: '^\['
+            resource:
+              broker.id: "1"
+              kafka.cluster.name: ${env:KAFKA_CLUSTER_NAME}
+        ```
+
+        **Agregar pipeline de logs a la sección de servicio**:
+
+        ```yaml
+        service:
+          pipelines:
+            # ... existing pipelines (metrics/broker, metrics/cluster) ...
+            
+            # Logs pipeline for Kafka broker logs
+            logs:
+              receivers: [filelog/kafka_broker_1]
+              processors: [batch/aggregation, resourcedetection]
+              exporters: [otlp/newrelic]
+        ```
+
+        **Notas de configuración:**
+
+        * Actualice `/path/to/kafka/logs/server.log` a la ruta real del archivo de log de Kafka (por ejemplo, `~/kafka/logs/server.log`)
+        * El atributo de recurso `broker.id` correlaciona los logs con métricas y entidades específicas del broker
+        * Para múltiples brokers, cree receptores `filelog` separados (p. ej., `filelog/kafka_broker_2`, `filelog/kafka_broker_3`) con sus respectivos ID de broker
+        * El patrón `multiline` asume que los logs comienzan con `[`; ajústelo si su formato de log difiere
+        * Considere el volumen de logs y los costos de recopilación antes de habilitar el reenvío de logs
+        * Para ver las opciones de configuración completas, consulte la [documentación del receptor filelog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/filelogreceiver)
+
+        Después de actualizar la configuración, reinicie el recopilador:
+
+        ```bash
+        # If running in foreground, stop with Ctrl+C and restart
+        nrdot-collector --config ~/opentelemetry/kafka-config.yaml
+        # Or for OpenTelemetry Collector
+        otelcol-contrib --config ~/opentelemetry/kafka-config.yaml
+        ```
+      </Collapser>
+
+      <Collapser id="find-logs-in-new-relic" title="Encuentre sus logs en New Relic">
+        Los logs de su broker de Kafka aparecerán en dos lugares:
+
+        * **Entidades de broker**: Navegue a la entidad de broker de Kafka en New Relic para ver los logs correlacionados con ese broker específico
+        * **UI de logs**: Consulte todos los logs de Kafka utilizando la [UI de logs](/docs/logs/ui-data/use-logs-ui/) con filtros como `kafka.cluster.name = 'my-cluster'`
+
+        También puede consultar sus logs con NRQL:
+
+        ```sql
+        FROM Log SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+</Steps>
+
+## Avanzado: Personalizar la recolección de métricas [#customize-metrics]
+
+Puede agregar más métricas de Kafka extendiendo las reglas en `jmx-custom-config.yaml`:
+
+* Obtenga más información sobre la [sintaxis de configuración de métricas JMX de OpenTelemetry](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/jmx-metrics#jmx-metric-insight---custom-yaml-definitions)
+* Encuentre los nombres de MBean disponibles en la [documentación de monitoreo de Kafka](https://kafka.apache.org/documentation/#monitoring)
+
+Esto le permite recopilar cualquier métrica JMX expuesta por los brokers de Kafka en función de sus necesidades específicas de monitoreo.
 
 ## Encuentra tus datos [#find-data]
 
@@ -703,6 +965,59 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 ## Resolución de problemas [#troubleshooting]
 
 <CollapserGroup>
+  <Collapser id="initial-checks" title="Comprobaciones iniciales del sistema">
+    Ejecute estos comandos primero para verificar su configuración. Utilice los resultados para identificar qué sección específica de solución de problemas seguir.
+
+    **Verificar si el recopilador se está ejecutando**:
+
+    ```bash
+    # Check if port 4317 is listening (best indicator collector is running)
+    ss -tlnp | grep 4317
+
+    # Search for collector process (using bracket trick to exclude grep itself)
+    ps aux | grep "[k]afka-config.yaml"
+
+    # Or search for common collector names
+    ps aux | grep -E "[n]rdot-collector|[o]telcol"
+    ```
+
+    Si no aparecen resultados, el colector no se está ejecutando. Inícielo siguiendo el Paso 6.
+
+    **Verifique si el agente Java está adjunto a los brokers de Kafka**:
+
+    ```bash
+    # Search for Kafka processes with Java agent attached
+    ps aux | grep "[o]pentelemetry-javaagent"
+    ```
+
+    **Nota**: Este comando muestra el proceso completo de Java con el classpath, que puede ser muy extenso (más de 3 líneas por broker). Esto es lo esperado. Busque `-javaagent:/path/to/opentelemetry-javaagent.jar` en la salida.
+
+    **Probar la conectividad del puerto**:
+
+    ```bash
+    # Test Kafka bootstrap port (9092)
+    timeout 5 bash -c "</dev/tcp/localhost/9092" 2>/dev/null && echo "Port 9092 open" || echo "Port 9092 closed"
+
+    # Test OTLP collector port (4317)
+    timeout 5 bash -c "</dev/tcp/localhost/4317" 2>/dev/null && echo "Port 4317 open" || echo "Port 4317 closed"
+    ```
+
+    **Revisar los logs del colector**:
+
+    ```bash
+    # View recent collector output
+    tail -n 50 ~/logs/collector.log
+    ```
+
+    **Verificar las variables de entorno**:
+
+    ```bash
+    echo $NEW_RELIC_LICENSE_KEY
+    echo $KAFKA_CLUSTER_NAME
+    echo $KAFKA_BOOTSTRAP_BROKER_ADDRESSES
+    ```
+  </Collapser>
+
   <Collapser id="enable-debug-logging" title="Habilitar el log de depuración">
     **Habilitar los logs de depuración del recolector**: Agregue logs detallados para solucionar problemas de configuración
 
@@ -733,17 +1048,22 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
 
     service:
       pipelines:
-        metrics/brokers-cluster-topics:
-          receivers: [jmx/kafka_broker-1, kafkametrics]
+        metrics/broker:
+          receivers: [otlp, kafkametrics]
           processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+          exporters: [debug, otlp/newrelic]  # Add debug exporter
+
+        metrics/cluster:
+          receivers: [otlp]
+          processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/des_units, cumulativetodelta, batch/aggregation]
           exporters: [debug, otlp/newrelic]  # Add debug exporter
     ```
 
     Luego reinicie el recopilador y verifique los logs:
 
     ```bash
-    # If running as systemd service
-    journalctl -u otelcol-contrib -f
+    # Check collector output log
+    tail -f ~/logs/collector.log
 
     # Look for metric output in the logs
     ```
@@ -752,191 +1072,88 @@ FROM Metric SELECT * WHERE kafka.cluster.name = 'my-kafka-cluster'
   </Collapser>
 
   <Collapser id="no-data-appearing" title="No aparecen datos en New Relic">
-    **Verificar si el recopilador se está ejecutando**:
+    **Primero, ejecute las [comprobaciones iniciales del sistema](#initial-checks)** para verificar que el colector y el agente Java se estén ejecutando.
+
+    **Verifique los logs del colector en busca de errores**: Busque fallas de autenticación o conexión
 
     ```bash
-    ps aux | grep otelcol
-    ```
+    # Look for errors in collector output
+    tail -n 100 ~/logs/collector.log | grep -i "error\|fail\|refuse"
 
-    **Verifique los logs del recolector**: Busque errores de conexión o fallas de autenticación
-
-    ```bash
-    # If running as systemd service
-    journalctl -u otelcol-contrib -n 50
-
-    # If running directly, check the terminal output
-    ```
-
-    **Verifique que las variables de entorno estén configuradas**:
-
-    ```bash
-    # Check if variables are exported in your current shell
-    echo $NEW_RELIC_LICENSE_KEY
-    echo $KAFKA_BROKER_ADDRESS
-    ```
-
-    **Pruebe la conectividad de Kafka**: confirme que el recopilador puede acceder a los brokers de Kafka
-
-    ```bash
-    # Test Kafka bootstrap port (9092)
-    timeout 5 bash -c "</dev/tcp/localhost/9092" && echo "Port 9092 open" || echo "Port 9092 closed"
-
-    # Test JMX port (9999)
-    timeout 5 bash -c "</dev/tcp/localhost/9999" && echo "Port 9999 open" || echo "Port 9999 closed"
-    ```
-
-    **Verifique si el puerto JMX está escuchando**:
-
-    ```bash
-    ss -tlnp | grep :9999
-    # or
-    netstat -tlnp | grep :9999
+    # Check for OTLP receiver activity
+    tail -n 100 ~/logs/collector.log | grep -i "otlp\|metric"
     ```
   </Collapser>
 
-  <Collapser id="missing-jmx-metrics" title="Métricas JMX faltantes">
-    **Verifique si el puerto JMX es accesible**:
+  <Collapser id="missing-jmx-metrics" title="Faltan métricas JMX de los brokers de Kafka">
+    **Primero, ejecute las [comprobaciones iniciales del sistema](#initial-checks)** para verificar que el agente de Java esté adjunto a los procesos de Kafka.
+
+    **Verifique los logs del broker para la inicialización del agente Java**:
 
     ```bash
-    # Test JMX port connectivity
-    timeout 5 bash -c "</dev/tcp/localhost/9999" && echo "JMX port open" || echo "JMX port not accessible"
+    # Find Kafka log directory (common locations)
+    find ~ -name "server.log" -path "*/kafka/logs/*" 2>/dev/null
+
+    # Check the log file for OpenTelemetry messages
+    # Replace with your actual Kafka log path
+    tail -100 ~/kafka/logs/server.log 2>/dev/null | grep -i "otel\|jmx" || echo "Log file not found or no OTel messages"
+
+    # Check directory where you started Kafka for nohup.out
+    ls -lh nohup.out 2>/dev/null && tail -100 nohup.out | grep -i "otel\|jmx" || echo "No nohup.out file found"
     ```
 
-    **Verifique el proceso del broker de Kafka**: verifique que Kafka se esté ejecutando con JMX habilitado
+    **Verifique la configuración del Agente Java**: Asegúrese de que el comando de inicio coincida con el Paso 3
 
     ```bash
-    # Check Kafka process
-    ps aux | grep kafka
-
-    # Look for JMX port in the command line arguments
-    ps aux | grep jmxremote.port
+    # Check if broker was started with correct Java agent parameters
+    ps aux | grep "[o]pentelemetry-javaagent" | grep -o "Dotel\.[^ ]*"
     ```
 
-    **Verifique la configuración de JMX**: Asegúrese de que los brokers tengan JMX habilitado
+    Esto debería mostrar todos los `-Dotel.*` parámetros. Verificar:
 
-    Agregue estas opciones de JVM a la configuración de su broker de Kafka:
+    * `-Dotel.jmx.enabled=true`
+    * `-Dotel.jmx.config=<path>`
+    * `-Dotel.exporter.otlp.endpoint=http://localhost:4317`
 
-    ```bash
-    export KAFKA_JMX_OPTS="-Dcom.sun.management.jmxremote=true \
-      -Dcom.sun.management.jmxremote.authenticate=false \
-      -Dcom.sun.management.jmxremote.ssl=false \
-      -Dcom.sun.management.jmxremote.port=9999"
-    ```
-
-    **Verifique los puertos de escucha**:
+    **Verifique los logs del colector para métricas JMX entrantes**:
 
     ```bash
-    ss -tlnp | grep -E ':(9092|9999)'
+    # Look for metrics coming from brokers
+    tail -n 100 ~/logs/collector.log | grep -i "broker.id\|kafka\|jmx"
     ```
   </Collapser>
 
-  <Collapser id="high-memory-usage" title="Alto uso de memoria">
-    **Verificar el uso de memoria del recopilador**:
+  <Collapser id="otlp-connection-errors" title="Errores de conexión OTLP">
+    **Primero, ejecute las [comprobaciones iniciales del sistema](#initial-checks)** para verificar que el puerto 4317 esté escuchando y sea accesible.
+
+    **Verifique los logs del recopilador para errores específicos de OTLP**:
 
     ```bash
-    # Check current memory usage
-    ps aux | grep otelcol | grep -v grep
-
-    # Monitor in real-time
-    top -p $(pgrep -f otelcol)
+    # Look for connection refusals or timeouts
+    tail -n 100 ~/logs/collector.log | grep -i "connection refused\|context deadline exceeded\|failed to connect"
     ```
 
-    **Aumentar el intervalo de recopilación**: Reduzca la frecuencia de recopilación de métricas
+    **Verifique la configuración del receptor OTLP**: Asegúrese de que el colector escuche en `0.0.0.0:4317` (no en `127.0.0.1`)
 
     ```yaml
     receivers:
-      jmx:
-        collection_interval: 45s  # Increase from 30s to 45s (max 59s supported)
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"  # Accepts connections from any interface
     ```
 
-    **Limitar los temas monitoreados**: Concéntrese solo en los temas esenciales
-
-    ```yaml
-    receivers:
-      kafkametrics:
-        topics: ["important-topic-1", "important-topic-2"]
-    ```
-
-    **Reducir el tamaño del lote**: Optimizar la configuración del lote
-
-    ```yaml
-    processors:
-      batch:
-        timeout: 30s
-        send_batch_size: 512  # Reduce from 1024
-    ```
-  </Collapser>
-
-  <Collapser id="jmx-subprocess-error" title="Error del subproceso del receptor JMX">
-    **Mensaje de error**:
-
-    ```
-    error subprocess/subprocess.go:XXX subprocess died
-    otelcol.component.id: "jmx/kafka_broker-X"
-    error: "unexpected shutdown: exit status 1"
-    ```
-
-    **Verifique las credenciales de autenticación JMX**: Un nombre de usuario o contraseña incorrectos es una causa común de fallas de subprocesos
-
-    Verifique que la configuración de su receptor JMX incluya las credenciales correctas:
-
-    ```yaml
-    receivers:
-      jmx/kafka_broker-1:
-        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
-        endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
-        target_system: kafka
-        username: ${env:JMX_USERNAME}  # Must match Kafka JMX credentials
-        password: ${env:JMX_PASSWORD}  # Must match Kafka JMX credentials
-        collection_interval: 30s
-        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
-    ```
-
-    **Verifique que las credenciales estén configuradas**:
+    **Pruebe la conectividad remota** (si el colector y Kafka están en hosts diferentes):
 
     ```bash
-    # Check environment variables are exported
-    echo "Username: $JMX_USERNAME"
-    echo "Password: $JMX_PASSWORD"
-
-    # Test JMX connection with credentials (requires JMX client tools)
-    # If connection fails with authentication error, verify credentials match Kafka's JMX configuration
-    ```
-
-    **Verificar el intervalo de recopilación de JMX**: El receptor JMX con el scraper JMX solo admite intervalos de recopilación de hasta 59 segundos
-
-    ```yaml
-    receivers:
-      jmx/kafka_broker-1:
-        jar_path: ${env:HOME}/opentelemetry/opentelemetry-jmx-scraper.jar
-        endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
-        target_system: kafka
-        collection_interval: 59s  # Must be 59s or less, NOT 60s or higher
-        jmx_configs: ${env:HOME}/opentelemetry/kafka-jmx-config.yaml
-    ```
-
-    **Verifique que Java esté instalado**:
-
-    ```bash
-    java -version
-    ```
-
-    **Verifique que el archivo del scraper JMX exista**:
-
-    ```bash
-    ls -lh ~/opentelemetry/opentelemetry-jmx-scraper.jar
-    ```
-
-    **Verifique que el punto final JMX sea accesible**: asegúrese de que el puerto JMX sea accesible
-
-    ```bash
-    timeout 5 bash -c "</dev/tcp/localhost/9999" && echo "JMX accessible" || echo "JMX not accessible"
+    # From Kafka broker machine, test connection to collector
+    timeout 5 bash -c "</dev/tcp/COLLECTOR_HOST/4317" 2>/dev/null && echo "Can reach collector" || echo "Cannot reach collector"
     ```
   </Collapser>
 </CollapserGroup>
 
 ## Próximos pasos [#next-steps]
 
-* **[Explorar las métricas de Kafka](/docs/opentelemetry/integrations/kafka/metrics-reference)** - Vea la referencia completa de métricas
-* **[Crear dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)** - Cree visualizaciones para sus datos de Kafka
-* **[Configure alertas](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting)** - Monitoree métricas críticas como el retraso del consumidor y las particiones subreplicadas
+* [Explora las métricas de Kafka](/docs/opentelemetry/integrations/kafka/metrics-reference) - Consulta la referencia completa de métricas
+* [Crear dashboards personalizados](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards) - Construir visualizaciones para sus datos de Kafka
+* [Configurar alertas](/docs/opentelemetry/integrations/kafka/metrics-reference/#alerting) - Monitorea métricas críticas como el retraso del consumidor y las particiones subreplicadas
