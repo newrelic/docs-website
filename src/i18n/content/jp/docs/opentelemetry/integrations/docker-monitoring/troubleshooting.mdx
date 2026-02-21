@@ -1,0 +1,444 @@
+---
+title: Dockerコンテナ監視のトラブルシューティング
+tags:
+  - Integrations
+  - OpenTelemetry
+  - Docker
+  - Troubleshooting
+metaDescription: 'Troubleshoot common issues with Docker container monitoring using OpenTelemetry Collector, including collector problems, missing metrics, and configuration issues.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Docker 監視の設定で問題が発生している場合は、これらの一般的な問題と解決策を確認してください。
+
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="nrdot-troubleshooting">
+      NRDOT Collector
+    </TabsBarItem>
+
+    <TabsBarItem id="otelcol-troubleshooting">
+      OpenTelemetry Collector貢献
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="nrdot-troubleshooting">
+      <Callout variant="tip">
+        **一般的な NRDOT トラブルシューティング**: コレクターの起動の問題、設定の検証、ネットワーク接続、および NrIntegrationError 診断については、「 [NRDOT トラブルシューティング ガイド」](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/TROUBLESHOOTING.md)を参照してください。 以下の問題は Docker コンテナ監視に特有のものです。
+      </Callout>
+
+      <CollapserGroup>
+        <Collapser id="nrdot-no-metrics" title="New RelicにはDockerが表示されない">
+          **問題**: Dockerコンテナは実行されていますが、10 分以上経過してもNew RelicにDockerが表示されません。
+
+          **診断**:
+
+          ```bash
+          # Check Docker daemon accessibility
+          docker info
+
+          # Test Docker socket permissions
+          ls -l /var/run/docker.sock
+
+          # Verify containers are running
+          docker ps
+
+          # Check collector logs for Docker-specific errors
+          journalctl -u nrdot-collector | grep -i "docker"
+          ```
+
+          **解決策**:
+
+          1. **Dockerソケット アクセス**: nrdot-collector ユーザーをdockerグループに追加します。
+
+             ```bash
+             sudo usermod -aG docker nrdot-collector
+             sudo systemctl restart nrdot-collector
+             ```
+
+          2. **Docker API バージョン**: Docker API バージョンが 1.25 以上であることを確認します。
+
+             ```bash
+             docker version --format '{{.Client.APIVersion}}'
+             ```
+        </Collapser>
+
+        <Collapser id="nrdot-permission-errors" title="権限拒否エラー">
+          **問題**: Dockerソケットにアクセスすると、 Collectorログに「権限が拒否されました」と表示されます。
+
+          **診断**:
+
+          ```bash
+          # Check socket ownership and permissions
+          ls -la /var/run/docker.sock
+
+          # Check collector user membership
+          groups nrdot-collector
+
+          # Check collector logs for permission errors
+          journalctl -u nrdot-collector | grep -i "permission denied"
+          ```
+
+          **解決策**:
+
+          ```bash
+          # Option 1: Add collector user to docker group (recommended)
+          sudo usermod -aG docker nrdot-collector
+          sudo systemctl restart nrdot-collector
+
+          # Option 2: Adjust socket permissions (less secure)
+          sudo chmod 666 /var/run/docker.sock
+
+          # Option 3: Run collector as root (not recommended for production)
+          # Modify systemd service file User= setting
+          ```
+        </Collapser>
+
+        <Collapser id="nrdot-incomplete-metrics" title="コンテナ メトリクスが不完全または欠落している">
+          **問題**: 一部のコンテナではメトリクスが表示されますが、他のコンテナでは表示されないか、またはメトリクスが散発的に表示されます。
+
+          **診断**:
+
+          ```bash
+          # Check for containers with networking issues
+          docker inspect $(docker ps -q) | grep -A5 "NetworkSettings"
+
+          # Review collector configuration
+          cat /etc/nrdot-collector/docker-stats-config.yaml | grep -A10 "docker_stats:"
+
+          # Check for resource constraints
+          docker stats --no-stream
+
+          # Check collector logs for specific errors
+          journalctl -u nrdot-collector | grep -i "docker_stats"
+          ```
+
+          **解決策**:
+
+          * **コンテナの可視性**: コレクターで構成されたDockerソケット パスを介してすべてのコンテナにアクセスできることを確認します。
+          * **リソース制限**: コンテナの応答が遅い場合は、コレクターのタイムアウト値を増やします。`/etc/nrdot-collector/docker-stats-config.yaml`を編集:
+            ```yaml
+            receivers:
+              docker_stats:
+                timeout: 10s  # Increase from default 5s
+                collection_interval: 30s  # Reduce frequency if needed
+            ```
+          * **ネットワークネームスペース**: 制限されたネットワークネームスペース内の一部のコンテナはアクセスできない可能性があります
+        </Collapser>
+
+        <Collapser id="nrdot-no-logs" title="ログ収集が機能しない">
+          **問題**: ログ収集が設定されているが、コンテナログがNew Relicに表示されません。
+
+          **診断**:
+
+          ```bash
+          # Check log directory permissions
+          ls -la /var/lib/docker/containers/
+
+          # Verify receiver creator is discovering containers
+          journalctl -u nrdot-collector | grep -i "receiver.*creator\|docker.*observer"
+
+          # Check if containers have exposed ports (required for discovery)
+          docker ps --format 'table {{.Names}}\t{{.Ports}}'
+
+          # Verify logs pipeline is configured
+          journalctl -u nrdot-collector | grep -i "logs"
+          ```
+
+          **解決策**:
+
+          1. **ファイル権限**: ログディレクトリへのアクセスを許可:
+
+             ```bash
+             sudo chmod -R 755 /var/lib/docker/containers/
+             # Or add collector to docker group
+             sudo usermod -aG docker nrdot-collector
+             sudo systemctl restart nrdot-collector
+             ```
+
+          2. **コンテナ ポートの公開**: コンテナ検出のためにポートを公開します:
+
+             ```bash
+             # When running containers, expose at least one port
+             docker run -p 8080:8080 my-app:latest
+             # Or use --expose flag
+             docker run --expose 80 my-app:latest
+             ```
+
+          3. **Verify log config** : ログ コレクションの設定が含まれていることを確認します。
+
+             ```bash
+             # Check systemd override
+             sudo systemctl cat nrdot-collector | grep -A2 "ExecStart="
+             # Should point to: --config=/etc/nrdot-collector/docker-stats-config.yaml (or combined config with logs)
+             ```
+
+          4. **New Relic でのログのクエリ**:
+
+             ```sql
+             FROM Log SELECT * WHERE newrelic.source='api.logs.otlp' SINCE 1 hour ago
+             ```
+        </Collapser>
+      </CollapserGroup>
+    </TabsPageItem>
+
+    <TabsPageItem id="otelcol-troubleshooting">
+      <CollapserGroup>
+        <Collapser id="collector-issues" title="Collector起動しない、またはクラッシュする">
+          **問題**: OpenTelemetry Collector が起動に失敗するか、すぐにクラッシュします。
+
+          **診断**:
+
+          ```bash
+          # Check collector status
+          sudo systemctl status otelcol-contrib
+
+          # View recent logs
+          journalctl -u otelcol-contrib --since "1 hour ago" -f
+
+          # Test configuration syntax
+          otelcol-contrib --config-validate --config=/etc/otelcol-contrib/config.yaml
+          ```
+
+          **解決策**:
+
+          * **設定エラー**: YAML 構文エラーを修正し、すべての必須フィールドが存在することを確認します
+          * **権限がありません**: コレクターユーザーが設定ファイルへの読み取りアクセス権を持っていることを確認してください
+          * **環境変数**: `NEWRELIC_LICENSE_KEY`と`NEWRELIC_OTLP_ENDPOINT`が正しく設定されていることを確認してください
+        </Collapser>
+
+        <Collapser id="no-metrics" title="New Relicにメトリクスが表示されない">
+          **問題**: Dockerコンテナは実行されていますが、10 分以上経過してもNew Relicにメトリクスが表示されません。
+
+          **診断**:
+
+          ```bash
+          # Verify collector is running and processing data
+          journalctl -u otelcol-contrib | grep -i "docker\|error\|export"
+
+          # Check Docker daemon accessibility
+          docker info
+
+          # Test Docker socket permissions
+          ls -l /var/run/docker.sock
+
+          # Verify containers are running
+          docker ps
+          ```
+
+          **解決策**:
+
+          1. **Docker ソケット アクセス**: コレクター ユーザーを docker グループに追加します。
+
+             ```bash
+             sudo usermod -aG docker otelcol-contrib
+             sudo systemctl restart otelcol-contrib
+             ```
+
+          2. **ライセンスキーの問題**: ライセンスキーが正しく、適切な権限があることを確認してください。
+
+             ```bash
+             echo $NEWRELIC_LICENSE_KEY
+             # Should be 40-character NRAK-prefixed key for US, or EU equivalent
+             ```
+
+          3. **ネットワーク接続**: OTLP エンドポイントのアクセシビリティをテスト:
+
+             ```bash
+             # For US region
+             curl -v -H "api-key: $NEWRELIC_LICENSE_KEY" https://otlp.nr-data.net/v1/metrics
+
+             # For EU region
+             curl -v -H "api-key: $NEWRELIC_LICENSE_KEY" https://otlp.eu01.nr-data.net/v1/metrics
+             ```
+
+          4. **Docker API バージョン**: Docker API バージョンが 1.25 以上であることを確認します。
+
+             ```bash
+             docker version --format '{{.Client.APIVersion}}'
+             ```
+        </Collapser>
+
+        <Collapser id="permission-errors" title="権限拒否エラー">
+          **問題**: Dockerソケットにアクセスすると、 Collectorログに「権限が拒否されました」と表示されます。
+
+          **診断**:
+
+          ```bash
+          # Check socket ownership and permissions
+          ls -la /var/run/docker.sock
+
+          # Check collector user membership
+          groups otelcol-contrib
+          ```
+
+          **解決策**:
+
+          ```bash
+          # Option 1: Add collector user to docker group (recommended)
+          sudo usermod -aG docker otelcol-contrib
+          sudo systemctl restart otelcol-contrib
+
+          # Option 2: Adjust socket permissions (less secure)
+          sudo chmod 666 /var/run/docker.sock
+
+          # Option 3: Run collector as root (not recommended for production)
+          # Modify systemd service file User= setting
+          ```
+        </Collapser>
+
+        <Collapser id="incomplete-metrics" title="コンテナ メトリクスが不完全または欠落している">
+          **問題**: 一部のコンテナではメトリクスが表示されますが、他のコンテナでは表示されないか、またはメトリクスが散発的に表示されます。
+
+          **診断**:
+
+          ```bash
+          # Check for containers with networking issues
+          docker inspect $(docker ps -q) | grep -A5 "NetworkSettings"
+
+          # Review collector configuration
+          grep -A20 "docker_stats:" /etc/otelcol-contrib/config.yaml
+
+          # Check for resource constraints
+          docker stats --no-stream
+          ```
+
+          **解決策**:
+
+          * **コンテナの可視性**: コレクターで構成されたDockerソケット パスを介してすべてのコンテナにアクセスできることを確認します。
+
+          * **リソース制限**: コンテナの応答が遅い場合は、コレクターのタイムアウト値を増やします。
+
+            ```yaml
+            docker_stats:
+              timeout: 10s  # Increase from default 5s
+              collection_interval: 30s  # Reduce frequency if needed
+            ```
+
+          * **ネットワークネームスペース**: 制限されたネットワークネームスペース内の一部のコンテナはアクセスできない可能性があります
+        </Collapser>
+
+        <Collapser id="performance-issues" title="コレクターによるメモリまたは CPU 使用率が高い">
+          **問題**: OpenTelemetry Collector が過剰なシステム リソースを消費します。
+
+          **診断**:
+
+          ```bash
+          # Monitor collector resource usage
+          top -p $(pgrep otelcol-contrib)
+
+          # Check metric collection frequency
+          grep -A10 "docker_stats:" /etc/otelcol-contrib/config.yaml
+
+          # Count active containers
+          docker ps --format 'table {{.Names}}\t{{.Status}}' | wc -l
+          ```
+
+          **解決策**:
+
+          * **収集間隔を調整する**: コンテナ数の多い環境では監視頻度を減らします。
+
+            ```yaml
+            docker_stats:
+              collection_interval: 30s  # Increase from 15s
+            ```
+
+          * **高価なメトリクスを無効にする**: 必要がない場合は、CPU ごとのメトリクスをオフにします。
+
+            ```yaml
+            docker_stats:
+              metrics:
+                container.cpu.usage.percpu:
+                  enabled: false
+            ```
+
+          * **バッチ処理を構成する**: 環境に合わせてバッチ処理を最適化します。
+
+            ```yaml
+            batch:
+              timeout: 60s
+              send_batch_size: 1024
+            ```
+        </Collapser>
+
+        <Collapser id="no-logs" title="ログ収集が機能しない">
+          **問題**: ログ収集が設定されているが、コンテナログがNew Relicに表示されません。
+
+          **診断**:
+
+          ```bash
+          # Check log directory permissions
+          ls -la /var/lib/docker/containers/
+
+          # Verify receiver creator is discovering containers
+          journalctl -u otelcol-contrib | grep -i "receiver.*creator\|docker.*observer"
+
+          # Check if containers have exposed ports (required for discovery)
+          docker ps --format 'table {{.Names}}\t{{.Ports}}'
+          ```
+
+          **解決策**:
+
+          1. **ファイル権限**: ログディレクトリへのアクセスを許可:
+
+             ```bash
+             sudo chmod -R 755 /var/lib/docker/containers/
+             # Or add collector to docker group
+             sudo usermod -aG docker otelcol-contrib
+             ```
+
+          2. **コンテナ ポートの公開**: コンテナ検出のためにポートを公開します:
+
+             ```bash
+             # When running containers, expose at least one port
+             docker run -p 8080:8080 my-app:latest
+             # Or use --expose flag
+             docker run --expose 80 my-app:latest
+             ```
+
+          3. **オブザーバー構成**: Docker オブザーバー設定を確認します。
+
+             ```yaml
+             docker_observer:
+               endpoint: unix:///var/run/docker.sock
+               use_hostname_if_present: true
+               use_container_labels: true
+             ```
+        </Collapser>
+
+        <Collapser id="wrong-account" title="正しい New Relic アカウントにデータが表示されない">
+          **問題**: メトリクスが間違ったNew Relicアカウントまたは組織に表示されます。
+
+          **診断**:
+
+          ```bash
+          # Verify license key format and region
+          echo $NEWRELIC_LICENSE_KEY | cut -c1-4
+          # Should show "NRAK" for US accounts
+
+          # Check configured endpoint
+          echo $NEWRELIC_OTLP_ENDPOINT
+          ```
+
+          **解決策**:
+
+          * **米国のアカウント**：使用 `https://otlp.nr-data.net`
+          * **EUアカウント**：使用 `https://otlp.eu01.nr-data.net`
+          * **ライセンスキーの確認**: 正しいアカウントのライセンスキーを使用していることを確認してください
+        </Collapser>
+      </CollapserGroup>
+
+      問題が解決しない場合は、 [OpenTelemetry Collector のトラブルシューティング ガイド](https://opentelemetry.io/docs/collector/troubleshooting/)と[New Relic OpenTelemetry のドキュメント](/docs/opentelemetry/opentelemetry-introduction/)を確認してください。
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+
+## 次のステップ [#next-steps]
+
+問題が解決した場合:
+
+* **セットアップに戻る**: [Docker監視セットアップガイド](/docs/opentelemetry/integrations/docker-monitoring/self-hosted)に戻って設定を完了します
+* **データの探索**:[メトリクスリファレンスガイド](/docs/opentelemetry/integrations/docker-monitoring/metrics-reference)を使用して、Docker メトリクスをクエリして視覚化する方法を学びます
+* **アラートの設定**: 重要なコンテナのメトリクスに対して[アラート条件](/docs/alerts/create-alert/create-alert-condition/create-nrql-alert-conditions/)を使用してプロアクティブな監視を作成する

@@ -1,0 +1,579 @@
+---
+title: OpenTelemetryを使用したセルフホスト型 NGINX の監視
+metaDescription: 'Complete step-by-step guide to configure NGINX monitoring with OpenTelemetry. Includes prerequisites, configuration, environment setup, and troubleshooting.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+このガイドでは、OpenTelemetry を使用してセルフホスト型 NGINX を監視するための完全なセットアップ手順を説明します。以下の手順に従って、NGINX サーバー、 OpenTelemetry Collector 、およびNew Relicインテグレーションを設定します。
+
+/\* &lt;Calloutariant=&quot; important&quot;&gt; \*\*始める前に\*\*: \[NGINX OpenTelemetry概要]\(/docs/OpenTelemetry/nginx/nginx-otel-overview/) を参照して、監視対象とこの統合の利点を理解してください。 \*\*その他の NGINX 監視オプション:\*\* - \*\*NGINX Plus\*\* を監視するには、\[ OpenTelemetryで NGINX Plus を監視する]\(/docs/OpenTelemetry/nginx-plus/nginx-plus-otel/) を参照してください。 - \*\* Kubernetes上の NGINX を監視するには \*\*、\[ OpenTelemetryを使用してKubernetes上の NGINX を監視する]\(/docs/OpenTelemetry/nginx/nginx-otel- Kubernetes /) を参照してください。 &lt;/Callout&gt; &lt;Callout variant=&quot;tip&quot;&gt; \*\*セットアップ時間\*\*: 約 20 分 | \*\*スキルレベル\*\*: 中級 (Linux/NGINX の基本的な知識が必要) &lt;/Callout&gt; \*/
+
+## あなたが始める前に [#prerequisites]
+
+始める前に、次のものを用意してください。
+
+* [New Relicアカウント](https://newrelic.com/signup)<InlinePopover type="licenseKey" />
+
+* [HTTPスタブステータス](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html)モジュールを有効にしたNGINX
+
+* Linuxホストにインストールされ実行されている[OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/latest)
+
+* Linux ホストから次のネットワーク アクセス:
+
+  * NGINX HTTP スタブ ステータス エンドポイント
+  * New Relicの[OTLP エンドポイント](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)
+
+### 設定を確認する
+
+NGINX ステータス モジュールを確認します。
+
+```bash
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+```
+
+期待される出力: `with-http_stub_status_module`
+
+OpenTelemetry Collector を確認します。
+
+```bash
+otelcol-contrib --version
+```
+
+期待される出力: バージョン情報 (最低 v0.88.0 が必要)
+
+ネットワーク接続をテストします。
+
+```bash
+# For US region
+curl -I https://otlp.nr-data.net:443
+```
+
+期待される出力: HTTP 応答ヘッダー (接続拒否ではない)
+
+<Callout variant="tip">
+  いずれかの検証手順が失敗した場合は、続行する前に不足しているコンポーネントをインストールしてください。Collector のインストールについてサポートが必要ですか?[OpenTelemetry Collectorインストレーション ガイド](https://github.com/open-telemetry/opentelemetry-collector-contrib)を確認してください。
+</Callout>
+
+## ステップ1: NGINXスタブステータスを構成する [#configure-nginx]
+
+NGINX サーバーからメトリクスを公開するように[stub\_status](https://nginx.org/en/docs/http/ngx_http_stub_status_module.html)モジュールを構成します。 このモジュールは、OpenTelemetry が収集する基本的なパフォーマンス統計を提供します。
+
+<CollapserGroup>
+  <Collapser id="step1-add-config" title="スタブステータス設定を追加する">
+    この設定を NGINX 設定ファイル (`/etc/nginx/nginx.conf`) に追加します。
+
+    ```nginx
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location /nginx_status {
+            stub_status;
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser id="step1-apply-config" title="設定を適用する">
+    1. NGINX 設定をテストします。
+
+       ```bash
+       sudo nginx -t
+       ```
+
+    2. テストに合格したら、NGINX をリロードします。
+
+       ```bash
+       sudo nginx -s reload
+       ```
+  </Collapser>
+
+  <Collapser id="step1-verify" title="スタブステータスが機能していることを確認する">
+    エンドポイントをテストします。
+
+    ```bash
+    curl http://127.0.0.1:8080/nginx_status
+    ```
+
+    期待される出力:
+
+    ```
+    Active connections: 1
+    server accepts handled requests
+     16 16 16
+    Reading: 0 Writing: 1 Waiting: 0
+    ```
+
+    HTTP 応答をテストします。
+
+    ```bash
+    curl -I http://127.0.0.1:8080/nginx_status
+    ```
+
+    期待される出力: 次のように始まる必要があります `HTTP/1.1 200 OK`
+  </Collapser>
+</CollapserGroup>
+
+## ステップ2: OpenTelemetry Collectorを構成する [#configure-collector]
+
+NGINX スタブ ステータス エンドポイントからメトリクスを取得し、 New Relicに送信するようにOpenTelemetry Collector設定します。
+
+<CollapserGroup>
+  <Collapser id="step2-understanding" title="設定を理解する">
+    OpenTelemetry Collector は、NGINX 監視に 3 つの主要コンポーネントを使用します。
+
+    * **レシーバー**- NGINXスタブステータスエンドポイントに接続してメトリクスを収集します
+    * **プロセッサ**- 効率的な転送のためにサーバ識別とバッチメトリクスを追加します
+    * **エクスポーター**- 処理されたメトリクスを OTLP HTTP 経由で New Relic アカウントに送信します。
+  </Collapser>
+
+  <Collapser id="step2-prepare" title="環境を準備する">
+    設定を編集する前に、次の 2 つの重要な情報が必要です。
+
+    1. **スタブ ステータス URL** - ステップ 1 から (デフォルト: `http://127.0.0.1:8080/nginx_status`)
+    2. **一意のデプロイメント名**- この特定の NGINX サーバーを識別する名前を選択します (例: `production-web-01` 、 `staging-api` 、 `prod-lb-01`)
+
+    デプロイメント名は New Relic ダッシュボードに表示され、複数の NGINX インスタンスがある場合に特定のサーバーを識別するのに役立ちます。
+  </Collapser>
+
+  <Collapser id="step2-configuration" title="Collector設定の追加">
+    <Callout variant="important">
+      **編集する前に:**既存の設定をバックアップします: `sudo cp /etc/otelcol-contrib/config.yaml /etc/otelcol-contrib/config.yaml.backup`
+    </Callout>
+
+    Collector設定ファイル (通常は`/etc/otelcol-contrib/config.yaml`) を編集し、次のセクションを追加します。 すでにレシーバー、プロセッサ、またはエクスポーターのセクションがある場合は、これらを既存の設定とマージします。
+
+    **1. NGINX レシーバーを設定します。**
+
+    ```yaml
+    receivers:
+      nginx:
+        endpoint: http://127.0.0.1:8080/nginx_status  # Replace with your stub status URL
+        collection_interval: 30s                      # How often to collect metrics
+        metrics:
+          nginx.requests:
+            enabled: true
+          nginx.connections_accepted:
+            enabled: true
+          nginx.connections_handled:
+            enabled: true
+          nginx.connections_current:
+            enabled: true
+    ```
+
+    **2. メタデータとバッチ処理用のプロセッサを構成します。**
+
+    ```yaml
+    processors:
+      # Detect system information (hostname, etc.)
+      resourcedetection:
+        detectors: [system]
+        system:
+          resource_attributes:
+            host.name:
+              enabled: true
+            host.id:
+              enabled: true
+
+      # Add NGINX-specific identification
+      resource:
+        attributes:
+          - key: nginx.server.endpoint
+            value: "http://127.0.0.1:8080/nginx_status"  # Replace with your endpoint
+            action: upsert
+          - key: nginx.deployment.name
+            value: "production-web-01"                    # Replace with your server name
+            action: upsert
+
+      # Batch metrics for efficient sending
+      batch:
+        timeout: 30s
+        send_batch_size: 1024
+
+      # Transform metrics for better display in New Relic
+      transform/nginx_metrics:
+        metric_statements:
+          - context: resource
+            statements:
+              # Customize the display name as needed for your New Relic dashboard
+              - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+      
+      transform/metadata_nullify:
+        metric_statements:
+          - context: metric
+            statements:
+              - set(description, "")
+              - set(unit, "")
+    ```
+
+    **3. New Relic エクスポーターを設定します。**
+
+    ```yaml
+    exporters:
+      # Send metrics to New Relic via OTLP
+      otlp_http/newrelic:
+        endpoint: ${env:NEWRELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEWRELIC_LICENSE_KEY}
+    ```
+
+    **4. すべてをパイプラインで接続します。**
+
+    ```yaml
+    service:
+      pipelines:
+        metrics:
+          receivers: [nginx]
+          processors: [resourcedetection, resource, batch, transform/nginx_metrics, transform/metadata_nullify]
+          exporters: [otlp_http/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="step2-customize" title="設定をカスタマイズする">
+    **上記の設定で以下の値を置き換えます。**
+
+    1. **エンドポイント URL** : `http://127.0.0.1:8080/nginx_status`ステップ 1 のスタブステータス設定に合わせて変更します
+    2. **デプロイメント名**: `production-web-01`この NGINX サーバーの一意の識別子に置き換えます
+
+    **適切なデプロイメント名の選択:**
+
+    * `production-web-01` 、 `staging-api` 、または `prod-lb-01`
+    * New Relic アカウント内のすべての NGINX サーバーで一意である必要があります
+    * この名前はダッシュボードに表示され、特定のサーバーを識別するのに役立ちます
+    * フィルタリングやアラートを簡単に行えるよう、短くても意味のあるものにしましょう。
+  </Collapser>
+</CollapserGroup>
+
+## ステップ3: 認証を設定する [#set-environment]
+
+OpenTelemetry Collector が New Relic アカウントにデータを送信できるように、安全な認証を構成します。この手順では、資格情報を安全に保つために環境変数を設定します。
+
+<CollapserGroup>
+  <Collapser id="step3-get-credentials" title="New Relicの認証情報を取得する">
+    認証を構成する前に、次の 2 つの情報を収集します。
+
+    1. \*\* ライセンスキー:\*\*
+
+       * [one.newrelic.com](https://one.newrelic.com) → **API Keys**にアクセスしてください
+       * 「Ingest - License」セクションを見つけます → **Show key** \[キーを表示]をクリックします
+       * ライセンスキーをコピーします（「NRAK-...」で始まります）。
+
+    2. \*\* OTLP エンドポイント:\*\* New Relicリージョンに適切なエンドポイントを使用します。 お住まいの地域でエンドポイントとサポートされているポートの完全なリストについては[、「エンドポイント、ポート、およびプロトコルの構成」を](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol)参照してください。 例えば：
+
+       * **米国地域**: `https://otlp.nr-data.net:4318`
+       * **EU地域**: `https://otlp.eu01.nr-data.net:4318`
+  </Collapser>
+
+  <Collapser id="step3-configure-credentials" title="資格情報を設定する">
+    1. **systemd オーバーライド ディレクトリを作成します。**
+
+       ```bash
+       sudo mkdir -p /etc/systemd/system/otelcol-contrib.service.d
+       ```
+
+    2. **環境設定ファイルを作成します。**
+
+       ```bash
+       cat <<EOF | sudo tee /etc/systemd/system/otelcol-contrib.service.d/environment.conf
+       [Service]
+       Environment="NEWRELIC_OTLP_ENDPOINT=https://otlp.nr-data.net:4318"
+       Environment="NEWRELIC_LICENSE_KEY=YOUR_LICENSE_KEY_HERE"
+       EOF
+       ```
+
+    3. **資格情報を使用して設定を更新します。**
+
+       * `https://otlp.nr-data.net:4318`リージョンのエンドポイントに置き換えます
+       * `YOUR_LICENSE_KEY_HERE`上記の実際のライセンスキーに置き換えます
+  </Collapser>
+</CollapserGroup>
+
+## ステップ4: 監視を開始する [#start-monitoring]
+
+すべての設定が完了したら、OpenTelemetry Collector を起動し、データが New Relic に流れていることを確認します。
+
+<CollapserGroup>
+  <Collapser id="step4-start-collector" title="Collectorを起動する">
+    1. **設定の変更を適用します。**
+
+       ```bash
+       sudo systemctl daemon-reload
+       sudo systemctl restart otelcol-contrib.service
+       ```
+
+    2. **サービスが実行されていることを確認します。**
+
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       ```
+
+       期待される出力: `Active: active (running)` (最近のエラーなし)
+  </Collapser>
+
+  <Collapser id="step4-verify-data" title="データ収集を確認する">
+    3. **起動ログを確認します。**
+
+       ```bash
+       sudo journalctl -u otelcol-contrib.service -n 20
+       ```
+
+       **次の成功指標に注目してください。**
+
+       * ✅ `"Everything is ready. Begin running and processing data."`
+       * ✅ `"Scraping metrics"` - NGINX からの収集に成功しました
+       * ✅ `"Exporting metrics"` - New Relic への送信に成功しました
+
+    4. **テスト トラフィックを生成します (メトリクスを作成するため)。**
+
+       ```bash
+       # Make a few requests to your NGINX server
+       curl http://localhost
+       ```
+
+    5. 初期データが New Relic に表示されるまで待ってから、 [NGINX ダッシュボードにアクセスして](/docs/opentelemetry/nginx/find-and-query-your-data#find-data)データ収集を確認します。
+  </Collapser>
+</CollapserGroup>
+
+## ステップ 5: (オプション) NGINX ログを転送する [#forward-logs]
+
+メトリクスに加えて、NGINX の[アクセスとエラー ログを](https://docs.nginx.com/nginx/admin-guide/monitoring/logging/)New Relicに送信して、包括的な監視とトラブルシューティングを行うことができます。 これらのログは[コア NGINX メトリクス](/docs/opentelemetry/nginx/nginx-otel-metrics-reference#core-metrics)を補完し、詳細なリクエスト レベルのインサイトを提供します。
+
+<Callout variant="tip">
+  **次の場合は、この手順をスキップしてください。**基本的な NGINX メトリクスのみが必要で、詳細なリクエスト ログは必要ありません。
+</Callout>
+
+<CollapserGroup>
+  <Collapser id="step5-configure-nginx-logs" title="NGINXで構造化ログを構成する">
+    まず、解析やクエリが簡単に行える JSON 形式のログを出力するように NGINX を構成します。
+
+    **これを NGINX 設定 (`/etc/nginx/nginx.conf`) に追加します:**
+
+    ```nginx
+    http {
+        # JSON log format for better parsing
+        log_format json_combined escape=json
+        '{'
+          '"time":"$time_local",'
+          '"remote_addr":"$remote_addr",'
+          '"request":"$request",'
+          '"status":$status,'
+          '"bytes_sent":$body_bytes_sent,'
+          '"request_time":$request_time,'
+          '"referer":"$http_referer",'
+          '"user_agent":"$http_user_agent"'
+        '}';
+
+        # Use the JSON format for access logs
+        access_log /var/log/nginx/access.log json_combined;
+        error_log /var/log/nginx/error.log warn;
+
+        # Your existing configuration...
+    }
+    ```
+
+    **変更を適用するには、NGINX をリロードします。**
+
+    ```bash
+    sudo nginx -t && sudo nginx -s reload
+    ```
+  </Collapser>
+
+  <Collapser id="step5-configure-collector-logs" title="ログ転送用にCollectorを構成する">
+    **これらのセクションを`/etc/otelcol-contrib/config.yaml`に追加します:**
+
+    ```yaml
+    receivers:
+      # Your existing nginx receiver...
+      nginx:
+        # existing configuration...
+
+      # Add log receivers
+      filelog/nginx_access:
+        include:
+          - /var/log/nginx/access.log
+
+      filelog/nginx_error:
+        include:
+          - /var/log/nginx/error.log
+
+    processors:
+      # Your existing processors...
+
+      # Add log processor
+      transform/nginx_access_logs:
+        log_statements:
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx")
+      transform/nginx_error_logs:
+        log_statements:
+        - context: resource
+          statements:
+            - set(attributes["nginx.display.name"], Concat(["server", attributes["nginx.deployment.name"]], ":"))
+            - set(attributes["logtype"], "nginx-error")
+
+    service:
+      pipelines:
+        # Your existing metrics pipeline...
+        metrics:
+          receivers: [nginx]
+          processors: [resourcedetection, resource, batch, transform/nginx_metrics, transform/metadata_nullify]
+          exporters: [otlp_http/newrelic]
+
+        # Add log pipelines
+        logs/nginx-access:
+          receivers: [filelog/nginx_access]
+          processors: [resource, batch, transform/nginx_access_logs]
+          exporters: [otlp_http/newrelic]
+
+        logs/nginx-error:
+          receivers: [filelog/nginx_error]
+          processors: [resource, batch, transform/nginx_error_logs]
+          exporters: [otlp_http/newrelic]
+    ```
+  </Collapser>
+
+  <Collapser id="step5-permissions-apply" title="権限を設定し、構成を適用する">
+    **Collector NGINX ログ ファイルを読み取ることを許可します。**
+
+    ```bash
+    # Add collector user to adm group (has read access to logs)
+    sudo usermod -a -G adm otelcol-contrib
+
+    # Ensure log files are readable
+    sudo chmod 644 /var/log/nginx/access.log
+    sudo chmod 644 /var/log/nginx/error.log
+    ```
+
+    **Collectorを再起動します:**
+
+    ```bash
+    sudo systemctl restart otelcol-contrib.service
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## New Relic でデータを表示する [#find-data]
+
+セットアップが完了し、データが流れるようになると、 New Relicダッシュボードで NGINX メトリクスにアクセスし、カスタム アラートを作成できます。
+
+ダッシュボードへのアクセス、NRQL を使用したデータのクエリ、アラートの作成に関する詳細な手順については、 [「NGINX データの検索とクエリ」を](/docs/opentelemetry/nginx/find-and-query-your-data)参照してください。
+
+## トラブルシューティング [#troubleshooting]
+
+セットアップ中に問題が発生した場合は、このトラブルシューティング ガイドを使用して一般的な問題を診断し、解決してください。
+
+<CollapserGroup>
+  <Collapser id="troubleshoot-nginx-stub-status" title="NGINX スタブステータスの問題">
+    **404 Not Found が表示される場合:**
+
+    ```bash
+    curl http://127.0.0.1:8080/nginx_status
+    ```
+
+    **解決策:**
+
+    * ロケーションパスがリクエストURLと一致していることを確認してください
+    * 設定が正しいサーバーブロックに追加されたことを確認します
+    * `sudo nginx -T | grep -A5 nginx_status`を実行して設定が読み込まれていることを確認します
+
+    **403 Forbidden が表示される:**
+
+    * ローカルホスト（127.0.0.1）からテストしていることを確認してください
+    * NGINX 設定の`allow` / `deny`ディレクティブを確認してください
+    * 他のアクセス制限によってリクエストがブロックされていないことを確認します
+
+    **接続拒否：**
+
+    * NGINX が実行されているかどうかを確認します。 `sudo systemctl status nginx`
+    * ポート 8080 がブロックされていないことを確認します。 `sudo netstat -tlnp | grep :8080`
+    * 該当する場合はファイアウォールルールを確認してください
+  </Collapser>
+
+  <Collapser id="troubleshoot-collector-service" title="Collectorサービスが起動しません">
+    **サービスステータスを確認します:**
+
+    ```bash
+    sudo systemctl status otelcol-contrib.service
+    sudo journalctl -u otelcol-contrib.service -n 50
+    ```
+
+    **一般的な原因と修正方法:**
+
+    * **YAML 構文エラー**- インデントと構文の問題を修正
+    * **環境変数が見つかりません**- 環境ファイルに資格情報が設定されていることを確認してください
+    * **ファイル権限の問題**- 実行 `sudo chown otelcol-contrib:otelcol-contrib /etc/otelcol-contrib/config.yaml`
+    * **無効なエンドポイント URL** - NGINX エンドポイントと New Relic OTLP エンドポイントを確認してください
+    * **不足しているコンポーネント設定**- サービス パイプライン セクションで参照されているすべてのレシーバー、プロセッサ、およびエクスポーターが、上記のそれぞれの設定セクションで実際に定義されていることを確認します。
+
+    **修正後に再起動します:**
+
+    ```bash
+    sudo systemctl restart otelcol-contrib.service
+    ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-no-data" title="New Relicにデータが表示されない">
+    **ステップバイステップの診断:**
+
+    1. **NGINX スタブ ステータスが機能していることを確認します。**
+
+       ```bash
+       curl http://127.0.0.1:8080/nginx_status
+       ```
+
+       接続統計を返す必要があります。
+
+    2. **Collectorが実行中であり正常であることを確認します。**
+
+       ```bash
+       sudo systemctl status otelcol-contrib.service
+       sudo journalctl -u otelcol-contrib -n 20
+       ```
+
+       ログには、 OpenTelemetry Collectorの設定または実行時の問題がある場合の詳細なコンテキストが提供されます。
+
+    3. **NRQL でデータを確認します。**
+
+       ```sql
+       FROM Metric SELECT * WHERE nginx.deployment.name LIKE '%production%' LIMIT 1
+       ```
+  </Collapser>
+
+  <Collapser id="troubleshoot-log-forwarding" title="ログ転送の問題">
+    **New Relic にログが表示されない:**
+
+    ```bash
+    # Check Collector logs for file errors
+    sudo journalctl -u otelcol-contrib -f | grep -i "filelog\|error"
+    ```
+
+    **よくある問題:**
+
+    * **ファイル権限エラー**- コレクターを adm グループに追加: `sudo usermod -a -G adm otelcol-contrib`
+    * **ファイルパスが間違っています**- 設定内のログファイルの場所を確認してください
+  </Collapser>
+</CollapserGroup>
+
+### ヘルプを受ける
+
+問題が引き続き発生する場合:
+
+1. [New RelicのOpenTelemetryのベストプラクティス](/docs/opentelemetry/best-practices/opentelemetry-otlp/)を確認する
+2. 同様の問題については、 [New Relic Explorer Hub で](https://discuss.newrelic.com/)検索してください。
+
+## 次のステップ [#next-steps]
+
+**データについて詳しくはこちらをご覧ください:**
+
+* [NGINX データを見つけて書きます](/docs/opentelemetry/nginx/find-and-query-your-data/)- ダッシュボードにアクセスし、カスタム書き込みを作成し、アラートを設定します
+* [NGINX OpenTelemetry のメトリクスと属性のリファレンス](/docs/opentelemetry/nginx/nginx-otel-metrics-reference/)- 説明と例を含む完全なメトリクス リファレンス
+* [NGINX OpenTelemetry概要](/docs/opentelemetry/nginx/nginx-otel-overview/)- 収集されたメトリクス、プロパティ、ユースケースを理解する
+* [NGINX レシーバーのドキュメント](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/nginxreceiver/documentation.md)- 技術的な詳細と高度な設定
+
+**関連する監視を調べます:**
+
+* [OpenTelemetryを使用した NGINX Plus のモニター](/docs/opentelemetry/nginx-plus/nginx-plus-otel/)- 商用 NGINX Plus デプロイメント用
+* [Kubernetes上の NGINX を監視する](/docs/opentelemetry/nginx/nginx-otel-kubernetes/)- コンテナ化された環境の場合
