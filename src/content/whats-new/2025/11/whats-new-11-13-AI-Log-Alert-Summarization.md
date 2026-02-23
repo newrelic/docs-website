@@ -22,4 +22,4 @@ When an alert issue is triggered by log conditions, the AI summary automatically
 
 This analysis helps you understand the potential cause and resolve incidents faster by surfacing the critical information from thousands of logs in seconds.
 
-To join the preview, login to New Relic select your account in the bottom left and select Administration -> Previews and Trials. Once in the Previews page find AI Log Summarization and accept the terms to get started. 
+To join the preview, login to New Relic select your account in the bottom left and select Administration -> Previews and Trials. Once in the Previews page find AI Log Summarization and accept the terms to get started.
