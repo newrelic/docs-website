@@ -3,7 +3,7 @@ title: "Monitor your OpenTelemetry Collectors with Collector Observability"
 summary: "Get visibility into your collector health, performance, and data flow with a dedicated APM UI experience."
 releaseDate: "2026-02-24"
 learnMoreLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability-intro"
-getStartedLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability-setup"
+getStartedLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability-intro#how-to-get-started"
 ---
 
 Your [OpenTelemetry](/docs/opentelemetry/opentelemetry-introduction) collectors are critical components in your observability pipeline—and now you can monitor them just like any other service. We're excited to announce the **public preview** of **OpenTelemetry Collector Observability**, bringing native monitoring capabilities for your collectors directly into New Relic.
@@ -24,12 +24,6 @@ Your [OpenTelemetry](/docs/opentelemetry/opentelemetry-introduction) collectors 
 - **Metrics**: Component-level insights into receivers, processors, and exporters
 - **Logs**: Sampled logs with minimal overhead during normal operation
 - **Traces**: Optional experimental support for deep pipeline analysis
-
-**Golden signals for collectors**
-- **Throughput**: Data processed per second (spans, metrics, logs)
-- **Latency**: Processing time through the pipeline
-- **Errors**: Dropped, refused, or failed data
-- **Saturation**: Queue depth and resource utilization
 
 ## Why it matters
 
@@ -70,7 +64,7 @@ During public preview:
 
 ## Important considerations
 
-**Billing**: Collector Observability generates additional telemetry data (measured in GB Ingested) and the Summary page is measured in Core CCU. Both are billable during preview. See the [data costs documentation](/docs/opentelemetry/collector-observability/collector-telemetry-overhead) for details.
+**Billing**: Collector Observability generates additional telemetry data (measured in GB Ingested) and the Summary page is measured in Core CCU. Both are billable during preview.
 
 **Telemetry stability**: The collector's internal telemetry schema is not yet stable and may change during preview. Only the most recent telemetry version is supported. Backwards compatibility will be provided at General Availability.
 
@@ -78,11 +72,7 @@ During public preview:
 
 ## Learn more
 
-- **[Collector Observability overview](/docs/opentelemetry/collector-observability/collector-observability-intro)**: Complete introduction to the feature
-- **[Set up collector monitoring](/docs/opentelemetry/collector-observability/collector-observability-setup)**: Step-by-step configuration guide
-- **[Understand data costs](/docs/opentelemetry/collector-observability/collector-telemetry-overhead)**: Learn about billing and optimize overhead
-- **[View collectors in the UI](/docs/opentelemetry/collector-observability/collector-observability-ui)**: Navigate the APM experience
-- **[See configuration examples](/docs/opentelemetry/collector-observability/collector-observability-examples)**: Docker, Kubernetes, and more
+- **[Collector Observability documentation](/docs/opentelemetry/collector-observability/collector-observability-intro)**: Complete guide with setup instructions, configuration examples, and limitations
 - **[Read the blog post](https://newrelic.com/blog/how-to-relic/opentelemetry-collector-observability)**: Deep dive into the feature and use cases
 
 ## Try it now
