@@ -1,0 +1,625 @@
+---
+title: Collector observability examples
+metaDescription: Practical examples and use cases for monitoring OpenTelemetry collectors with New Relic.
+freshnessValidatedDate: 2025-02-23
+tags:
+  - OpenTelemetry
+  - Collector
+  - Examples
+  - Configuration
+---
+
+<Callout variant="caution" title="Preview">
+This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+This guide provides practical examples of monitoring OpenTelemetry collectors in different deployment scenarios.
+
+## Example 1: Simple collector with Docker Compose [#docker-compose]
+
+The simplest way to get started is with a collector running in Docker Compose with internal telemetry enabled.
+
+### Overview
+
+This example demonstrates:
+- Basic collector configuration
+- Internal telemetry setup
+- Docker Compose deployment
+
+### Complete example
+
+A minimal working example is available in the [New Relic OpenTelemetry Examples repository](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry).
+
+### Docker Compose configuration
+
+```yaml
+version: '3.8'
+
+services:
+  otel-collector:
+    image: newrelic/nrdot-collector:1.10.0
+    container_name: demo-collector
+    environment:
+      # License keys
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      - INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=${INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY}
+
+      # Collector identification
+      - INTERNAL_TELEMETRY_SERVICE_NAME=demo-collector
+
+      # OTLP endpoint (use EU endpoint if in EU region)
+      - INTERNAL_TELEMETRY_OTLP_ENDPOINT=https://otlp.nr-data.net
+
+    volumes:
+      # Main collector configuration
+      - ./config.yaml:/etc/nrdot-collector/config.yaml:ro
+
+      # Internal telemetry configuration
+      - ./internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml:ro
+
+    command:
+      - "--config=/etc/nrdot-collector/config.yaml"
+      - "--config=/etc/nrdot-collector/config-internal.yaml"
+
+    ports:
+      - "4317:4317"  # OTLP gRPC receiver
+      - "4318:4318"  # OTLP HTTP receiver
+```
+
+### Main collector configuration (config.yaml)
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp:
+    endpoint: https://otlp.nr-data.net
+    headers:
+      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+```
+
+### Running the example
+
+1. Clone the examples repository:
+   ```bash
+   git clone https://github.com/newrelic/newrelic-opentelemetry-examples.git
+   cd newrelic-opentelemetry-examples/other-examples/collector/internal-telemetry
+   ```
+
+2. Download the internal telemetry config:
+   ```bash
+   curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+     --silent --output internal-telemetry-config.yaml
+   ```
+
+3. Create a `.env` file:
+   ```bash
+   NEW_RELIC_LICENSE_KEY=your_license_key
+   INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=your_license_key
+   ```
+
+4. Start the collector:
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Verify in New Relic:
+   - Go to **APM & Services**
+   - Look for entity named `demo-collector`
+   - Confirm tag `newrelic.service.type: otel_collector`
+
+## Example 2: Kubernetes deployment with infrastructure relationships [#kubernetes-infra]
+
+This example shows how to configure collector observability in Kubernetes with proper infrastructure relationships.
+
+### Overview
+
+This example demonstrates:
+- Kubernetes DaemonSet deployment
+- Container-to-service relationships
+- Integration with New Relic Kubernetes monitoring
+
+### Prerequisites
+
+- [New Relic Kubernetes integration](/docs/kubernetes-pixie/k8s-otel/intro/) installed
+- Kubernetes cluster with collector deployed
+
+### Complete example
+
+Full example available at: [Kubernetes with container relationships](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/internal-telemetry-k8s-container-relationships)
+
+### Key configuration: Resource attributes
+
+To establish infrastructure relationships, add these resource attributes to your collector's internal telemetry:
+
+```yaml
+service:
+  telemetry:
+    resource:
+      # Required for collector UI
+      newrelic.service.type: otel_collector
+
+      # Kubernetes-specific attributes for relationships
+      k8s.cluster.name: ${K8S_CLUSTER_NAME}
+      k8s.namespace.name: ${K8S_NAMESPACE_NAME}
+      k8s.pod.name: ${K8S_POD_NAME}
+      k8s.container.name: ${K8S_CONTAINER_NAME}
+      k8s.node.name: ${K8S_NODE_NAME}
+```
+
+### DaemonSet configuration
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+      - name: otel-collector
+        image: newrelic/nrdot-collector:1.10.0
+        env:
+        # License keys
+        - name: NEW_RELIC_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-secret
+              key: license-key
+        - name: INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-secret
+              key: license-key
+
+        # Kubernetes downward API for pod information
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: K8S_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: K8S_NAMESPACE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: K8S_CONTAINER_NAME
+          value: otel-collector
+        - name: K8S_CLUSTER_NAME
+          value: production-cluster
+
+        # Collector configuration
+        - name: INTERNAL_TELEMETRY_SERVICE_NAME
+          value: prod-k8s-collector-$(K8S_NODE_NAME)
+
+        args:
+        - "--config=/etc/otel/config.yaml"
+        - "--config=/etc/otel/config-internal.yaml"
+
+        volumeMounts:
+        - name: config
+          mountPath: /etc/otel/config.yaml
+          subPath: config.yaml
+        - name: internal-config
+          mountPath: /etc/otel/config-internal.yaml
+          subPath: internal-telemetry-config.yaml
+
+      volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config
+      - name: internal-config
+        configMap:
+          name: otel-internal-telemetry-config
+```
+
+### ConfigMap for internal telemetry
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-internal-telemetry-config
+  namespace: monitoring
+data:
+  internal-telemetry-config.yaml: |
+    # Download content from:
+    # https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml
+    # And paste here, or create ConfigMap from file:
+    # kubectl create configmap otel-internal-telemetry-config \
+    #   --from-file=internal-telemetry-config.yaml \
+    #   -n monitoring
+```
+
+### Verifying infrastructure relationships
+
+After deployment:
+
+1. Wait up to 70 minutes for relationship synthesis
+2. Go to **APM & Services** > your collector entity
+3. Look for the **Infrastructure** section showing:
+   - Kubernetes pod information
+   - Container metrics
+   - Node details
+
+<Callout variant="tip">
+Use unique service names per node by including the node name: `prod-k8s-collector-$(K8S_NODE_NAME)`. This helps you identify which collector is on which node.
+</Callout>
+
+## Example 3: Gateway collector with multiple pipelines [#gateway]
+
+This example demonstrates a gateway collector with multiple data pipelines and optimized settings.
+
+### Overview
+
+This example demonstrates:
+- Gateway deployment pattern
+- Multiple data pipelines
+- Production-ready configuration
+- Custom metric detail levels
+
+### Configuration
+
+```yaml
+# Internal telemetry environment variables
+INTERNAL_TELEMETRY_SERVICE_NAME=prod-gateway-collector
+INTERNAL_TELEMETRY_METRIC_LEVEL=detailed
+INTERNAL_TELEMETRY_LOG_LEVEL=info
+INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=your_license_key
+```
+
+### Gateway collector config (config.yaml)
+
+```yaml
+receivers:
+  # Receive from multiple sources
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Prometheus scraping
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'kubernetes-pods'
+          kubernetes_sd_configs:
+            - role: pod
+
+processors:
+  # Batch for efficiency
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Add attributes
+  resource:
+    attributes:
+      - key: environment
+        value: production
+        action: upsert
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Filter out noisy data
+  filter:
+    metrics:
+      exclude:
+        match_type: regexp
+        metric_names:
+          - ^go\..*
+          - ^process\..*
+
+exporters:
+  # Export to New Relic
+  otlphttp:
+    endpoint: https://otlp.nr-data.net
+    headers:
+      api-key: ${NEW_RELIC_LICENSE_KEY}
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]
+
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, filter, resource, batch]
+      exporters: [otlphttp]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]
+```
+
+### Monitoring multiple collectors
+
+Dashboard query to track all gateway collectors:
+
+```sql
+SELECT
+  latest(otelcol.process.uptime) / 3600 AS 'Uptime (hours)',
+  rate(sum(otelcol.receiver.accepted_spans), 1 second) AS 'Throughput',
+  latest(otelcol.exporter.queue_size) AS 'Queue Depth'
+FROM Metric
+WHERE newrelic.service.type = 'otel_collector'
+AND service.name LIKE 'prod-gateway-collector%'
+FACET service.name
+```
+
+## Example 4: Host collector with cost optimization [#host-collector]
+
+This example shows a host-based collector with optimized settings for cost control.
+
+### Overview
+
+This example demonstrates:
+- Host deployment (non-containerized)
+- Reduced metric detail level
+- Warn-level logging
+- Cost-conscious configuration
+
+### Systemd service configuration
+
+```ini
+[Unit]
+Description=OpenTelemetry Collector
+After=network.target
+
+[Service]
+Type=simple
+User=otelcol
+Group=otelcol
+
+Environment="NEW_RELIC_LICENSE_KEY=your_license_key"
+Environment="INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=your_license_key"
+Environment="INTERNAL_TELEMETRY_SERVICE_NAME=host-collector-%H"
+Environment="INTERNAL_TELEMETRY_METRIC_LEVEL=normal"
+Environment="INTERNAL_TELEMETRY_LOG_LEVEL=warn"
+
+ExecStart=/usr/local/bin/nrdot-collector \
+  --config=/etc/nrdot-collector/config.yaml \
+  --config=/etc/nrdot-collector/config-internal.yaml
+
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Cost optimization settings
+
+```bash
+# Reduce metric detail
+INTERNAL_TELEMETRY_METRIC_LEVEL=normal
+
+# Only log warnings and errors
+INTERNAL_TELEMETRY_LOG_LEVEL=warn
+
+# Disable traces (default, but explicit)
+INTERNAL_TELEMETRY_TRACE_LEVEL=none
+
+# Use hostname in service name for identification
+INTERNAL_TELEMETRY_SERVICE_NAME=host-collector-$(hostname)
+```
+
+### Host relationship configuration
+
+For host-to-service relationships, ensure host monitoring is installed and add:
+
+```yaml
+service:
+  telemetry:
+    resource:
+      newrelic.service.type: otel_collector
+      host.name: ${HOSTNAME}
+      host.id: ${HOST_ID}  # From infrastructure agent
+```
+
+## Example 5: Multi-environment setup [#multi-environment]
+
+This example demonstrates managing collectors across multiple environments with separate cost tracking.
+
+### Overview
+
+This example demonstrates:
+- Development, staging, and production collectors
+- Separate license keys per environment
+- Environment-specific naming
+- Cost tracking by environment
+
+### Environment-specific configurations
+
+```bash
+# Development
+INTERNAL_TELEMETRY_SERVICE_NAME=dev-collector
+INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=dev_license_key
+INTERNAL_TELEMETRY_METRIC_LEVEL=normal
+INTERNAL_TELEMETRY_LOG_LEVEL=debug  # More verbose for dev
+
+# Staging
+INTERNAL_TELEMETRY_SERVICE_NAME=staging-collector
+INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=staging_license_key
+INTERNAL_TELEMETRY_METRIC_LEVEL=detailed
+INTERNAL_TELEMETRY_LOG_LEVEL=info
+
+# Production
+INTERNAL_TELEMETRY_SERVICE_NAME=prod-collector
+INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY=prod_license_key
+INTERNAL_TELEMETRY_METRIC_LEVEL=detailed
+INTERNAL_TELEMETRY_LOG_LEVEL=warn  # Less verbose for prod
+```
+
+### Terraform example
+
+```hcl
+locals {
+  environments = {
+    dev = {
+      service_name = "dev-collector"
+      metric_level = "normal"
+      log_level    = "debug"
+    }
+    staging = {
+      service_name = "staging-collector"
+      metric_level = "detailed"
+      log_level    = "info"
+    }
+    prod = {
+      service_name = "prod-collector"
+      metric_level = "detailed"
+      log_level    = "warn"
+    }
+  }
+}
+
+resource "kubernetes_deployment" "otel_collector" {
+  for_each = local.environments
+
+  metadata {
+    name      = "otel-collector-${each.key}"
+    namespace = each.key
+  }
+
+  spec {
+    template {
+      spec {
+        container {
+          name  = "otel-collector"
+          image = "newrelic/nrdot-collector:1.10.0"
+
+          env {
+            name  = "INTERNAL_TELEMETRY_SERVICE_NAME"
+            value = each.value.service_name
+          }
+
+          env {
+            name  = "INTERNAL_TELEMETRY_METRIC_LEVEL"
+            value = each.value.metric_level
+          }
+
+          env {
+            name  = "INTERNAL_TELEMETRY_LOG_LEVEL"
+            value = each.value.log_level
+          }
+
+          env {
+            name = "INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = "newrelic-${each.key}"
+                key  = "license-key"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Cost tracking query
+
+```sql
+SELECT bytecountestimate() / 1e9 AS 'GB Ingested'
+FROM Metric, Log
+WHERE newrelic.service.type = 'otel_collector'
+FACET
+  CASES(
+    WHERE service.name LIKE 'dev-%' AS 'Development',
+    WHERE service.name LIKE 'staging-%' AS 'Staging',
+    WHERE service.name LIKE 'prod-%' AS 'Production'
+  )
+SINCE 1 month ago
+```
+
+## Best practices from examples [#best-practices]
+
+### Naming conventions
+
+- Include environment in service names: `prod-gateway-collector`
+- Include location/node info: `prod-k8s-collector-node-01`
+- Use consistent prefixes for filtering: `prod-*`, `staging-*`
+
+### Cost optimization
+
+- Start with `detailed` metrics to establish baseline
+- Reduce to `normal` for stable collectors
+- Use `warn` log level in production
+- Keep traces disabled unless specifically needed
+- Use separate license keys to track collector observability costs
+
+### Infrastructure relationships
+
+- Always include resource attributes for context
+- Use Kubernetes downward API for dynamic values
+- Allow up to 70 minutes for relationships to form
+- Verify infrastructure monitoring is active
+
+### Configuration management
+
+- Store internal telemetry config in version control
+- Use environment variables for secrets
+- Mount configs as read-only volumes
+- Document configuration merge order
+
+## What's next? [#whats-next]
+
+- [View collectors in the UI](/docs/opentelemetry/collector-observability/collector-observability-ui)
+- [Understand data costs](/docs/opentelemetry/collector-observability/collector-telemetry-overhead)
+- [Review setup instructions](/docs/opentelemetry/collector-observability/collector-observability-setup)
