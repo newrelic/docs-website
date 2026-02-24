@@ -2,8 +2,8 @@
 title: "Monitor your OpenTelemetry Collectors with Collector Observability"
 summary: "Get visibility into your collector health, performance, and data flow with a dedicated APM UI experience."
 releaseDate: "2026-02-24"
-learnMoreLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability-intro"
-getStartedLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability-intro#how-to-get-started"
+learnMoreLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability"
+getStartedLink: "https://docs.newrelic.com/docs/opentelemetry/collector-observability/collector-observability#setup"
 ---
 
 Your [OpenTelemetry](/docs/opentelemetry/opentelemetry-introduction) collectors are critical components in your observability pipeline—and now you can monitor them just like any other service. We're excited to announce the **public preview** of **OpenTelemetry Collector Observability**, bringing native monitoring capabilities for your collectors directly into New Relic.
@@ -44,18 +44,14 @@ Your [OpenTelemetry](/docs/opentelemetry/opentelemetry-introduction) collectors 
 
 ## Get started
 
-Collector Observability requires **[NRDOT Collector](/docs/opentelemetry/nrdot/nrdot-collector) version 1.10.0 or later** and is enabled through a simple configuration:
-
-1. **Download the internal telemetry configuration** from the [NRDOT releases repository](https://github.com/newrelic/nrdot-collector-releases)
-2. **Configure environment variables** for your New Relic license key and collector name
-3. **Merge the configuration** with your existing collector setup using `--config` arguments
-4. **Add the entity tag** `newrelic.service.type: otel_collector` to opt into the UI experience
+Collector Observability is enabled through a simple configuration process. For complete setup instructions, see the [Collector Observability documentation](/docs/opentelemetry/collector-observability/collector-observability#setup).
 
 Your collectors will then appear in **[APM & Services](/docs/apm/new-relic-apm/getting-started/introduction-apm/)** with a tailored monitoring experience.
 
 ## What's included in the preview
 
 During public preview:
+
 - ✅ **Summary page** with health and performance metrics (billable as Core CCU)
 - ✅ **Process page** with system resource metrics (not billable)
 - ✅ **HTTP/RPC page** with network communication metrics (not billable)
@@ -72,7 +68,7 @@ During public preview:
 
 ## Learn more
 
-- **[Collector Observability documentation](/docs/opentelemetry/collector-observability/collector-observability-intro)**: Complete guide with setup instructions, configuration examples, and limitations
+- **[Collector Observability documentation](/docs/opentelemetry/collector-observability/collector-observability)**: Complete guide with setup instructions, configuration examples, and limitations
 - **[Read the blog post](https://newrelic.com/blog/how-to-relic/opentelemetry-collector-observability)**: Deep dive into the feature and use cases
 
 ## Try it now

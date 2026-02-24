@@ -1,0 +1,195 @@
+---
+title: OpenTelemetry Collector monitoring
+metaDescription: Monitor your collector with all the native telemetry it provides using a dedicated APM UI.
+freshnessValidatedDate: 2025-05-27
+tags:
+  - OpenTelemetry
+  - Collector
+  - Monitoring
+  - Observability
+  - APM
+---
+
+<Callout variant="caution" title="Preview">
+We're still working on this feature, but we'd love for you to try it out!
+
+This feature is currently provided as part of a preview pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/).
+</Callout>
+
+The [OpenTelemetry collector](https://opentelemetry.io/docs/collector/) is a critical component of the OpenTelemetry ecosystem, and it is integral to any adoption of OTel if your setup has reached a certain complexity. However, when it fails or misbehaves, it can cause a blackout of observability data, permanent data loss, or distorted insights. Thankfully, the collector is also capable of [reporting telemetry about itself](https://opentelemetry.io/docs/collector/internal-telemetry/) but the standard New Relic APM UI is not tailored towards the streaming-based work that the collector performs. In order to address this shortcoming, we built an APM experience that exposes the internal telemetry emitted by the collector in a way that allows you to see with one glance how the various components of your collector are performing.
+
+## Set up collector monitoring [#setup]
+
+<Callout variant="important" title="Billing">
+Your use of Collector Observability is billable during preview in accordance with your Order as applicable to the pricing model associated with your Account and as defined below.
+
+The costs associated with this feature are determined by the following factors, as applicable to the pricing model associated with your Account:
+
+**Core Compute**: The Summary page, measured in Core CCU is billable during preview. The Process page and HTTP/RPC page are not billable during preview.
+
+**Data Ingest**: Additional data from the internal telemetry, measured in GB Ingested is billable during preview.
+
+If this feature becomes generally available, your use will be billable in accordance with your Order.
+</Callout>
+
+### Enable internal telemetry for collector [#enable-telemetry]
+
+By default, the collector does not emit its [internal telemetry](https://opentelemetry.io/docs/collector/internal-telemetry/), so we need to enable it.
+
+#### Download the configuration file
+
+```bash
+curl -L https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml \
+  --silent --output internal-telemetry-config.yaml
+```
+
+#### Set environment variables
+
+- `INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY`: Ingest license key for the account internal telemetry should be sent to. This key can be different than the key the collector uses to send regular data to New Relic, i.e. `NEW_RELIC_LICENSE_KEY` in the example below.
+- `INTERNAL_TELEMETRY_SERVICE_NAME`: Defaults to `otel-collector`, determines entity name in New Relic
+- `INTERNAL_TELEMETRY_OTLP_ENDPOINT`: Defaults to US `https://otlp.nr-data.net`; if you are in EU, set this to `https://otlp.eu01.nr-data.net`
+
+#### Run collector with merged configuration
+
+In addition to the normal configuration for components and pipelines (in the following example `--config=/etc/nrdot-collector/config.yaml`), add a second `--config` argument which will merge both configurations:
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  -v './internal-telemetry-config.yaml:/etc/nrdot-collector/config-internal.yaml' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='/etc/nrdot-collector/config-internal.yaml'
+```
+
+<Callout variant="important">
+The order of the `--config` arguments matters if you have preexisting configuration under the `service::telemetry` node.
+The collector uses a 'last one wins' strategy on a node level when merging configurations and certain parts of the config (e.g. lists, leaf nodes) cannot be merged, so they get overwritten by the last `--config` argument.
+</Callout>
+
+#### Alternative (not recommended for production)
+
+We do not recommend this for reliability reasons, but for testing purposes you can also reference the configuration directly and the collector will pull it on startup:
+
+```bash
+docker run \
+  -e INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY='...' \
+  -e NEW_RELIC_LICENSE_KEY='...' \
+  -e INTERNAL_TELEMETRY_SERVICE_NAME='demo-collector' \
+  newrelic/nrdot-collector:1.10.0 --config=/etc/nrdot-collector/config.yaml \
+  --config='https://raw.githubusercontent.com/newrelic/nrdot-collector-releases/refs/tags/1.10.0/examples/internal-telemetry-config.yaml'
+```
+
+### Add entity tag [#add-tag]
+
+The tag `newrelic.service.type: otel_collector` acts as an opt-in to the experience at the UI level. Choose one of the following options:
+
+- **Option 1**: Use the example configuration provided above which contains the configuration of Option 2.
+- **Option 2**: Add argument `--config=yaml:service::telemetry::resource::newrelic.service.type: otel_collector` to collector. This adds the attribute as a resource attribute and New Relic does the tagging for you on ingest. If you remove this option, it will take one day for the tag to expire.
+- **Option 3**: Add tag via APM UI (top of the page, next to entity name). You can remove this via the UI as well to toggle back.
+
+### Customizing configuration [#customize]
+
+The default configuration exposes additional environment variables of the form `INTERNAL_TELEMETRY_...` to tweak common options such as detail levels and sampling. Refer to the [configuration itself](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) for more details.
+
+## View your collector in the UI [#view-ui]
+
+### Explore the internal telemetry in the APM UI [#explore-ui]
+
+To view your collector's internal telemetry, navigate to **APM & Services > Services - OpenTelemetry > your_collector_name** to explore the collector's entity.
+
+Depending on the components your collector leverages, some of the charts might not be populated, e.g. if you do not receive or export OTLP data via gRPC, RPC charts will be empty.
+
+### Summary Page [#summary-page]
+
+The Summary page provides an overview of your collector's health and performance:
+
+- Overall collector health metrics
+- Charts for receivers, processors, exporters and batching (requires [batchprocessor](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/batchprocessor)) behavior
+- Dedicated chart for [memorylimiter](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.128.0/processor/memorylimiterprocessor) due to its unique failure mode
+- Infrastructure relationships and metrics (if configured, see [configuration examples](#examples))
+
+### Process Page [#process-page]
+
+The Process page shows system-level resource metrics for your collector:
+
+- CPU utilization and trends
+- Memory usage and patterns
+- Process-level performance indicators
+
+### HTTP/RPC Page [#http-rpc-page]
+
+The HTTP/RPC page displays network communication metrics:
+
+- HTTP client and server request metrics
+- gRPC communication statistics
+- Network latency and error rates
+
+Note: These charts are only populated if your collector uses components that communicate via HTTP or gRPC (e.g., OTLP receivers/exporters).
+
+## Configuration examples [#examples]
+
+For detailed configuration examples and customization options, refer to the [internal telemetry configuration](https://github.com/newrelic/nrdot-collector-releases/blob/main/examples/internal-telemetry-config.yaml) in the NRDOT Collector releases repository.
+
+The configuration exposes environment variables of the form `INTERNAL_TELEMETRY_...` to customize options such as detail levels and sampling.
+
+### Deployment examples [#deployment-examples]
+
+For real-world deployment scenarios, see these example configurations:
+
+- **[Kubernetes deployment](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector)**: Example of running a collector in Kubernetes with internal telemetry enabled
+- **[Docker deployment](https://github.com/newrelic/nrdot-collector-releases/tree/main/examples)**: Example Docker configurations for various collector setups with monitoring enabled
+
+## Billing and data overhead [#billing-overhead]
+
+### Data generated [#data-generated]
+
+Collector Observability generates additional telemetry data including:
+
+- **Metrics**: Component-level insights into receivers, processors, and exporters
+- **Logs**: Sampled logs with minimal overhead during normal operation
+- **Traces**: Optional experimental support for deep pipeline analysis
+
+### Expected data volume [#expected-volume]
+
+The amount of data generated depends on your collector's configuration:
+
+- **Baseline metrics**: A collector with standard components (receiver, processor, exporter) generates approximately **1-2 KB/minute** of metric data
+- **Logs**: With default sampling (1% of log statements), expect **0.5-1 KB/minute** during normal operation. During errors or high verbosity, this can increase significantly
+- **Traces** (optional): If enabled, expect **5-10 KB/minute** depending on pipeline complexity
+
+For a typical collector processing telemetry 24/7:
+- **Monthly metric ingest**: ~2.5-5 MB
+- **Monthly log ingest**: ~1.5-3 MB (normal operation)
+- **Monthly trace ingest**: ~10-20 MB (if enabled)
+
+### Controlling data overhead [#controlling-overhead]
+
+You can adjust telemetry generation using environment variables:
+
+- **`INTERNAL_TELEMETRY_METRICS_LEVEL`**: Set to `none` to disable metrics, `normal` (default), or `detailed`
+- **`INTERNAL_TELEMETRY_LOGS_LEVEL`**: Set to `info` (default), `warn`, or `error` to reduce log volume
+- **`INTERNAL_TELEMETRY_LOGS_SAMPLING`**: Adjust sampling rate (default: 1%)
+- **`INTERNAL_TELEMETRY_TRACES_ENABLED`**: Set to `false` to disable traces (disabled by default)
+
+For configuration details, see the [customizing configuration](#customize) section above.
+
+## Limitations [#limitations]
+
+- **Certain common APM features** do not seamlessly translate to the Collector and its stream-processing nature and have been hidden from the Summary page and side navigation. We'll be taking a look at each of them for General Availability to determine if/how we can best integrate them. Examples are:
+  - Apdex score
+  - Meaningful `apm.%` metrics
+  - Error Rate
+  - Transactions
+
+- **Collector telemetry is not stable yet**:
+  - The latest supported version of telemetry emitted by collector components is the component version in our NRDOT distributions (see [manifest](https://github.com/newrelic/nrdot-collector-releases/blob/main/distributions/nrdot-collector/manifest.yaml) for reference).
+  - If the emitted telemetry changes during Public Preview, we reserve the right to only support the most recent version, e.g. support `http.client.request.duration` (collector version >=0.128.0, NRDOT version >=1.2.0, nr-k8s-otel-collector >=0.8.37) but not `http.request.duration`.
+  - With General Availability we will start providing backwards compatibility if metric names continue to change.
+
+- **Export format requirements**: Collector UI expects telemetry in the shape as exported by the `otlpexporter`. In particular, it does not support metrics exported via prometheus, e.g. `http.client.request.duration` is supported, `http_client_request_duration` is not supported.
+
+- **Custom component metrics**: Internal telemetry that is not listed in the [internal telemetry documentation](https://opentelemetry.io/docs/collector/internal-telemetry/) is not supported yet. Custom or [contrib components](https://github.com/open-telemetry/opentelemetry-collector-contrib) emit those standard metrics but they can also define metrics separate from that and we're still working on a way that would allow you to get insights from those as well without having to write custom dashboards.
+
+- **Golden metrics for OTel containers**: Not fully supported yet which means some columns in the infrastructure panel might not be populated for containers.
