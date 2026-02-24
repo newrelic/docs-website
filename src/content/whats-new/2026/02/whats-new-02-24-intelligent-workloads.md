@@ -2,8 +2,8 @@
 title: "Intelligent Workloads: Bridge the gap between system health and business outcomes"
 summary: "Intelligent Workloads redefines observability by linking your underlying technical architecture directly to the business metrics that matter most. Automate service grouping, leverage AI for root-cause analysis, and finally see how system performance impacts your bottom line."
 releaseDate: "2026-02-24"
-learnMoreLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster/"
-getStartedLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/use-workloads/"
+learnMoreLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/intelligent-workload-ui/"
+getStartedLink: "https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/create-intelligent-workload/"
 ---
 
 In today's rapidly evolving, AI-driven cloud environments, a simple "system up" indicator on a dashboard can be misleading. SREs and DevOps teams are swimming in telemetry data, yet they often lack the context needed to answer the most critical question: Is this technical issue actually impacting our customers or revenue? A minor database latency spike might seem harmless in a vacuum, but if it is quietly blocking user registrations or draining transaction volume, the cost is immense.
@@ -37,5 +37,5 @@ Explore the [Intelligent Workloads Documentation](https://docs.newrelic.com/docs
 
 ## Additional resources
 
-- [Intelligent Workloads Overview](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster/)
-- [Setting up Business KPIs in New Relic](https://docs.newrelic.com/docs/service-level-management/intro-slm/)
+- [Intelligent Workloads Overview](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/create-intelligent-workload/)
+- [Setting up Business KPIs in New Relic](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/workloads/intelligent-workload-kpis/)
