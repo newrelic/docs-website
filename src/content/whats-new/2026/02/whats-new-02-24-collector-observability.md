@@ -19,10 +19,10 @@ Start leveraging OpenTelemetry seamlessly within New Relic’s unified platform 
 ### Find out more:
 - [Learn More](https://docs.newrelic.com/docs/opentelemetry/get-started/TBD/)
 - [Blog](https://newrelic.com/blog/news/first-class-opentelemetry-break-free-without-breaking-workflows)
-- [Sigh up here](https://newrelic.com/platform/product-preview)
+- [Sign up here](https://newrelic.com/platform/product-preview)
 
 <img
   title="Image of the Collector Observability experience"
   alt="Image of the Collector Observability  experience"
-  src="/images/collector-observability.webp"
+  src="/images/collector_observability.webp"
 />
